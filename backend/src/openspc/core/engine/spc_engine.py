@@ -202,8 +202,12 @@ class SPCEngine:
         boundaries = await self._get_zone_boundaries(characteristic_id, char)
 
         # Add sample to rolling window (this also classifies it)
+        # Pass measurements directly to avoid lazy loading issues in async context
         window_sample = await self._window_manager.add_sample(
-            char_id=characteristic_id, sample=sample, boundaries=boundaries
+            char_id=characteristic_id,
+            sample=sample,
+            boundaries=boundaries,
+            measurement_values=measurements,
         )
 
         # Step 5: Evaluate enabled Nelson Rules

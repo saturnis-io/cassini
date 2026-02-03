@@ -109,9 +109,9 @@ export function InputModal() {
                     className={cn(
                       'w-full mt-1 px-3 py-2 border rounded-md text-lg font-mono',
                       'focus:outline-none focus:ring-2 focus:ring-primary',
-                      status === 'ok' && 'border-green-500 bg-green-50 dark:bg-green-950',
-                      status === 'warning' && 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950',
-                      status === 'error' && 'border-destructive bg-destructive/10'
+                      status === 'ok' && 'border-green-500 bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-100',
+                      status === 'warning' && 'border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-950 dark:text-yellow-100',
+                      status === 'error' && 'border-destructive bg-destructive/10 text-destructive'
                     )}
                     placeholder="Enter value..."
                     autoFocus={index === 0}

@@ -414,7 +414,8 @@ class RollingWindowManager:
         self,
         char_id: int,
         sample: "Sample",
-        boundaries: ZoneBoundaries
+        boundaries: ZoneBoundaries,
+        measurement_values: list[float] | None = None,
     ) -> WindowSample:
         """Add a new sample to the window.
 
@@ -422,6 +423,8 @@ class RollingWindowManager:
             char_id: Characteristic ID
             sample: Database Sample object
             boundaries: Zone boundaries for classification
+            measurement_values: Optional pre-loaded measurement values to avoid
+                lazy loading. If not provided, will access sample.measurements.
 
         Returns:
             WindowSample that was added
@@ -440,8 +443,13 @@ class RollingWindowManager:
             if not window.is_ready:
                 window.set_boundaries(boundaries)
 
+            # Use provided values or extract from sample (may cause lazy loading)
+            if measurement_values is not None:
+                values = measurement_values
+            else:
+                values = [m.value for m in sample.measurements]
+
             # Calculate sample value (mean of measurements)
-            values = [m.value for m in sample.measurements]
             value = sum(values) / len(values) if values else 0.0
 
             # Calculate range for subgroups (n > 1)

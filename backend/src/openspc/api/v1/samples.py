@@ -213,6 +213,7 @@ async def list_samples(
             select(Sample)
             .options(selectinload(Sample.measurements))
             .order_by(Sample.timestamp)
+            .execution_options(populate_existing=True)
         )
 
         if start_date is not None:

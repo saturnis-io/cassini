@@ -38,6 +38,7 @@ class SampleRepository(BaseRepository[Sample]):
             select(Sample)
             .options(selectinload(Sample.measurements))
             .where(Sample.id == id)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -73,6 +74,7 @@ class SampleRepository(BaseRepository[Sample]):
             .where(Sample.char_id == char_id)
             .order_by(Sample.timestamp.desc())
             .limit(window_size)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
         )
 
         if exclude_excluded:
@@ -120,6 +122,7 @@ class SampleRepository(BaseRepository[Sample]):
             select(Sample)
             .options(selectinload(Sample.measurements))
             .where(Sample.char_id == char_id)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
         )
 
         if start_date is not None:
