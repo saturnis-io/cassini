@@ -10,39 +10,30 @@ export interface HierarchyNode {
 
 // Characteristic types
 export type ProviderType = 'MANUAL' | 'TAG'
-export type DataType = 'VARIABLE' | 'ATTRIBUTE'
 
 export interface Characteristic {
   id: number
   name: string
   hierarchy_id: number
+  description: string | null
   provider_type: ProviderType
-  data_type: DataType
   subgroup_size: number
-  target: number | null
+  target_value: number | null
   usl: number | null
   lsl: number | null
   ucl: number | null
   lcl: number | null
-  center_line: number | null
-  sigma: number | null
-  sample_interval_minutes: number | null
-  enabled_rules: number[]
-  in_control: boolean
-  last_sample_at: string | null
-  created_at: string
-  updated_at: string
+  mqtt_topic: string | null
+  trigger_tag: string | null
 }
 
-export interface CharacteristicSummary {
-  id: number
-  name: string
-  hierarchy_id: number
-  hierarchy_path: string
-  provider_type: ProviderType
-  in_control: boolean
-  last_sample_at: string | null
-  unacknowledged_violations: number
+// For list views - currently same as Characteristic since backend doesn't have summary endpoint
+export interface CharacteristicSummary extends Characteristic {
+  // These fields will be computed client-side for now
+  hierarchy_path?: string
+  in_control?: boolean
+  last_sample_at?: string | null
+  unacknowledged_violations?: number
 }
 
 // Sample types
@@ -158,9 +149,8 @@ export type WSMessage = WSSampleMessage | WSViolationMessage | WSAckMessage | WS
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
-  page: number
-  per_page: number
-  pages: number
+  offset: number
+  limit: number
 }
 
 export interface ApiError {

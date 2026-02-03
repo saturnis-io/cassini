@@ -7,17 +7,6 @@ interface CharacteristicFormProps {
   characteristicId: number | null
 }
 
-const NELSON_RULES = [
-  { id: 1, name: 'Rule 1', description: 'Point beyond 3-sigma' },
-  { id: 2, name: 'Rule 2', description: '9 points same side of center' },
-  { id: 3, name: 'Rule 3', description: '6 points trending up/down' },
-  { id: 4, name: 'Rule 4', description: '14 points alternating' },
-  { id: 5, name: 'Rule 5', description: '2 of 3 beyond 2-sigma' },
-  { id: 6, name: 'Rule 6', description: '4 of 5 beyond 1-sigma' },
-  { id: 7, name: 'Rule 7', description: '15 points in zone C' },
-  { id: 8, name: 'Rule 8', description: '8 points outside zone C' },
-]
-
 export function CharacteristicForm({ characteristicId }: CharacteristicFormProps) {
   const { data: characteristic, isLoading } = useCharacteristic(characteristicId ?? 0)
   const updateCharacteristic = useUpdateCharacteristic()
@@ -27,24 +16,20 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
   const [formData, setFormData] = useState({
     name: '',
-    target: '',
+    description: '',
+    target_value: '',
     usl: '',
     lsl: '',
-    subgroup_size: '1',
-    sample_interval_minutes: '',
-    enabled_rules: [] as number[],
   })
 
   useEffect(() => {
     if (characteristic) {
       setFormData({
         name: characteristic.name,
-        target: characteristic.target?.toString() ?? '',
+        description: characteristic.description ?? '',
+        target_value: characteristic.target_value?.toString() ?? '',
         usl: characteristic.usl?.toString() ?? '',
         lsl: characteristic.lsl?.toString() ?? '',
-        subgroup_size: characteristic.subgroup_size.toString(),
-        sample_interval_minutes: characteristic.sample_interval_minutes?.toString() ?? '',
-        enabled_rules: characteristic.enabled_rules,
       })
       setIsDirty(false)
     }
@@ -58,16 +43,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     )
   }
 
-  const handleChange = (field: string, value: string | number[]) => {
+  const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setIsDirty(true)
-  }
-
-  const toggleRule = (ruleId: number) => {
-    const newRules = formData.enabled_rules.includes(ruleId)
-      ? formData.enabled_rules.filter((id) => id !== ruleId)
-      : [...formData.enabled_rules, ruleId]
-    handleChange('enabled_rules', newRules)
   }
 
   const handleSave = async () => {
@@ -77,14 +55,10 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       id: characteristicId,
       data: {
         name: formData.name,
-        target: formData.target ? parseFloat(formData.target) : null,
+        description: formData.description || null,
+        target_value: formData.target_value ? parseFloat(formData.target_value) : null,
         usl: formData.usl ? parseFloat(formData.usl) : null,
         lsl: formData.lsl ? parseFloat(formData.lsl) : null,
-        subgroup_size: parseInt(formData.subgroup_size),
-        sample_interval_minutes: formData.sample_interval_minutes
-          ? parseInt(formData.sample_interval_minutes)
-          : null,
-        enabled_rules: formData.enabled_rules,
       },
     })
     setIsDirty(false)
@@ -131,6 +105,16 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               />
             </div>
           </div>
+          <div>
+            <label className="text-sm font-medium">Description</label>
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
+              placeholder="Optional description"
+            />
+          </div>
         </div>
 
         {/* Spec limits */}
@@ -142,8 +126,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               <input
                 type="number"
                 step="any"
-                value={formData.target}
-                onChange={(e) => handleChange('target', e.target.value)}
+                value={formData.target_value}
+                onChange={(e) => handleChange('target_value', e.target.value)}
                 className="w-full mt-1 px-3 py-2 border rounded-md"
               />
             </div>
@@ -182,21 +166,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               {recalculateLimits.isPending ? 'Recalculating...' : 'Recalculate'}
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground">UCL</label>
               <input
                 type="text"
                 value={characteristic.ucl?.toFixed(4) ?? '-'}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Center Line</label>
-              <input
-                type="text"
-                value={characteristic.center_line?.toFixed(4) ?? '-'}
                 disabled
                 className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
               />
@@ -213,71 +188,28 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           </div>
         </div>
 
-        {/* Sampling */}
+        {/* Sampling info (read-only) */}
         <div className="space-y-4">
           <h3 className="font-medium">Sampling Configuration</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Subgroup Size</label>
+              <label className="text-sm font-medium text-muted-foreground">Subgroup Size</label>
               <input
-                type="number"
-                min="1"
-                value={formData.subgroup_size}
-                onChange={(e) => handleChange('subgroup_size', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                type="text"
+                value={characteristic.subgroup_size}
+                disabled
+                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Sample Interval (minutes)</label>
+              <label className="text-sm font-medium text-muted-foreground">Hierarchy ID</label>
               <input
-                type="number"
-                min="1"
-                value={formData.sample_interval_minutes}
-                onChange={(e) => handleChange('sample_interval_minutes', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-                placeholder="Optional"
+                type="text"
+                value={characteristic.hierarchy_id}
+                disabled
+                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
               />
             </div>
-          </div>
-        </div>
-
-        {/* Nelson Rules */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">Nelson Rules</h3>
-            <div className="space-x-2">
-              <button
-                onClick={() => handleChange('enabled_rules', NELSON_RULES.map((r) => r.id))}
-                className="text-xs text-primary hover:underline"
-              >
-                Enable All
-              </button>
-              <button
-                onClick={() => handleChange('enabled_rules', [])}
-                className="text-xs text-muted-foreground hover:underline"
-              >
-                Disable All
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {NELSON_RULES.map((rule) => (
-              <label
-                key={rule.id}
-                className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-muted"
-              >
-                <input
-                  type="checkbox"
-                  checked={formData.enabled_rules.includes(rule.id)}
-                  onChange={() => toggleRule(rule.id)}
-                  className="rounded"
-                />
-                <span className="text-sm">
-                  <span className="font-medium">{rule.name}:</span>{' '}
-                  <span className="text-muted-foreground">{rule.description}</span>
-                </span>
-              </label>
-            ))}
           </div>
         </div>
 

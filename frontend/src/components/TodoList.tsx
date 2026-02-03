@@ -11,7 +11,11 @@ interface TodoListProps {
 type CardStatus = 'ooc' | 'due' | 'ok'
 
 function getCardStatus(characteristic: CharacteristicSummary): CardStatus {
-  if (characteristic.unacknowledged_violations > 0 || !characteristic.in_control) {
+  // Check for violations if available
+  if (characteristic.unacknowledged_violations && characteristic.unacknowledged_violations > 0) {
+    return 'ooc'
+  }
+  if (characteristic.in_control === false) {
     return 'ooc'
   }
   // For demo purposes, mark as "due" if last sample was more than 1 hour ago
@@ -22,7 +26,8 @@ function getCardStatus(characteristic: CharacteristicSummary): CardStatus {
       return 'due'
     }
   }
-  return 'ok'
+  // Default to 'due' for characteristics without recent samples
+  return 'due'
 }
 
 function formatTimeSince(dateStr: string | null): string {
@@ -133,7 +138,7 @@ function TodoCard({
           {config.icon}
           <span className="font-medium">{characteristic.name}</span>
         </div>
-        {status === 'ooc' && (
+        {status === 'ooc' && characteristic.unacknowledged_violations && (
           <span className="text-xs bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
             {characteristic.unacknowledged_violations} alert
             {characteristic.unacknowledged_violations !== 1 ? 's' : ''}
@@ -141,9 +146,9 @@ function TodoCard({
         )}
       </div>
       <div className="mt-2 text-sm text-muted-foreground">
-        <div>{characteristic.hierarchy_path}</div>
+        <div>{characteristic.hierarchy_path || characteristic.description || `ID: ${characteristic.hierarchy_id}`}</div>
         <div className="flex justify-between mt-1">
-          <span>Last: {formatTimeSince(characteristic.last_sample_at)}</span>
+          <span>Last: {formatTimeSince(characteristic.last_sample_at ?? null)}</span>
           {characteristic.provider_type === 'MANUAL' && (
             <button
               className="text-primary hover:underline"

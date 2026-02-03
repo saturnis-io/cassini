@@ -18,7 +18,7 @@ export function InputModal() {
   }
 
   const subgroupSize = characteristic.subgroup_size || 1
-  const target = characteristic.target
+  const target = characteristic.target_value
   const usl = characteristic.usl
   const lsl = characteristic.lsl
 
