@@ -4,9 +4,13 @@ Implements ISA-95 equipment hierarchy management endpoints.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.api.deps import get_characteristic_repo, get_hierarchy_repo
+from openspc.db.database import get_session
+from openspc.db.models.characteristic import Characteristic
 from openspc.api.schemas.characteristic import CharacteristicSummary
 from openspc.api.schemas.hierarchy import (
     HierarchyCreate,
@@ -23,6 +27,7 @@ router = APIRouter(tags=["hierarchy"])
 @router.get("/", response_model=list[HierarchyTreeNode])
 async def get_hierarchy_tree(
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> list[HierarchyTreeNode]:
     """Get full hierarchy as nested tree structure.
 
@@ -64,14 +69,22 @@ async def get_hierarchy_tree(
     """
     tree = await repo.get_tree()
 
-    # Convert HierarchyNode to HierarchyTreeNode (they have compatible schemas)
+    # Get characteristic counts per hierarchy node
+    count_query = (
+        select(Characteristic.hierarchy_id, func.count(Characteristic.id))
+        .group_by(Characteristic.hierarchy_id)
+    )
+    result = await session.execute(count_query)
+    char_counts = {row[0]: row[1] for row in result.all()}
+
+    # Convert HierarchyNode to HierarchyTreeNode with characteristic counts
     def convert_to_tree_node(node) -> HierarchyTreeNode:
         return HierarchyTreeNode(
             id=node.id,
             name=node.name,
             type=node.type,
             children=[convert_to_tree_node(child) for child in node.children],
-            characteristic_count=0,  # TODO: Add characteristic count in future iteration
+            characteristic_count=char_counts.get(node.id, 0),
         )
 
     return [convert_to_tree_node(root) for root in tree]

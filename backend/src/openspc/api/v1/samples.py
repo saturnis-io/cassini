@@ -206,9 +206,14 @@ async def list_samples(
     else:
         # If no characteristic filter, get all samples in date range
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         from openspc.db.models.sample import Sample
 
-        stmt = select(Sample).order_by(Sample.timestamp)
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .order_by(Sample.timestamp)
+        )
 
         if start_date is not None:
             stmt = stmt.where(Sample.timestamp >= start_date)

@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.repositories.base import BaseRepository
@@ -23,6 +24,23 @@ class SampleRepository(BaseRepository[Sample]):
             session: SQLAlchemy async session for database operations
         """
         super().__init__(session, Sample)
+
+    async def get_by_id(self, id: int) -> Sample | None:
+        """Get sample by ID with measurements eagerly loaded.
+
+        Args:
+            id: Sample ID
+
+        Returns:
+            Sample with measurements loaded, or None if not found
+        """
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.id == id)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_rolling_window(
         self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
@@ -51,6 +69,7 @@ class SampleRepository(BaseRepository[Sample]):
         """
         stmt = (
             select(Sample)
+            .options(selectinload(Sample.measurements))
             .where(Sample.char_id == char_id)
             .order_by(Sample.timestamp.desc())
             .limit(window_size)
@@ -97,7 +116,11 @@ class SampleRepository(BaseRepository[Sample]):
                 end_date=datetime(2025, 1, 31)
             )
         """
-        stmt = select(Sample).where(Sample.char_id == char_id)
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.char_id == char_id)
+        )
 
         if start_date is not None:
             stmt = stmt.where(Sample.timestamp >= start_date)
@@ -149,11 +172,15 @@ class SampleRepository(BaseRepository[Sample]):
         await self.session.flush()  # Get the sample ID
 
         # Create measurements for each value
+        measurements = []
         for value in values:
             measurement = Measurement(sample_id=sample.id, value=value)
             self.session.add(measurement)
+            measurements.append(measurement)
 
         await self.session.flush()
-        await self.session.refresh(sample)
+
+        # Manually attach measurements to avoid lazy loading issues
+        sample.measurements = measurements
 
         return sample

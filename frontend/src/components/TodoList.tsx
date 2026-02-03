@@ -102,21 +102,27 @@ function TodoCard({
   const statusConfig = {
     ooc: {
       border: 'border-destructive',
-      bg: 'bg-destructive/5',
+      bg: 'bg-destructive/10',
       icon: <AlertCircle className="h-4 w-4 text-destructive" />,
       label: 'OOC',
+      text: 'text-foreground',
+      subtext: 'text-foreground/70',
     },
     due: {
       border: 'border-yellow-500',
-      bg: 'bg-yellow-500/5',
-      icon: <Clock className="h-4 w-4 text-yellow-500" />,
+      bg: 'bg-yellow-500/10',
+      icon: <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />,
       label: 'Due',
+      text: 'text-foreground',
+      subtext: 'text-foreground/70',
     },
     ok: {
       border: 'border-muted',
       bg: 'bg-muted/20',
       icon: <CheckCircle className="h-4 w-4 text-muted-foreground" />,
       label: 'OK',
+      text: 'text-foreground',
+      subtext: 'text-muted-foreground',
     },
   }
 
@@ -136,7 +142,7 @@ function TodoCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           {config.icon}
-          <span className="font-medium">{characteristic.name}</span>
+          <span className={cn('font-medium', config.text)}>{characteristic.name}</span>
         </div>
         {status === 'ooc' && characteristic.unacknowledged_violations && (
           <span className="text-xs bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
@@ -145,7 +151,7 @@ function TodoCard({
           </span>
         )}
       </div>
-      <div className="mt-2 text-sm text-muted-foreground">
+      <div className={cn('mt-2 text-sm', config.subtext)}>
         <div>{characteristic.hierarchy_path || characteristic.description || `ID: ${characteristic.hierarchy_id}`}</div>
         <div className="flex justify-between mt-1">
           <span>Last: {formatTimeSince(characteristic.last_sample_at ?? null)}</span>

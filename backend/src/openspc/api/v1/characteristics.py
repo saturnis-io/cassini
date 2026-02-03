@@ -330,7 +330,7 @@ async def get_chart_data(
             timestamp=sample.timestamp.isoformat(),
             mean=value,
             range=range_value,
-            excluded=sample.excluded,
+            excluded=sample.is_excluded,
             violation_ids=violation_ids,
             zone=zone,
         ))
