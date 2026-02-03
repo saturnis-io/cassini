@@ -285,10 +285,16 @@ class SPCEngine:
             center_line = (char.ucl + char.lcl) / 2
             sigma = (char.ucl - char.lcl) / 6  # UCL/LCL are typically +/- 3 sigma
 
+            zones = calculate_zones(center_line, sigma)
             return ZoneBoundaries(
-                center_line=center_line,
+                center_line=zones.center_line,
+                plus_1_sigma=zones.plus_1_sigma,
+                plus_2_sigma=zones.plus_2_sigma,
+                plus_3_sigma=zones.plus_3_sigma,
+                minus_1_sigma=zones.minus_1_sigma,
+                minus_2_sigma=zones.minus_2_sigma,
+                minus_3_sigma=zones.minus_3_sigma,
                 sigma=sigma,
-                **calculate_zones(center_line, sigma).__dict__,
             )
 
         # Otherwise, calculate from historical data
@@ -297,11 +303,17 @@ class SPCEngine:
         )
 
         sigma = (ucl - lcl) / 6
+        zones = calculate_zones(center_line, sigma)
 
         return ZoneBoundaries(
-            center_line=center_line,
+            center_line=zones.center_line,
+            plus_1_sigma=zones.plus_1_sigma,
+            plus_2_sigma=zones.plus_2_sigma,
+            plus_3_sigma=zones.plus_3_sigma,
+            minus_1_sigma=zones.minus_1_sigma,
+            minus_2_sigma=zones.minus_2_sigma,
+            minus_3_sigma=zones.minus_3_sigma,
             sigma=sigma,
-            **calculate_zones(center_line, sigma).__dict__,
         )
 
     async def _create_violations(
