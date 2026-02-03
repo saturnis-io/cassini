@@ -42,6 +42,11 @@ class SampleResponse(BaseModel):
         measurements: List of measurement values
         mean: Calculated mean of measurements (X-bar)
         range_value: Calculated range (max - min) for R chart
+        actual_n: Actual number of measurements in this sample
+        is_undersized: Whether sample has fewer measurements than expected
+        effective_ucl: Per-point UCL for Mode B (variable limits)
+        effective_lcl: Per-point LCL for Mode B (variable limits)
+        z_score: Z-score for Mode A (standardized)
     """
 
     id: int
@@ -53,6 +58,11 @@ class SampleResponse(BaseModel):
     measurements: list[float]
     mean: float
     range_value: float | None
+    actual_n: int = 1
+    is_undersized: bool = False
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    z_score: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

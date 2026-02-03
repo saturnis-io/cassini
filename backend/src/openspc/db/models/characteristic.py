@@ -22,6 +22,22 @@ class ProviderType(str, Enum):
     TAG = "TAG"
 
 
+class SubgroupMode(str, Enum):
+    """Subgroup size handling modes for variable sample sizes.
+
+    STANDARDIZED: Plot Z-scores with fixed +/-3 control limits.
+                  Requires stored_sigma and stored_center_line.
+    VARIABLE_LIMITS: Recalculate UCL/LCL per point based on actual sample size.
+                     Requires stored_sigma and stored_center_line.
+    NOMINAL_TOLERANCE: Use nominal subgroup size for limits, with minimum threshold.
+                       Default mode for backward compatibility.
+    """
+
+    STANDARDIZED = "STANDARDIZED"
+    VARIABLE_LIMITS = "VARIABLE_LIMITS"
+    NOMINAL_TOLERANCE = "NOMINAL_TOLERANCE"
+
+
 class Characteristic(Base):
     """SPC Characteristic configuration model.
 
@@ -44,6 +60,17 @@ class Characteristic(Base):
     provider_type: Mapped[str] = mapped_column(String, nullable=False)
     mqtt_topic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     trigger_tag: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Subgroup mode configuration
+    subgroup_mode: Mapped[str] = mapped_column(
+        String, default="NOMINAL_TOLERANCE", nullable=False
+    )
+    min_measurements: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    warn_below_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Stored parameters for Mode A (STANDARDIZED) and Mode B (VARIABLE_LIMITS)
+    stored_sigma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    stored_center_line: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Relationships
     hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")

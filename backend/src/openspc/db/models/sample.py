@@ -33,6 +33,15 @@ class Sample(Base):
     operator_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     is_excluded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Variable subgroup size tracking
+    actual_n: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    is_undersized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Mode-specific computed values (stored for charting)
+    effective_ucl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    effective_lcl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    z_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     # Relationships
     characteristic: Mapped["Characteristic"] = relationship(
         "Characteristic", back_populates="samples"

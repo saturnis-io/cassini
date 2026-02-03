@@ -3,10 +3,19 @@
 Schemas for SPC characteristic configuration and chart data.
 """
 
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
+
+
+class SubgroupModeEnum(str, Enum):
+    """Subgroup size handling modes for API schemas."""
+
+    STANDARDIZED = "STANDARDIZED"
+    VARIABLE_LIMITS = "VARIABLE_LIMITS"
+    NOMINAL_TOLERANCE = "NOMINAL_TOLERANCE"
 
 
 class CharacteristicCreate(BaseModel):
@@ -36,11 +45,35 @@ class CharacteristicCreate(BaseModel):
     mqtt_topic: str | None = None
     trigger_tag: str | None = None
 
+    # Subgroup mode configuration
+    subgroup_mode: SubgroupModeEnum = Field(
+        default=SubgroupModeEnum.NOMINAL_TOLERANCE,
+        description="How to handle variable subgroup sizes",
+    )
+    min_measurements: int = Field(
+        default=1, ge=1, description="Minimum measurements required per sample"
+    )
+    warn_below_count: int | None = Field(
+        default=None, description="Warn when sample has fewer than this many measurements"
+    )
+
     @model_validator(mode="after")
     def validate_tag_config(self) -> Self:
         """Validate that TAG provider has required mqtt_topic."""
         if self.provider_type == "TAG" and not self.mqtt_topic:
             raise ValueError("mqtt_topic is required when provider_type is TAG")
+        return self
+
+    @model_validator(mode="after")
+    def validate_subgroup_config(self) -> Self:
+        """Validate subgroup mode configuration."""
+        if self.min_measurements > self.subgroup_size:
+            raise ValueError("min_measurements cannot exceed subgroup_size")
+        if self.warn_below_count is not None:
+            if self.warn_below_count < self.min_measurements:
+                raise ValueError("warn_below_count must be >= min_measurements")
+            if self.warn_below_count > self.subgroup_size:
+                raise ValueError("warn_below_count cannot exceed subgroup_size")
         return self
 
 
@@ -58,6 +91,9 @@ class CharacteristicUpdate(BaseModel):
         lsl: New Lower Specification Limit
         ucl: New Upper Control Limit (calculated from data)
         lcl: New Lower Control Limit (calculated from data)
+        subgroup_mode: How to handle variable subgroup sizes
+        min_measurements: Minimum measurements required per sample
+        warn_below_count: Warn when sample has fewer than this many measurements
     """
 
     name: str | None = Field(None, min_length=1, max_length=100)
@@ -67,6 +103,9 @@ class CharacteristicUpdate(BaseModel):
     lsl: float | None = None
     ucl: float | None = None
     lcl: float | None = None
+    subgroup_mode: SubgroupModeEnum | None = None
+    min_measurements: int | None = Field(None, ge=1)
+    warn_below_count: int | None = None
 
 
 class CharacteristicResponse(BaseModel):
@@ -86,6 +125,11 @@ class CharacteristicResponse(BaseModel):
         provider_type: Data source type
         mqtt_topic: MQTT topic for TAG provider
         trigger_tag: MQTT trigger tag
+        subgroup_mode: How to handle variable subgroup sizes
+        min_measurements: Minimum measurements required per sample
+        warn_below_count: Warn when sample has fewer than this many measurements
+        stored_sigma: Stored sigma for Mode A/B (set by recalculate-limits)
+        stored_center_line: Stored center line for Mode A/B (set by recalculate-limits)
     """
 
     id: int
@@ -101,6 +145,11 @@ class CharacteristicResponse(BaseModel):
     provider_type: str
     mqtt_topic: str | None
     trigger_tag: str | None
+    subgroup_mode: str
+    min_measurements: int
+    warn_below_count: int | None
+    stored_sigma: float | None
+    stored_center_line: float | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -173,6 +222,12 @@ class ChartSample(BaseModel):
         excluded: Whether this sample is excluded from calculations
         violation_ids: List of violation IDs for this sample
         zone: Which control zone the point falls in
+        actual_n: Actual number of measurements in this sample
+        is_undersized: Whether sample has fewer measurements than expected
+        effective_ucl: Per-point UCL for Mode B (variable limits)
+        effective_lcl: Per-point LCL for Mode B (variable limits)
+        z_score: Z-score for Mode A (standardized)
+        display_value: Value to plot (z_score for Mode A, mean for others)
     """
 
     sample_id: int
@@ -182,6 +237,12 @@ class ChartSample(BaseModel):
     excluded: bool = False
     violation_ids: list[int] = []
     zone: str
+    actual_n: int = 1
+    is_undersized: bool = False
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    z_score: float | None = None
+    display_value: float | None = None
 
 
 class SpecLimits(BaseModel):
@@ -210,6 +271,8 @@ class ChartDataResponse(BaseModel):
         control_limits: UCL, CL, LCL values
         spec_limits: USL, LSL, target values
         zone_boundaries: Zone boundaries for visualization
+        subgroup_mode: Subgroup handling mode for this characteristic
+        nominal_subgroup_size: Expected/nominal subgroup size
     """
 
     characteristic_id: int
@@ -218,6 +281,8 @@ class ChartDataResponse(BaseModel):
     control_limits: ControlLimits
     spec_limits: SpecLimits
     zone_boundaries: ZoneBoundaries
+    subgroup_mode: str = "NOMINAL_TOLERANCE"
+    nominal_subgroup_size: int = 1
 
 
 class NelsonRuleConfig(BaseModel):
