@@ -1,0 +1,1 @@
+"""OpenSPC core business logic."""

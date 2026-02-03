@@ -1,0 +1,56 @@
+{
+  "pm": {
+    "version": "1.0.0",
+    "methodology": "gsd-inspired",
+    "constraints": {
+      "max_tasks_per_plan": 3,
+      "context_budget_percent": 50,
+      "require_verification": true,
+      "require_uat": true
+    },
+    "phases": {
+      "require_discuss": true,
+      "require_plan_check": true,
+      "parallel_execution": true,
+      "max_parallel_waves": 3
+    },
+    "commits": {
+      "atomic": true,
+      "semantic": true,
+      "require_co_author": true,
+      "message_format": "{type}({phase}-{plan}): {description}"
+    },
+    "quick_mode": {
+      "enabled": true,
+      "skip_research": true,
+      "skip_plan_verify": true,
+      "require_commits": true,
+      "max_files": 5
+    },
+    "verification": {
+      "automated": {
+        "tests": true,
+        "lint": true,
+        "types": true,
+        "coverage_threshold": 80
+      },
+      "uat": {
+        "required": true,
+        "interactive": true
+      }
+    },
+    "state": {
+      "persist_decisions": true,
+      "persist_blockers": true,
+      "session_logging": true
+    },
+    "context_management": {
+      "session_log_max_entries": 25,
+      "summarize_after_entries": 20,
+      "archive_completed_phases": true,
+      "handoff_max_lines": 100,
+      "default_tier": "decisions",
+      "quick_task_retention_days": 7
+    }
+  }
+}

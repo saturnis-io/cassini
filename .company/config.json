@@ -1,0 +1,104 @@
+{
+  "$schema": "./config-schema.json",
+  "company": {
+    "name": "Virtual Engineering Co.",
+    "initialized": null,
+
+    "models": {
+      "cto": "opus",
+      "architect": "opus",
+      "tech-lead": "opus",
+      "developer": "sonnet",
+      "senior-dev": "sonnet",
+      "code-reviewer": "sonnet",
+      "qa": "opus",
+      "hiring-manager": "haiku"
+    },
+
+    "hiring": {
+      "auto_hire": true,
+      "require_ceo_approval_for_new_roles": false,
+      "max_specialists": 20,
+      "expertise_evaluation": {
+        "on_project_init": true,
+        "on_escalation": true,
+        "on_task_assignment": true,
+        "self_evaluation_enabled": true
+      }
+    },
+
+    "quality": {
+      "test_coverage_minimum": 80,
+      "require_tests": {
+        "unit": "required",
+        "integration": "required",
+        "e2e": "required_for_user_flows",
+        "ui": "required_for_frontend",
+        "accessibility": "recommended"
+      },
+      "require_code_review": true,
+      "review_approval_count": 1,
+      "block_merge_on_test_failure": true,
+      "lint_on_commit": true
+    },
+
+    "git_flow": {
+      "enabled": true,
+      "strategy": "gitflow",
+      "branches": {
+        "main": "main",
+        "develop": "develop",
+        "feature_prefix": "feature/",
+        "bugfix_prefix": "bugfix/",
+        "hotfix_prefix": "hotfix/",
+        "release_prefix": "release/"
+      },
+      "require_pr": true,
+      "pr_template": ".github/pull_request_template.md",
+      "squash_on_merge": true,
+      "delete_branch_on_merge": true,
+      "protect_main": true,
+      "require_linear_history": false
+    },
+
+    "testing": {
+      "frameworks": {
+        "unit": "auto-detect",
+        "e2e": "playwright",
+        "ui": "puppeteer",
+        "api": "supertest"
+      },
+      "run_on": {
+        "pre_commit": ["lint", "unit"],
+        "pre_push": ["unit", "integration"],
+        "pre_merge": ["all"]
+      },
+      "screenshot_on_failure": true,
+      "visual_regression": false
+    },
+
+    "specialists": {
+      "default": [
+        "git-flow",
+        "code-reviewer",
+        "test-architect"
+      ],
+      "on_demand": []
+    },
+
+    "workflow": {
+      "require_acceptance_criteria": true,
+      "require_handoff_validation": true,
+      "auto_assign_tasks": true,
+      "parallel_development": true,
+      "max_parallel_developers": 3
+    },
+
+    "notifications": {
+      "on_blocker": "immediate",
+      "on_phase_complete": "summary",
+      "on_test_failure": "immediate",
+      "on_merge_ready": "ask_ceo"
+    }
+  }
+}

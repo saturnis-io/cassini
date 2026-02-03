@@ -1,0 +1,87 @@
+"""Characteristic and CharacteristicRule models for SPC configuration."""
+
+from __future__ import annotations
+
+from enum import Enum
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from openspc.db.models.hierarchy import Base
+
+if TYPE_CHECKING:
+    from openspc.db.models.hierarchy import Hierarchy
+    from openspc.db.models.sample import Sample
+
+
+class ProviderType(str, Enum):
+    """Data provider types for characteristics."""
+
+    MANUAL = "MANUAL"
+    TAG = "TAG"
+
+
+class Characteristic(Base):
+    """SPC Characteristic configuration model.
+
+    Defines a measurable quality characteristic to be monitored
+    using Statistical Process Control.
+    """
+
+    __tablename__ = "characteristic"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    hierarchy_id: Mapped[int] = mapped_column(ForeignKey("hierarchy.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    subgroup_size: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    target_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    usl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Upper Spec Limit
+    lsl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Spec Limit
+    ucl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Upper Control Limit
+    lcl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Control Limit
+    provider_type: Mapped[str] = mapped_column(String, nullable=False)
+    mqtt_topic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    trigger_tag: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Relationships
+    hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")
+    rules: Mapped[list["CharacteristicRule"]] = relationship(
+        "CharacteristicRule", back_populates="characteristic", cascade="all, delete-orphan"
+    )
+    samples: Mapped[list["Sample"]] = relationship(
+        "Sample", back_populates="characteristic", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Characteristic(id={self.id}, name='{self.name}', "
+            f"hierarchy_id={self.hierarchy_id})>"
+        )
+
+
+class CharacteristicRule(Base):
+    """Nelson Rules configuration per characteristic.
+
+    Tracks which Nelson Rules are enabled for a specific characteristic.
+    """
+
+    __tablename__ = "characteristic_rules"
+
+    char_id: Mapped[int] = mapped_column(
+        ForeignKey("characteristic.id"), primary_key=True, nullable=False
+    )
+    rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Relationship
+    characteristic: Mapped["Characteristic"] = relationship(
+        "Characteristic", back_populates="rules"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<CharacteristicRule(char_id={self.char_id}, rule_id={self.rule_id}, "
+            f"is_enabled={self.is_enabled})>"
+        )

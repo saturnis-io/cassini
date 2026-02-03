@@ -1,0 +1,10 @@
+# Placeholder for dynamically created specialists
+
+This directory contains specialist skills created by the hiring manager.
+
+Specialists are generated automatically when:
+1. A project requires specific expertise
+2. A role self-evaluates and identifies an expertise gap
+3. A user manually invokes /company-hire [domain]
+
+Each specialist gets a subdirectory with their SKILL.md file.

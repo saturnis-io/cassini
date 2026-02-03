@@ -1,0 +1,59 @@
+{
+  "specialists": [
+    {
+      "id": "git-flow",
+      "type": "default",
+      "skill_path": "company-git-flow",
+      "created": "init",
+      "expertise": ["Git", "Branching", "Pull Requests", "Code Review", "Merge Strategies"],
+      "description": "Git workflow and version control expertise"
+    },
+    {
+      "id": "code-reviewer",
+      "type": "default",
+      "skill_path": "company-code-reviewer",
+      "created": "init",
+      "expertise": ["Code Review", "Security", "Best Practices", "Quality"],
+      "description": "Code review and quality assurance"
+    },
+    {
+      "id": "test-architect",
+      "type": "default",
+      "skill_path": "company-test-architect",
+      "created": "init",
+      "expertise": ["Unit Testing", "Integration Testing", "E2E Testing", "Test Strategy"],
+      "description": "Test strategy and implementation"
+    }
+  ],
+  "roles": {
+    "cto": {
+      "active": true,
+      "skill_path": "company-cto"
+    },
+    "architect": {
+      "active": true,
+      "skill_path": "company-architect"
+    },
+    "tech-lead": {
+      "active": true,
+      "skill_path": "company-tech-lead"
+    },
+    "senior-dev": {
+      "active": true,
+      "skill_path": "company-senior-dev"
+    },
+    "developer": {
+      "active": true,
+      "skill_path": "company-developer"
+    },
+    "qa": {
+      "active": true,
+      "skill_path": "company-qa"
+    }
+  },
+  "stats": {
+    "total_specialists_created": 3,
+    "total_tasks_completed": 0,
+    "projects_completed": 0
+  }
+}

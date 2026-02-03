@@ -1,0 +1,96 @@
+{
+  "version": "1.0.0",
+  "description": "Defines permissions and governance rules for the virtual company",
+
+  "role_hierarchy": [
+    "ceo",
+    "cto",
+    "architect",
+    "tech-lead",
+    "senior-dev",
+    "developer",
+    "qa"
+  ],
+
+  "handoff_allowed": {
+    "cto": ["architect"],
+    "architect": ["tech-lead"],
+    "tech-lead": ["senior-dev", "developer"],
+    "senior-dev": ["developer"],
+    "developer": ["qa"],
+    "qa": ["developer", "tech-lead"]
+  },
+
+  "task_permissions": {
+    "create_task": {
+      "cto": ["architect", "tech-lead"],
+      "architect": ["tech-lead", "senior-dev"],
+      "tech-lead": ["senior-dev", "developer", "qa"],
+      "senior-dev": ["developer", "qa"],
+      "developer": ["qa", "self"],
+      "qa": ["developer"]
+    },
+    "update_own_task": ["all"],
+    "update_other_task": [],
+    "complete_task": ["owner", "senior-dev", "tech-lead"],
+    "delete_task": ["tech-lead", "architect", "cto"]
+  },
+
+  "proposal_auto_approve": {
+    "create_subtask_self": true,
+    "mark_own_complete": true,
+    "developer_create_qa_task": true,
+    "tech_lead_create_developer_task": true,
+    "escalate_up": true
+  },
+
+  "proposal_needs_review": {
+    "cross_role_task_creation": true,
+    "modify_other_task": true,
+    "add_cross_role_dependency": true,
+    "reject_handoff": true,
+    "scope_change": true
+  },
+
+  "proposal_needs_ceo": {
+    "scope_change": true,
+    "block_release": true,
+    "security_concern": true,
+    "resource_contention": true,
+    "deadline_risk": true
+  },
+
+  "escalation_paths": {
+    "developer": ["senior-dev", "tech-lead"],
+    "senior-dev": ["tech-lead", "architect"],
+    "tech-lead": ["architect", "cto"],
+    "architect": ["cto"],
+    "cto": ["ceo"],
+    "qa": ["tech-lead", "architect"]
+  },
+
+  "quality_gates": {
+    "architecture_to_design": {
+      "required_artifacts": ["architecture-decision-record.md", "tech-stack.md"],
+      "validation_script": "validate_handoff.py"
+    },
+    "design_to_planning": {
+      "required_artifacts": ["component-design.md", "api-contracts.md"],
+      "validation_script": "validate_handoff.py"
+    },
+    "planning_to_implementation": {
+      "required_artifacts": ["feature-spec.md", "task-breakdown.md"],
+      "validation_script": "validate_handoff.py"
+    },
+    "implementation_to_qa": {
+      "required_artifacts": ["implementation-complete.md"],
+      "required_tests": ["unit"],
+      "validation_script": "validate_handoff.py"
+    },
+    "qa_to_merge": {
+      "required_artifacts": ["qa-report.md"],
+      "all_tests_pass": true,
+      "code_review_approved": true
+    }
+  }
+}
