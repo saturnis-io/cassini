@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(222.2 84% 4.9%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(222.2 47.4% 11.2%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96.1%);
+  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-muted: hsl(210 40% 96.1%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-accent: hsl(210 40% 96.1%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(222.2 84% 4.9%);
+  --radius: 0.5rem;
+
+  /* SPC-specific colors */
+  --color-zone-c: hsl(142.1 76.2% 36.3%);
+  --color-zone-b: hsl(47.9 95.8% 53.1%);
+  --color-zone-a: hsl(0 84.2% 60.2%);
+  --color-violation: hsl(0 84.2% 60.2%);
+  --color-warning: hsl(47.9 95.8% 53.1%);
+  --color-success: hsl(142.1 76.2% 36.3%);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* SPC Chart zone styles */
+.zone-c {
+  fill: color-mix(in srgb, var(--color-zone-c) 20%, transparent);
+}
+.zone-b {
+  fill: color-mix(in srgb, var(--color-zone-b) 20%, transparent);
+}
+.zone-a {
+  fill: color-mix(in srgb, var(--color-zone-a) 20%, transparent);
+}
+
+/* Violation pulse animation */
+@keyframes pulse-violation {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+.violation-pulse {
+  animation: pulse-violation 1.5s ease-in-out infinite;
+}
+
+/* Card status borders */
+.card-ok {
+  border-color: var(--color-muted);
+}
+.card-due {
+  border-color: var(--color-warning);
+}
+.card-ooc {
+  border-color: var(--color-destructive);
+}
