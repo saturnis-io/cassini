@@ -56,6 +56,11 @@ class WindowSample:
         zone: Zone classification relative to control limits
         is_above_center: True if value is above center line
         sigma_distance: Absolute distance from center in sigma units
+        actual_n: Actual number of measurements in this sample
+        is_undersized: Whether sample has fewer measurements than expected
+        effective_ucl: Per-point UCL for Mode B (variable limits)
+        effective_lcl: Per-point LCL for Mode B (variable limits)
+        z_score: Z-score for Mode A (standardized)
     """
     sample_id: int
     timestamp: datetime
@@ -64,6 +69,11 @@ class WindowSample:
     zone: Zone
     is_above_center: bool
     sigma_distance: float
+    actual_n: int = 1
+    is_undersized: bool = False
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    z_score: float | None = None
 
 
 @dataclass
@@ -226,6 +236,99 @@ class RollingWindow:
             zone = Zone.BEYOND_LCL
 
         return zone, is_above, sigma_distance
+
+    def classify_value_for_mode(
+        self,
+        value: float,
+        mode: str,
+        actual_n: int,
+        stored_sigma: float | None = None,
+        stored_center_line: float | None = None,
+        effective_ucl: float | None = None,
+        effective_lcl: float | None = None,
+    ) -> tuple[Zone, bool, float]:
+        """Classify a value into zone based on subgroup mode.
+
+        For STANDARDIZED mode: value IS the z_score, classify into fixed zones.
+        For VARIABLE_LIMITS mode: Use effective_ucl/lcl for zone boundaries.
+        For NOMINAL_TOLERANCE mode: Use standard classify_value().
+
+        Args:
+            value: Value to classify (mean for Mode B/C, z_score for Mode A)
+            mode: Subgroup mode (STANDARDIZED, VARIABLE_LIMITS, NOMINAL_TOLERANCE)
+            actual_n: Actual number of measurements
+            stored_sigma: Stored sigma for the characteristic
+            stored_center_line: Stored center line for the characteristic
+            effective_ucl: Per-point UCL for Mode B
+            effective_lcl: Per-point LCL for Mode B
+
+        Returns:
+            Tuple of (Zone, is_above_center, sigma_distance)
+        """
+        if mode == "STANDARDIZED":
+            # Mode A: value is the z_score, classify into fixed zones at +/-1, +/-2, +/-3
+            z = value
+            is_above = z >= 0
+            sigma_distance = abs(z)
+
+            if z >= 3.0:
+                zone = Zone.BEYOND_UCL
+            elif z >= 2.0:
+                zone = Zone.ZONE_A_UPPER
+            elif z >= 1.0:
+                zone = Zone.ZONE_B_UPPER
+            elif z >= 0:
+                zone = Zone.ZONE_C_UPPER
+            elif z >= -1.0:
+                zone = Zone.ZONE_C_LOWER
+            elif z >= -2.0:
+                zone = Zone.ZONE_B_LOWER
+            elif z >= -3.0:
+                zone = Zone.ZONE_A_LOWER
+            else:
+                zone = Zone.BEYOND_LCL
+
+            return zone, is_above, sigma_distance
+
+        elif mode == "VARIABLE_LIMITS" and effective_ucl is not None and effective_lcl is not None:
+            # Mode B: Use effective limits and stored center/sigma
+            if stored_center_line is None or stored_sigma is None:
+                # Fallback to standard classification
+                return self.classify_value(value)
+
+            import math
+            sigma_xbar = stored_sigma / math.sqrt(actual_n)
+            is_above = value >= stored_center_line
+            sigma_distance = abs(value - stored_center_line) / sigma_xbar
+
+            # Calculate zone boundaries based on effective limits
+            zone_1_upper = stored_center_line + 1 * sigma_xbar
+            zone_2_upper = stored_center_line + 2 * sigma_xbar
+            zone_1_lower = stored_center_line - 1 * sigma_xbar
+            zone_2_lower = stored_center_line - 2 * sigma_xbar
+
+            if value >= effective_ucl:
+                zone = Zone.BEYOND_UCL
+            elif value >= zone_2_upper:
+                zone = Zone.ZONE_A_UPPER
+            elif value >= zone_1_upper:
+                zone = Zone.ZONE_B_UPPER
+            elif value >= stored_center_line:
+                zone = Zone.ZONE_C_UPPER
+            elif value >= zone_1_lower:
+                zone = Zone.ZONE_C_LOWER
+            elif value >= zone_2_lower:
+                zone = Zone.ZONE_B_LOWER
+            elif value >= effective_lcl:
+                zone = Zone.ZONE_A_LOWER
+            else:
+                zone = Zone.BEYOND_LCL
+
+            return zone, is_above, sigma_distance
+
+        else:
+            # Mode C (NOMINAL_TOLERANCE) or fallback: Use standard classification
+            return self.classify_value(value)
 
     def clear(self) -> None:
         """Clear all samples (for invalidation)."""
@@ -416,6 +519,14 @@ class RollingWindowManager:
         sample: "Sample",
         boundaries: ZoneBoundaries,
         measurement_values: list[float] | None = None,
+        subgroup_mode: str | None = None,
+        actual_n: int | None = None,
+        is_undersized: bool = False,
+        z_score: float | None = None,
+        effective_ucl: float | None = None,
+        effective_lcl: float | None = None,
+        stored_sigma: float | None = None,
+        stored_center_line: float | None = None,
     ) -> WindowSample:
         """Add a new sample to the window.
 
@@ -425,6 +536,14 @@ class RollingWindowManager:
             boundaries: Zone boundaries for classification
             measurement_values: Optional pre-loaded measurement values to avoid
                 lazy loading. If not provided, will access sample.measurements.
+            subgroup_mode: Subgroup handling mode (STANDARDIZED, VARIABLE_LIMITS, NOMINAL_TOLERANCE)
+            actual_n: Actual number of measurements
+            is_undersized: Whether sample has fewer measurements than expected
+            z_score: Z-score for Mode A (standardized)
+            effective_ucl: Per-point UCL for Mode B (variable limits)
+            effective_lcl: Per-point LCL for Mode B (variable limits)
+            stored_sigma: Stored sigma for the characteristic
+            stored_center_line: Stored center line for the characteristic
 
         Returns:
             WindowSample that was added
@@ -457,10 +576,28 @@ class RollingWindowManager:
             if len(values) > 1:
                 range_value = max(values) - min(values)
 
-            # Classify the value
-            zone, is_above, sigma_dist = window.classify_value(value)
+            # Set actual_n if not provided
+            if actual_n is None:
+                actual_n = len(values)
 
-            # Create WindowSample
+            # Classify the value based on mode
+            if subgroup_mode and subgroup_mode != "NOMINAL_TOLERANCE":
+                # For Mode A: classify the z_score, for Mode B: use effective limits
+                classify_value = z_score if subgroup_mode == "STANDARDIZED" else value
+                zone, is_above, sigma_dist = window.classify_value_for_mode(
+                    value=classify_value if classify_value is not None else value,
+                    mode=subgroup_mode,
+                    actual_n=actual_n,
+                    stored_sigma=stored_sigma,
+                    stored_center_line=stored_center_line,
+                    effective_ucl=effective_ucl,
+                    effective_lcl=effective_lcl,
+                )
+            else:
+                # Mode C or default: Use standard classification
+                zone, is_above, sigma_dist = window.classify_value(value)
+
+            # Create WindowSample with mode-specific fields
             window_sample = WindowSample(
                 sample_id=sample.id,
                 timestamp=sample.timestamp,
@@ -468,7 +605,12 @@ class RollingWindowManager:
                 range_value=range_value,
                 zone=zone,
                 is_above_center=is_above,
-                sigma_distance=sigma_dist
+                sigma_distance=sigma_dist,
+                actual_n=actual_n,
+                is_undersized=is_undersized,
+                effective_ucl=effective_ucl,
+                effective_lcl=effective_lcl,
+                z_score=z_score,
             )
 
             # Add to window

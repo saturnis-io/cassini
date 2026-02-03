@@ -5,6 +5,7 @@ rule evaluation, violation creation, and statistics calculation.
 """
 
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING
 from openspc.core.engine.rolling_window import WindowSample, ZoneBoundaries
 from openspc.core.events import EventBus, SampleProcessedEvent
 from openspc.core.providers.protocol import SampleContext
+from openspc.db.models.characteristic import SubgroupMode
 from openspc.utils.statistics import calculate_zones
 
 if TYPE_CHECKING:
@@ -138,6 +140,112 @@ class SPCEngine:
         else:
             self._event_bus = event_bus
 
+    def _validate_measurements(
+        self,
+        char,
+        measurements: list[float],
+    ) -> tuple[bool, bool]:
+        """Validate measurements against characteristic's subgroup configuration.
+
+        Args:
+            char: Characteristic model object
+            measurements: List of measurement values
+
+        Returns:
+            Tuple of (is_valid, is_undersized)
+
+        Raises:
+            ValueError: If measurement count is below min_measurements
+            ValueError: If Mode C and measurements exceed subgroup_size
+        """
+        actual_n = len(measurements)
+
+        # Check minimum measurements requirement
+        if actual_n < char.min_measurements:
+            raise ValueError(
+                f"Insufficient measurements: got {actual_n}, "
+                f"minimum required is {char.min_measurements}"
+            )
+
+        # For NOMINAL_TOLERANCE mode, enforce max subgroup_size
+        if char.subgroup_mode == SubgroupMode.NOMINAL_TOLERANCE.value:
+            if actual_n > char.subgroup_size:
+                raise ValueError(
+                    f"Too many measurements for NOMINAL_TOLERANCE mode: "
+                    f"got {actual_n}, maximum is {char.subgroup_size}"
+                )
+
+        # Determine if undersized
+        threshold = char.warn_below_count or char.subgroup_size
+        is_undersized = actual_n < threshold
+
+        return True, is_undersized
+
+    def _compute_sample_statistics(
+        self,
+        char,
+        measurements: list[float],
+        actual_n: int,
+    ) -> dict:
+        """Compute mode-specific statistics for a sample.
+
+        Args:
+            char: Characteristic model object
+            measurements: List of measurement values
+            actual_n: Actual number of measurements
+
+        Returns:
+            Dict with mean, range_value, z_score, effective_ucl, effective_lcl
+
+        Raises:
+            ValueError: If Mode A/B requires stored_sigma but it's not set
+        """
+        # Calculate basic statistics
+        mean = sum(measurements) / len(measurements)
+        range_value = None
+        if len(measurements) > 1:
+            range_value = max(measurements) - min(measurements)
+
+        # Initialize mode-specific values
+        z_score = None
+        effective_ucl = None
+        effective_lcl = None
+
+        mode = char.subgroup_mode
+
+        if mode == SubgroupMode.STANDARDIZED.value:
+            # Mode A: Calculate Z-score
+            if char.stored_sigma is None or char.stored_center_line is None:
+                raise ValueError(
+                    "STANDARDIZED mode requires stored_sigma and stored_center_line. "
+                    "Run recalculate-limits first."
+                )
+            # sigma_xbar = sigma / sqrt(n)
+            sigma_xbar = char.stored_sigma / math.sqrt(actual_n)
+            z_score = (mean - char.stored_center_line) / sigma_xbar
+
+        elif mode == SubgroupMode.VARIABLE_LIMITS.value:
+            # Mode B: Calculate effective limits per point
+            if char.stored_sigma is None or char.stored_center_line is None:
+                raise ValueError(
+                    "VARIABLE_LIMITS mode requires stored_sigma and stored_center_line. "
+                    "Run recalculate-limits first."
+                )
+            # sigma_xbar = sigma / sqrt(n)
+            sigma_xbar = char.stored_sigma / math.sqrt(actual_n)
+            effective_ucl = char.stored_center_line + 3 * sigma_xbar
+            effective_lcl = char.stored_center_line - 3 * sigma_xbar
+
+        # Mode C (NOMINAL_TOLERANCE): No additional calculations needed
+
+        return {
+            "mean": mean,
+            "range_value": range_value,
+            "z_score": z_score,
+            "effective_ucl": effective_ucl,
+            "effective_lcl": effective_lcl,
+        }
+
     async def process_sample(
         self,
         characteristic_id: int,
@@ -178,36 +286,48 @@ class SPCEngine:
         if char is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
-        if len(measurements) != char.subgroup_size:
-            raise ValueError(
-                f"Expected {char.subgroup_size} measurements for characteristic "
-                f"{characteristic_id}, got {len(measurements)}"
-            )
+        # Step 2: Validate measurements against subgroup mode configuration
+        actual_n = len(measurements)
+        _, is_undersized = self._validate_measurements(char, measurements)
 
-        # Step 2: Persist sample and measurements
+        # Step 3: Compute mode-specific statistics
+        stats = self._compute_sample_statistics(char, measurements, actual_n)
+        mean = stats["mean"]
+        range_value = stats["range_value"]
+        z_score = stats["z_score"]
+        effective_ucl = stats["effective_ucl"]
+        effective_lcl = stats["effective_lcl"]
+
+        # Step 4: Persist sample and measurements with mode-specific fields
         sample = await self._sample_repo.create_with_measurements(
             char_id=characteristic_id,
             values=measurements,
             batch_number=context.batch_number,
             operator_id=context.operator_id,
+            actual_n=actual_n,
+            is_undersized=is_undersized,
+            effective_ucl=effective_ucl,
+            effective_lcl=effective_lcl,
+            z_score=z_score,
         )
 
-        # Step 3: Calculate statistics
-        mean = sum(measurements) / len(measurements)
-        range_value = None
-        if len(measurements) > 1:
-            range_value = max(measurements) - min(measurements)
-
-        # Step 4: Get zone boundaries and update rolling window
+        # Step 5: Get zone boundaries and update rolling window
         boundaries = await self._get_zone_boundaries(characteristic_id, char)
 
-        # Add sample to rolling window (this also classifies it)
-        # Pass measurements directly to avoid lazy loading issues in async context
+        # Add sample to rolling window with mode-specific data
         window_sample = await self._window_manager.add_sample(
             char_id=characteristic_id,
             sample=sample,
             boundaries=boundaries,
             measurement_values=measurements,
+            subgroup_mode=char.subgroup_mode,
+            actual_n=actual_n,
+            is_undersized=is_undersized,
+            z_score=z_score,
+            effective_ucl=effective_ucl,
+            effective_lcl=effective_lcl,
+            stored_sigma=char.stored_sigma,
+            stored_center_line=char.stored_center_line,
         )
 
         # Step 5: Evaluate enabled Nelson Rules
