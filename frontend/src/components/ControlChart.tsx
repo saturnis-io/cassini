@@ -35,35 +35,75 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
     )
   }
 
-  const { control_limits, spec_limits, zone_boundaries, data_points } = chartData
+  const { control_limits, spec_limits, zone_boundaries, data_points, subgroup_mode, nominal_subgroup_size } = chartData
 
-  // Prepare chart data
+  // Determine if we're in a special mode
+  const isModeA = subgroup_mode === 'STANDARDIZED'
+  const isModeB = subgroup_mode === 'VARIABLE_LIMITS'
+
+  // Prepare chart data with mode-specific display values
   const data = data_points.map((point, index) => ({
     index: index + 1,
-    mean: point.mean,
+    // For Mode A, plot z_score; for Mode B/C, plot mean
+    mean: isModeA ? (point.z_score ?? point.mean) : point.mean,
+    displayValue: point.display_value ?? point.mean,
     hasViolation: point.violation_ids.length > 0,
     excluded: point.excluded,
     timestamp: new Date(point.timestamp).toLocaleTimeString(),
+    // Mode-specific fields
+    actual_n: point.actual_n ?? nominal_subgroup_size,
+    is_undersized: point.is_undersized ?? false,
+    effective_ucl: point.effective_ucl,
+    effective_lcl: point.effective_lcl,
+    z_score: point.z_score,
   }))
 
-  // Calculate Y-axis domain
-  const values = data_points.map((p) => p.mean)
-  const minVal = Math.min(...values)
-  const maxVal = Math.max(...values)
-  const ucl = control_limits.ucl ?? maxVal
-  const lcl = control_limits.lcl ?? minVal
-  const padding = (ucl - lcl) * 0.1
-  const yMin = Math.min(minVal, lcl) - padding
-  const yMax = Math.max(maxVal, ucl) + padding
+  // Calculate Y-axis domain based on mode
+  let yMin: number, yMax: number, yAxisLabel: string
+
+  if (isModeA) {
+    // Mode A: Fixed domain for Z-scores
+    yMin = -4
+    yMax = 4
+    yAxisLabel = 'Z-Score'
+  } else {
+    // Mode B/C: Dynamic domain based on values and limits
+    const values = data.map((p) => p.mean)
+    const minVal = Math.min(...values)
+    const maxVal = Math.max(...values)
+    const ucl = control_limits.ucl ?? maxVal
+    const lcl = control_limits.lcl ?? minVal
+    const padding = (ucl - lcl) * 0.1
+    yMin = Math.min(minVal, lcl) - padding
+    yMax = Math.max(maxVal, ucl) + padding
+    yAxisLabel = 'Value'
+  }
+
+  // Determine chart title based on mode
+  const chartTitle = isModeA
+    ? `${chartData.characteristic_name} - Z-Score Chart`
+    : isModeB
+      ? `${chartData.characteristic_name} - Variable Limits Chart`
+      : `${chartData.characteristic_name} - X-Bar Chart`
 
   return (
     <div className="h-full border rounded-lg bg-card p-4">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold">{chartData.characteristic_name} - X-Bar Chart</h3>
+        <h3 className="font-semibold">{chartTitle}</h3>
         <div className="flex gap-4 text-sm text-muted-foreground">
-          {control_limits.ucl && <span>UCL: {control_limits.ucl.toFixed(3)}</span>}
-          {control_limits.center_line && <span>CL: {control_limits.center_line.toFixed(3)}</span>}
-          {control_limits.lcl && <span>LCL: {control_limits.lcl.toFixed(3)}</span>}
+          {isModeA ? (
+            <>
+              <span>UCL: +3</span>
+              <span>CL: 0</span>
+              <span>LCL: -3</span>
+            </>
+          ) : (
+            <>
+              {control_limits.ucl && <span>UCL: {control_limits.ucl.toFixed(3)}</span>}
+              {control_limits.center_line && <span>CL: {control_limits.center_line.toFixed(3)}</span>}
+              {control_limits.lcl && <span>LCL: {control_limits.lcl.toFixed(3)}</span>}
+            </>
+          )}
         </div>
       </div>
 
@@ -123,6 +163,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
             tickFormatter={(value) => value.toFixed(2)}
+            label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
           />
 
           <Tooltip
@@ -132,8 +173,26 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               return (
                 <div className="bg-popover border rounded-lg p-2 text-sm shadow-lg">
                   <div className="font-medium">Sample #{point.index}</div>
-                  <div>Value: {point.mean.toFixed(4)}</div>
+                  <div>n = {point.actual_n}</div>
+                  {isModeA ? (
+                    <div>Z-Score: {point.z_score?.toFixed(3) ?? point.mean.toFixed(3)}</div>
+                  ) : isModeB && point.effective_ucl ? (
+                    <>
+                      <div>Value: {point.displayValue?.toFixed(4) ?? point.mean.toFixed(4)}</div>
+                      <div className="text-muted-foreground">
+                        UCL: {point.effective_ucl?.toFixed(3)}
+                      </div>
+                      <div className="text-muted-foreground">
+                        LCL: {point.effective_lcl?.toFixed(3)}
+                      </div>
+                    </>
+                  ) : (
+                    <div>Value: {point.mean.toFixed(4)}</div>
+                  )}
                   <div className="text-muted-foreground">{point.timestamp}</div>
+                  {point.is_undersized && (
+                    <div className="text-warning font-medium">Undersized sample</div>
+                  )}
                   {point.hasViolation && (
                     <div className="text-destructive font-medium">Violation!</div>
                   )}
@@ -142,44 +201,62 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             }}
           />
 
-          {/* Control limits */}
-          {control_limits.ucl && (
-            <ReferenceLine
-              y={control_limits.ucl}
-              stroke="hsl(var(--destructive))"
-              strokeDasharray="5 5"
-              label={{
-                value: 'UCL',
-                position: 'right',
-                fill: 'hsl(var(--destructive))',
-                fontSize: 12,
-              }}
-            />
-          )}
-          {control_limits.center_line && (
-            <ReferenceLine
-              y={control_limits.center_line}
-              stroke="hsl(var(--primary))"
-              label={{
-                value: 'CL',
-                position: 'right',
-                fill: 'hsl(var(--primary))',
-                fontSize: 12,
-              }}
-            />
-          )}
-          {control_limits.lcl && (
-            <ReferenceLine
-              y={control_limits.lcl}
-              stroke="hsl(var(--destructive))"
-              strokeDasharray="5 5"
-              label={{
-                value: 'LCL',
-                position: 'right',
-                fill: 'hsl(var(--destructive))',
-                fontSize: 12,
-              }}
-            />
+          {/* Control limits - Mode A has fixed limits, Mode B/C use calculated */}
+          {isModeA ? (
+            <>
+              {/* Fixed +/-3, +/-2, +/-1, 0 lines for Z-score chart */}
+              <ReferenceLine y={3} stroke="hsl(var(--destructive))" strokeDasharray="5 5"
+                label={{ value: '+3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12 }} />
+              <ReferenceLine y={2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
+              <ReferenceLine y={1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
+              <ReferenceLine y={0} stroke="hsl(var(--primary))"
+                label={{ value: 'CL', position: 'right', fill: 'hsl(var(--primary))', fontSize: 12 }} />
+              <ReferenceLine y={-1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
+              <ReferenceLine y={-2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
+              <ReferenceLine y={-3} stroke="hsl(var(--destructive))" strokeDasharray="5 5"
+                label={{ value: '-3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12 }} />
+            </>
+          ) : (
+            <>
+              {control_limits.ucl && (
+                <ReferenceLine
+                  y={control_limits.ucl}
+                  stroke="hsl(var(--destructive))"
+                  strokeDasharray="5 5"
+                  label={{
+                    value: 'UCL',
+                    position: 'right',
+                    fill: 'hsl(var(--destructive))',
+                    fontSize: 12,
+                  }}
+                />
+              )}
+              {control_limits.center_line && (
+                <ReferenceLine
+                  y={control_limits.center_line}
+                  stroke="hsl(var(--primary))"
+                  label={{
+                    value: 'CL',
+                    position: 'right',
+                    fill: 'hsl(var(--primary))',
+                    fontSize: 12,
+                  }}
+                />
+              )}
+              {control_limits.lcl && (
+                <ReferenceLine
+                  y={control_limits.lcl}
+                  stroke="hsl(var(--destructive))"
+                  strokeDasharray="5 5"
+                  label={{
+                    value: 'LCL',
+                    position: 'right',
+                    fill: 'hsl(var(--destructive))',
+                    fontSize: 12,
+                  }}
+                />
+              )}
+            </>
           )}
 
           {/* Spec limits (if different from control limits) */}
@@ -205,22 +282,36 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             stroke="hsl(var(--primary))"
             strokeWidth={2}
             dot={({ cx, cy, payload }) => (
-              <circle
-                key={payload.index}
-                cx={cx}
-                cy={cy}
-                r={payload.hasViolation ? 6 : 4}
-                fill={
-                  payload.excluded
-                    ? 'hsl(var(--muted))'
-                    : payload.hasViolation
-                      ? 'hsl(var(--destructive))'
-                      : 'hsl(var(--primary))'
-                }
-                stroke={payload.hasViolation ? 'hsl(var(--destructive))' : 'none'}
-                strokeWidth={payload.hasViolation ? 2 : 0}
-                className={cn(payload.hasViolation && 'violation-pulse')}
-              />
+              <g key={payload.index}>
+                {/* Main dot */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={payload.hasViolation ? 6 : 4}
+                  fill={
+                    payload.excluded
+                      ? 'hsl(var(--muted))'
+                      : payload.hasViolation
+                        ? 'hsl(var(--destructive))'
+                        : 'hsl(var(--primary))'
+                  }
+                  stroke={payload.hasViolation ? 'hsl(var(--destructive))' : 'none'}
+                  strokeWidth={payload.hasViolation ? 2 : 0}
+                  className={cn(payload.hasViolation && 'violation-pulse')}
+                />
+                {/* Undersized indicator - dashed ring around the point */}
+                {payload.is_undersized && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={payload.hasViolation ? 9 : 7}
+                    fill="none"
+                    stroke="hsl(var(--warning))"
+                    strokeWidth={1.5}
+                    strokeDasharray="2 2"
+                  />
+                )}
+              </g>
             )}
             activeDot={{ r: 6 }}
           />

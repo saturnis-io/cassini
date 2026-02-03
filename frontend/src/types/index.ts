@@ -10,6 +10,7 @@ export interface HierarchyNode {
 
 // Characteristic types
 export type ProviderType = 'MANUAL' | 'TAG'
+export type SubgroupMode = 'STANDARDIZED' | 'VARIABLE_LIMITS' | 'NOMINAL_TOLERANCE'
 
 export interface Characteristic {
   id: number
@@ -25,6 +26,12 @@ export interface Characteristic {
   lcl: number | null
   mqtt_topic: string | null
   trigger_tag: string | null
+  // Subgroup mode configuration
+  subgroup_mode: SubgroupMode
+  min_measurements: number
+  warn_below_count: number | null
+  stored_sigma: number | null
+  stored_center_line: number | null
 }
 
 // For list views - currently same as Characteristic since backend doesn't have summary endpoint
@@ -64,6 +71,13 @@ export interface ChartDataPoint {
   excluded: boolean
   violation_ids: number[]
   zone: string
+  // Variable subgroup size fields
+  actual_n: number
+  is_undersized: boolean
+  effective_ucl: number | null
+  effective_lcl: number | null
+  z_score: number | null
+  display_value: number | null
 }
 
 export interface ChartData {
@@ -88,6 +102,9 @@ export interface ChartData {
     minus_2_sigma: number | null
     minus_3_sigma: number | null
   }
+  // Subgroup mode configuration
+  subgroup_mode: SubgroupMode
+  nominal_subgroup_size: number
 }
 
 // Violation types

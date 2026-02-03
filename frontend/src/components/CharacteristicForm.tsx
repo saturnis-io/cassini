@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
+import type { SubgroupMode } from '@/types'
 
 interface CharacteristicFormProps {
   characteristicId: number | null
@@ -20,6 +21,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     target_value: '',
     usl: '',
     lsl: '',
+    subgroup_mode: 'NOMINAL_TOLERANCE' as SubgroupMode,
+    min_measurements: '1',
+    warn_below_count: '',
   })
 
   useEffect(() => {
@@ -30,6 +34,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         target_value: characteristic.target_value?.toString() ?? '',
         usl: characteristic.usl?.toString() ?? '',
         lsl: characteristic.lsl?.toString() ?? '',
+        subgroup_mode: characteristic.subgroup_mode ?? 'NOMINAL_TOLERANCE',
+        min_measurements: characteristic.min_measurements?.toString() ?? '1',
+        warn_below_count: characteristic.warn_below_count?.toString() ?? '',
       })
       setIsDirty(false)
     }
@@ -51,6 +58,19 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const handleSave = async () => {
     if (!characteristicId) return
 
+    // Validate subgroup mode configuration
+    const minMeas = parseInt(formData.min_measurements) || 1
+    const warnBelow = formData.warn_below_count ? parseInt(formData.warn_below_count) : null
+
+    if (minMeas > characteristic.subgroup_size) {
+      alert('Minimum measurements cannot exceed subgroup size')
+      return
+    }
+    if (warnBelow !== null && warnBelow < minMeas) {
+      alert('Warn below count must be >= minimum measurements')
+      return
+    }
+
     await updateCharacteristic.mutateAsync({
       id: characteristicId,
       data: {
@@ -59,6 +79,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         target_value: formData.target_value ? parseFloat(formData.target_value) : null,
         usl: formData.usl ? parseFloat(formData.usl) : null,
         lsl: formData.lsl ? parseFloat(formData.lsl) : null,
+        subgroup_mode: formData.subgroup_mode,
+        min_measurements: minMeas,
+        warn_below_count: warnBelow,
       },
     })
     setIsDirty(false)
@@ -211,6 +234,95 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               />
             </div>
           </div>
+        </div>
+
+        {/* Subgroup Size Handling */}
+        <div className="space-y-4">
+          <h3 className="font-medium">Subgroup Size Handling</h3>
+          <div>
+            <label className="text-sm font-medium">Mode</label>
+            <select
+              value={formData.subgroup_mode}
+              onChange={(e) => handleChange('subgroup_mode', e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
+              disabled={
+                formData.subgroup_mode !== 'NOMINAL_TOLERANCE' &&
+                !characteristic.stored_sigma
+              }
+            >
+              <option value="NOMINAL_TOLERANCE">Nominal with Tolerance (Default)</option>
+              <option
+                value="VARIABLE_LIMITS"
+                disabled={!characteristic.stored_sigma}
+              >
+                Variable Control Limits {!characteristic.stored_sigma && '(Recalculate limits first)'}
+              </option>
+              <option
+                value="STANDARDIZED"
+                disabled={!characteristic.stored_sigma}
+              >
+                Standardized (Z-Score) {!characteristic.stored_sigma && '(Recalculate limits first)'}
+              </option>
+            </select>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formData.subgroup_mode === 'NOMINAL_TOLERANCE' &&
+                'Uses nominal subgroup size for control limits with minimum threshold enforcement.'}
+              {formData.subgroup_mode === 'VARIABLE_LIMITS' &&
+                'Recalculates control limits per point based on actual sample size (funnel effect).'}
+              {formData.subgroup_mode === 'STANDARDIZED' &&
+                'Plots Z-scores with fixed +/-3 control limits, normalizing for sample size variation.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium">Minimum Measurements</label>
+              <input
+                type="number"
+                min="1"
+                max={characteristic.subgroup_size}
+                value={formData.min_measurements}
+                onChange={(e) => handleChange('min_measurements', e.target.value)}
+                className="w-full mt-1 px-3 py-2 border rounded-md"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Samples below this will be rejected (1-{characteristic.subgroup_size})
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Warn Below Count</label>
+              <input
+                type="number"
+                min={parseInt(formData.min_measurements) || 1}
+                max={characteristic.subgroup_size}
+                value={formData.warn_below_count}
+                onChange={(e) => handleChange('warn_below_count', e.target.value)}
+                className="w-full mt-1 px-3 py-2 border rounded-md"
+                placeholder="Optional"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Samples below this will be marked as undersized
+              </p>
+            </div>
+          </div>
+
+          {/* Show stored parameters for Mode A/B */}
+          {(formData.subgroup_mode === 'STANDARDIZED' ||
+            formData.subgroup_mode === 'VARIABLE_LIMITS') && (
+            <div className="p-3 bg-muted rounded-md">
+              <p className="text-sm font-medium mb-2">Stored Parameters (from limit calculation)</p>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Sigma: </span>
+                  <span>{characteristic.stored_sigma?.toFixed(4) ?? 'Not set'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Center Line: </span>
+                  <span>{characteristic.stored_center_line?.toFixed(4) ?? 'Not set'}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
