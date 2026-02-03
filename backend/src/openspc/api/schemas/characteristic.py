@@ -168,20 +168,34 @@ class ChartSample(BaseModel):
     Attributes:
         sample_id: Unique identifier of the sample
         timestamp: When the sample was taken
-        value: Plotted value (mean for X-bar chart)
-        range_value: Range value for R chart (max - min)
-        zone: Which control zone the point falls in (A, B, C, or Center)
-        has_violation: Whether this sample triggered any Nelson Rules
-        violation_rule_ids: List of triggered Nelson Rule IDs
+        mean: Subgroup mean (plotted value for X-bar chart)
+        range: Subgroup range value for R chart (max - min)
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: List of violation IDs for this sample
+        zone: Which control zone the point falls in
     """
 
     sample_id: int
     timestamp: str  # ISO format datetime string
-    value: float
-    range_value: float | None
+    mean: float
+    range: float | None
+    excluded: bool = False
+    violation_ids: list[int] = []
     zone: str
-    has_violation: bool = False
-    violation_rule_ids: list[int] = []
+
+
+class SpecLimits(BaseModel):
+    """Schema for specification limits (Voice of Customer).
+
+    Attributes:
+        usl: Upper Specification Limit
+        lsl: Lower Specification Limit
+        target: Target/nominal value
+    """
+
+    usl: float | None = None
+    lsl: float | None = None
+    target: float | None = None
 
 
 class ChartDataResponse(BaseModel):
@@ -191,15 +205,19 @@ class ChartDataResponse(BaseModel):
 
     Attributes:
         characteristic_id: ID of the characteristic
-        samples: List of sample points
+        characteristic_name: Display name of the characteristic
+        data_points: List of sample points for chart rendering
         control_limits: UCL, CL, LCL values
-        zones: Zone boundaries for visualization
+        spec_limits: USL, LSL, target values
+        zone_boundaries: Zone boundaries for visualization
     """
 
     characteristic_id: int
-    samples: list[ChartSample]
+    characteristic_name: str
+    data_points: list[ChartSample]
     control_limits: ControlLimits
-    zones: ZoneBoundaries
+    spec_limits: SpecLimits
+    zone_boundaries: ZoneBoundaries
 
 
 class NelsonRuleConfig(BaseModel):

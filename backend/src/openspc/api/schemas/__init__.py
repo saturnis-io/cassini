@@ -14,6 +14,7 @@ from openspc.api.schemas.characteristic import (
     ControlLimits,
     ControlLimitsResponse,
     NelsonRuleConfig,
+    SpecLimits,
     ZoneBoundaries,
 )
 from openspc.api.schemas.common import (
@@ -59,6 +60,7 @@ __all__ = [
     "ChartSample",
     "ControlLimits",
     "ControlLimitsResponse",
+    "SpecLimits",
     "ZoneBoundaries",
     "NelsonRuleConfig",
     # Sample schemas

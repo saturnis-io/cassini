@@ -63,7 +63,7 @@ export interface ChartDataPoint {
   range: number | null
   excluded: boolean
   violation_ids: number[]
-  zone: 'BEYOND_UCL' | 'ZONE_A_UPPER' | 'ZONE_B_UPPER' | 'ZONE_C_UPPER' | 'ZONE_C_LOWER' | 'ZONE_B_LOWER' | 'ZONE_A_LOWER' | 'BEYOND_LCL'
+  zone: string
 }
 
 export interface ChartData {

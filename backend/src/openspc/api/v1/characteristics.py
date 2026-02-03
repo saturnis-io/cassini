@@ -20,6 +20,7 @@ from openspc.api.schemas.characteristic import (
     ChartSample,
     ControlLimits,
     NelsonRuleConfig,
+    SpecLimits,
     ZoneBoundaries,
 )
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
@@ -322,17 +323,16 @@ async def get_chart_data(
 
         # Get violations for this sample
         violations = await violation_repo.get_by_sample(sample.id)
-        violation_rule_ids = [v.rule_id for v in violations]
-        has_violation = len(violations) > 0
+        violation_ids = [v.id for v in violations]
 
         chart_samples.append(ChartSample(
             sample_id=sample.id,
             timestamp=sample.timestamp.isoformat(),
-            value=value,
-            range_value=range_value,
+            mean=value,
+            range=range_value,
+            excluded=sample.excluded,
+            violation_ids=violation_ids,
             zone=zone,
-            has_violation=has_violation,
-            violation_rule_ids=violation_rule_ids,
         ))
 
     control_limits = ControlLimits(
@@ -341,11 +341,19 @@ async def get_chart_data(
         lcl=characteristic.lcl,
     )
 
+    spec_limits = SpecLimits(
+        usl=characteristic.usl,
+        lsl=characteristic.lsl,
+        target=characteristic.target_value,
+    )
+
     return ChartDataResponse(
         characteristic_id=char_id,
-        samples=chart_samples,
+        characteristic_name=characteristic.name,
+        data_points=chart_samples,
         control_limits=control_limits,
-        zones=zones,
+        spec_limits=spec_limits,
+        zone_boundaries=zones,
     )
 
 

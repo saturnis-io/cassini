@@ -447,9 +447,11 @@ class TestGetChartData:
 
         data = response.json()
         assert data["characteristic_id"] == test_characteristic_with_samples.id
-        assert len(data["samples"]) > 0
+        assert "characteristic_name" in data
+        assert len(data["data_points"]) > 0
         assert "control_limits" in data
-        assert "zones" in data
+        assert "spec_limits" in data
+        assert "zone_boundaries" in data
 
         # Verify control limits structure
         limits = data["control_limits"]
@@ -458,7 +460,7 @@ class TestGetChartData:
         assert "lcl" in limits
 
         # Verify zone boundaries structure
-        zones = data["zones"]
+        zones = data["zone_boundaries"]
         assert "plus_1_sigma" in zones
         assert "plus_2_sigma" in zones
         assert "plus_3_sigma" in zones
@@ -467,13 +469,13 @@ class TestGetChartData:
         assert "minus_3_sigma" in zones
 
         # Verify sample structure
-        sample = data["samples"][0]
+        sample = data["data_points"][0]
         assert "sample_id" in sample
         assert "timestamp" in sample
-        assert "value" in sample
+        assert "mean" in sample
         assert "zone" in sample
-        assert "has_violation" in sample
-        assert "violation_rule_ids" in sample
+        assert "excluded" in sample
+        assert "violation_ids" in sample
 
     @pytest.mark.asyncio
     async def test_chart_data_with_limit(self, client, test_characteristic_with_samples):
@@ -484,7 +486,7 @@ class TestGetChartData:
         assert response.status_code == 200
 
         data = response.json()
-        assert len(data["samples"]) == 10
+        assert len(data["data_points"]) == 10
 
     @pytest.mark.asyncio
     async def test_chart_data_without_control_limits_fails(

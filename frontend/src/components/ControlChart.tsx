@@ -27,7 +27,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
     )
   }
 
-  if (!chartData || chartData.data_points.length === 0) {
+  if (!chartData || !chartData.data_points || chartData.data_points.length === 0) {
     return (
       <div className="h-full border rounded-lg bg-card flex items-center justify-center">
         <div className="text-muted-foreground">No data available</div>
