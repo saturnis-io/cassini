@@ -601,6 +601,259 @@ class TestRecalculateLimits:
             await spc_engine.recalculate_limits(1)
 
 
+class TestSubgroupModeValidation:
+    """Test subgroup mode validation logic."""
+
+    @pytest.fixture
+    def characteristic_mode_c(self):
+        """Characteristic with NOMINAL_TOLERANCE mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode C",
+            subgroup_size=5,
+            min_measurements=2,
+            warn_below_count=4,
+            subgroup_mode="NOMINAL_TOLERANCE",
+            ucl=106.0,
+            lcl=94.0,
+            provider_type="MANUAL",
+        )
+        char.rules = []
+        return char
+
+    @pytest.fixture
+    def characteristic_mode_a(self):
+        """Characteristic with STANDARDIZED mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode A",
+            subgroup_size=5,
+            min_measurements=2,
+            warn_below_count=4,
+            subgroup_mode="STANDARDIZED",
+            stored_sigma=2.0,
+            stored_center_line=100.0,
+            ucl=106.0,
+            lcl=94.0,
+            provider_type="MANUAL",
+        )
+        char.rules = []
+        return char
+
+    @pytest.fixture
+    def characteristic_mode_b(self):
+        """Characteristic with VARIABLE_LIMITS mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode B",
+            subgroup_size=5,
+            min_measurements=2,
+            warn_below_count=4,
+            subgroup_mode="VARIABLE_LIMITS",
+            stored_sigma=2.0,
+            stored_center_line=100.0,
+            ucl=106.0,
+            lcl=94.0,
+            provider_type="MANUAL",
+        )
+        char.rules = []
+        return char
+
+    def test_mode_c_accepts_exact_subgroup_size(self, spc_engine, characteristic_mode_c):
+        """Test Mode C accepts exact subgroup size measurements."""
+        is_valid, is_undersized = spc_engine._validate_measurements(
+            characteristic_mode_c, [1.0, 2.0, 3.0, 4.0, 5.0]
+        )
+        assert is_valid is True
+        assert is_undersized is False
+
+    def test_mode_c_rejects_measurements_exceeding_subgroup_size(self, spc_engine, characteristic_mode_c):
+        """Test Mode C rejects measurements exceeding subgroup_size."""
+        with pytest.raises(ValueError, match="Too many measurements"):
+            spc_engine._validate_measurements(
+                characteristic_mode_c, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+            )
+
+    def test_mode_c_accepts_undersized_above_min_measurements(self, spc_engine, characteristic_mode_c):
+        """Test Mode C accepts samples above min_measurements but below warn threshold."""
+        is_valid, is_undersized = spc_engine._validate_measurements(
+            characteristic_mode_c, [1.0, 2.0, 3.0]  # 3 measurements, min=2, warn=4
+        )
+        assert is_valid is True
+        assert is_undersized is True
+
+    def test_mode_c_rejects_below_min_measurements(self, spc_engine, characteristic_mode_c):
+        """Test Mode C rejects samples below min_measurements."""
+        with pytest.raises(ValueError, match="Insufficient measurements"):
+            spc_engine._validate_measurements(
+                characteristic_mode_c, [1.0]  # 1 measurement, min=2
+            )
+
+    def test_mode_a_requires_stored_sigma(self, spc_engine, characteristic_mode_a):
+        """Test Mode A requires stored_sigma for statistics computation."""
+        char = characteristic_mode_a
+        char.stored_sigma = None
+
+        with pytest.raises(ValueError, match="STANDARDIZED mode requires stored_sigma"):
+            spc_engine._compute_sample_statistics(char, [1.0, 2.0, 3.0], 3)
+
+    def test_mode_b_requires_stored_sigma(self, spc_engine, characteristic_mode_b):
+        """Test Mode B requires stored_sigma for statistics computation."""
+        char = characteristic_mode_b
+        char.stored_sigma = None
+
+        with pytest.raises(ValueError, match="VARIABLE_LIMITS mode requires stored_sigma"):
+            spc_engine._compute_sample_statistics(char, [1.0, 2.0, 3.0], 3)
+
+
+class TestModeSpecificComputation:
+    """Test mode-specific statistics computation."""
+
+    @pytest.fixture
+    def characteristic_mode_a(self):
+        """Characteristic with STANDARDIZED mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode A",
+            subgroup_size=5,
+            min_measurements=1,
+            subgroup_mode="STANDARDIZED",
+            stored_sigma=10.0,
+            stored_center_line=100.0,
+            ucl=115.0,
+            lcl=85.0,
+            provider_type="MANUAL",
+        )
+        return char
+
+    @pytest.fixture
+    def characteristic_mode_b(self):
+        """Characteristic with VARIABLE_LIMITS mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode B",
+            subgroup_size=5,
+            min_measurements=1,
+            subgroup_mode="VARIABLE_LIMITS",
+            stored_sigma=10.0,
+            stored_center_line=100.0,
+            ucl=115.0,
+            lcl=85.0,
+            provider_type="MANUAL",
+        )
+        return char
+
+    @pytest.fixture
+    def characteristic_mode_c(self):
+        """Characteristic with NOMINAL_TOLERANCE mode."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test Mode C",
+            subgroup_size=5,
+            min_measurements=1,
+            subgroup_mode="NOMINAL_TOLERANCE",
+            ucl=115.0,
+            lcl=85.0,
+            provider_type="MANUAL",
+        )
+        return char
+
+    def test_mode_a_computes_z_score(self, spc_engine, characteristic_mode_a):
+        """Test Mode A computes correct z-score.
+
+        Given: mean=105, stored_center_line=100, stored_sigma=10, actual_n=4
+        Expected: z_score = (105-100) / (10/sqrt(4)) = 5/5 = 1.0
+        """
+        measurements = [104.0, 105.0, 106.0, 105.0]  # mean = 105
+        stats = spc_engine._compute_sample_statistics(
+            characteristic_mode_a, measurements, actual_n=4
+        )
+
+        assert stats["mean"] == pytest.approx(105.0)
+        assert stats["z_score"] == pytest.approx(1.0)
+        assert stats["effective_ucl"] is None
+        assert stats["effective_lcl"] is None
+
+    def test_mode_b_computes_effective_limits(self, spc_engine, characteristic_mode_b):
+        """Test Mode B computes correct effective limits.
+
+        Given: stored_center_line=100, stored_sigma=10, actual_n=4
+        Expected: sigma_xbar = 10/sqrt(4) = 5
+        Expected: effective_ucl = 100 + 3*5 = 115
+        Expected: effective_lcl = 100 - 3*5 = 85
+        """
+        measurements = [100.0, 101.0, 99.0, 100.0]  # mean = 100
+        stats = spc_engine._compute_sample_statistics(
+            characteristic_mode_b, measurements, actual_n=4
+        )
+
+        assert stats["mean"] == pytest.approx(100.0)
+        assert stats["effective_ucl"] == pytest.approx(115.0)
+        assert stats["effective_lcl"] == pytest.approx(85.0)
+        assert stats["z_score"] is None
+
+    def test_mode_c_uses_nominal_limits(self, spc_engine, characteristic_mode_c):
+        """Test Mode C doesn't compute z_score or effective limits."""
+        measurements = [100.0, 101.0, 99.0, 100.0, 100.0]
+        stats = spc_engine._compute_sample_statistics(
+            characteristic_mode_c, measurements, actual_n=5
+        )
+
+        assert stats["mean"] == pytest.approx(100.0)
+        assert stats["z_score"] is None
+        assert stats["effective_ucl"] is None
+        assert stats["effective_lcl"] is None
+
+
+class TestUndersizedFlagging:
+    """Test undersized sample flagging logic."""
+
+    @pytest.fixture
+    def characteristic_with_warn_threshold(self):
+        """Characteristic with warn_below_count set."""
+        char = Characteristic(
+            id=1,
+            hierarchy_id=1,
+            name="Test",
+            subgroup_size=5,
+            min_measurements=2,
+            warn_below_count=4,
+            subgroup_mode="NOMINAL_TOLERANCE",
+            ucl=106.0,
+            lcl=94.0,
+            provider_type="MANUAL",
+        )
+        return char
+
+    def test_sample_flagged_as_undersized(self, spc_engine, characteristic_with_warn_threshold):
+        """Test sample is flagged as undersized when below warn threshold."""
+        # 3 measurements, warn_below_count=4 -> undersized
+        is_valid, is_undersized = spc_engine._validate_measurements(
+            characteristic_with_warn_threshold, [1.0, 2.0, 3.0]
+        )
+        assert is_undersized is True
+
+    def test_sample_not_flagged_when_at_threshold(self, spc_engine, characteristic_with_warn_threshold):
+        """Test sample is not flagged when at or above warn threshold."""
+        # 4 measurements, warn_below_count=4 -> not undersized
+        is_valid, is_undersized = spc_engine._validate_measurements(
+            characteristic_with_warn_threshold, [1.0, 2.0, 3.0, 4.0]
+        )
+        assert is_undersized is False
+
+        # 5 measurements, warn_below_count=4 -> not undersized
+        is_valid, is_undersized = spc_engine._validate_measurements(
+            characteristic_with_warn_threshold, [1.0, 2.0, 3.0, 4.0, 5.0]
+        )
+        assert is_undersized is False
+
+
 class TestPerformance:
     """Test performance tracking."""
 

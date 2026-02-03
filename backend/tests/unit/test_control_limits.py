@@ -668,6 +668,210 @@ class TestRecalculateAndPersist:
         assert characteristic.lcl == result.lcl
 
 
+class TestStoredParametersPersistence:
+    """Test stored sigma and center_line persistence."""
+
+    @pytest.mark.asyncio
+    async def test_recalculate_stores_sigma(self):
+        """Test recalculate_and_persist stores stored_sigma on characteristic."""
+        # Mock repositories
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        # Setup characteristic
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.ucl = None
+        characteristic.lcl = None
+        characteristic.stored_sigma = None
+        characteristic.stored_center_line = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+        char_repo.session = MagicMock()
+        char_repo.session.commit = AsyncMock()
+
+        # Setup samples
+        values = [10.0, 12.0, 11.0, 13.0, 10.0] * 6
+        samples = []
+        for i, value in enumerate(values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            measurement = MagicMock(spec=Measurement)
+            measurement.value = value
+            sample.measurements = [measurement]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+        window_manager.invalidate = AsyncMock()
+
+        # Create service and recalculate
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.recalculate_and_persist(
+            characteristic_id=1, min_samples=25
+        )
+
+        # Verify stored_sigma was set
+        assert characteristic.stored_sigma == result.sigma
+        assert characteristic.stored_sigma > 0
+
+    @pytest.mark.asyncio
+    async def test_recalculate_stores_center_line(self):
+        """Test recalculate_and_persist stores stored_center_line on characteristic."""
+        # Mock repositories
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        # Setup characteristic
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.ucl = None
+        characteristic.lcl = None
+        characteristic.stored_sigma = None
+        characteristic.stored_center_line = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+        char_repo.session = MagicMock()
+        char_repo.session.commit = AsyncMock()
+
+        # Setup samples
+        values = [10.0, 12.0, 11.0, 13.0, 10.0] * 6
+        samples = []
+        for i, value in enumerate(values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            measurement = MagicMock(spec=Measurement)
+            measurement.value = value
+            sample.measurements = [measurement]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+        window_manager.invalidate = AsyncMock()
+
+        # Create service and recalculate
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.recalculate_and_persist(
+            characteristic_id=1, min_samples=25
+        )
+
+        # Verify stored_center_line was set
+        assert characteristic.stored_center_line == result.center_line
+        assert characteristic.stored_center_line > 0
+
+
+class TestModeSpecificLimitCalculation:
+    """Test that mode-specific limits are calculated correctly."""
+
+    @pytest.mark.asyncio
+    async def test_mode_a_nominal_limits_calculated(self):
+        """Test that recalculate computes nominal limits for Mode A.
+
+        After recalculate, UCL/LCL should be based on nominal subgroup_size.
+        """
+        # Mock repositories
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        # Setup characteristic (Mode A with subgroup_size=5)
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 5
+        characteristic.subgroup_mode = "STANDARDIZED"
+        characteristic.ucl = None
+        characteristic.lcl = None
+        characteristic.stored_sigma = None
+        characteristic.stored_center_line = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+        char_repo.session = MagicMock()
+        char_repo.session.commit = AsyncMock()
+
+        # Setup samples (subgroups of 5)
+        samples = []
+        for i in range(30):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            measurements = []
+            for j in range(5):
+                measurement = MagicMock(spec=Measurement)
+                measurement.value = 100.0 + (i % 3) + (j * 0.1)
+                measurements.append(measurement)
+            sample.measurements = measurements
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+        window_manager.invalidate = AsyncMock()
+
+        # Create service and recalculate
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.recalculate_and_persist(
+            characteristic_id=1, min_samples=25
+        )
+
+        # Verify sigma and center_line were stored (needed for Mode A)
+        assert characteristic.stored_sigma == result.sigma
+        assert characteristic.stored_center_line == result.center_line
+
+        # Verify UCL/LCL were calculated
+        assert characteristic.ucl == result.ucl
+        assert characteristic.lcl == result.lcl
+
+    @pytest.mark.asyncio
+    async def test_mode_b_nominal_limits_calculated(self):
+        """Test that recalculate computes nominal limits for Mode B.
+
+        Similar to Mode A - stored parameters should be set.
+        """
+        # Mock repositories
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        # Setup characteristic (Mode B)
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 5
+        characteristic.subgroup_mode = "VARIABLE_LIMITS"
+        characteristic.ucl = None
+        characteristic.lcl = None
+        characteristic.stored_sigma = None
+        characteristic.stored_center_line = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+        char_repo.session = MagicMock()
+        char_repo.session.commit = AsyncMock()
+
+        # Setup samples
+        samples = []
+        for i in range(30):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            measurements = []
+            for j in range(5):
+                measurement = MagicMock(spec=Measurement)
+                measurement.value = 100.0 + (i % 3) + (j * 0.1)
+                measurements.append(measurement)
+            sample.measurements = measurements
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+        window_manager.invalidate = AsyncMock()
+
+        # Create service and recalculate
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.recalculate_and_persist(
+            characteristic_id=1, min_samples=25
+        )
+
+        # Verify sigma and center_line were stored (needed for Mode B)
+        assert characteristic.stored_sigma == result.sigma
+        assert characteristic.stored_center_line == result.center_line
+
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
