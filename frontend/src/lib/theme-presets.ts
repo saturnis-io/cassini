@@ -169,6 +169,8 @@ export function saveChartColors(colors: ChartColors, presetId?: string): void {
   } else {
     localStorage.setItem(PRESET_STORAGE_KEY, 'custom')
   }
+  // Dispatch custom event for same-tab updates
+  window.dispatchEvent(new CustomEvent('chart-colors-changed'))
 }
 
 export function applyChartColors(colors: ChartColors): void {

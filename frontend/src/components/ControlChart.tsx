@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react'
 import {
   ComposedChart,
   Line,
@@ -10,13 +11,46 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useChartData } from '@/api/hooks'
+import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 
 interface ControlChartProps {
   characteristicId: number
 }
 
+// Hook to subscribe to chart color changes
+function useChartColors(): ChartColors {
+  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
+
+  const updateColors = useCallback(() => {
+    setColors(getStoredChartColors())
+  }, [])
+
+  useEffect(() => {
+    // Listen for storage events (when settings change in another tab or same tab)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'openspc-chart-colors' || e.key === 'openspc-chart-preset') {
+        updateColors()
+      }
+    }
+
+    // Listen for custom event dispatched when colors change in same tab
+    const handleColorChange = () => updateColors()
+
+    window.addEventListener('storage', handleStorage)
+    window.addEventListener('chart-colors-changed', handleColorChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('chart-colors-changed', handleColorChange)
+    }
+  }, [updateColors])
+
+  return colors
+}
+
 export function ControlChart({ characteristicId }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, 50)
+  const chartColors = useChartColors()
 
   if (isLoading) {
     return (
@@ -117,8 +151,8 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
           {/* Gradient and filter definitions */}
           <defs>
             <linearGradient id="chartLineGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="hsl(212 100% 35%)" />
-              <stop offset="100%" stopColor="hsl(179 50% 55%)" />
+              <stop offset="0%" stopColor={chartColors.lineGradientStart} />
+              <stop offset="100%" stopColor={chartColors.lineGradientEnd} />
             </linearGradient>
             <filter id="violationGlow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="2" result="blur" />
@@ -127,10 +161,10 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            {/* Out-of-control zone fill - red with appropriate opacity */}
+            {/* Out-of-control zone fill - uses preset color */}
             <pattern id="oocPattern" patternUnits="userSpaceOnUse" width="8" height="8">
-              <rect width="8" height="8" fill="#ef4444" fillOpacity="0.15" />
-              <line x1="0" y1="8" x2="8" y2="0" stroke="#ef4444" strokeWidth="0.5" strokeOpacity="0.3" />
+              <rect width="8" height="8" fill={chartColors.outOfControl} fillOpacity="0.15" />
+              <line x1="0" y1="8" x2="8" y2="0" stroke={chartColors.outOfControl} strokeWidth="0.5" strokeOpacity="0.3" />
             </pattern>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -226,27 +260,27 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               {/* Fixed +/-3, +/-2, +/-1, 0 lines for Z-score chart */}
               <ReferenceLine
                 y={3}
-                stroke="hsl(var(--destructive))"
+                stroke={chartColors.uclLine}
                 strokeDasharray="5 5"
                 strokeWidth={1.5}
-                label={{ value: '+3σ (UCL)', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 11, fontWeight: 500 }}
+                label={{ value: '+3σ (UCL)', position: 'right', fill: chartColors.uclLine, fontSize: 11, fontWeight: 500 }}
               />
               <ReferenceLine y={2} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine
                 y={0}
-                stroke="hsl(var(--primary))"
+                stroke={chartColors.centerLine}
                 strokeWidth={2.5}
-                label={{ value: 'CL', position: 'right', fill: 'hsl(var(--primary))', fontSize: 12, fontWeight: 600 }}
+                label={{ value: 'CL', position: 'right', fill: chartColors.centerLine, fontSize: 12, fontWeight: 600 }}
               />
               <ReferenceLine y={-1} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine y={-2} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine
                 y={-3}
-                stroke="hsl(var(--destructive))"
+                stroke={chartColors.lclLine}
                 strokeDasharray="5 5"
                 strokeWidth={1.5}
-                label={{ value: '-3σ (LCL)', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 11, fontWeight: 500 }}
+                label={{ value: '-3σ (LCL)', position: 'right', fill: chartColors.lclLine, fontSize: 11, fontWeight: 500 }}
               />
             </>
           ) : (
@@ -269,13 +303,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               {control_limits.ucl && (
                 <ReferenceLine
                   y={control_limits.ucl}
-                  stroke="hsl(var(--destructive))"
+                  stroke={chartColors.uclLine}
                   strokeDasharray="5 5"
                   strokeWidth={1.5}
                   label={{
                     value: 'UCL',
                     position: 'right',
-                    fill: 'hsl(var(--destructive))',
+                    fill: chartColors.uclLine,
                     fontSize: 12,
                     fontWeight: 500,
                   }}
@@ -285,12 +319,12 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               {control_limits.center_line && (
                 <ReferenceLine
                   y={control_limits.center_line}
-                  stroke="hsl(var(--primary))"
+                  stroke={chartColors.centerLine}
                   strokeWidth={2.5}
                   label={{
                     value: 'CL',
                     position: 'right',
-                    fill: 'hsl(var(--primary))',
+                    fill: chartColors.centerLine,
                     fontSize: 12,
                     fontWeight: 600,
                   }}
@@ -300,13 +334,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               {control_limits.lcl && (
                 <ReferenceLine
                   y={control_limits.lcl}
-                  stroke="hsl(var(--destructive))"
+                  stroke={chartColors.lclLine}
                   strokeDasharray="5 5"
                   strokeWidth={1.5}
                   label={{
                     value: 'LCL',
                     position: 'right',
-                    fill: 'hsl(var(--destructive))',
+                    fill: chartColors.lclLine,
                     fontSize: 12,
                     fontWeight: 500,
                   }}
@@ -342,12 +376,14 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               const isUndersized = payload.is_undersized
               const isExcluded = payload.excluded
 
-              // Determine fill color
+              // Determine fill color using preset colors
               const fillColor = isExcluded
-                ? 'hsl(var(--muted))'
+                ? chartColors.excludedPoint
                 : isViolation
-                  ? 'hsl(var(--destructive))'
-                  : 'hsl(var(--primary))'
+                  ? chartColors.violationPoint
+                  : isUndersized
+                    ? chartColors.undersizedPoint
+                    : chartColors.normalPoint
 
               // Base radius
               const baseRadius = isViolation ? 6 : isUndersized ? 5 : 4
@@ -366,7 +402,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                     <path
                       d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy + baseRadius * 0.7} L ${cx - baseRadius} ${cy + baseRadius * 0.7} Z`}
                       fill={fillColor}
-                      stroke="hsl(var(--warning))"
+                      stroke={chartColors.undersizedPoint}
                       strokeWidth={1.5}
                     />
                   ) : (
@@ -385,7 +421,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                       cy={cy}
                       r={baseRadius + 3}
                       fill="none"
-                      stroke="hsl(var(--warning))"
+                      stroke={chartColors.undersizedPoint}
                       strokeWidth={1.5}
                       strokeDasharray="2 2"
                     />
