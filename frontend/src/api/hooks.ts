@@ -165,12 +165,21 @@ export function useSubmitSample() {
     mutationFn: sampleApi.submit,
     onSuccess: (data, variables) => {
       // Invalidate ALL chart data queries for this characteristic (regardless of limit/date params)
-      // Using partial key match to catch all variations like chartData(id, 50), chartData(id, 100), etc.
+      // Use predicate to match any query that includes this characteristic's chart data
       queryClient.invalidateQueries({
-        queryKey: ['characteristics', 'chartData', variables.characteristic_id],
+        predicate: (query) => {
+          const key = query.queryKey
+          return (
+            Array.isArray(key) &&
+            key[0] === 'characteristics' &&
+            key[1] === 'chartData' &&
+            key[2] === variables.characteristic_id
+          )
+        },
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.characteristic_id) })
       toast.success(`Sample recorded (ID: ${data.sample_id})`)
     },
     onError: (error: Error) => {

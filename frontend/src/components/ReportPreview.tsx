@@ -283,7 +283,7 @@ function ReportSectionComponent({
                   <td className="py-2 text-right font-mono">{dp.mean.toFixed(4)}</td>
                   <td className="py-2 text-right">{dp.zone.replace('_', ' ')}</td>
                   <td className="py-2 text-center">
-                    {dp.violation_rules.length > 0 ? (
+                    {dp.violation_rules?.length > 0 ? (
                       <span className="text-destructive">OOC</span>
                     ) : (
                       <span className="text-green-600">OK</span>
@@ -336,7 +336,7 @@ function calculateStatistics(chartData: ChartData) {
   const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
   const stdDev = Math.sqrt(variance)
   const range = Math.max(...values) - Math.min(...values)
-  const oocCount = chartData.data_points.filter((dp) => dp.violation_rules.length > 0).length
+  const oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
   const inControlPct = ((values.length - oocCount) / values.length) * 100
 
   return { mean, stdDev, range, oocCount, inControlPct }
