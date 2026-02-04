@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from openspc.api.v1.characteristics import router as characteristics_router
+from openspc.api.v1.data_entry import router as data_entry_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.violations import router as violations_router
@@ -81,6 +82,7 @@ app.add_middleware(
 # Register routers
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
 app.include_router(characteristics_router)
+app.include_router(data_entry_router)
 app.include_router(samples_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)

@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for OpenSPC database schema."""
 
+from openspc.db.models.api_key import APIKey
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.sample import Measurement, Sample
@@ -9,6 +10,7 @@ __all__ = [
     # Base
     "Base",
     # Models
+    "APIKey",
     "Hierarchy",
     "Characteristic",
     "CharacteristicRule",
