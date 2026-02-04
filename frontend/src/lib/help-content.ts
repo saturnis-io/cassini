@@ -213,6 +213,76 @@ export const helpContent: Record<string, HelpContent> = {
     details:
       'The TAG provider subscribes to MQTT topics for characteristics configured with provider_type="TAG". Measurements are buffered into subgroups and processed through the SPC engine automatically.',
   },
+
+  // Chart Type explanations
+  'chart-type-xbar': {
+    title: 'X-bar Chart',
+    description: 'Control chart for monitoring process average (mean) over time.',
+    details:
+      'Plots the average (X-bar) of each subgroup. Best used with companion Range or S chart to monitor both location and spread. Control limits are calculated using sigma estimated from within-subgroup variation.',
+  },
+  'chart-type-xbar-r': {
+    title: 'X-bar and Range Chart',
+    description: 'Dual chart combining X-bar with Range chart for complete process monitoring.',
+    details:
+      'X-bar tracks the process mean while Range tracks within-subgroup variation. Recommended for subgroups of 2-10 observations. The Range chart uses D3/D4 constants for control limits.',
+  },
+  'chart-type-xbar-s': {
+    title: 'X-bar and S Chart',
+    description: 'Dual chart combining X-bar with Standard Deviation chart.',
+    details:
+      'Similar to X-bar R but uses standard deviation instead of range. Preferred for larger subgroups (n > 10) where standard deviation provides a more efficient estimate of variation. Uses B3/B4 constants.',
+  },
+  'chart-type-i-mr': {
+    title: 'Individuals and Moving Range',
+    description: 'Control charts for individual measurements (n=1).',
+    details:
+      'When subgrouping is not possible or practical, I-MR charts track individual values and the moving range between consecutive observations. Uses E2 constant (2.66) for control limits.',
+  },
+  'chart-type-p': {
+    title: 'P Chart (Proportion Defective)',
+    description: 'Attribute chart for proportion of defective items.',
+    details:
+      'Used when each item is classified as pass/fail and sample sizes may vary. Control limits adjust based on sample size (variable limits). Assumes binomial distribution.',
+  },
+  'chart-type-np': {
+    title: 'NP Chart (Number Defective)',
+    description: 'Attribute chart for count of defective items.',
+    details:
+      'Similar to p-chart but plots the actual count of defectives rather than proportion. Requires constant sample size. Simpler to interpret when sample size is fixed.',
+  },
+  'chart-type-c': {
+    title: 'C Chart (Defects per Unit)',
+    description: 'Attribute chart for counting defects in a constant area of opportunity.',
+    details:
+      'Used when counting defects (not defectives) where multiple defects can occur per item. Assumes Poisson distribution. Area of opportunity (inspection size) must be constant.',
+  },
+  'chart-type-u': {
+    title: 'U Chart (Defects per Unit - Variable)',
+    description: 'Attribute chart for defect rate with variable inspection area.',
+    details:
+      'Like c-chart but normalizes for varying area of opportunity. Plots defects per unit. Control limits vary with inspection size. Use when inspection area/size cannot be held constant.',
+  },
+  'chart-type-pareto': {
+    title: 'Pareto Chart',
+    description: 'Analysis chart showing defect categories by frequency.',
+    details:
+      'Bar chart sorted by frequency with cumulative percentage line. Helps identify the "vital few" causes that account for most problems (80/20 rule). Essential for root cause prioritization.',
+  },
+  'chart-type-box-whisker': {
+    title: 'Box and Whisker Plot',
+    description: 'Distribution visualization using quartiles.',
+    details:
+      'Shows median, quartiles, and outliers. Useful for comparing distributions across groups, shifts, or time periods. Outliers are typically defined as points beyond 1.5 * IQR from quartiles.',
+  },
+
+  // When to recalculate control limits
+  'recalculate-limits': {
+    title: 'When to Recalculate Control Limits',
+    description: 'Control limits should be recalculated after process improvements or when starting fresh.',
+    details:
+      'Recalculate when: (1) Process has been improved and is now stable at new level, (2) Sufficient data collected after a change (25+ subgroups recommended), (3) Original limits were based on out-of-control process. Do NOT recalculate just to make points "in control" - that defeats the purpose of SPC.',
+  },
 }
 
 /**

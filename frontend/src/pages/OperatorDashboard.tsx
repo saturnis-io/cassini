@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useCharacteristics } from '@/api/hooks'
+import { useCharacteristics, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
+import { DualChartPanel } from '@/components/charts/DualChartPanel'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
+import { DUAL_CHART_TYPES } from '@/lib/chart-registry'
+import type { ChartTypeId } from '@/types/charts'
 
 export function OperatorDashboard() {
   const { data: characteristicsData, isLoading } = useCharacteristics()
@@ -18,7 +21,15 @@ export function OperatorDashboard() {
   const secondaryCharacteristicId = useDashboardStore((state) => state.secondaryCharacteristicId)
   const setSecondaryCharacteristicId = useDashboardStore((state) => state.setSecondaryCharacteristicId)
   const timeRange = useDashboardStore((state) => state.timeRange)
+  const chartTypes = useDashboardStore((state) => state.chartTypes)
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
+
+  // Get selected characteristic details for subgroup size
+  const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
+
+  // Get current chart type
+  const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || 'xbar'
+  const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
 
   // Compute chart data options from time range
   const chartOptions = useMemo(() => {
@@ -70,17 +81,32 @@ export function OperatorDashboard() {
       <div className="flex-1 flex flex-col gap-4 min-h-0">
         {selectedId ? (
           <>
-            <ChartToolbar onChangeSecondary={() => setShowComparisonSelector(true)} />
+            <ChartToolbar
+              characteristicId={selectedId}
+              subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
+              onChangeSecondary={() => setShowComparisonSelector(true)}
+            />
 
             {/* Primary Chart with optional histogram */}
             <div className="flex-1 min-h-0">
-              <ChartPanel
-                characteristicId={selectedId}
-                chartOptions={chartOptions}
-                label={comparisonMode ? 'Primary' : undefined}
-                histogramPosition={histogramPosition}
-                showSpecLimits={showSpecLimits}
-              />
+              {isDualChart ? (
+                <DualChartPanel
+                  characteristicId={selectedId}
+                  chartType={currentChartType}
+                  chartOptions={chartOptions}
+                  label={comparisonMode ? 'Primary' : undefined}
+                  histogramPosition={histogramPosition}
+                  showSpecLimits={showSpecLimits}
+                />
+              ) : (
+                <ChartPanel
+                  characteristicId={selectedId}
+                  chartOptions={chartOptions}
+                  label={comparisonMode ? 'Primary' : undefined}
+                  histogramPosition={histogramPosition}
+                  showSpecLimits={showSpecLimits}
+                />
+              )}
             </div>
 
             {/* Secondary Chart (Comparison Mode) */}

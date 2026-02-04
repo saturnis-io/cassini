@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Violation } from '@/types'
+import type { ChartTypeId } from '@/types/charts'
 
 export type TimeRangeType = 'points' | 'duration' | 'custom'
 export type HistogramPosition = 'below' | 'right' | 'hidden'
@@ -76,6 +77,11 @@ interface DashboardState {
   secondaryCharacteristicId: number | null
   setComparisonMode: (enabled: boolean) => void
   setSecondaryCharacteristicId: (id: number | null) => void
+
+  // Chart type selection (per characteristic)
+  chartTypes: Map<number, ChartTypeId>
+  setChartType: (characteristicId: number, chartType: ChartTypeId) => void
+  getChartType: (characteristicId: number) => ChartTypeId
 }
 
 // Default time range: last 50 points
@@ -186,6 +192,19 @@ export const useDashboardStore = create<DashboardState>()(
     secondaryCharacteristicId: enabled ? null : null
   }),
   setSecondaryCharacteristicId: (id) => set({ secondaryCharacteristicId: id }),
+
+  // Chart type selection (per characteristic)
+  chartTypes: new Map<number, ChartTypeId>(),
+  setChartType: (characteristicId, chartType) =>
+    set((state) => {
+      const newMap = new Map(state.chartTypes)
+      newMap.set(characteristicId, chartType)
+      return { chartTypes: newMap }
+    }),
+  getChartType: (characteristicId) => {
+    // This is a selector, not state - will be used via useDashboardStore.getState()
+    return 'xbar' as ChartTypeId
+  },
     }),
     {
       name: 'openspc-dashboard',

@@ -3,20 +3,56 @@ import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
+import { ChartTypeSelector } from './charts/ChartTypeSelector'
+import type { ChartTypeId } from '@/types/charts'
 
 interface ChartToolbarProps {
+  /** Currently selected characteristic ID for chart type selection */
+  characteristicId?: number | null
+  /** Subgroup size of the characteristic (for chart type recommendations) */
+  subgroupSize?: number
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
 }
 
-export function ChartToolbar({ onComparisonToggle, onChangeSecondary }: ChartToolbarProps) {
-  const { comparisonMode, setComparisonMode, showSpecLimits, setShowSpecLimits, secondaryCharacteristicId } = useDashboardStore()
+export function ChartToolbar({
+  characteristicId,
+  subgroupSize = 5,
+  onComparisonToggle,
+  onChangeSecondary,
+}: ChartToolbarProps) {
+  const {
+    comparisonMode,
+    setComparisonMode,
+    showSpecLimits,
+    setShowSpecLimits,
+    secondaryCharacteristicId,
+    chartTypes,
+    setChartType,
+  } = useDashboardStore()
+
+  // Get current chart type for the characteristic
+  const currentChartType: ChartTypeId = (characteristicId && chartTypes.get(characteristicId)) || 'xbar'
+
+  const handleChartTypeChange = (chartType: ChartTypeId) => {
+    if (characteristicId) {
+      setChartType(characteristicId, chartType)
+    }
+  }
 
   return (
     <div className="flex items-center justify-between gap-4 mb-4">
       <div className="flex items-center gap-3">
         <TimeRangeSelector />
         <HistogramPositionSelector />
+        {/* Chart Type Selector */}
+        {characteristicId && (
+          <ChartTypeSelector
+            value={currentChartType}
+            onChange={handleChartTypeChange}
+            subgroupSize={subgroupSize}
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-2">
