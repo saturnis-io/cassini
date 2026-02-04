@@ -155,11 +155,13 @@ class ViolationRepository(BaseRepository[Violation]):
         """
         from openspc.db.models.sample import Sample
 
-        # Build base query
+        # Build base query - load sample and its characteristic for context
         stmt = (
             select(Violation)
             .join(Sample, Violation.sample_id == Sample.id)
-            .options(selectinload(Violation.sample))
+            .options(
+                selectinload(Violation.sample).selectinload(Sample.characteristic)
+            )
         )
 
         # Apply filters

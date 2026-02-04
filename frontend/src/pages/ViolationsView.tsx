@@ -134,9 +134,9 @@ export function ViolationsView() {
           <thead className="bg-muted/50 border-b border-border">
             <tr>
               <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Time</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Characteristic</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Rule</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Severity</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Message</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
               <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
             </tr>
@@ -158,10 +158,26 @@ export function ViolationsView() {
               violations?.items.map((violation) => (
                 <tr key={violation.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 text-sm">
-                    <div>{new Date(violation.created_at).toLocaleDateString()}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(violation.created_at).toLocaleTimeString()}
+                    {violation.created_at ? (
+                      <>
+                        <div>{new Date(violation.created_at).toLocaleDateString()}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(violation.created_at).toLocaleTimeString()}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-medium">
+                      {violation.characteristic_name || 'Unknown'}
                     </div>
+                    {violation.hierarchy_path && (
+                      <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={violation.hierarchy_path}>
+                        {violation.hierarchy_path}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -175,9 +191,6 @@ export function ViolationsView() {
                     <span className={cn('px-2 py-1 text-xs font-medium rounded border', getSeverityStyle(violation.severity))}>
                       {violation.severity}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm max-w-xs truncate" title={violation.message}>
-                    {violation.message}
                   </td>
                   <td className="px-4 py-3">
                     {violation.acknowledged ? (

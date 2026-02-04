@@ -145,13 +145,16 @@ export interface Violation {
   rule_id: number
   rule_name: string
   severity: Severity
-  message: string
-  involved_sample_ids: number[]
+  message?: string
+  involved_sample_ids?: number[]
   acknowledged: boolean
   ack_user: string | null
   ack_reason: string | null
   ack_timestamp: string | null
-  created_at: string
+  created_at: string | null
+  characteristic_id: number | null
+  characteristic_name: string | null
+  hierarchy_path: string | null
 }
 
 export interface ViolationStats {

@@ -6,8 +6,9 @@ Implements violation management and acknowledgment endpoints for SPC monitoring.
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_alert_manager, get_violation_repo
+from openspc.api.deps import get_alert_manager, get_violation_repo, get_db_session
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.violation import (
     AcknowledgeResultItem,
@@ -19,13 +20,32 @@ from openspc.api.schemas.violation import (
 )
 from openspc.core.alerts.manager import AlertManager
 from openspc.db.repositories.violation import ViolationRepository
+from openspc.db.repositories.hierarchy import HierarchyRepository
 
 router = APIRouter(prefix="/api/v1/violations", tags=["violations"])
+
+
+async def build_hierarchy_path(
+    hierarchy_repo: HierarchyRepository, hierarchy_id: int
+) -> str:
+    """Build hierarchy path string like 'Plant > Line > Machine'."""
+    path_parts = []
+    current_id: int | None = hierarchy_id
+
+    while current_id is not None:
+        node = await hierarchy_repo.get_by_id(current_id)
+        if node is None:
+            break
+        path_parts.insert(0, node.name)
+        current_id = node.parent_id
+
+    return " > ".join(path_parts) if path_parts else ""
 
 
 @router.get("/", response_model=PaginatedResponse[ViolationResponse])
 async def list_violations(
     repo: ViolationRepository = Depends(get_violation_repo),
+    session: AsyncSession = Depends(get_db_session),
     characteristic_id: int | None = None,
     sample_id: int | None = None,
     acknowledged: bool | None = None,
@@ -89,7 +109,46 @@ async def list_violations(
         limit=limit,
     )
 
-    items = [ViolationResponse.model_validate(v) for v in violations]
+    # Build response with characteristic context
+    hierarchy_repo = HierarchyRepository(session)
+    hierarchy_cache: dict[int, str] = {}  # Cache paths to avoid repeated queries
+
+    items: list[ViolationResponse] = []
+    for v in violations:
+        # Get characteristic info from loaded relationships
+        char_id = None
+        char_name = None
+        hierarchy_path = None
+
+        if v.sample and v.sample.characteristic:
+            char = v.sample.characteristic
+            char_id = char.id
+            char_name = char.name
+
+            # Build or get cached hierarchy path
+            if char.hierarchy_id not in hierarchy_cache:
+                hierarchy_cache[char.hierarchy_id] = await build_hierarchy_path(
+                    hierarchy_repo, char.hierarchy_id
+                )
+            hierarchy_path = hierarchy_cache[char.hierarchy_id]
+
+        items.append(
+            ViolationResponse(
+                id=v.id,
+                sample_id=v.sample_id,
+                rule_id=v.rule_id,
+                rule_name=v.rule_name or f"Rule {v.rule_id}",
+                severity=v.severity,
+                acknowledged=v.acknowledged,
+                ack_user=v.ack_user,
+                ack_reason=v.ack_reason,
+                ack_timestamp=v.ack_timestamp,
+                created_at=v.sample.timestamp if v.sample else None,
+                characteristic_id=char_id,
+                characteristic_name=char_name,
+                hierarchy_path=hierarchy_path,
+            )
+        )
 
     return PaginatedResponse(
         items=items,

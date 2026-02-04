@@ -196,70 +196,73 @@ export function DistributionHistogram({
   const gradientId = `barGradient-${characteristicId}-${colorScheme}`
   const normalGradientId = `normalGradient-${characteristicId}-${colorScheme}`
 
-  // For vertical orientation, we render a compact version aligned with the control chart
+  // For vertical orientation, we render aligned with the control chart
+  // Using same padding (p-5), header height (mb-4), and chart height (90%)
   if (isVertical) {
     // Use the passed yAxisDomain if available for alignment, otherwise use calculated domain
     const verticalDomain = yAxisDomain || [xMin, xMax]
 
     return (
-      <div className="h-full bg-card border border-border rounded-2xl p-3 flex flex-col">
-        <div className="text-xs font-medium text-center mb-1 truncate">
-          {label && <span className="text-muted-foreground">{label}: </span>}
-          Capability
+      <div className="h-full bg-card border border-border rounded-2xl p-5">
+        {/* Header - matches ControlChart header height with mb-4 */}
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-sm truncate">
+            {label && <span className="text-muted-foreground mr-1">{label}:</span>}
+            Capability
+          </h3>
+          <div className="flex gap-1 items-center text-xs">
+            {cpk > 0 && (
+              <span className={getCapabilityStyle(cpk)}>
+                Cpk {cpk.toFixed(2)}
+              </span>
+            )}
+            <span className="text-muted-foreground ml-1">n={stats.n}</span>
+          </div>
         </div>
-        <div className="flex gap-1 justify-center text-xs mb-2">
-          {cpk > 0 && (
-            <span className={getCapabilityStyle(cpk)}>
-              Cpk {cpk.toFixed(2)}
-            </span>
-          )}
-        </div>
-        <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              layout="vertical"
-              data={bins}
-              margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
-            >
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.4} />
-                  <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.8} />
-                </linearGradient>
-              </defs>
-              <XAxis type="number" hide />
-              <YAxis
-                type="number"
-                dataKey="binCenter"
-                domain={verticalDomain}
-                tick={{ fontSize: 8, fill: 'hsl(240 4% 46%)' }}
-                tickFormatter={(value) => value.toFixed(1)}
-                width={35}
-                axisLine={false}
-                tickLine={false}
-                reversed={true}
-              />
-              {/* Spec and control limits as horizontal lines */}
-              {lsl !== null && (
-                <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'LSL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
-              )}
-              {usl !== null && (
-                <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'USL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
-              )}
-              {lcl !== null && (
-                <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'LCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
-              )}
-              {ucl !== null && (
-                <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'UCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
-              )}
-              {centerLine !== null && (
-                <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" label={{ value: 'CL', position: 'right', fontSize: 8, fill: 'hsl(104 55% 35%)' }} />
-              )}
-              <Bar dataKey="count" fill={`url(#${gradientId})`} stroke={colors.barStroke} strokeWidth={0.5} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="text-xs text-muted-foreground text-center mt-1">n={stats.n}</div>
+        {/* Chart area - matches ControlChart's 90% height and margins */}
+        <ResponsiveContainer width="100%" height="90%">
+          <ComposedChart
+            layout="vertical"
+            data={bins}
+            margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.8} />
+              </linearGradient>
+            </defs>
+            <XAxis type="number" hide />
+            <YAxis
+              type="number"
+              dataKey="binCenter"
+              domain={verticalDomain}
+              tick={{ fontSize: 8, fill: 'hsl(240 4% 46%)' }}
+              tickFormatter={(value) => value.toFixed(1)}
+              width={35}
+              axisLine={false}
+              tickLine={false}
+              reversed={true}
+            />
+            {/* Spec and control limits as horizontal lines */}
+            {lsl !== null && (
+              <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'LSL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
+            )}
+            {usl !== null && (
+              <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'USL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
+            )}
+            {lcl !== null && (
+              <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'LCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
+            )}
+            {ucl !== null && (
+              <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'UCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
+            )}
+            {centerLine !== null && (
+              <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" label={{ value: 'CL', position: 'right', fontSize: 8, fill: 'hsl(104 55% 35%)' }} />
+            )}
+            <Bar dataKey="count" fill={`url(#${gradientId})`} stroke={colors.barStroke} strokeWidth={0.5} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     )
   }

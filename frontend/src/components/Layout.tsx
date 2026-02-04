@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link } from 'react-router-dom'
-import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList } from 'lucide-react'
+import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useViolationStats } from '@/api/hooks'
@@ -80,6 +80,25 @@ export function Layout() {
               >
                 <ClipboardList className="h-4 w-4 inline mr-1" />
                 Data Entry
+              </NavLink>
+              <NavLink
+                to="/violations"
+                className={({ isActive }) =>
+                  cn(
+                    'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )
+                }
+              >
+                <AlertTriangle className="h-4 w-4 inline mr-1" />
+                Violations
+                {stats?.unacknowledged ? (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-destructive text-destructive-foreground">
+                    {stats.unacknowledged}
+                  </span>
+                ) : null}
               </NavLink>
               <NavLink
                 to="/settings"

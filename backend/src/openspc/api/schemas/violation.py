@@ -21,6 +21,10 @@ class ViolationResponse(BaseModel):
         ack_user: User who acknowledged the violation
         ack_reason: Reason provided for acknowledgment
         ack_timestamp: When the violation was acknowledged
+        created_at: When the violation was created
+        characteristic_id: ID of the characteristic
+        characteristic_name: Name of the characteristic
+        hierarchy_path: Path in hierarchy (e.g., "Plant > Line > Machine")
     """
 
     id: int
@@ -32,6 +36,10 @@ class ViolationResponse(BaseModel):
     ack_user: str | None
     ack_reason: str | None
     ack_timestamp: datetime | None
+    created_at: datetime | None = None
+    characteristic_id: int | None = None
+    characteristic_name: str | None = None
+    hierarchy_path: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
