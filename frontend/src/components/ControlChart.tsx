@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   ComposedChart,
   Line,
@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { useChartData } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 
 interface ControlChartProps {
   characteristicId: number
@@ -107,6 +108,7 @@ export function ControlChart({
     mean: isModeA ? (point.z_score ?? point.mean) : point.mean,
     displayValue: point.display_value ?? point.mean,
     hasViolation: point.violation_ids.length > 0,
+    violationRules: point.violation_rules ?? [],
     excluded: point.excluded,
     timestamp: new Date(point.timestamp).toLocaleTimeString(),
     // Mode-specific fields
@@ -116,6 +118,15 @@ export function ControlChart({
     effective_lcl: point.effective_lcl,
     z_score: point.z_score,
   }))
+
+  // Collect all violated rules across all data points for legend
+  const allViolatedRules = useMemo(() => {
+    const rules = new Set<number>()
+    data_points.forEach((point) => {
+      point.violation_rules?.forEach((rule) => rules.add(rule))
+    })
+    return Array.from(rules).sort((a, b) => a - b)
+  }, [data_points])
 
   // Calculate Y-axis domain based on mode
   let yMin: number, yMax: number, yAxisLabel: string
@@ -151,7 +162,12 @@ export function ControlChart({
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-sm">{chartTitle}</h3>
+        <div className="flex items-center gap-4">
+          <h3 className="font-semibold text-sm">{chartTitle}</h3>
+          {allViolatedRules.length > 0 && (
+            <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
+          )}
+        </div>
         <div className="flex gap-4 text-sm text-muted-foreground">
           {isModeA ? (
             <>
@@ -269,7 +285,20 @@ export function ControlChart({
                   {point.is_undersized && (
                     <div className="text-warning font-medium">Undersized sample</div>
                   )}
-                  {point.hasViolation && (
+                  {point.hasViolation && point.violationRules?.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <div className="text-destructive font-medium mb-1">Violations:</div>
+                      {point.violationRules.map((ruleId: number) => (
+                        <div key={ruleId} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-destructive/20 text-destructive">
+                            {ruleId}
+                          </span>
+                          <span>{NELSON_RULES[ruleId]?.name || `Rule ${ruleId}`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {point.hasViolation && (!point.violationRules || point.violationRules.length === 0) && (
                     <div className="text-destructive font-medium">Violation!</div>
                   )}
                 </div>
@@ -417,6 +446,8 @@ export function ControlChart({
               const isViolation = payload.hasViolation
               const isUndersized = payload.is_undersized
               const isExcluded = payload.excluded
+              const violationRules: number[] = payload.violationRules || []
+              const primaryRule = getPrimaryViolationRule(violationRules)
 
               // Determine fill color using preset colors
               const fillColor = isExcluded
@@ -455,6 +486,44 @@ export function ControlChart({
                       r={baseRadius}
                       fill={fillColor}
                     />
+                  )}
+                  {/* Violation rule number badge */}
+                  {isViolation && primaryRule && (
+                    <>
+                      {/* Badge background */}
+                      <circle
+                        cx={cx}
+                        cy={cy - baseRadius - 8}
+                        r={7}
+                        fill="hsl(357 80% 52%)"
+                        stroke="white"
+                        strokeWidth={1}
+                      />
+                      {/* Rule number */}
+                      <text
+                        x={cx}
+                        y={cy - baseRadius - 8}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill="white"
+                        fontSize={9}
+                        fontWeight={700}
+                      >
+                        {primaryRule}
+                      </text>
+                      {/* Multiple violations indicator */}
+                      {violationRules.length > 1 && (
+                        <text
+                          x={cx + 7}
+                          y={cy - baseRadius - 12}
+                          fill="hsl(357 80% 45%)"
+                          fontSize={8}
+                          fontWeight={600}
+                        >
+                          +{violationRules.length - 1}
+                        </text>
+                      )}
+                    </>
                   )}
                   {/* Undersized indicator ring */}
                   {isUndersized && !isViolation && (
