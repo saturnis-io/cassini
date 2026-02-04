@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link } from 'react-router-dom'
-import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList, AlertTriangle, Info } from 'lucide-react'
+import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList, AlertTriangle, Info, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useViolationStats } from '@/api/hooks'
@@ -99,6 +99,20 @@ export function Layout() {
                     {stats.unacknowledged}
                   </span>
                 ) : null}
+              </NavLink>
+              <NavLink
+                to="/reports"
+                className={({ isActive }) =>
+                  cn(
+                    'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )
+                }
+              >
+                <FileText className="h-4 w-4 inline mr-1" />
+                Reports
               </NavLink>
               <NavLink
                 to="/settings"
