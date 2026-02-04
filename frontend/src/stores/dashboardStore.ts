@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Violation } from '@/types'
 
 export type TimeRangeType = 'points' | 'duration' | 'custom'
+export type HistogramPosition = 'below' | 'right' | 'hidden'
 
 export interface TimeRangeOption {
   label: string
@@ -53,9 +54,13 @@ interface DashboardState {
   wsConnected: boolean
   setWsConnected: (connected: boolean) => void
 
-  // Histogram visibility
-  showHistogram: boolean
-  setShowHistogram: (show: boolean) => void
+  // Histogram position (below/right/hidden)
+  histogramPosition: HistogramPosition
+  setHistogramPosition: (position: HistogramPosition) => void
+
+  // Spec limits visibility on charts
+  showSpecLimits: boolean
+  setShowSpecLimits: (show: boolean) => void
 
   // Comparison mode
   comparisonMode: boolean
@@ -125,9 +130,13 @@ export const useDashboardStore = create<DashboardState>()(
   wsConnected: false,
   setWsConnected: (connected) => set({ wsConnected: connected }),
 
-  // Histogram visibility
-  showHistogram: false,
-  setShowHistogram: (show) => set({ showHistogram: show }),
+  // Histogram position
+  histogramPosition: 'hidden',
+  setHistogramPosition: (position) => set({ histogramPosition: position }),
+
+  // Spec limits visibility
+  showSpecLimits: true,
+  setShowSpecLimits: (show) => set({ showSpecLimits: show }),
 
   // Comparison mode
   comparisonMode: false,
@@ -142,7 +151,8 @@ export const useDashboardStore = create<DashboardState>()(
       name: 'openspc-dashboard',
       partialize: (state) => ({
         timeRange: state.timeRange,
-        showHistogram: state.showHistogram,
+        histogramPosition: state.histogramPosition,
+        showSpecLimits: state.showSpecLimits,
       }),
     }
   )

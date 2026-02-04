@@ -2,8 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useCharacteristics } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TodoList } from '@/components/TodoList'
-import { ControlChart } from '@/components/ControlChart'
-import { DistributionHistogram } from '@/components/DistributionHistogram'
+import { ChartPanel } from '@/components/ChartPanel'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
@@ -12,7 +11,8 @@ export function OperatorDashboard() {
   const { data: characteristicsData, isLoading } = useCharacteristics()
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const inputModalOpen = useDashboardStore((state) => state.inputModalOpen)
-  const showHistogram = useDashboardStore((state) => state.showHistogram)
+  const histogramPosition = useDashboardStore((state) => state.histogramPosition)
+  const showSpecLimits = useDashboardStore((state) => state.showSpecLimits)
   const comparisonMode = useDashboardStore((state) => state.comparisonMode)
   const secondaryCharacteristicId = useDashboardStore((state) => state.secondaryCharacteristicId)
   const setSecondaryCharacteristicId = useDashboardStore((state) => state.setSecondaryCharacteristicId)
@@ -65,17 +65,19 @@ export function OperatorDashboard() {
       </div>
 
       {/* Right panel - Visualization */}
-      <div className="flex-1 flex flex-col gap-4">
+      <div className="flex-1 flex flex-col gap-4 min-h-0">
         {selectedId ? (
           <>
             <ChartToolbar />
 
-            {/* Primary Chart */}
-            <div className={comparisonMode ? 'flex-1 min-h-0' : 'flex-1 min-h-0'}>
-              <ControlChart
+            {/* Primary Chart with optional histogram */}
+            <div className="flex-1 min-h-0">
+              <ChartPanel
                 characteristicId={selectedId}
                 chartOptions={chartOptions}
                 label={comparisonMode ? 'Primary' : undefined}
+                histogramPosition={histogramPosition}
+                showSpecLimits={showSpecLimits}
               />
             </div>
 
@@ -83,10 +85,12 @@ export function OperatorDashboard() {
             {comparisonMode && (
               <div className="flex-1 min-h-0">
                 {secondaryCharacteristicId ? (
-                  <ControlChart
+                  <ChartPanel
                     characteristicId={secondaryCharacteristicId}
                     chartOptions={chartOptions}
                     label="Secondary"
+                    histogramPosition={histogramPosition}
+                    showSpecLimits={showSpecLimits}
                   />
                 ) : (
                   <div className="h-full bg-card border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground">
@@ -107,13 +111,6 @@ export function OperatorDashboard() {
                     </select>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Histogram (toggleable) */}
-            {showHistogram && (
-              <div className="h-64 flex-shrink-0">
-                <DistributionHistogram characteristicId={selectedId} />
               </div>
             )}
           </>

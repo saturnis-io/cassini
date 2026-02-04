@@ -21,6 +21,8 @@ interface ControlChartProps {
     endDate?: string
   }
   label?: string
+  showSpecLimits?: boolean
+  colorScheme?: 'primary' | 'secondary'
 }
 
 // Hook to subscribe to chart color changes
@@ -54,9 +56,21 @@ function useChartColors(): ChartColors {
   return colors
 }
 
-export function ControlChart({ characteristicId, chartOptions, label }: ControlChartProps) {
+export function ControlChart({
+  characteristicId,
+  chartOptions,
+  label,
+  showSpecLimits = true,
+  colorScheme = 'primary',
+}: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
+
+  // Color scheme overrides for comparison mode
+  const lineGradientId = `chartLineGradient-${characteristicId}-${colorScheme}`
+  const lineColors = colorScheme === 'secondary'
+    ? { start: 'hsl(280, 87%, 55%)', end: 'hsl(320, 70%, 55%)' }
+    : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd }
 
   if (isLoading) {
     return (
@@ -159,9 +173,9 @@ export function ControlChart({ characteristicId, chartOptions, label }: ControlC
         <ComposedChart data={data} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
           {/* Gradient and filter definitions */}
           <defs>
-            <linearGradient id="chartLineGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={chartColors.lineGradientStart} />
-              <stop offset="100%" stopColor={chartColors.lineGradientEnd} />
+            <linearGradient id={lineGradientId} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={lineColors.start} />
+              <stop offset="100%" stopColor={lineColors.end} />
             </linearGradient>
             <filter id="violationGlow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="2" result="blur" />
@@ -358,19 +372,35 @@ export function ControlChart({ characteristicId, chartOptions, label }: ControlC
             </>
           )}
 
-          {/* Spec limits (if different from control limits) */}
-          {spec_limits.usl && spec_limits.usl !== control_limits.ucl && (
+          {/* Spec limits - visible when showSpecLimits is true */}
+          {showSpecLimits && spec_limits.usl != null && (
             <ReferenceLine
               y={spec_limits.usl}
-              stroke="hsl(var(--muted-foreground))"
-              strokeDasharray="2 2"
+              stroke="hsl(357 80% 52%)"
+              strokeWidth={2}
+              strokeDasharray="8 4"
+              label={{
+                value: `USL: ${formatValue(spec_limits.usl)}`,
+                position: 'right',
+                fill: 'hsl(357 80% 45%)',
+                fontSize: 10,
+                fontWeight: 500,
+              }}
             />
           )}
-          {spec_limits.lsl && spec_limits.lsl !== control_limits.lcl && (
+          {showSpecLimits && spec_limits.lsl != null && (
             <ReferenceLine
               y={spec_limits.lsl}
-              stroke="hsl(var(--muted-foreground))"
-              strokeDasharray="2 2"
+              stroke="hsl(357 80% 52%)"
+              strokeWidth={2}
+              strokeDasharray="8 4"
+              label={{
+                value: `LSL: ${formatValue(spec_limits.lsl)}`,
+                position: 'right',
+                fill: 'hsl(357 80% 45%)',
+                fontSize: 10,
+                fontWeight: 500,
+              }}
             />
           )}
 
@@ -378,7 +408,7 @@ export function ControlChart({ characteristicId, chartOptions, label }: ControlC
           <Line
             type="linear"
             dataKey="mean"
-            stroke="url(#chartLineGradient)"
+            stroke={`url(#${lineGradientId})`}
             strokeWidth={2.5}
             dot={({ cx, cy, payload }) => {
               // Guard against undefined coordinates

@@ -13,6 +13,9 @@ import { useChartData } from '@/api/hooks'
 
 interface DistributionHistogramProps {
   characteristicId: number
+  orientation?: 'horizontal' | 'vertical'
+  label?: 'Primary' | 'Secondary'
+  colorScheme?: 'primary' | 'secondary'
 }
 
 function calculateHistogramBins(values: number[], binCount: number = 20) {
@@ -83,8 +86,37 @@ function addNormalCurve(
   }))
 }
 
-export function DistributionHistogram({ characteristicId }: DistributionHistogramProps) {
+// Color schemes for comparison mode
+const colorSchemes = {
+  primary: {
+    barGradientStart: 'hsl(212 100% 30%)',
+    barGradientEnd: 'hsl(212 100% 30%)',
+    barStroke: 'hsl(212 100% 28%)',
+    normalStroke: 'hsl(248 33% 55%)',
+    normalFill: 'hsl(248 33% 59%)',
+    meanColor: 'hsl(212 100% 30%)',
+    meanTextColor: 'hsl(212 100% 28%)',
+  },
+  secondary: {
+    barGradientStart: 'hsl(280 87% 55%)',
+    barGradientEnd: 'hsl(280 87% 55%)',
+    barStroke: 'hsl(280 87% 45%)',
+    normalStroke: 'hsl(320 70% 55%)',
+    normalFill: 'hsl(320 70% 59%)',
+    meanColor: 'hsl(280 87% 55%)',
+    meanTextColor: 'hsl(280 87% 45%)',
+  },
+}
+
+export function DistributionHistogram({
+  characteristicId,
+  orientation = 'horizontal',
+  label,
+  colorScheme = 'primary',
+}: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 100 })
+  const colors = colorSchemes[colorScheme]
+  const isVertical = orientation === 'vertical'
 
   if (isLoading) {
     return (
@@ -157,10 +189,82 @@ export function DistributionHistogram({ characteristicId }: DistributionHistogra
     return 'stat-badge stat-badge-danger'
   }
 
+  // Generate unique gradient IDs for this instance
+  const gradientId = `barGradient-${characteristicId}-${colorScheme}`
+  const normalGradientId = `normalGradient-${characteristicId}-${colorScheme}`
+
+  // For vertical orientation, we render a compact version
+  if (isVertical) {
+    return (
+      <div className="h-full bg-card border border-border rounded-2xl p-3 flex flex-col">
+        <div className="text-xs font-medium text-center mb-1 truncate">
+          {label && <span className="text-muted-foreground">{label}: </span>}
+          Capability
+        </div>
+        <div className="flex gap-1 justify-center text-xs mb-2">
+          {cpk > 0 && (
+            <span className={getCapabilityStyle(cpk)}>
+              Cpk {cpk.toFixed(2)}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              layout="vertical"
+              data={bins}
+              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.8} />
+                </linearGradient>
+              </defs>
+              <XAxis type="number" hide />
+              <YAxis
+                type="number"
+                dataKey="binCenter"
+                domain={[xMin, xMax]}
+                tick={{ fontSize: 8, fill: 'hsl(240 4% 46%)' }}
+                tickFormatter={(value) => value.toFixed(1)}
+                width={35}
+                axisLine={false}
+                tickLine={false}
+              />
+              {/* Spec and control limits as horizontal lines */}
+              {lsl !== null && (
+                <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} />
+              )}
+              {usl !== null && (
+                <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} />
+              )}
+              {lcl !== null && (
+                <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" />
+              )}
+              {ucl !== null && (
+                <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" />
+              )}
+              {centerLine !== null && (
+                <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" />
+              )}
+              <Bar dataKey="count" fill={`url(#${gradientId})`} stroke={colors.barStroke} strokeWidth={0.5} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="text-xs text-muted-foreground text-center mt-1">n={stats.n}</div>
+      </div>
+    )
+  }
+
+  // Horizontal orientation (original layout)
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="font-semibold text-sm tracking-tight">Process Capability</h3>
+        <h3 className="font-semibold text-sm tracking-tight">
+          {label && <span className="text-muted-foreground mr-1">{label}:</span>}
+          Process Capability
+        </h3>
         <div className="flex gap-2 items-center">
           {cp > 0 && (
             <span className={getCapabilityStyle(cp)}>
@@ -186,15 +290,15 @@ export function DistributionHistogram({ characteristicId }: DistributionHistogra
       <ResponsiveContainer width="100%" height="85%">
         <ComposedChart data={bins} margin={{ top: 25, right: 45, left: 10, bottom: 10 }}>
           <defs>
-            {/* Sepasoft Blue gradient for histogram bars */}
-            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(212 100% 30%)" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="hsl(212 100% 30%)" stopOpacity={0.4} />
+            {/* Gradient for histogram bars */}
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.8} />
+              <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.4} />
             </linearGradient>
-            {/* Sepasoft Purple gradient for normal curve area */}
-            <linearGradient id="normalGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(248 33% 59%)" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="hsl(248 33% 59%)" stopOpacity={0.02} />
+            {/* Gradient for normal curve area */}
+            <linearGradient id={normalGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={colors.normalFill} stopOpacity={0.25} />
+              <stop offset="95%" stopColor={colors.normalFill} stopOpacity={0.02} />
             </linearGradient>
           </defs>
 
@@ -235,10 +339,10 @@ export function DistributionHistogram({ characteristicId }: DistributionHistogra
             }}
           />
 
-          {/* Sample Mean - Sepasoft Blue annotation */}
+          {/* Sample Mean annotation */}
           <ReferenceLine
             x={stats.mean}
-            stroke="hsl(212 100% 30%)"
+            stroke={colors.meanColor}
             strokeWidth={2}
             strokeDasharray="4 4"
             label={{
@@ -246,7 +350,7 @@ export function DistributionHistogram({ characteristicId }: DistributionHistogra
               position: 'top',
               fontSize: 11,
               fontWeight: 600,
-              fill: 'hsl(212 100% 28%)',
+              fill: colors.meanTextColor,
               offset: 8,
             }}
           />
@@ -327,22 +431,22 @@ export function DistributionHistogram({ characteristicId }: DistributionHistogra
             />
           )}
 
-          {/* Histogram bars with Sepasoft Blue gradient */}
+          {/* Histogram bars */}
           <Bar
             dataKey="count"
-            fill="url(#barGradient)"
-            stroke="hsl(212 100% 28%)"
+            fill={`url(#${gradientId})`}
+            stroke={colors.barStroke}
             strokeWidth={1}
             radius={[3, 3, 0, 0]}
           />
 
-          {/* Normal distribution curve - Sepasoft Purple */}
+          {/* Normal distribution curve */}
           <Area
             type="monotone"
             dataKey="normalY"
-            stroke="hsl(248 33% 55%)"
+            stroke={colors.normalStroke}
             strokeWidth={2.5}
-            fill="url(#normalGradient)"
+            fill={`url(#${normalGradientId})`}
             dot={false}
             activeDot={false}
           />
