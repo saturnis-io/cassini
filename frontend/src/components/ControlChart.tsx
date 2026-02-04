@@ -10,7 +10,6 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { useChartData } from '@/api/hooks'
-import { cn } from '@/lib/utils'
 
 interface ControlChartProps {
   characteristicId: number
@@ -109,6 +108,20 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
 
       <ResponsiveContainer width="100%" height="90%">
         <ComposedChart data={data} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
+          {/* Gradient definitions */}
+          <defs>
+            <linearGradient id="chartLineGradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="hsl(212 100% 35%)" />
+              <stop offset="100%" stopColor="hsl(179 50% 55%)" />
+            </linearGradient>
+            <filter id="violationGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
           {/* Zone backgrounds */}
@@ -279,40 +292,65 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
           <Line
             type="linear"
             dataKey="mean"
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={({ cx, cy, payload }) => (
-              <g key={payload.index}>
-                {/* Main dot */}
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={payload.hasViolation ? 6 : 4}
-                  fill={
-                    payload.excluded
-                      ? 'hsl(var(--muted))'
-                      : payload.hasViolation
-                        ? 'hsl(var(--destructive))'
-                        : 'hsl(var(--primary))'
-                  }
-                  stroke={payload.hasViolation ? 'hsl(var(--destructive))' : 'none'}
-                  strokeWidth={payload.hasViolation ? 2 : 0}
-                  className={cn(payload.hasViolation && 'violation-pulse')}
-                />
-                {/* Undersized indicator - dashed ring around the point */}
-                {payload.is_undersized && (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={payload.hasViolation ? 9 : 7}
-                    fill="none"
-                    stroke="hsl(var(--warning))"
-                    strokeWidth={1.5}
-                    strokeDasharray="2 2"
-                  />
-                )}
-              </g>
-            )}
+            stroke="url(#chartLineGradient)"
+            strokeWidth={2.5}
+            dot={({ cx, cy, payload }) => {
+              const isViolation = payload.hasViolation
+              const isUndersized = payload.is_undersized
+              const isExcluded = payload.excluded
+
+              // Determine fill color
+              const fillColor = isExcluded
+                ? 'hsl(var(--muted))'
+                : isViolation
+                  ? 'hsl(var(--destructive))'
+                  : 'hsl(var(--primary))'
+
+              // Base radius
+              const baseRadius = isViolation ? 6 : isUndersized ? 5 : 4
+
+              return (
+                <g key={payload.index}>
+                  {isViolation ? (
+                    // Diamond shape for violations
+                    <path
+                      d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy} L ${cx} ${cy + baseRadius} L ${cx - baseRadius} ${cy} Z`}
+                      fill={fillColor}
+                      filter="url(#violationGlow)"
+                      className="violation-pulse"
+                    />
+                  ) : isUndersized ? (
+                    // Triangle shape for undersized
+                    <path
+                      d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy + baseRadius * 0.7} L ${cx - baseRadius} ${cy + baseRadius * 0.7} Z`}
+                      fill={fillColor}
+                      stroke="hsl(var(--warning))"
+                      strokeWidth={1.5}
+                    />
+                  ) : (
+                    // Circle for normal points
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={baseRadius}
+                      fill={fillColor}
+                    />
+                  )}
+                  {/* Undersized indicator ring (additional for non-undersized shape) */}
+                  {isUndersized && !isViolation && (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={baseRadius + 3}
+                      fill="none"
+                      stroke="hsl(var(--warning))"
+                      strokeWidth={1.5}
+                      strokeDasharray="2 2"
+                    />
+                  )}
+                </g>
+              )
+            }}
             activeDot={{ r: 6 }}
           />
         </ComposedChart>

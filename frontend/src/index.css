@@ -59,6 +59,17 @@
   --color-chart-tertiary: hsl(248 33% 59%);     /* #7473C0 Sepasoft Purple */
   --color-chart-quaternary: hsl(32 63% 51%);    /* Sepasoft Orange */
 
+  /* Chart styling variables */
+  --chart-line-width: 2.5;
+  --chart-point-radius: 4;
+  --chart-point-radius-violation: 6;
+  --chart-point-radius-undersized: 5;
+  --chart-zone-opacity: 0.15;
+  --chart-center-line-width: 2.5;
+  --chart-limit-line-width: 1.5;
+  --chart-line-gradient-start: hsl(212 100% 35%);
+  --chart-line-gradient-end: hsl(179 50% 55%);
+
   /* Shadows - Clean, professional */
   --shadow-xs: 0 1px 2px hsl(30 9% 16% / 0.04);
   --shadow-sm: 0 2px 4px hsl(30 9% 16% / 0.04), 0 1px 2px hsl(30 9% 16% / 0.02);
@@ -178,6 +189,27 @@ button:not(:disabled):active {
   animation: pulse-violation 2.5s ease-in-out infinite;
 }
 
+/* Chart point glow effect for violations */
+.point-glow-violation {
+  filter: drop-shadow(0 0 4px hsl(357 80% 52% / 0.6));
+}
+
+/* Chart entry animation for new points */
+@keyframes point-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.point-enter {
+  animation: point-enter 300ms ease-out;
+}
+
 /* Card status indicators - Subtle left border accent (Sepasoft colors) */
 .card-ok {
   border-color: var(--color-border);
@@ -271,4 +303,103 @@ h1, h2, h3, h4, h5, h6 {
 .stat-badge-danger {
   background: hsl(357 80% 52% / 0.1);  /* Sepasoft Red */
   color: hsl(357 80% 45%);
+}
+
+/* Dark theme overrides */
+.dark {
+  /* Base - Dark background with light text */
+  --color-background: hsl(220 15% 10%);
+  --color-foreground: hsl(0 0% 95%);
+
+  /* Card surfaces - Elevated dark */
+  --color-card: hsl(220 15% 13%);
+  --color-card-foreground: hsl(0 0% 95%);
+  --color-popover: hsl(220 15% 15%);
+  --color-popover-foreground: hsl(0 0% 95%);
+
+  /* Primary - Brightened Sepasoft Blue */
+  --color-primary: hsl(212 100% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+
+  /* Secondary - Dark elevated */
+  --color-secondary: hsl(220 10% 18%);
+  --color-secondary-foreground: hsl(0 0% 90%);
+
+  /* Muted - Subtle dark */
+  --color-muted: hsl(220 10% 20%);
+  --color-muted-foreground: hsl(220 5% 60%);
+
+  /* Accent - Brightened Sepasoft Teal */
+  --color-accent: hsl(179 55% 65%);
+  --color-accent-foreground: hsl(220 15% 10%);
+
+  /* Semantic colors - Brightened for dark mode */
+  --color-destructive: hsl(357 85% 60%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-warning: hsl(32 70% 55%);
+  --color-success: hsl(104 60% 50%);
+
+  /* Borders and inputs */
+  --color-border: hsl(220 10% 20%);
+  --color-input: hsl(220 10% 18%);
+  --color-ring: hsl(212 100% 50% / 0.4);
+
+  /* SPC Zone colors - Brightened for dark mode */
+  --color-zone-c: hsl(104 60% 50%);
+  --color-zone-b: hsl(48 100% 55%);
+  --color-zone-a: hsl(32 70% 55%);
+  --color-violation: hsl(357 85% 60%);
+
+  /* Chart colors - Brightened */
+  --color-chart-primary: hsl(212 100% 55%);
+  --color-chart-secondary: hsl(179 55% 65%);
+  --color-chart-tertiary: hsl(248 40% 70%);
+  --color-chart-quaternary: hsl(32 70% 55%);
+}
+
+/* Dark mode body background */
+.dark body {
+  background: linear-gradient(145deg, hsl(220 15% 8%) 0%, hsl(220 18% 10%) 50%, hsl(220 15% 9%) 100%);
+}
+
+/* Dark mode card styling */
+.dark .bg-card {
+  background: hsl(220 15% 13%);
+  border-color: hsl(220 10% 18%);
+}
+
+/* Dark mode popover styling */
+.dark .bg-popover {
+  background: hsl(220 15% 15%);
+  border-color: hsl(220 10% 20%);
+}
+
+/* Dark mode input styling */
+.dark input, .dark select, .dark textarea {
+  background: hsl(220 10% 15%);
+  border-color: hsl(220 10% 22%);
+}
+
+.dark input:hover, .dark select:hover, .dark textarea:hover {
+  border-color: hsl(220 10% 30%);
+}
+
+.dark input:focus, .dark select:focus, .dark textarea:focus {
+  background: hsl(220 10% 17%);
+  border-color: hsl(212 100% 50%);
+  box-shadow: 0 0 0 3px hsl(212 100% 50% / 0.2);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(220 10% 35% / 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 10% 45% / 0.6);
+}
+
+/* Theme transition */
+html {
+  transition: background-color 200ms ease, color 200ms ease;
 }
