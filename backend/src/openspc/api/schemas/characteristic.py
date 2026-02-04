@@ -305,10 +305,15 @@ class NelsonRuleConfig(BaseModel):
     Attributes:
         rule_id: Nelson Rule number (1-8)
         is_enabled: Whether this rule is active
+        require_acknowledgement: Whether violations of this rule require acknowledgement
     """
 
     rule_id: int = Field(..., ge=1, le=8, description="Nelson Rule ID (1-8)")
     is_enabled: bool = True
+    require_acknowledgement: bool = Field(
+        default=True,
+        description="Whether violations of this rule require acknowledgement"
+    )
 
 
 class ControlLimitsResponse(BaseModel):

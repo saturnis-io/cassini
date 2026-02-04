@@ -455,7 +455,7 @@ async def get_rules(
 ) -> list[NelsonRuleConfig]:
     """Get Nelson Rule configuration for characteristic.
 
-    Returns the enabled/disabled state for all 8 Nelson Rules.
+    Returns the enabled/disabled state and require_acknowledgement for all 8 Nelson Rules.
     """
     # Get characteristic with rules
     characteristic = await repo.get_with_rules(char_id)
@@ -467,7 +467,11 @@ async def get_rules(
 
     # Convert to response models
     rules = [
-        NelsonRuleConfig(rule_id=rule.rule_id, is_enabled=rule.is_enabled)
+        NelsonRuleConfig(
+            rule_id=rule.rule_id,
+            is_enabled=rule.is_enabled,
+            require_acknowledgement=rule.require_acknowledgement,
+        )
         for rule in characteristic.rules
     ]
 
@@ -475,7 +479,7 @@ async def get_rules(
     existing_rule_ids = {rule.rule_id for rule in rules}
     for rule_id in range(1, 9):
         if rule_id not in existing_rule_ids:
-            rules.append(NelsonRuleConfig(rule_id=rule_id, is_enabled=True))
+            rules.append(NelsonRuleConfig(rule_id=rule_id, is_enabled=True, require_acknowledgement=True))
 
     # Sort by rule_id
     rules.sort(key=lambda r: r.rule_id)
@@ -522,6 +526,7 @@ async def update_rules(
             char_id=char_id,
             rule_id=rule_config.rule_id,
             is_enabled=rule_config.is_enabled,
+            require_acknowledgement=rule_config.require_acknowledgement,
         )
         session.add(rule)
 
@@ -530,7 +535,11 @@ async def update_rules(
     # Return updated rules
     await session.refresh(characteristic)
     return [
-        NelsonRuleConfig(rule_id=rule.rule_id, is_enabled=rule.is_enabled)
+        NelsonRuleConfig(
+            rule_id=rule.rule_id,
+            is_enabled=rule.is_enabled,
+            require_acknowledgement=rule.require_acknowledgement,
+        )
         for rule in characteristic.rules
     ]
 

@@ -140,6 +140,7 @@ async def list_violations(
                 rule_name=v.rule_name or f"Rule {v.rule_id}",
                 severity=v.severity,
                 acknowledged=v.acknowledged,
+                requires_acknowledgement=v.requires_acknowledgement,
                 ack_user=v.ack_user,
                 ack_reason=v.ack_reason,
                 ack_timestamp=v.ack_timestamp,
@@ -204,6 +205,7 @@ async def get_violation_stats(
     return ViolationStats(
         total=stats.total,
         unacknowledged=stats.unacknowledged,
+        informational=stats.informational,
         by_rule=stats.by_rule,
         by_severity=stats.by_severity,
     )

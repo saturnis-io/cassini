@@ -94,7 +94,8 @@ class Characteristic(Base):
 class CharacteristicRule(Base):
     """Nelson Rules configuration per characteristic.
 
-    Tracks which Nelson Rules are enabled for a specific characteristic.
+    Tracks which Nelson Rules are enabled for a specific characteristic,
+    and whether violations require acknowledgement.
     """
 
     __tablename__ = "characteristic_rules"
@@ -104,6 +105,7 @@ class CharacteristicRule(Base):
     )
     rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    require_acknowledgement: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Relationship
     characteristic: Mapped["Characteristic"] = relationship(

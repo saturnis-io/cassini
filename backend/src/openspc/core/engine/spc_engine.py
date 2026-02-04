@@ -351,6 +351,11 @@ class SPCEngine:
         # Extract ALL needed values immediately after loading to avoid lazy loading issues
         # (session operations below may expire the ORM object)
         enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
+        # Also extract require_acknowledgement settings per rule
+        rule_require_ack = {
+            rule.rule_id: rule.require_acknowledgement
+            for rule in char.rules
+        }
         char_subgroup_mode = char.subgroup_mode
         char_subgroup_size = char.subgroup_size
         char_min_measurements = char.min_measurements
@@ -427,7 +432,7 @@ class SPCEngine:
         rule_results = self._rule_library.check_all(window, enabled_rules)
 
         # Step 6: Create violations for triggered rules
-        violations = await self._create_violations(sample.id, rule_results)
+        violations = await self._create_violations(sample.id, rule_results, rule_require_ack)
 
         # Step 7: Build and return result
         end_time = time.perf_counter()
@@ -590,21 +595,28 @@ class SPCEngine:
         self,
         sample_id: int,
         rule_results: list["RuleResult"],
+        rule_require_ack: dict[int, bool] | None = None,
     ) -> list[ViolationInfo]:
         """Create violation records for triggered rules.
 
         Args:
             sample_id: ID of the sample that triggered violations
             rule_results: List of rule results from Nelson Rules evaluation
+            rule_require_ack: Mapping of rule_id to require_acknowledgement setting
 
         Returns:
             List of ViolationInfo objects
         """
         violations = []
+        if rule_require_ack is None:
+            rule_require_ack = {}
 
         for result in rule_results:
             if not result.triggered:
                 continue
+
+            # Look up require_acknowledgement for this rule (default True)
+            requires_ack = rule_require_ack.get(result.rule_id, True)
 
             # Create violation record in database
             from openspc.db.models.violation import Violation
@@ -615,6 +627,7 @@ class SPCEngine:
                 rule_name=result.rule_name,
                 severity=result.severity.value,
                 acknowledged=False,
+                requires_acknowledgement=requires_ack,
             )
             self._sample_repo.session.add(violation)
             await self._sample_repo.session.flush()
