@@ -127,25 +127,28 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            {/* Out-of-control zone fill - red with appropriate opacity */}
+            <pattern id="oocPattern" patternUnits="userSpaceOnUse" width="8" height="8">
+              <rect width="8" height="8" fill="#ef4444" fillOpacity="0.15" />
+              <line x1="0" y1="8" x2="8" y2="0" stroke="#ef4444" strokeWidth="0.5" strokeOpacity="0.3" />
+            </pattern>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-          {/* Out-of-control zones - red semi-transparent overlay */}
+          {/* Out-of-control zones - striped red pattern for visibility */}
           {isModeA ? (
             <>
               {/* Above +3 sigma */}
               <ReferenceArea
                 y1={3}
                 y2={yMax}
-                fill="hsl(var(--destructive))"
-                fillOpacity={0.08}
+                fill="url(#oocPattern)"
               />
               {/* Below -3 sigma */}
               <ReferenceArea
                 y1={yMin}
                 y2={-3}
-                fill="hsl(var(--destructive))"
-                fillOpacity={0.08}
+                fill="url(#oocPattern)"
               />
             </>
           ) : (
@@ -155,8 +158,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <ReferenceArea
                   y1={control_limits.ucl}
                   y2={yMax}
-                  fill="hsl(var(--destructive))"
-                  fillOpacity={0.08}
+                  fill="url(#oocPattern)"
                 />
               )}
               {/* Below LCL */}
@@ -164,8 +166,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <ReferenceArea
                   y1={yMin}
                   y2={control_limits.lcl}
-                  fill="hsl(var(--destructive))"
-                  fillOpacity={0.08}
+                  fill="url(#oocPattern)"
                 />
               )}
             </>
