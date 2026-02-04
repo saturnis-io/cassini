@@ -132,22 +132,24 @@ export const characteristicApi = {
     }),
 
   getRules: async (id: number) => {
-    // Backend returns [{rule_id, is_enabled}, ...], transform to {enabled_rules: number[]}
-    const rules = await fetchApi<{ rule_id: number; is_enabled: boolean }[]>(`/characteristics/${id}/rules`)
+    // Backend returns [{rule_id, is_enabled, require_acknowledgement}, ...]
+    const rules = await fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(`/characteristics/${id}/rules`)
     return {
-      enabled_rules: rules.filter(r => r.is_enabled).map(r => r.rule_id)
+      enabled_rules: rules.filter(r => r.is_enabled).map(r => r.rule_id),
+      rule_configs: rules,
     }
   },
 
-  updateRules: (id: number, enabledRules: number[]) => {
-    // Backend expects array of {rule_id, is_enabled} for all 8 rules
-    const rulesPayload = Array.from({ length: 8 }, (_, i) => ({
-      rule_id: i + 1,
-      is_enabled: enabledRules.includes(i + 1),
-    }))
-    return fetchApi<{ rule_id: number; is_enabled: boolean }[]>(`/characteristics/${id}/rules`, {
+  updateRules: (id: number, ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]) => {
+    // Backend expects array of {rule_id, is_enabled, require_acknowledgement} for all 8 rules
+    // Fill in any missing rules with defaults
+    const allRules = Array.from({ length: 8 }, (_, i) => {
+      const config = ruleConfigs.find(r => r.rule_id === i + 1)
+      return config || { rule_id: i + 1, is_enabled: true, require_acknowledgement: true }
+    })
+    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(`/characteristics/${id}/rules`, {
       method: 'PUT',
-      body: JSON.stringify(rulesPayload),
+      body: JSON.stringify(allRules),
     })
   },
 

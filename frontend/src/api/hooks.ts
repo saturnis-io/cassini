@@ -250,8 +250,8 @@ export function useUpdateNelsonRules() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, enabledRules }: { id: number; enabledRules: number[] }) =>
-      characteristicApi.updateRules(id, enabledRules),
+    mutationFn: ({ id, ruleConfigs }: { id: number; ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[] }) =>
+      characteristicApi.updateRules(id, ruleConfigs),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
       toast.success('Nelson rules updated')

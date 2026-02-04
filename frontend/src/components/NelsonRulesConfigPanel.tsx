@@ -113,6 +113,12 @@ function SeverityBadge({ severity }: { severity: 'CRITICAL' | 'WARNING' | 'INFO'
  *   onDirty={() => setFormDirty(true)}
  * />
  */
+interface RuleConfig {
+  rule_id: number
+  is_enabled: boolean
+  require_acknowledgement: boolean
+}
+
 export const NelsonRulesConfigPanel = forwardRef<
   NelsonRulesConfigPanelRef,
   NelsonRulesConfigPanelProps
@@ -120,15 +126,29 @@ export const NelsonRulesConfigPanel = forwardRef<
   const { data: rulesData, isLoading } = useNelsonRules(characteristicId)
   const updateRules = useUpdateNelsonRules()
 
-  // Local state for rule toggles
-  const [enabledRules, setEnabledRules] = useState<Set<number>>(new Set())
+  // Local state for rule configs (enabled + require_ack per rule)
+  const [ruleConfigs, setRuleConfigs] = useState<Map<number, RuleConfig>>(new Map())
   const [initialized, setInitialized] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
   // Initialize local state from server data
   useEffect(() => {
-    if (rulesData?.enabled_rules && !initialized) {
-      setEnabledRules(new Set(rulesData.enabled_rules))
+    if (rulesData?.rule_configs && !initialized) {
+      const configMap = new Map<number, RuleConfig>()
+      for (const config of rulesData.rule_configs) {
+        configMap.set(config.rule_id, {
+          rule_id: config.rule_id,
+          is_enabled: config.is_enabled,
+          require_acknowledgement: config.require_acknowledgement,
+        })
+      }
+      // Fill in defaults for any missing rules
+      for (let i = 1; i <= 8; i++) {
+        if (!configMap.has(i)) {
+          configMap.set(i, { rule_id: i, is_enabled: true, require_acknowledgement: true })
+        }
+      }
+      setRuleConfigs(configMap)
       setInitialized(true)
     }
   }, [rulesData, initialized])
@@ -139,15 +159,24 @@ export const NelsonRulesConfigPanel = forwardRef<
     setIsDirty(false)
   }, [characteristicId])
 
-  // Handle toggle change
-  const handleToggle = (ruleId: number, checked: boolean) => {
-    setEnabledRules((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        next.add(ruleId)
-      } else {
-        next.delete(ruleId)
-      }
+  // Handle enabled toggle change
+  const handleEnabledToggle = (ruleId: number, checked: boolean) => {
+    setRuleConfigs((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      next.set(ruleId, { ...existing, is_enabled: checked })
+      return next
+    })
+    setIsDirty(true)
+    onDirty?.()
+  }
+
+  // Handle require_acknowledgement change
+  const handleRequireAckChange = (ruleId: number, checked: boolean) => {
+    setRuleConfigs((prev) => {
+      const next = new Map(prev)
+      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      next.set(ruleId, { ...existing, require_acknowledgement: checked })
       return next
     })
     setIsDirty(true)
@@ -158,9 +187,10 @@ export const NelsonRulesConfigPanel = forwardRef<
   const save = async () => {
     if (!isDirty) return
 
+    const configs = Array.from(ruleConfigs.values())
     await updateRules.mutateAsync({
       id: characteristicId,
-      enabledRules: Array.from(enabledRules),
+      ruleConfigs: configs,
     })
     setIsDirty(false)
   }
@@ -169,7 +199,7 @@ export const NelsonRulesConfigPanel = forwardRef<
   useImperativeHandle(ref, () => ({
     save,
     isDirty,
-  }), [isDirty, enabledRules, characteristicId])
+  }), [isDirty, ruleConfigs, characteristicId])
 
   if (isLoading) {
     return (
@@ -181,26 +211,47 @@ export const NelsonRulesConfigPanel = forwardRef<
 
   return (
     <div className="space-y-3">
-      {NELSON_RULES.map((rule) => (
-        <div
-          key={rule.id}
-          className={cn(
-            'flex items-center justify-between p-3 rounded-lg',
-            'bg-muted/50 hover:bg-muted/70 transition-colors'
-          )}
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm">{rule.name}</span>
-            <HelpTooltip helpKey={`nelson-rule-${rule.id}`} />
-            <SeverityBadge severity={rule.severity} />
+      {NELSON_RULES.map((rule) => {
+        const config = ruleConfigs.get(rule.id)
+        const isEnabled = config?.is_enabled ?? true
+        const requireAck = config?.require_acknowledgement ?? true
+
+        return (
+          <div
+            key={rule.id}
+            className={cn(
+              'flex items-center justify-between p-3 rounded-lg',
+              'bg-muted/50 hover:bg-muted/70 transition-colors'
+            )}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm">{rule.name}</span>
+              <HelpTooltip helpKey={`nelson-rule-${rule.id}`} />
+              <SeverityBadge severity={rule.severity} />
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Require Acknowledgement checkbox - only visible when rule is enabled */}
+              {isEnabled && (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireAck}
+                    onChange={(e) => handleRequireAckChange(rule.id, e.target.checked)}
+                    disabled={updateRules.isPending}
+                    className="h-4 w-4 rounded border-border cursor-pointer"
+                  />
+                  <span className="whitespace-nowrap">Require Ack</span>
+                </label>
+              )}
+              <ToggleSwitch
+                checked={isEnabled}
+                onChange={(checked) => handleEnabledToggle(rule.id, checked)}
+                disabled={updateRules.isPending}
+              />
+            </div>
           </div>
-          <ToggleSwitch
-            checked={enabledRules.has(rule.id)}
-            onChange={(checked) => handleToggle(rule.id, checked)}
-            disabled={updateRules.isPending}
-          />
-        </div>
-      ))}
+        )
+      })}
 
       {/* Status indicator */}
       {updateRules.isPending && (
