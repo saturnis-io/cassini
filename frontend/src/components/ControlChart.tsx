@@ -21,16 +21,16 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
 
   if (isLoading) {
     return (
-      <div className="h-full border rounded-lg bg-card flex items-center justify-center">
-        <div className="text-muted-foreground">Loading chart data...</div>
+      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Loading chart data...</div>
       </div>
     )
   }
 
   if (!chartData || !chartData.data_points || chartData.data_points.length === 0) {
     return (
-      <div className="h-full border rounded-lg bg-card flex items-center justify-center">
-        <div className="text-muted-foreground">No data available</div>
+      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">No data available</div>
       </div>
     )
   }
@@ -87,7 +87,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
       : `${chartData.characteristic_name} - X-Bar Chart`
 
   return (
-    <div className="h-full border rounded-lg bg-card p-4">
+    <div className="h-full bg-card border border-border rounded-2xl p-5">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold">{chartTitle}</h3>
         <div className="flex gap-4 text-sm text-muted-foreground">
@@ -171,7 +171,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
               if (!active || !payload?.length) return null
               const point = payload[0].payload
               return (
-                <div className="bg-popover border rounded-lg p-2 text-sm shadow-lg">
+                <div className="bg-popover border border-border rounded-xl p-3 text-sm shadow-xl">
                   <div className="font-medium">Sample #{point.index}</div>
                   <div>n = {point.actual_n}</div>
                   {isModeA ? (

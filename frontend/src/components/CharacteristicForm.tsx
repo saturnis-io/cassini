@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits } from '@/api/hooks'
+import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import type { SubgroupMode } from '@/types'
@@ -12,6 +12,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const { data: characteristic, isLoading } = useCharacteristic(characteristicId ?? 0)
   const updateCharacteristic = useUpdateCharacteristic()
   const recalculateLimits = useRecalculateLimits()
+  const changeMode = useChangeMode()
   const setIsDirty = useConfigStore((state) => state.setIsDirty)
   const setEditingCharacteristicId = useConfigStore((state) => state.setEditingCharacteristicId)
 
@@ -25,6 +26,10 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     min_measurements: '1',
     warn_below_count: '',
   })
+
+  // Mode change confirmation dialog state
+  const [pendingModeChange, setPendingModeChange] = useState<SubgroupMode | null>(null)
+  const [showModeDialog, setShowModeDialog] = useState(false)
 
   useEffect(() => {
     if (characteristic) {
@@ -53,6 +58,34 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setIsDirty(true)
+  }
+
+  const handleModeChange = (newMode: string) => {
+    // If changing mode and characteristic has samples, show confirmation
+    if (newMode !== formData.subgroup_mode && characteristic?.ucl !== null) {
+      setPendingModeChange(newMode as SubgroupMode)
+      setShowModeDialog(true)
+    } else {
+      handleChange('subgroup_mode', newMode)
+    }
+  }
+
+  const confirmModeChange = async () => {
+    if (!characteristicId || !pendingModeChange) return
+
+    try {
+      await changeMode.mutateAsync({ id: characteristicId, newMode: pendingModeChange })
+      setFormData((prev) => ({ ...prev, subgroup_mode: pendingModeChange }))
+      setShowModeDialog(false)
+      setPendingModeChange(null)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to change mode')
+    }
+  }
+
+  const cancelModeChange = () => {
+    setShowModeDialog(false)
+    setPendingModeChange(null)
   }
 
   const handleSave = async () => {
@@ -243,12 +276,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             <label className="text-sm font-medium">Mode</label>
             <select
               value={formData.subgroup_mode}
-              onChange={(e) => handleChange('subgroup_mode', e.target.value)}
+              onChange={(e) => handleModeChange(e.target.value)}
               className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-              disabled={
-                formData.subgroup_mode !== 'NOMINAL_TOLERANCE' &&
-                !characteristic.stored_sigma
-              }
+              disabled={changeMode.isPending}
             >
               <option value="NOMINAL_TOLERANCE">Nominal with Tolerance (Default)</option>
               <option
@@ -347,6 +377,49 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           </button>
         </div>
       </div>
+
+      {/* Mode Change Confirmation Dialog */}
+      {showModeDialog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">Change Subgroup Mode?</h3>
+            <p className="text-muted-foreground mb-4">
+              This will recalculate all historical samples with the new mode's values.
+              This operation cannot be undone.
+            </p>
+            <div className="bg-muted p-4 rounded-xl mb-4">
+              <div className="text-sm">
+                <span className="text-muted-foreground">From: </span>
+                <span className="font-medium">{formData.subgroup_mode}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-muted-foreground">To: </span>
+                <span className="font-medium">{pendingModeChange}</span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelModeChange}
+                disabled={changeMode.isPending}
+                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModeChange}
+                disabled={changeMode.isPending}
+                className={cn(
+                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'bg-primary text-primary-foreground',
+                  'disabled:opacity-50'
+                )}
+              >
+                {changeMode.isPending ? 'Migrating...' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -160,11 +160,12 @@ class SPCEngine:
         """
         actual_n = len(measurements)
 
-        # Check minimum measurements requirement
-        if actual_n < char.min_measurements:
+        # Check minimum measurements requirement (default to 1 if not set)
+        min_required = char.min_measurements if char.min_measurements is not None else 1
+        if actual_n < min_required:
             raise ValueError(
                 f"Insufficient measurements: got {actual_n}, "
-                f"minimum required is {char.min_measurements}"
+                f"minimum required is {min_required}"
             )
 
         # For NOMINAL_TOLERANCE mode, enforce max subgroup_size

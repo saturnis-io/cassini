@@ -311,3 +311,29 @@ class ControlLimitsResponse(BaseModel):
     before: dict
     after: dict
     calculation: dict
+
+
+class ChangeModeRequest(BaseModel):
+    """Schema for changing subgroup mode with historical sample migration.
+
+    Attributes:
+        new_mode: The new subgroup handling mode
+    """
+
+    new_mode: SubgroupModeEnum = Field(..., description="New subgroup handling mode")
+
+
+class ChangeModeResponse(BaseModel):
+    """Schema for mode change response.
+
+    Attributes:
+        previous_mode: Mode before the change
+        new_mode: Mode after the change
+        samples_migrated: Number of samples recalculated
+        characteristic: Updated characteristic
+    """
+
+    previous_mode: str
+    new_mode: str
+    samples_migrated: int
+    characteristic: CharacteristicResponse

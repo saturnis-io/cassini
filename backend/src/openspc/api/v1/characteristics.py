@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from openspc.api.schemas.characteristic import (
+    ChangeModeRequest,
+    ChangeModeResponse,
     CharacteristicCreate,
     CharacteristicResponse,
     CharacteristicUpdate,
@@ -508,3 +510,91 @@ async def update_rules(
         NelsonRuleConfig(rule_id=rule.rule_id, is_enabled=rule.is_enabled)
         for rule in characteristic.rules
     ]
+
+
+@router.post("/{char_id}/change-mode", response_model=ChangeModeResponse)
+async def change_subgroup_mode(
+    char_id: int,
+    request: ChangeModeRequest,
+    repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    sample_repo: SampleRepository = Depends(get_sample_repository),
+    session: AsyncSession = Depends(get_session),
+) -> ChangeModeResponse:
+    """Change subgroup mode with historical sample migration.
+
+    Recalculates z_score, effective_ucl, and effective_lcl for all
+    existing samples based on the new mode. This is an atomic operation
+    that rolls back on failure.
+
+    For STANDARDIZED and VARIABLE_LIMITS modes, stored_sigma and
+    stored_center_line must be set (run recalculate-limits first).
+    """
+    import math
+
+    # Get characteristic
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found"
+        )
+
+    previous_mode = characteristic.subgroup_mode
+    new_mode = request.new_mode.value
+
+    # Validate prerequisites for Mode A/B
+    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS"):
+        if characteristic.stored_sigma is None or characteristic.stored_center_line is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="stored_sigma and stored_center_line must be set. Run recalculate-limits first."
+            )
+
+    # Get all samples for this characteristic
+    samples = await sample_repo.get_by_characteristic(char_id)
+    samples_migrated = 0
+
+    # Recalculate values for each sample based on new mode
+    for sample in samples:
+        actual_n = sample.actual_n or 1
+
+        if new_mode == "STANDARDIZED":
+            # Calculate z_score
+            if characteristic.stored_sigma > 0:
+                sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+                sample.z_score = (sample.mean - characteristic.stored_center_line) / sigma_x_bar
+            else:
+                sample.z_score = 0.0
+            # Clear variable limit fields
+            sample.effective_ucl = None
+            sample.effective_lcl = None
+
+        elif new_mode == "VARIABLE_LIMITS":
+            # Calculate effective limits based on actual_n
+            sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+            sample.effective_ucl = characteristic.stored_center_line + 3 * sigma_x_bar
+            sample.effective_lcl = characteristic.stored_center_line - 3 * sigma_x_bar
+            # Clear z_score
+            sample.z_score = None
+
+        else:  # NOMINAL_TOLERANCE
+            # Clear mode-specific fields
+            sample.z_score = None
+            sample.effective_ucl = None
+            sample.effective_lcl = None
+
+        samples_migrated += 1
+
+    # Update the characteristic's subgroup_mode
+    characteristic.subgroup_mode = new_mode
+
+    # Commit all changes atomically
+    await session.commit()
+    await session.refresh(characteristic)
+
+    return ChangeModeResponse(
+        previous_mode=previous_mode,
+        new_mode=new_mode,
+        samples_migrated=samples_migrated,
+        characteristic=CharacteristicResponse.model_validate(characteristic),
+    )
