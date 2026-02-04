@@ -563,16 +563,17 @@ async def change_subgroup_mode(
     previous_mode = characteristic.subgroup_mode
     new_mode = request.new_mode.value
 
-    # Validate prerequisites for Mode A/B
-    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS"):
+    # Get all samples for this characteristic
+    samples = await sample_repo.get_by_characteristic(char_id)
+
+    # Validate prerequisites for Mode A/B only when samples exist
+    # If no samples, mode change is just a configuration change
+    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS") and len(samples) > 0:
         if characteristic.stored_sigma is None or characteristic.stored_center_line is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="stored_sigma and stored_center_line must be set. Run recalculate-limits first."
             )
-
-    # Get all samples for this characteristic
-    samples = await sample_repo.get_by_characteristic(char_id)
     samples_migrated = 0
 
     # Recalculate values for each sample based on new mode

@@ -183,14 +183,14 @@ class ControlLimits(BaseModel):
     """Schema for control chart limits.
 
     Attributes:
-        center_line: Process mean (X-bar)
-        ucl: Upper Control Limit
-        lcl: Lower Control Limit
+        center_line: Process mean (X-bar), None if not yet calculated
+        ucl: Upper Control Limit, None if not yet calculated
+        lcl: Lower Control Limit, None if not yet calculated
     """
 
-    center_line: float
-    ucl: float
-    lcl: float
+    center_line: float | None = None
+    ucl: float | None = None
+    lcl: float | None = None
 
 
 class ZoneBoundaries(BaseModel):
@@ -198,6 +198,7 @@ class ZoneBoundaries(BaseModel):
 
     Zones are defined by standard deviations from the center line.
     Used for visualization and Nelson Rules detection.
+    All values are None if control limits have not been calculated.
 
     Attributes:
         plus_1_sigma: +1 standard deviation boundary
@@ -208,12 +209,12 @@ class ZoneBoundaries(BaseModel):
         minus_3_sigma: -3 standard deviation boundary (LCL)
     """
 
-    plus_1_sigma: float
-    plus_2_sigma: float
-    plus_3_sigma: float
-    minus_1_sigma: float
-    minus_2_sigma: float
-    minus_3_sigma: float
+    plus_1_sigma: float | None = None
+    plus_2_sigma: float | None = None
+    plus_3_sigma: float | None = None
+    minus_1_sigma: float | None = None
+    minus_2_sigma: float | None = None
+    minus_3_sigma: float | None = None
 
 
 class ChartSample(BaseModel):

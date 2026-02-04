@@ -1,10 +1,15 @@
 import type {
+  BrokerConnectionStatus,
+  BrokerTestResult,
   Characteristic,
   CharacteristicSummary,
   ChartData,
   HierarchyNode,
+  MQTTBroker,
   PaginatedResponse,
+  ProviderStatus,
   Sample,
+  TagProviderStatus,
   Violation,
   ViolationStats,
 } from '@/types'
@@ -35,6 +40,11 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
       message = JSON.stringify(error.detail)
     }
     throw new Error(message || `HTTP ${response.status}`)
+  }
+
+  // Handle 204 No Content responses (e.g., DELETE operations)
+  if (response.status === 204) {
+    return undefined as T
   }
 
   return response.json()
@@ -231,4 +241,117 @@ export const violationApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+}
+
+// MQTT Broker API
+export const brokerApi = {
+  list: (activeOnly?: boolean) => {
+    const params = activeOnly ? '?active_only=true' : ''
+    return fetchApi<PaginatedResponse<MQTTBroker>>(`/brokers/${params}`)
+  },
+
+  get: (id: number) => fetchApi<MQTTBroker>(`/brokers/${id}`),
+
+  create: (data: {
+    name: string
+    host: string
+    port?: number
+    username?: string
+    password?: string
+    client_id?: string
+    keepalive?: number
+    use_tls?: boolean
+    is_active?: boolean
+  }) =>
+    fetchApi<MQTTBroker>('/brokers/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: Partial<MQTTBroker & { password?: string }>) =>
+    fetchApi<MQTTBroker>(`/brokers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    fetchApi<void>(`/brokers/${id}`, { method: 'DELETE' }),
+
+  activate: (id: number) =>
+    fetchApi<MQTTBroker>(`/brokers/${id}/activate`, { method: 'POST' }),
+
+  getStatus: (id: number) =>
+    fetchApi<BrokerConnectionStatus>(`/brokers/${id}/status`),
+
+  getCurrentStatus: () =>
+    fetchApi<BrokerConnectionStatus>('/brokers/current/status'),
+
+  connect: (id: number) =>
+    fetchApi<BrokerConnectionStatus>(`/brokers/${id}/connect`, { method: 'POST' }),
+
+  disconnect: () =>
+    fetchApi<{ message: string }>('/brokers/disconnect', { method: 'POST' }),
+
+  test: (data: {
+    host: string
+    port?: number
+    username?: string
+    password?: string
+    use_tls?: boolean
+  }) =>
+    fetchApi<BrokerTestResult>('/brokers/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+// Provider Status API
+export const providerApi = {
+  getStatus: () => fetchApi<ProviderStatus>('/providers/status'),
+
+  restartTagProvider: () =>
+    fetchApi<TagProviderStatus>('/providers/tag/restart', { method: 'POST' }),
+
+  refreshTagSubscriptions: () =>
+    fetchApi<{ message: string; characteristics_count: number }>('/providers/tag/refresh', { method: 'POST' }),
+}
+
+// API Key types
+export interface APIKeyResponse {
+  id: string
+  name: string
+  created_at: string
+  expires_at: string | null
+  rate_limit_per_minute: number
+  is_active: boolean
+  last_used_at: string | null
+}
+
+export interface APIKeyCreateResponse extends APIKeyResponse {
+  key: string // Only returned on creation
+}
+
+// API Keys API
+export const apiKeysApi = {
+  list: () => fetchApi<APIKeyResponse[]>('/api-keys/'),
+
+  get: (id: string) => fetchApi<APIKeyResponse>(`/api-keys/${id}`),
+
+  create: (data: { name: string; expires_at?: string | null; rate_limit_per_minute?: number }) =>
+    fetchApi<APIKeyCreateResponse>('/api-keys/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: { name?: string; is_active?: boolean; rate_limit_per_minute?: number }) =>
+    fetchApi<APIKeyResponse>(`/api-keys/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    fetchApi<void>(`/api-keys/${id}`, { method: 'DELETE' }),
+
+  revoke: (id: string) =>
+    fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
 }

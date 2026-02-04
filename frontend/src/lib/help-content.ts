@@ -132,6 +132,40 @@ export const helpContent: Record<string, HelpContent> = {
       'Normalizes each point by its expected variability: Z = (X-bar - CL) / (sigma/sqrt(n)). All points comparable regardless of sample size. Best for highly variable sizes.',
   },
 
+  // Z-score explanations
+  'z-score': {
+    title: 'Z-Score',
+    description: 'A standardized value showing how many standard deviations a point is from the center line.',
+    details:
+      'Z = (X-bar - Center Line) / (sigma / sqrt(n)). A Z-score of 0 means the point is at the center. Z = +2 means 2 sigma above center, Z = -1.5 means 1.5 sigma below. Control limits are always at +/-3 in standardized mode.',
+  },
+  'z-score-interpretation': {
+    title: 'Interpreting Z-Scores',
+    description: 'Z-scores tell you how unusual a data point is relative to normal process variation.',
+    details:
+      '|Z| < 1: Common, within Zone C (68% of points). |Z| 1-2: Uncommon, Zone B (27% of points). |Z| 2-3: Rare, Zone A (4% of points). |Z| > 3: Very rare, out of control (0.3% of points). The same interpretation applies regardless of the underlying data scale.',
+  },
+
+  // UCL/LCL interpretation per mode
+  'ucl-lcl-nominal': {
+    title: 'Control Limits (Nominal Mode)',
+    description: 'Fixed limits calculated from your data assuming constant sample sizes.',
+    details:
+      'UCL and LCL are calculated once using R-bar or S-bar methods. All samples are compared against these fixed limits. If your actual sample sizes vary, consider using Variable Limits or Standardized mode for more accurate detection.',
+  },
+  'ucl-lcl-variable': {
+    title: 'Control Limits (Variable Mode)',
+    description: 'Limits that adjust for each sample based on its actual size.',
+    details:
+      'Larger samples have tighter limits (more precision = smaller expected variation). Smaller samples have wider limits. Creates a "funnel" effect on the chart. More accurate for varying sample sizes but can be harder to read visually.',
+  },
+  'ucl-lcl-standardized': {
+    title: 'Control Limits (Standardized Mode)',
+    description: 'Fixed at +3 and -3, representing 3 sigma in Z-score units.',
+    details:
+      'Because Z-scores normalize for sample size, the limits are always +/-3 regardless of your data. This makes it easy to compare different characteristics or time periods. A point at Z = 2.8 is close to the limit; Z = 3.2 is out of control.',
+  },
+
   // Zone definitions
   'zone-a': {
     title: 'Zone A',
@@ -158,6 +192,26 @@ export const helpContent: Record<string, HelpContent> = {
     description: 'Statistical rules for detecting non-random patterns in control charts.',
     details:
       'Enable rules to automatically detect specific out-of-control conditions. Each rule looks for different patterns that indicate the process may be out of statistical control.',
+  },
+
+  // MQTT and Data Collection
+  'mqtt_connection': {
+    title: 'MQTT Connection',
+    description: 'Real-time connection to MQTT broker for automated data collection.',
+    details:
+      'MQTT is a lightweight messaging protocol used for machine-to-machine communication. When connected, OpenSPC subscribes to topics configured for TAG-type characteristics and automatically processes incoming data.',
+  },
+  'mqtt_broker': {
+    title: 'MQTT Broker',
+    description: 'Server that routes MQTT messages between publishers and subscribers.',
+    details:
+      'Configure connection details for your MQTT broker (e.g., Mosquitto, HiveMQ, AWS IoT). You can have multiple brokers configured but only one can be active at a time.',
+  },
+  'tag_provider': {
+    title: 'TAG Provider',
+    description: 'Automated data collection from machine tags via MQTT.',
+    details:
+      'The TAG provider subscribes to MQTT topics for characteristics configured with provider_type="TAG". Measurements are buffered into subgroups and processed through the SPC engine automatically.',
   },
 }
 

@@ -175,3 +175,58 @@ export interface PaginatedResponse<T> {
 export interface ApiError {
   detail: string
 }
+
+// MQTT Broker types
+export interface MQTTBroker {
+  id: number
+  name: string
+  host: string
+  port: number
+  username: string | null
+  client_id: string
+  keepalive: number
+  max_reconnect_delay: number
+  use_tls: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BrokerConnectionStatus {
+  broker_id: number
+  broker_name: string
+  is_connected: boolean
+  last_connected: string | null
+  error_message: string | null
+  subscribed_topics: string[]
+}
+
+export interface BrokerTestResult {
+  success: boolean
+  message: string
+  latency_ms: number | null
+}
+
+// Provider Status types
+export interface TagProviderStatus {
+  is_running: boolean
+  subscribed_topics: string[]
+  characteristics_count: number
+  samples_processed: number
+  last_sample_time: string | null
+  error_message: string | null
+}
+
+export interface MQTTStatus {
+  is_connected: boolean
+  broker_id: number | null
+  broker_name: string | null
+  last_connected: string | null
+  error_message: string | null
+  subscribed_topics: string[]
+}
+
+export interface ProviderStatus {
+  mqtt: MQTTStatus
+  tag_provider: TagProviderStatus
+}

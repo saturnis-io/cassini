@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode } from '@/api/hooks'
+import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode, useDeleteCharacteristic } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { NelsonRulesConfigPanel, type NelsonRulesConfigPanelRef } from './NelsonRulesConfigPanel'
@@ -15,6 +15,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const updateCharacteristic = useUpdateCharacteristic()
   const recalculateLimits = useRecalculateLimits()
   const changeMode = useChangeMode()
+  const deleteCharacteristic = useDeleteCharacteristic()
   const setIsDirty = useConfigStore((state) => state.setIsDirty)
   const setEditingCharacteristicId = useConfigStore((state) => state.setEditingCharacteristicId)
 
@@ -33,6 +34,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   // Mode change confirmation dialog state
   const [pendingModeChange, setPendingModeChange] = useState<SubgroupMode | null>(null)
   const [showModeDialog, setShowModeDialog] = useState(false)
+
+  // Delete confirmation dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Ref for Nelson Rules panel
   const nelsonRulesRef = useRef<NelsonRulesConfigPanelRef>(null)
@@ -68,11 +72,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   }
 
   const handleModeChange = (newMode: string) => {
-    // If changing mode and characteristic has samples, show confirmation
-    if (newMode !== formData.subgroup_mode && characteristic?.ucl !== null) {
+    // If changing mode and characteristic has existing samples (indicated by stored_sigma),
+    // show confirmation dialog since samples will need migration
+    const hasSamplesToMigrate = characteristic?.stored_sigma !== null
+    if (newMode !== formData.subgroup_mode && hasSamplesToMigrate) {
       setPendingModeChange(newMode as SubgroupMode)
       setShowModeDialog(true)
     } else {
+      // No samples to migrate, just update the mode directly
       handleChange('subgroup_mode', newMode)
     }
   }
@@ -139,16 +146,35 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     await recalculateLimits.mutateAsync({ id: characteristicId, excludeOoc: true })
   }
 
+  const handleDelete = async () => {
+    if (!characteristicId) return
+    try {
+      await deleteCharacteristic.mutateAsync(characteristicId)
+      setEditingCharacteristicId(null)
+    } catch {
+      // Error toast is handled by the hook
+    }
+    setShowDeleteDialog(false)
+  }
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold">Edit Characteristic</h2>
-        <button
-          onClick={() => setEditingCharacteristicId(null)}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          Close
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="text-sm text-destructive hover:text-destructive/80"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setEditingCharacteristicId(null)}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -248,7 +274,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         {/* Control limits (read-only) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-medium">Control Limits (Calculated)</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">Control Limits (Calculated)</h3>
+              <HelpTooltip helpKey={
+                formData.subgroup_mode === 'STANDARDIZED' ? 'ucl-lcl-standardized' :
+                formData.subgroup_mode === 'VARIABLE_LIMITS' ? 'ucl-lcl-variable' :
+                'ucl-lcl-nominal'
+              } />
+            </div>
             <button
               onClick={handleRecalculate}
               disabled={recalculateLimits.isPending}
@@ -308,7 +341,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         <div className="space-y-4">
           <h3 className="font-medium">Subgroup Size Handling</h3>
           <div>
-            <label className="text-sm font-medium">Mode</label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Mode</label>
+              <HelpTooltip helpKey={
+                formData.subgroup_mode === 'STANDARDIZED' ? 'subgroup-mode-standardized' :
+                formData.subgroup_mode === 'VARIABLE_LIMITS' ? 'subgroup-mode-variable' :
+                'subgroup-mode-nominal'
+              } />
+            </div>
             <select
               value={formData.subgroup_mode}
               onChange={(e) => handleModeChange(e.target.value)}
@@ -316,19 +356,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               disabled={changeMode.isPending}
             >
               <option value="NOMINAL_TOLERANCE">Nominal with Tolerance (Default)</option>
-              <option
-                value="VARIABLE_LIMITS"
-                disabled={!characteristic.stored_sigma}
-              >
-                Variable Control Limits {!characteristic.stored_sigma && '(Recalculate limits first)'}
-              </option>
-              <option
-                value="STANDARDIZED"
-                disabled={!characteristic.stored_sigma}
-              >
-                Standardized (Z-Score) {!characteristic.stored_sigma && '(Recalculate limits first)'}
-              </option>
+              <option value="VARIABLE_LIMITS">Variable Control Limits</option>
+              <option value="STANDARDIZED">Standardized (Z-Score)</option>
             </select>
+            {!characteristic.stored_sigma && formData.subgroup_mode !== 'NOMINAL_TOLERANCE' && (
+              <p className="mt-1 text-xs text-warning">
+                Note: Recalculate limits after adding samples for this mode to work correctly.
+              </p>
+            )}
             <p className="mt-1 text-sm text-muted-foreground">
               {formData.subgroup_mode === 'NOMINAL_TOLERANCE' &&
                 'Uses nominal subgroup size for control limits with minimum threshold enforcement.'}
@@ -375,7 +410,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           {(formData.subgroup_mode === 'STANDARDIZED' ||
             formData.subgroup_mode === 'VARIABLE_LIMITS') && (
             <div className="p-3 bg-muted rounded-md">
-              <p className="text-sm font-medium mb-2">Stored Parameters (from limit calculation)</p>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-sm font-medium">Stored Parameters (from limit calculation)</p>
+                {formData.subgroup_mode === 'STANDARDIZED' && (
+                  <HelpTooltip helpKey="z-score" />
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Sigma: </span>
@@ -386,6 +426,11 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
                   <span>{characteristic.stored_center_line?.toFixed(4) ?? 'Not set'}</span>
                 </div>
               </div>
+              {formData.subgroup_mode === 'STANDARDIZED' && characteristic.stored_sigma && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Z-scores are calculated as: (Sample Mean - Center Line) / (Sigma / sqrt(n))
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -466,6 +511,39 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
                 )}
               >
                 {changeMode.isPending ? 'Migrating...' : 'Confirm Change'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">Delete Characteristic?</h3>
+            <p className="text-muted-foreground mb-4">
+              Are you sure you want to delete <strong>{characteristic?.name}</strong>?
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={deleteCharacteristic.isPending}
+                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteCharacteristic.isPending}
+                className={cn(
+                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'bg-destructive text-destructive-foreground',
+                  'disabled:opacity-50'
+                )}
+              >
+                {deleteCharacteristic.isPending ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

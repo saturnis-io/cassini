@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { characteristicApi, hierarchyApi, sampleApi, violationApi } from './client'
 
 // Query keys
@@ -59,8 +60,12 @@ export function useCreateHierarchyNode() {
   return useMutation({
     mutationFn: (data: { name: string; type: string; parent_id: number | null }) =>
       hierarchyApi.createNode(data),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      toast.success(`Created "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create node: ${error.message}`)
     },
   })
 }
@@ -72,6 +77,10 @@ export function useDeleteHierarchyNode() {
     mutationFn: (id: number) => hierarchyApi.deleteNode(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      toast.success('Node deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete node: ${error.message}`)
     },
   })
 }
@@ -106,10 +115,14 @@ export function useCreateCharacteristic() {
       lsl?: number | null
       mqtt_topic?: string | null
     }) => characteristicApi.create(data),
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.characteristics(variables.hierarchy_id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      toast.success(`Created "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create characteristic: ${error.message}`)
     },
   })
 }
@@ -123,6 +136,22 @@ export function useChartData(id: number, limit?: number) {
   })
 }
 
+export function useDeleteCharacteristic() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => characteristicApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      toast.success('Characteristic deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete: ${error.message}`)
+    },
+  })
+}
+
 export function useSubmitSample() {
   const queryClient = useQueryClient()
 
@@ -133,6 +162,10 @@ export function useSubmitSample() {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(data.sample.characteristic_id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      toast.success('Sample recorded')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to submit sample: ${error.message}`)
     },
   })
 }
@@ -146,6 +179,10 @@ export function useRecalculateLimits() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.id) })
+      toast.success('Control limits recalculated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to recalculate limits: ${error.message}`)
     },
   })
 }
@@ -159,6 +196,10 @@ export function useUpdateCharacteristic() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
+      toast.success('Characteristic saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save: ${error.message}`)
     },
   })
 }
@@ -169,10 +210,14 @@ export function useChangeMode() {
   return useMutation({
     mutationFn: ({ id, newMode }: { id: number; newMode: string }) =>
       characteristicApi.changeMode(id, newMode),
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      toast.success(`Mode changed to ${data.new_mode} (${data.samples_migrated} samples migrated)`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to change mode: ${error.message}`)
     },
   })
 }
@@ -194,6 +239,10 @@ export function useUpdateNelsonRules() {
       characteristicApi.updateRules(id, enabledRules),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
+      toast.success('Nelson rules updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update rules: ${error.message}`)
     },
   })
 }
@@ -223,6 +272,10 @@ export function useAcknowledgeViolation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      toast.success('Violation acknowledged')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to acknowledge: ${error.message}`)
     },
   })
 }
@@ -244,6 +297,10 @@ export function useExcludeSample() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(data.characteristic_id) })
+      toast.success(data.is_excluded ? 'Sample excluded' : 'Sample included')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update sample: ${error.message}`)
     },
   })
 }

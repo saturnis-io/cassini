@@ -97,6 +97,24 @@ body {
   letter-spacing: -0.011em;
 }
 
+/* Ensure all interactive elements have pointer cursor */
+button,
+[role="button"],
+[onclick],
+a[href],
+select,
+input[type="checkbox"],
+input[type="radio"],
+input[type="submit"],
+input[type="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[disabled] {
+  cursor: not-allowed;
+}
+
 /* Card styling */
 .bg-card {
   background: hsl(0 0% 100%);
