@@ -72,8 +72,8 @@ function IndeterminateCheckbox({
 function StatusBadge({ status }: { status: CharacteristicStatus }) {
   const styles = {
     OOC: 'bg-destructive text-destructive-foreground',
-    DUE: 'bg-yellow-500 text-white',
-    OK: 'bg-green-500 text-white',
+    DUE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200',
+    OK: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200',
   }
   return (
     <span className={cn('px-1.5 py-0.5 text-[10px] font-bold rounded-full', styles[status])}>
@@ -94,11 +94,31 @@ function StatusFilterTabs({
   onChange: (v: StatusFilter) => void
   counts: { OOC: number; DUE: number; OK: number; ALL: number }
 }) {
-  const tabs: { status: StatusFilter; label: string; color: string }[] = [
-    { status: 'ALL', label: 'All', color: '' },
-    { status: 'OOC', label: 'OOC', color: 'text-destructive' },
-    { status: 'DUE', label: 'Due', color: 'text-yellow-600 dark:text-yellow-400' },
-    { status: 'OK', label: 'OK', color: 'text-green-600 dark:text-green-400' },
+  const tabs: { status: StatusFilter; label: string; activeClass: string; inactiveClass: string }[] = [
+    {
+      status: 'ALL',
+      label: 'All',
+      activeClass: 'bg-primary text-primary-foreground',
+      inactiveClass: 'hover:bg-muted text-foreground'
+    },
+    {
+      status: 'OOC',
+      label: 'OOC',
+      activeClass: 'bg-destructive text-destructive-foreground',
+      inactiveClass: 'hover:bg-destructive/10 text-destructive'
+    },
+    {
+      status: 'DUE',
+      label: 'Due',
+      activeClass: 'bg-yellow-500 text-yellow-950 dark:text-yellow-50',
+      inactiveClass: 'hover:bg-yellow-100 text-yellow-700 dark:hover:bg-yellow-900/30 dark:text-yellow-400'
+    },
+    {
+      status: 'OK',
+      label: 'OK',
+      activeClass: 'bg-green-600 text-white',
+      inactiveClass: 'hover:bg-green-100 text-green-700 dark:hover:bg-green-900/30 dark:text-green-400'
+    },
   ]
 
   return (
@@ -108,15 +128,12 @@ function StatusFilterTabs({
           key={tab.status}
           onClick={() => onChange(tab.status)}
           className={cn(
-            'px-3 py-1.5 text-sm transition-colors flex items-center gap-1',
-            value === tab.status
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted',
-            value !== tab.status && tab.color
+            'px-3 py-1.5 text-sm transition-colors flex items-center gap-1 font-medium',
+            value === tab.status ? tab.activeClass : tab.inactiveClass
           )}
         >
           {tab.label}
-          <span className="text-xs opacity-60">({counts[tab.status]})</span>
+          <span className="text-xs opacity-70">({counts[tab.status]})</span>
         </button>
       ))}
     </div>
@@ -130,12 +147,12 @@ function FolderStatusSummary({ oocCount, dueCount }: { oocCount: number; dueCoun
   if (oocCount === 0 && dueCount === 0) return null
 
   return (
-    <span className="flex items-center gap-1 text-xs">
+    <span className="flex items-center gap-1 text-xs font-medium">
       {oocCount > 0 && (
-        <span className="px-1 rounded bg-destructive/20 text-destructive">{oocCount}</span>
+        <span className="px-1.5 py-0.5 rounded bg-destructive/20 text-destructive">{oocCount}</span>
       )}
       {dueCount > 0 && (
-        <span className="px-1 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400">{dueCount}</span>
+        <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">{dueCount}</span>
       )}
     </span>
   )
