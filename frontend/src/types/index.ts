@@ -148,6 +148,7 @@ export interface Violation {
   message?: string
   involved_sample_ids?: number[]
   acknowledged: boolean
+  requires_acknowledgement: boolean
   ack_user: string | null
   ack_reason: string | null
   ack_timestamp: string | null
@@ -160,6 +161,7 @@ export interface Violation {
 export interface ViolationStats {
   total: number
   unacknowledged: number
+  informational: number
   by_rule: Record<string, number>
   by_severity: Record<Severity, number>
 }

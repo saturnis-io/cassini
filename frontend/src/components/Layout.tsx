@@ -1,5 +1,5 @@
 import { Outlet, NavLink, Link } from 'react-router-dom'
-import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList, AlertTriangle } from 'lucide-react'
+import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList, AlertTriangle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useViolationStats } from '@/api/hooks'
@@ -159,17 +159,30 @@ export function Layout() {
               <span className="font-medium text-foreground">-</span>
             </span>
             <Link
-              to="/violations"
+              to="/violations?status=required"
               className={cn(
                 'flex items-center gap-1 hover:underline transition-colors',
                 stats?.unacknowledged ? 'text-destructive hover:text-destructive/80' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              Pending Alerts:{' '}
+              <AlertTriangle className="h-4 w-4" />
+              Pending:{' '}
               <span className="font-medium">
                 {stats?.unacknowledged ?? 0}
               </span>
             </Link>
+            {(stats?.informational ?? 0) > 0 && (
+              <Link
+                to="/violations?status=informational"
+                className="flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline transition-colors"
+              >
+                <Info className="h-4 w-4" />
+                Info:{' '}
+                <span className="font-medium">
+                  {stats.informational}
+                </span>
+              </Link>
+            )}
           </div>
         </div>
       </footer>
