@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { REPORT_TEMPLATES, getTemplateById, ReportTemplate } from '@/lib/report-templates'
 import { ReportPreview } from '@/components/ReportPreview'
+import { ExportDropdown } from '@/components/ExportDropdown'
 import { useCharacteristics } from '@/api/hooks'
 import { FileText, ChevronRight, Check } from 'lucide-react'
 
@@ -11,6 +12,7 @@ export function ReportsView() {
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null)
   const [selectedCharacteristicIds, setSelectedCharacteristicIds] = useState<number[]>([])
   const { data: characteristicsData } = useCharacteristics()
+  const reportContentRef = useRef<HTMLDivElement>(null)
 
   // Initialize from URL params (from SelectionToolbar navigation)
   useEffect(() => {
@@ -140,15 +142,22 @@ export function ReportsView() {
                   <ChevronRight className="h-4 w-4" />
                   <span className="text-foreground font-medium">{selectedTemplate.name}</span>
                 </div>
-                {selectedCharacteristicIds.length > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    {selectedCharacteristicIds.length} characteristic{selectedCharacteristicIds.length !== 1 ? 's' : ''} selected
-                  </span>
-                )}
+                <div className="flex items-center gap-4">
+                  {selectedCharacteristicIds.length > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedCharacteristicIds.length} characteristic{selectedCharacteristicIds.length !== 1 ? 's' : ''} selected
+                    </span>
+                  )}
+                  <ExportDropdown
+                    contentRef={reportContentRef}
+                    filename={`${selectedTemplate.id}-report`}
+                    disabled={selectedCharacteristicIds.length === 0}
+                  />
+                </div>
               </div>
 
               {/* Report Preview */}
-              <div className="flex-1 overflow-auto">
+              <div ref={reportContentRef} className="flex-1 overflow-auto">
                 <ReportPreview
                   template={selectedTemplate}
                   characteristicIds={selectedCharacteristicIds}
