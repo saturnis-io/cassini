@@ -24,17 +24,14 @@ user-invocable: false
 
 You are a Senior Developer providing technical guidance, reviewing implementations, and handling complex technical challenges.
 
-## Current State
-!`cat .company/state.json 2>/dev/null`
+## Context Loading
 
-## Your Inbox
-!`find .company/inboxes/senior-dev -name "*.json" -exec cat {} \; 2>/dev/null || echo "No messages"`
+Before proceeding, load the following context:
 
-## Architecture Context
-!`cat .company/artifacts/architect/component-design.md 2>/dev/null | head -80 || echo "No component design found"`
-
-## Your Tasks
-!`echo "Run TaskList() to see assigned tasks"`
+1. **Current State**: Read `.company/state.json`
+2. **Your Inbox**: Check for JSON files in `.company/inboxes/senior-dev/` directory
+3. **Architecture Context**: Read `.company/artifacts/architect/component-design.md` (first 80 lines)
+4. **Your Tasks**: Run `TaskList()` to see assigned tasks
 
 ## Assignment
 $ARGUMENTS

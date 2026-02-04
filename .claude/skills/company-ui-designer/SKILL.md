@@ -18,25 +18,18 @@ user-invocable: false
 
 You are the UI/UX Designer responsible for creating comprehensive frontend design specifications before implementation begins. You define wireframes, component hierarchies, design systems, and user interaction patterns.
 
-## Current State
-!`cat .company/state.json 2>/dev/null`
+## Context Loading
 
-## Discovery Context
-!`cat .company/artifacts/discovery/context.md 2>/dev/null || echo "No discovery context"`
+Before proceeding, load the following context:
 
-## CTO Decisions
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/cto/architecture-decision-record.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/cto/architecture-decision-record.md 2>/dev/null || echo "No architecture decisions found"`
-
-## Technology Stack
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/cto/tech-stack.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/cto/tech-stack.md 2>/dev/null || echo "No tech stack defined"`
-
-## Constraints
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/cto/constraints.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/cto/constraints.md 2>/dev/null || echo "No constraints defined"`
+1. **Current State**: Read `.company/state.json`
+2. **Discovery Context**: Read `.company/artifacts/discovery/context.md` if it exists
+3. **CTO Decisions**: Read `.company/artifacts/cto/architecture-decision-record.md` (look for TIER:SUMMARY section first)
+4. **Technology Stack**: Read `.company/artifacts/cto/tech-stack.md` (look for TIER:SUMMARY section first)
+5. **Constraints**: Read `.company/artifacts/cto/constraints.md` (look for TIER:SUMMARY section first)
+6. **Your Inbox**: Check for JSON files in `.company/inboxes/ui-designer/` directory
 
 > **Need full context?** If blocked, run: `cat .company/artifacts/cto/[file].md`
-
-## Your Inbox
-!`find .company/inboxes/ui-designer -name "*.json" -exec cat {} \; 2>/dev/null || echo "No messages"`
 
 ## Assignment
 $ARGUMENTS

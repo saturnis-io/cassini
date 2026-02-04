@@ -22,22 +22,16 @@ allowed-tools:
 
 Resume from previous session with full context restoration.
 
-## Resume Point
+## Context Loading
 
-!`cat .planning/STATE.md 2>/dev/null | grep -A 50 "Resume Point" || echo "No pause point found"`
+Before proceeding, load the following context:
 
-## Project Context
+1. **Resume Point**: Read `.planning/STATE.md` and look for the "Resume Point" section
+2. **Project Context**: Read `.planning/PROJECT.md` (first 30 lines for overview)
+3. **Current Roadmap**: Read `.planning/ROADMAP.md` if it exists
+4. **Git Status**: Run `git status` and `git log --oneline -5`
 
-!`cat .planning/PROJECT.md 2>/dev/null | head -30`
-
-## Current Roadmap
-
-!`cat .planning/ROADMAP.md 2>/dev/null`
-
-## Git Status
-
-!`git status 2>/dev/null`
-!`git log --oneline -5 2>/dev/null`
+Use the Read tool to load these files and Bash to check git status.
 
 ---
 

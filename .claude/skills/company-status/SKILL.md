@@ -8,109 +8,96 @@ disable-model-invocation: true
 
 Display the current status of the virtual company and workflow.
 
-## Current State
-!`cat .company/state.json 2>/dev/null || echo '{"phase":"not_initialized","message":"Run /company to initialize"}'`
+## Context Loading
 
-## Company Configuration
-!`cat .company/config.json 2>/dev/null | jq '{name: .company.name, initialized: .company.initialized}' || echo "Not configured"`
+To display status, load the following information:
+
+1. **Current State**: Read `.company/state.json` (if missing, company not initialized)
+2. **Company Configuration**: Read `.company/config.json` and extract company name and initialized status
+3. **Current Phase and Goal**: From state.json, get the phase and goal values
+4. **Active Branch**: Run `git branch --show-current`
+5. **Task Summary**: Run `TaskList()` to see current tasks
+6. **Pending Proposals**: List files in `.company/proposals/pending/`
+7. **Recent Completions**: List files in `.company/proposals/approved/`
+8. **Role Inboxes**: Count JSON files in each `.company/inboxes/[role]/` directory
+9. **Artifacts**: List files in each `.company/artifacts/[role]/` directory
+10. **Git Status**: Run `git status --short` and `git log --oneline -5`
+11. **Quality Metrics**: Optionally run `npm run coverage` and `npm run lint` if available
 
 ---
 
 ## Workflow Status
 
 ### Current Phase
-!`cat .company/state.json 2>/dev/null | jq -r '.phase // "idle"'`
+Read from `.company/state.json` field "phase" (default: "idle")
 
 ### Current Goal
-!`cat .company/state.json 2>/dev/null | jq -r '.goal // "None"'`
+Read from `.company/state.json` field "goal" (default: "None")
 
 ### Active Branch
-!`git branch --show-current 2>/dev/null || echo "Not in git repo"`
+Run: `git branch --show-current`
 
 ---
 
 ## Task Summary
 
-```
-TaskList()
-```
-
-### Task Statistics
-!`echo "Run TaskList() to see current tasks"`
+Run `TaskList()` to see current tasks.
 
 ---
 
 ## Recent Activity
 
 ### Pending Proposals
-!`ls -la .company/proposals/pending/ 2>/dev/null | tail -10 || echo "No pending proposals"`
+List contents of `.company/proposals/pending/`
 
 ### Recent Completions
-!`ls -lt .company/proposals/approved/ 2>/dev/null | head -5 || echo "No completed proposals"`
+List contents of `.company/proposals/approved/`
 
 ---
 
 ## Role Inboxes
 
-### Orchestrator
-!`find .company/inboxes/orchestrator -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
-
-### CTO
-!`find .company/inboxes/cto -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
-
-### Architect
-!`find .company/inboxes/architect -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
-
-### Tech Lead
-!`find .company/inboxes/tech-lead -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
-
-### Developer
-!`find .company/inboxes/developer -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
-
-### QA
-!`find .company/inboxes/qa -name "*.json" 2>/dev/null | wc -l || echo "0"` messages
+Count JSON files in each directory:
+- `.company/inboxes/orchestrator/`
+- `.company/inboxes/cto/`
+- `.company/inboxes/architect/`
+- `.company/inboxes/tech-lead/`
+- `.company/inboxes/developer/`
+- `.company/inboxes/qa/`
 
 ---
 
 ## Artifacts Summary
 
-### CTO Artifacts
-!`ls .company/artifacts/cto/ 2>/dev/null || echo "None"`
-
-### Architect Artifacts
-!`ls .company/artifacts/architect/ 2>/dev/null || echo "None"`
-
-### Tech Lead Artifacts
-!`ls .company/artifacts/tech-lead/ 2>/dev/null || echo "None"`
-
-### Developer Artifacts
-!`ls .company/artifacts/developer/ 2>/dev/null || echo "None"`
-
-### QA Artifacts
-!`ls .company/artifacts/qa/ 2>/dev/null || echo "None"`
+List files in each directory:
+- `.company/artifacts/cto/`
+- `.company/artifacts/architect/`
+- `.company/artifacts/tech-lead/`
+- `.company/artifacts/developer/`
+- `.company/artifacts/qa/`
 
 ---
 
 ## Git Status
 
 ### Branch
-!`git branch --show-current 2>/dev/null || echo "N/A"`
+Run: `git branch --show-current`
 
 ### Uncommitted Changes
-!`git status --short 2>/dev/null | head -10 || echo "N/A"`
+Run: `git status --short`
 
 ### Recent Commits
-!`git log --oneline -5 2>/dev/null || echo "N/A"`
+Run: `git log --oneline -5`
 
 ---
 
 ## Quality Metrics
 
 ### Test Coverage
-!`npm run coverage --silent 2>/dev/null | grep -E "All files|Statements" | head -2 || echo "Run tests to see coverage"`
+Run: `npm run coverage` (if available)
 
 ### Lint Status
-!`npm run lint --silent 2>/dev/null && echo "Lint: PASS" || echo "Lint: Check needed"`
+Run: `npm run lint` (if available)
 
 ---
 

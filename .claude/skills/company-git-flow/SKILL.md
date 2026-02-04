@@ -8,8 +8,9 @@ user-invocable: false
 
 This skill provides git workflow knowledge to all development roles.
 
-## Current Git Configuration
-!`cat .company/config.json 2>/dev/null | grep -A30 '"git_flow"' || echo "Using default git flow"`
+## Context Loading
+
+Read `.company/config.json` and look for the "git_flow" section for current git configuration. If missing, use default git flow settings.
 
 ---
 

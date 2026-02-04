@@ -18,14 +18,13 @@ allowed-tools:
 
 You orchestrate the merge of completed work to the main branch, ensuring all quality gates pass.
 
-## Current Git Configuration
-!`cat .company/config.json 2>/dev/null | grep -A20 '"git_flow"' || echo "Using default git flow"`
+## Context Loading
 
-## Current Branch
-!`git branch --show-current`
+Before proceeding, load the following context:
 
-## Git Status
-!`git status --short`
+1. **Git Configuration**: Read `.company/config.json` and look for the "git_flow" section
+2. **Current Branch**: Run `git branch --show-current`
+3. **Git Status**: Run `git status --short`
 
 ## Target Branch
 $ARGUMENTS (defaults to current branch if not specified)

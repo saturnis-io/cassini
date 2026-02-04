@@ -9,8 +9,9 @@ argument-hint: [domain-id]
 
 Manually request the creation of a specialist for a specific domain.
 
-## Current Roster
-!`cat .company/roster.json 2>/dev/null | jq '.specialists[].id' || echo "No roster found"`
+## Context Loading
+
+Before proceeding, read `.company/roster.json` to see current specialist IDs.
 
 ## Requested Domain
 $ARGUMENTS

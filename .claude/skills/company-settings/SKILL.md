@@ -9,8 +9,9 @@ argument-hint: "[setting.path] [value]"
 
 View or modify the virtual company configuration.
 
-## Current Configuration
-!`cat .company/config.json 2>/dev/null | head -100 || echo "No configuration found. Run /company to initialize."`
+## Context Loading
+
+Read `.company/config.json` (first 100 lines) for current configuration. If missing, display: "No configuration found. Run /company to initialize."
 
 ## Arguments
 $ARGUMENTS

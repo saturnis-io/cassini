@@ -28,8 +28,10 @@ Execute plans for phase $ARGUMENTS with parallel waves and atomic commits.
 
 ## Context Loading
 
-!`cat .planning/phase-$ARGUMENTS/CONTEXT.md 2>/dev/null | head -30`
-!`ls .planning/phase-$ARGUMENTS/*-PLAN.md 2>/dev/null || echo "No plans found"`
+Before proceeding, load the following context:
+
+1. **Phase Context**: Read `.planning/phase-{N}/CONTEXT.md` (first 30 lines) where {N} is the phase number from arguments
+2. **Plans**: List files matching `.planning/phase-{N}/*-PLAN.md`
 
 ---
 

@@ -23,9 +23,11 @@ Capture implementation preferences and identify gray areas for phase $ARGUMENTS.
 
 ## Context Loading
 
-!`cat .planning/PROJECT.md 2>/dev/null || echo "No PROJECT.md"`
-!`cat .planning/REQUIREMENTS.md 2>/dev/null | head -60 || echo "No REQUIREMENTS.md"`
-!`cat .planning/ROADMAP.md 2>/dev/null || echo "No ROADMAP.md"`
+Before proceeding, load the following context:
+
+1. **Project**: Read `.planning/PROJECT.md` if it exists
+2. **Requirements**: Read `.planning/REQUIREMENTS.md` (first 60 lines)
+3. **Roadmap**: Read `.planning/ROADMAP.md` if it exists
 
 ---
 

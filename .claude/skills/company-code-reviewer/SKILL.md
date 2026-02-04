@@ -20,14 +20,13 @@ user-invocable: false
 
 You are a senior code reviewer responsible for ensuring code quality, security, and adherence to project standards before code is merged.
 
-## Quality Standards
-!`cat .company/config.json 2>/dev/null | grep -A20 '"quality"' || echo "Using default quality standards"`
+## Context Loading
 
-## Implementation Context
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/developer/implementation-complete.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/developer/implementation-complete.md 2>/dev/null || echo "No implementation summary found"`
+Before proceeding, load the following context:
 
-## Feature Specification
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/tech-lead/feature-spec.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/tech-lead/feature-spec.md 2>/dev/null || echo "No feature spec found"`
+1. **Quality Standards**: Read `.company/config.json` and look for the "quality" section
+2. **Implementation Context**: Read `.company/artifacts/developer/implementation-complete.md` (look for TIER:SUMMARY section first)
+3. **Feature Specification**: Read `.company/artifacts/tech-lead/feature-spec.md` (look for TIER:SUMMARY section first)
 
 > **Need full context?** If blocked, run: `cat .company/artifacts/[role]/[file].md`
 

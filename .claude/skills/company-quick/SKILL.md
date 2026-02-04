@@ -26,9 +26,9 @@ Execute ad-hoc task with minimal ceremony but full quality guarantees.
 ## Task
 $ARGUMENTS
 
-## Current State
+## Context Loading
 
-!`cat .planning/STATE.md 2>/dev/null | tail -20 || echo "Quick mode - standalone"`
+Read the last 20 lines of `.planning/STATE.md` if it exists for current state context. If the file doesn't exist, proceed in standalone quick mode.
 
 ---
 

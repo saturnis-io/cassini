@@ -23,6 +23,15 @@
       "created": "init",
       "expertise": ["Unit Testing", "Integration Testing", "E2E Testing", "Test Strategy"],
       "description": "Test strategy and implementation"
+    },
+    {
+      "id": "ui-designer",
+      "type": "hired",
+      "skill_path": "company-specialists/ui-designer",
+      "created": "2026-02-03",
+      "expertise": ["Tailwind CSS", "shadcn/ui", "Radix UI", "Recharts", "Accessibility", "Dark Mode", "Responsive Design", "Data Visualization"],
+      "description": "Frontend UI/UX designer with expertise in modern React design systems, Tailwind CSS, and data visualization",
+      "invoke_on": ["frontend_feature_commits", "ui_review", "chart_design", "accessibility_review"]
     }
   ],
   "roles": {
@@ -52,7 +61,7 @@
     }
   },
   "stats": {
-    "total_specialists_created": 3,
+    "total_specialists_created": 4,
     "total_tasks_completed": 0,
     "projects_completed": 0
   }

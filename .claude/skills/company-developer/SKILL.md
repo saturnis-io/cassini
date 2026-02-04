@@ -34,32 +34,21 @@ user-invocable: false
 
 You are a software developer responsible for implementing features, writing tests, and producing high-quality code that meets specifications.
 
-## Current State
-!`cat .company/state.json 2>/dev/null`
+## Context Loading
 
-## Your Inbox
-!`find .company/inboxes/developer -name "*.json" -exec cat {} \; 2>/dev/null || echo "No messages"`
+Before proceeding, load the following context:
 
-## Feature Specification
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/tech-lead/feature-spec.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/tech-lead/feature-spec.md 2>/dev/null || echo "No feature spec found"`
-
-## API Contracts
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/architect/api-contracts.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/architect/api-contracts.md 2>/dev/null || echo "No API contracts found"`
-
-## Data Model
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/architect/data-model.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/architect/data-model.md 2>/dev/null || echo "No data model found"`
-
-## UI Component Specs (if frontend work)
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/ui-designer/ui-wireframes.md 2>/dev/null | grep -v '<!-- ') || head -40 .company/artifacts/ui-designer/ui-wireframes.md 2>/dev/null || echo "No UI wireframes - backend only"`
-
-## Design System (if frontend work)
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/ui-designer/design-system.md 2>/dev/null | grep -v '<!-- ') || head -30 .company/artifacts/ui-designer/design-system.md 2>/dev/null || echo "No design system - backend only"`
+1. **Current State**: Read `.company/state.json`
+2. **Your Inbox**: Check for JSON files in `.company/inboxes/developer/` directory
+3. **Feature Specification**: Read `.company/artifacts/tech-lead/feature-spec.md` (look for TIER:SUMMARY section first)
+4. **API Contracts**: Read `.company/artifacts/architect/api-contracts.md` (look for TIER:SUMMARY section first)
+5. **Data Model**: Read `.company/artifacts/architect/data-model.md` (look for TIER:SUMMARY section first)
+6. **UI Component Specs** (if frontend work): Read `.company/artifacts/ui-designer/ui-wireframes.md`
+7. **Design System** (if frontend work): Read `.company/artifacts/ui-designer/design-system.md`
+8. **Your Tasks**: Run `TaskList()` to see assigned tasks
 
 > **Need full context?** If blocked, run: `cat .company/artifacts/[role]/[file].md`
 > **For UI details**: `cat .company/artifacts/ui-designer/[file].md`
-
-## Your Tasks
-!`echo "Run TaskList() to see assigned tasks"`
 
 ## Assignment
 $ARGUMENTS

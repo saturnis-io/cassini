@@ -9,7 +9,8 @@ user-invocable: false
 This skill defines shared standards that all roles must follow.
 
 ## Governance Matrix
-!`cat .company/governance-matrix.json 2>/dev/null | head -100 || echo "Governance matrix not found"`
+
+Read `.company/governance-matrix.json` (first 100 lines) to understand role permissions and governance rules. If missing, note that governance matrix is not configured.
 
 ---
 
