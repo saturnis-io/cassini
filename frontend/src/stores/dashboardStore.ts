@@ -24,6 +24,15 @@ interface DashboardState {
   selectedCharacteristicId: number | null
   setSelectedCharacteristicId: (id: number | null) => void
 
+  // Multi-select for reporting
+  selectedCharacteristicIds: Set<number>
+  isMultiSelectMode: boolean
+  toggleCharacteristicSelection: (id: number) => void
+  selectAllCharacteristics: (ids: number[]) => void
+  deselectAllCharacteristics: (ids: number[]) => void
+  clearSelection: () => void
+  setMultiSelectMode: (enabled: boolean) => void
+
   // Time range selection
   timeRange: TimeRangeState
   setTimeRange: (range: TimeRangeState) => void
@@ -84,6 +93,37 @@ export const useDashboardStore = create<DashboardState>()(
   // Selected characteristic
   selectedCharacteristicId: null,
   setSelectedCharacteristicId: (id) => set({ selectedCharacteristicId: id }),
+
+  // Multi-select for reporting
+  selectedCharacteristicIds: new Set<number>(),
+  isMultiSelectMode: false,
+  toggleCharacteristicSelection: (id) =>
+    set((state) => {
+      const next = new Set(state.selectedCharacteristicIds)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return { selectedCharacteristicIds: next }
+    }),
+  selectAllCharacteristics: (ids) =>
+    set((state) => {
+      const next = new Set(state.selectedCharacteristicIds)
+      ids.forEach((id) => next.add(id))
+      return { selectedCharacteristicIds: next }
+    }),
+  deselectAllCharacteristics: (ids) =>
+    set((state) => {
+      const next = new Set(state.selectedCharacteristicIds)
+      ids.forEach((id) => next.delete(id))
+      return { selectedCharacteristicIds: next }
+    }),
+  clearSelection: () => set({ selectedCharacteristicIds: new Set() }),
+  setMultiSelectMode: (enabled) => set({
+    isMultiSelectMode: enabled,
+    selectedCharacteristicIds: enabled ? new Set() : new Set()
+  }),
 
   // Time range
   timeRange: defaultTimeRange,
