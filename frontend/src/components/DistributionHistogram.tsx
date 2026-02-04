@@ -30,6 +30,8 @@ interface DistributionHistogramProps {
   yAxisDomain?: [number, number]
   /** Value from X-bar chart hover to highlight corresponding bucket */
   highlightedValue?: number | null
+  /** Callback when hovering over a histogram bar - passes the bin range [min, max] or null on leave */
+  onHoverBin?: (range: [number, number] | null) => void
 }
 
 function calculateHistogramBins(values: number[], binCount: number = 20) {
@@ -100,25 +102,29 @@ function addNormalCurve(
   }))
 }
 
-// Color schemes for comparison mode
+/**
+ * Color schemes for comparison mode - using Sepasoft brand colors
+ * Primary: Sepasoft Blue #004A98 → hsl(212, 100%, 30%)
+ * Secondary: Sepasoft Purple #7473C0 → hsl(241, 33%, 60%)
+ */
 const colorSchemes = {
   primary: {
-    barGradientStart: 'hsl(212 100% 30%)',
+    barGradientStart: 'hsl(212 100% 30%)',   // Sepasoft Blue
     barGradientEnd: 'hsl(212 100% 30%)',
     barStroke: 'hsl(212 100% 28%)',
-    normalStroke: 'hsl(248 33% 55%)',
-    normalFill: 'hsl(248 33% 59%)',
+    normalStroke: 'hsl(179 50% 55%)',        // Sepasoft Teal
+    normalFill: 'hsl(179 50% 59%)',
     meanColor: 'hsl(212 100% 30%)',
     meanTextColor: 'hsl(212 100% 28%)',
   },
   secondary: {
-    barGradientStart: 'hsl(280 87% 55%)',
-    barGradientEnd: 'hsl(280 87% 55%)',
-    barStroke: 'hsl(280 87% 45%)',
-    normalStroke: 'hsl(320 70% 55%)',
-    normalFill: 'hsl(320 70% 59%)',
-    meanColor: 'hsl(280 87% 55%)',
-    meanTextColor: 'hsl(280 87% 45%)',
+    barGradientStart: 'hsl(241 33% 60%)',    // Sepasoft Purple #7473C0
+    barGradientEnd: 'hsl(241 33% 60%)',
+    barStroke: 'hsl(241 33% 50%)',
+    normalStroke: 'hsl(179 50% 59%)',        // Sepasoft Teal #62CBC9
+    normalFill: 'hsl(179 50% 55%)',
+    meanColor: 'hsl(241 33% 60%)',
+    meanTextColor: 'hsl(241 33% 50%)',
   },
 }
 
@@ -130,6 +136,7 @@ export function DistributionHistogram({
   chartOptions,
   yAxisDomain,
   highlightedValue,
+  onHoverBin,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
   const colors = colorSchemes[colorScheme]
@@ -296,6 +303,15 @@ export function DistributionHistogram({
               layout="vertical"
               data={bins}
               margin={{ top: 20, right: 30, left: 5, bottom: 20 }}
+              onMouseMove={(state) => {
+                if (onHoverBin && state?.activeTooltipIndex != null) {
+                  const bin = bins[state.activeTooltipIndex]
+                  if (bin) {
+                    onHoverBin([bin.binStart, bin.binEnd])
+                  }
+                }
+              }}
+              onMouseLeave={() => onHoverBin?.(null)}
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -434,7 +450,19 @@ export function DistributionHistogram({
       </div>
 
       <ResponsiveContainer width="100%" height="85%">
-        <ComposedChart data={bins} margin={{ top: 25, right: 45, left: 10, bottom: 10 }}>
+        <ComposedChart
+          data={bins}
+          margin={{ top: 25, right: 45, left: 10, bottom: 10 }}
+          onMouseMove={(state) => {
+            if (onHoverBin && state?.activeTooltipIndex != null) {
+              const bin = bins[state.activeTooltipIndex]
+              if (bin) {
+                onHoverBin([bin.binStart, bin.binEnd])
+              }
+            }
+          }}
+          onMouseLeave={() => onHoverBin?.(null)}
+        >
           <defs>
             {/* Gradient for histogram bars */}
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

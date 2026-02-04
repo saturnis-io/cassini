@@ -44,8 +44,11 @@ export function ChartPanel({
   const isBelowPosition = histogramPosition === 'below'
   const showHistogram = histogramPosition !== 'hidden'
 
-  // State for cross-chart highlighting
+  // State for cross-chart highlighting (bidirectional)
+  // hoveredValue: from X-bar chart hover -> highlights histogram bar
+  // hoveredBinRange: from histogram bar hover -> highlights X-bar points
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
+  const [hoveredBinRange, setHoveredBinRange] = useState<[number, number] | null>(null)
 
   // State and refs for resizable histogram panels
   const [histogramWidth, setHistogramWidth] = useState(defaultHistogramWidth)
@@ -166,6 +169,7 @@ export function ChartPanel({
           colorScheme={colorScheme}
           yAxisDomain={isRightPosition ? yAxisDomain : undefined}
           onHoverValue={showHistogram ? setHoveredValue : undefined}
+          highlightedRange={hoveredBinRange}
         />
       </div>
 
@@ -208,6 +212,7 @@ export function ChartPanel({
             chartOptions={chartOptions}
             yAxisDomain={isRightPosition ? yAxisDomain : undefined}
             highlightedValue={hoveredValue}
+            onHoverBin={setHoveredBinRange}
           />
         </div>
       )}

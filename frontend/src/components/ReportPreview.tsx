@@ -20,17 +20,22 @@ import type { ChartData, Violation } from '@/types'
 interface ReportPreviewProps {
   template: ReportTemplate
   characteristicIds: number[]
+  chartOptions?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  }
   className?: string
 }
 
 /**
  * Report preview component that renders report sections based on template
  */
-export function ReportPreview({ template, characteristicIds, className }: ReportPreviewProps) {
+export function ReportPreview({ template, characteristicIds, chartOptions, className }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
 
-  // Fetch data for primary characteristic
-  const { data: chartData, isLoading: chartLoading } = useChartData(primaryCharId || 0)
+  // Fetch data for primary characteristic using the provided chart options
+  const { data: chartData, isLoading: chartLoading } = useChartData(primaryCharId || 0, chartOptions)
   const { data: characteristic } = useCharacteristic(primaryCharId || 0)
   const { data: violations, isLoading: violationsLoading } = useViolations({
     characteristic_id: primaryCharId || undefined,
@@ -112,12 +117,12 @@ function ReportSectionComponent({
       )
 
     case 'controlChart':
-      if (!chartData) return null
+      if (!chartData || characteristicIds.length === 0) return null
       return (
         <div className="border border-border rounded-lg p-4">
           <h2 className="text-lg font-semibold mb-4">Control Chart</h2>
           <div className="h-64">
-            <ControlChart data={chartData} showViolationAnnotations={true} />
+            <ControlChart characteristicId={characteristicIds[0]} />
           </div>
         </div>
       )
@@ -330,24 +335,37 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
   const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
   if (values.length === 0) return null
 
-  // Calculate histogram bins
+  const { spec_limits, control_limits } = chartData
+
+  // Calculate domain including all limits so they're always visible
+  const allValues = [
+    ...values,
+    ...(spec_limits.lsl != null ? [spec_limits.lsl] : []),
+    ...(spec_limits.usl != null ? [spec_limits.usl] : []),
+    ...(control_limits.lcl != null ? [control_limits.lcl] : []),
+    ...(control_limits.ucl != null ? [control_limits.ucl] : []),
+  ]
+  const domainMin = Math.min(...allValues)
+  const domainMax = Math.max(...allValues)
+  const domainPadding = (domainMax - domainMin) * 0.1
+
+  // Calculate histogram bins based on extended domain
   const binCount = 15
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const binWidth = (max - min) / binCount || 1
+  const binMin = domainMin - domainPadding
+  const binMax = domainMax + domainPadding
+  const binWidth = (binMax - binMin) / binCount || 1
 
   const bins = Array.from({ length: binCount }, (_, i) => ({
-    binCenter: min + (i + 0.5) * binWidth,
+    binCenter: binMin + (i + 0.5) * binWidth,
     count: 0,
   }))
 
   values.forEach((value) => {
-    const binIndex = Math.min(Math.floor((value - min) / binWidth), binCount - 1)
-    if (binIndex >= 0) bins[binIndex].count++
+    const binIndex = Math.min(Math.max(0, Math.floor((value - binMin) / binWidth)), binCount - 1)
+    bins[binIndex].count++
   })
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length
-  const { spec_limits } = chartData
   const maxCount = Math.max(...bins.map((b) => b.count))
 
   return (
@@ -355,12 +373,12 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
       <h2 className="text-lg font-semibold mb-4">Distribution Histogram</h2>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={bins} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+          <ComposedChart data={bins} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 90%)" />
             <XAxis
               dataKey="binCenter"
               type="number"
-              domain={[min - binWidth, max + binWidth]}
+              domain={[binMin, binMax]}
               tick={{ fontSize: 10 }}
               tickFormatter={(v) => v.toFixed(2)}
             />
@@ -379,15 +397,19 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
             />
             <Bar dataKey="count" fill="hsl(212 100% 45%)" opacity={0.7} />
             <ReferenceLine x={mean} stroke="hsl(212 100% 35%)" strokeWidth={2} strokeDasharray="4 4" />
-            {spec_limits.lsl && <ReferenceLine x={spec_limits.lsl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
-            {spec_limits.usl && <ReferenceLine x={spec_limits.usl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
+            {control_limits.lcl != null && <ReferenceLine x={control_limits.lcl} stroke="hsl(179 50% 59%)" strokeWidth={1.5} strokeDasharray="4 2" />}
+            {control_limits.ucl != null && <ReferenceLine x={control_limits.ucl} stroke="hsl(179 50% 59%)" strokeWidth={1.5} strokeDasharray="4 2" />}
+            {spec_limits.lsl != null && <ReferenceLine x={spec_limits.lsl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
+            {spec_limits.usl != null && <ReferenceLine x={spec_limits.usl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
         <span>Mean: {mean.toFixed(4)}</span>
-        {spec_limits.lsl && <span className="text-destructive">LSL: {spec_limits.lsl}</span>}
-        {spec_limits.usl && <span className="text-destructive">USL: {spec_limits.usl}</span>}
+        {control_limits.lcl != null && <span className="text-teal-600">LCL: {control_limits.lcl.toFixed(4)}</span>}
+        {control_limits.ucl != null && <span className="text-teal-600">UCL: {control_limits.ucl.toFixed(4)}</span>}
+        {spec_limits.lsl != null && <span className="text-destructive">LSL: {spec_limits.lsl}</span>}
+        {spec_limits.usl != null && <span className="text-destructive">USL: {spec_limits.usl}</span>}
       </div>
     </div>
   )

@@ -33,22 +33,44 @@ export interface ChartColors {
 
   // Out of control region
   outOfControl: string
+
+  // Secondary/comparison chart colors (for comparison mode)
+  secondaryLineGradientStart: string
+  secondaryLineGradientEnd: string
+  secondaryNormalPoint: string
 }
 
+/**
+ * Sepasoft Brand Colors Reference:
+ * - Blue:   #004A98 → hsl(212, 100%, 30%)
+ * - Green:  #4C9C2E → hsl(104, 55%, 40%)
+ * - Teal:   #62CBC9 → hsl(179, 50%, 59%)
+ * - Orange: #D48232 → hsl(32, 63%, 51%)
+ * - Yellow: #FFCD00 → hsl(48, 100%, 50%)
+ * - Red:    #EC1C24 → hsl(357, 80%, 52%)
+ * - Purple: #7473C0 → hsl(241, 33%, 60%)
+ * - Dark:   #2D2A26 → hsl(30, 9%, 16%)
+ */
 export const defaultChartColors: ChartColors = {
-  lineGradientStart: 'hsl(212, 100%, 35%)',
-  lineGradientEnd: 'hsl(179, 50%, 55%)',
-  centerLine: 'hsl(212, 100%, 30%)',
-  uclLine: 'hsl(357, 80%, 52%)',
-  lclLine: 'hsl(357, 80%, 52%)',
-  zoneA: 'hsl(32, 63%, 51%)',
-  zoneB: 'hsl(48, 100%, 50%)',
-  zoneC: 'hsl(104, 55%, 40%)',
-  normalPoint: 'hsl(212, 100%, 30%)',
-  violationPoint: 'hsl(357, 80%, 52%)',
-  undersizedPoint: 'hsl(32, 63%, 51%)',
-  excludedPoint: 'hsl(210, 8%, 46%)',
-  outOfControl: 'hsl(357, 80%, 52%)',
+  // Primary chart - Blue to Teal gradient
+  lineGradientStart: 'hsl(212, 100%, 35%)',  // Sepasoft Blue (lighter)
+  lineGradientEnd: 'hsl(179, 50%, 55%)',     // Sepasoft Teal
+  centerLine: 'hsl(212, 100%, 30%)',          // Sepasoft Blue
+  uclLine: 'hsl(357, 80%, 52%)',              // Sepasoft Red
+  lclLine: 'hsl(357, 80%, 52%)',              // Sepasoft Red
+  zoneA: 'hsl(32, 63%, 51%)',                 // Sepasoft Orange
+  zoneB: 'hsl(48, 100%, 50%)',                // Sepasoft Yellow
+  zoneC: 'hsl(104, 55%, 40%)',                // Sepasoft Green
+  normalPoint: 'hsl(212, 100%, 30%)',         // Sepasoft Blue
+  violationPoint: 'hsl(357, 80%, 52%)',       // Sepasoft Red
+  undersizedPoint: 'hsl(32, 63%, 51%)',       // Sepasoft Orange
+  excludedPoint: 'hsl(210, 8%, 46%)',         // Muted gray
+  outOfControl: 'hsl(357, 80%, 52%)',         // Sepasoft Red
+
+  // Secondary/comparison chart - Purple to Teal gradient (Sepasoft brand)
+  secondaryLineGradientStart: 'hsl(241, 33%, 60%)',  // Sepasoft Purple #7473C0
+  secondaryLineGradientEnd: 'hsl(179, 50%, 59%)',    // Sepasoft Teal #62CBC9
+  secondaryNormalPoint: 'hsl(241, 33%, 55%)',        // Sepasoft Purple (darker)
 }
 
 export const chartPresets: ChartColorPreset[] = [
@@ -76,6 +98,9 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(45, 100%, 45%)',
       excludedPoint: 'hsl(0, 0%, 50%)',
       outOfControl: 'hsl(0, 100%, 50%)',
+      secondaryLineGradientStart: 'hsl(280, 100%, 50%)',
+      secondaryLineGradientEnd: 'hsl(280, 100%, 50%)',
+      secondaryNormalPoint: 'hsl(280, 100%, 45%)',
     },
   },
   {
@@ -96,6 +121,9 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(55, 90%, 45%)',
       excludedPoint: 'hsl(0, 0%, 60%)',
       outOfControl: 'hsl(30, 100%, 50%)',
+      secondaryLineGradientStart: 'hsl(270, 60%, 55%)',
+      secondaryLineGradientEnd: 'hsl(270, 60%, 45%)',
+      secondaryNormalPoint: 'hsl(270, 60%, 50%)',
     },
   },
   {
@@ -116,6 +144,9 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(0, 0%, 45%)',
       excludedPoint: 'hsl(0, 0%, 75%)',
       outOfControl: 'hsl(0, 0%, 30%)',
+      secondaryLineGradientStart: 'hsl(0, 0%, 50%)',
+      secondaryLineGradientEnd: 'hsl(0, 0%, 60%)',
+      secondaryNormalPoint: 'hsl(0, 0%, 55%)',
     },
   },
   {
@@ -136,6 +167,9 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(45, 100%, 60%)',
       excludedPoint: 'hsl(0, 0%, 55%)',
       outOfControl: 'hsl(0, 90%, 60%)',
+      secondaryLineGradientStart: 'hsl(241, 50%, 70%)',  // Brightened Sepasoft Purple
+      secondaryLineGradientEnd: 'hsl(179, 60%, 65%)',    // Brightened Sepasoft Teal
+      secondaryNormalPoint: 'hsl(241, 50%, 65%)',
     },
   },
 ]

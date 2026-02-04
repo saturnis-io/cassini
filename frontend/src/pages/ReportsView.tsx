@@ -1,19 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
-import { REPORT_TEMPLATES, getTemplateById } from '@/lib/report-templates'
+import { REPORT_TEMPLATES } from '@/lib/report-templates'
 import type { ReportTemplate } from '@/lib/report-templates'
 import { ReportPreview } from '@/components/ReportPreview'
 import { ExportDropdown } from '@/components/ExportDropdown'
-import { useCharacteristics } from '@/api/hooks'
-import { FileText, ChevronRight, Check } from 'lucide-react'
+import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
+import { TimeRangeSelector } from '@/components/TimeRangeSelector'
+import { useDashboardStore } from '@/stores/dashboardStore'
+import { useChartData, useViolations } from '@/api/hooks'
+import { FileText, ChevronRight } from 'lucide-react'
 
 export function ReportsView() {
   const [searchParams] = useSearchParams()
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null)
   const [selectedCharacteristicIds, setSelectedCharacteristicIds] = useState<number[]>([])
-  const { data: characteristicsData } = useCharacteristics()
   const reportContentRef = useRef<HTMLDivElement>(null)
+
+  // Use the same time range state as the dashboard
+  const timeRange = useDashboardStore((state) => state.timeRange)
 
   // Initialize from URL params (from SelectionToolbar navigation)
   useEffect(() => {
@@ -30,32 +35,52 @@ export function ReportsView() {
     }
   }, [searchParams])
 
-  const handleSelectCharacteristic = (id: number) => {
-    setSelectedCharacteristicIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((i) => i !== id)
-      }
-      return [...prev, id]
-    })
-  }
-
   const handleClearSelection = () => {
     setSelectedCharacteristicIds([])
   }
 
+  // Build chart options from time range
+  const chartOptions = {
+    limit: timeRange.type === 'points' ? timeRange.pointsLimit ?? 50 : undefined,
+    startDate: timeRange.type === 'custom' ? timeRange.startDate ?? undefined : undefined,
+    endDate: timeRange.type === 'custom' ? timeRange.endDate ?? undefined : undefined,
+  }
+
+  // For duration-based ranges, calculate start/end dates
+  if (timeRange.type === 'duration' && timeRange.hoursBack) {
+    const now = new Date()
+    chartOptions.startDate = new Date(now.getTime() - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
+    chartOptions.endDate = now.toISOString()
+  }
+
+  // Fetch data for export functionality
+  const primaryCharId = selectedCharacteristicIds[0] || 0
+  const { data: chartData } = useChartData(primaryCharId, chartOptions)
+  const { data: violations } = useViolations({
+    characteristic_id: primaryCharId || undefined,
+    per_page: 100,
+  })
+
+  // Build export data
+  const exportData = useMemo(() => ({
+    chartData: chartData ?? undefined,
+    violations: violations?.items ?? [],
+  }), [chartData, violations])
+
   return (
     <div className="h-[calc(100vh-10rem)]">
       <div className="grid grid-cols-12 gap-6 h-full">
-        {/* Left Panel - Template Selection */}
-        <div className="col-span-3 flex flex-col gap-4 h-full overflow-hidden">
-          <div className="border border-border rounded-xl bg-card overflow-hidden flex-1 flex flex-col">
+        {/* Left Panel - Template & Characteristic Selection */}
+        <div className="col-span-3 flex flex-col gap-4 h-full">
+          {/* Report Templates */}
+          <div className="border border-border rounded-xl bg-card overflow-hidden flex-shrink-0">
             <div className="p-4 border-b border-border">
               <h2 className="font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Report Templates
               </h2>
             </div>
-            <div className="flex-1 overflow-auto p-2">
+            <div className="p-2 max-h-48 overflow-auto">
               <div className="space-y-2">
                 {REPORT_TEMPLATES.map((template) => {
                   const Icon = template.icon
@@ -88,9 +113,17 @@ export function ReportsView() {
             </div>
           </div>
 
-          {/* Characteristic Selection */}
-          <div className="border border-border rounded-xl bg-card overflow-hidden h-64">
-            <div className="p-4 border-b border-border flex items-center justify-between">
+          {/* Time Range Selection - z-index ensures dropdown appears above other panels */}
+          <div className="border border-border rounded-xl bg-card p-4 flex-shrink-0 relative z-20">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Data Range</h3>
+              <TimeRangeSelector />
+            </div>
+          </div>
+
+          {/* Characteristic Selection - Hierarchy Navigation */}
+          <div className="border border-border rounded-xl bg-card overflow-hidden flex-1 flex flex-col min-h-0">
+            <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
               <h3 className="font-semibold text-sm">Characteristics</h3>
               {selectedCharacteristicIds.length > 0 && (
                 <button
@@ -101,41 +134,11 @@ export function ReportsView() {
                 </button>
               )}
             </div>
-            <div className="overflow-auto h-[calc(100%-3.5rem)] p-2">
-              <div className="space-y-1">
-                {characteristicsData?.items.map((char) => {
-                  const isSelected = selectedCharacteristicIds.includes(char.id)
-                  return (
-                    <button
-                      key={char.id}
-                      onClick={() => handleSelectCharacteristic(char.id)}
-                      className={cn(
-                        'w-full flex items-start gap-2 px-2 py-1.5 rounded text-sm text-left',
-                        'hover:bg-muted transition-colors',
-                        isSelected && 'bg-primary/10'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5',
-                          isSelected ? 'bg-primary border-primary' : 'border-border'
-                        )}
-                      >
-                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{char.name}</div>
-                        {char.hierarchy_path && (
-                          <div className="text-xs text-muted-foreground truncate" title={char.hierarchy_path}>
-                            {char.hierarchy_path}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <HierarchyMultiSelector
+              selectedIds={selectedCharacteristicIds}
+              onSelectionChange={setSelectedCharacteristicIds}
+              className="flex-1 overflow-auto p-2"
+            />
           </div>
         </div>
 
@@ -158,6 +161,7 @@ export function ReportsView() {
                   )}
                   <ExportDropdown
                     contentRef={reportContentRef}
+                    exportData={exportData}
                     filename={`${selectedTemplate.id}-report`}
                     disabled={selectedCharacteristicIds.length === 0}
                   />
@@ -169,6 +173,7 @@ export function ReportsView() {
                 <ReportPreview
                   template={selectedTemplate}
                   characteristicIds={selectedCharacteristicIds}
+                  chartOptions={chartOptions}
                 />
               </div>
             </>

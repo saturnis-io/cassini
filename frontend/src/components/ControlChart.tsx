@@ -10,7 +10,7 @@ import {
   ReferenceArea,
   ResponsiveContainer,
 } from 'recharts'
-import { useChartData } from '@/api/hooks'
+import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 
@@ -28,6 +28,8 @@ interface ControlChartProps {
   yAxisDomain?: [number, number]
   /** Callback when hovering over a data point - passes the mean value or null on leave */
   onHoverValue?: (value: number | null) => void
+  /** Range [min, max] from histogram bar hover to highlight corresponding points */
+  highlightedRange?: [number, number] | null
 }
 
 // Hook to subscribe to chart color changes
@@ -69,9 +71,11 @@ export function ControlChart({
   colorScheme = 'primary',
   yAxisDomain: externalDomain,
   onHoverValue,
+  highlightedRange,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
+  const hierarchyPath = useHierarchyPath(characteristicId)
 
   // Collect all violated rules across all data points for legend
   // This hook must be called unconditionally (before early returns)
@@ -84,10 +88,10 @@ export function ControlChart({
     return Array.from(rules).sort((a, b) => a - b)
   }, [chartData?.data_points])
 
-  // Color scheme overrides for comparison mode
+  // Color scheme overrides for comparison mode - uses Sepasoft brand colors from preset
   const lineGradientId = `chartLineGradient-${characteristicId}-${colorScheme}`
   const lineColors = colorScheme === 'secondary'
-    ? { start: 'hsl(280, 87%, 55%)', end: 'hsl(320, 70%, 55%)' }
+    ? { start: chartColors.secondaryLineGradientStart, end: chartColors.secondaryLineGradientEnd }
     : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd }
 
   if (isLoading) {
@@ -169,16 +173,29 @@ export function ControlChart({
     : isModeB
       ? 'Variable Limits Chart'
       : 'X-Bar Chart'
-  const chartTitle = label
-    ? `${label}: ${chartData.characteristic_name} - ${chartTypeLabel}`
-    : `${chartData.characteristic_name} - ${chartTypeLabel}`
+
+  // Build breadcrumb from hierarchy path
+  const breadcrumb = hierarchyPath.length > 0
+    ? [...hierarchyPath, chartData.characteristic_name].join(' / ')
+    : chartData.characteristic_name
 
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
       {/* Header - fixed height to match DistributionHistogram header exactly */}
       <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <h3 className="font-semibold text-sm leading-5">{chartTitle}</h3>
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {label && (
+              <span className="text-xs font-medium px-1.5 py-0.5 bg-primary/10 text-primary rounded flex-shrink-0">
+                {label}
+              </span>
+            )}
+            <h3 className="font-semibold text-sm leading-5 truncate" title={breadcrumb}>
+              <span className="text-muted-foreground">{hierarchyPath.join(' / ')}{hierarchyPath.length > 0 && ' / '}</span>
+              <span>{chartData.characteristic_name}</span>
+              <span className="text-muted-foreground font-normal"> - {chartTypeLabel}</span>
+            </h3>
+          </div>
           {allViolatedRules.length > 0 && (
             <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
           )}
@@ -482,20 +499,40 @@ export function ControlChart({
               const violationRules: number[] = payload.violationRules || []
               const primaryRule = getPrimaryViolationRule(violationRules)
 
-              // Determine fill color using preset colors
-              const fillColor = isExcluded
-                ? chartColors.excludedPoint
-                : isViolation
-                  ? chartColors.violationPoint
-                  : isUndersized
-                    ? chartColors.undersizedPoint
-                    : chartColors.normalPoint
+              // Check if this point is highlighted from histogram hover
+              const pointValue = payload.displayValue ?? payload.mean
+              const isHighlightedFromHistogram = highlightedRange &&
+                pointValue >= highlightedRange[0] &&
+                pointValue < highlightedRange[1]
 
-              // Base radius
-              const baseRadius = isViolation ? 6 : isUndersized ? 5 : 4
+              // Determine fill color using preset colors (override with gold if highlighted)
+              const fillColor = isHighlightedFromHistogram
+                ? 'hsl(45, 100%, 50%)'  // Gold highlight color
+                : isExcluded
+                  ? chartColors.excludedPoint
+                  : isViolation
+                    ? chartColors.violationPoint
+                    : isUndersized
+                      ? chartColors.undersizedPoint
+                      : chartColors.normalPoint
+
+              // Base radius (larger when highlighted)
+              const baseRadius = isHighlightedFromHistogram ? 7 : isViolation ? 6 : isUndersized ? 5 : 4
 
               return (
                 <g key={payload.index}>
+                  {/* Highlight glow ring for histogram-highlighted points */}
+                  {isHighlightedFromHistogram && (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={baseRadius + 4}
+                      fill="none"
+                      stroke="hsl(45, 100%, 50%)"
+                      strokeWidth={2}
+                      opacity={0.5}
+                    />
+                  )}
                   {isViolation ? (
                     // Diamond shape for violations
                     <path
@@ -508,7 +545,7 @@ export function ControlChart({
                     <path
                       d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy + baseRadius * 0.7} L ${cx - baseRadius} ${cy + baseRadius * 0.7} Z`}
                       fill={fillColor}
-                      stroke={chartColors.undersizedPoint}
+                      stroke={isHighlightedFromHistogram ? 'hsl(35, 100%, 45%)' : chartColors.undersizedPoint}
                       strokeWidth={1.5}
                     />
                   ) : (
@@ -518,6 +555,8 @@ export function ControlChart({
                       cy={cy}
                       r={baseRadius}
                       fill={fillColor}
+                      stroke={isHighlightedFromHistogram ? 'hsl(35, 100%, 45%)' : undefined}
+                      strokeWidth={isHighlightedFromHistogram ? 2 : 0}
                     />
                   )}
                   {/* Violation rule number badge */}

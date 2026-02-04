@@ -4,6 +4,58 @@ import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 
 /**
+ * Convert oklch colors to RGB in an element's computed styles
+ * html2canvas doesn't support oklch() color function
+ */
+function convertOklchToRgb(element: HTMLElement): () => void {
+  const elementsWithOklch: Array<{ el: HTMLElement; prop: string; original: string }> = []
+
+  const processElement = (el: HTMLElement) => {
+    const computed = window.getComputedStyle(el)
+    const propsToCheck = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor']
+
+    for (const prop of propsToCheck) {
+      const value = computed.getPropertyValue(prop)
+      if (value.includes('oklch')) {
+        // Store original inline style
+        const inlineStyle = el.style.getPropertyValue(prop)
+        elementsWithOklch.push({ el, prop, original: inlineStyle })
+
+        // Create a temp element to compute the RGB value
+        const temp = document.createElement('div')
+        temp.style.color = value
+        document.body.appendChild(temp)
+        const rgbValue = window.getComputedStyle(temp).color
+        document.body.removeChild(temp)
+
+        // Apply RGB value
+        el.style.setProperty(prop, rgbValue, 'important')
+      }
+    }
+
+    // Process children
+    for (const child of el.children) {
+      if (child instanceof HTMLElement) {
+        processElement(child)
+      }
+    }
+  }
+
+  processElement(element)
+
+  // Return cleanup function to restore original styles
+  return () => {
+    for (const { el, prop, original } of elementsWithOklch) {
+      if (original) {
+        el.style.setProperty(prop, original)
+      } else {
+        el.style.removeProperty(prop)
+      }
+    }
+  }
+}
+
+/**
  * Export an HTML element to PDF
  */
 export async function exportToPdf(
@@ -11,12 +63,16 @@ export async function exportToPdf(
   filename: string,
   options?: { orientation?: 'portrait' | 'landscape' }
 ) {
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    logging: false,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-  })
+  // Convert oklch colors to RGB before capture
+  const restoreColors = convertOklchToRgb(element)
+
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      logging: false,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    })
 
   const imgData = canvas.toDataURL('image/png')
 
@@ -45,6 +101,10 @@ export async function exportToPdf(
   }
 
   pdf.save(`${filename}.pdf`)
+  } finally {
+    // Restore original colors
+    restoreColors()
+  }
 }
 
 /**

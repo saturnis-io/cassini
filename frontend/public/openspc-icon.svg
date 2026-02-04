@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Background circle with Sepasoft Blue -->
+  <circle cx="16" cy="16" r="15" fill="#004A98"/>
+
+  <!-- Control chart line representing SPC -->
+  <path
+    d="M5 18 L9 16 L13 20 L17 14 L21 17 L25 12 L27 15"
+    stroke="#62CBC9"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Data points -->
+  <circle cx="9" cy="16" r="1.5" fill="#ffffff"/>
+  <circle cx="13" cy="20" r="1.5" fill="#ffffff"/>
+  <circle cx="17" cy="14" r="1.5" fill="#ffffff"/>
+  <circle cx="21" cy="17" r="1.5" fill="#ffffff"/>
+  <circle cx="25" cy="12" r="1.5" fill="#ffffff"/>
+
+  <!-- UCL/LCL indicator lines -->
+  <line x1="5" y1="10" x2="27" y2="10" stroke="#ffffff" stroke-width="0.75" stroke-dasharray="2 1" opacity="0.5"/>
+  <line x1="5" y1="22" x2="27" y2="22" stroke="#ffffff" stroke-width="0.75" stroke-dasharray="2 1" opacity="0.5"/>
+</svg>

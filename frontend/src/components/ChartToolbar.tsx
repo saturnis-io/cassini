@@ -1,4 +1,4 @@
-import { Columns2, Eye, EyeOff } from 'lucide-react'
+import { Columns2, Eye, EyeOff, ArrowLeftRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
@@ -6,10 +6,11 @@ import { HistogramPositionSelector } from './HistogramPositionSelector'
 
 interface ChartToolbarProps {
   onComparisonToggle?: () => void
+  onChangeSecondary?: () => void
 }
 
-export function ChartToolbar({ onComparisonToggle }: ChartToolbarProps) {
-  const { comparisonMode, setComparisonMode, showSpecLimits, setShowSpecLimits } = useDashboardStore()
+export function ChartToolbar({ onComparisonToggle, onChangeSecondary }: ChartToolbarProps) {
+  const { comparisonMode, setComparisonMode, showSpecLimits, setShowSpecLimits, secondaryCharacteristicId } = useDashboardStore()
 
   return (
     <div className="flex items-center justify-between gap-4 mb-4">
@@ -51,6 +52,18 @@ export function ChartToolbar({ onComparisonToggle }: ChartToolbarProps) {
           <Columns2 className="h-4 w-4" />
           <span className="hidden sm:inline">Compare</span>
         </button>
+
+        {/* Change Secondary Characteristic (only in comparison mode with secondary selected) */}
+        {comparisonMode && secondaryCharacteristicId && onChangeSecondary && (
+          <button
+            onClick={onChangeSecondary}
+            title="Change comparison characteristic"
+            className="p-2 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-1.5 text-xs"
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+            <span className="hidden sm:inline">Change</span>
+          </button>
+        )}
       </div>
     </div>
   )

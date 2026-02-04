@@ -1,3 +1,4 @@
+import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { characteristicApi, hierarchyApi, sampleApi, violationApi } from './client'
@@ -101,6 +102,42 @@ export function useCharacteristic(id: number) {
     queryFn: () => characteristicApi.get(id),
     enabled: id > 0,
   })
+}
+
+/**
+ * Hook to get the hierarchy breadcrumb path for a characteristic.
+ * Returns an array of node names from root to the characteristic's parent node.
+ */
+export function useHierarchyPath(characteristicId: number) {
+  const { data: characteristic } = useCharacteristic(characteristicId)
+  const { data: hierarchyTree } = useHierarchyTree()
+
+  // Build the path by traversing the tree
+  const path = React.useMemo(() => {
+    if (!characteristic || !hierarchyTree) return []
+
+    const hierarchyId = characteristic.hierarchy_id
+    const pathNodes: string[] = []
+
+    // Helper function to find a node and build path to it
+    function findPath(nodes: typeof hierarchyTree, targetId: number, currentPath: string[]): string[] | null {
+      for (const node of nodes) {
+        if (node.id === targetId) {
+          return [...currentPath, node.name]
+        }
+        if (node.children && node.children.length > 0) {
+          const found = findPath(node.children, targetId, [...currentPath, node.name])
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const foundPath = findPath(hierarchyTree, hierarchyId, [])
+    return foundPath || []
+  }, [characteristic, hierarchyTree])
+
+  return path
 }
 
 export function useCreateCharacteristic() {

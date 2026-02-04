@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronUp, ChevronDown, Plus, Minus } from 'lucide-react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TimePickerProps {
@@ -178,7 +178,7 @@ function ValueSpinner({
 }
 
 /**
- * Minute controls with quick-select buttons and fine adjustment.
+ * Minute controls with quick-select buttons.
  */
 function MinuteControls({
   minute,
@@ -211,59 +211,6 @@ function MinuteControls({
             :{m.toString().padStart(2, '0')}
           </button>
         ))}
-      </div>
-
-      {/* Fine adjustment buttons */}
-      <div className="flex items-center justify-center gap-2">
-        <HoldButton
-          onClick={() => onMinuteChange(minute - 5)}
-          className="flex items-center gap-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-          aria-label="Decrease 5 minutes"
-          repeatDelay={300}
-          repeatInterval={100}
-        >
-          <Minus className="h-3 w-3" />
-          <span>5</span>
-        </HoldButton>
-
-        <HoldButton
-          onClick={() => onMinuteChange(minute - 1)}
-          className="flex items-center gap-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-          aria-label="Decrease 1 minute"
-          repeatDelay={400}
-          repeatInterval={80}
-        >
-          <Minus className="h-3 w-3" />
-          <span>1</span>
-        </HoldButton>
-
-        <div className="w-16 text-center">
-          <span className="text-sm font-medium text-muted-foreground">
-            :{minute.toString().padStart(2, '0')}
-          </span>
-        </div>
-
-        <HoldButton
-          onClick={() => onMinuteChange(minute + 1)}
-          className="flex items-center gap-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-          aria-label="Increase 1 minute"
-          repeatDelay={400}
-          repeatInterval={80}
-        >
-          <Plus className="h-3 w-3" />
-          <span>1</span>
-        </HoldButton>
-
-        <HoldButton
-          onClick={() => onMinuteChange(minute + 5)}
-          className="flex items-center gap-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
-          aria-label="Increase 5 minutes"
-          repeatDelay={300}
-          repeatInterval={100}
-        >
-          <Plus className="h-3 w-3" />
-          <span>5</span>
-        </HoldButton>
       </div>
     </div>
   )

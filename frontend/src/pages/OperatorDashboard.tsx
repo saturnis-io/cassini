@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCharacteristics } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
+import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 
 export function OperatorDashboard() {
@@ -17,6 +18,7 @@ export function OperatorDashboard() {
   const secondaryCharacteristicId = useDashboardStore((state) => state.secondaryCharacteristicId)
   const setSecondaryCharacteristicId = useDashboardStore((state) => state.setSecondaryCharacteristicId)
   const timeRange = useDashboardStore((state) => state.timeRange)
+  const [showComparisonSelector, setShowComparisonSelector] = useState(false)
 
   // Compute chart data options from time range
   const chartOptions = useMemo(() => {
@@ -68,7 +70,7 @@ export function OperatorDashboard() {
       <div className="flex-1 flex flex-col gap-4 min-h-0">
         {selectedId ? (
           <>
-            <ChartToolbar />
+            <ChartToolbar onChangeSecondary={() => setShowComparisonSelector(true)} />
 
             {/* Primary Chart with optional histogram */}
             <div className="flex-1 min-h-0">
@@ -83,7 +85,7 @@ export function OperatorDashboard() {
 
             {/* Secondary Chart (Comparison Mode) */}
             {comparisonMode && (
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 relative">
                 {secondaryCharacteristicId ? (
                   <ChartPanel
                     characteristicId={secondaryCharacteristicId}
@@ -94,22 +96,26 @@ export function OperatorDashboard() {
                   />
                 ) : (
                   <div className="h-full bg-card border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground">
-                    <p className="mb-2">Select a characteristic to compare</p>
-                    <select
-                      className="px-3 py-1.5 bg-background border border-border rounded text-sm"
-                      value=""
-                      onChange={(e) => setSecondaryCharacteristicId(Number(e.target.value))}
+                    <p className="mb-3">Select a characteristic to compare</p>
+                    <button
+                      onClick={() => setShowComparisonSelector(true)}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
-                      <option value="">Choose characteristic...</option>
-                      {characteristicsData?.items
-                        .filter((c) => c.id !== selectedId)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                    </select>
+                      Browse Hierarchy
+                    </button>
                   </div>
+                )}
+
+                {/* Comparison Selector Modal */}
+                {showComparisonSelector && (
+                  <ComparisonSelector
+                    excludeId={selectedId}
+                    onSelect={(id) => {
+                      setSecondaryCharacteristicId(id)
+                      setShowComparisonSelector(false)
+                    }}
+                    onCancel={() => setShowComparisonSelector(false)}
+                  />
                 )}
               </div>
             )}
