@@ -165,6 +165,35 @@ async def get_manual_provider(
     return ManualProvider(char_repo)
 
 
+async def get_window_manager(
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+) -> RollingWindowManager:
+    """Get rolling window manager instance.
+
+    Args:
+        sample_repo: Sample repository from dependency injection
+
+    Returns:
+        RollingWindowManager instance
+    """
+    return RollingWindowManager(sample_repo)
+
+
+class SampleUpdate(BaseModel):
+    """Request body for updating sample measurements.
+
+    Attributes:
+        measurements: New list of measurement values (replaces all existing)
+    """
+
+    measurements: list[float] = Field(
+        ...,
+        min_length=1,
+        max_length=25,
+        description="New measurement values for the sample",
+    )
+
+
 # Endpoints
 @router.get("/", response_model=PaginatedResponse[SampleResponse])
 async def list_samples(
@@ -463,6 +492,231 @@ async def toggle_exclude(
             measurements=measurements,
             mean=mean,
             range_value=range_value,
+        )
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update sample: {str(e)}",
+        )
+
+
+@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sample(
+    sample_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    window_manager: RollingWindowManager = Depends(get_window_manager),
+) -> None:
+    """Delete a sample and its measurements permanently.
+
+    Cascade deletes measurements and violations. Invalidates rolling
+    window to trigger recalculation of statistics.
+
+    Args:
+        sample_id: ID of the sample to delete
+        session: Database session dependency
+        sample_repo: Sample repository dependency
+        window_manager: Rolling window manager dependency
+
+    Raises:
+        HTTPException: 404 if sample not found
+        HTTPException: 500 if deletion fails
+    """
+    try:
+        sample = await sample_repo.get_by_id(sample_id)
+
+        if sample is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
+
+        char_id = sample.char_id
+
+        # Delete the sample (measurements and violations cascade via FK)
+        await session.delete(sample)
+        await session.commit()
+
+        # Invalidate the rolling window to trigger rebuild
+        await window_manager.invalidate(char_id)
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete sample: {str(e)}",
+        )
+
+
+@router.put("/{sample_id}", response_model=SampleProcessingResult)
+async def update_sample(
+    sample_id: int,
+    data: SampleUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    char_repo: CharacteristicRepository = Depends(get_char_repo),
+    window_manager: RollingWindowManager = Depends(get_window_manager),
+    violation_repo: ViolationRepository = Depends(get_violation_repo),
+) -> SampleProcessingResult:
+    """Update sample measurements and recalculate statistics.
+
+    Replaces all measurements for the sample, recalculates statistics,
+    re-evaluates Nelson Rules, and invalidates the rolling window.
+
+    Args:
+        sample_id: ID of the sample to update
+        data: New measurement values
+        session: Database session dependency
+        sample_repo: Sample repository dependency
+        char_repo: Characteristic repository dependency
+        window_manager: Rolling window manager dependency
+        violation_repo: Violation repository dependency
+
+    Returns:
+        Updated sample processing result with new statistics and violations
+
+    Raises:
+        HTTPException: 404 if sample not found
+        HTTPException: 400 if validation fails
+        HTTPException: 500 if update fails
+    """
+    import time
+
+    start_time = time.perf_counter()
+
+    try:
+        sample = await sample_repo.get_by_id(sample_id)
+
+        if sample is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
+
+        # Get characteristic with rules eagerly loaded
+        characteristic = await char_repo.get_with_rules(sample.char_id)
+        if characteristic is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Characteristic {sample.char_id} not found",
+            )
+
+        # Delete existing measurements
+        from openspc.db.models.sample import Measurement
+
+        for measurement in sample.measurements:
+            await session.delete(measurement)
+
+        # Delete existing violations for this sample
+        existing_violations = await violation_repo.get_by_sample(sample_id)
+        for violation in existing_violations:
+            await session.delete(violation)
+
+        # Create new measurements
+        new_measurements = []
+        for seq, value in enumerate(data.measurements):
+            m = Measurement(
+                sample_id=sample_id,
+                sequence=seq,
+                value=value,
+            )
+            session.add(m)
+            new_measurements.append(m)
+
+        await session.flush()
+
+        # Calculate new statistics
+        values = data.measurements
+        mean = sum(values) / len(values)
+        range_value = max(values) - min(values) if len(values) > 1 else None
+
+        # Determine zone based on control limits
+        zone = "unknown"
+        if characteristic.ucl is not None and characteristic.lcl is not None:
+            center = (characteristic.ucl + characteristic.lcl) / 2
+            sigma = (characteristic.ucl - center) / 3
+
+            if mean > characteristic.ucl or mean < characteristic.lcl:
+                zone = "out_of_control"
+            elif sigma > 0:
+                z = abs(mean - center) / sigma
+                if z <= 1:
+                    zone = "zone_c_upper" if mean >= center else "zone_c_lower"
+                elif z <= 2:
+                    zone = "zone_b_upper" if mean >= center else "zone_b_lower"
+                else:
+                    zone = "zone_a_upper" if mean >= center else "zone_a_lower"
+
+        # Re-run Nelson Rules evaluation
+        rule_library = NelsonRuleLibrary()
+        window = await window_manager.get_window(sample.char_id)
+
+        violations: list[ViolationInfo] = []
+        in_control = True
+
+        if window and characteristic.ucl is not None and characteristic.lcl is not None:
+            # Get enabled rule IDs from characteristic configuration
+            enabled_rule_ids = {rule.rule_id for rule in characteristic.rules if rule.is_enabled}
+
+            for rule in rule_library.get_all_rules():
+                if rule.rule_id not in enabled_rule_ids:
+                    continue
+
+                # Build context for rule evaluation
+                triggered = rule.evaluate(
+                    window.means,
+                    characteristic.ucl,
+                    characteristic.lcl,
+                )
+
+                if triggered:
+                    in_control = False
+                    # Create violation record
+                    from openspc.db.models.violation import Violation as ViolationModel
+                    violation = ViolationModel(
+                        sample_id=sample_id,
+                        char_id=sample.char_id,
+                        rule_id=rule.rule_id,
+                        rule_name=rule.name,
+                        severity=rule.severity,
+                        message=rule.description,
+                    )
+                    session.add(violation)
+                    await session.flush()
+
+                    violations.append(
+                        ViolationInfo(
+                            violation_id=violation.id,
+                            rule_id=rule.rule_id,
+                            rule_name=rule.name,
+                            severity=rule.severity,
+                        )
+                    )
+
+        await session.commit()
+
+        # Invalidate rolling window
+        await window_manager.invalidate(sample.char_id)
+
+        processing_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return SampleProcessingResult(
+            sample_id=sample_id,
+            timestamp=sample.timestamp,
+            mean=mean,
+            range_value=range_value,
+            zone=zone,
+            in_control=in_control,
+            violations=violations,
+            processing_time_ms=processing_time_ms,
         )
 
     except HTTPException:

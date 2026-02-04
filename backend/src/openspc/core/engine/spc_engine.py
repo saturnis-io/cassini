@@ -158,10 +158,42 @@ class SPCEngine:
             ValueError: If measurement count is below min_measurements
             ValueError: If Mode C and measurements exceed subgroup_size
         """
+        return self._validate_measurements_with_values(
+            subgroup_mode=char.subgroup_mode,
+            subgroup_size=char.subgroup_size,
+            min_measurements=char.min_measurements,
+            warn_below_count=char.warn_below_count,
+            measurements=measurements,
+        )
+
+    def _validate_measurements_with_values(
+        self,
+        subgroup_mode: str,
+        subgroup_size: int,
+        min_measurements: int | None,
+        warn_below_count: int | None,
+        measurements: list[float],
+    ) -> tuple[bool, bool]:
+        """Validate measurements against subgroup configuration values.
+
+        Args:
+            subgroup_mode: Subgroup handling mode
+            subgroup_size: Expected subgroup size
+            min_measurements: Minimum measurements required
+            warn_below_count: Threshold for undersized warning
+            measurements: List of measurement values
+
+        Returns:
+            Tuple of (is_valid, is_undersized)
+
+        Raises:
+            ValueError: If measurement count is below min_measurements
+            ValueError: If Mode C and measurements exceed subgroup_size
+        """
         actual_n = len(measurements)
 
         # Check minimum measurements requirement (default to 1 if not set)
-        min_required = char.min_measurements if char.min_measurements is not None else 1
+        min_required = min_measurements if min_measurements is not None else 1
         if actual_n < min_required:
             raise ValueError(
                 f"Insufficient measurements: got {actual_n}, "
@@ -169,15 +201,15 @@ class SPCEngine:
             )
 
         # For NOMINAL_TOLERANCE mode, enforce max subgroup_size
-        if char.subgroup_mode == SubgroupMode.NOMINAL_TOLERANCE.value:
-            if actual_n > char.subgroup_size:
+        if subgroup_mode == SubgroupMode.NOMINAL_TOLERANCE.value:
+            if actual_n > subgroup_size:
                 raise ValueError(
                     f"Too many measurements for NOMINAL_TOLERANCE mode: "
-                    f"got {actual_n}, maximum is {char.subgroup_size}"
+                    f"got {actual_n}, maximum is {subgroup_size}"
                 )
 
         # Determine if undersized
-        threshold = char.warn_below_count or char.subgroup_size
+        threshold = warn_below_count or subgroup_size
         is_undersized = actual_n < threshold
 
         return True, is_undersized
@@ -201,6 +233,37 @@ class SPCEngine:
         Raises:
             ValueError: If Mode A/B requires stored_sigma but it's not set
         """
+        return self._compute_sample_statistics_with_values(
+            subgroup_mode=char.subgroup_mode,
+            stored_sigma=char.stored_sigma,
+            stored_center_line=char.stored_center_line,
+            measurements=measurements,
+            actual_n=actual_n,
+        )
+
+    def _compute_sample_statistics_with_values(
+        self,
+        subgroup_mode: str,
+        stored_sigma: float | None,
+        stored_center_line: float | None,
+        measurements: list[float],
+        actual_n: int,
+    ) -> dict:
+        """Compute mode-specific statistics for a sample using extracted values.
+
+        Args:
+            subgroup_mode: Subgroup handling mode
+            stored_sigma: Stored sigma value
+            stored_center_line: Stored center line value
+            measurements: List of measurement values
+            actual_n: Actual number of measurements
+
+        Returns:
+            Dict with mean, range_value, z_score, effective_ucl, effective_lcl
+
+        Raises:
+            ValueError: If Mode A/B requires stored_sigma but it's not set
+        """
         # Calculate basic statistics
         mean = sum(measurements) / len(measurements)
         range_value = None
@@ -212,30 +275,28 @@ class SPCEngine:
         effective_ucl = None
         effective_lcl = None
 
-        mode = char.subgroup_mode
-
-        if mode == SubgroupMode.STANDARDIZED.value:
+        if subgroup_mode == SubgroupMode.STANDARDIZED.value:
             # Mode A: Calculate Z-score
-            if char.stored_sigma is None or char.stored_center_line is None:
+            if stored_sigma is None or stored_center_line is None:
                 raise ValueError(
                     "STANDARDIZED mode requires stored_sigma and stored_center_line. "
                     "Run recalculate-limits first."
                 )
             # sigma_xbar = sigma / sqrt(n)
-            sigma_xbar = char.stored_sigma / math.sqrt(actual_n)
-            z_score = (mean - char.stored_center_line) / sigma_xbar
+            sigma_xbar = stored_sigma / math.sqrt(actual_n)
+            z_score = (mean - stored_center_line) / sigma_xbar
 
-        elif mode == SubgroupMode.VARIABLE_LIMITS.value:
+        elif subgroup_mode == SubgroupMode.VARIABLE_LIMITS.value:
             # Mode B: Calculate effective limits per point
-            if char.stored_sigma is None or char.stored_center_line is None:
+            if stored_sigma is None or stored_center_line is None:
                 raise ValueError(
                     "VARIABLE_LIMITS mode requires stored_sigma and stored_center_line. "
                     "Run recalculate-limits first."
                 )
             # sigma_xbar = sigma / sqrt(n)
-            sigma_xbar = char.stored_sigma / math.sqrt(actual_n)
-            effective_ucl = char.stored_center_line + 3 * sigma_xbar
-            effective_lcl = char.stored_center_line - 3 * sigma_xbar
+            sigma_xbar = stored_sigma / math.sqrt(actual_n)
+            effective_ucl = stored_center_line + 3 * sigma_xbar
+            effective_lcl = stored_center_line - 3 * sigma_xbar
 
         # Mode C (NOMINAL_TOLERANCE): No additional calculations needed
 
@@ -287,12 +348,36 @@ class SPCEngine:
         if char is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
+        # Extract ALL needed values immediately after loading to avoid lazy loading issues
+        # (session operations below may expire the ORM object)
+        enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
+        char_subgroup_mode = char.subgroup_mode
+        char_subgroup_size = char.subgroup_size
+        char_min_measurements = char.min_measurements
+        char_warn_below_count = char.warn_below_count
+        char_ucl = char.ucl
+        char_lcl = char.lcl
+        char_stored_sigma = char.stored_sigma
+        char_stored_center_line = char.stored_center_line
+
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)
-        _, is_undersized = self._validate_measurements(char, measurements)
+        _, is_undersized = self._validate_measurements_with_values(
+            subgroup_mode=char_subgroup_mode,
+            subgroup_size=char_subgroup_size,
+            min_measurements=char_min_measurements,
+            warn_below_count=char_warn_below_count,
+            measurements=measurements,
+        )
 
         # Step 3: Compute mode-specific statistics
-        stats = self._compute_sample_statistics(char, measurements, actual_n)
+        stats = self._compute_sample_statistics_with_values(
+            subgroup_mode=char_subgroup_mode,
+            stored_sigma=char_stored_sigma,
+            stored_center_line=char_stored_center_line,
+            measurements=measurements,
+            actual_n=actual_n,
+        )
         mean = stats["mean"]
         range_value = stats["range_value"]
         z_score = stats["z_score"]
@@ -313,7 +398,11 @@ class SPCEngine:
         )
 
         # Step 5: Get zone boundaries and update rolling window
-        boundaries = await self._get_zone_boundaries(characteristic_id, char)
+        boundaries = await self._get_zone_boundaries_with_values(
+            characteristic_id=characteristic_id,
+            ucl=char_ucl,
+            lcl=char_lcl,
+        )
 
         # Add sample to rolling window with mode-specific data
         window_sample = await self._window_manager.add_sample(
@@ -321,23 +410,20 @@ class SPCEngine:
             sample=sample,
             boundaries=boundaries,
             measurement_values=measurements,
-            subgroup_mode=char.subgroup_mode,
+            subgroup_mode=char_subgroup_mode,
             actual_n=actual_n,
             is_undersized=is_undersized,
             z_score=z_score,
             effective_ucl=effective_ucl,
             effective_lcl=effective_lcl,
-            stored_sigma=char.stored_sigma,
-            stored_center_line=char.stored_center_line,
+            stored_sigma=char_stored_sigma,
+            stored_center_line=char_stored_center_line,
         )
 
         # Step 5: Evaluate enabled Nelson Rules
         window = await self._window_manager.get_window(characteristic_id)
 
-        # Get enabled rule IDs from characteristic configuration
-        enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
-
-        # Check all enabled rules
+        # Check all enabled rules (enabled_rules was extracted earlier to avoid lazy loading)
         rule_results = self._rule_library.check_all(window, enabled_rules)
 
         # Step 6: Create violations for triggered rules
@@ -409,6 +495,65 @@ class SPCEngine:
             # Calculate center line and sigma from stored limits
             center_line = (char.ucl + char.lcl) / 2
             sigma = (char.ucl - char.lcl) / 6  # UCL/LCL are typically +/- 3 sigma
+
+            zones = calculate_zones(center_line, sigma)
+            return ZoneBoundaries(
+                center_line=zones.center_line,
+                plus_1_sigma=zones.plus_1_sigma,
+                plus_2_sigma=zones.plus_2_sigma,
+                plus_3_sigma=zones.plus_3_sigma,
+                minus_1_sigma=zones.minus_1_sigma,
+                minus_2_sigma=zones.minus_2_sigma,
+                minus_3_sigma=zones.minus_3_sigma,
+                sigma=sigma,
+            )
+
+        # Otherwise, calculate from historical data
+        center_line, ucl, lcl = await self.recalculate_limits(
+            characteristic_id, exclude_ooc=False
+        )
+
+        sigma = (ucl - lcl) / 6
+        zones = calculate_zones(center_line, sigma)
+
+        return ZoneBoundaries(
+            center_line=zones.center_line,
+            plus_1_sigma=zones.plus_1_sigma,
+            plus_2_sigma=zones.plus_2_sigma,
+            plus_3_sigma=zones.plus_3_sigma,
+            minus_1_sigma=zones.minus_1_sigma,
+            minus_2_sigma=zones.minus_2_sigma,
+            minus_3_sigma=zones.minus_3_sigma,
+            sigma=sigma,
+        )
+
+    async def _get_zone_boundaries_with_values(
+        self,
+        characteristic_id: int,
+        ucl: float | None,
+        lcl: float | None,
+    ) -> ZoneBoundaries:
+        """Get zone boundaries using pre-extracted UCL/LCL values.
+
+        Uses provided control limits if available, otherwise calculates from
+        historical data.
+
+        Args:
+            characteristic_id: ID of the characteristic
+            ucl: Pre-extracted Upper Control Limit
+            lcl: Pre-extracted Lower Control Limit
+
+        Returns:
+            ZoneBoundaries with all zone boundaries calculated
+
+        Raises:
+            ValueError: If no control limits available and insufficient data
+        """
+        # If control limits are provided, use them
+        if ucl is not None and lcl is not None:
+            # Calculate center line and sigma from stored limits
+            center_line = (ucl + lcl) / 2
+            sigma = (ucl - lcl) / 6  # UCL/LCL are typically +/- 3 sigma
 
             zones = calculate_zones(center_line, sigma)
             return ZoneBoundaries(
@@ -516,14 +661,14 @@ class SPCEngine:
         if char is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
-        # Get historical samples
-        samples = await self._sample_repo.get_rolling_window(
+        # Get historical samples as plain dicts to avoid lazy loading issues
+        sample_data = await self._sample_repo.get_rolling_window_data(
             char_id=characteristic_id,
             window_size=100,  # Use last 100 samples for limit calculation
             exclude_excluded=True,
         )
 
-        if not samples:
+        if not sample_data:
             raise ValueError(
                 f"No samples available for characteristic {characteristic_id}"
             )
@@ -532,9 +677,9 @@ class SPCEngine:
         if char.subgroup_size == 1:
             # Individuals chart (I-MR)
             values = []
-            for sample in samples:
-                if sample.measurements:
-                    values.append(sample.measurements[0].value)
+            for data in sample_data:
+                if data["values"]:
+                    values.append(data["values"][0])
 
             if len(values) < 2:
                 raise ValueError("Need at least 2 samples for I-MR chart")
@@ -549,12 +694,12 @@ class SPCEngine:
             # X-bar R chart
             means = []
             ranges = []
-            for sample in samples:
-                if len(sample.measurements) != char.subgroup_size:
+            for data in sample_data:
+                sample_values = data["values"]
+                if len(sample_values) != char.subgroup_size:
                     continue
-                values = [m.value for m in sample.measurements]
-                means.append(sum(values) / len(values))
-                ranges.append(max(values) - min(values))
+                means.append(sum(sample_values) / len(sample_values))
+                ranges.append(max(sample_values) - min(sample_values))
 
             if len(means) < 2:
                 raise ValueError("Need at least 2 subgroups for X-bar R chart")

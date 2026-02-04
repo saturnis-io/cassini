@@ -48,12 +48,17 @@ export interface CharacteristicSummary extends Characteristic {
 export interface Sample {
   id: number
   characteristic_id: number
+  char_id?: number // Backend uses char_id, but some places expect characteristic_id
   timestamp: string
   mean: number
   range: number | null
+  range_value?: number | null // Backend uses range_value
   std_dev: number | null
   excluded: boolean
+  is_excluded?: boolean // Backend uses is_excluded
   source: string
+  batch_number?: string | null
+  operator_id?: string | null
   measurements: Measurement[]
 }
 
@@ -62,6 +67,24 @@ export interface Measurement {
   sample_id: number
   sequence: number
   value: number
+}
+
+export interface ViolationInfo {
+  violation_id: number
+  rule_id: number
+  rule_name: string
+  severity: string
+}
+
+export interface SampleProcessingResult {
+  sample_id: number
+  timestamp: string
+  mean: number
+  range_value: number | null
+  zone: string
+  in_control: boolean
+  violations: ViolationInfo[]
+  processing_time_ms: number
 }
 
 export interface ChartDataPoint {

@@ -2,13 +2,13 @@ import type {
   BrokerConnectionStatus,
   BrokerTestResult,
   Characteristic,
-  CharacteristicSummary,
   ChartData,
   HierarchyNode,
   MQTTBroker,
   PaginatedResponse,
   ProviderStatus,
   Sample,
+  SampleProcessingResult,
   TagProviderStatus,
   Violation,
   ViolationStats,
@@ -72,7 +72,7 @@ export const hierarchyApi = {
     fetchApi<void>(`/hierarchy/${id}`, { method: 'DELETE' }),
 
   getCharacteristics: (id: number) =>
-    fetchApi<CharacteristicSummary[]>(`/hierarchy/${id}/characteristics`),
+    fetchApi<Characteristic[]>(`/hierarchy/${id}/characteristics`),
 }
 
 // Characteristic API
@@ -178,7 +178,7 @@ export const sampleApi = {
   get: (id: number) => fetchApi<Sample>(`/samples/${id}`),
 
   submit: (data: { characteristic_id: number; measurements: number[] }) =>
-    fetchApi<{ sample: Sample; violations: Violation[] }>('/samples', {
+    fetchApi<SampleProcessingResult>('/samples', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -186,7 +186,7 @@ export const sampleApi = {
   exclude: (id: number, excluded: boolean) =>
     fetchApi<Sample>(`/samples/${id}/exclude`, {
       method: 'PATCH',
-      body: JSON.stringify({ excluded }),
+      body: JSON.stringify({ is_excluded: excluded }),
     }),
 
   batchImport: (data: {
@@ -196,6 +196,15 @@ export const sampleApi = {
   }) =>
     fetchApi<{ imported: number; errors: string[] }>('/samples/batch', {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    fetchApi<void>(`/samples/${id}`, { method: 'DELETE' }),
+
+  update: (id: number, data: { measurements: number[] }) =>
+    fetchApi<SampleProcessingResult>(`/samples/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
 }

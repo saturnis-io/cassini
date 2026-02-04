@@ -86,6 +86,50 @@ class SampleRepository(BaseRepository[Sample]):
         # Reverse to get chronological order (oldest to newest)
         return list(reversed(samples))
 
+    async def get_rolling_window_data(
+        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
+    ) -> list[dict]:
+        """Get rolling window sample data with measurement values pre-extracted.
+
+        This method avoids lazy loading issues by extracting measurement values
+        immediately after the query, returning plain dictionaries instead of ORM objects.
+
+        Args:
+            char_id: ID of the characteristic to query
+            window_size: Number of most recent samples to retrieve (default: 25)
+            exclude_excluded: If True, filter out excluded samples (default: True)
+
+        Returns:
+            List of dictionaries with sample_id, timestamp, and values (measurement list)
+        """
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.char_id == char_id)
+            .order_by(Sample.timestamp.desc())
+            .limit(window_size)
+            .execution_options(populate_existing=True)
+        )
+
+        if exclude_excluded:
+            stmt = stmt.where(Sample.is_excluded == False)
+
+        result = await self.session.execute(stmt)
+        samples = list(result.scalars().all())
+
+        # Extract data immediately to avoid lazy loading issues
+        data = []
+        for sample in reversed(samples):  # Reverse for chronological order
+            measurements = sample.measurements
+            values = [m.value for m in measurements] if measurements else []
+            data.append({
+                "sample_id": sample.id,
+                "timestamp": sample.timestamp,
+                "values": values,
+            })
+
+        return data
+
     async def get_by_characteristic(
         self,
         char_id: int,
@@ -183,7 +227,10 @@ class SampleRepository(BaseRepository[Sample]):
 
         await self.session.flush()
 
-        # Manually attach measurements to avoid lazy loading issues
-        sample.measurements = measurements
+        # Use set_committed_value to attach measurements without triggering lazy loading
+        # Direct assignment (sample.measurements = measurements) triggers a lazy load
+        # to check the old value, which fails in async context
+        from sqlalchemy.orm.attributes import set_committed_value
+        set_committed_value(sample, "measurements", measurements)
 
         return sample

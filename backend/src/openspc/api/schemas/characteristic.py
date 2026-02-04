@@ -162,12 +162,14 @@ class CharacteristicResponse(BaseModel):
 class CharacteristicSummary(BaseModel):
     """Schema for characteristic summary in list views.
 
-    Lightweight version with status indicators.
+    Lightweight version with status indicators and key configuration.
 
     Attributes:
         id: Unique identifier
         name: Display name
         provider_type: Data source type
+        subgroup_size: Number of measurements per sample
+        min_measurements: Minimum required measurements
         in_control: Whether the process is currently in control
         unacknowledged_violations: Count of unacknowledged violations
     """
@@ -175,6 +177,8 @@ class CharacteristicSummary(BaseModel):
     id: int
     name: str
     provider_type: str
+    subgroup_size: int = 1
+    min_measurements: int = 1
     in_control: bool = True
     unacknowledged_violations: int = 0
 

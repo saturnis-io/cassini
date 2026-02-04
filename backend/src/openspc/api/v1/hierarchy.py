@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openspc.api.deps import get_characteristic_repo, get_hierarchy_repo
 from openspc.db.database import get_session
 from openspc.db.models.characteristic import Characteristic
-from openspc.api.schemas.characteristic import CharacteristicSummary
+from openspc.api.schemas.characteristic import CharacteristicResponse
 from openspc.api.schemas.hierarchy import (
     HierarchyCreate,
     HierarchyResponse,
@@ -302,13 +302,13 @@ async def delete_hierarchy_node(
         )
 
 
-@router.get("/{node_id}/characteristics", response_model=list[CharacteristicSummary])
+@router.get("/{node_id}/characteristics", response_model=list[CharacteristicResponse])
 async def get_node_characteristics(
     node_id: int,
     include_descendants: bool = False,
     hierarchy_repo: HierarchyRepository = Depends(get_hierarchy_repo),
     char_repo: CharacteristicRepository = Depends(get_characteristic_repo),
-) -> list[CharacteristicSummary]:
+) -> list[CharacteristicResponse]:
     """Get characteristics under a hierarchy node.
 
     Retrieves all characteristics associated with a hierarchy node.
@@ -320,7 +320,7 @@ async def get_node_characteristics(
             (default: False)
 
     Returns:
-        List of characteristic summaries
+        List of characteristics with full configuration details
 
     Raises:
         HTTPException 404: If node doesn't exist
@@ -330,17 +330,24 @@ async def get_node_characteristics(
         [
             {
                 "id": 1,
+                "hierarchy_id": 3,
                 "name": "Temperature",
+                "description": null,
+                "subgroup_size": 5,
+                "target_value": 100.0,
+                "usl": 105.0,
+                "lsl": 95.0,
+                "ucl": 103.0,
+                "lcl": 97.0,
                 "provider_type": "TAG",
-                "in_control": true,
-                "unacknowledged_violations": 0
-            },
-            {
-                "id": 2,
-                "name": "Pressure",
-                "provider_type": "MANUAL",
-                "in_control": false,
-                "unacknowledged_violations": 3
+                "mqtt_topic": "sensors/temp",
+                "trigger_tag": null,
+                "subgroup_mode": "NOMINAL_TOLERANCE",
+                "min_measurements": 5,
+                "warn_below_count": null,
+                "stored_sigma": null,
+                "stored_center_line": null,
+                "decimal_precision": 3
             }
         ]
         ```
@@ -359,17 +366,5 @@ async def get_node_characteristics(
         include_descendants=include_descendants,
     )
 
-    # Convert to summary format
-    # TODO: Add in_control status and violation counts in future iteration
-    summaries = [
-        CharacteristicSummary(
-            id=char.id,
-            name=char.name,
-            provider_type=char.provider_type,
-            in_control=True,  # Default for now
-            unacknowledged_violations=0,  # Default for now
-        )
-        for char in characteristics
-    ]
-
-    return summaries
+    # Return full characteristic data using model_validate for ORM conversion
+    return [CharacteristicResponse.model_validate(char) for char in characteristics]

@@ -157,12 +157,12 @@ export function useSubmitSample() {
 
   return useMutation({
     mutationFn: sampleApi.submit,
-    onSuccess: (data) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(data.sample.characteristic_id) })
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries - use characteristic_id from the request variables
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.characteristic_id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      toast.success('Sample recorded')
+      toast.success(`Sample recorded (ID: ${data.sample_id})`)
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit sample: ${error.message}`)
@@ -301,6 +301,39 @@ export function useExcludeSample() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to update sample: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteSample() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => sampleApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      toast.success('Sample deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Delete failed: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateSample() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, measurements }: { id: number; measurements: number[] }) =>
+      sampleApi.update(id, { measurements }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      toast.success('Sample updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Update failed: ${error.message}`)
     },
   })
 }

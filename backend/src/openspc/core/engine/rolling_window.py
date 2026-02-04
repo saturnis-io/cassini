@@ -449,18 +449,18 @@ class RollingWindowManager:
         """
         window = RollingWindow(max_size=self._window_size)
 
-        # Load samples from database
-        samples = await self._repo.get_rolling_window(
+        # Load sample data with measurement values pre-extracted
+        # (avoids lazy loading issues in async contexts)
+        sample_data = await self._repo.get_rolling_window_data(
             char_id=char_id,
             window_size=self._window_size,
             exclude_excluded=True
         )
 
-        # Convert database samples to WindowSample objects
+        # Convert to WindowSample objects
         # Note: Boundaries will need to be set separately by the caller
-        for sample in samples:
-            # Calculate sample value (mean of measurements)
-            values = [m.value for m in sample.measurements]
+        for data in sample_data:
+            values = data["values"]
             value = sum(values) / len(values) if values else 0.0
 
             # Calculate range for subgroups (n > 1)
@@ -471,8 +471,8 @@ class RollingWindowManager:
             # Create WindowSample with placeholder zone info
             # (will be reclassified when boundaries are set)
             window_sample = WindowSample(
-                sample_id=sample.id,
-                timestamp=sample.timestamp,
+                sample_id=data["sample_id"],
+                timestamp=data["timestamp"],
                 value=value,
                 range_value=range_value,
                 zone=Zone.ZONE_C_UPPER,  # Placeholder

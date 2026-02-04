@@ -164,6 +164,53 @@ Follow these principles:
 - Direct DB calls outside repositories
 - Duplicating existing utilities
 
+### Step 5.5: Verify API Contract (CRITICAL for Full-Stack Changes)
+
+**When modifying backend endpoints, ALWAYS verify frontend compatibility:**
+
+1. **Find Frontend API Client**:
+   ```bash
+   # Search for API client usage
+   grep -r "endpoint-name\|/api/v1/resource" frontend/src/api/ --include="*.ts"
+   ```
+
+2. **Check Type Definitions**:
+   ```bash
+   # Find related TypeScript types
+   grep -r "interface.*Response\|type.*Response" frontend/src/types/ --include="*.ts"
+   ```
+
+3. **Verify Hook Usage**:
+   ```bash
+   # Check how hooks consume the API
+   grep -r "use.*Query\|use.*Mutation" frontend/src/api/hooks.ts | grep -i "resource"
+   ```
+
+**Contract Verification Checklist**:
+| Backend Change | Frontend Verification |
+|----------------|----------------------|
+| Response schema changed | Update TypeScript type, verify hooks |
+| Field renamed/removed | Search for all usages, update references |
+| New required field | Ensure frontend sends it |
+| Status code changed | Update error handling |
+| Endpoint path changed | Update API client URL |
+
+**Example - When Backend Response Changes**:
+```typescript
+// Backend returns: { sample_id: 1, mean: 500.0, ... }
+// Frontend expects: { sample: { id: 1 }, ... }
+
+// FIX: Update frontend type AND hook:
+// 1. client.ts - fetchApi<SampleProcessingResult>(...)
+// 2. hooks.ts - onSuccess: (data) => data.sample_id (not data.sample.id)
+```
+
+**When modifying frontend API calls, ALWAYS verify backend compatibility:**
+
+1. Check backend endpoint exists and accepts the request format
+2. Verify response type matches what backend actually returns
+3. Test the full round-trip before marking complete
+
 ### Step 6: Write Tests
 
 **Unit Tests** (required):

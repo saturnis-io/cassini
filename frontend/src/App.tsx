@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { Layout } from '@/components/Layout'
 import { OperatorDashboard } from '@/pages/OperatorDashboard'
 import { ConfigurationView } from '@/pages/ConfigurationView'
+import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
@@ -28,6 +29,7 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<OperatorDashboard />} />
                 <Route path="configuration" element={<ConfigurationView />} />
+                <Route path="data-entry" element={<DataEntryView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
             </Routes>
