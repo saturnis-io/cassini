@@ -1,4 +1,5 @@
-import { BarChart2, TrendingUp, AlertTriangle, LineChart, LucideIcon } from 'lucide-react'
+import { BarChart2, TrendingUp, AlertTriangle, LineChart } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 export type ReportSection =
   | 'header'
