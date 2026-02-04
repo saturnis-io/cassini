@@ -113,14 +113,25 @@ export const characteristicApi = {
       body: JSON.stringify({ exclude_ooc: excludeOoc ?? true }),
     }),
 
-  getRules: (id: number) =>
-    fetchApi<{ enabled_rules: number[] }>(`/characteristics/${id}/rules`),
+  getRules: async (id: number) => {
+    // Backend returns [{rule_id, is_enabled}, ...], transform to {enabled_rules: number[]}
+    const rules = await fetchApi<{ rule_id: number; is_enabled: boolean }[]>(`/characteristics/${id}/rules`)
+    return {
+      enabled_rules: rules.filter(r => r.is_enabled).map(r => r.rule_id)
+    }
+  },
 
-  updateRules: (id: number, enabledRules: number[]) =>
-    fetchApi<{ enabled_rules: number[] }>(`/characteristics/${id}/rules`, {
+  updateRules: (id: number, enabledRules: number[]) => {
+    // Backend expects array of {rule_id, is_enabled} for all 8 rules
+    const rulesPayload = Array.from({ length: 8 }, (_, i) => ({
+      rule_id: i + 1,
+      is_enabled: enabledRules.includes(i + 1),
+    }))
+    return fetchApi<{ rule_id: number; is_enabled: boolean }[]>(`/characteristics/${id}/rules`, {
       method: 'PUT',
-      body: JSON.stringify({ enabled_rules: enabledRules }),
-    }),
+      body: JSON.stringify(rulesPayload),
+    })
+  },
 
   changeMode: (id: number, newMode: string) =>
     fetchApi<{
