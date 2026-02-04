@@ -242,7 +242,6 @@ export function DistributionHistogram({
               width={35}
               axisLine={false}
               tickLine={false}
-              reversed={true}
             />
             {/* Spec and control limits as horizontal lines */}
             {lsl !== null && (

@@ -75,7 +75,23 @@ class ViolationRepository(BaseRepository[Violation]):
             # Get all violations that occurred for a sample
             violations = await repo.get_by_sample(sample_id=42)
         """
-        stmt = select(Violation).where(Violation.sample_id == sample_id)
+        from sqlalchemy.orm import load_only
+
+        # Explicitly load all needed columns to avoid greenlet/lazy-loading issues
+        stmt = (
+            select(Violation)
+            .where(Violation.sample_id == sample_id)
+            .options(
+                load_only(
+                    Violation.id,
+                    Violation.sample_id,
+                    Violation.rule_id,
+                    Violation.rule_name,
+                    Violation.severity,
+                    Violation.acknowledged,
+                )
+            )
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
