@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useCharacteristics } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { TodoList } from '@/components/TodoList'
+import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
@@ -59,9 +59,9 @@ export function OperatorDashboard() {
 
   return (
     <div className="flex gap-6 h-[calc(100vh-10rem)]">
-      {/* Left panel - Todo list */}
+      {/* Left panel - Hierarchy-based characteristic selection */}
       <div className="w-80 flex-shrink-0">
-        <TodoList characteristics={characteristicsData?.items ?? []} />
+        <HierarchyTodoList />
       </div>
 
       {/* Right panel - Visualization */}
