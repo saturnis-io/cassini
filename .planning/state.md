@@ -1,13 +1,13 @@
 # Project State
 
 ## Status
-**Phase 3.4 COMPLETE** - Enhanced Dashboard & Hierarchy UX implemented
+**Phase 3.5 COMPLETE** - Reporting Framework implemented
 
 ## Current Milestone
 Phase 3: Enhanced Dashboard, Reporting & System Configuration
 
 ## Current Phase
-Phase 3.4 (Enhanced Dashboard) → **COMPLETE** → Ready for Phase 3.5 (Reporting)
+Phase 3.5 (Reporting) → **COMPLETE** → Ready for CEO Review
 
 ## Session Log
 | Timestamp | Action | Details |
@@ -60,6 +60,14 @@ Phase 3.4 (Enhanced Dashboard) → **COMPLETE** → Ready for Phase 3.5 (Reporti
 | 2026-02-04 | Phase 3.4 Wave 3 | Comparison mode with color-coded charts |
 | 2026-02-04 | Phase 3.4 Wave 4 | Violation annotations with Nelson rule indicators |
 | 2026-02-04 | **Phase 3.4 COMPLETE** | Enhanced Dashboard & Hierarchy UX implemented |
+| 2026-02-04 | Phase 3.5 Plan 1 | Nelson Rules Ack Config (backend models/API) |
+| 2026-02-04 | Phase 3.5 Plan 2 | Violations Display Update (frontend types/page) |
+| 2026-02-04 | Phase 3.5 Plan 3 | Nelson Rules Config Panel Update |
+| 2026-02-04 | Phase 3.5 Plan 4 | Hierarchy-Based TodoList |
+| 2026-02-04 | Phase 3.5 Plan 5 | Multi-Selection Infrastructure |
+| 2026-02-04 | Phase 3.5 Plan 6 | Report Templates & Generation |
+| 2026-02-04 | Phase 3.5 Plan 7 | Export Functionality (PDF/Excel/CSV) |
+| 2026-02-04 | **Phase 3.5 COMPLETE** | Reporting Framework implemented |
 
 ## High Priority Features (COMPLETE)
 
@@ -165,10 +173,13 @@ Phase 3.4 (Enhanced Dashboard) → **COMPLETE** → Ready for Phase 3.5 (Reporti
 - Comparison mode (split vertical with color coding) ✅
 - Integrated histogram (below/right/hidden toggle) ✅
 
-### Phase 3.5: Reporting Framework
-- Canned reports first
-- Extensible architecture
-- Export (PDF, Excel, CSV)
+### Phase 3.5: Reporting Framework ✅ COMPLETE
+- Nelson Rules acknowledgement configuration (per-rule require_ack setting)
+- Violations page with informational/required filtering
+- Hierarchy-based characteristic selection (replaces flat TodoList)
+- Multi-select with floating toolbar for report generation
+- 4 canned report templates (Characteristic Summary, Capability Analysis, Violation Summary, Trend Analysis)
+- Export to PDF, Excel, and CSV formats
 
 ---
 
@@ -217,17 +228,17 @@ Phase 3.4 (Enhanced Dashboard) → **COMPLETE** → Ready for Phase 3.5 (Reporti
 
 ## ▶ Resume Point
 
-**Phase 3.4 COMPLETE:** Dashboard UX Enhancements
+**Phase 3.5 COMPLETE:** All 7 plans executed successfully.
 
-**Implemented Features:**
-- Time Range: Hybrid (point presets 50/100/200 + duration 1h/8h/24h/7d + custom date picker)
-- Violation Annotations: Compact legend with rule numbers + badges on chart markers
-- Comparison Mode: Split vertical with primary (blue) and secondary (purple) color coding
-- Histogram: Toggle positions (below/right/hidden) with HistogramPositionSelector
-- ChartPanel wrapper combining ControlChart + DistributionHistogram
-- ViolationLegend component with Nelson rules 1-8 definitions
-- Enhanced tooltips showing rule details on hover
+**Commits:**
+- `adac381` - Plan 1: Nelson Rules Ack Config (backend)
+- `bde5a3f` - Plan 2: Violations Display Update
+- `4c88609` - Plan 3: Nelson Rules Config Panel Update
+- `54ba53e` - Plan 4: Hierarchy-Based TodoList
+- `09e3765` - Plan 5: Multi-Selection Infrastructure
+- `0e6245b` - Plan 6: Report Templates & Generation
+- `98e7c7e` - Plan 7: Export Functionality
 
-**Next action:** Phase 3.5 - Reporting Framework (canned reports, export to PDF/Excel/CSV)
+**Next action:** CEO review and approval for Phase 3.5
 
 ---
