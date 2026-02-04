@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { ControlChart } from './ControlChart'
 import { DistributionHistogram } from './DistributionHistogram'
+import { useChartData } from '@/api/hooks'
 import type { HistogramPosition } from '@/stores/dashboardStore'
 
 interface ChartPanelProps {
@@ -38,6 +40,42 @@ export function ChartPanel({
   // Color scheme based on label for comparison mode
   const colorScheme = label === 'Secondary' ? 'secondary' : 'primary'
 
+  // Fetch chart data to calculate shared Y-axis domain for alignment
+  const { data: chartData } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+
+  // Calculate Y-axis domain to share between chart and histogram
+  const yAxisDomain = useMemo((): [number, number] | undefined => {
+    if (!chartData?.data_points?.length) return undefined
+
+    const { control_limits, spec_limits, subgroup_mode, data_points } = chartData
+    const isModeA = subgroup_mode === 'STANDARDIZED'
+
+    if (isModeA) {
+      // Fixed domain for Z-scores
+      return [-4, 4]
+    }
+
+    // Mode B/C: Dynamic domain based on values, control limits, and spec limits
+    const values = data_points.map((p) => p.mean)
+    const minVal = Math.min(...values)
+    const maxVal = Math.max(...values)
+
+    // Include control limits
+    const ucl = control_limits.ucl ?? maxVal
+    const lcl = control_limits.lcl ?? minVal
+
+    // Also include spec limits if showing them
+    const allLimits = [minVal, maxVal, ucl, lcl]
+    if (showSpecLimits && spec_limits.usl != null) allLimits.push(spec_limits.usl)
+    if (showSpecLimits && spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
+
+    const domainMin = Math.min(...allLimits)
+    const domainMax = Math.max(...allLimits)
+    const padding = (domainMax - domainMin) * 0.15
+
+    return [domainMin - padding, domainMax + padding]
+  }, [chartData, showSpecLimits])
+
   return (
     <div
       className={cn(
@@ -72,6 +110,7 @@ export function ChartPanel({
             orientation={isRightPosition ? 'vertical' : 'horizontal'}
             label={label}
             colorScheme={colorScheme}
+            yAxisDomain={isRightPosition ? yAxisDomain : undefined}
           />
         </div>
       )}

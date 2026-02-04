@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor, Sliders, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
@@ -139,17 +139,18 @@ export function Layout() {
               Active Characteristics:{' '}
               <span className="font-medium text-foreground">-</span>
             </span>
-            <span>
+            <Link
+              to="/violations"
+              className={cn(
+                'flex items-center gap-1 hover:underline transition-colors',
+                stats?.unacknowledged ? 'text-destructive hover:text-destructive/80' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
               Pending Alerts:{' '}
-              <span
-                className={cn(
-                  'font-medium',
-                  stats?.unacknowledged ? 'text-destructive' : 'text-foreground'
-                )}
-              >
+              <span className="font-medium">
                 {stats?.unacknowledged ?? 0}
               </span>
-            </span>
+            </Link>
           </div>
         </div>
       </footer>

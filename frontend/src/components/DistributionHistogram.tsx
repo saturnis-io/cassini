@@ -16,6 +16,8 @@ interface DistributionHistogramProps {
   orientation?: 'horizontal' | 'vertical'
   label?: 'Primary' | 'Secondary'
   colorScheme?: 'primary' | 'secondary'
+  /** For vertical orientation: pass the Y-axis domain from the control chart to align limits */
+  yAxisDomain?: [number, number]
 }
 
 function calculateHistogramBins(values: number[], binCount: number = 20) {
@@ -113,6 +115,7 @@ export function DistributionHistogram({
   orientation = 'horizontal',
   label,
   colorScheme = 'primary',
+  yAxisDomain,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 100 })
   const colors = colorSchemes[colorScheme]
@@ -193,8 +196,11 @@ export function DistributionHistogram({
   const gradientId = `barGradient-${characteristicId}-${colorScheme}`
   const normalGradientId = `normalGradient-${characteristicId}-${colorScheme}`
 
-  // For vertical orientation, we render a compact version
+  // For vertical orientation, we render a compact version aligned with the control chart
   if (isVertical) {
+    // Use the passed yAxisDomain if available for alignment, otherwise use calculated domain
+    const verticalDomain = yAxisDomain || [xMin, xMax]
+
     return (
       <div className="h-full bg-card border border-border rounded-2xl p-3 flex flex-col">
         <div className="text-xs font-medium text-center mb-1 truncate">
@@ -213,7 +219,7 @@ export function DistributionHistogram({
             <ComposedChart
               layout="vertical"
               data={bins}
-              margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+              margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -225,28 +231,29 @@ export function DistributionHistogram({
               <YAxis
                 type="number"
                 dataKey="binCenter"
-                domain={[xMin, xMax]}
+                domain={verticalDomain}
                 tick={{ fontSize: 8, fill: 'hsl(240 4% 46%)' }}
                 tickFormatter={(value) => value.toFixed(1)}
                 width={35}
                 axisLine={false}
                 tickLine={false}
+                reversed={true}
               />
               {/* Spec and control limits as horizontal lines */}
               {lsl !== null && (
-                <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} />
+                <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'LSL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
               )}
               {usl !== null && (
-                <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} />
+                <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'USL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
               )}
               {lcl !== null && (
-                <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" />
+                <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'LCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
               )}
               {ucl !== null && (
-                <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" />
+                <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'UCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
               )}
               {centerLine !== null && (
-                <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" />
+                <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" label={{ value: 'CL', position: 'right', fontSize: 8, fill: 'hsl(104 55% 35%)' }} />
               )}
               <Bar dataKey="count" fill={`url(#${gradientId})`} stroke={colors.barStroke} strokeWidth={0.5} />
             </ComposedChart>

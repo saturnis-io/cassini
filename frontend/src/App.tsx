@@ -6,6 +6,7 @@ import { OperatorDashboard } from '@/pages/OperatorDashboard'
 import { ConfigurationView } from '@/pages/ConfigurationView'
 import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
+import { ViolationsView } from '@/pages/ViolationsView'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 
@@ -30,6 +31,7 @@ function App() {
                 <Route path="dashboard" element={<OperatorDashboard />} />
                 <Route path="configuration" element={<ConfigurationView />} />
                 <Route path="data-entry" element={<DataEntryView />} />
+                <Route path="violations" element={<ViolationsView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
             </Routes>
