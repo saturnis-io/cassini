@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
+import { NelsonRulesConfigPanel, type NelsonRulesConfigPanelRef } from './NelsonRulesConfigPanel'
+import { HelpTooltip } from './HelpTooltip'
 import type { SubgroupMode } from '@/types'
 
 interface CharacteristicFormProps {
@@ -30,6 +32,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   // Mode change confirmation dialog state
   const [pendingModeChange, setPendingModeChange] = useState<SubgroupMode | null>(null)
   const [showModeDialog, setShowModeDialog] = useState(false)
+
+  // Ref for Nelson Rules panel
+  const nelsonRulesRef = useRef<NelsonRulesConfigPanelRef>(null)
 
   useEffect(() => {
     if (characteristic) {
@@ -117,6 +122,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         warn_below_count: warnBelow,
       },
     })
+
+    // Save Nelson rules if panel has changes
+    if (nelsonRulesRef.current?.isDirty) {
+      await nelsonRulesRef.current.save()
+    }
+
     setIsDirty(false)
   }
 
@@ -353,6 +364,22 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               </div>
             </div>
           )}
+        </div>
+
+        {/* Nelson Rules Configuration */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium">Nelson Rules</h3>
+            <HelpTooltip helpKey="nelson-rules-overview" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Enable or disable specific Nelson rules for detecting out-of-control conditions.
+          </p>
+          <NelsonRulesConfigPanel
+            ref={nelsonRulesRef}
+            characteristicId={characteristicId!}
+            onDirty={() => setIsDirty(true)}
+          />
         </div>
 
         {/* Actions */}

@@ -177,6 +177,27 @@ export function useChangeMode() {
   })
 }
 
+// Nelson Rules hooks
+export function useNelsonRules(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.characteristics.rules(charId),
+    queryFn: () => characteristicApi.getRules(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useUpdateNelsonRules() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, enabledRules }: { id: number; enabledRules: number[] }) =>
+      characteristicApi.updateRules(id, enabledRules),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
+    },
+  })
+}
+
 // Violation hooks
 export function useViolations(params?: Parameters<typeof violationApi.list>[0]) {
   return useQuery({
