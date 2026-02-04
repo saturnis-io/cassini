@@ -251,11 +251,29 @@ async def get_chart_data(
             detail=f"Characteristic {char_id} not found"
         )
 
-    # Check if control limits are defined
+    # If control limits are not defined, return empty chart data
     if characteristic.ucl is None or characteristic.lcl is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Control limits not defined for characteristic {char_id}. Run recalculate-limits first."
+        return ChartDataResponse(
+            characteristic_id=char_id,
+            characteristic_name=characteristic.name,
+            data_points=[],
+            control_limits=ControlLimits(center_line=None, ucl=None, lcl=None),
+            spec_limits=SpecLimits(
+                usl=characteristic.usl,
+                lsl=characteristic.lsl,
+                target=characteristic.target_value,
+            ),
+            zone_boundaries=ZoneBoundaries(
+                plus_1_sigma=None,
+                plus_2_sigma=None,
+                plus_3_sigma=None,
+                minus_1_sigma=None,
+                minus_2_sigma=None,
+                minus_3_sigma=None,
+            ),
+            subgroup_mode=characteristic.subgroup_mode,
+            nominal_subgroup_size=characteristic.subgroup_size,
+            decimal_precision=characteristic.decimal_precision,
         )
 
     # Get samples
