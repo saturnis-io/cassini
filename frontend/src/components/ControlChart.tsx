@@ -67,6 +67,17 @@ export function ControlChart({
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
 
+  // Collect all violated rules across all data points for legend
+  // This hook must be called unconditionally (before early returns)
+  const allViolatedRules = useMemo(() => {
+    if (!chartData?.data_points) return []
+    const rules = new Set<number>()
+    chartData.data_points.forEach((point) => {
+      point.violation_rules?.forEach((rule) => rules.add(rule))
+    })
+    return Array.from(rules).sort((a, b) => a - b)
+  }, [chartData?.data_points])
+
   // Color scheme overrides for comparison mode
   const lineGradientId = `chartLineGradient-${characteristicId}-${colorScheme}`
   const lineColors = colorScheme === 'secondary'
@@ -118,15 +129,6 @@ export function ControlChart({
     effective_lcl: point.effective_lcl,
     z_score: point.z_score,
   }))
-
-  // Collect all violated rules across all data points for legend
-  const allViolatedRules = useMemo(() => {
-    const rules = new Set<number>()
-    data_points.forEach((point) => {
-      point.violation_rules?.forEach((rule) => rules.add(rule))
-    })
-    return Array.from(rules).sort((a, b) => a - b)
-  }, [data_points])
 
   // Calculate Y-axis domain based on mode
   let yMin: number, yMax: number, yAxisLabel: string
