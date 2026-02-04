@@ -1,8 +1,8 @@
-// Hierarchy types
+// Hierarchy types - UNS-compatible generic hierarchy
 export interface HierarchyNode {
   id: number
   name: string
-  node_type: 'ENTERPRISE' | 'SITE' | 'AREA' | 'PRODUCTION_LINE' | 'WORK_CELL' | 'EQUIPMENT'
+  type: string  // Flexible: Folder, Enterprise, Site, Area, Line, Cell, Equipment, Tag, or custom
   parent_id: number | null
   children?: HierarchyNode[]
   characteristic_count?: number

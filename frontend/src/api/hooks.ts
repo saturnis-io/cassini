@@ -53,6 +53,29 @@ export function useHierarchyCharacteristics(id: number) {
   })
 }
 
+export function useCreateHierarchyNode() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: { name: string; type: string; parent_id: number | null }) =>
+      hierarchyApi.createNode(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+    },
+  })
+}
+
+export function useDeleteHierarchyNode() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => hierarchyApi.deleteNode(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+    },
+  })
+}
+
 // Characteristic hooks
 export function useCharacteristics(params?: Parameters<typeof characteristicApi.list>[0]) {
   return useQuery({
@@ -66,6 +89,28 @@ export function useCharacteristic(id: number) {
     queryKey: queryKeys.characteristics.detail(id),
     queryFn: () => characteristicApi.get(id),
     enabled: id > 0,
+  })
+}
+
+export function useCreateCharacteristic() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      name: string
+      hierarchy_id: number
+      provider_type: string
+      subgroup_size: number
+      target_value?: number | null
+      usl?: number | null
+      lsl?: number | null
+      mqtt_topic?: string | null
+    }) => characteristicApi.create(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.characteristics(variables.hierarchy_id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+    },
   })
 }
 
@@ -114,6 +159,20 @@ export function useUpdateCharacteristic() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
+    },
+  })
+}
+
+export function useChangeMode() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, newMode }: { id: number; newMode: string }) =>
+      characteristicApi.changeMode(id, newMode),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
     },
   })
 }

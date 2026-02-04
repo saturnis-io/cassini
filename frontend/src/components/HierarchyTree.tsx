@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronDown, Building2, Factory, Cog, Box, Cpu, Settings } from 'lucide-react'
+import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConfigStore } from '@/stores/configStore'
 import { useHierarchyCharacteristics } from '@/api/hooks'
@@ -8,13 +8,16 @@ interface HierarchyTreeProps {
   nodes: HierarchyNode[]
 }
 
+// UNS-compatible hierarchy type icons
 const nodeTypeIcons: Record<string, React.ReactNode> = {
-  ENTERPRISE: <Building2 className="h-4 w-4" />,
-  SITE: <Factory className="h-4 w-4" />,
-  AREA: <Box className="h-4 w-4" />,
-  PRODUCTION_LINE: <Cog className="h-4 w-4" />,
-  WORK_CELL: <Cpu className="h-4 w-4" />,
-  EQUIPMENT: <Settings className="h-4 w-4" />,
+  Folder: <Box className="h-4 w-4" />,
+  Enterprise: <Factory className="h-4 w-4" />,
+  Site: <Factory className="h-4 w-4" />,
+  Area: <Box className="h-4 w-4" />,
+  Line: <Cog className="h-4 w-4" />,
+  Cell: <Cpu className="h-4 w-4" />,
+  Equipment: <Settings className="h-4 w-4" />,
+  Tag: <Settings className="h-4 w-4" />,
 }
 
 export function HierarchyTree({ nodes }: HierarchyTreeProps) {
@@ -86,7 +89,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
             <span className="w-4" />
           )}
         </button>
-        {nodeTypeIcons[node.node_type] || <Box className="h-4 w-4" />}
+        {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         <span className="flex-1 text-sm">{node.name}</span>
         {node.characteristic_count !== undefined && node.characteristic_count > 0 && (
           <span className="text-xs bg-muted px-1.5 py-0.5 rounded">

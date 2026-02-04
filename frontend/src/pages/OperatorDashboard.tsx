@@ -1,19 +1,31 @@
+import { useEffect } from 'react'
 import { useCharacteristics } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TodoList } from '@/components/TodoList'
 import { ControlChart } from '@/components/ControlChart'
 import { DistributionHistogram } from '@/components/DistributionHistogram'
 import { InputModal } from '@/components/InputModal'
-import { useWebSocket } from '@/hooks/useWebSocket'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 
 export function OperatorDashboard() {
   const { data: characteristicsData, isLoading } = useCharacteristics()
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const inputModalOpen = useDashboardStore((state) => state.inputModalOpen)
 
-  // Subscribe to WebSocket updates for all characteristics
+  // Use app-level WebSocket context
+  const { subscribe, unsubscribe } = useWebSocketContext()
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []
-  useWebSocket(characteristicIds)
+
+  // Manage subscriptions when characteristics change
+  useEffect(() => {
+    characteristicIds.forEach((id) => subscribe(id))
+
+    return () => {
+      // Only unsubscribe from these specific IDs when dashboard unmounts
+      // The WebSocket connection itself stays open
+      characteristicIds.forEach((id) => unsubscribe(id))
+    }
+  }, [characteristicIds.join(','), subscribe, unsubscribe])
 
   if (isLoading) {
     return (
@@ -37,7 +49,7 @@ export function OperatorDashboard() {
             <div className="flex-1 min-h-0">
               <ControlChart characteristicId={selectedId} />
             </div>
-            <div className="h-48">
+            <div className="h-64">
               <DistributionHistogram characteristicId={selectedId} />
             </div>
           </>

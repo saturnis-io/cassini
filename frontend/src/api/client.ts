@@ -22,7 +22,19 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
-    throw new Error(error.detail || `HTTP ${response.status}`)
+    // Handle Pydantic validation errors (array of errors) and standard errors
+    let message = 'Unknown error'
+    if (typeof error.detail === 'string') {
+      message = error.detail
+    } else if (Array.isArray(error.detail)) {
+      // Pydantic validation error format: [{loc: [...], msg: "...", type: "..."}]
+      message = error.detail.map((e: { msg: string; loc?: string[] }) =>
+        e.loc ? `${e.loc.join('.')}: ${e.msg}` : e.msg
+      ).join('; ')
+    } else if (error.detail) {
+      message = JSON.stringify(error.detail)
+    }
+    throw new Error(message || `HTTP ${response.status}`)
   }
 
   return response.json()
@@ -30,12 +42,12 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
 // Hierarchy API
 export const hierarchyApi = {
-  getTree: () => fetchApi<HierarchyNode[]>('/hierarchy'),
+  getTree: () => fetchApi<HierarchyNode[]>('/hierarchy/'),
 
   getNode: (id: number) => fetchApi<HierarchyNode>(`/hierarchy/${id}`),
 
-  createNode: (data: { name: string; node_type: string; parent_id: number | null }) =>
-    fetchApi<HierarchyNode>('/hierarchy', {
+  createNode: (data: { name: string; type: string; parent_id: number | null }) =>
+    fetchApi<HierarchyNode>('/hierarchy/', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -70,13 +82,13 @@ export const characteristicApi = {
     if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
     const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<CharacteristicSummary>>(`/characteristics${query ? `?${query}` : ''}`)
+    return fetchApi<PaginatedResponse<CharacteristicSummary>>(`/characteristics/${query ? `?${query}` : ''}`)
   },
 
   get: (id: number) => fetchApi<Characteristic>(`/characteristics/${id}`),
 
   create: (data: Partial<Characteristic>) =>
-    fetchApi<Characteristic>('/characteristics', {
+    fetchApi<Characteristic>('/characteristics/', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -108,6 +120,17 @@ export const characteristicApi = {
     fetchApi<{ enabled_rules: number[] }>(`/characteristics/${id}/rules`, {
       method: 'PUT',
       body: JSON.stringify({ enabled_rules: enabledRules }),
+    }),
+
+  changeMode: (id: number, newMode: string) =>
+    fetchApi<{
+      previous_mode: string
+      new_mode: string
+      samples_migrated: number
+      characteristic: Characteristic
+    }>(`/characteristics/${id}/change-mode`, {
+      method: 'POST',
+      body: JSON.stringify({ new_mode: newMode }),
     }),
 }
 
