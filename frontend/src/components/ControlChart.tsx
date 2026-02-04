@@ -301,7 +301,10 @@ export function ControlChart({
                     </div>
                   )}
                   {point.hasViolation && (!point.violationRules || point.violationRules.length === 0) && (
-                    <div className="text-destructive font-medium">Violation!</div>
+                    <div className="text-destructive font-medium">
+                      Violation detected
+                      <div className="text-xs text-muted-foreground">(Rule details unavailable - refresh page)</div>
+                    </div>
                   )}
                 </div>
               )
