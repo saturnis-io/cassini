@@ -24,6 +24,10 @@ interface ControlChartProps {
   label?: string
   showSpecLimits?: boolean
   colorScheme?: 'primary' | 'secondary'
+  /** Shared Y-axis domain for alignment with other charts */
+  yAxisDomain?: [number, number]
+  /** Callback when hovering over a data point - passes the mean value or null on leave */
+  onHoverValue?: (value: number | null) => void
 }
 
 // Hook to subscribe to chart color changes
@@ -63,6 +67,8 @@ export function ControlChart({
   label,
   showSpecLimits = true,
   colorScheme = 'primary',
+  yAxisDomain: externalDomain,
+  onHoverValue,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
@@ -131,13 +137,19 @@ export function ControlChart({
   }))
 
   // Calculate Y-axis domain based on mode
+  // Use external domain if provided (for alignment with histogram), otherwise calculate
   let yMin: number, yMax: number, yAxisLabel: string
 
   if (isModeA) {
     // Mode A: Fixed domain for Z-scores
-    yMin = -4
-    yMax = 4
+    yMin = externalDomain?.[0] ?? -4
+    yMax = externalDomain?.[1] ?? 4
     yAxisLabel = 'Z-Score'
+  } else if (externalDomain) {
+    // Use shared domain from parent for alignment
+    yMin = externalDomain[0]
+    yMax = externalDomain[1]
+    yAxisLabel = 'Value'
   } else {
     // Mode B/C: Dynamic domain based on values and limits
     const values = data.map((p) => p.mean)
@@ -188,7 +200,20 @@ export function ControlChart({
       </div>
 
       <ResponsiveContainer width="100%" height="90%">
-        <ComposedChart data={data} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 20, right: 60, left: 20, bottom: 20 }}
+          onMouseMove={(state) => {
+            if (onHoverValue && state?.activeTooltipIndex != null) {
+              const index = Number(state.activeTooltipIndex)
+              const point = data[index]
+              if (point) {
+                onHoverValue(point.displayValue ?? point.mean)
+              }
+            }
+          }}
+          onMouseLeave={() => onHoverValue?.(null)}
+        >
           {/* Gradient and filter definitions */}
           <defs>
             <linearGradient id={lineGradientId} x1="0" y1="0" x2="1" y2="0">

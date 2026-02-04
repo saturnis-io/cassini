@@ -132,8 +132,8 @@ export function Layout() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1 container mx-auto px-4 py-6">
+      {/* Main content - full width for dashboard charts */}
+      <main className="flex-1 px-4 py-6">
         <Outlet />
       </main>
 

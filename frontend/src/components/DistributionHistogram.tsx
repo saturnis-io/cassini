@@ -8,6 +8,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
   Area,
+  Cell,
 } from 'recharts'
 import { useChartData } from '@/api/hooks'
 
@@ -18,6 +19,8 @@ interface DistributionHistogramProps {
   colorScheme?: 'primary' | 'secondary'
   /** For vertical orientation: pass the Y-axis domain from the control chart to align limits */
   yAxisDomain?: [number, number]
+  /** Value from X-bar chart hover to highlight corresponding bucket */
+  highlightedValue?: number | null
 }
 
 function calculateHistogramBins(values: number[], binCount: number = 20) {
@@ -116,6 +119,7 @@ export function DistributionHistogram({
   label,
   colorScheme = 'primary',
   yAxisDomain,
+  highlightedValue,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 100 })
   const colors = colorSchemes[colorScheme]
@@ -195,6 +199,12 @@ export function DistributionHistogram({
   // Generate unique gradient IDs for this instance
   const gradientId = `barGradient-${characteristicId}-${colorScheme}`
   const normalGradientId = `normalGradient-${characteristicId}-${colorScheme}`
+  const highlightGradientId = `barGradientHighlight-${characteristicId}-${colorScheme}`
+
+  // Find which bin index contains the highlighted value (if any)
+  const highlightedBinIndex = highlightedValue != null
+    ? bins.findIndex((bin) => highlightedValue >= bin.binStart && highlightedValue < bin.binEnd)
+    : -1
 
   // For vertical orientation, we render aligned with the control chart
   // Using same padding (p-5), header height (mb-4), and chart height (90%)
@@ -202,66 +212,151 @@ export function DistributionHistogram({
     // Use the passed yAxisDomain if available for alignment, otherwise use calculated domain
     const verticalDomain = yAxisDomain || [xMin, xMax]
 
+    // For vertical layout, normalY needs to be plotted on the X axis (horizontal)
+    // Calculate max count for X-axis domain
+    const maxCount = Math.max(...bins.map((b) => b.count), ...bins.map((b) => b.normalY))
+
     return (
-      <div className="h-full bg-card border border-border rounded-2xl p-5">
-        {/* Header - matches ControlChart header height with mb-4 */}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold text-sm truncate">
+      <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+        {/* Header - fixed height to match ControlChart header exactly */}
+        <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
+          <h3 className="font-semibold text-sm truncate leading-5">
             {label && <span className="text-muted-foreground mr-1">{label}:</span>}
             Capability
           </h3>
-          <div className="flex gap-1 items-center text-xs">
+          <div className="flex gap-2 text-sm text-muted-foreground leading-5">
             {cpk > 0 && (
-              <span className={getCapabilityStyle(cpk)}>
-                Cpk {cpk.toFixed(2)}
+              <span className={cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive'}>
+                Cpk: {cpk.toFixed(2)}
               </span>
             )}
-            <span className="text-muted-foreground ml-1">n={stats.n}</span>
+            <span>n={stats.n}</span>
           </div>
         </div>
-        {/* Chart area - matches ControlChart's 90% height and margins */}
-        <ResponsiveContainer width="100%" height="90%">
-          <ComposedChart
-            layout="vertical"
-            data={bins}
-            margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
-          >
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.4} />
-                <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.8} />
-              </linearGradient>
-            </defs>
-            <XAxis type="number" hide />
-            <YAxis
-              type="number"
-              dataKey="binCenter"
-              domain={verticalDomain}
-              tick={{ fontSize: 8, fill: 'hsl(240 4% 46%)' }}
-              tickFormatter={(value) => value.toFixed(1)}
-              width={35}
-              axisLine={false}
-              tickLine={false}
-            />
-            {/* Spec and control limits as horizontal lines */}
-            {lsl !== null && (
-              <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'LSL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
-            )}
-            {usl !== null && (
-              <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'USL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
-            )}
-            {lcl !== null && (
-              <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'LCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
-            )}
-            {ucl !== null && (
-              <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'UCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
-            )}
-            {centerLine !== null && (
-              <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" label={{ value: 'CL', position: 'right', fontSize: 8, fill: 'hsl(104 55% 35%)' }} />
-            )}
-            <Bar dataKey="count" fill={`url(#${gradientId})`} stroke={colors.barStroke} strokeWidth={0.5} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        {/* Stats row when expanded */}
+        <div className="flex gap-3 text-xs text-muted-foreground mb-2 flex-shrink-0">
+          {cp > 0 && (
+            <span className={cp >= 1.33 ? 'text-green-600' : cp >= 1.0 ? 'text-yellow-600' : 'text-destructive'}>
+              Cp: {cp.toFixed(2)}
+            </span>
+          )}
+          {ppk > 0 && (
+            <span className="text-muted-foreground">
+              Ppk: {ppk.toFixed(2)}
+            </span>
+          )}
+          <span>σ: {stats.stdDev.toFixed(3)}</span>
+        </div>
+        {/* Chart area - flex-1 to fill remaining space */}
+        <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              layout="vertical"
+              data={bins}
+              margin={{ top: 20, right: 30, left: 5, bottom: 20 }}
+            >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor={colors.barGradientStart} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={colors.barGradientEnd} stopOpacity={0.8} />
+                </linearGradient>
+                {/* Highlighted bar gradient - brighter/more saturated */}
+                <linearGradient id={highlightGradientId} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="hsl(45, 100%, 50%)" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="hsl(35, 100%, 55%)" stopOpacity={1} />
+                </linearGradient>
+                {/* Normal curve gradient for vertical */}
+                <linearGradient id={normalGradientId} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="5%" stopColor={colors.normalFill} stopOpacity={0.02} />
+                  <stop offset="95%" stopColor={colors.normalFill} stopOpacity={0.25} />
+                </linearGradient>
+              </defs>
+              {/* XAxis (horizontal in vertical layout) - show count values as integers */}
+              <XAxis
+                type="number"
+                domain={[0, maxCount * 1.1]}
+                tick={{ fontSize: 10, fill: 'hsl(240 4% 46%)' }}
+                tickFormatter={(value) => Math.round(value).toString()}
+                allowDecimals={false}
+                axisLine={{ stroke: '#666' }}
+                tickLine={{ stroke: '#666' }}
+              />
+              {/* YAxis (vertical values) - matches ControlChart YAxis config */}
+              <YAxis
+                type="number"
+                dataKey="binCenter"
+                domain={verticalDomain}
+                reversed={true}
+                tick={{ fontSize: 10, fill: 'hsl(240 4% 46%)' }}
+                tickFormatter={(value) => value.toFixed(1)}
+                width={40}
+                axisLine={{ stroke: '#666' }}
+                tickLine={{ stroke: '#666' }}
+              />
+              {/* Spec and control limits as horizontal lines */}
+              {lsl !== null && (
+                <ReferenceLine y={lsl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'LSL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
+              )}
+              {usl !== null && (
+                <ReferenceLine y={usl} stroke="hsl(357 80% 52%)" strokeWidth={1.5} label={{ value: 'USL', position: 'right', fontSize: 8, fill: 'hsl(357 80% 45%)' }} />
+              )}
+              {lcl !== null && (
+                <ReferenceLine y={lcl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'LCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
+              )}
+              {ucl !== null && (
+                <ReferenceLine y={ucl} stroke="hsl(179 50% 59%)" strokeWidth={1} strokeDasharray="4 2" label={{ value: 'UCL', position: 'right', fontSize: 8, fill: 'hsl(179 50% 50%)' }} />
+              )}
+              {centerLine !== null && (
+                <ReferenceLine y={centerLine} stroke="hsl(104 55% 40%)" strokeWidth={1} strokeDasharray="2 2" label={{ value: 'CL', position: 'right', fontSize: 8, fill: 'hsl(104 55% 35%)' }} />
+              )}
+              {/* Mean line */}
+              <ReferenceLine
+                y={stats.mean}
+                stroke={colors.meanColor}
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null
+                  const bin = payload[0].payload
+                  return (
+                    <div className="bg-popover border border-border rounded-lg p-2 text-xs shadow-lg">
+                      <div className="font-medium text-foreground mb-1">Range</div>
+                      <div className="text-muted-foreground">
+                        {bin.binStart.toFixed(2)} – {bin.binEnd.toFixed(2)}
+                      </div>
+                      <div className="mt-1.5 pt-1.5 border-t border-border">
+                        <span className="font-medium text-foreground">Count:</span>
+                        <span className="ml-1 text-primary font-semibold">{bin.count}</span>
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              {/* Normal distribution curve - rendered as Area in vertical layout */}
+              <Area
+                type="monotone"
+                dataKey="normalY"
+                stroke={colors.normalStroke}
+                strokeWidth={2}
+                fill={`url(#${normalGradientId})`}
+                dot={false}
+                activeDot={false}
+              />
+              <Bar dataKey="count" stroke={colors.barStroke} strokeWidth={0.5}>
+                {bins.map((_, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={index === highlightedBinIndex ? `url(#${highlightGradientId})` : `url(#${gradientId})`}
+                    stroke={index === highlightedBinIndex ? 'hsl(35, 100%, 45%)' : colors.barStroke}
+                    strokeWidth={index === highlightedBinIndex ? 2 : 0.5}
+                  />
+                ))}
+              </Bar>
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     )
   }
@@ -308,6 +403,11 @@ export function DistributionHistogram({
             <linearGradient id={normalGradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={colors.normalFill} stopOpacity={0.25} />
               <stop offset="95%" stopColor={colors.normalFill} stopOpacity={0.02} />
+            </linearGradient>
+            {/* Highlighted bar gradient */}
+            <linearGradient id={highlightGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(45, 100%, 55%)" stopOpacity={1} />
+              <stop offset="100%" stopColor="hsl(35, 100%, 50%)" stopOpacity={0.8} />
             </linearGradient>
           </defs>
 
@@ -443,11 +543,19 @@ export function DistributionHistogram({
           {/* Histogram bars */}
           <Bar
             dataKey="count"
-            fill={`url(#${gradientId})`}
             stroke={colors.barStroke}
             strokeWidth={1}
             radius={[3, 3, 0, 0]}
-          />
+          >
+            {bins.map((_, index) => (
+              <Cell
+                key={`cell-h-${index}`}
+                fill={index === highlightedBinIndex ? `url(#${highlightGradientId})` : `url(#${gradientId})`}
+                stroke={index === highlightedBinIndex ? 'hsl(35, 100%, 45%)' : colors.barStroke}
+                strokeWidth={index === highlightedBinIndex ? 2 : 1}
+              />
+            ))}
+          </Bar>
 
           {/* Normal distribution curve */}
           <Area

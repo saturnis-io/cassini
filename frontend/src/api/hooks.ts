@@ -164,8 +164,11 @@ export function useSubmitSample() {
   return useMutation({
     mutationFn: sampleApi.submit,
     onSuccess: (data, variables) => {
-      // Invalidate relevant queries - use characteristic_id from the request variables
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.characteristic_id) })
+      // Invalidate ALL chart data queries for this characteristic (regardless of limit/date params)
+      // Using partial key match to catch all variations like chartData(id, 50), chartData(id, 100), etc.
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', variables.characteristic_id],
+      })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
       toast.success(`Sample recorded (ID: ${data.sample_id})`)
@@ -184,7 +187,10 @@ export function useRecalculateLimits() {
       characteristicApi.recalculateLimits(id, excludeOoc),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.id) })
+      // Use partial key match to invalidate all chart data variations
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', variables.id],
+      })
       toast.success('Control limits recalculated')
     },
     onError: (error: Error) => {
@@ -218,7 +224,10 @@ export function useChangeMode() {
       characteristicApi.changeMode(id, newMode),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(variables.id) })
+      // Use partial key match to invalidate all chart data variations
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', variables.id],
+      })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       toast.success(`Mode changed to ${data.new_mode} (${data.samples_migrated} samples migrated)`)
     },
@@ -302,7 +311,10 @@ export function useExcludeSample() {
       sampleApi.exclude(id, excluded),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.chartData(data.characteristic_id) })
+      // Use partial key match to invalidate all chart data variations
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', data.characteristic_id],
+      })
       toast.success(data.is_excluded ? 'Sample excluded' : 'Sample included')
     },
     onError: (error: Error) => {
