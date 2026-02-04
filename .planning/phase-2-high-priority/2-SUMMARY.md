@@ -1,7 +1,7 @@
 ---
 plan: 2
 completed: 2026-02-04T00:00:00Z
-commit: pending
+commit: fe22fce
 tasks_completed: 3
 verification: passed
 ---
@@ -47,4 +47,4 @@ verification: passed
 - CharacteristicForm displays Nelson Rules section
 
 ## Commit
-`pending` - feat: add Nelson rules configuration UI with toggles and help tooltips
+`fe22fce` - feat(phase-2-hp-2): add Nelson rules configuration UI with toggles

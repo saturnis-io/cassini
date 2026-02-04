@@ -1,7 +1,7 @@
 ---
 plan: 1
 completed: 2026-02-04T00:00:00Z
-commit: pending
+commit: 23bd18e
 tasks_completed: 2
 verification: passed
 ---
@@ -44,4 +44,4 @@ verification: passed
 - Component is importable and usable
 
 ## Commit
-`pending` - feat: add help tooltip framework with content registry
+`23bd18e` - feat(phase-2-hp-1): add help tooltip framework with content registry
