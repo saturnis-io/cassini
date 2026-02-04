@@ -18,6 +18,8 @@ interface ChartPanelProps {
   className?: string
   /** Initial width for vertical histogram panel (default 280px) */
   defaultHistogramWidth?: number
+  /** Initial height for horizontal histogram panel (default 192px) */
+  defaultHistogramHeight?: number
 }
 
 /**
@@ -36,38 +38,60 @@ export function ChartPanel({
   showSpecLimits = true,
   className,
   defaultHistogramWidth = 280,
+  defaultHistogramHeight = 192,
 }: ChartPanelProps) {
   const isRightPosition = histogramPosition === 'right'
+  const isBelowPosition = histogramPosition === 'below'
   const showHistogram = histogramPosition !== 'hidden'
 
   // State for cross-chart highlighting
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
 
-  // State and refs for resizable vertical histogram panel
+  // State and refs for resizable histogram panels
   const [histogramWidth, setHistogramWidth] = useState(defaultHistogramWidth)
-  const isDragging = useRef(false)
+  const [histogramHeight, setHistogramHeight] = useState(defaultHistogramHeight)
+  const isDraggingX = useRef(false)
+  const isDraggingY = useRef(false)
   const startX = useRef(0)
+  const startY = useRef(0)
   const startWidth = useRef(0)
+  const startHeight = useRef(0)
 
-  // Handle mouse events for drag-to-resize
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true
+  // Handle mouse events for horizontal drag-to-resize (vertical histogram width)
+  const handleMouseDownX = useCallback((e: React.MouseEvent) => {
+    isDraggingX.current = true
     startX.current = e.clientX
     startWidth.current = histogramWidth
     e.preventDefault()
   }, [histogramWidth])
 
+  // Handle mouse events for vertical drag-to-resize (horizontal histogram height)
+  const handleMouseDownY = useCallback((e: React.MouseEvent) => {
+    isDraggingY.current = true
+    startY.current = e.clientY
+    startHeight.current = histogramHeight
+    e.preventDefault()
+  }, [histogramHeight])
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current) return
-      // Dragging left (decreasing X) should increase width (panel expands left)
-      const delta = startX.current - e.clientX
-      const newWidth = Math.min(Math.max(startWidth.current + delta, 200), 500)
-      setHistogramWidth(newWidth)
+      if (isDraggingX.current) {
+        // Dragging left (decreasing X) should increase width (panel expands left)
+        const delta = startX.current - e.clientX
+        const newWidth = Math.min(Math.max(startWidth.current + delta, 200), 500)
+        setHistogramWidth(newWidth)
+      }
+      if (isDraggingY.current) {
+        // Dragging up (decreasing Y) should increase height (panel expands up)
+        const delta = startY.current - e.clientY
+        const newHeight = Math.min(Math.max(startHeight.current + delta, 120), 400)
+        setHistogramHeight(newHeight)
+      }
     }
 
     const handleMouseUp = () => {
-      isDragging.current = false
+      isDraggingX.current = false
+      isDraggingY.current = false
     }
 
     document.addEventListener('mousemove', handleMouseMove)
@@ -126,7 +150,7 @@ export function ChartPanel({
     <div
       className={cn(
         'h-full',
-        isRightPosition ? 'flex flex-row gap-2' : 'flex flex-col h-full',
+        isRightPosition ? 'flex flex-row gap-2' : 'flex flex-col gap-3 h-full',
         className
       )}
     >
@@ -150,14 +174,14 @@ export function ChartPanel({
         <div
           className={cn(
             'flex-shrink-0 relative',
-            isRightPosition ? 'h-full' : 'h-48 w-full'
+            isRightPosition ? 'h-full' : 'w-full'
           )}
-          style={isRightPosition ? { width: histogramWidth } : undefined}
+          style={isRightPosition ? { width: histogramWidth } : { height: histogramHeight }}
         >
-          {/* Drag handle for resizing vertical histogram */}
+          {/* Drag handle for resizing vertical histogram (left edge) */}
           {isRightPosition && (
             <div
-              onMouseDown={handleMouseDown}
+              onMouseDown={handleMouseDownX}
               className="absolute -left-1 top-0 bottom-0 w-2 cursor-ew-resize z-10 group"
               title="Drag to resize"
             >
@@ -165,11 +189,23 @@ export function ChartPanel({
               <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
             </div>
           )}
+          {/* Drag handle for resizing horizontal histogram (top edge) */}
+          {isBelowPosition && (
+            <div
+              onMouseDown={handleMouseDownY}
+              className="absolute -top-1 left-0 right-0 h-2 cursor-ns-resize z-10 group"
+              title="Drag to resize"
+            >
+              {/* Visual indicator line */}
+              <div className="absolute top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+            </div>
+          )}
           <DistributionHistogram
             characteristicId={characteristicId}
             orientation={isRightPosition ? 'vertical' : 'horizontal'}
             label={label}
             colorScheme={colorScheme}
+            chartOptions={chartOptions}
             yAxisDomain={isRightPosition ? yAxisDomain : undefined}
             highlightedValue={hoveredValue}
           />

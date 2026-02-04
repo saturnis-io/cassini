@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore, type TimeRangeState, type TimeRangeOption } from '@/stores/dashboardStore'
+import { TimePicker } from './TimePicker'
 
 /**
  * Mouse-friendly date/time picker component
@@ -47,15 +48,9 @@ function CustomDateRangePicker({
     setActiveDate(newDate)
   }
 
-  const handleHourSelect = (hour: number) => {
+  const handleTimeChange = (hour: number, minute: number) => {
     const newDate = new Date(activeDate)
-    newDate.setHours(hour)
-    setActiveDate(newDate)
-  }
-
-  const handleMinuteSelect = (minute: number) => {
-    const newDate = new Date(activeDate)
-    newDate.setMinutes(minute)
+    newDate.setHours(hour, minute, 0, 0)
     setActiveDate(newDate)
   }
 
@@ -164,42 +159,17 @@ function CustomDateRangePicker({
         </div>
       </div>
 
-      {/* Time Selection */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <div className="text-xs text-muted-foreground mb-1">Hour</div>
-          <div className="grid grid-cols-6 gap-1 max-h-20 overflow-y-auto border border-border rounded p-1">
-            {Array.from({ length: 24 }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => handleHourSelect(i)}
-                className={cn(
-                  'py-0.5 text-xs rounded transition-colors',
-                  activeDate.getHours() === i ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                )}
-              >
-                {i.toString().padStart(2, '0')}
-              </button>
-            ))}
-          </div>
+      {/* Time Selection - using improved TimePicker */}
+      <div className="border border-border rounded p-3">
+        <div className="text-xs text-muted-foreground mb-2 text-center">
+          Time for {activeField === 'start' ? 'Start' : 'End'}
         </div>
-        <div className="flex-1">
-          <div className="text-xs text-muted-foreground mb-1">Minute</div>
-          <div className="grid grid-cols-4 gap-1 max-h-20 overflow-y-auto border border-border rounded p-1">
-            {[0, 15, 30, 45].map((m) => (
-              <button
-                key={m}
-                onClick={() => handleMinuteSelect(m)}
-                className={cn(
-                  'py-0.5 text-xs rounded transition-colors',
-                  activeDate.getMinutes() === m ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                )}
-              >
-                :{m.toString().padStart(2, '0')}
-              </button>
-            ))}
-          </div>
-        </div>
+        <TimePicker
+          hour={activeDate.getHours()}
+          minute={activeDate.getMinutes()}
+          onTimeChange={handleTimeChange}
+          use12Hour={true}
+        />
       </div>
 
       {/* Actions */}

@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks } from 'lucide-react'
+import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useHierarchyTree, useHierarchyCharacteristics } from '@/api/hooks'
+import { useHierarchyTree, useHierarchyCharacteristics, useCharacteristics } from '@/api/hooks'
 import type { HierarchyNode, Characteristic } from '@/types'
 import { SelectionToolbar } from './SelectionToolbar'
 
@@ -164,10 +164,24 @@ interface HierarchyTodoListProps {
 
 export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   const { data: nodes, isLoading } = useHierarchyTree()
+  const { data: allCharacteristics } = useCharacteristics()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
+
+  // Calculate global status counts from all characteristics
+  const statusCounts = useMemo(() => {
+    const counts = { OOC: 0, DUE: 0, OK: 0, ALL: 0 }
+    if (allCharacteristics?.items) {
+      allCharacteristics.items.forEach((char) => {
+        const status = getCharacteristicStatus(char)
+        counts[status]++
+        counts.ALL++
+      })
+    }
+    return counts
+  }, [allCharacteristics])
 
   const toggleNodeExpanded = (id: number) => {
     setExpandedNodeIds((prev) => {
@@ -187,8 +201,9 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
         <div className="p-4 border-b">
           <h2 className="font-semibold">Characteristics</h2>
         </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          Loading...
+        <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading hierarchy...</span>
         </div>
       </div>
     )
@@ -217,7 +232,7 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
           <StatusFilterTabs
             value={statusFilter}
             onChange={setStatusFilter}
-            counts={{ OOC: 0, DUE: 0, OK: 0, ALL: 0 }} // TODO: Calculate from data
+            counts={statusCounts}
           />
         </div>
         <div className="flex-1 overflow-auto p-2">
@@ -270,7 +285,7 @@ function TodoTreeNode({
   const hasChildren = node.children && node.children.length > 0
 
   // Load characteristics for this node when expanded
-  const { data: characteristics } = useHierarchyCharacteristics(
+  const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
     isExpanded ? node.id : 0
   )
 
@@ -312,13 +327,8 @@ function TodoTreeNode({
     }
   }
 
-  // Check if this node should be visible based on filter
-  const hasMatchingCharacteristics = filteredCharacteristics && filteredCharacteristics.length > 0
-
-  // For status filter, auto-expand nodes with matching children
-  const shouldShow = statusFilter === 'ALL' || hasMatchingCharacteristics || hasChildren
-
-  if (!shouldShow && !hasChildren) return null
+  // Folders are always visible - only characteristics get filtered
+  // This ensures users can navigate the full hierarchy regardless of filter
 
   const handleToggle = () => {
     if (hasChildren || node.characteristic_count) {
@@ -386,8 +396,29 @@ function TodoTreeNode({
             />
           ))}
 
+          {/* Loading indicator for characteristics */}
+          {isLoadingChars && (
+            <div
+              className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"
+              style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading characteristics...</span>
+            </div>
+          )}
+
+          {/* No matching characteristics message */}
+          {!isLoadingChars && characteristics && characteristics.length > 0 && filteredCharacteristics?.length === 0 && (
+            <div
+              className="px-2 py-2 text-sm text-muted-foreground italic"
+              style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+            >
+              No {statusFilter.toLowerCase()} characteristics
+            </div>
+          )}
+
           {/* Characteristics under this node */}
-          {filteredCharacteristics?.map((char) => {
+          {!isLoadingChars && filteredCharacteristics?.map((char) => {
             const status = getCharacteristicStatus(char)
             const isSelected = selectedId === char.id
             const isChecked = selectedCharacteristicIds.has(char.id)

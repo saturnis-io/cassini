@@ -174,15 +174,16 @@ export function ControlChart({
     : `${chartData.characteristic_name} - ${chartTypeLabel}`
 
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5">
-      <div className="flex justify-between items-center mb-4">
+    <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+      {/* Header - fixed height to match DistributionHistogram header exactly */}
+      <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
         <div className="flex items-center gap-4">
-          <h3 className="font-semibold text-sm">{chartTitle}</h3>
+          <h3 className="font-semibold text-sm leading-5">{chartTitle}</h3>
           {allViolatedRules.length > 0 && (
             <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
           )}
         </div>
-        <div className="flex gap-4 text-sm text-muted-foreground">
+        <div className="flex gap-4 text-sm text-muted-foreground leading-5">
           {isModeA ? (
             <>
               <span>UCL: +3</span>
@@ -199,7 +200,9 @@ export function ControlChart({
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height="90%">
+      {/* Chart area - flex-1 to fill remaining space */}
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={data}
           margin={{ top: 20, right: 60, left: 20, bottom: 20 }}
@@ -574,6 +577,7 @@ export function ControlChart({
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   )
 }

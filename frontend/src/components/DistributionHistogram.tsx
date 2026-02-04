@@ -20,6 +20,12 @@ interface DistributionHistogramProps {
   orientation?: 'horizontal' | 'vertical'
   label?: 'Primary' | 'Secondary'
   colorScheme?: 'primary' | 'secondary'
+  /** Chart options (limit, startDate, endDate) to match the control chart */
+  chartOptions?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  }
   /** For vertical orientation: pass the Y-axis domain from the control chart to align limits */
   yAxisDomain?: [number, number]
   /** Value from X-bar chart hover to highlight corresponding bucket */
@@ -121,10 +127,11 @@ export function DistributionHistogram({
   orientation = 'horizontal',
   label,
   colorScheme = 'primary',
+  chartOptions,
   yAxisDomain,
   highlightedValue,
 }: DistributionHistogramProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 100 })
+  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
   const colors = colorSchemes[colorScheme]
   const isVertical = orientation === 'vertical'
 
