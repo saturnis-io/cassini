@@ -1,13 +1,13 @@
 # Project State
 
 ## Status
-**Phase 3.3 COMPLETE** - Data Entry Section implemented
+**Phase 3.4 COMPLETE** - Enhanced Dashboard & Hierarchy UX implemented
 
 ## Current Milestone
 Phase 3: Enhanced Dashboard, Reporting & System Configuration
 
 ## Current Phase
-Phase 3.3 (Data Entry Section) → **COMPLETE** → Ready for Phase 3.4
+Phase 3.4 (Enhanced Dashboard) → **COMPLETE** → Ready for Phase 3.5 (Reporting)
 
 ## Session Log
 | Timestamp | Action | Details |
@@ -55,6 +55,11 @@ Phase 3.3 (Data Entry Section) → **COMPLETE** → Ready for Phase 3.4
 | 2026-02-04 | Phase 3.3 Bug Fix | CharacteristicResponse full data for subgroup info |
 | 2026-02-04 | Phase 3.3 Bug Fix | Frontend API client response type mismatch |
 | 2026-02-04 | **Phase 3.3 COMPLETE** | Data Entry Section implemented |
+| 2026-02-04 | Phase 3.4 Wave 1 | Time Range Selection (TimeRangeSelector + ChartToolbar) |
+| 2026-02-04 | Phase 3.4 Wave 2 | Chart Panel with side-mounted histogram option |
+| 2026-02-04 | Phase 3.4 Wave 3 | Comparison mode with color-coded charts |
+| 2026-02-04 | Phase 3.4 Wave 4 | Violation annotations with Nelson rule indicators |
+| 2026-02-04 | **Phase 3.4 COMPLETE** | Enhanced Dashboard & Hierarchy UX implemented |
 
 ## High Priority Features (COMPLETE)
 
@@ -153,12 +158,12 @@ Phase 3.3 (Data Entry Section) → **COMPLETE** → Ready for Phase 3.4
 - Sample management API: DELETE, PUT endpoints with greenlet-safe implementation
 - Scheduling tab placeholder (webhooks for external schedulers - future)
 
-### Phase 3.4: Enhanced Dashboard & Hierarchy UX
-- Hierarchical characteristic selection (tree view)
-- Time range selection with presets
-- Nelson rule violation annotations (highlighted regions)
-- Comparison mode (side-by-side)
-- Integrated histogram (rotated, aligned with chart)
+### Phase 3.4: Enhanced Dashboard & Hierarchy UX ✅ COMPLETE
+- Hierarchical characteristic selection (tree view) ✅
+- Time range selection with presets (point-based + duration + custom) ✅
+- Nelson rule violation annotations (badges on markers + legend) ✅
+- Comparison mode (split vertical with color coding) ✅
+- Integrated histogram (below/right/hidden toggle) ✅
 
 ### Phase 3.5: Reporting Framework
 - Canned reports first
@@ -212,20 +217,17 @@ Phase 3.3 (Data Entry Section) → **COMPLETE** → Ready for Phase 3.4
 
 ## ▶ Resume Point
 
-**Phase 3.4 PLANNING COMPLETE:** Dashboard UX Enhancements
+**Phase 3.4 COMPLETE:** Dashboard UX Enhancements
 
-**Decisions Made:**
-- Time Range: Hybrid (point presets + custom date picker)
-- Violation Annotations: Legend markers with rule numbers
-- Comparison Mode: Split vertical (2 charts stacked)
-- Histogram: Toggle panel (button to show/hide)
+**Implemented Features:**
+- Time Range: Hybrid (point presets 50/100/200 + duration 1h/8h/24h/7d + custom date picker)
+- Violation Annotations: Compact legend with rule numbers + badges on chart markers
+- Comparison Mode: Split vertical with primary (blue) and secondary (purple) color coding
+- Histogram: Toggle positions (below/right/hidden) with HistogramPositionSelector
+- ChartPanel wrapper combining ControlChart + DistributionHistogram
+- ViolationLegend component with Nelson rules 1-8 definitions
+- Enhanced tooltips showing rule details on hover
 
-**Execution Waves:**
-1. Time Range Selection (backend + frontend)
-2. Violation Annotations (legend + markers)
-3. Histogram Toggle (quick win)
-4. Comparison Mode (split layout)
-
-**Next action:** Execute Wave 1 - Time Range Selection
+**Next action:** Phase 3.5 - Reporting Framework (canned reports, export to PDF/Excel/CSV)
 
 ---
