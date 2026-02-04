@@ -1,12 +1,33 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { Activity, Settings, Wifi, WifiOff } from 'lucide-react'
+import { Activity, Settings, Wifi, WifiOff, Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useViolationStats } from '@/api/hooks'
+import { useTheme } from '@/providers/ThemeProvider'
 
 export function Layout() {
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { data: stats } = useViolationStats()
+  const { theme, setTheme } = useTheme()
+
+  const cycleTheme = () => {
+    const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
+    const currentIndex = themes.indexOf(theme)
+    const nextIndex = (currentIndex + 1) % themes.length
+    setTheme(themes[nextIndex])
+  }
+
+  const getThemeIcon = () => {
+    if (theme === 'system') return <Monitor className="h-4 w-4" />
+    if (theme === 'dark') return <Moon className="h-4 w-4" />
+    return <Sun className="h-4 w-4" />
+  }
+
+  const getThemeLabel = () => {
+    if (theme === 'system') return 'System'
+    if (theme === 'dark') return 'Dark'
+    return 'Light'
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -49,6 +70,14 @@ export function Layout() {
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={cycleTheme}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title={`Theme: ${getThemeLabel()}`}
+            >
+              {getThemeIcon()}
+              <span className="hidden sm:inline">{getThemeLabel()}</span>
+            </button>
             <span className="text-sm text-muted-foreground">
               Plant: <span className="font-medium text-foreground">Demo Plant</span>
             </span>
