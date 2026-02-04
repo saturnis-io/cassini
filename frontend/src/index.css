@@ -70,6 +70,12 @@
   --chart-line-gradient-start: hsl(212 100% 35%);
   --chart-line-gradient-end: hsl(179 50% 55%);
 
+  /* Zone gradient styling */
+  --chart-zone-gradient-opacity-top: 0.08;
+  --chart-zone-gradient-opacity-bottom: 0.2;
+  --chart-control-line-glow: 0 0 4px hsl(357 80% 52% / 0.3);
+  --chart-center-line-glow: none;
+
   /* Shadows - Clean, professional */
   --shadow-xs: 0 1px 2px hsl(30 9% 16% / 0.04);
   --shadow-sm: 0 2px 4px hsl(30 9% 16% / 0.04), 0 1px 2px hsl(30 9% 16% / 0.02);
@@ -355,6 +361,16 @@ h1, h2, h3, h4, h5, h6 {
   --color-chart-secondary: hsl(179 55% 65%);
   --color-chart-tertiary: hsl(248 40% 70%);
   --color-chart-quaternary: hsl(32 70% 55%);
+
+  /* Dark mode zone gradients - slightly higher opacity for visibility */
+  --chart-zone-gradient-opacity-top: 0.1;
+  --chart-zone-gradient-opacity-bottom: 0.25;
+  --chart-control-line-glow: 0 0 6px hsl(357 85% 60% / 0.4);
+  --chart-center-line-glow: 0 0 4px hsl(212 100% 50% / 0.3);
+
+  /* Dark mode chart line gradient */
+  --chart-line-gradient-start: hsl(212 100% 50%);
+  --chart-line-gradient-end: hsl(179 55% 60%);
 }
 
 /* Dark mode body background */

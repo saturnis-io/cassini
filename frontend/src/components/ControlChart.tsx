@@ -121,48 +121,66 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <filter id="controlLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="1.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            {/* Zone gradient definitions */}
+            <linearGradient id="zoneGradientC" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--zone-c))" stopOpacity="0.08" />
+              <stop offset="50%" stopColor="hsl(var(--zone-c))" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="hsl(var(--zone-c))" stopOpacity="0.08" />
+            </linearGradient>
+            <linearGradient id="zoneGradientB" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--zone-b))" stopOpacity="0.08" />
+              <stop offset="50%" stopColor="hsl(var(--zone-b))" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="hsl(var(--zone-b))" stopOpacity="0.08" />
+            </linearGradient>
+            <linearGradient id="zoneGradientA" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="hsl(var(--zone-a))" stopOpacity="0.08" />
+              <stop offset="50%" stopColor="hsl(var(--zone-a))" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="hsl(var(--zone-a))" stopOpacity="0.08" />
+            </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-          {/* Zone backgrounds */}
+          {/* Zone backgrounds with gradient fills */}
           {zone_boundaries.plus_1_sigma && zone_boundaries.minus_1_sigma && (
             <ReferenceArea
               y1={zone_boundaries.minus_1_sigma}
               y2={zone_boundaries.plus_1_sigma}
-              fill="hsl(var(--zone-c))"
-              fillOpacity={0.2}
+              fill="url(#zoneGradientC)"
             />
           )}
           {zone_boundaries.plus_2_sigma && zone_boundaries.plus_1_sigma && (
             <ReferenceArea
               y1={zone_boundaries.plus_1_sigma}
               y2={zone_boundaries.plus_2_sigma}
-              fill="hsl(var(--zone-b))"
-              fillOpacity={0.2}
+              fill="url(#zoneGradientB)"
             />
           )}
           {zone_boundaries.minus_1_sigma && zone_boundaries.minus_2_sigma && (
             <ReferenceArea
               y1={zone_boundaries.minus_2_sigma}
               y2={zone_boundaries.minus_1_sigma}
-              fill="hsl(var(--zone-b))"
-              fillOpacity={0.2}
+              fill="url(#zoneGradientB)"
             />
           )}
           {zone_boundaries.plus_3_sigma && zone_boundaries.plus_2_sigma && (
             <ReferenceArea
               y1={zone_boundaries.plus_2_sigma}
               y2={zone_boundaries.plus_3_sigma}
-              fill="hsl(var(--zone-a))"
-              fillOpacity={0.2}
+              fill="url(#zoneGradientA)"
             />
           )}
           {zone_boundaries.minus_2_sigma && zone_boundaries.minus_3_sigma && (
             <ReferenceArea
               y1={zone_boundaries.minus_3_sigma}
               y2={zone_boundaries.minus_2_sigma}
-              fill="hsl(var(--zone-a))"
-              fillOpacity={0.2}
+              fill="url(#zoneGradientA)"
             />
           )}
 
@@ -218,16 +236,30 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
           {isModeA ? (
             <>
               {/* Fixed +/-3, +/-2, +/-1, 0 lines for Z-score chart */}
-              <ReferenceLine y={3} stroke="hsl(var(--destructive))" strokeDasharray="5 5"
-                label={{ value: '+3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12 }} />
+              <ReferenceLine
+                y={3}
+                stroke="hsl(var(--destructive))"
+                strokeDasharray="5 5"
+                strokeWidth={1.5}
+                label={{ value: '+3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12, fontWeight: 500 }}
+              />
               <ReferenceLine y={2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
               <ReferenceLine y={1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
-              <ReferenceLine y={0} stroke="hsl(var(--primary))"
-                label={{ value: 'CL', position: 'right', fill: 'hsl(var(--primary))', fontSize: 12 }} />
+              <ReferenceLine
+                y={0}
+                stroke="hsl(var(--primary))"
+                strokeWidth={2.5}
+                label={{ value: 'CL', position: 'right', fill: 'hsl(var(--primary))', fontSize: 12, fontWeight: 600 }}
+              />
               <ReferenceLine y={-1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
               <ReferenceLine y={-2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
-              <ReferenceLine y={-3} stroke="hsl(var(--destructive))" strokeDasharray="5 5"
-                label={{ value: '-3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12 }} />
+              <ReferenceLine
+                y={-3}
+                stroke="hsl(var(--destructive))"
+                strokeDasharray="5 5"
+                strokeWidth={1.5}
+                label={{ value: '-3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12, fontWeight: 500 }}
+              />
             </>
           ) : (
             <>
@@ -236,11 +268,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                   y={control_limits.ucl}
                   stroke="hsl(var(--destructive))"
                   strokeDasharray="5 5"
+                  strokeWidth={1.5}
                   label={{
                     value: 'UCL',
                     position: 'right',
                     fill: 'hsl(var(--destructive))',
                     fontSize: 12,
+                    fontWeight: 500,
                   }}
                 />
               )}
@@ -248,11 +282,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <ReferenceLine
                   y={control_limits.center_line}
                   stroke="hsl(var(--primary))"
+                  strokeWidth={2.5}
                   label={{
                     value: 'CL',
                     position: 'right',
                     fill: 'hsl(var(--primary))',
                     fontSize: 12,
+                    fontWeight: 600,
                   }}
                 />
               )}
@@ -261,11 +297,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                   y={control_limits.lcl}
                   stroke="hsl(var(--destructive))"
                   strokeDasharray="5 5"
+                  strokeWidth={1.5}
                   label={{
                     value: 'LCL',
                     position: 'right',
                     fill: 'hsl(var(--destructive))',
                     fontSize: 12,
+                    fontWeight: 500,
                   }}
                 />
               )}
