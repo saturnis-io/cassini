@@ -212,15 +212,20 @@ Phase 3.3 (Data Entry Section) → **COMPLETE** → Ready for Phase 3.4
 
 ## ▶ Resume Point
 
-**Phase 3.3 COMPLETE:** Data Entry Section with all bug fixes
+**Phase 3.4 PLANNING COMPLETE:** Dashboard UX Enhancements
 
-**Next Phase:** Phase 3.4 - Enhanced Dashboard & Hierarchy UX
-- Hierarchical characteristic selection (tree view)
-- Time range selection with presets
-- Nelson rule violation annotations (highlighted regions)
-- Comparison mode (side-by-side)
-- Integrated histogram (rotated, aligned with chart)
+**Decisions Made:**
+- Time Range: Hybrid (point presets + custom date picker)
+- Violation Annotations: Legend markers with rule numbers
+- Comparison Mode: Split vertical (2 charts stacked)
+- Histogram: Toggle panel (button to show/hide)
 
-**Next action:** `/company-progress` to continue to Phase 3.4 planning
+**Execution Waves:**
+1. Time Range Selection (backend + frontend)
+2. Violation Annotations (legend + markers)
+3. Histogram Toggle (quick win)
+4. Comparison Mode (split layout)
+
+**Next action:** Execute Wave 1 - Time Range Selection
 
 ---

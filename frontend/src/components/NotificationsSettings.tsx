@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Bell, Globe, TestTube, Check, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, Globe, TestTube, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 

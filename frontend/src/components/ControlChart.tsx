@@ -15,6 +15,12 @@ import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 
 interface ControlChartProps {
   characteristicId: number
+  chartOptions?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  }
+  label?: string
 }
 
 // Hook to subscribe to chart color changes
@@ -48,8 +54,8 @@ function useChartColors(): ChartColors {
   return colors
 }
 
-export function ControlChart({ characteristicId }: ControlChartProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, 50)
+export function ControlChart({ characteristicId, chartOptions, label }: ControlChartProps) {
+  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
 
   if (isLoading) {
@@ -119,16 +125,19 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
   }
 
   // Determine chart title based on mode
-  const chartTitle = isModeA
-    ? `${chartData.characteristic_name} - Z-Score Chart`
+  const chartTypeLabel = isModeA
+    ? 'Z-Score Chart'
     : isModeB
-      ? `${chartData.characteristic_name} - Variable Limits Chart`
-      : `${chartData.characteristic_name} - X-Bar Chart`
+      ? 'Variable Limits Chart'
+      : 'X-Bar Chart'
+  const chartTitle = label
+    ? `${label}: ${chartData.characteristic_name} - ${chartTypeLabel}`
+    : `${chartData.characteristic_name} - ${chartTypeLabel}`
 
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold">{chartTitle}</h3>
+        <h3 className="font-semibold text-sm">{chartTitle}</h3>
         <div className="flex gap-4 text-sm text-muted-foreground">
           {isModeA ? (
             <>
@@ -372,6 +381,9 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             stroke="url(#chartLineGradient)"
             strokeWidth={2.5}
             dot={({ cx, cy, payload }) => {
+              // Guard against undefined coordinates
+              if (cx === undefined || cy === undefined) return null
+
               const isViolation = payload.hasViolation
               const isUndersized = payload.is_undersized
               const isExcluded = payload.excluded

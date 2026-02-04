@@ -92,7 +92,7 @@ export const characteristicApi = {
     if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
     const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<CharacteristicSummary>>(`/characteristics/${query ? `?${query}` : ''}`)
+    return fetchApi<PaginatedResponse<Characteristic>>(`/characteristics/${query ? `?${query}` : ''}`)
   },
 
   get: (id: number) => fetchApi<Characteristic>(`/characteristics/${id}`),
@@ -112,9 +112,17 @@ export const characteristicApi = {
   delete: (id: number) =>
     fetchApi<void>(`/characteristics/${id}`, { method: 'DELETE' }),
 
-  getChartData: (id: number, limit?: number) => {
-    const params = limit ? `?limit=${limit}` : ''
-    return fetchApi<ChartData>(`/characteristics/${id}/chart-data${params}`)
+  getChartData: (id: number, options?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  }) => {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.startDate) params.set('start_date', options.startDate)
+    if (options?.endDate) params.set('end_date', options.endDate)
+    const query = params.toString()
+    return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
   },
 
   recalculateLimits: (id: number, excludeOoc?: boolean) =>

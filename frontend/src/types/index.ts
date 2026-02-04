@@ -33,6 +33,9 @@ export interface Characteristic {
   stored_sigma: number | null
   stored_center_line: number | null
   decimal_precision: number
+  // Optional computed fields (may be included by backend)
+  in_control?: boolean
+  unacknowledged_violations?: number
 }
 
 // For list views - currently same as Characteristic since backend doesn't have summary endpoint
@@ -94,6 +97,7 @@ export interface ChartDataPoint {
   range: number | null
   excluded: boolean
   violation_ids: number[]
+  violation_rules: number[]  // Nelson rule numbers (1-8) that were violated
   zone: string
   // Variable subgroup size fields
   actual_n: number

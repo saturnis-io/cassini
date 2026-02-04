@@ -27,7 +27,6 @@ export function ConfigurationView() {
   const { data: hierarchy, isLoading } = useHierarchyTree()
   const editingId = useConfigStore((state) => state.editingCharacteristicId)
   const isCreatingNew = useConfigStore((state) => state.isCreatingNew)
-  const setIsCreatingNew = useConfigStore((state) => state.setIsCreatingNew)
   const selectedNodeId = useConfigStore((state) => state.selectedNodeId)
 
   // Modal states
@@ -40,7 +39,7 @@ export function ConfigurationView() {
 
   // Characteristic form state
   const [charName, setCharName] = useState('')
-  const [charProvider, setCharProvider] = useState('MANUAL')
+  const [charProvider, setCharProvider] = useState<'MANUAL' | 'TAG'>('MANUAL')
   const [charSubgroupSize, setCharSubgroupSize] = useState('5')
   const [charTarget, setCharTarget] = useState('')
   const [charUSL, setCharUSL] = useState('')
@@ -257,7 +256,7 @@ export function ConfigurationView() {
                   <label className="text-sm font-medium">Provider Type</label>
                   <select
                     value={charProvider}
-                    onChange={(e) => setCharProvider(e.target.value)}
+                    onChange={(e) => setCharProvider(e.target.value as 'MANUAL' | 'TAG')}
                     className="w-full mt-1 px-3 py-2 border rounded-lg bg-background"
                   >
                     {PROVIDER_TYPES.map((type) => (

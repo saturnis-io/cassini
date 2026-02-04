@@ -1,10 +1,31 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Violation } from '@/types'
+
+export type TimeRangeType = 'points' | 'duration' | 'custom'
+
+export interface TimeRangeOption {
+  label: string
+  type: TimeRangeType
+  value: number | null  // points count or hours
+}
+
+export interface TimeRangeState {
+  type: TimeRangeType
+  pointsLimit: number | null
+  hoursBack: number | null
+  startDate: string | null
+  endDate: string | null
+}
 
 interface DashboardState {
   // Selected characteristic for viewing
   selectedCharacteristicId: number | null
   setSelectedCharacteristicId: (id: number | null) => void
+
+  // Time range selection
+  timeRange: TimeRangeState
+  setTimeRange: (range: TimeRangeState) => void
 
   // Input modal state
   inputModalOpen: boolean
@@ -31,12 +52,37 @@ interface DashboardState {
   // Connection status
   wsConnected: boolean
   setWsConnected: (connected: boolean) => void
+
+  // Histogram visibility
+  showHistogram: boolean
+  setShowHistogram: (show: boolean) => void
+
+  // Comparison mode
+  comparisonMode: boolean
+  secondaryCharacteristicId: number | null
+  setComparisonMode: (enabled: boolean) => void
+  setSecondaryCharacteristicId: (id: number | null) => void
 }
 
-export const useDashboardStore = create<DashboardState>((set) => ({
+// Default time range: last 50 points
+const defaultTimeRange: TimeRangeState = {
+  type: 'points',
+  pointsLimit: 50,
+  hoursBack: null,
+  startDate: null,
+  endDate: null,
+}
+
+export const useDashboardStore = create<DashboardState>()(
+  persist(
+    (set) => ({
   // Selected characteristic
   selectedCharacteristicId: null,
   setSelectedCharacteristicId: (id) => set({ selectedCharacteristicId: id }),
+
+  // Time range
+  timeRange: defaultTimeRange,
+  setTimeRange: (range) => set({ timeRange: range }),
 
   // Input modal
   inputModalOpen: false,
@@ -78,4 +124,26 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   // Connection status
   wsConnected: false,
   setWsConnected: (connected) => set({ wsConnected: connected }),
-}))
+
+  // Histogram visibility
+  showHistogram: false,
+  setShowHistogram: (show) => set({ showHistogram: show }),
+
+  // Comparison mode
+  comparisonMode: false,
+  secondaryCharacteristicId: null,
+  setComparisonMode: (enabled) => set({
+    comparisonMode: enabled,
+    secondaryCharacteristicId: enabled ? null : null
+  }),
+  setSecondaryCharacteristicId: (id) => set({ secondaryCharacteristicId: id }),
+    }),
+    {
+      name: 'openspc-dashboard',
+      partialize: (state) => ({
+        timeRange: state.timeRange,
+        showHistogram: state.showHistogram,
+      }),
+    }
+  )
+)

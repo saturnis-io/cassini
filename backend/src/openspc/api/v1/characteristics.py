@@ -344,6 +344,7 @@ async def get_chart_data(
         # Get violations for this sample
         violations = await violation_repo.get_by_sample(sample.id)
         violation_ids = [v.id for v in violations]
+        violation_rules = list(set(v.rule_id for v in violations))  # Unique rule IDs
 
         chart_samples.append(ChartSample(
             sample_id=sample.id,
@@ -352,6 +353,7 @@ async def get_chart_data(
             range=range_value,
             excluded=sample.is_excluded,
             violation_ids=violation_ids,
+            violation_rules=violation_rules,
             zone=zone,
         ))
 

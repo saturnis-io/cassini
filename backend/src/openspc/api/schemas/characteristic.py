@@ -231,6 +231,7 @@ class ChartSample(BaseModel):
         range: Subgroup range value for R chart (max - min)
         excluded: Whether this sample is excluded from calculations
         violation_ids: List of violation IDs for this sample
+        violation_rules: List of Nelson rule numbers (1-8) that were violated
         zone: Which control zone the point falls in
         actual_n: Actual number of measurements in this sample
         is_undersized: Whether sample has fewer measurements than expected
@@ -246,6 +247,7 @@ class ChartSample(BaseModel):
     range: float | None
     excluded: bool = False
     violation_ids: list[int] = []
+    violation_rules: list[int] = []
     zone: str
     actual_n: int = 1
     is_undersized: bool = False

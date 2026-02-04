@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { characteristicApi, hierarchyApi, sampleApi, violationApi } from './client'
+import type { Characteristic } from '@/types'
 
 // Query keys
 export const queryKeys = {
@@ -14,7 +15,8 @@ export const queryKeys = {
     all: ['characteristics'] as const,
     list: (params?: object) => [...queryKeys.characteristics.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.characteristics.all, 'detail', id] as const,
-    chartData: (id: number, limit?: number) => [...queryKeys.characteristics.all, 'chartData', id, limit] as const,
+    chartData: (id: number, limit?: number, startDate?: string, endDate?: string) =>
+      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate }] as const,
     rules: (id: number) => [...queryKeys.characteristics.all, 'rules', id] as const,
   },
   samples: {
@@ -108,13 +110,13 @@ export function useCreateCharacteristic() {
     mutationFn: (data: {
       name: string
       hierarchy_id: number
-      provider_type: string
+      provider_type: 'MANUAL' | 'TAG'
       subgroup_size: number
       target_value?: number | null
       usl?: number | null
       lsl?: number | null
       mqtt_topic?: string | null
-    }) => characteristicApi.create(data),
+    }) => characteristicApi.create(data as Partial<Characteristic>),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.characteristics(variables.hierarchy_id) })
@@ -127,10 +129,14 @@ export function useCreateCharacteristic() {
   })
 }
 
-export function useChartData(id: number, limit?: number) {
+export function useChartData(id: number, options?: {
+  limit?: number
+  startDate?: string
+  endDate?: string
+}) {
   return useQuery({
-    queryKey: queryKeys.characteristics.chartData(id, limit),
-    queryFn: () => characteristicApi.getChartData(id, limit),
+    queryKey: queryKeys.characteristics.chartData(id, options?.limit, options?.startDate, options?.endDate),
+    queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
   })

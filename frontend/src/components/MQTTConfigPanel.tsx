@@ -172,7 +172,7 @@ export function MQTTConfigPanel() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2">
             Connection Status
-            <HelpTooltip term="mqtt_connection" />
+            <HelpTooltip helpKey="mqtt_connection" />
           </h3>
           {mqttStatus?.is_connected && (
             <button
@@ -239,7 +239,7 @@ export function MQTTConfigPanel() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2">
             MQTT Brokers
-            <HelpTooltip term="mqtt_broker" />
+            <HelpTooltip helpKey="mqtt_broker" />
           </h3>
           {!showForm && (
             <button

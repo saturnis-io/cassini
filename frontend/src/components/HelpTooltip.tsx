@@ -68,8 +68,8 @@ export function HelpTooltip({
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const showTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const content = getHelpContent(helpKey)
 

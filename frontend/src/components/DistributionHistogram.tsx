@@ -84,7 +84,7 @@ function addNormalCurve(
 }
 
 export function DistributionHistogram({ characteristicId }: DistributionHistogramProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, 100)
+  const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 100 })
 
   if (isLoading) {
     return (
