@@ -356,6 +356,9 @@ async def get_chart_data(
         control_limits=control_limits,
         spec_limits=spec_limits,
         zone_boundaries=zones,
+        subgroup_mode=characteristic.subgroup_mode,
+        nominal_subgroup_size=characteristic.subgroup_size,
+        decimal_precision=characteristic.decimal_precision,
     )
 
 

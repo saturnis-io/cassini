@@ -56,6 +56,9 @@ class CharacteristicCreate(BaseModel):
     warn_below_count: int | None = Field(
         default=None, description="Warn when sample has fewer than this many measurements"
     )
+    decimal_precision: int = Field(
+        default=3, ge=0, le=10, description="Decimal places for display formatting"
+    )
 
     @model_validator(mode="after")
     def validate_tag_config(self) -> Self:
@@ -106,6 +109,7 @@ class CharacteristicUpdate(BaseModel):
     subgroup_mode: SubgroupModeEnum | None = None
     min_measurements: int | None = Field(None, ge=1)
     warn_below_count: int | None = None
+    decimal_precision: int | None = Field(None, ge=0, le=10)
 
 
 class CharacteristicResponse(BaseModel):
@@ -150,6 +154,7 @@ class CharacteristicResponse(BaseModel):
     warn_below_count: int | None
     stored_sigma: float | None
     stored_center_line: float | None
+    decimal_precision: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -273,6 +278,7 @@ class ChartDataResponse(BaseModel):
         zone_boundaries: Zone boundaries for visualization
         subgroup_mode: Subgroup handling mode for this characteristic
         nominal_subgroup_size: Expected/nominal subgroup size
+        decimal_precision: Number of decimal places for display formatting
     """
 
     characteristic_id: int
@@ -283,6 +289,7 @@ class ChartDataResponse(BaseModel):
     zone_boundaries: ZoneBoundaries
     subgroup_mode: str = "NOMINAL_TOLERANCE"
     nominal_subgroup_size: int = 1
+    decimal_precision: int = 3
 
 
 class NelsonRuleConfig(BaseModel):

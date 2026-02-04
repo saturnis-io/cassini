@@ -34,7 +34,13 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
     )
   }
 
-  const { control_limits, spec_limits, zone_boundaries, data_points, subgroup_mode, nominal_subgroup_size } = chartData
+  const { control_limits, spec_limits, zone_boundaries, data_points, subgroup_mode, nominal_subgroup_size, decimal_precision = 3 } = chartData
+
+  // Helper to format values with decimal precision
+  const formatValue = (value: number | null | undefined) => {
+    if (value == null) return 'N/A'
+    return value.toFixed(decimal_precision)
+  }
 
   // Determine if we're in a special mode
   const isModeA = subgroup_mode === 'STANDARDIZED'
@@ -72,7 +78,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
     const maxVal = Math.max(...values)
     const ucl = control_limits.ucl ?? maxVal
     const lcl = control_limits.lcl ?? minVal
-    const padding = (ucl - lcl) * 0.1
+    const padding = (ucl - lcl) * 0.2
     yMin = Math.min(minVal, lcl) - padding
     yMax = Math.max(maxVal, ucl) + padding
     yAxisLabel = 'Value'
@@ -98,9 +104,9 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             </>
           ) : (
             <>
-              {control_limits.ucl && <span>UCL: {control_limits.ucl.toFixed(3)}</span>}
-              {control_limits.center_line && <span>CL: {control_limits.center_line.toFixed(3)}</span>}
-              {control_limits.lcl && <span>LCL: {control_limits.lcl.toFixed(3)}</span>}
+              {control_limits.ucl && <span>UCL: {formatValue(control_limits.ucl)}</span>}
+              {control_limits.center_line && <span>CL: {formatValue(control_limits.center_line)}</span>}
+              {control_limits.lcl && <span>LCL: {formatValue(control_limits.lcl)}</span>}
             </>
           )}
         </div>
@@ -108,7 +114,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
 
       <ResponsiveContainer width="100%" height="90%">
         <ComposedChart data={data} margin={{ top: 20, right: 60, left: 20, bottom: 20 }}>
-          {/* Gradient definitions */}
+          {/* Gradient and filter definitions */}
           <defs>
             <linearGradient id="chartLineGradient" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="hsl(212 100% 35%)" />
@@ -121,67 +127,48 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            <filter id="controlLineGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="1.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            {/* Zone gradient definitions */}
-            <linearGradient id="zoneGradientC" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--zone-c))" stopOpacity="0.08" />
-              <stop offset="50%" stopColor="hsl(var(--zone-c))" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="hsl(var(--zone-c))" stopOpacity="0.08" />
-            </linearGradient>
-            <linearGradient id="zoneGradientB" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--zone-b))" stopOpacity="0.08" />
-              <stop offset="50%" stopColor="hsl(var(--zone-b))" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="hsl(var(--zone-b))" stopOpacity="0.08" />
-            </linearGradient>
-            <linearGradient id="zoneGradientA" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--zone-a))" stopOpacity="0.08" />
-              <stop offset="50%" stopColor="hsl(var(--zone-a))" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="hsl(var(--zone-a))" stopOpacity="0.08" />
-            </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-          {/* Zone backgrounds with gradient fills */}
-          {zone_boundaries.plus_1_sigma && zone_boundaries.minus_1_sigma && (
-            <ReferenceArea
-              y1={zone_boundaries.minus_1_sigma}
-              y2={zone_boundaries.plus_1_sigma}
-              fill="url(#zoneGradientC)"
-            />
-          )}
-          {zone_boundaries.plus_2_sigma && zone_boundaries.plus_1_sigma && (
-            <ReferenceArea
-              y1={zone_boundaries.plus_1_sigma}
-              y2={zone_boundaries.plus_2_sigma}
-              fill="url(#zoneGradientB)"
-            />
-          )}
-          {zone_boundaries.minus_1_sigma && zone_boundaries.minus_2_sigma && (
-            <ReferenceArea
-              y1={zone_boundaries.minus_2_sigma}
-              y2={zone_boundaries.minus_1_sigma}
-              fill="url(#zoneGradientB)"
-            />
-          )}
-          {zone_boundaries.plus_3_sigma && zone_boundaries.plus_2_sigma && (
-            <ReferenceArea
-              y1={zone_boundaries.plus_2_sigma}
-              y2={zone_boundaries.plus_3_sigma}
-              fill="url(#zoneGradientA)"
-            />
-          )}
-          {zone_boundaries.minus_2_sigma && zone_boundaries.minus_3_sigma && (
-            <ReferenceArea
-              y1={zone_boundaries.minus_3_sigma}
-              y2={zone_boundaries.minus_2_sigma}
-              fill="url(#zoneGradientA)"
-            />
+          {/* Out-of-control zones - red semi-transparent overlay */}
+          {isModeA ? (
+            <>
+              {/* Above +3 sigma */}
+              <ReferenceArea
+                y1={3}
+                y2={yMax}
+                fill="hsl(var(--destructive))"
+                fillOpacity={0.08}
+              />
+              {/* Below -3 sigma */}
+              <ReferenceArea
+                y1={yMin}
+                y2={-3}
+                fill="hsl(var(--destructive))"
+                fillOpacity={0.08}
+              />
+            </>
+          ) : (
+            <>
+              {/* Above UCL */}
+              {control_limits.ucl && (
+                <ReferenceArea
+                  y1={control_limits.ucl}
+                  y2={yMax}
+                  fill="hsl(var(--destructive))"
+                  fillOpacity={0.08}
+                />
+              )}
+              {/* Below LCL */}
+              {control_limits.lcl && (
+                <ReferenceArea
+                  y1={yMin}
+                  y2={control_limits.lcl}
+                  fill="hsl(var(--destructive))"
+                  fillOpacity={0.08}
+                />
+              )}
+            </>
           )}
 
           <XAxis
@@ -193,7 +180,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             domain={[yMin, yMax]}
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
-            tickFormatter={(value) => value.toFixed(2)}
+            tickFormatter={(value) => value.toFixed(decimal_precision)}
             label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
           />
 
@@ -206,19 +193,19 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                   <div className="font-medium">Sample #{point.index}</div>
                   <div>n = {point.actual_n}</div>
                   {isModeA ? (
-                    <div>Z-Score: {point.z_score?.toFixed(3) ?? point.mean.toFixed(3)}</div>
+                    <div>Z-Score: {formatValue(point.z_score ?? point.mean)}</div>
                   ) : isModeB && point.effective_ucl ? (
                     <>
-                      <div>Value: {point.displayValue?.toFixed(4) ?? point.mean.toFixed(4)}</div>
+                      <div>Value: {formatValue(point.displayValue ?? point.mean)}</div>
                       <div className="text-muted-foreground">
-                        UCL: {point.effective_ucl?.toFixed(3)}
+                        UCL: {formatValue(point.effective_ucl)}
                       </div>
                       <div className="text-muted-foreground">
-                        LCL: {point.effective_lcl?.toFixed(3)}
+                        LCL: {formatValue(point.effective_lcl)}
                       </div>
                     </>
                   ) : (
-                    <div>Value: {point.mean.toFixed(4)}</div>
+                    <div>Value: {formatValue(point.mean)}</div>
                   )}
                   <div className="text-muted-foreground">{point.timestamp}</div>
                   {point.is_undersized && (
@@ -232,7 +219,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
             }}
           />
 
-          {/* Control limits - Mode A has fixed limits, Mode B/C use calculated */}
+          {/* Control limits and zone lines */}
           {isModeA ? (
             <>
               {/* Fixed +/-3, +/-2, +/-1, 0 lines for Z-score chart */}
@@ -241,28 +228,43 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="5 5"
                 strokeWidth={1.5}
-                label={{ value: '+3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12, fontWeight: 500 }}
+                label={{ value: '+3σ (UCL)', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 11, fontWeight: 500 }}
               />
-              <ReferenceLine y={2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
-              <ReferenceLine y={1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
+              <ReferenceLine y={2} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
+              <ReferenceLine y={1} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine
                 y={0}
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
                 label={{ value: 'CL', position: 'right', fill: 'hsl(var(--primary))', fontSize: 12, fontWeight: 600 }}
               />
-              <ReferenceLine y={-1} stroke="hsl(var(--zone-b))" strokeDasharray="3 3" />
-              <ReferenceLine y={-2} stroke="hsl(var(--zone-a))" strokeDasharray="3 3" />
+              <ReferenceLine y={-1} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
+              <ReferenceLine y={-2} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.5} />
               <ReferenceLine
                 y={-3}
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="5 5"
                 strokeWidth={1.5}
-                label={{ value: '-3σ', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 12, fontWeight: 500 }}
+                label={{ value: '-3σ (LCL)', position: 'right', fill: 'hsl(var(--destructive))', fontSize: 11, fontWeight: 500 }}
               />
             </>
           ) : (
             <>
+              {/* Zone boundary lines (1σ, 2σ) */}
+              {zone_boundaries.plus_1_sigma && (
+                <ReferenceLine y={zone_boundaries.plus_1_sigma} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.4} />
+              )}
+              {zone_boundaries.plus_2_sigma && (
+                <ReferenceLine y={zone_boundaries.plus_2_sigma} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.4} />
+              )}
+              {zone_boundaries.minus_1_sigma && (
+                <ReferenceLine y={zone_boundaries.minus_1_sigma} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.4} />
+              )}
+              {zone_boundaries.minus_2_sigma && (
+                <ReferenceLine y={zone_boundaries.minus_2_sigma} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" strokeOpacity={0.4} />
+              )}
+
+              {/* UCL */}
               {control_limits.ucl && (
                 <ReferenceLine
                   y={control_limits.ucl}
@@ -278,6 +280,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                   }}
                 />
               )}
+              {/* Center Line */}
               {control_limits.center_line && (
                 <ReferenceLine
                   y={control_limits.center_line}
@@ -292,6 +295,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                   }}
                 />
               )}
+              {/* LCL */}
               {control_limits.lcl && (
                 <ReferenceLine
                   y={control_limits.lcl}
@@ -355,7 +359,6 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                       d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy} L ${cx} ${cy + baseRadius} L ${cx - baseRadius} ${cy} Z`}
                       fill={fillColor}
                       filter="url(#violationGlow)"
-                      className="violation-pulse"
                     />
                   ) : isUndersized ? (
                     // Triangle shape for undersized
@@ -374,7 +377,7 @@ export function ControlChart({ characteristicId }: ControlChartProps) {
                       fill={fillColor}
                     />
                   )}
-                  {/* Undersized indicator ring (additional for non-undersized shape) */}
+                  {/* Undersized indicator ring */}
                   {isUndersized && !isViolation && (
                     <circle
                       cx={cx}

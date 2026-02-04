@@ -27,6 +27,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     subgroup_mode: 'NOMINAL_TOLERANCE' as SubgroupMode,
     min_measurements: '1',
     warn_below_count: '',
+    decimal_precision: '3',
   })
 
   // Mode change confirmation dialog state
@@ -47,6 +48,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         subgroup_mode: characteristic.subgroup_mode ?? 'NOMINAL_TOLERANCE',
         min_measurements: characteristic.min_measurements?.toString() ?? '1',
         warn_below_count: characteristic.warn_below_count?.toString() ?? '',
+        decimal_precision: characteristic.decimal_precision?.toString() ?? '3',
       })
       setIsDirty(false)
     }
@@ -120,6 +122,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         subgroup_mode: formData.subgroup_mode,
         min_measurements: minMeas,
         warn_below_count: warnBelow,
+        decimal_precision: parseInt(formData.decimal_precision) || 3,
       },
     })
 
@@ -181,6 +184,27 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               className="w-full mt-1 px-3 py-2 border rounded-md"
               placeholder="Optional description"
             />
+          </div>
+        </div>
+
+        {/* Display Settings */}
+        <div className="space-y-4">
+          <h3 className="font-medium">Display Settings</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium">Decimal Precision</label>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                value={formData.decimal_precision}
+                onChange={(e) => handleChange('decimal_precision', e.target.value)}
+                className="w-full mt-1 px-3 py-2 border rounded-md"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Number of decimal places for chart and display values (0-10)
+              </p>
+            </div>
           </div>
         </div>
 

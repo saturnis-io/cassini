@@ -32,6 +32,7 @@ export interface Characteristic {
   warn_below_count: number | null
   stored_sigma: number | null
   stored_center_line: number | null
+  decimal_precision: number
 }
 
 // For list views - currently same as Characteristic since backend doesn't have summary endpoint
@@ -105,6 +106,7 @@ export interface ChartData {
   // Subgroup mode configuration
   subgroup_mode: SubgroupMode
   nominal_subgroup_size: number
+  decimal_precision: number
 }
 
 // Violation types

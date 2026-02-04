@@ -72,6 +72,9 @@ class Characteristic(Base):
     stored_sigma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     stored_center_line: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Display formatting
+    decimal_precision: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+
     # Relationships
     hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")
     rules: Mapped[list["CharacteristicRule"]] = relationship(
