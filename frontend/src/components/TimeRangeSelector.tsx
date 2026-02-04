@@ -1,7 +1,226 @@
-import { useState } from 'react'
-import { Clock, ChevronDown, Calendar } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore, type TimeRangeState, type TimeRangeOption } from '@/stores/dashboardStore'
+
+/**
+ * Mouse-friendly date/time picker component
+ */
+function CustomDateRangePicker({
+  onApply,
+  onBack,
+}: {
+  onApply: (startDate: string, endDate: string) => void
+  onBack: () => void
+}) {
+  const now = new Date()
+  const [startDate, setStartDate] = useState<Date>(new Date(now.getTime() - 24 * 60 * 60 * 1000)) // Yesterday
+  const [endDate, setEndDate] = useState<Date>(now)
+  const [activeField, setActiveField] = useState<'start' | 'end'>('start')
+  const [viewMonth, setViewMonth] = useState(now.getMonth())
+  const [viewYear, setViewYear] = useState(now.getFullYear())
+
+  const activeDate = activeField === 'start' ? startDate : endDate
+  const setActiveDate = activeField === 'start' ? setStartDate : setEndDate
+
+  // Generate calendar days
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(viewYear, viewMonth, 1)
+    const lastDay = new Date(viewYear, viewMonth + 1, 0)
+    const startPad = firstDay.getDay()
+    const days: (Date | null)[] = []
+
+    // Pad start with nulls
+    for (let i = 0; i < startPad; i++) days.push(null)
+
+    // Add days of month
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(viewYear, viewMonth, d))
+    }
+
+    return days
+  }, [viewMonth, viewYear])
+
+  const handleDateSelect = (date: Date) => {
+    const newDate = new Date(date)
+    newDate.setHours(activeDate.getHours(), activeDate.getMinutes(), 0, 0)
+    setActiveDate(newDate)
+  }
+
+  const handleHourSelect = (hour: number) => {
+    const newDate = new Date(activeDate)
+    newDate.setHours(hour)
+    setActiveDate(newDate)
+  }
+
+  const handleMinuteSelect = (minute: number) => {
+    const newDate = new Date(activeDate)
+    newDate.setMinutes(minute)
+    setActiveDate(newDate)
+  }
+
+  const formatDateDisplay = (date: Date) => {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  const formatTimeDisplay = (date: Date) => {
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
+  }
+
+  const isSameDay = (d1: Date | null, d2: Date) => {
+    if (!d1) return false
+    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()
+  }
+
+  const isInRange = (date: Date | null) => {
+    if (!date) return false
+    return date >= startDate && date <= endDate
+  }
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+  return (
+    <div className="p-3 space-y-3 min-w-[280px]">
+      <div className="text-sm font-medium">Custom Date Range</div>
+
+      {/* Start/End Toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveField('start')}
+          className={cn(
+            'flex-1 text-left p-2 rounded border text-xs transition-colors',
+            activeField === 'start' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+          )}
+        >
+          <div className="text-muted-foreground">Start</div>
+          <div className="font-medium">{formatDateDisplay(startDate)}</div>
+          <div className="text-muted-foreground">{formatTimeDisplay(startDate)}</div>
+        </button>
+        <button
+          onClick={() => setActiveField('end')}
+          className={cn(
+            'flex-1 text-left p-2 rounded border text-xs transition-colors',
+            activeField === 'end' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+          )}
+        >
+          <div className="text-muted-foreground">End</div>
+          <div className="font-medium">{formatDateDisplay(endDate)}</div>
+          <div className="text-muted-foreground">{formatTimeDisplay(endDate)}</div>
+        </button>
+      </div>
+
+      {/* Calendar */}
+      <div className="border border-border rounded p-2">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => {
+              if (viewMonth === 0) {
+                setViewMonth(11)
+                setViewYear(viewYear - 1)
+              } else {
+                setViewMonth(viewMonth - 1)
+              }
+            }}
+            className="p-1 hover:bg-muted rounded"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium">{monthNames[viewMonth]} {viewYear}</span>
+          <button
+            onClick={() => {
+              if (viewMonth === 11) {
+                setViewMonth(0)
+                setViewYear(viewYear + 1)
+              } else {
+                setViewMonth(viewMonth + 1)
+              }
+            }}
+            className="p-1 hover:bg-muted rounded"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs">
+          {dayNames.map((day) => (
+            <div key={day} className="text-muted-foreground py-1">{day}</div>
+          ))}
+          {calendarDays.map((date, i) => (
+            <button
+              key={i}
+              disabled={!date}
+              onClick={() => date && handleDateSelect(date)}
+              className={cn(
+                'py-1 rounded text-xs transition-colors',
+                !date && 'invisible',
+                date && isSameDay(date, activeDate) && 'bg-primary text-primary-foreground',
+                date && !isSameDay(date, activeDate) && isInRange(date) && 'bg-primary/20',
+                date && !isSameDay(date, activeDate) && !isInRange(date) && 'hover:bg-muted'
+              )}
+            >
+              {date?.getDate()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Time Selection */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <div className="text-xs text-muted-foreground mb-1">Hour</div>
+          <div className="grid grid-cols-6 gap-1 max-h-20 overflow-y-auto border border-border rounded p-1">
+            {Array.from({ length: 24 }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => handleHourSelect(i)}
+                className={cn(
+                  'py-0.5 text-xs rounded transition-colors',
+                  activeDate.getHours() === i ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                )}
+              >
+                {i.toString().padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="text-xs text-muted-foreground mb-1">Minute</div>
+          <div className="grid grid-cols-4 gap-1 max-h-20 overflow-y-auto border border-border rounded p-1">
+            {[0, 15, 30, 45].map((m) => (
+              <button
+                key={m}
+                onClick={() => handleMinuteSelect(m)}
+                className={cn(
+                  'py-0.5 text-xs rounded transition-colors',
+                  activeDate.getMinutes() === m ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                )}
+              >
+                :{m.toString().padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={onBack}
+          className="flex-1 px-3 py-1.5 text-sm border border-border rounded hover:bg-muted transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={() => onApply(startDate.toISOString(), endDate.toISOString())}
+          disabled={startDate >= endDate}
+          className="flex-1 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  )
+}
 
 const presets: TimeRangeOption[] = [
   { label: 'Last 50', type: 'points', value: 50 },
@@ -17,8 +236,6 @@ export function TimeRangeSelector() {
   const { timeRange, setTimeRange } = useDashboardStore()
   const [isOpen, setIsOpen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
 
   const getCurrentLabel = (): string => {
     if (timeRange.type === 'custom') {
@@ -46,21 +263,6 @@ export function TimeRangeSelector() {
     setTimeRange(newRange)
     setIsOpen(false)
     setShowCustom(false)
-  }
-
-  const handleCustomApply = () => {
-    if (customStart && customEnd) {
-      const newRange: TimeRangeState = {
-        type: 'custom',
-        pointsLimit: null,
-        hoursBack: null,
-        startDate: new Date(customStart).toISOString(),
-        endDate: new Date(customEnd).toISOString(),
-      }
-      setTimeRange(newRange)
-      setIsOpen(false)
-      setShowCustom(false)
-    }
   }
 
   return (
@@ -139,46 +341,21 @@ export function TimeRangeSelector() {
                 </div>
               </>
             ) : (
-              <div className="p-3 space-y-3">
-                <div className="text-sm font-medium">Custom Date Range</div>
-
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Start</label>
-                    <input
-                      type="datetime-local"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      className="w-full px-2 py-1 text-sm bg-background border border-border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">End</label>
-                    <input
-                      type="datetime-local"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      className="w-full px-2 py-1 text-sm bg-background border border-border rounded"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowCustom(false)}
-                    className="flex-1 px-3 py-1.5 text-sm border border-border rounded hover:bg-muted transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleCustomApply}
-                    disabled={!customStart || !customEnd}
-                    className="flex-1 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
+              <CustomDateRangePicker
+                onApply={(start, end) => {
+                  const newRange: TimeRangeState = {
+                    type: 'custom',
+                    pointsLimit: null,
+                    hoursBack: null,
+                    startDate: start,
+                    endDate: end,
+                  }
+                  setTimeRange(newRange)
+                  setIsOpen(false)
+                  setShowCustom(false)
+                }}
+                onBack={() => setShowCustom(false)}
+              />
             )}
           </div>
         </>

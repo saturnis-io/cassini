@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -10,7 +11,9 @@ import {
   Area,
   Cell,
 } from 'recharts'
+import { Info } from 'lucide-react'
 import { useChartData } from '@/api/hooks'
+import { cn } from '@/lib/utils'
 
 interface DistributionHistogramProps {
   characteristicId: number
@@ -224,30 +227,62 @@ export function DistributionHistogram({
             {label && <span className="text-muted-foreground mr-1">{label}:</span>}
             Capability
           </h3>
-          <div className="flex gap-2 text-sm text-muted-foreground leading-5">
+          <div className="flex items-center gap-2 text-sm leading-5">
             {cpk > 0 && (
-              <span className={cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive'}>
+              <span className={cn(
+                'font-medium',
+                cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive'
+              )}>
                 Cpk: {cpk.toFixed(2)}
               </span>
             )}
-            <span>n={stats.n}</span>
+            <span className="text-muted-foreground">n={stats.n}</span>
+            {/* Info tooltip with detailed stats */}
+            <div className="relative group">
+              <button className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors">
+                <Info className="h-3.5 w-3.5" />
+              </button>
+              <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block">
+                <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[140px]">
+                  <div className="font-medium text-foreground mb-2">Process Statistics</div>
+                  <div className="space-y-1 text-muted-foreground">
+                    {cp > 0 && (
+                      <div className="flex justify-between">
+                        <span>Cp:</span>
+                        <span className={cn('font-medium', cp >= 1.33 ? 'text-green-600' : cp >= 1.0 ? 'text-yellow-600' : 'text-destructive')}>
+                          {cp.toFixed(3)}
+                        </span>
+                      </div>
+                    )}
+                    {cpk > 0 && (
+                      <div className="flex justify-between">
+                        <span>Cpk:</span>
+                        <span className={cn('font-medium', cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive')}>
+                          {cpk.toFixed(3)}
+                        </span>
+                      </div>
+                    )}
+                    {ppk > 0 && (
+                      <div className="flex justify-between">
+                        <span>Ppk:</span>
+                        <span className="font-medium text-foreground">{ppk.toFixed(3)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-border pt-1 mt-1">
+                      <span>σ (sigma):</span>
+                      <span className="font-medium text-foreground">{stats.stdDev.toFixed(4)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Mean:</span>
+                      <span className="font-medium text-foreground">{stats.mean.toFixed(4)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        {/* Stats row when expanded */}
-        <div className="flex gap-3 text-xs text-muted-foreground mb-2 flex-shrink-0">
-          {cp > 0 && (
-            <span className={cp >= 1.33 ? 'text-green-600' : cp >= 1.0 ? 'text-yellow-600' : 'text-destructive'}>
-              Cp: {cp.toFixed(2)}
-            </span>
-          )}
-          {ppk > 0 && (
-            <span className="text-muted-foreground">
-              Ppk: {ppk.toFixed(2)}
-            </span>
-          )}
-          <span>σ: {stats.stdDev.toFixed(3)}</span>
-        </div>
-        {/* Chart area - flex-1 to fill remaining space */}
+        {/* Chart area - flex-1 to fill remaining space, NO extra stats row */}
         <div className="flex-1 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart

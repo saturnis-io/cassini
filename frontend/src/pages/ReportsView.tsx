@@ -110,20 +110,27 @@ export function ReportsView() {
                       key={char.id}
                       onClick={() => handleSelectCharacteristic(char.id)}
                       className={cn(
-                        'w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left',
+                        'w-full flex items-start gap-2 px-2 py-1.5 rounded text-sm text-left',
                         'hover:bg-muted transition-colors',
                         isSelected && 'bg-primary/10'
                       )}
                     >
                       <div
                         className={cn(
-                          'w-4 h-4 rounded border flex items-center justify-center',
+                          'w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5',
                           isSelected ? 'bg-primary border-primary' : 'border-border'
                         )}
                       >
                         {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
-                      <span className="flex-1">{char.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{char.name}</div>
+                        {char.hierarchy_path && (
+                          <div className="text-xs text-muted-foreground truncate" title={char.hierarchy_path}>
+                            {char.hierarchy_path}
+                          </div>
+                        )}
+                      </div>
                     </button>
                   )
                 })}
