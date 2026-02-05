@@ -24,6 +24,7 @@ export const queryKeys = {
     all: ['samples'] as const,
     list: (params?: object) => [...queryKeys.samples.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.samples.all, 'detail', id] as const,
+    editHistory: (id: number) => [...queryKeys.samples.all, 'editHistory', id] as const,
   },
   violations: {
     all: ['violations'] as const,
@@ -346,6 +347,8 @@ export function useSamples(params?: Parameters<typeof sampleApi.list>[0]) {
   return useQuery({
     queryKey: queryKeys.samples.list(params),
     queryFn: () => sampleApi.list(params),
+    // Only fetch when a characteristic is selected
+    enabled: params?.characteristic_id !== undefined,
   })
 }
 
@@ -389,15 +392,24 @@ export function useUpdateSample() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, measurements }: { id: number; measurements: number[] }) =>
-      sampleApi.update(id, { measurements }),
-    onSuccess: () => {
+    mutationFn: ({ id, measurements, reason, edited_by }: { id: number; measurements: number[]; reason: string; edited_by?: string }) =>
+      sampleApi.update(id, { measurements, reason, edited_by }),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.editHistory(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
       toast.success('Sample updated')
     },
     onError: (error: Error) => {
       toast.error(`Update failed: ${error.message}`)
     },
+  })
+}
+
+export function useSampleEditHistory(sampleId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.samples.editHistory(sampleId ?? 0),
+    queryFn: () => sampleApi.getEditHistory(sampleId!),
+    enabled: sampleId !== null,
   })
 }

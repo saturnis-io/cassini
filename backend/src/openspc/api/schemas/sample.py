@@ -47,6 +47,8 @@ class SampleResponse(BaseModel):
         effective_ucl: Per-point UCL for Mode B (variable limits)
         effective_lcl: Per-point LCL for Mode B (variable limits)
         z_score: Z-score for Mode A (standardized)
+        is_modified: Whether this sample has been edited
+        edit_count: Number of times this sample has been edited
     """
 
     id: int
@@ -63,6 +65,8 @@ class SampleResponse(BaseModel):
     effective_ucl: float | None = None
     effective_lcl: float | None = None
     z_score: float | None = None
+    is_modified: bool = False
+    edit_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -82,3 +86,61 @@ class SampleExclude(BaseModel):
         None,
         description="Reason for excluding the sample",
     )
+
+
+class SampleUpdate(BaseModel):
+    """Schema for updating sample measurements.
+
+    Requires a reason for the change to maintain audit trail.
+
+    Attributes:
+        measurements: New list of measurement values
+        reason: Required reason/description for the change
+        edited_by: Optional identifier of who made the edit
+    """
+
+    measurements: list[float] = Field(
+        ...,
+        min_length=1,
+        max_length=25,
+        description="New measurement values for the sample",
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Required reason for the change",
+    )
+    edited_by: str | None = Field(
+        None,
+        max_length=255,
+        description="Identifier of who made the edit",
+    )
+
+
+class SampleEditHistoryResponse(BaseModel):
+    """Schema for sample edit history entry.
+
+    Attributes:
+        id: Unique identifier
+        sample_id: ID of the sample that was edited
+        edited_at: When the edit was made
+        edited_by: Who made the edit
+        reason: Reason for the change
+        previous_values: Previous measurement values
+        new_values: New measurement values
+        previous_mean: Previous calculated mean
+        new_mean: New calculated mean
+    """
+
+    id: int
+    sample_id: int
+    edited_at: datetime
+    edited_by: str | None
+    reason: str
+    previous_values: list[float]
+    new_values: list[float]
+    previous_mean: float
+    new_mean: float
+
+    model_config = ConfigDict(from_attributes=True)

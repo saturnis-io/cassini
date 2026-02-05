@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { brokerApi, providerApi } from '@/api/client'
 import { HelpTooltip } from './HelpTooltip'
+import { NumberInput } from './NumberInput'
 import type { MQTTBroker } from '@/types'
 
 interface BrokerFormData {
@@ -345,13 +346,13 @@ export function MQTTConfigPanel() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Port</label>
-                <input
-                  type="number"
-                  value={formData.port}
-                  onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 1883 })}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+                <NumberInput
+                  value={String(formData.port)}
+                  onChange={(v) => setFormData({ ...formData, port: parseInt(v) || 1883 })}
                   min={1}
                   max={65535}
+                  step={1}
+                  showButtons={false}
                 />
               </div>
               <div>
@@ -384,13 +385,13 @@ export function MQTTConfigPanel() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Keepalive (seconds)</label>
-                <input
-                  type="number"
-                  value={formData.keepalive}
-                  onChange={(e) => setFormData({ ...formData, keepalive: parseInt(e.target.value) || 60 })}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+                <NumberInput
+                  value={String(formData.keepalive)}
+                  onChange={(v) => setFormData({ ...formData, keepalive: parseInt(v) || 60 })}
                   min={5}
                   max={3600}
+                  step={1}
+                  showButtons={false}
                 />
               </div>
               <div className="flex items-center gap-2 pt-6">

@@ -164,7 +164,10 @@ class SampleRepository(BaseRepository[Sample]):
         """
         stmt = (
             select(Sample)
-            .options(selectinload(Sample.measurements))
+            .options(
+                selectinload(Sample.measurements),
+                selectinload(Sample.edit_history),
+            )
             .where(Sample.char_id == char_id)
             .execution_options(populate_existing=True)  # Force refresh of cached objects
         )

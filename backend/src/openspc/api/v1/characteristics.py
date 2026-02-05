@@ -355,6 +355,12 @@ async def get_chart_data(
             violation_ids=violation_ids,
             violation_rules=violation_rules,
             zone=zone,
+            actual_n=sample.actual_n or len(values),
+            is_undersized=sample.is_undersized,
+            effective_ucl=sample.effective_ucl,
+            effective_lcl=sample.effective_lcl,
+            z_score=sample.z_score,
+            display_value=sample.z_score if characteristic.subgroup_mode == "STANDARDIZED" else value,
         ))
 
     control_limits = ControlLimits(

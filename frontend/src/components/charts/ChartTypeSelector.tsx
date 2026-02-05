@@ -198,7 +198,7 @@ export function ChartTypeSelector({
 
                     {/* Help tooltip */}
                     {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" />
+                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
                     )}
                   </button>
                 )
@@ -248,7 +248,7 @@ export function ChartTypeSelector({
                       </p>
                     </div>
                     {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" />
+                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
                     )}
                   </button>
                 )
@@ -302,7 +302,7 @@ export function ChartTypeSelector({
                       </p>
                     </div>
                     {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" />
+                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
                     )}
                   </button>
                 )

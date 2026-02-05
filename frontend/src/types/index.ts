@@ -63,6 +63,21 @@ export interface Sample {
   batch_number?: string | null
   operator_id?: string | null
   measurements: Measurement[]
+  // Audit trail fields
+  is_modified?: boolean
+  edit_count?: number
+}
+
+export interface SampleEditHistory {
+  id: number
+  sample_id: number
+  edited_at: string
+  edited_by: string | null
+  reason: string
+  previous_values: number[]
+  new_values: number[]
+  previous_mean: number
+  new_mean: number
 }
 
 export interface Measurement {

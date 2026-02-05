@@ -3,7 +3,9 @@ import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useCh
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { NelsonRulesConfigPanel, type NelsonRulesConfigPanelRef } from './NelsonRulesConfigPanel'
+import { ScheduleConfigSection, type ScheduleConfig } from './ScheduleConfigSection'
 import { HelpTooltip } from './HelpTooltip'
+import { NumberInput } from './NumberInput'
 import type { SubgroupMode } from '@/types'
 
 interface CharacteristicFormProps {
@@ -37,6 +39,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
   // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  // Schedule configuration state (for MANUAL characteristics)
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig>({
+    type: 'INTERVAL',
+    interval_minutes: 120,
+    align_to_hour: true,
+  })
 
   // Ref for Nelson Rules panel
   const nelsonRulesRef = useRef<NelsonRulesConfigPanelRef>(null)
@@ -219,13 +228,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">Decimal Precision</label>
-              <input
-                type="number"
-                min="0"
-                max="10"
+              <NumberInput
+                min={0}
+                max={10}
                 value={formData.decimal_precision}
-                onChange={(e) => handleChange('decimal_precision', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('decimal_precision', value)}
+                className="w-full mt-1"
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Number of decimal places for chart and display values (0-10)
@@ -240,32 +248,32 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium">Target</label>
-              <input
-                type="number"
+              <NumberInput
                 step="any"
                 value={formData.target_value}
-                onChange={(e) => handleChange('target_value', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('target_value', value)}
+                className="w-full mt-1"
+                placeholder="—"
               />
             </div>
             <div>
               <label className="text-sm font-medium">USL</label>
-              <input
-                type="number"
+              <NumberInput
                 step="any"
                 value={formData.usl}
-                onChange={(e) => handleChange('usl', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('usl', value)}
+                className="w-full mt-1"
+                placeholder="—"
               />
             </div>
             <div>
               <label className="text-sm font-medium">LSL</label>
-              <input
-                type="number"
+              <NumberInput
                 step="any"
                 value={formData.lsl}
-                onChange={(e) => handleChange('lsl', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('lsl', value)}
+                className="w-full mt-1"
+                placeholder="—"
               />
             </div>
           </div>
@@ -337,6 +345,27 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           </div>
         </div>
 
+        {/* Schedule Configuration (MANUAL only) */}
+        {characteristic.provider_type === 'MANUAL' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">Schedule Configuration</h3>
+              <HelpTooltip helpKey="schedule-configuration" />
+              <span className="text-xs bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded">Preview</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Configure when manual measurements are due. This determines the schedule for operator data entry tasks.
+            </p>
+            <ScheduleConfigSection
+              value={scheduleConfig}
+              onChange={(config) => {
+                setScheduleConfig(config)
+                setIsDirty(true)
+              }}
+            />
+          </div>
+        )}
+
         {/* Subgroup Size Handling */}
         <div className="space-y-4">
           <h3 className="font-medium">Subgroup Size Handling</h3>
@@ -377,13 +406,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">Minimum Measurements</label>
-              <input
-                type="number"
-                min="1"
+              <NumberInput
+                min={1}
                 max={characteristic.subgroup_size}
                 value={formData.min_measurements}
-                onChange={(e) => handleChange('min_measurements', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('min_measurements', value)}
+                className="w-full mt-1"
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Samples below this will be rejected (1-{characteristic.subgroup_size})
@@ -391,13 +419,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             </div>
             <div>
               <label className="text-sm font-medium">Warn Below Count</label>
-              <input
-                type="number"
+              <NumberInput
                 min={parseInt(formData.min_measurements) || 1}
                 max={characteristic.subgroup_size}
                 value={formData.warn_below_count}
-                onChange={(e) => handleChange('warn_below_count', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
+                onChange={(value) => handleChange('warn_below_count', value)}
+                className="w-full mt-1"
                 placeholder="Optional"
               />
               <p className="mt-1 text-xs text-muted-foreground">

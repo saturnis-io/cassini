@@ -12,6 +12,12 @@ interface HelpTooltipProps {
   children?: ReactNode
   /** Additional classes for the trigger element */
   className?: string
+  /**
+   * Element type for the trigger. Use 'span' when HelpTooltip is inside a button
+   * to avoid nested button hydration errors.
+   * @default 'button'
+   */
+  triggerAs?: 'button' | 'span'
 }
 
 /**
@@ -63,10 +69,11 @@ export function HelpTooltip({
   placement = 'top',
   children,
   className,
+  triggerAs = 'button',
 }: HelpTooltipProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<HTMLElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -204,26 +211,55 @@ export function HelpTooltip({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isVisible])
 
+  const triggerClassName = cn(
+    'inline-flex items-center justify-center cursor-help',
+    'text-muted-foreground hover:text-primary transition-colors',
+    'focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-sm',
+    className
+  )
+
+  const triggerContent = children ?? <HelpCircle className="w-4 h-4" />
+
+  const TriggerElement = triggerAs === 'span' ? (
+    <span
+      ref={triggerRef as React.RefObject<HTMLSpanElement>}
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick(e as unknown as React.MouseEvent)
+        }
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={triggerClassName}
+      aria-label={`Help: ${content.title}`}
+      aria-expanded={isVisible}
+      aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
+    >
+      {triggerContent}
+    </span>
+  ) : (
+    <button
+      ref={triggerRef as React.RefObject<HTMLButtonElement>}
+      type="button"
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={triggerClassName}
+      aria-label={`Help: ${content.title}`}
+      aria-expanded={isVisible}
+      aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
+    >
+      {triggerContent}
+    </button>
+  )
+
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className={cn(
-          'inline-flex items-center justify-center cursor-help',
-          'text-muted-foreground hover:text-primary transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-sm',
-          className
-        )}
-        aria-label={`Help: ${content.title}`}
-        aria-expanded={isVisible}
-        aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
-      >
-        {children ?? <HelpCircle className="w-4 h-4" />}
-      </button>
+      {TriggerElement}
 
       {isVisible && (
         <div
@@ -233,8 +269,8 @@ export function HelpTooltip({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           className={cn(
-            'fixed z-50 max-w-[280px] p-3',
-            'bg-popover text-popover-foreground',
+            'fixed z-[60] max-w-[280px] p-3',
+            'bg-white dark:bg-[hsl(220,15%,15%)] text-popover-foreground',
             'border border-border rounded-lg shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-150'
           )}

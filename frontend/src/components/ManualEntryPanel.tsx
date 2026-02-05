@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSubmitSample } from '@/api/hooks'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
+import { NumberInput } from './NumberInput'
 import type { Characteristic } from '@/types'
 
 export function ManualEntryPanel() {
@@ -119,23 +120,24 @@ export function ManualEntryPanel() {
                   {minRequired < inputCount && `, min ${minRequired} required`})
                 </span>
               </label>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-4 gap-3">
                 {measurements.map((value, index) => {
                   const isRequired = index < minRequired
                   const isFilled = value !== '' && !isNaN(parseFloat(value))
                   return (
                     <div key={index} className="relative">
-                      <input
-                        type="number"
+                      <NumberInput
                         step="any"
                         value={value}
-                        onChange={(e) => handleMeasurementChange(index, e.target.value)}
+                        onChange={(v) => handleMeasurementChange(index, v)}
                         placeholder={`M${index + 1}`}
-                        className={`w-full px-3 py-2 bg-background border rounded-lg text-center ${
+                        size="md"
+                        inputClassName="text-center"
+                        className={
                           isRequired && !isFilled
                             ? 'border-orange-300 dark:border-orange-700'
-                            : 'border-input'
-                        }`}
+                            : ''
+                        }
                       />
                       {isRequired && (
                         <span className="absolute -top-1 -right-1 text-orange-500 text-xs">*</span>

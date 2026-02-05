@@ -8,6 +8,7 @@ import type {
   PaginatedResponse,
   ProviderStatus,
   Sample,
+  SampleEditHistory,
   SampleProcessingResult,
   TagProviderStatus,
   Violation,
@@ -171,15 +172,23 @@ export const sampleApi = {
     characteristic_id?: number
     start_date?: string
     end_date?: string
+    /** Include excluded samples in results */
+    include_excluded?: boolean
+    /** Page number (1-indexed, converted to offset internally) */
     page?: number
+    /** Items per page (maps to limit) */
     per_page?: number
   }) => {
     const searchParams = new URLSearchParams()
     if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
-    if (params?.page) searchParams.set('page', String(params.page))
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
+    if (params?.include_excluded) searchParams.set('include_excluded', 'true')
+    // Backend uses offset/limit, convert from page/per_page
+    const limit = params?.per_page ?? 100
+    const offset = params?.page ? (params.page - 1) * limit : 0
+    searchParams.set('offset', String(offset))
+    searchParams.set('limit', String(limit))
 
     const query = searchParams.toString()
     return fetchApi<PaginatedResponse<Sample>>(`/samples${query ? `?${query}` : ''}`)
@@ -212,11 +221,14 @@ export const sampleApi = {
   delete: (id: number) =>
     fetchApi<void>(`/samples/${id}`, { method: 'DELETE' }),
 
-  update: (id: number, data: { measurements: number[] }) =>
+  update: (id: number, data: { measurements: number[]; reason: string; edited_by?: string }) =>
     fetchApi<SampleProcessingResult>(`/samples/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+
+  getEditHistory: (id: number) =>
+    fetchApi<SampleEditHistory[]>(`/samples/${id}/history`),
 }
 
 // Violation API

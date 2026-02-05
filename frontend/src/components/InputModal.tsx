@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useCharacteristic, useSubmitSample } from '@/api/hooks'
+import { NumberInput } from './NumberInput'
 import { cn } from '@/lib/utils'
 
 export function InputModal() {
@@ -101,20 +102,24 @@ export function InputModal() {
                   <label className="text-sm font-medium">
                     {subgroupSize > 1 ? `Measurement ${index + 1}` : 'Value'}
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="any"
                     value={measurement}
-                    onChange={(e) => handleMeasurementChange(index, e.target.value)}
-                    className={cn(
-                      'w-full mt-1 px-3 py-2 border rounded-md text-lg font-mono',
-                      'focus:outline-none focus:ring-2 focus:ring-primary',
-                      status === 'ok' && 'border-green-500 bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-100',
-                      status === 'warning' && 'border-yellow-500 bg-yellow-50 text-yellow-900 dark:bg-yellow-950 dark:text-yellow-100',
-                      status === 'error' && 'border-destructive bg-destructive/10 text-destructive'
-                    )}
+                    onChange={(v) => handleMeasurementChange(index, v)}
                     placeholder="Enter value..."
-                    autoFocus={index === 0}
+                    size="lg"
+                    className={cn(
+                      'w-full mt-1',
+                      status === 'ok' && 'border-green-500 bg-green-50 dark:bg-green-950',
+                      status === 'warning' && 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950',
+                      status === 'error' && 'border-destructive bg-destructive/10'
+                    )}
+                    inputClassName={cn(
+                      'text-lg font-mono',
+                      status === 'ok' && 'text-green-900 dark:text-green-100',
+                      status === 'warning' && 'text-yellow-900 dark:text-yellow-100',
+                      status === 'error' && 'text-destructive'
+                    )}
                   />
                 </div>
               )

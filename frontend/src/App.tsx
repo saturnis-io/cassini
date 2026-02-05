@@ -10,6 +10,7 @@ import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
+import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,32 +25,34 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <WebSocketProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<OperatorDashboard />} />
-                <Route path="configuration" element={<ConfigurationView />} />
-                <Route path="data-entry" element={<DataEntryView />} />
-                <Route path="violations" element={<ViolationsView />} />
-                <Route path="reports" element={<ReportsView />} />
-                <Route path="settings" element={<SettingsView />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-          <Toaster
-            position="top-right"
-            closeButton
-            toastOptions={{
-              duration: 10000,
-              classNames: {
-                error: 'bg-destructive text-destructive-foreground',
-                warning: 'bg-warning text-warning-foreground',
-              },
-            }}
-          />
-        </WebSocketProvider>
+        <ChartHoverProvider>
+          <WebSocketProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<OperatorDashboard />} />
+                  <Route path="configuration" element={<ConfigurationView />} />
+                  <Route path="data-entry" element={<DataEntryView />} />
+                  <Route path="violations" element={<ViolationsView />} />
+                  <Route path="reports" element={<ReportsView />} />
+                  <Route path="settings" element={<SettingsView />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+            <Toaster
+              position="top-right"
+              closeButton
+              toastOptions={{
+                duration: 10000,
+                classNames: {
+                  error: 'bg-destructive text-destructive-foreground',
+                  warning: 'bg-warning text-warning-foreground',
+                },
+              }}
+            />
+          </WebSocketProvider>
+        </ChartHoverProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )

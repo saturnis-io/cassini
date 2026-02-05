@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useUpdateSample } from '@/api/hooks'
+import { useUpdateSample, useSampleEditHistory } from '@/api/hooks'
+import { NumberInput } from './NumberInput'
+import { EditHistoryTooltip } from './EditHistoryTooltip'
 import type { Sample } from '@/types'
 
 interface SampleEditModalProps {
@@ -10,7 +12,12 @@ interface SampleEditModalProps {
 
 export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProps) {
   const [measurements, setMeasurements] = useState<string[]>([])
+  const [reason, setReason] = useState('')
   const updateSample = useUpdateSample()
+  const { data: editHistory } = useSampleEditHistory(isOpen && sample ? sample.id : null)
+
+  // Get the actual edit count from history
+  const editCount = editHistory?.length ?? 0
 
   // Helper to get measurement values - handles both number[] and Measurement[] formats
   const getMeasurementValues = (s: Sample): number[] => {
@@ -31,6 +38,7 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
     if (sample) {
       const values = getMeasurementValues(sample)
       setMeasurements(values.map(v => String(v)))
+      setReason('') // Reset reason for each new sample
     }
   }, [sample])
 
@@ -44,15 +52,15 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
 
   const handleSave = () => {
     const values = measurements.map(m => parseFloat(m)).filter(n => !isNaN(n))
-    if (values.length === 0) return
+    if (values.length === 0 || !reason.trim()) return
 
     updateSample.mutate(
-      { id: sample.id, measurements: values },
+      { id: sample.id, measurements: values, reason: reason.trim() },
       { onSuccess: onClose }
     )
   }
 
-  const isValid = measurements.every(m => m !== '' && !isNaN(parseFloat(m)))
+  const isValid = measurements.every(m => m !== '' && !isNaN(parseFloat(m))) && reason.trim().length > 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -64,7 +72,15 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
 
       {/* Modal */}
       <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-lg">
-        <h3 className="text-lg font-semibold mb-4">Edit Sample #{sample.id}</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Edit Sample #{sample.id}</h3>
+          {editCount > 0 && (
+            <div className="flex items-center gap-1.5 text-amber-500 text-sm">
+              <EditHistoryTooltip sampleId={sample.id} editCount={editCount} />
+              <span>Modified {editCount}x</span>
+            </div>
+          )}
+        </div>
 
         <div className="space-y-4">
           {/* Sample Info */}
@@ -77,24 +93,42 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
             <label className="block text-sm font-medium mb-2">
               Measurements ({measurements.length})
             </label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="flex flex-wrap gap-2">
               {measurements.map((value, index) => (
-                <div key={index}>
-                  <input
-                    type="number"
-                    step="any"
-                    value={value}
-                    onChange={(e) => handleMeasurementChange(index, e.target.value)}
-                    placeholder={`M${index + 1}`}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-center"
-                  />
-                </div>
+                <NumberInput
+                  key={index}
+                  step="any"
+                  value={value}
+                  onChange={(v) => handleMeasurementChange(index, v)}
+                  placeholder={`M${index + 1}`}
+                  size="sm"
+                  className="w-24"
+                  inputClassName="text-center"
+                />
               ))}
             </div>
           </div>
 
+          {/* Reason for Change (Required) */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Reason for Change <span className="text-destructive">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Describe why this sample is being modified..."
+              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              rows={3}
+              maxLength={1000}
+            />
+            <div className="text-xs text-muted-foreground mt-1 text-right">
+              {reason.length}/1000
+            </div>
+          </div>
+
           {/* Calculated Values Preview */}
-          {isValid && measurements.length > 0 && (
+          {measurements.every(m => m !== '' && !isNaN(parseFloat(m))) && measurements.length > 0 && (
             <div className="p-3 bg-muted rounded-lg text-sm">
               <div className="grid grid-cols-2 gap-2">
                 <div>

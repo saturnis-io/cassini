@@ -437,3 +437,18 @@ h1, h2, h3, h4, h5, h6 {
 html {
   transition: background-color 200ms ease, color 200ms ease;
 }
+
+/* Hide number input spinners globally - use !important to override browser defaults */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}

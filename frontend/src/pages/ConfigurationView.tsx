@@ -3,6 +3,7 @@ import { useHierarchyTree, useCreateHierarchyNode, useCreateCharacteristic } fro
 import { useConfigStore } from '@/stores/configStore'
 import { HierarchyTree } from '@/components/HierarchyTree'
 import { CharacteristicForm } from '@/components/CharacteristicForm'
+import { NumberInput } from '@/components/NumberInput'
 import { Plus, X, Factory, Box, Cog, Cpu, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -270,13 +271,12 @@ export function ConfigurationView() {
 
               <div>
                 <label className="text-sm font-medium">Subgroup Size</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="25"
+                <NumberInput
+                  min={1}
+                  max={25}
                   value={charSubgroupSize}
-                  onChange={(e) => setCharSubgroupSize(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg"
+                  onChange={setCharSubgroupSize}
+                  className="w-full mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Number of measurements per sample (1-25)
@@ -299,35 +299,32 @@ export function ConfigurationView() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Target</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="any"
                     value={charTarget}
-                    onChange={(e) => setCharTarget(e.target.value)}
+                    onChange={setCharTarget}
                     placeholder="Optional"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg"
+                    className="w-full mt-1"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium">USL</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="any"
                     value={charUSL}
-                    onChange={(e) => setCharUSL(e.target.value)}
+                    onChange={setCharUSL}
                     placeholder="Optional"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg"
+                    className="w-full mt-1"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium">LSL</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="any"
                     value={charLSL}
-                    onChange={(e) => setCharLSL(e.target.value)}
+                    onChange={setCharLSL}
                     placeholder="Optional"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg"
+                    className="w-full mt-1"
                   />
                 </div>
               </div>
