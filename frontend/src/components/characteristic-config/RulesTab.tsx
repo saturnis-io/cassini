@@ -19,6 +19,52 @@ const NELSON_RULES = [
   { id: 8, name: 'Mixed Zones', shortDesc: '8 consecutive outside C', severity: 'WARNING' as const },
 ] as const
 
+/**
+ * Detailed descriptions for each Nelson rule - educational content
+ */
+const NELSON_RULE_DETAILS: Record<number, { description: string; cause: string; action: string }> = {
+  1: {
+    description: 'A single point falls outside the 3-sigma control limits (beyond UCL or LCL). This is the most severe violation as it indicates an extreme deviation from the process mean.',
+    cause: 'Equipment malfunction, measurement error, material defect, operator error, or a significant process upset.',
+    action: 'Immediately investigate the assignable cause. Check recent changes to materials, equipment, or procedures. Verify measurement accuracy.',
+  },
+  2: {
+    description: 'Nine or more consecutive points fall on the same side of the center line (all above or all below the mean). This indicates a shift in the process average.',
+    cause: 'Process mean has shifted due to tool wear, different raw material batch, environmental change, or calibration drift.',
+    action: 'Investigate what changed around the time the shift began. Check for material lot changes, equipment adjustments, or environmental factors.',
+  },
+  3: {
+    description: 'Six or more consecutive points are continuously increasing or decreasing. This indicates a trend in the process.',
+    cause: 'Tool wear, gradual equipment degradation, temperature drift, operator fatigue, or depleting consumables.',
+    action: 'Identify and address the source of drift. Consider implementing preventive maintenance or recalibration schedules.',
+  },
+  4: {
+    description: 'Fourteen or more consecutive points alternate up and down in a sawtooth pattern. This indicates over-adjustment or two alternating causes.',
+    cause: 'Over-correction by operators, alternating materials from two sources, fixture switching, or inspection by alternating gauges.',
+    action: 'Review operator adjustment procedures. Check if multiple material sources or equipment are being alternated. Verify measurement consistency.',
+  },
+  5: {
+    description: 'Two out of three consecutive points fall in Zone A (beyond 2σ from center) on the same side. Zone A is the outer third between 2σ and 3σ.',
+    cause: 'Process variance has increased, or the mean is shifting. Early warning of a potential Rule 1 violation.',
+    action: 'Monitor closely for further deterioration. Investigate recent changes that may have increased variability.',
+  },
+  6: {
+    description: 'Four out of five consecutive points fall in Zone B or beyond (beyond 1σ from center) on the same side. Zone B is between 1σ and 2σ.',
+    cause: 'Small shift in process mean or gradually increasing variance.',
+    action: 'Investigate potential causes of shift. This is often an early indicator before a more serious violation occurs.',
+  },
+  7: {
+    description: 'Fifteen consecutive points fall within Zone C (within 1σ of center). While this looks "good," it indicates stratification or mixture of data from different sources.',
+    cause: 'Data from multiple streams being mixed, incorrect subgrouping, measurement resolution too coarse, or calculated/fabricated data.',
+    action: 'Review data collection methods. Verify subgroups contain data from the same source. Check that measurement resolution is adequate.',
+  },
+  8: {
+    description: 'Eight consecutive points fall outside Zone C (beyond 1σ on either side) with points on both sides of center. This bimodal pattern suggests mixture.',
+    cause: 'Two distinct processes or conditions being mixed, alternating operators with different techniques, or two measurement systems.',
+    action: 'Separate and analyze data by source. Identify the two populations and address the cause of inconsistency.',
+  },
+}
+
 interface RuleConfig {
   rule_id: number
   is_enabled: boolean
@@ -344,22 +390,55 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
         </span>
       </div>
 
-      {/* Rule Details Accordion */}
+      {/* Rule Details Accordion - Now with educational content */}
       <Accordion defaultOpen={[]} className="mt-4">
-        <AccordionSection id="rule-details" title="Rule Details">
-          <div className="space-y-4 text-sm">
+        <AccordionSection id="rule-details" title="Rule Details & Troubleshooting Guide">
+          <div className="space-y-6">
             {NELSON_RULES.map((rule) => {
               const Sparkline = NELSON_SPARKLINES[rule.id]
+              const details = NELSON_RULE_DETAILS[rule.id]
+
               return (
-                <div key={rule.id} className="flex gap-4 p-3 bg-muted/30 rounded-lg">
-                  <div className="w-20 flex-shrink-0 flex items-center justify-center">
-                    {Sparkline && <Sparkline className="text-foreground" />}
-                  </div>
-                  <div>
-                    <div className="font-medium">
-                      Rule {rule.id}: {rule.name}
+                <div key={rule.id} className="border border-border rounded-lg overflow-hidden">
+                  {/* Rule Header */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/30">
+                    <div className="w-20 flex-shrink-0 flex items-center justify-center">
+                      {Sparkline && <Sparkline className="text-foreground" />}
                     </div>
-                    <p className="text-muted-foreground mt-1">{rule.shortDesc}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">Rule {rule.id}: {rule.name}</span>
+                        <SeverityBadge severity={rule.severity} />
+                      </div>
+                      <p className="text-sm text-muted-foreground">{rule.shortDesc}</p>
+                    </div>
+                  </div>
+
+                  {/* Rule Details */}
+                  <div className="p-4 space-y-4 text-sm">
+                    {/* What it detects */}
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                        What This Detects
+                      </h5>
+                      <p className="text-foreground">{details.description}</p>
+                    </div>
+
+                    {/* Common causes */}
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                        Common Causes
+                      </h5>
+                      <p className="text-foreground">{details.cause}</p>
+                    </div>
+
+                    {/* Recommended action */}
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                        Recommended Action
+                      </h5>
+                      <p className="text-foreground">{details.action}</p>
+                    </div>
                   </div>
                 </div>
               )
