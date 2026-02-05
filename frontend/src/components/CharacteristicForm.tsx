@@ -2,10 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
-import { NelsonRulesConfigPanel, type NelsonRulesConfigPanelRef } from './NelsonRulesConfigPanel'
-import { ScheduleConfigSection, type ScheduleConfig } from './ScheduleConfigSection'
-import { HelpTooltip } from './HelpTooltip'
-import { NumberInput } from './NumberInput'
+import { ArrowLeft, Trash2 } from 'lucide-react'
+import { CharacteristicConfigTabs, type TabId } from './characteristic-config/CharacteristicConfigTabs'
+import { GeneralTab } from './characteristic-config/GeneralTab'
+import { LimitsTab } from './characteristic-config/LimitsTab'
+import { SamplingTab } from './characteristic-config/SamplingTab'
+import { RulesTab, type RulesTabRef } from './characteristic-config/RulesTab'
+import type { ScheduleConfig } from './ScheduleConfigSection'
 import type { SubgroupMode } from '@/types'
 
 interface CharacteristicFormProps {
@@ -20,6 +23,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const recalculateLimits = useRecalculateLimits()
   const changeMode = useChangeMode()
   const deleteCharacteristic = useDeleteCharacteristic()
+  const isDirty = useConfigStore((state) => state.isDirty)
   const setIsDirty = useConfigStore((state) => state.setIsDirty)
   const setEditingCharacteristicId = useConfigStore((state) => state.setEditingCharacteristicId)
 
@@ -47,8 +51,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     type: 'NONE',
   })
 
-  // Ref for Nelson Rules panel
-  const nelsonRulesRef = useRef<NelsonRulesConfigPanelRef>(null)
+  // Ref for Rules tab
+  const rulesTabRef = useRef<RulesTabRef>(null)
 
   useEffect(() => {
     if (characteristic) {
@@ -71,7 +75,6 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   useEffect(() => {
     if (configData?.config?.schedule) {
       const backendSchedule = configData.config.schedule
-      // Map backend schedule_type to frontend type
       setScheduleConfig({
         type: backendSchedule.schedule_type,
         interval_minutes: backendSchedule.interval_minutes,
@@ -100,14 +103,11 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   }
 
   const handleModeChange = (newMode: string) => {
-    // If changing mode and characteristic has existing samples (indicated by stored_sigma),
-    // show confirmation dialog since samples will need migration
     const hasSamplesToMigrate = characteristic?.stored_sigma !== null
     if (newMode !== formData.subgroup_mode && hasSamplesToMigrate) {
       setPendingModeChange(newMode as SubgroupMode)
       setShowModeDialog(true)
     } else {
-      // No samples to migrate, just update the mode directly
       handleChange('subgroup_mode', newMode)
     }
   }
@@ -128,6 +128,11 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const cancelModeChange = () => {
     setShowModeDialog(false)
     setPendingModeChange(null)
+  }
+
+  const handleScheduleChange = (config: ScheduleConfig) => {
+    setScheduleConfig(config)
+    setIsDirty(true)
   }
 
   const handleSave = async () => {
@@ -163,7 +168,6 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
     // Save schedule config for MANUAL characteristics
     if (characteristic.provider_type === 'MANUAL' && characteristicId) {
-      // Build schedule object based on type
       const schedulePayload = scheduleConfig.type === 'NONE'
         ? { schedule_type: 'NONE' }
         : {
@@ -197,9 +201,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       })
     }
 
-    // Save Nelson rules if panel has changes
-    if (nelsonRulesRef.current?.isDirty) {
-      await nelsonRulesRef.current.save()
+    // Save Nelson rules if tab has changes
+    if (rulesTabRef.current?.isDirty) {
+      await rulesTabRef.current.save()
     }
 
     setIsDirty(false)
@@ -221,333 +225,149 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     setShowDeleteDialog(false)
   }
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold">Edit Characteristic</h2>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowDeleteDialog(true)}
-            className="text-sm text-destructive hover:text-destructive/80"
-          >
-            Delete
-          </button>
-          <button
-            onClick={() => setEditingCharacteristicId(null)}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Close
-          </button>
-        </div>
-      </div>
+  const handleClose = () => {
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to close?')
+      if (!confirmed) return
+    }
+    setEditingCharacteristicId(null)
+  }
 
-      <div className="space-y-6">
-        {/* Basic info */}
-        <div className="space-y-4">
-          <h3 className="font-medium">Basic Information</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium">Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Provider Type</label>
-              <input
-                type="text"
-                value={characteristic.provider_type}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Description</label>
-            <input
-              type="text"
-              value={formData.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md"
-              placeholder="Optional description"
-            />
-          </div>
-        </div>
-
-        {/* Display Settings */}
-        <div className="space-y-4">
-          <h3 className="font-medium">Display Settings</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium">Decimal Precision</label>
-              <NumberInput
-                min={0}
-                max={10}
-                value={formData.decimal_precision}
-                onChange={(value) => handleChange('decimal_precision', value)}
-                className="w-full mt-1"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Number of decimal places for chart and display values (0-10)
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Spec limits */}
-        <div className="space-y-4">
-          <h3 className="font-medium">Specification Limits</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium">Target</label>
-              <NumberInput
-                step="any"
-                value={formData.target_value}
-                onChange={(value) => handleChange('target_value', value)}
-                className="w-full mt-1"
-                placeholder="—"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">USL</label>
-              <NumberInput
-                step="any"
-                value={formData.usl}
-                onChange={(value) => handleChange('usl', value)}
-                className="w-full mt-1"
-                placeholder="—"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">LSL</label>
-              <NumberInput
-                step="any"
-                value={formData.lsl}
-                onChange={(value) => handleChange('lsl', value)}
-                className="w-full mt-1"
-                placeholder="—"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Control limits (read-only) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium">Control Limits (Calculated)</h3>
-              <HelpTooltip helpKey={
-                formData.subgroup_mode === 'STANDARDIZED' ? 'ucl-lcl-standardized' :
-                formData.subgroup_mode === 'VARIABLE_LIMITS' ? 'ucl-lcl-variable' :
-                'ucl-lcl-nominal'
-              } />
-            </div>
-            <button
-              onClick={handleRecalculate}
-              disabled={recalculateLimits.isPending}
-              className="text-sm text-primary hover:underline disabled:opacity-50"
-            >
-              {recalculateLimits.isPending ? 'Recalculating...' : 'Recalculate'}
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">UCL</label>
-              <input
-                type="text"
-                value={characteristic.ucl?.toFixed(4) ?? '-'}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">LCL</label>
-              <input
-                type="text"
-                value={characteristic.lcl?.toFixed(4) ?? '-'}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Sampling info (read-only) */}
-        <div className="space-y-4">
-          <h3 className="font-medium">Sampling Configuration</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Subgroup Size</label>
-              <input
-                type="text"
-                value={characteristic.subgroup_size}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Hierarchy ID</label>
-              <input
-                type="text"
-                value={characteristic.hierarchy_id}
-                disabled
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-muted"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Schedule Configuration (MANUAL only) */}
-        {characteristic.provider_type === 'MANUAL' && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium">Schedule Configuration</h3>
-              <HelpTooltip helpKey="schedule-configuration" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Configure when manual measurements are due. This determines the schedule for operator data entry tasks.
-            </p>
-            <ScheduleConfigSection
-              value={scheduleConfig}
-              onChange={(config) => {
-                setScheduleConfig(config)
-                setIsDirty(true)
-              }}
-            />
-          </div>
-        )}
-
-        {/* Subgroup Size Handling */}
-        <div className="space-y-4">
-          <h3 className="font-medium">Subgroup Size Handling</h3>
-          <div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Mode</label>
-              <HelpTooltip helpKey={
-                formData.subgroup_mode === 'STANDARDIZED' ? 'subgroup-mode-standardized' :
-                formData.subgroup_mode === 'VARIABLE_LIMITS' ? 'subgroup-mode-variable' :
-                'subgroup-mode-nominal'
-              } />
-            </div>
-            <select
-              value={formData.subgroup_mode}
-              onChange={(e) => handleModeChange(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-              disabled={changeMode.isPending}
-            >
-              <option value="NOMINAL_TOLERANCE">Nominal with Tolerance (Default)</option>
-              <option value="VARIABLE_LIMITS">Variable Control Limits</option>
-              <option value="STANDARDIZED">Standardized (Z-Score)</option>
-            </select>
-            {!characteristic.stored_sigma && formData.subgroup_mode !== 'NOMINAL_TOLERANCE' && (
-              <p className="mt-1 text-xs text-warning">
-                Note: Recalculate limits after adding samples for this mode to work correctly.
-              </p>
-            )}
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formData.subgroup_mode === 'NOMINAL_TOLERANCE' &&
-                'Uses nominal subgroup size for control limits with minimum threshold enforcement.'}
-              {formData.subgroup_mode === 'VARIABLE_LIMITS' &&
-                'Recalculates control limits per point based on actual sample size (funnel effect).'}
-              {formData.subgroup_mode === 'STANDARDIZED' &&
-                'Plots Z-scores with fixed +/-3 control limits, normalizing for sample size variation.'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium">Minimum Measurements</label>
-              <NumberInput
-                min={1}
-                max={characteristic.subgroup_size}
-                value={formData.min_measurements}
-                onChange={(value) => handleChange('min_measurements', value)}
-                className="w-full mt-1"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Samples below this will be rejected (1-{characteristic.subgroup_size})
-              </p>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Warn Below Count</label>
-              <NumberInput
-                min={parseInt(formData.min_measurements) || 1}
-                max={characteristic.subgroup_size}
-                value={formData.warn_below_count}
-                onChange={(value) => handleChange('warn_below_count', value)}
-                className="w-full mt-1"
-                placeholder="Optional"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Samples below this will be marked as undersized
-              </p>
-            </div>
-          </div>
-
-          {/* Show stored parameters for Mode A/B */}
-          {(formData.subgroup_mode === 'STANDARDIZED' ||
-            formData.subgroup_mode === 'VARIABLE_LIMITS') && (
-            <div className="p-3 bg-muted rounded-md">
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-sm font-medium">Stored Parameters (from limit calculation)</p>
-                {formData.subgroup_mode === 'STANDARDIZED' && (
-                  <HelpTooltip helpKey="z-score" />
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Sigma: </span>
-                  <span>{characteristic.stored_sigma?.toFixed(4) ?? 'Not set'}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Center Line: </span>
-                  <span>{characteristic.stored_center_line?.toFixed(4) ?? 'Not set'}</span>
-                </div>
-              </div>
-              {formData.subgroup_mode === 'STANDARDIZED' && characteristic.stored_sigma && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Z-scores are calculated as: (Sample Mean - Center Line) / (Sigma / sqrt(n))
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Nelson Rules Configuration */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium">Nelson Rules</h3>
-            <HelpTooltip helpKey="nelson-rules-overview" />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Enable or disable specific Nelson rules for detecting out-of-control conditions.
-          </p>
-          <NelsonRulesConfigPanel
-            ref={nelsonRulesRef}
+  // Render tab content based on active tab
+  const renderTabContent = (activeTab: TabId) => {
+    switch (activeTab) {
+      case 'general':
+        return (
+          <GeneralTab
+            formData={{
+              name: formData.name,
+              description: formData.description,
+              decimal_precision: formData.decimal_precision,
+            }}
+            characteristic={{
+              provider_type: characteristic.provider_type,
+              hierarchy_id: characteristic.hierarchy_id,
+              created_at: characteristic.created_at,
+              updated_at: characteristic.updated_at,
+              sample_count: characteristic.sample_count,
+            }}
+            onChange={handleChange}
+          />
+        )
+      case 'limits':
+        return (
+          <LimitsTab
+            formData={{
+              target_value: formData.target_value,
+              usl: formData.usl,
+              lsl: formData.lsl,
+              subgroup_mode: formData.subgroup_mode,
+            }}
+            characteristic={{
+              ucl: characteristic.ucl,
+              lcl: characteristic.lcl,
+              stored_sigma: characteristic.stored_sigma,
+              stored_center_line: characteristic.stored_center_line,
+              sample_count: characteristic.sample_count,
+            }}
+            onChange={handleChange}
+            onRecalculate={handleRecalculate}
+            isRecalculating={recalculateLimits.isPending}
+          />
+        )
+      case 'sampling':
+        return (
+          <SamplingTab
+            formData={{
+              subgroup_mode: formData.subgroup_mode,
+              min_measurements: formData.min_measurements,
+              warn_below_count: formData.warn_below_count,
+            }}
+            characteristic={{
+              subgroup_size: characteristic.subgroup_size,
+              provider_type: characteristic.provider_type,
+              stored_sigma: characteristic.stored_sigma,
+              stored_center_line: characteristic.stored_center_line,
+            }}
+            scheduleConfig={scheduleConfig}
+            onChange={handleChange}
+            onScheduleChange={handleScheduleChange}
+            onModeChange={handleModeChange}
+            isModeChangePending={changeMode.isPending}
+          />
+        )
+      case 'rules':
+        return (
+          <RulesTab
+            ref={rulesTabRef}
             characteristicId={characteristicId!}
             onDirty={() => setIsDirty(true)}
           />
-        </div>
+        )
+      default:
+        return null
+    }
+  }
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 pt-4 border-t">
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setEditingCharacteristicId(null)}
-            className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+            onClick={handleClose}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            title="Back to list"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <h2 className="font-semibold">{characteristic.name}</h2>
+            <p className="text-xs text-muted-foreground">
+              {characteristic.provider_type === 'MANUAL' ? 'Manual Entry' : 'MQTT Tag'} •
+              Subgroup size: {characteristic.subgroup_size}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowDeleteDialog(true)}
+          className="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+          title="Delete characteristic"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Tabbed Content */}
+      <CharacteristicConfigTabs isDirty={isDirty} className="flex-1 min-h-0">
+        {renderTabContent}
+      </CharacteristicConfigTabs>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between px-5 py-4 border-t border-border bg-muted/30">
+        <div className="text-sm">
+          {isDirty && (
+            <span className="text-amber-600 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Unsaved changes
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            disabled={updateCharacteristic.isPending}
+            disabled={updateCharacteristic.isPending || !isDirty}
             className={cn(
-              'px-4 py-2 text-sm rounded-md',
+              'px-4 py-2 text-sm font-medium rounded-lg',
               'bg-primary text-primary-foreground',
-              'hover:bg-primary/90',
-              'disabled:opacity-50'
+              'hover:bg-primary/90 transition-colors',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
             )}
           >
             {updateCharacteristic.isPending ? 'Saving...' : 'Save Changes'}
