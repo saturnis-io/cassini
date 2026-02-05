@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useHierarchyTree, useCreateHierarchyNode, useCreateCharacteristic } from '@/api/hooks'
+import { useHierarchyTree, useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant, useCreateCharacteristic } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
+import { usePlant } from '@/providers/PlantProvider'
 import { HierarchyTree } from '@/components/HierarchyTree'
 import { CharacteristicForm } from '@/components/CharacteristicForm'
 import { NumberInput } from '@/components/NumberInput'
-import { Plus, X, Factory, Box, Cog, Cpu, Settings } from 'lucide-react'
+import { Plus, X, Factory, Box, Cog, Cpu, Settings, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // UNS-compatible generic hierarchy types
@@ -25,7 +26,18 @@ const PROVIDER_TYPES = [
 ]
 
 export function ConfigurationView() {
-  const { data: hierarchy, isLoading } = useHierarchyTree()
+  const { selectedPlant, isLoading: plantLoading, error: plantError } = usePlant()
+
+  // Use plant-scoped hierarchy if plant is selected, otherwise fall back to global
+  const { data: plantHierarchy, isLoading: plantHierarchyLoading } = useHierarchyTreeByPlant(
+    selectedPlant?.id ?? 0
+  )
+  const { data: globalHierarchy, isLoading: globalHierarchyLoading } = useHierarchyTree()
+
+  // Use plant-scoped data when available
+  const hierarchy = selectedPlant ? plantHierarchy : globalHierarchy
+  const isLoading = plantLoading || (selectedPlant ? plantHierarchyLoading : globalHierarchyLoading)
+
   const editingId = useConfigStore((state) => state.editingCharacteristicId)
   const isCreatingNew = useConfigStore((state) => state.isCreatingNew)
   const selectedNodeId = useConfigStore((state) => state.selectedNodeId)
@@ -48,16 +60,29 @@ export function ConfigurationView() {
   const [charMqttTopic, setCharMqttTopic] = useState('')
 
   const createNode = useCreateHierarchyNode()
+  const createNodeInPlant = useCreateHierarchyNodeInPlant()
   const createChar = useCreateCharacteristic()
 
   const handleCreateNode = async () => {
     if (!nodeName.trim()) return
 
-    await createNode.mutateAsync({
-      name: nodeName.trim(),
-      type: nodeType,
-      parent_id: selectedNodeId,
-    })
+    // Use plant-scoped endpoint if a plant is selected
+    if (selectedPlant) {
+      await createNodeInPlant.mutateAsync({
+        plantId: selectedPlant.id,
+        data: {
+          name: nodeName.trim(),
+          type: nodeType,
+          parent_id: selectedNodeId,
+        },
+      })
+    } else {
+      await createNode.mutateAsync({
+        name: nodeName.trim(),
+        type: nodeType,
+        parent_id: selectedNodeId,
+      })
+    }
 
     setNodeName('')
     setShowAddNodeModal(false)
@@ -86,6 +111,26 @@ export function ConfigurationView() {
     setCharLSL('')
     setCharMqttTopic('')
     setShowAddCharModal(false)
+  }
+
+  // Show error if plant loading failed
+  if (plantError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <div className="text-destructive">Failed to load plant data</div>
+      </div>
+    )
+  }
+
+  // Show message if no plant is selected
+  if (!selectedPlant && !plantLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <Factory className="h-8 w-8 text-muted-foreground" />
+        <div className="text-muted-foreground">Select a plant to view and manage hierarchy</div>
+      </div>
+    )
   }
 
   if (isLoading) {
@@ -212,14 +257,14 @@ export function ConfigurationView() {
               </button>
               <button
                 onClick={handleCreateNode}
-                disabled={!nodeName.trim() || createNode.isPending}
+                disabled={!nodeName.trim() || createNode.isPending || createNodeInPlant.isPending}
                 className={cn(
                   'px-4 py-2 text-sm font-medium rounded-lg',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
-                {createNode.isPending ? 'Creating...' : 'Create Node'}
+                {(createNode.isPending || createNodeInPlant.isPending) ? 'Creating...' : 'Create Node'}
               </button>
             </div>
           </div>
