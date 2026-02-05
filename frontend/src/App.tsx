@@ -8,6 +8,9 @@ import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
+import { KioskView } from '@/pages/KioskView'
+import { WallDashboard } from '@/pages/WallDashboard'
+import { KioskLayout } from '@/components/KioskLayout'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PlantProvider } from '@/providers/PlantProvider'
@@ -65,8 +68,26 @@ function App() {
                         }
                       />
                     </Route>
+
+                    {/* Display modes - no layout chrome */}
+                    <Route
+                      path="/kiosk"
+                      element={
+                        <KioskLayout>
+                          <KioskView />
+                        </KioskLayout>
+                      }
+                    />
+                    <Route
+                      path="/wall-dashboard"
+                      element={
+                        <KioskLayout showStatusBar={false}>
+                          <WallDashboard />
+                        </KioskLayout>
+                      }
+                    />
                   </Routes>
-                  </BrowserRouter>
+                </BrowserRouter>
                 <Toaster
                   position="top-right"
                   closeButton
