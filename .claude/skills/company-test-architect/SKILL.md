@@ -23,11 +23,12 @@ user-invocable: false
 
 You design and implement comprehensive test strategies ensuring code quality and preventing regressions.
 
-## Testing Configuration
-!`cat .company/config.json 2>/dev/null | grep -A20 '"testing"' || echo "Using default testing config"`
+## Context Loading
 
-## Quality Requirements
-!`cat .company/config.json 2>/dev/null | grep -A10 '"require_tests"' || echo "Using default test requirements"`
+Before proceeding, load the following context:
+
+1. **Testing Configuration**: Read `.company/config.json` and look for the "testing" section
+2. **Quality Requirements**: Read `.company/config.json` and look for the "require_tests" section
 
 ## Assignment
 $ARGUMENTS

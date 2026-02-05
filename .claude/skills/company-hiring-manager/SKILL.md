@@ -12,11 +12,12 @@ user-invocable: false
 
 You evaluate project requirements and team capabilities to identify expertise gaps and create specialist skills as needed.
 
-## Current Roster
-!`cat .company/roster.json 2>/dev/null || echo '{"specialists":[]}'`
+## Context Loading
 
-## Hiring Configuration
-!`cat .company/config.json 2>/dev/null | grep -A20 '"hiring"' || echo "Default hiring config"`
+Before proceeding, load the following context:
+
+1. **Current Roster**: Read `.company/roster.json` (default: `{"specialists":[]}`)
+2. **Hiring Configuration**: Read `.company/config.json` and look for the "hiring" section
 
 ## Assignment
 $ARGUMENTS

@@ -18,9 +18,14 @@ class ViolationResponse(BaseModel):
         rule_name: Human-readable rule name
         severity: Violation severity (WARNING or CRITICAL)
         acknowledged: Whether the violation has been acknowledged
+        requires_acknowledgement: Whether this violation requires acknowledgement
         ack_user: User who acknowledged the violation
         ack_reason: Reason provided for acknowledgment
         ack_timestamp: When the violation was acknowledged
+        created_at: When the violation was created
+        characteristic_id: ID of the characteristic
+        characteristic_name: Name of the characteristic
+        hierarchy_path: Path in hierarchy (e.g., "Plant > Line > Machine")
     """
 
     id: int
@@ -29,9 +34,14 @@ class ViolationResponse(BaseModel):
     rule_name: str
     severity: str
     acknowledged: bool
+    requires_acknowledgement: bool = True
     ack_user: str | None
     ack_reason: str | None
     ack_timestamp: datetime | None
+    created_at: datetime | None = None
+    characteristic_id: int | None = None
+    characteristic_name: str | None = None
+    hierarchy_path: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -60,13 +70,18 @@ class ViolationStats(BaseModel):
 
     Attributes:
         total: Total number of violations
-        unacknowledged: Number of unacknowledged violations
+        unacknowledged: Number of unacknowledged violations that require acknowledgement
+        informational: Number of unacknowledged violations that don't require acknowledgement
         by_rule: Count of violations per Nelson Rule ID
         by_severity: Count of violations per severity level
     """
 
     total: int
     unacknowledged: int
+    informational: int = Field(
+        default=0,
+        description="Unacknowledged violations that don't require acknowledgement"
+    )
     by_rule: dict[int, int] = Field(
         default_factory=dict,
         description="Violations grouped by rule ID",

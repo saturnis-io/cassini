@@ -8,8 +8,9 @@ disable-model-invocation: true
 
 Display the current team composition and available specialists.
 
-## Current Roster
-!`cat .company/roster.json 2>/dev/null || echo '{"specialists":[],"message":"No roster found. Run /company to initialize."}'`
+## Context Loading
+
+Read `.company/roster.json` for the current roster. If missing, display: `{"specialists":[],"message":"No roster found. Run /company to initialize."}`
 
 ---
 
@@ -42,19 +43,15 @@ These specialists are included by default:
 
 ## Hired Specialists
 
-Specialists created dynamically for projects:
-
-!`cat .company/roster.json 2>/dev/null | jq '.specialists[] | select(.type == "hired") | {id, created, expertise}' || echo "No hired specialists yet"`
+Specialists created dynamically for projects - filter roster.json for specialists with `type == "hired"`.
 
 ---
 
 ## Specialist Statistics
 
-### Total Specialists
-!`cat .company/roster.json 2>/dev/null | jq '.specialists | length' || echo "0"`
-
-### By Type
-!`cat .company/roster.json 2>/dev/null | jq '.specialists | group_by(.type) | map({type: .[0].type, count: length})' || echo "No data"`
+Read roster.json and calculate:
+- Total Specialists: Count of `.specialists` array
+- By Type: Group specialists by `.type` and count each
 
 ---
 
@@ -112,10 +109,10 @@ Or let the hiring manager automatically evaluate needs when starting a project w
 ## Specialist Usage
 
 ### Which specialists are currently active?
-!`cat .company/state.json 2>/dev/null | jq '.active_agents // []' || echo "None"`
+Read `.company/state.json` and check the `active_agents` field.
 
 ### Recent specialist activity
-!`find .company/artifacts/specialist-* -name "*.md" 2>/dev/null | head -10 || echo "No specialist artifacts found"`
+Check for markdown files in `.company/artifacts/specialist-*/` directories.
 
 ---
 

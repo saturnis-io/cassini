@@ -84,13 +84,15 @@ class ViolationStats:
 
     Attributes:
         total: Total number of violations
-        unacknowledged: Count of unacknowledged violations
+        unacknowledged: Count of unacknowledged violations that require acknowledgement
+        informational: Count of unacknowledged violations that don't require acknowledgement
         by_rule: Counts grouped by rule ID (rule_id -> count)
         by_severity: Counts grouped by severity (severity -> count)
     """
 
     total: int
     unacknowledged: int
+    informational: int
     by_rule: dict[int, int]
     by_severity: dict[str, int]
 
@@ -388,7 +390,16 @@ class AlertManager:
 
         # Calculate statistics
         total = len(violations)
-        unacknowledged = sum(1 for v in violations if not v.acknowledged)
+        # Unacknowledged = requires acknowledgement AND not acknowledged
+        unacknowledged = sum(
+            1 for v in violations
+            if not v.acknowledged and v.requires_acknowledgement
+        )
+        # Informational = does NOT require acknowledgement AND not acknowledged
+        informational = sum(
+            1 for v in violations
+            if not v.acknowledged and not v.requires_acknowledgement
+        )
 
         # Group by rule
         by_rule: dict[int, int] = {}
@@ -403,6 +414,7 @@ class AlertManager:
         return ViolationStats(
             total=total,
             unacknowledged=unacknowledged,
+            informational=informational,
             by_rule=by_rule,
             by_severity=by_severity,
         )

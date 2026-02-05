@@ -1,7 +1,6 @@
 ---
 name: company-propose
 description: Submit a proposal for task changes, escalations, or cross-role requests.
-disable-model-invocation: true
 argument-hint: [proposal-type]
 ---
 

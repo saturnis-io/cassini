@@ -75,7 +75,12 @@ class ViolationRepository(BaseRepository[Violation]):
             # Get all violations that occurred for a sample
             violations = await repo.get_by_sample(sample_id=42)
         """
-        stmt = select(Violation).where(Violation.sample_id == sample_id)
+        # Simple query without load_only - all columns needed for chart data
+        stmt = (
+            select(Violation)
+            .where(Violation.sample_id == sample_id)
+            .execution_options(populate_existing=True)
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -155,11 +160,13 @@ class ViolationRepository(BaseRepository[Violation]):
         """
         from openspc.db.models.sample import Sample
 
-        # Build base query
+        # Build base query - load sample and its characteristic for context
         stmt = (
             select(Violation)
             .join(Sample, Violation.sample_id == Sample.id)
-            .options(selectinload(Violation.sample))
+            .options(
+                selectinload(Violation.sample).selectinload(Sample.characteristic)
+            )
         )
 
         # Apply filters

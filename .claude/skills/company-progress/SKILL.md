@@ -9,25 +9,15 @@ skills:
 
 Check current state and route to next action.
 
-## Current State
+## Context Loading
 
-!`cat .planning/STATE.md 2>/dev/null | tail -30 || echo "No state - run /company-init-pm"`
+Before analyzing progress, load the following:
 
-## Roadmap Status
-
-!`cat .planning/ROADMAP.md 2>/dev/null || echo "No roadmap"`
-
-## Phase Artifacts
-
-!`for phase in .planning/phase-*/; do echo "=== $phase ===" && ls -la "$phase" 2>/dev/null; done`
-
-## Git Status
-
-!`git status --short 2>/dev/null | head -20`
-
-## Task List
-
-!`TaskList()`
+1. **Current State**: Read the last 30 lines of `.planning/STATE.md`. If missing, PM needs to be initialized with `/company-init-pm`
+2. **Roadmap Status**: Read `.planning/ROADMAP.md` if it exists
+3. **Phase Artifacts**: List contents of `.planning/phase-*/` directories to see what phases exist and their contents
+4. **Git Status**: Run `git status --short` (first 20 lines)
+5. **Task List**: Run `TaskList()` to see current tasks
 
 ---
 

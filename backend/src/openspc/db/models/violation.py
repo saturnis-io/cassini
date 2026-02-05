@@ -26,7 +26,7 @@ class Violation(Base):
     """Nelson Rules violation model.
 
     Records when a sample triggers a Nelson Rule, including
-    acknowledgment tracking.
+    acknowledgment tracking and whether acknowledgement is required.
     """
 
     __tablename__ = "violation"
@@ -37,6 +37,7 @@ class Violation(Base):
     rule_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     severity: Mapped[str] = mapped_column(String, nullable=False)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    requires_acknowledgement: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     ack_user: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     ack_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     ack_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

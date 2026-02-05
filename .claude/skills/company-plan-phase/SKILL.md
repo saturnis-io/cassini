@@ -24,9 +24,11 @@ Create executable PLAN.md for phase $ARGUMENTS using goal-backward methodology.
 
 ## Context Loading
 
-!`cat .planning/PROJECT.md 2>/dev/null | head -30`
-!`cat .planning/REQUIREMENTS.md 2>/dev/null | head -50`
-!`cat .planning/phase-$ARGUMENTS/CONTEXT.md 2>/dev/null || echo "Run /company-discuss first"`
+Before proceeding, load the following context:
+
+1. **Project**: Read `.planning/PROJECT.md` (first 30 lines)
+2. **Requirements**: Read `.planning/REQUIREMENTS.md` (first 50 lines)
+3. **Phase Context**: Read `.planning/phase-{N}/CONTEXT.md` where {N} is from arguments. If missing, run `/company-discuss` first.
 
 ---
 

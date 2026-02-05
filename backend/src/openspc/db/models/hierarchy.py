@@ -19,13 +19,20 @@ class Base(DeclarativeBase):
 
 
 class HierarchyType(str, Enum):
-    """ISA-95 hierarchy types."""
+    """UNS-compatible hierarchy types.
 
+    Generic types that work with Unified Namespace structures.
+    Users can use any string type; these are common defaults.
+    """
+
+    FOLDER = "Folder"       # Organizational grouping (no physical asset)
+    ENTERPRISE = "Enterprise"
     SITE = "Site"
     AREA = "Area"
     LINE = "Line"
     CELL = "Cell"
-    UNIT = "Unit"
+    EQUIPMENT = "Equipment"
+    TAG = "Tag"
 
 
 class Hierarchy(Base):

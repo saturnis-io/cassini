@@ -1,0 +1,76 @@
+{
+  "proposal_type": "escalate",
+  "from_role": "qa-engineer",
+  "timestamp": "2026-02-03T12:00:00Z",
+  "severity": "blocking",
+  "issue": "ControlChart component crashes with TypeError when clicking cards - data_points is undefined",
+  "impact": "All chart functionality broken, white screen on interaction, blocking user testing",
+  "root_cause_analysis": {
+    "error": "TypeError: can't access property 'length', chartData.data_points is undefined",
+    "location": "frontend/src/components/ControlChart.tsx:30",
+    "cause": "Frontend/Backend API contract mismatch - implementation diverged from spec",
+    "reference": ".company/artifacts/architect/api-contracts.md lines 694-734",
+    "details": {
+      "api_contract_specifies": {
+        "property": "samples",
+        "fields": ["id", "timestamp", "mean", "range", "in_control", "violation_count", "is_excluded"],
+        "response_also_includes": ["characteristic_name", "chart_type", "subgroup_size", "zone_a_upper", "zone_a_lower", "zone_b_upper", "zone_b_lower"]
+      },
+      "backend_currently_returns": {
+        "property": "samples",
+        "fields": ["sample_id", "timestamp", "value", "range_value", "zone", "has_violation", "violation_rule_ids"],
+        "missing": ["characteristic_name", "chart_type", "subgroup_size", "in_control"]
+      },
+      "frontend_currently_expects": {
+        "property": "data_points",
+        "fields": ["sample_id", "timestamp", "mean", "range", "excluded", "violation_ids", "zone"]
+      },
+      "mismatches": [
+        {"spec": "samples.mean", "backend": "samples.value", "frontend": "data_points.mean"},
+        {"spec": "samples.range", "backend": "samples.range_value", "frontend": "data_points.range"},
+        {"spec": "samples.is_excluded", "backend": "(missing)", "frontend": "data_points.excluded"},
+        {"spec": "samples.violation_count", "backend": "samples.violation_rule_ids", "frontend": "data_points.violation_ids"},
+        {"spec": "samples.in_control", "backend": "samples.has_violation (inverted)", "frontend": "(missing)"},
+        {"spec": "characteristic_name", "backend": "(missing)", "frontend": "characteristic_name"}
+      ]
+    }
+  },
+  "attempted": [
+    "Analyzed error stack trace",
+    "Compared frontend types (types/index.ts) with backend schema (api/schemas/characteristic.py)",
+    "Cross-referenced with API contracts specification (.company/artifacts/architect/api-contracts.md)",
+    "Identified three-way divergence: spec vs backend vs frontend"
+  ],
+  "suggested_resolution": {
+    "approach": "Align both frontend and backend to API contract specification",
+    "priority": "P0 - blocking all testing",
+    "backend_changes": [
+      "Add characteristic_name to ChartDataResponse",
+      "Add chart_type and subgroup_size to ChartDataResponse",
+      "Rename ChartSample fields: value -> mean, range_value -> range",
+      "Add is_excluded field to ChartSample",
+      "Convert violation_rule_ids to violation_count (integer)",
+      "Add in_control field to ChartSample",
+      "Update zone boundaries to match spec (zone_a_upper, zone_b_upper vs current sigma notation)"
+    ],
+    "frontend_changes": [
+      "Update ChartData type to use 'samples' instead of 'data_points'",
+      "Update ChartDataPoint to match aligned ChartSample schema",
+      "Update ControlChart.tsx to use 'samples' property name",
+      "Add defensive null checks before accessing array properties"
+    ],
+    "files_to_modify": {
+      "backend": [
+        "backend/src/openspc/api/schemas/characteristic.py",
+        "backend/src/openspc/api/v1/characteristics.py"
+      ],
+      "frontend": [
+        "frontend/src/types/index.ts",
+        "frontend/src/components/ControlChart.tsx"
+      ]
+    }
+  },
+  "affected_tasks": ["FE-004", "BE-010"],
+  "blocks_testing": true,
+  "recommended_action": "Prioritize this bug fix before continuing with other implementation work"
+}

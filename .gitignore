@@ -42,3 +42,6 @@ Thumbs.db
 
 # Build outputs
 dashboard/client/dist/
+
+# Internal references
+.internal/

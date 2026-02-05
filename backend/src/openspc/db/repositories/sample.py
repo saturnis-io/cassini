@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.repositories.base import BaseRepository
@@ -23,6 +24,24 @@ class SampleRepository(BaseRepository[Sample]):
             session: SQLAlchemy async session for database operations
         """
         super().__init__(session, Sample)
+
+    async def get_by_id(self, id: int) -> Sample | None:
+        """Get sample by ID with measurements eagerly loaded.
+
+        Args:
+            id: Sample ID
+
+        Returns:
+            Sample with measurements loaded, or None if not found
+        """
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.id == id)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_rolling_window(
         self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
@@ -51,9 +70,11 @@ class SampleRepository(BaseRepository[Sample]):
         """
         stmt = (
             select(Sample)
+            .options(selectinload(Sample.measurements))
             .where(Sample.char_id == char_id)
             .order_by(Sample.timestamp.desc())
             .limit(window_size)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
         )
 
         if exclude_excluded:
@@ -64,6 +85,50 @@ class SampleRepository(BaseRepository[Sample]):
 
         # Reverse to get chronological order (oldest to newest)
         return list(reversed(samples))
+
+    async def get_rolling_window_data(
+        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
+    ) -> list[dict]:
+        """Get rolling window sample data with measurement values pre-extracted.
+
+        This method avoids lazy loading issues by extracting measurement values
+        immediately after the query, returning plain dictionaries instead of ORM objects.
+
+        Args:
+            char_id: ID of the characteristic to query
+            window_size: Number of most recent samples to retrieve (default: 25)
+            exclude_excluded: If True, filter out excluded samples (default: True)
+
+        Returns:
+            List of dictionaries with sample_id, timestamp, and values (measurement list)
+        """
+        stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.char_id == char_id)
+            .order_by(Sample.timestamp.desc())
+            .limit(window_size)
+            .execution_options(populate_existing=True)
+        )
+
+        if exclude_excluded:
+            stmt = stmt.where(Sample.is_excluded == False)
+
+        result = await self.session.execute(stmt)
+        samples = list(result.scalars().all())
+
+        # Extract data immediately to avoid lazy loading issues
+        data = []
+        for sample in reversed(samples):  # Reverse for chronological order
+            measurements = sample.measurements
+            values = [m.value for m in measurements] if measurements else []
+            data.append({
+                "sample_id": sample.id,
+                "timestamp": sample.timestamp,
+                "values": values,
+            })
+
+        return data
 
     async def get_by_characteristic(
         self,
@@ -97,7 +162,15 @@ class SampleRepository(BaseRepository[Sample]):
                 end_date=datetime(2025, 1, 31)
             )
         """
-        stmt = select(Sample).where(Sample.char_id == char_id)
+        stmt = (
+            select(Sample)
+            .options(
+                selectinload(Sample.measurements),
+                selectinload(Sample.edit_history),
+            )
+            .where(Sample.char_id == char_id)
+            .execution_options(populate_existing=True)  # Force refresh of cached objects
+        )
 
         if start_date is not None:
             stmt = stmt.where(Sample.timestamp >= start_date)
@@ -149,11 +222,18 @@ class SampleRepository(BaseRepository[Sample]):
         await self.session.flush()  # Get the sample ID
 
         # Create measurements for each value
+        measurements = []
         for value in values:
             measurement = Measurement(sample_id=sample.id, value=value)
             self.session.add(measurement)
+            measurements.append(measurement)
 
         await self.session.flush()
-        await self.session.refresh(sample)
+
+        # Use set_committed_value to attach measurements without triggering lazy loading
+        # Direct assignment (sample.measurements = measurements) triggers a lazy load
+        # to check the old value, which fails in async context
+        from sqlalchemy.orm.attributes import set_committed_value
+        set_committed_value(sample, "measurements", measurements)
 
         return sample

@@ -14,13 +14,13 @@ class HierarchyCreate(BaseModel):
     Attributes:
         parent_id: ID of parent node (None for root nodes)
         name: Display name of the hierarchy node
-        type: ISA-95 hierarchy type
+        type: Hierarchy node type (UNS-compatible)
     """
 
     parent_id: int | None = None
     name: str = Field(..., min_length=1, max_length=100, description="Hierarchy node name")
-    type: Literal["Site", "Area", "Line", "Cell", "Unit"] = Field(
-        ..., description="ISA-95 hierarchy type"
+    type: str = Field(
+        ..., min_length=1, max_length=50, description="Node type (e.g., Folder, Site, Equipment, Tag)"
     )
 
 
@@ -31,11 +31,11 @@ class HierarchyUpdate(BaseModel):
 
     Attributes:
         name: New display name
-        type: New ISA-95 hierarchy type
+        type: New node type
     """
 
     name: str | None = Field(None, min_length=1, max_length=100)
-    type: Literal["Site", "Area", "Line", "Cell", "Unit"] | None = None
+    type: str | None = Field(None, min_length=1, max_length=50)
 
 
 class HierarchyResponse(BaseModel):

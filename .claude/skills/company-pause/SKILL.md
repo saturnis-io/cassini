@@ -9,13 +9,12 @@ skills:
 
 Create context handoff document for resuming later.
 
-## Current State
+## Context Loading
 
-!`cat .planning/STATE.md 2>/dev/null`
+Before proceeding, load the following context:
 
-## Active Tasks
-
-!`TaskList()`
+1. **Current State**: Read `.planning/STATE.md` if it exists
+2. **Active Tasks**: Run `TaskList()` to see current tasks
 
 ---
 

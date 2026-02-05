@@ -870,3 +870,194 @@ class TestRollingWindowIntegration:
         for value, expected_zone in test_cases:
             zone, _, _ = window.classify_value(value)
             assert zone == expected_zone, f"Failed for value {value}"
+
+
+class TestModeAwareClassification:
+    """Test mode-aware zone classification for variable subgroup sizes."""
+
+    @pytest.fixture
+    def window_with_boundaries(self, boundaries):
+        """Window with boundaries set."""
+        window = RollingWindow()
+        window.set_boundaries(boundaries)
+        return window
+
+    def test_mode_a_zone_c_upper(self, window_with_boundaries):
+        """Test Mode A classification: z=0.5 -> ZONE_C_UPPER."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=0.5,  # z-score
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.ZONE_C_UPPER
+        assert is_above is True
+        assert sigma_dist == pytest.approx(0.5)
+
+    def test_mode_a_zone_b_upper(self, window_with_boundaries):
+        """Test Mode A classification: z=1.5 -> ZONE_B_UPPER."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=1.5,
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.ZONE_B_UPPER
+        assert is_above is True
+        assert sigma_dist == pytest.approx(1.5)
+
+    def test_mode_a_zone_a_upper(self, window_with_boundaries):
+        """Test Mode A classification: z=2.5 -> ZONE_A_UPPER."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=2.5,
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.ZONE_A_UPPER
+        assert is_above is True
+        assert sigma_dist == pytest.approx(2.5)
+
+    def test_mode_a_beyond_ucl(self, window_with_boundaries):
+        """Test Mode A classification: z=3.5 -> BEYOND_UCL."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=3.5,
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.BEYOND_UCL
+        assert is_above is True
+        assert sigma_dist == pytest.approx(3.5)
+
+    def test_mode_a_zone_c_lower(self, window_with_boundaries):
+        """Test Mode A classification: z=-0.5 -> ZONE_C_LOWER."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=-0.5,
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.ZONE_C_LOWER
+        assert is_above is False
+        assert sigma_dist == pytest.approx(0.5)
+
+    def test_mode_a_beyond_lcl(self, window_with_boundaries):
+        """Test Mode A classification: z=-3.5 -> BEYOND_LCL."""
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=-3.5,
+            mode="STANDARDIZED",
+            actual_n=4,
+        )
+        assert zone == Zone.BEYOND_LCL
+        assert is_above is False
+        assert sigma_dist == pytest.approx(3.5)
+
+    def test_mode_b_zone_with_variable_limits(self, window_with_boundaries):
+        """Test Mode B classification with variable limits.
+
+        Given: value=112, effective_ucl=115, effective_lcl=85, center=100, sigma=10, n=4
+        sigma_xbar = 10/2 = 5
+        Zone boundaries: C(100-105), B(105-110), A(110-115)
+        112 is in Zone A upper (between 110 and 115)
+        """
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=112.0,
+            mode="VARIABLE_LIMITS",
+            actual_n=4,
+            stored_sigma=10.0,
+            stored_center_line=100.0,
+            effective_ucl=115.0,
+            effective_lcl=85.0,
+        )
+        assert zone == Zone.ZONE_A_UPPER
+        assert is_above is True
+        # sigma_dist should be (112-100) / 5 = 2.4
+        assert sigma_dist == pytest.approx(2.4)
+
+    def test_mode_c_uses_stored_boundaries(self, window_with_boundaries):
+        """Test Mode C uses standard classify_value behavior."""
+        # Test that NOMINAL_TOLERANCE mode falls back to standard classification
+        zone, is_above, sigma_dist = window_with_boundaries.classify_value_for_mode(
+            value=103.0,
+            mode="NOMINAL_TOLERANCE",
+            actual_n=5,
+        )
+        assert zone == Zone.ZONE_B_UPPER
+        assert is_above is True
+        # sigma_dist based on boundaries: (103-100) / 2 = 1.5
+        assert sigma_dist == pytest.approx(1.5)
+
+
+class TestWindowSampleWithModeFields:
+    """Test WindowSample dataclass with mode-specific fields."""
+
+    def test_window_sample_stores_actual_n(self, sample_timestamp):
+        """Test WindowSample stores actual_n field."""
+        sample = WindowSample(
+            sample_id=1,
+            timestamp=sample_timestamp,
+            value=100.0,
+            range_value=None,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.5,
+            actual_n=3,
+        )
+        assert sample.actual_n == 3
+
+    def test_window_sample_stores_is_undersized(self, sample_timestamp):
+        """Test WindowSample stores is_undersized field."""
+        sample = WindowSample(
+            sample_id=1,
+            timestamp=sample_timestamp,
+            value=100.0,
+            range_value=None,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.5,
+            is_undersized=True,
+        )
+        assert sample.is_undersized is True
+
+    def test_window_sample_stores_z_score_for_mode_a(self, sample_timestamp):
+        """Test WindowSample stores z_score for Mode A."""
+        sample = WindowSample(
+            sample_id=1,
+            timestamp=sample_timestamp,
+            value=100.0,
+            range_value=None,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.5,
+            z_score=1.5,
+        )
+        assert sample.z_score == 1.5
+
+    def test_window_sample_stores_effective_limits_for_mode_b(self, sample_timestamp):
+        """Test WindowSample stores effective_ucl/lcl for Mode B."""
+        sample = WindowSample(
+            sample_id=1,
+            timestamp=sample_timestamp,
+            value=100.0,
+            range_value=None,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.5,
+            effective_ucl=115.0,
+            effective_lcl=85.0,
+        )
+        assert sample.effective_ucl == 115.0
+        assert sample.effective_lcl == 85.0
+
+    def test_window_sample_default_values(self, sample_timestamp):
+        """Test WindowSample has correct default values for new fields."""
+        sample = WindowSample(
+            sample_id=1,
+            timestamp=sample_timestamp,
+            value=100.0,
+            range_value=None,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.5,
+        )
+        assert sample.actual_n == 1
+        assert sample.is_undersized is False
+        assert sample.effective_ucl is None
+        assert sample.effective_lcl is None
+        assert sample.z_score is None

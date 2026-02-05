@@ -13,7 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.api.deps import get_db_session
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
-from openspc.api.schemas.sample import SampleCreate, SampleExclude, SampleResponse
+from openspc.api.schemas.sample import (
+    SampleCreate,
+    SampleExclude,
+    SampleResponse,
+    SampleUpdate,
+    SampleEditHistoryResponse,
+)
 from openspc.core.engine.nelson_rules import NelsonRuleLibrary
 from openspc.core.engine.rolling_window import RollingWindowManager
 from openspc.core.engine.spc_engine import SPCEngine
@@ -165,6 +171,20 @@ async def get_manual_provider(
     return ManualProvider(char_repo)
 
 
+async def get_window_manager(
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+) -> RollingWindowManager:
+    """Get rolling window manager instance.
+
+    Args:
+        sample_repo: Sample repository from dependency injection
+
+    Returns:
+        RollingWindowManager instance
+    """
+    return RollingWindowManager(sample_repo)
+
+
 # Endpoints
 @router.get("/", response_model=PaginatedResponse[SampleResponse])
 async def list_samples(
@@ -206,9 +226,18 @@ async def list_samples(
     else:
         # If no characteristic filter, get all samples in date range
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         from openspc.db.models.sample import Sample
 
-        stmt = select(Sample).order_by(Sample.timestamp)
+        stmt = (
+            select(Sample)
+            .options(
+                selectinload(Sample.measurements),
+                selectinload(Sample.edit_history),
+            )
+            .order_by(Sample.timestamp)
+            .execution_options(populate_existing=True)
+        )
 
         if start_date is not None:
             stmt = stmt.where(Sample.timestamp >= start_date)
@@ -237,6 +266,17 @@ async def list_samples(
         if len(measurements) > 1:
             range_value = max(measurements) - min(measurements)
 
+        # Get edit count if edit_history is loaded (defensive for pre-migration)
+        edit_count = 0
+        is_modified = False
+        try:
+            is_modified = getattr(sample, 'is_modified', False) or False
+            if hasattr(sample, 'edit_history') and sample.edit_history:
+                edit_count = len(sample.edit_history)
+        except Exception:
+            # Migration may not have run yet - gracefully handle missing columns
+            pass
+
         response_items.append(
             SampleResponse(
                 id=sample.id,
@@ -248,6 +288,13 @@ async def list_samples(
                 measurements=measurements,
                 mean=mean,
                 range_value=range_value,
+                actual_n=sample.actual_n or len(measurements),
+                is_undersized=sample.is_undersized,
+                effective_ucl=sample.effective_ucl,
+                effective_lcl=sample.effective_lcl,
+                z_score=sample.z_score,
+                is_modified=is_modified,
+                edit_count=edit_count,
             )
         )
 
@@ -468,6 +515,306 @@ async def toggle_exclude(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update sample: {str(e)}",
         )
+
+
+@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sample(
+    sample_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    window_manager: RollingWindowManager = Depends(get_window_manager),
+) -> None:
+    """Delete a sample and its measurements permanently.
+
+    Cascade deletes measurements and violations. Invalidates rolling
+    window to trigger recalculation of statistics.
+
+    Args:
+        sample_id: ID of the sample to delete
+        session: Database session dependency
+        sample_repo: Sample repository dependency
+        window_manager: Rolling window manager dependency
+
+    Raises:
+        HTTPException: 404 if sample not found
+        HTTPException: 500 if deletion fails
+    """
+    try:
+        sample = await sample_repo.get_by_id(sample_id)
+
+        if sample is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
+
+        char_id = sample.char_id
+
+        # Delete the sample (measurements and violations cascade via FK)
+        await session.delete(sample)
+        await session.commit()
+
+        # Invalidate the rolling window to trigger rebuild
+        await window_manager.invalidate(char_id)
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete sample: {str(e)}",
+        )
+
+
+@router.put("/{sample_id}", response_model=SampleProcessingResult)
+async def update_sample(
+    sample_id: int,
+    data: SampleUpdate,
+    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    char_repo: CharacteristicRepository = Depends(get_char_repo),
+    window_manager: RollingWindowManager = Depends(get_window_manager),
+    violation_repo: ViolationRepository = Depends(get_violation_repo),
+) -> SampleProcessingResult:
+    """Update sample measurements and recalculate statistics.
+
+    Replaces all measurements for the sample, recalculates statistics,
+    re-evaluates Nelson Rules, and invalidates the rolling window.
+
+    Args:
+        sample_id: ID of the sample to update
+        data: New measurement values
+        session: Database session dependency
+        sample_repo: Sample repository dependency
+        char_repo: Characteristic repository dependency
+        window_manager: Rolling window manager dependency
+        violation_repo: Violation repository dependency
+
+    Returns:
+        Updated sample processing result with new statistics and violations
+
+    Raises:
+        HTTPException: 404 if sample not found
+        HTTPException: 400 if validation fails
+        HTTPException: 500 if update fails
+    """
+    import json
+    import time
+
+    start_time = time.perf_counter()
+
+    try:
+        sample = await sample_repo.get_by_id(sample_id)
+
+        if sample is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
+
+        # Get characteristic with rules eagerly loaded
+        characteristic = await char_repo.get_with_rules(sample.char_id)
+        if characteristic is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Characteristic {sample.char_id} not found",
+            )
+
+        # Store previous values for audit trail
+        previous_values = [m.value for m in sample.measurements]
+        previous_mean = sum(previous_values) / len(previous_values) if previous_values else 0.0
+
+        # Delete existing measurements
+        from openspc.db.models.sample import Measurement, SampleEditHistory
+
+        for measurement in sample.measurements:
+            await session.delete(measurement)
+
+        # Delete existing violations for this sample
+        existing_violations = await violation_repo.get_by_sample(sample_id)
+        for violation in existing_violations:
+            await session.delete(violation)
+
+        # Create new measurements
+        new_measurements = []
+        for value in data.measurements:
+            m = Measurement(
+                sample_id=sample_id,
+                value=value,
+            )
+            session.add(m)
+            new_measurements.append(m)
+
+        # Calculate new mean for edit history
+        new_mean = sum(data.measurements) / len(data.measurements)
+
+        # Create edit history record
+        edit_history = SampleEditHistory(
+            sample_id=sample_id,
+            edited_by=data.edited_by,
+            reason=data.reason,
+            previous_values=json.dumps(previous_values),
+            new_values=json.dumps(data.measurements),
+            previous_mean=previous_mean,
+            new_mean=new_mean,
+        )
+        session.add(edit_history)
+
+        # Mark sample as modified
+        sample.is_modified = True
+
+        await session.flush()
+
+        # Calculate new statistics
+        values = data.measurements
+        mean = sum(values) / len(values)
+        range_value = max(values) - min(values) if len(values) > 1 else None
+
+        # Determine zone based on control limits
+        zone = "unknown"
+        if characteristic.ucl is not None and characteristic.lcl is not None:
+            center = (characteristic.ucl + characteristic.lcl) / 2
+            sigma = (characteristic.ucl - center) / 3
+
+            if mean > characteristic.ucl or mean < characteristic.lcl:
+                zone = "out_of_control"
+            elif sigma > 0:
+                z = abs(mean - center) / sigma
+                if z <= 1:
+                    zone = "zone_c_upper" if mean >= center else "zone_c_lower"
+                elif z <= 2:
+                    zone = "zone_b_upper" if mean >= center else "zone_b_lower"
+                else:
+                    zone = "zone_a_upper" if mean >= center else "zone_a_lower"
+
+        # Re-run Nelson Rules evaluation
+        rule_library = NelsonRuleLibrary()
+        window = await window_manager.get_window(sample.char_id)
+
+        violations: list[ViolationInfo] = []
+        in_control = True
+
+        if window and characteristic.ucl is not None and characteristic.lcl is not None:
+            # Get enabled rule IDs from characteristic configuration
+            enabled_rule_ids = {rule.rule_id for rule in characteristic.rules if rule.is_enabled}
+
+            # Check all enabled rules using the library's check_all method
+            rule_results = rule_library.check_all(window, enabled_rule_ids)
+
+            for result in rule_results:
+                if result.triggered:
+                    in_control = False
+
+                    # Create violation record
+                    from openspc.db.models.violation import Violation as ViolationModel
+                    violation = ViolationModel(
+                        sample_id=sample_id,
+                        rule_id=result.rule_id,
+                        rule_name=result.rule_name,
+                        severity=result.severity.value,
+                    )
+                    session.add(violation)
+                    await session.flush()
+
+                    violations.append(
+                        ViolationInfo(
+                            violation_id=violation.id,
+                            rule_id=result.rule_id,
+                            rule_name=result.rule_name,
+                            severity=result.severity.value,
+                        )
+                    )
+
+        await session.commit()
+
+        # Invalidate rolling window
+        await window_manager.invalidate(sample.char_id)
+
+        processing_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return SampleProcessingResult(
+            sample_id=sample_id,
+            timestamp=sample.timestamp,
+            mean=mean,
+            range_value=range_value,
+            zone=zone,
+            in_control=in_control,
+            violations=violations,
+            processing_time_ms=processing_time_ms,
+        )
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update sample: {str(e)}",
+        )
+
+
+@router.get("/{sample_id}/history", response_model=list[SampleEditHistoryResponse])
+async def get_sample_edit_history(
+    sample_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+) -> list[SampleEditHistoryResponse]:
+    """Get edit history for a sample.
+
+    Retrieve all edit history records for a sample, showing what changes were
+    made, when, by whom, and why.
+
+    Args:
+        sample_id: ID of the sample
+        session: Database session dependency
+        sample_repo: Sample repository dependency
+
+    Returns:
+        List of edit history records in reverse chronological order
+
+    Raises:
+        HTTPException: 404 if sample not found
+    """
+    import json
+
+    sample = await sample_repo.get_by_id(sample_id)
+
+    if sample is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sample {sample_id} not found",
+        )
+
+    # Query edit history
+    from sqlalchemy import select
+    from openspc.db.models.sample import SampleEditHistory
+
+    stmt = (
+        select(SampleEditHistory)
+        .where(SampleEditHistory.sample_id == sample_id)
+        .order_by(SampleEditHistory.edited_at.desc())
+    )
+    result = await session.execute(stmt)
+    history_records = result.scalars().all()
+
+    # Convert to response models
+    return [
+        SampleEditHistoryResponse(
+            id=record.id,
+            sample_id=record.sample_id,
+            edited_at=record.edited_at,
+            edited_by=record.edited_by,
+            reason=record.reason,
+            previous_values=json.loads(record.previous_values),
+            new_values=json.loads(record.new_values),
+            previous_mean=record.previous_mean,
+            new_mean=record.new_mean,
+        )
+        for record in history_records
+    ]
 
 
 @router.post("/batch", response_model=BatchImportResult)

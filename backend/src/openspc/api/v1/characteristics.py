@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from openspc.api.schemas.characteristic import (
+    ChangeModeRequest,
+    ChangeModeResponse,
     CharacteristicCreate,
     CharacteristicResponse,
     CharacteristicUpdate,
@@ -20,6 +22,7 @@ from openspc.api.schemas.characteristic import (
     ChartSample,
     ControlLimits,
     NelsonRuleConfig,
+    SpecLimits,
     ZoneBoundaries,
 )
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
@@ -248,11 +251,29 @@ async def get_chart_data(
             detail=f"Characteristic {char_id} not found"
         )
 
-    # Check if control limits are defined
+    # If control limits are not defined, return empty chart data
     if characteristic.ucl is None or characteristic.lcl is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Control limits not defined for characteristic {char_id}. Run recalculate-limits first."
+        return ChartDataResponse(
+            characteristic_id=char_id,
+            characteristic_name=characteristic.name,
+            data_points=[],
+            control_limits=ControlLimits(center_line=None, ucl=None, lcl=None),
+            spec_limits=SpecLimits(
+                usl=characteristic.usl,
+                lsl=characteristic.lsl,
+                target=characteristic.target_value,
+            ),
+            zone_boundaries=ZoneBoundaries(
+                plus_1_sigma=None,
+                plus_2_sigma=None,
+                plus_3_sigma=None,
+                minus_1_sigma=None,
+                minus_2_sigma=None,
+                minus_3_sigma=None,
+            ),
+            subgroup_mode=characteristic.subgroup_mode,
+            nominal_subgroup_size=characteristic.subgroup_size,
+            decimal_precision=characteristic.decimal_precision,
         )
 
     # Get samples
@@ -322,17 +343,24 @@ async def get_chart_data(
 
         # Get violations for this sample
         violations = await violation_repo.get_by_sample(sample.id)
-        violation_rule_ids = [v.rule_id for v in violations]
-        has_violation = len(violations) > 0
+        violation_ids = [v.id for v in violations]
+        violation_rules = list(set(v.rule_id for v in violations))  # Unique rule IDs
 
         chart_samples.append(ChartSample(
             sample_id=sample.id,
             timestamp=sample.timestamp.isoformat(),
-            value=value,
-            range_value=range_value,
+            mean=value,
+            range=range_value,
+            excluded=sample.is_excluded,
+            violation_ids=violation_ids,
+            violation_rules=violation_rules,
             zone=zone,
-            has_violation=has_violation,
-            violation_rule_ids=violation_rule_ids,
+            actual_n=sample.actual_n or len(values),
+            is_undersized=sample.is_undersized,
+            effective_ucl=sample.effective_ucl,
+            effective_lcl=sample.effective_lcl,
+            z_score=sample.z_score,
+            display_value=sample.z_score if characteristic.subgroup_mode == "STANDARDIZED" else value,
         ))
 
     control_limits = ControlLimits(
@@ -341,11 +369,22 @@ async def get_chart_data(
         lcl=characteristic.lcl,
     )
 
+    spec_limits = SpecLimits(
+        usl=characteristic.usl,
+        lsl=characteristic.lsl,
+        target=characteristic.target_value,
+    )
+
     return ChartDataResponse(
         characteristic_id=char_id,
-        samples=chart_samples,
+        characteristic_name=characteristic.name,
+        data_points=chart_samples,
         control_limits=control_limits,
-        zones=zones,
+        spec_limits=spec_limits,
+        zone_boundaries=zones,
+        subgroup_mode=characteristic.subgroup_mode,
+        nominal_subgroup_size=characteristic.subgroup_size,
+        decimal_precision=characteristic.decimal_precision,
     )
 
 
@@ -422,7 +461,7 @@ async def get_rules(
 ) -> list[NelsonRuleConfig]:
     """Get Nelson Rule configuration for characteristic.
 
-    Returns the enabled/disabled state for all 8 Nelson Rules.
+    Returns the enabled/disabled state and require_acknowledgement for all 8 Nelson Rules.
     """
     # Get characteristic with rules
     characteristic = await repo.get_with_rules(char_id)
@@ -434,7 +473,11 @@ async def get_rules(
 
     # Convert to response models
     rules = [
-        NelsonRuleConfig(rule_id=rule.rule_id, is_enabled=rule.is_enabled)
+        NelsonRuleConfig(
+            rule_id=rule.rule_id,
+            is_enabled=rule.is_enabled,
+            require_acknowledgement=rule.require_acknowledgement,
+        )
         for rule in characteristic.rules
     ]
 
@@ -442,7 +485,7 @@ async def get_rules(
     existing_rule_ids = {rule.rule_id for rule in rules}
     for rule_id in range(1, 9):
         if rule_id not in existing_rule_ids:
-            rules.append(NelsonRuleConfig(rule_id=rule_id, is_enabled=True))
+            rules.append(NelsonRuleConfig(rule_id=rule_id, is_enabled=True, require_acknowledgement=True))
 
     # Sort by rule_id
     rules.sort(key=lambda r: r.rule_id)
@@ -489,6 +532,7 @@ async def update_rules(
             char_id=char_id,
             rule_id=rule_config.rule_id,
             is_enabled=rule_config.is_enabled,
+            require_acknowledgement=rule_config.require_acknowledgement,
         )
         session.add(rule)
 
@@ -497,6 +541,106 @@ async def update_rules(
     # Return updated rules
     await session.refresh(characteristic)
     return [
-        NelsonRuleConfig(rule_id=rule.rule_id, is_enabled=rule.is_enabled)
+        NelsonRuleConfig(
+            rule_id=rule.rule_id,
+            is_enabled=rule.is_enabled,
+            require_acknowledgement=rule.require_acknowledgement,
+        )
         for rule in characteristic.rules
     ]
+
+
+@router.post("/{char_id}/change-mode", response_model=ChangeModeResponse)
+async def change_subgroup_mode(
+    char_id: int,
+    request: ChangeModeRequest,
+    repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    sample_repo: SampleRepository = Depends(get_sample_repository),
+    session: AsyncSession = Depends(get_session),
+) -> ChangeModeResponse:
+    """Change subgroup mode with historical sample migration.
+
+    Recalculates z_score, effective_ucl, and effective_lcl for all
+    existing samples based on the new mode. This is an atomic operation
+    that rolls back on failure.
+
+    For STANDARDIZED and VARIABLE_LIMITS modes, stored_sigma and
+    stored_center_line must be set (run recalculate-limits first).
+    """
+    import math
+
+    # Get characteristic
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found"
+        )
+
+    previous_mode = characteristic.subgroup_mode
+    new_mode = request.new_mode.value
+
+    # Get all samples for this characteristic
+    samples = await sample_repo.get_by_characteristic(char_id)
+
+    # Validate prerequisites for Mode A/B only when samples exist
+    # If no samples, mode change is just a configuration change
+    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS") and len(samples) > 0:
+        if characteristic.stored_sigma is None or characteristic.stored_center_line is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="stored_sigma and stored_center_line must be set. Run recalculate-limits first."
+            )
+    samples_migrated = 0
+
+    # Recalculate values for each sample based on new mode
+    for sample in samples:
+        actual_n = sample.actual_n or 1
+
+        # Calculate sample mean from measurements
+        measurements = sample.measurements
+        if measurements:
+            sample_mean = sum(m.value for m in measurements) / len(measurements)
+        else:
+            sample_mean = 0.0
+
+        if new_mode == "STANDARDIZED":
+            # Calculate z_score
+            if characteristic.stored_sigma > 0:
+                sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+                sample.z_score = (sample_mean - characteristic.stored_center_line) / sigma_x_bar
+            else:
+                sample.z_score = 0.0
+            # Clear variable limit fields
+            sample.effective_ucl = None
+            sample.effective_lcl = None
+
+        elif new_mode == "VARIABLE_LIMITS":
+            # Calculate effective limits based on actual_n
+            sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+            sample.effective_ucl = characteristic.stored_center_line + 3 * sigma_x_bar
+            sample.effective_lcl = characteristic.stored_center_line - 3 * sigma_x_bar
+            # Clear z_score
+            sample.z_score = None
+
+        else:  # NOMINAL_TOLERANCE
+            # Clear mode-specific fields
+            sample.z_score = None
+            sample.effective_ucl = None
+            sample.effective_lcl = None
+
+        samples_migrated += 1
+
+    # Update the characteristic's subgroup_mode
+    characteristic.subgroup_mode = new_mode
+
+    # Commit all changes atomically
+    await session.commit()
+    await session.refresh(characteristic)
+
+    return ChangeModeResponse(
+        previous_mode=previous_mode,
+        new_mode=new_mode,
+        samples_migrated=samples_migrated,
+        characteristic=CharacteristicResponse.model_validate(characteristic),
+    )

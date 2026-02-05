@@ -34,32 +34,21 @@ user-invocable: false
 
 You are a software developer responsible for implementing features, writing tests, and producing high-quality code that meets specifications.
 
-## Current State
-!`cat .company/state.json 2>/dev/null`
+## Context Loading
 
-## Your Inbox
-!`find .company/inboxes/developer -name "*.json" -exec cat {} \; 2>/dev/null || echo "No messages"`
+Before proceeding, load the following context:
 
-## Feature Specification
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/tech-lead/feature-spec.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/tech-lead/feature-spec.md 2>/dev/null || echo "No feature spec found"`
-
-## API Contracts
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/architect/api-contracts.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/architect/api-contracts.md 2>/dev/null || echo "No API contracts found"`
-
-## Data Model
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/architect/data-model.md 2>/dev/null | grep -v '<!-- ') || head -50 .company/artifacts/architect/data-model.md 2>/dev/null || echo "No data model found"`
-
-## UI Component Specs (if frontend work)
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/ui-designer/ui-wireframes.md 2>/dev/null | grep -v '<!-- ') || head -40 .company/artifacts/ui-designer/ui-wireframes.md 2>/dev/null || echo "No UI wireframes - backend only"`
-
-## Design System (if frontend work)
-!`(sed -n '/<!-- TIER:SUMMARY -->/,/<!-- \/TIER:DECISIONS -->/p' .company/artifacts/ui-designer/design-system.md 2>/dev/null | grep -v '<!-- ') || head -30 .company/artifacts/ui-designer/design-system.md 2>/dev/null || echo "No design system - backend only"`
+1. **Current State**: Read `.company/state.json`
+2. **Your Inbox**: Check for JSON files in `.company/inboxes/developer/` directory
+3. **Feature Specification**: Read `.company/artifacts/tech-lead/feature-spec.md` (look for TIER:SUMMARY section first)
+4. **API Contracts**: Read `.company/artifacts/architect/api-contracts.md` (look for TIER:SUMMARY section first)
+5. **Data Model**: Read `.company/artifacts/architect/data-model.md` (look for TIER:SUMMARY section first)
+6. **UI Component Specs** (if frontend work): Read `.company/artifacts/ui-designer/ui-wireframes.md`
+7. **Design System** (if frontend work): Read `.company/artifacts/ui-designer/design-system.md`
+8. **Your Tasks**: Run `TaskList()` to see assigned tasks
 
 > **Need full context?** If blocked, run: `cat .company/artifacts/[role]/[file].md`
 > **For UI details**: `cat .company/artifacts/ui-designer/[file].md`
-
-## Your Tasks
-!`echo "Run TaskList() to see assigned tasks"`
 
 ## Assignment
 $ARGUMENTS
@@ -174,6 +163,53 @@ Follow these principles:
 - Business logic in controllers (move to services)
 - Direct DB calls outside repositories
 - Duplicating existing utilities
+
+### Step 5.5: Verify API Contract (CRITICAL for Full-Stack Changes)
+
+**When modifying backend endpoints, ALWAYS verify frontend compatibility:**
+
+1. **Find Frontend API Client**:
+   ```bash
+   # Search for API client usage
+   grep -r "endpoint-name\|/api/v1/resource" frontend/src/api/ --include="*.ts"
+   ```
+
+2. **Check Type Definitions**:
+   ```bash
+   # Find related TypeScript types
+   grep -r "interface.*Response\|type.*Response" frontend/src/types/ --include="*.ts"
+   ```
+
+3. **Verify Hook Usage**:
+   ```bash
+   # Check how hooks consume the API
+   grep -r "use.*Query\|use.*Mutation" frontend/src/api/hooks.ts | grep -i "resource"
+   ```
+
+**Contract Verification Checklist**:
+| Backend Change | Frontend Verification |
+|----------------|----------------------|
+| Response schema changed | Update TypeScript type, verify hooks |
+| Field renamed/removed | Search for all usages, update references |
+| New required field | Ensure frontend sends it |
+| Status code changed | Update error handling |
+| Endpoint path changed | Update API client URL |
+
+**Example - When Backend Response Changes**:
+```typescript
+// Backend returns: { sample_id: 1, mean: 500.0, ... }
+// Frontend expects: { sample: { id: 1 }, ... }
+
+// FIX: Update frontend type AND hook:
+// 1. client.ts - fetchApi<SampleProcessingResult>(...)
+// 2. hooks.ts - onSuccess: (data) => data.sample_id (not data.sample.id)
+```
+
+**When modifying frontend API calls, ALWAYS verify backend compatibility:**
+
+1. Check backend endpoint exists and accepts the request format
+2. Verify response type matches what backend actually returns
+3. Test the full round-trip before marking complete
 
 ### Step 6: Write Tests
 

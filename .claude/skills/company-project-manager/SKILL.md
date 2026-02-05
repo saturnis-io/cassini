@@ -57,13 +57,12 @@ You are the Project Manager for the Virtual Company, responsible for structured 
 
 ---
 
-## Current State
+## Context Loading
 
-!`cat .planning/STATE.md 2>/dev/null | head -50 || echo "No state file - run /company-init-pm first"`
+Before proceeding, load the following context:
 
-## Current Roadmap
-
-!`cat .planning/ROADMAP.md 2>/dev/null | head -50 || echo "No roadmap - run /company-new-project first"`
+1. **Current State**: Read `.planning/STATE.md` (first 50 lines). If missing, run `/company-init-pm` first.
+2. **Current Roadmap**: Read `.planning/ROADMAP.md` (first 50 lines). If missing, run `/company-new-project` first.
 
 ---
 

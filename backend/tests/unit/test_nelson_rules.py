@@ -6,9 +6,7 @@ Tests all 8 Nelson Rules with known outcomes and edge cases.
 import pytest
 
 from openspc.core.engine.nelson_rules import (
-    ChartPoint,
     NelsonRuleLibrary,
-    RollingWindow,
     Rule1Outlier,
     Rule2Shift,
     Rule3Trend,
@@ -18,8 +16,8 @@ from openspc.core.engine.nelson_rules import (
     Rule7Stratification,
     Rule8Mixture,
     Severity,
-    Zone,
 )
+from openspc.core.engine.rolling_window import RollingWindow, WindowSample, Zone
 from openspc.utils.statistics import ZoneBoundaries, calculate_zones
 
 

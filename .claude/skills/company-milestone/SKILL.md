@@ -22,13 +22,12 @@ allowed-tools:
 
 Archive completed milestone and prepare for next version.
 
-## Current Milestone
+## Context Loading
 
-!`cat .planning/ROADMAP.md 2>/dev/null`
+Before proceeding, load the following context:
 
-## Phase Verification Status
-
-!`for phase in .planning/phase-*/; do echo "=== $phase ===" && cat "$phase/VERIFICATION.md" 2>/dev/null | head -10 || echo "Not verified"; done`
+1. **Current Milestone**: Read `.planning/ROADMAP.md`
+2. **Phase Verification Status**: For each directory matching `.planning/phase-*/`, read the `VERIFICATION.md` file (first 10 lines) if it exists
 
 ---
 

@@ -222,13 +222,18 @@ class ControlLimitService:
             min_samples=min_samples,
         )
 
-        # Update characteristic with new limits
+        # Update characteristic with new limits and stored parameters
         characteristic = await self._char_repo.get_by_id(characteristic_id)
         if characteristic is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
         characteristic.ucl = result.ucl
         characteristic.lcl = result.lcl
+
+        # Store sigma and center_line for Mode A (STANDARDIZED) and Mode B (VARIABLE_LIMITS)
+        # These values are required for variable subgroup size handling
+        characteristic.stored_sigma = result.sigma
+        characteristic.stored_center_line = result.center_line
 
         # Commit changes
         await self._char_repo.session.commit()

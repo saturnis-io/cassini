@@ -24,8 +24,10 @@ Verify phase $ARGUMENTS completion with automated checks and UAT.
 
 ## Context Loading
 
-!`cat .planning/phase-$ARGUMENTS/CONTEXT.md 2>/dev/null | head -30`
-!`ls .planning/phase-$ARGUMENTS/*-SUMMARY.md 2>/dev/null`
+Before proceeding, load the following context:
+
+1. **Phase Context**: Read `.planning/phase-{N}/CONTEXT.md` (first 30 lines) where {N} is the phase number from arguments
+2. **Summaries**: List files matching `.planning/phase-{N}/*-SUMMARY.md`
 
 ---
 
