@@ -255,39 +255,75 @@ export function ControlChart({
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
 
-          {/* Out-of-control zones - striped red pattern for visibility */}
+          {/* Zone shading - colored bands for visual context */}
           {isModeA ? (
             <>
-              {/* Above +3 sigma */}
-              <ReferenceArea
-                y1={3}
-                y2={yMax}
-                fill="url(#oocPattern)"
-              />
-              {/* Below -3 sigma */}
-              <ReferenceArea
-                y1={yMin}
-                y2={-3}
-                fill="url(#oocPattern)"
-              />
+              {/* Zone C: Within ±1σ - green (stable) */}
+              <ReferenceArea y1={-1} y2={1} fill={chartColors.zoneC} fillOpacity={0.08} />
+              {/* Zone B: ±1σ to ±2σ - yellow (caution) */}
+              <ReferenceArea y1={1} y2={2} fill={chartColors.zoneB} fillOpacity={0.1} />
+              <ReferenceArea y1={-2} y2={-1} fill={chartColors.zoneB} fillOpacity={0.1} />
+              {/* Zone A: ±2σ to ±3σ - orange (warning) */}
+              <ReferenceArea y1={2} y2={3} fill={chartColors.zoneA} fillOpacity={0.12} />
+              <ReferenceArea y1={-3} y2={-2} fill={chartColors.zoneA} fillOpacity={0.12} />
+              {/* Out of control: Beyond ±3σ */}
+              <ReferenceArea y1={3} y2={yMax} fill="url(#oocPattern)" />
+              <ReferenceArea y1={yMin} y2={-3} fill="url(#oocPattern)" />
             </>
           ) : (
             <>
-              {/* Above UCL */}
-              {control_limits.ucl && (
+              {/* Zone shading using zone boundaries from backend */}
+              {zone_boundaries.plus_1_sigma != null && zone_boundaries.minus_1_sigma != null && (
+                /* Zone C: Within ±1σ - green (stable) */
                 <ReferenceArea
-                  y1={control_limits.ucl}
-                  y2={yMax}
-                  fill="url(#oocPattern)"
+                  y1={zone_boundaries.minus_1_sigma}
+                  y2={zone_boundaries.plus_1_sigma}
+                  fill={chartColors.zoneC}
+                  fillOpacity={0.08}
                 />
               )}
-              {/* Below LCL */}
-              {control_limits.lcl && (
+              {zone_boundaries.plus_1_sigma != null && zone_boundaries.plus_2_sigma != null && (
+                /* Zone B upper: +1σ to +2σ - yellow (caution) */
                 <ReferenceArea
-                  y1={yMin}
-                  y2={control_limits.lcl}
-                  fill="url(#oocPattern)"
+                  y1={zone_boundaries.plus_1_sigma}
+                  y2={zone_boundaries.plus_2_sigma}
+                  fill={chartColors.zoneB}
+                  fillOpacity={0.1}
                 />
+              )}
+              {zone_boundaries.minus_2_sigma != null && zone_boundaries.minus_1_sigma != null && (
+                /* Zone B lower: -2σ to -1σ - yellow (caution) */
+                <ReferenceArea
+                  y1={zone_boundaries.minus_2_sigma}
+                  y2={zone_boundaries.minus_1_sigma}
+                  fill={chartColors.zoneB}
+                  fillOpacity={0.1}
+                />
+              )}
+              {zone_boundaries.plus_2_sigma != null && control_limits.ucl != null && (
+                /* Zone A upper: +2σ to UCL - orange (warning) */
+                <ReferenceArea
+                  y1={zone_boundaries.plus_2_sigma}
+                  y2={control_limits.ucl}
+                  fill={chartColors.zoneA}
+                  fillOpacity={0.12}
+                />
+              )}
+              {control_limits.lcl != null && zone_boundaries.minus_2_sigma != null && (
+                /* Zone A lower: LCL to -2σ - orange (warning) */
+                <ReferenceArea
+                  y1={control_limits.lcl}
+                  y2={zone_boundaries.minus_2_sigma}
+                  fill={chartColors.zoneA}
+                  fillOpacity={0.12}
+                />
+              )}
+              {/* Out of control zones */}
+              {control_limits.ucl && (
+                <ReferenceArea y1={control_limits.ucl} y2={yMax} fill="url(#oocPattern)" />
+              )}
+              {control_limits.lcl && (
+                <ReferenceArea y1={yMin} y2={control_limits.lcl} fill="url(#oocPattern)" />
               )}
             </>
           )}
