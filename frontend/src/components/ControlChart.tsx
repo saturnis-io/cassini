@@ -83,14 +83,15 @@ export function ControlChart({
 
   // Collect all violated rules across all data points for legend
   // This hook must be called unconditionally (before early returns)
+  const dataPoints = chartData?.data_points
   const allViolatedRules = useMemo(() => {
-    if (!chartData?.data_points) return []
+    if (!dataPoints) return []
     const rules = new Set<number>()
-    chartData.data_points.forEach((point) => {
+    dataPoints.forEach((point) => {
       point.violation_rules?.forEach((rule) => rules.add(rule))
     })
     return Array.from(rules).sort((a, b) => a - b)
-  }, [chartData?.data_points])
+  }, [dataPoints])
 
   // Color scheme overrides for comparison mode - uses Sepasoft brand colors from preset
   const lineGradientId = `chartLineGradient-${characteristicId}-${colorScheme}`

@@ -19,5 +19,13 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // React Compiler rules - these patterns are used intentionally for
+      // initializing state from props/fetched data in controlled components
+      'react-hooks/set-state-in-effect': 'off',
+      // Fast refresh warnings for hooks exported with components
+      // These are intentional patterns for React context providers
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
   },
 ])

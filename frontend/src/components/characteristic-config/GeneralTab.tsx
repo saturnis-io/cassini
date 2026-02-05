@@ -1,7 +1,6 @@
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { ChevronRight } from 'lucide-react'
-import type { SubgroupMode } from '@/types'
 
 interface FormData {
   name: string

@@ -246,12 +246,9 @@ export function RangeChart({
                 const arrayIndex = Number(state.activeTooltipIndex)
                 const point = data[arrayIndex]
                 if (point) {
-                  // Broadcast sample_id(s) for cross-chart sync
-                  // For MR chart, broadcast both "from" and "to" sample IDs
-                  const sampleIds = point.sample_id_from != null
-                    ? [point.sample_id, point.sample_id_from]
-                    : [point.sample_id]
-                  onHoverSample(sampleIds)
+                  // Broadcast only the primary sample_id for cross-chart sync
+                  // For MR chart, use only the "to" sample to avoid highlighting two points
+                  onHoverSample(point.sample_id)
                   // Also call local callback if provided
                   onHoverIndex?.(arrayIndex)
                 }
@@ -375,11 +372,9 @@ export function RangeChart({
                 // Local highlighting uses array index (from DualChartPanel local state)
                 const isHighlightedLocal = highlightedIndex != null && arrayIndex === highlightedIndex
                 // Global cross-chart highlighting using sample_id
-                // For MR chart, highlight if either the "from" or "to" sample is hovered
-                const isHighlightedGlobal = hoveredSampleIds != null && (
-                  hoveredSampleIds.has(payload.sample_id) ||
-                  (payload.sample_id_from != null && hoveredSampleIds.has(payload.sample_id_from))
-                )
+                // For MR chart, only highlight if the "to" sample matches (not both from and to)
+                // This ensures a single MR point is highlighted when hovering on X-bar
+                const isHighlightedGlobal = hoveredSampleIds != null && hoveredSampleIds.has(payload.sample_id)
                 const isHighlighted = isHighlightedLocal || isHighlightedGlobal
                 const baseRadius = isHighlighted ? 6 : 4
                 const fillColor = isHighlighted ? 'hsl(45, 100%, 50%)' : chartColors.normalPoint

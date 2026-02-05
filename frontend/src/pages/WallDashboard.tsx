@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X, Settings, Save, FolderOpen, Grid2x2, Grid3x3 } from 'lucide-react'
+import { X, Save, FolderOpen, Grid2x2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristics, useChartData } from '@/api/hooks'
 import { WallChartCard } from '@/components/WallChartCard'
@@ -144,7 +144,7 @@ function ExpandedChartModal({
                 </div>
                 <div>
                   <span className="text-zinc-500">CL: </span>
-                  <span className="text-zinc-100">{chartData.control_limits.cl?.toFixed(4) ?? '-'}</span>
+                  <span className="text-zinc-100">{chartData.control_limits.center_line?.toFixed(4) ?? '-'}</span>
                 </div>
                 <div>
                   <span className="text-zinc-500">LCL: </span>
@@ -180,7 +180,6 @@ export function WallDashboard() {
     return (param && param in GRID_CONFIGS) ? param as GridSize : '2x2'
   })
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
 
   // Parse characteristic IDs from URL
   const charIds = useMemo(() => {
@@ -196,13 +195,14 @@ export function WallDashboard() {
 
   // Determine which characteristics to display
   const displayCharacteristics = useMemo(() => {
+    const items = allCharacteristics?.items ?? []
     if (charIds.length > 0) {
-      return allCharacteristics?.filter((c) => charIds.includes(c.id)) ?? []
+      return items.filter((c) => charIds.includes(c.id))
     }
     // Show all active characteristics up to grid capacity
     const config = GRID_CONFIGS[gridSize]
     const maxSlots = config.cols * config.rows
-    return (allCharacteristics?.filter((c) => c.active) ?? []).slice(0, maxSlots)
+    return items.filter((c) => c.active).slice(0, maxSlots)
   }, [allCharacteristics, charIds, gridSize])
 
   // Get expanded characteristic name

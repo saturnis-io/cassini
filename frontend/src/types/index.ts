@@ -33,6 +33,12 @@ export interface Characteristic {
   stored_sigma: number | null
   stored_center_line: number | null
   decimal_precision: number
+  // Optional metadata fields
+  unit?: string
+  active?: boolean
+  created_at?: string
+  updated_at?: string
+  sample_count?: number
   // Optional computed fields (may be included by backend)
   in_control?: boolean
   unacknowledged_violations?: number

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import { useUIStore } from '@/stores/uiStore'
 import type { Role } from '@/lib/roles'
 

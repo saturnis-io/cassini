@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCharacteristics, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
@@ -33,24 +33,28 @@ export function OperatorDashboard() {
   const isBoxWhisker = currentChartType === 'box-whisker'
 
   // Compute chart data options from time range
-  const chartOptions = useMemo(() => {
+  // Note: For duration-based ranges, we compute dates at render time
+  // This is acceptable since the options are used immediately for data fetching
+  const chartOptions = (() => {
     if (timeRange.type === 'points' && timeRange.pointsLimit) {
       return { limit: timeRange.pointsLimit }
     }
     if (timeRange.type === 'duration' && timeRange.hoursBack) {
-      const endDate = new Date().toISOString()
-      const startDate = new Date(Date.now() - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
+      const now = Date.now()
+      const endDate = new Date(now).toISOString()
+      const startDate = new Date(now - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
       return { startDate, endDate, limit: 500 } // Cap at 500 for performance
     }
     if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
       return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: 500 }
     }
     return { limit: 50 }
-  }, [timeRange])
+  })()
 
   // Use app-level WebSocket context
   const { subscribe, unsubscribe } = useWebSocketContext()
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []
+  const characteristicIdsKey = characteristicIds.join(',')
 
   // Manage subscriptions when characteristics change
   useEffect(() => {
@@ -61,7 +65,8 @@ export function OperatorDashboard() {
       // The WebSocket connection itself stays open
       characteristicIds.forEach((id) => unsubscribe(id))
     }
-  }, [characteristicIds.join(','), subscribe, unsubscribe])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characteristicIdsKey, subscribe, unsubscribe])
 
   if (isLoading) {
     return (

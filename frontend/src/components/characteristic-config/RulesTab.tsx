@@ -155,7 +155,8 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const [initialized, setInitialized] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
-  // Initialize from server
+  // Initialize from server - intentional sync from fetched data
+   
   useEffect(() => {
     if (rulesData?.rule_configs && !initialized) {
       const configMap = new Map<number, RuleConfig>()
@@ -177,7 +178,8 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
     }
   }, [rulesData, initialized])
 
-  // Reset on characteristic change
+  // Reset on characteristic change - intentional reset
+   
   useEffect(() => {
     setInitialized(false)
     setIsDirty(false)

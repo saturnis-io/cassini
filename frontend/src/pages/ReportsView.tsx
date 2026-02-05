@@ -20,7 +20,8 @@ export function ReportsView() {
   // Use the same time range state as the dashboard
   const timeRange = useDashboardStore((state) => state.timeRange)
 
-  // Initialize from URL params (from SelectionToolbar navigation)
+  // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
+   
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
@@ -39,19 +40,30 @@ export function ReportsView() {
     setSelectedCharacteristicIds([])
   }
 
-  // Build chart options from time range
-  const chartOptions = {
-    limit: timeRange.type === 'points' ? timeRange.pointsLimit ?? 50 : undefined,
-    startDate: timeRange.type === 'custom' ? timeRange.startDate ?? undefined : undefined,
-    endDate: timeRange.type === 'custom' ? timeRange.endDate ?? undefined : undefined,
-  }
-
-  // For duration-based ranges, calculate start/end dates
-  if (timeRange.type === 'duration' && timeRange.hoursBack) {
-    const now = new Date()
-    chartOptions.startDate = new Date(now.getTime() - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
-    chartOptions.endDate = now.toISOString()
-  }
+  // Build chart options from time range - memoize to avoid query key changes on every render
+  const chartOptions = useMemo(() => {
+    if (timeRange.type === 'points') {
+      return { limit: timeRange.pointsLimit ?? 50 }
+    }
+    if (timeRange.type === 'duration' && timeRange.hoursBack) {
+      const now = new Date()
+      // Round to nearest minute to avoid excessive query invalidation
+      now.setSeconds(0, 0)
+      const startDate = new Date(now.getTime() - timeRange.hoursBack * 60 * 60 * 1000)
+      return {
+        startDate: startDate.toISOString(),
+        endDate: now.toISOString(),
+      }
+    }
+    if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
+      return {
+        startDate: timeRange.startDate,
+        endDate: timeRange.endDate,
+      }
+    }
+    // Default fallback
+    return { limit: 50 }
+  }, [timeRange.type, timeRange.pointsLimit, timeRange.hoursBack, timeRange.startDate, timeRange.endDate])
 
   // Fetch data for export functionality
   const primaryCharId = selectedCharacteristicIds[0] || 0

@@ -30,7 +30,8 @@ export function ManualEntryPanel() {
     }
   }, [selectedChar])
 
-  // Initialize measurement inputs when characteristic changes
+  // Initialize measurement inputs when characteristic changes - intentional reset
+   
   useEffect(() => {
     if (inputCount > 0) {
       setMeasurements(Array(inputCount).fill(''))

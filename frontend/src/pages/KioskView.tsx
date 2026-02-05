@@ -81,16 +81,18 @@ export function KioskView() {
   const interval = parseInt(searchParams.get('interval') || '15', 10) * 1000
 
   // Fetch all characteristics if no specific IDs provided
-  const { data: allCharacteristics } = useCharacteristics()
+  const { data: allCharacteristics, isLoading } = useCharacteristics()
 
   // Determine which characteristics to display
   const displayCharacteristics = useMemo(() => {
+    const items = allCharacteristics?.items ?? []
     if (charIds.length > 0) {
       // Filter to requested IDs
-      return allCharacteristics?.filter((c) => charIds.includes(c.id)) ?? []
+      return items.filter((c) => charIds.includes(c.id))
     }
-    // Show all active characteristics
-    return allCharacteristics?.filter((c) => c.active) ?? []
+    // Show all characteristics (not just active, since kiosk may want to show all)
+    // If you want only active, set active=true in the query params
+    return items
   }, [allCharacteristics, charIds])
 
   const currentChar = displayCharacteristics[currentIndex]
@@ -161,12 +163,31 @@ export function KioskView() {
   }, [displayCharacteristics.length])
 
   // Loading state
-  if (!displayCharacteristics.length) {
+  if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <div className="text-2xl font-semibold text-zinc-300">Loading...</div>
-          <div className="text-zinc-500 mt-2">Waiting for characteristics</div>
+          <div className="text-zinc-500 mt-2">Fetching characteristics</div>
+        </div>
+      </div>
+    )
+  }
+
+  // No characteristics available
+  if (!displayCharacteristics.length) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl font-semibold text-zinc-300">No Characteristics</div>
+          <div className="text-zinc-500 mt-2">
+            {charIds.length > 0
+              ? 'The specified characteristic IDs were not found'
+              : 'No characteristics have been configured yet'}
+          </div>
+          <div className="text-zinc-600 mt-4 text-sm">
+            Configure characteristics in Settings, or specify IDs via ?chars=1,2,3
+          </div>
         </div>
       </div>
     )
@@ -177,9 +198,9 @@ export function KioskView() {
     : null
 
   return (
-    <div className="h-full flex flex-col p-6">
+    <div className="h-screen flex flex-col p-6 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-4">
           <StatusIndicator status={status} />
           <h1 className="text-2xl font-bold text-zinc-100">
@@ -206,8 +227,8 @@ export function KioskView() {
         </button>
       </div>
 
-      {/* Chart area */}
-      <div className="flex-1 bg-zinc-900 rounded-lg p-4 relative min-h-0">
+      {/* Chart area - use calc for explicit height that ResponsiveContainer needs */}
+      <div className="bg-zinc-900 rounded-lg p-4 relative" style={{ height: 'calc(100vh - 220px)' }}>
         {currentChar && (
           <ControlChart
             characteristicId={currentChar.id}
@@ -237,7 +258,7 @@ export function KioskView() {
       </div>
 
       {/* Stats bar */}
-      <div className="mt-4 flex items-center justify-between text-lg">
+      <div className="mt-4 flex items-center justify-between text-lg flex-shrink-0">
         <div className="flex gap-8">
           <div>
             <span className="text-zinc-500">Current: </span>

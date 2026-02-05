@@ -400,7 +400,7 @@ function CronForm({
     }
     // Very basic interpretation
     try {
-      const [min, hour, _day, _month, weekday] = parts
+      const [min, hour, , , weekday] = parts
       let readable = 'At '
       if (min === '*') readable += 'every minute'
       else if (min.startsWith('*/')) readable += `every ${min.slice(2)} minutes`

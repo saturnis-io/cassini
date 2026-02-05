@@ -185,7 +185,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     root.style.removeProperty('--accent')
   }, [])
 
-  // Apply theme to document
+  // Apply theme to document - intentional DOM sync
+   
   useEffect(() => {
     const root = document.documentElement
     const resolved = theme === 'system' ? getSystemTheme() : theme

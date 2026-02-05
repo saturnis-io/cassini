@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Database, Download, Trash2, RefreshCw, HardDrive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { Sample } from '@/types'
 
 interface DatabaseStats {
   characteristics_count: number
@@ -68,7 +69,7 @@ export function DatabaseSettings() {
       } else {
         // Simple CSV export for samples
         const headers = ['id', 'characteristic_id', 'timestamp', 'mean', 'range', 'excluded']
-        const rows = (samples.items || []).map((s: any) =>
+        const rows = (samples.items || []).map((s: Sample) =>
           [s.id, s.characteristic_id, s.timestamp, s.mean, s.range, s.excluded].join(',')
         )
         content = [headers.join(','), ...rows].join('\n')

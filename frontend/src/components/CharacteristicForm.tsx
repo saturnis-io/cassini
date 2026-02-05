@@ -8,7 +8,7 @@ import { GeneralTab } from './characteristic-config/GeneralTab'
 import { LimitsTab } from './characteristic-config/LimitsTab'
 import { SamplingTab } from './characteristic-config/SamplingTab'
 import { RulesTab, type RulesTabRef } from './characteristic-config/RulesTab'
-import type { ScheduleConfig } from './ScheduleConfigSection'
+import type { ScheduleConfig, ScheduleType } from './ScheduleConfigSection'
 import type { SubgroupMode } from '@/types'
 
 interface CharacteristicFormProps {
@@ -54,6 +54,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   // Ref for Rules tab
   const rulesTabRef = useRef<RulesTabRef>(null)
 
+  // Sync form data from fetched characteristic - this is intentional initialization
+   
   useEffect(() => {
     if (characteristic) {
       setFormData({
@@ -71,12 +73,15 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     }
   }, [characteristic, setIsDirty])
 
-  // Load schedule config from backend
+  // Load schedule config from backend - intentional sync from fetched data
+
   useEffect(() => {
     if (configData?.config?.schedule) {
-      const backendSchedule = configData.config.schedule
+      // Backend uses different field names than frontend ScheduleConfig type
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const backendSchedule = configData.config.schedule as any
       setScheduleConfig({
-        type: backendSchedule.schedule_type,
+        type: backendSchedule.schedule_type as ScheduleType,
         interval_minutes: backendSchedule.interval_minutes,
         align_to_hour: backendSchedule.align_to_hour,
         shift_count: backendSchedule.shift_count,

@@ -131,7 +131,8 @@ export const NelsonRulesConfigPanel = forwardRef<
   const [initialized, setInitialized] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
-  // Initialize local state from server data
+  // Initialize local state from server data - intentional sync from fetched data
+   
   useEffect(() => {
     if (rulesData?.rule_configs && !initialized) {
       const configMap = new Map<number, RuleConfig>()
@@ -153,7 +154,8 @@ export const NelsonRulesConfigPanel = forwardRef<
     }
   }, [rulesData, initialized])
 
-  // Reset when characteristic changes
+  // Reset when characteristic changes - intentional reset
+   
   useEffect(() => {
     setInitialized(false)
     setIsDirty(false)

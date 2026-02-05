@@ -13,6 +13,7 @@ export function useWebSocket(characteristicIds: number[]) {
   const reconnectTimeoutRef = useRef<number | null>(null)
   const reconnectDelayRef = useRef(WS_RECONNECT_DELAY_BASE)
   const subscriptionsRef = useRef<Set<number>>(new Set())
+  const connectRef = useRef<() => void>(() => {})
 
   const {
     setWsConnected,
@@ -101,7 +102,7 @@ export function useWebSocket(characteristicIds: number[]) {
       const delay = Math.min(reconnectDelayRef.current, WS_RECONNECT_DELAY_MAX)
       reconnectTimeoutRef.current = window.setTimeout(() => {
         reconnectDelayRef.current *= 2
-        connect()
+        connectRef.current()
       }, delay)
     }
 
@@ -109,6 +110,11 @@ export function useWebSocket(characteristicIds: number[]) {
       console.error('WebSocket error:', error)
     }
   }, [handleMessage, setWsConnected])
+
+  // Keep the ref updated with the latest connect function
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   const subscribe = useCallback((characteristicId: number) => {
     subscriptionsRef.current.add(characteristicId)

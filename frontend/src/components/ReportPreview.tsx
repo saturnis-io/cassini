@@ -70,6 +70,7 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
             characteristic={characteristic}
             violations={violations?.items || []}
             characteristicIds={characteristicIds}
+            chartOptions={chartOptions}
           />
         ))}
       </div>
@@ -84,6 +85,11 @@ interface SectionProps {
   characteristic?: { name: string; id: number }
   violations: Violation[]
   characteristicIds: number[]
+  chartOptions?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  }
 }
 
 function ReportSectionComponent({
@@ -93,6 +99,7 @@ function ReportSectionComponent({
   characteristic,
   violations,
   characteristicIds,
+  chartOptions,
 }: SectionProps) {
   switch (section) {
     case 'header':
@@ -120,12 +127,12 @@ function ReportSectionComponent({
         <div className="border border-border rounded-lg p-4">
           <h2 className="text-lg font-semibold mb-4">Control Chart</h2>
           <div className="h-64">
-            <ControlChart characteristicId={characteristicIds[0]} />
+            <ControlChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
           </div>
         </div>
       )
 
-    case 'statistics':
+    case 'statistics': {
       if (!chartData) return null
       const stats = calculateStatistics(chartData)
       return (
@@ -143,6 +150,7 @@ function ReportSectionComponent({
           </div>
         </div>
       )
+    }
 
     case 'violations':
       return (
@@ -175,7 +183,7 @@ function ReportSectionComponent({
         </div>
       )
 
-    case 'violationStats':
+    case 'violationStats': {
       const vStats = {
         total: violations.length,
         pending: violations.filter((v) => !v.acknowledged).length,
@@ -196,6 +204,7 @@ function ReportSectionComponent({
           </div>
         </div>
       )
+    }
 
     case 'violationTable':
       return (
