@@ -19,6 +19,7 @@ export const queryKeys = {
     chartData: (id: number, limit?: number, startDate?: string, endDate?: string) =>
       [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate }] as const,
     rules: (id: number) => [...queryKeys.characteristics.all, 'rules', id] as const,
+    config: (id: number) => [...queryKeys.characteristics.all, 'config', id] as const,
   },
   samples: {
     all: ['samples'] as const,
@@ -305,6 +306,31 @@ export function useUpdateNelsonRules() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to update rules: ${error.message}`)
+    },
+  })
+}
+
+// Characteristic Config hooks
+export function useCharacteristicConfig(characteristicId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.characteristics.config(characteristicId ?? 0),
+    queryFn: () => characteristicApi.getConfig(characteristicId!),
+    enabled: characteristicId !== null,
+  })
+}
+
+export function useUpdateCharacteristicConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, config }: { id: number; config: object }) =>
+      characteristicApi.updateConfig(id, config),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.config(variables.id) })
+      toast.success('Configuration saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save config: ${error.message}`)
     },
   })
 }

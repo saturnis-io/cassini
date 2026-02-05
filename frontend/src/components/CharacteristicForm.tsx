@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode, useDeleteCharacteristic } from '@/api/hooks'
+import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { NelsonRulesConfigPanel, type NelsonRulesConfigPanelRef } from './NelsonRulesConfigPanel'
@@ -14,7 +14,9 @@ interface CharacteristicFormProps {
 
 export function CharacteristicForm({ characteristicId }: CharacteristicFormProps) {
   const { data: characteristic, isLoading } = useCharacteristic(characteristicId ?? 0)
+  const { data: configData } = useCharacteristicConfig(characteristicId)
   const updateCharacteristic = useUpdateCharacteristic()
+  const updateConfig = useUpdateCharacteristicConfig()
   const recalculateLimits = useRecalculateLimits()
   const changeMode = useChangeMode()
   const deleteCharacteristic = useDeleteCharacteristic()
@@ -66,6 +68,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       setIsDirty(false)
     }
   }, [characteristic, setIsDirty])
+
+  // Load schedule config from backend
+  useEffect(() => {
+    if (configData?.config?.schedule) {
+      setScheduleConfig(configData.config.schedule)
+    }
+  }, [configData])
 
   if (isLoading || !characteristic) {
     return (
@@ -141,6 +150,37 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         decimal_precision: parseInt(formData.decimal_precision) || 3,
       },
     })
+
+    // Save schedule config for MANUAL characteristics
+    if (characteristic.provider_type === 'MANUAL' && characteristicId) {
+      await updateConfig.mutateAsync({
+        id: characteristicId,
+        config: {
+          config_type: 'MANUAL',
+          instructions: '',
+          schedule: {
+            schedule_type: scheduleConfig.type,
+            ...(scheduleConfig.type === 'INTERVAL' && {
+              interval_minutes: scheduleConfig.interval_minutes,
+              align_to_hour: scheduleConfig.align_to_hour,
+            }),
+            ...(scheduleConfig.type === 'SHIFT' && {
+              shift_count: scheduleConfig.shift_count,
+              shift_times: scheduleConfig.shift_times,
+              samples_per_shift: scheduleConfig.samples_per_shift,
+            }),
+            ...(scheduleConfig.type === 'CRON' && {
+              cron_expression: scheduleConfig.cron_expression,
+            }),
+            ...(scheduleConfig.type === 'BATCH_START' && {
+              batch_tag_path: scheduleConfig.batch_tag,
+              delay_minutes: scheduleConfig.delay_minutes,
+            }),
+          },
+          grace_period_minutes: 30,
+        },
+      })
+    }
 
     // Save Nelson rules if panel has changes
     if (nelsonRulesRef.current?.isDirty) {
@@ -351,7 +391,6 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             <div className="flex items-center gap-2">
               <h3 className="font-medium">Schedule Configuration</h3>
               <HelpTooltip helpKey="schedule-configuration" />
-              <span className="text-xs bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded">Preview</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Configure when manual measurements are due. This determines the schedule for operator data entry tasks.

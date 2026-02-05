@@ -14,6 +14,29 @@ import type {
   Violation,
   ViolationStats,
 } from '@/types'
+import type { ScheduleConfig } from '@/components/ScheduleConfigSection'
+
+// Characteristic configuration response type
+export interface CharacteristicConfigResponse {
+  characteristic_id: number
+  config: {
+    config_type: 'MANUAL' | 'TAG'
+    // ManualConfig fields
+    instructions?: string
+    schedule?: ScheduleConfig
+    grace_period_minutes?: number
+    // TagConfig fields
+    source_tag_path?: string
+    trigger?: {
+      trigger_type: 'ON_UPDATE' | 'ON_EVENT' | 'ON_VALUE_CHANGE'
+      [key: string]: unknown
+    }
+    batch_tag_path?: string
+    min_valid_value?: number
+    max_valid_value?: number
+  }
+  is_active: boolean
+}
 
 const API_BASE = '/api/v1'
 
@@ -163,6 +186,15 @@ export const characteristicApi = {
     }>(`/characteristics/${id}/change-mode`, {
       method: 'POST',
       body: JSON.stringify({ new_mode: newMode }),
+    }),
+
+  getConfig: (id: number) =>
+    fetchApi<CharacteristicConfigResponse | null>(`/characteristics/${id}/config`),
+
+  updateConfig: (id: number, config: object) =>
+    fetchApi<CharacteristicConfigResponse>(`/characteristics/${id}/config`, {
+      method: 'PUT',
+      body: JSON.stringify({ config }),
     }),
 }
 
