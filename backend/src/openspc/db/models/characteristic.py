@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from openspc.db.models.hierarchy import Base
 
 if TYPE_CHECKING:
+    from openspc.db.models.characteristic_config import CharacteristicConfig
     from openspc.db.models.hierarchy import Hierarchy
     from openspc.db.models.sample import Sample
 
@@ -82,6 +83,10 @@ class Characteristic(Base):
     )
     samples: Mapped[list["Sample"]] = relationship(
         "Sample", back_populates="characteristic", cascade="all, delete-orphan"
+    )
+    config: Mapped[Optional["CharacteristicConfig"]] = relationship(
+        "CharacteristicConfig", back_populates="characteristic", uselist=False,
+        cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
