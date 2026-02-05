@@ -597,11 +597,18 @@ async def change_subgroup_mode(
     for sample in samples:
         actual_n = sample.actual_n or 1
 
+        # Calculate sample mean from measurements
+        measurements = sample.measurements
+        if measurements:
+            sample_mean = sum(m.value for m in measurements) / len(measurements)
+        else:
+            sample_mean = 0.0
+
         if new_mode == "STANDARDIZED":
             # Calculate z_score
             if characteristic.stored_sigma > 0:
                 sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
-                sample.z_score = (sample.mean - characteristic.stored_center_line) / sigma_x_bar
+                sample.z_score = (sample_mean - characteristic.stored_center_line) / sigma_x_bar
             else:
                 sample.z_score = 0.0
             # Clear variable limit fields
