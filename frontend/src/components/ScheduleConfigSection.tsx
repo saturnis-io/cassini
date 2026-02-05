@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import { Clock, Calendar, Repeat, Tag, ChevronRight } from 'lucide-react'
+import { Clock, Calendar, Repeat, Tag, ChevronRight, CircleOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NumberInput } from './NumberInput'
 import { TimePicker } from './TimePicker'
 import { HelpTooltip } from './HelpTooltip'
 
 // Schedule Types
-export type ScheduleType = 'INTERVAL' | 'SHIFT' | 'CRON' | 'BATCH_START'
+export type ScheduleType = 'NONE' | 'INTERVAL' | 'SHIFT' | 'CRON' | 'BATCH_START'
 
 export interface ScheduleConfig {
   type: ScheduleType
@@ -31,6 +31,12 @@ interface ScheduleConfigSectionProps {
 
 // Schedule type options with icons and descriptions
 const SCHEDULE_TYPES = [
+  {
+    value: 'NONE' as ScheduleType,
+    label: 'Ad-hoc',
+    description: 'On-demand sampling',
+    icon: CircleOff,
+  },
   {
     value: 'INTERVAL' as ScheduleType,
     label: 'Interval',
@@ -81,6 +87,7 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
   const handleTypeChange = (type: ScheduleType) => {
     // Set defaults for each type
     const defaults: Record<ScheduleType, Partial<ScheduleConfig>> = {
+      NONE: {},
       INTERVAL: { interval_minutes: 120, align_to_hour: true },
       SHIFT: { shift_count: 3, shift_times: DEFAULT_SHIFT_TIMES, samples_per_shift: 1 },
       CRON: { cron_expression: '0 */2 * * *' },
@@ -140,7 +147,7 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
           <label className="text-sm font-medium">Schedule Type</label>
           <HelpTooltip helpKey="schedule-type" />
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           {SCHEDULE_TYPES.map((type) => {
             const Icon = type.icon
             const isSelected = value.type === type.value
@@ -166,20 +173,32 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
       </div>
 
       {/* Type-specific configuration */}
-      <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-4">
-        {value.type === 'INTERVAL' && (
-          <IntervalForm value={value} onChange={handleFieldChange} />
-        )}
-        {value.type === 'SHIFT' && (
-          <ShiftForm value={value} onChange={handleFieldChange} />
-        )}
-        {value.type === 'CRON' && (
-          <CronForm value={value} onChange={handleFieldChange} />
-        )}
-        {value.type === 'BATCH_START' && (
-          <BatchStartForm value={value} onChange={handleFieldChange} />
-        )}
-      </div>
+      {value.type !== 'NONE' && (
+        <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-4">
+          {value.type === 'INTERVAL' && (
+            <IntervalForm value={value} onChange={handleFieldChange} />
+          )}
+          {value.type === 'SHIFT' && (
+            <ShiftForm value={value} onChange={handleFieldChange} />
+          )}
+          {value.type === 'CRON' && (
+            <CronForm value={value} onChange={handleFieldChange} />
+          )}
+          {value.type === 'BATCH_START' && (
+            <BatchStartForm value={value} onChange={handleFieldChange} />
+          )}
+        </div>
+      )}
+
+      {/* Ad-hoc info panel */}
+      {value.type === 'NONE' && (
+        <div className="p-4 bg-muted/20 rounded-lg border border-border">
+          <p className="text-sm text-muted-foreground">
+            <strong>Ad-hoc sampling:</strong> Measurements can be entered at any time without a fixed schedule.
+            Use this for event-driven sampling, operator-discretion measurements, or new processes without established frequencies.
+          </p>
+        </div>
+      )}
 
       {/* Schedule Preview */}
       {nextDueTimes.length > 0 && (

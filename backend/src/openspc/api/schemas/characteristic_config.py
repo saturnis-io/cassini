@@ -23,6 +23,7 @@ class ConfigType(str, Enum):
 
 class ScheduleType(str, Enum):
     """Schedule pattern types for manual data collection."""
+    NONE = "NONE"
     INTERVAL = "INTERVAL"
     SHIFT = "SHIFT"
     CRON = "CRON"
@@ -78,9 +79,14 @@ class BatchStartSchedule(BaseModel):
     delay_minutes: int = Field(0, ge=0, le=60, description="Delay after batch start")
 
 
+class NoSchedule(BaseModel):
+    """No scheduled sampling - ad-hoc/on-demand measurements."""
+    schedule_type: Literal[ScheduleType.NONE] = ScheduleType.NONE
+
+
 # Union of all schedule types
 Schedule = Annotated[
-    Union[IntervalSchedule, ShiftSchedule, CronSchedule, BatchStartSchedule],
+    Union[NoSchedule, IntervalSchedule, ShiftSchedule, CronSchedule, BatchStartSchedule],
     Field(discriminator="schedule_type")
 ]
 

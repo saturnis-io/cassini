@@ -44,9 +44,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
   // Schedule configuration state (for MANUAL characteristics)
   const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig>({
-    type: 'INTERVAL',
-    interval_minutes: 120,
-    align_to_hour: true,
+    type: 'NONE',
   })
 
   // Ref for Nelson Rules panel
@@ -72,7 +70,19 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   // Load schedule config from backend
   useEffect(() => {
     if (configData?.config?.schedule) {
-      setScheduleConfig(configData.config.schedule)
+      const backendSchedule = configData.config.schedule
+      // Map backend schedule_type to frontend type
+      setScheduleConfig({
+        type: backendSchedule.schedule_type,
+        interval_minutes: backendSchedule.interval_minutes,
+        align_to_hour: backendSchedule.align_to_hour,
+        shift_count: backendSchedule.shift_count,
+        shift_times: backendSchedule.shift_times,
+        samples_per_shift: backendSchedule.samples_per_shift,
+        cron_expression: backendSchedule.cron_expression,
+        batch_tag: backendSchedule.batch_tag_path,
+        delay_minutes: backendSchedule.delay_minutes,
+      })
     }
   }, [configData])
 
@@ -153,12 +163,10 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
     // Save schedule config for MANUAL characteristics
     if (characteristic.provider_type === 'MANUAL' && characteristicId) {
-      await updateConfig.mutateAsync({
-        id: characteristicId,
-        config: {
-          config_type: 'MANUAL',
-          instructions: '',
-          schedule: {
+      // Build schedule object based on type
+      const schedulePayload = scheduleConfig.type === 'NONE'
+        ? { schedule_type: 'NONE' }
+        : {
             schedule_type: scheduleConfig.type,
             ...(scheduleConfig.type === 'INTERVAL' && {
               interval_minutes: scheduleConfig.interval_minutes,
@@ -176,7 +184,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               batch_tag_path: scheduleConfig.batch_tag,
               delay_minutes: scheduleConfig.delay_minutes,
             }),
-          },
+          }
+
+      await updateConfig.mutateAsync({
+        id: characteristicId,
+        config: {
+          config_type: 'MANUAL',
+          instructions: '',
+          schedule: schedulePayload,
           grace_period_minutes: 30,
         },
       })
