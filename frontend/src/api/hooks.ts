@@ -1,14 +1,20 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { characteristicApi, hierarchyApi, sampleApi, violationApi } from './client'
-import type { Characteristic } from '@/types'
+import { characteristicApi, hierarchyApi, plantApi, sampleApi, violationApi } from './client'
+import type { Characteristic, PlantCreate, PlantUpdate } from '@/types'
 
 // Query keys
 export const queryKeys = {
+  plants: {
+    all: ['plants'] as const,
+    list: (activeOnly?: boolean) => [...queryKeys.plants.all, 'list', { activeOnly }] as const,
+    detail: (id: number) => [...queryKeys.plants.all, 'detail', id] as const,
+  },
   hierarchy: {
     all: ['hierarchy'] as const,
     tree: () => [...queryKeys.hierarchy.all, 'tree'] as const,
+    treeByPlant: (plantId: number) => [...queryKeys.hierarchy.all, 'tree', 'plant', plantId] as const,
     node: (id: number) => [...queryKeys.hierarchy.all, 'node', id] as const,
     characteristics: (id: number) => [...queryKeys.hierarchy.all, 'characteristics', id] as const,
   },
@@ -35,11 +41,98 @@ export const queryKeys = {
   },
 }
 
+// Plant hooks
+export function usePlants(activeOnly?: boolean) {
+  return useQuery({
+    queryKey: queryKeys.plants.list(activeOnly),
+    queryFn: () => plantApi.list(activeOnly),
+  })
+}
+
+export function usePlant(id: number) {
+  return useQuery({
+    queryKey: queryKeys.plants.detail(id),
+    queryFn: () => plantApi.get(id),
+    enabled: id > 0,
+  })
+}
+
+export function useCreatePlant() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: PlantCreate) => plantApi.create(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+      toast.success(`Created plant "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create plant: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdatePlant() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: PlantUpdate }) =>
+      plantApi.update(id, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+      toast.success(`Updated plant "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update plant: ${error.message}`)
+    },
+  })
+}
+
+export function useDeletePlant() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => plantApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+      toast.success('Plant deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete plant: ${error.message}`)
+    },
+  })
+}
+
 // Hierarchy hooks
 export function useHierarchyTree() {
   return useQuery({
     queryKey: queryKeys.hierarchy.tree(),
     queryFn: hierarchyApi.getTree,
+  })
+}
+
+export function useHierarchyTreeByPlant(plantId: number) {
+  return useQuery({
+    queryKey: queryKeys.hierarchy.treeByPlant(plantId),
+    queryFn: () => hierarchyApi.getTreeByPlant(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useCreateHierarchyNodeInPlant() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ plantId, data }: { plantId: number; data: { name: string; type: string; parent_id: number | null } }) =>
+      hierarchyApi.createNodeInPlant(plantId, data),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.treeByPlant(variables.plantId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      toast.success(`Created "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create node: ${error.message}`)
+    },
   })
 }
 

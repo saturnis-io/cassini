@@ -1,3 +1,28 @@
+// Plant types
+export interface Plant {
+  id: number
+  name: string
+  code: string
+  is_active: boolean
+  settings: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PlantCreate {
+  name: string
+  code: string
+  is_active?: boolean
+  settings?: Record<string, unknown> | null
+}
+
+export interface PlantUpdate {
+  name?: string
+  code?: string
+  is_active?: boolean
+  settings?: Record<string, unknown> | null
+}
+
 // Hierarchy types - UNS-compatible generic hierarchy
 export interface HierarchyNode {
   id: number
