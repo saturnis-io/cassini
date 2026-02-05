@@ -6,7 +6,6 @@ import { SampleEditModal } from './SampleEditModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from './LocalTimeRangeSelector'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
-import { cn } from '@/lib/utils'
 import type { Sample, Characteristic } from '@/types'
 
 // Default time range: last 100 samples

@@ -201,7 +201,7 @@ export const useDashboardStore = create<DashboardState>()(
       newMap.set(characteristicId, chartType)
       return { chartTypes: newMap }
     }),
-  getChartType: (characteristicId) => {
+  getChartType: (_characteristicId) => {
     // This is a selector, not state - will be used via useDashboardStore.getState()
     return 'xbar' as ChartTypeId
   },

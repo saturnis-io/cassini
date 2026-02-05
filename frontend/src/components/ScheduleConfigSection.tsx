@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Clock, Calendar, Repeat, Tag, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NumberInput } from './NumberInput'
@@ -381,7 +381,7 @@ function CronForm({
     }
     // Very basic interpretation
     try {
-      const [min, hour, day, month, weekday] = parts
+      const [min, hour, _day, _month, weekday] = parts
       let readable = 'At '
       if (min === '*') readable += 'every minute'
       else if (min.startsWith('*/')) readable += `every ${min.slice(2)} minutes`
@@ -394,7 +394,6 @@ function CronForm({
       }
 
       if (weekday !== '*') {
-        const dayNames: Record<string, string> = { '1': 'Mon', '2': 'Tue', '3': 'Wed', '4': 'Thu', '5': 'Fri', '6': 'Sat', '0': 'Sun', '7': 'Sun' }
         if (weekday === '1-5') readable += ', weekdays only'
         else if (weekday === '0,6' || weekday === '6,0') readable += ', weekends only'
         else readable += `, on ${weekday}`

@@ -11,7 +11,6 @@ import {
   getChartTypesGrouped,
   recommendChartType,
   isChartTypeCompatible,
-  VARIABLE_CHART_TYPES,
 } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { HelpTooltip } from '@/components/HelpTooltip'

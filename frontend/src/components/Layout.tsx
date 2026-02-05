@@ -193,7 +193,7 @@ export function Layout() {
                 <Info className="h-4 w-4" />
                 Info:{' '}
                 <span className="font-medium">
-                  {stats.informational}
+                  {stats?.informational ?? 0}
                 </span>
               </Link>
             )}

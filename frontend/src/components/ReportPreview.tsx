@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -9,7 +8,6 @@ import {
   Tooltip,
   ReferenceLine,
   ResponsiveContainer,
-  Area,
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { useChartData, useViolations, useCharacteristic } from '@/api/hooks'
@@ -516,7 +514,7 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
   const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (values.length - 1)
   const stdDev = Math.sqrt(variance)
 
-  const { spec_limits, control_limits } = chartData
+  const { spec_limits } = chartData
   const oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
   const inControlPct = ((values.length - oocCount) / values.length) * 100
 

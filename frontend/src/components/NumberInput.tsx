@@ -3,7 +3,7 @@
  * Replaces the ugly native browser spinners with sleek themed controls.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,8 +55,8 @@ export function NumberInput({
   name,
 }: NumberInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Parse numeric value for increment/decrement
   const numericValue = typeof value === 'string' ? parseFloat(value) : value

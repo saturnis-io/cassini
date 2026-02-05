@@ -3,7 +3,7 @@ import { AlertTriangle, Check, Clock, Filter, RefreshCw, Info } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import { useViolations, useViolationStats, useAcknowledgeViolation } from '@/api/hooks'
 import { NELSON_RULES } from '@/components/ViolationLegend'
-import type { Severity, Violation } from '@/types'
+import type { Severity } from '@/types'
 
 type FilterStatus = 'all' | 'required' | 'informational' | 'acknowledged'
 

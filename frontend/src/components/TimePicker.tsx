@@ -82,7 +82,6 @@ export function TimePicker({
       <div className="flex items-center justify-center gap-2">
         {/* Hour selector */}
         <ValueSpinner
-          value={use12Hour ? hour12 : hour}
           displayValue={(use12Hour ? hour12 : hour).toString().padStart(2, '0')}
           onIncrement={() => incrementHour(1)}
           onDecrement={() => incrementHour(-1)}
@@ -93,7 +92,6 @@ export function TimePicker({
 
         {/* Minute selector */}
         <ValueSpinner
-          value={minute}
           displayValue={minute.toString().padStart(2, '0')}
           onIncrement={() => handleMinuteChange(minute + 1)}
           onDecrement={() => handleMinuteChange(minute - 1)}
@@ -140,13 +138,11 @@ export function TimePicker({
  * Supports click-and-hold for continuous adjustment.
  */
 function ValueSpinner({
-  value,
   displayValue,
   onIncrement,
   onDecrement,
   label,
 }: {
-  value: number
   displayValue: string
   onIncrement: () => void
   onDecrement: () => void
@@ -336,8 +332,8 @@ function HoldButton({
   repeatDelay?: number
   repeatInterval?: number
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const startHolding = useCallback(() => {
     // Fire immediately on click

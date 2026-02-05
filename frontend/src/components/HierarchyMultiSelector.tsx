@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHierarchyTree, useHierarchyCharacteristics } from '@/api/hooks'
-import type { HierarchyNode, Characteristic } from '@/types'
+import type { HierarchyNode } from '@/types'
 
 interface HierarchyMultiSelectorProps {
   selectedIds: number[]

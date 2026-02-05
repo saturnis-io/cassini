@@ -118,10 +118,10 @@ export function useHierarchyPath(characteristicId: number) {
     if (!characteristic || !hierarchyTree) return []
 
     const hierarchyId = characteristic.hierarchy_id
-    const pathNodes: string[] = []
 
     // Helper function to find a node and build path to it
     function findPath(nodes: typeof hierarchyTree, targetId: number, currentPath: string[]): string[] | null {
+      if (!nodes) return null
       for (const node of nodes) {
         if (node.id === targetId) {
           return [...currentPath, node.name]

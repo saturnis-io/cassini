@@ -14,7 +14,7 @@ type ExportFormat = 'pdf' | 'excel' | 'csv'
 
 interface ExportDropdownProps {
   /** Reference to the element to capture for PDF export */
-  contentRef: React.RefObject<HTMLElement>
+  contentRef: React.RefObject<HTMLElement | null>
   /** Data for Excel/CSV export */
   exportData?: {
     chartData?: {
