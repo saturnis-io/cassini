@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional, Sequence
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -45,8 +45,11 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
         """
         super().__init__(session, Hierarchy)
 
-    async def get_tree(self) -> list[HierarchyNode]:
+    async def get_tree(self, plant_id: Optional[int] = None) -> list[HierarchyNode]:
         """Get complete hierarchy as a nested tree structure.
+
+        Args:
+            plant_id: Optional plant ID to filter hierarchies by
 
         Returns:
             List of root-level hierarchy nodes with nested children
@@ -64,6 +67,8 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
         """
         # Load all hierarchies with their children eagerly loaded
         stmt = select(Hierarchy).options(selectinload(Hierarchy.children))
+        if plant_id is not None:
+            stmt = stmt.where(Hierarchy.plant_id == plant_id)
         result = await self.session.execute(stmt)
         all_hierarchies = list(result.scalars().all())
 
@@ -167,3 +172,55 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
         stmt = select(Hierarchy).where(Hierarchy.parent_id == parent_id)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_by_plant(self, plant_id: int) -> Sequence[Hierarchy]:
+        """Get all hierarchies for a plant.
+
+        Args:
+            plant_id: ID of the plant to filter by
+
+        Returns:
+            List of all hierarchy nodes belonging to the plant
+        """
+        stmt = select(Hierarchy).where(Hierarchy.plant_id == plant_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def create_in_plant(
+        self,
+        plant_id: int,
+        name: str,
+        type: str,
+        parent_id: Optional[int] = None,
+    ) -> Hierarchy:
+        """Create a new hierarchy node in a specific plant.
+
+        If parent_id is provided, the plant_id is inherited from the parent
+        for consistency.
+
+        Args:
+            plant_id: ID of the plant to create the node in
+            name: Name of the hierarchy node
+            type: Type of the hierarchy node
+            parent_id: Optional parent node ID
+
+        Returns:
+            The created hierarchy node
+        """
+        # If parent is provided, inherit plant_id from parent for consistency
+        effective_plant_id = plant_id
+        if parent_id is not None:
+            parent = await self.get_by_id(parent_id)
+            if parent and parent.plant_id:
+                effective_plant_id = parent.plant_id
+
+        node = Hierarchy(
+            parent_id=parent_id,
+            plant_id=effective_plant_id,
+            name=name,
+            type=type,
+        )
+        self.session.add(node)
+        await self.session.flush()
+        await self.session.refresh(node)
+        return node

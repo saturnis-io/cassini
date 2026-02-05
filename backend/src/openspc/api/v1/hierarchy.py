@@ -20,8 +20,27 @@ from openspc.api.schemas.hierarchy import (
 )
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.hierarchy import HierarchyRepository
+from openspc.db.repositories.plant import PlantRepository
 
 router = APIRouter(tags=["hierarchy"])
+
+# Plant-scoped hierarchy router
+plant_hierarchy_router = APIRouter(tags=["hierarchy"])
+
+
+async def validate_plant(
+    plant_id: int,
+    session: AsyncSession = Depends(get_session),
+) -> int:
+    """Validate plant exists and return plant_id."""
+    repo = PlantRepository(session)
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plant {plant_id} not found",
+        )
+    return plant_id
 
 
 @router.get("/", response_model=list[HierarchyTreeNode])
@@ -368,3 +387,90 @@ async def get_node_characteristics(
 
     # Return full characteristic data using model_validate for ORM conversion
     return [CharacteristicResponse.model_validate(char) for char in characteristics]
+
+
+# ============================================================================
+# Plant-Scoped Hierarchy Endpoints
+# ============================================================================
+
+
+@plant_hierarchy_router.get("/", response_model=list[HierarchyTreeNode])
+async def get_plant_hierarchy_tree(
+    plant_id: int = Depends(validate_plant),
+    repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    session: AsyncSession = Depends(get_session),
+) -> list[HierarchyTreeNode]:
+    """Get hierarchy tree for a specific plant.
+
+    Returns the complete equipment hierarchy for the specified plant,
+    organized as a tree with each node containing its children recursively.
+
+    Args:
+        plant_id: ID of the plant to get hierarchy for
+
+    Returns:
+        List of root hierarchy nodes with nested children
+    """
+    tree = await repo.get_tree(plant_id=plant_id)
+
+    # Get characteristic counts per hierarchy node for this plant
+    count_query = (
+        select(Characteristic.hierarchy_id, func.count(Characteristic.id))
+        .group_by(Characteristic.hierarchy_id)
+    )
+    result = await session.execute(count_query)
+    char_counts = {row[0]: row[1] for row in result.all()}
+
+    # Convert HierarchyNode to HierarchyTreeNode with characteristic counts
+    def convert_to_tree_node(node) -> HierarchyTreeNode:
+        return HierarchyTreeNode(
+            id=node.id,
+            name=node.name,
+            type=node.type,
+            children=[convert_to_tree_node(child) for child in node.children],
+            characteristic_count=char_counts.get(node.id, 0),
+        )
+
+    return [convert_to_tree_node(root) for root in tree]
+
+
+@plant_hierarchy_router.post("/", response_model=HierarchyResponse, status_code=status.HTTP_201_CREATED)
+async def create_plant_hierarchy_node(
+    data: HierarchyCreate,
+    plant_id: int = Depends(validate_plant),
+    repo: HierarchyRepository = Depends(get_hierarchy_repo),
+) -> HierarchyResponse:
+    """Create a hierarchy node in a specific plant.
+
+    Creates a new node in the equipment hierarchy for the specified plant.
+    If parent_id is provided, the parent must exist.
+
+    Args:
+        data: Hierarchy node creation data
+        plant_id: ID of the plant to create the node in
+
+    Returns:
+        The created hierarchy node
+    """
+    # Validate parent exists if provided
+    if data.parent_id is not None:
+        parent = await repo.get_by_id(data.parent_id)
+        if parent is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Parent hierarchy node {data.parent_id} not found",
+            )
+
+    try:
+        node = await repo.create_in_plant(
+            plant_id=plant_id,
+            name=data.name,
+            type=data.type,
+            parent_id=data.parent_id,
+        )
+        return HierarchyResponse.model_validate(node)
+    except IntegrityError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Database integrity error: {str(e)}",
+        )

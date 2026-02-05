@@ -1,5 +1,7 @@
 """Repository for MQTT Broker operations."""
 
+from typing import Optional, Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,3 +79,41 @@ class BrokerRepository(BaseRepository[MQTTBroker]):
             await self.session.refresh(broker)
 
         return broker
+
+    async def get_all_filtered(
+        self,
+        active_only: bool = False,
+        plant_id: Optional[int] = None,
+    ) -> Sequence[MQTTBroker]:
+        """Get all brokers, optionally filtered by active status and plant.
+
+        Args:
+            active_only: If True, only return active brokers
+            plant_id: If provided, filter by plant ID
+
+        Returns:
+            List of brokers matching the filters
+        """
+        stmt = select(MQTTBroker)
+        if active_only:
+            stmt = stmt.where(MQTTBroker.is_active == True)  # noqa: E712
+        if plant_id is not None:
+            stmt = stmt.where(MQTTBroker.plant_id == plant_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_by_plant(
+        self,
+        plant_id: int,
+        active_only: bool = False,
+    ) -> Sequence[MQTTBroker]:
+        """Get all brokers for a plant.
+
+        Args:
+            plant_id: ID of the plant to filter by
+            active_only: If True, only return active brokers
+
+        Returns:
+            List of brokers belonging to the plant
+        """
+        return await self.get_all_filtered(active_only=active_only, plant_id=plant_id)

@@ -13,6 +13,7 @@ from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.characteristics import router as characteristics_router
 from openspc.api.v1.data_entry import router as data_entry_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
+from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.samples import router as samples_router
@@ -116,6 +117,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
+app.include_router(plant_hierarchy_router, prefix="/api/v1/plants/{plant_id}/hierarchies")
 app.include_router(plants_router)
 app.include_router(api_keys_router)
 app.include_router(brokers_router)
