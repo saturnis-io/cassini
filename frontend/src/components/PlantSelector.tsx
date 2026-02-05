@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Building2, ChevronDown, Check } from 'lucide-react'
+import { Building2, ChevronDown, Check, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePlant } from '@/providers/PlantProvider'
 
@@ -15,9 +15,10 @@ interface PlantSelectorProps {
  * - Dropdown with available plants
  * - Keyboard navigation (arrows, enter, escape)
  * - Closes on outside click
+ * - Loading and error states
  */
 export function PlantSelector({ className }: PlantSelectorProps) {
-  const { plants, selectedPlant, setSelectedPlant } = usePlant()
+  const { plants, selectedPlant, setSelectedPlant, isLoading, error } = usePlant()
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -82,6 +83,36 @@ export function PlantSelector({ className }: PlantSelectorProps) {
     setSelectedPlant(plant)
     setIsOpen(false)
     buttonRef.current?.focus()
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className={cn('flex items-center gap-2 px-3 py-1.5', className)}>
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Loading plants...</span>
+      </div>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className={cn('flex items-center gap-2 px-3 py-1.5 text-destructive', className)}>
+        <AlertCircle className="h-4 w-4" />
+        <span className="text-sm">Failed to load plants</span>
+      </div>
+    )
+  }
+
+  // Show empty state if no plants
+  if (plants.length === 0) {
+    return (
+      <div className={cn('flex items-center gap-2 px-3 py-1.5 text-muted-foreground', className)}>
+        <Building2 className="h-4 w-4" />
+        <span className="text-sm">No plants configured</span>
+      </div>
+    )
   }
 
   return (

@@ -17,8 +17,8 @@ interface UIState {
   toggleSidebar: () => void
 
   // Plant context (ID only, provider manages full plant object)
-  selectedPlantId: string | null
-  setSelectedPlantId: (id: string | null) => void
+  selectedPlantId: number | null
+  setSelectedPlantId: (id: number | null) => void
 
   // Role state (mock for development)
   currentRole: Role
@@ -36,9 +36,13 @@ export const useUIStore = create<UIState>()(
           sidebarState: prev.sidebarState === 'expanded' ? 'collapsed' : 'expanded',
         })),
 
-      // Plant context
+      // Plant context - handle legacy string values during migration
       selectedPlantId: null,
-      setSelectedPlantId: (id) => set({ selectedPlantId: id }),
+      setSelectedPlantId: (id) => {
+        // Handle legacy string values that might be in localStorage
+        const numericId = typeof id === 'string' ? parseInt(id, 10) : id
+        set({ selectedPlantId: isNaN(numericId as number) ? null : numericId })
+      },
 
       // Role - default to operator
       currentRole: 'operator',
