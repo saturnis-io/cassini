@@ -1,13 +1,15 @@
 /**
  * BoxWhiskerChart - Box and whisker plot for distribution visualization.
- * Shows median, quartiles (Q1, Q3), whiskers (min/max within 1.5*IQR), and outliers.
+ * Shows one box plot per sample, with each box representing the distribution
+ * of measurements within that sample/subgroup.
  *
  * Uses custom SVG rendering since Recharts doesn't natively support box plots.
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
-import { useChartData } from '@/api/hooks'
+import { useSamples, useCharacteristic } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import type { Sample } from '@/types'
 
 interface BoxWhiskerChartProps {
   characteristicId: number
@@ -16,14 +18,14 @@ interface BoxWhiskerChartProps {
     startDate?: string
     endDate?: string
   }
-  /** Group data by time period */
-  groupBy?: 'all' | 'daily' | 'weekly'
   colorScheme?: 'primary' | 'secondary'
   showSpecLimits?: boolean
 }
 
 interface BoxPlotData {
-  name: string
+  sampleId: number
+  index: number
+  timestamp: string
   min: number
   q1: number
   median: number
@@ -33,6 +35,7 @@ interface BoxPlotData {
   whiskerHigh: number
   outliers: number[]
   count: number
+  mean: number
 }
 
 // Hook to subscribe to chart color changes
@@ -90,23 +93,12 @@ function calculateQuartiles(sortedValues: number[]): { q1: number; median: numbe
 }
 
 /**
- * Calculate box plot statistics from an array of values.
+ * Calculate box plot statistics from a sample's measurements.
  */
-function calculateBoxPlotStats(values: number[], name: string): BoxPlotData {
-  if (values.length === 0) {
-    return {
-      name,
-      min: 0,
-      q1: 0,
-      median: 0,
-      q3: 0,
-      max: 0,
-      whiskerLow: 0,
-      whiskerHigh: 0,
-      outliers: [],
-      count: 0,
-    }
-  }
+function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData | null {
+  const values = sample.measurements?.map((m) => m.value) ?? []
+
+  if (values.length === 0) return null
 
   const sorted = [...values].sort((a, b) => a - b)
   const { q1, median, q3 } = calculateQuartiles(sorted)
@@ -123,7 +115,9 @@ function calculateBoxPlotStats(values: number[], name: string): BoxPlotData {
   const outliers = sorted.filter((v) => v < whiskerLowBound || v > whiskerHighBound)
 
   return {
-    name,
+    sampleId: sample.id,
+    index,
+    timestamp: sample.timestamp,
     min: sorted[0],
     q1,
     median,
@@ -133,17 +127,27 @@ function calculateBoxPlotStats(values: number[], name: string): BoxPlotData {
     whiskerHigh,
     outliers,
     count: values.length,
+    mean: sample.mean,
   }
 }
 
 export function BoxWhiskerChart({
   characteristicId,
   chartOptions,
-  groupBy = 'all',
   colorScheme = 'primary',
   showSpecLimits = true,
 }: BoxWhiskerChartProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
+  // Fetch samples with measurements
+  const { data: samplesData, isLoading: samplesLoading } = useSamples({
+    characteristic_id: characteristicId,
+    per_page: chartOptions?.limit ?? 50,
+    start_date: chartOptions?.startDate,
+    end_date: chartOptions?.endDate,
+  })
+
+  // Fetch characteristic for spec limits and decimal precision
+  const { data: characteristic } = useCharacteristic(characteristicId)
+
   const chartColors = useChartColors()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -168,45 +172,19 @@ export function BoxWhiskerChart({
     return () => observer.disconnect()
   }, [])
 
-  // Calculate box plot data
+  // Calculate box plot data for each sample
   const boxPlotData = useMemo((): BoxPlotData[] => {
-    if (!chartData?.data_points?.length) return []
+    if (!samplesData?.items?.length) return []
 
-    const points = chartData.data_points
-
-    if (groupBy === 'all') {
-      // Single box for all data
-      const values = points.map((p) => p.mean)
-      return [calculateBoxPlotStats(values, 'All Data')]
-    }
-
-    // Group by time period
-    const groups = new Map<string, number[]>()
-
-    points.forEach((point) => {
-      const date = new Date(point.timestamp)
-      let key: string
-
-      if (groupBy === 'daily') {
-        key = date.toLocaleDateString()
-      } else if (groupBy === 'weekly') {
-        const startOfYear = new Date(date.getFullYear(), 0, 1)
-        const weekNum = Math.ceil(((date.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7)
-        key = `Week ${weekNum}`
-      } else {
-        key = 'All Data'
-      }
-
-      if (!groups.has(key)) {
-        groups.set(key, [])
-      }
-      groups.get(key)!.push(point.mean)
-    })
-
-    return Array.from(groups.entries()).map(([name, values]) =>
-      calculateBoxPlotStats(values, name)
+    // Sort samples by timestamp and calculate box plots
+    const sortedSamples = [...samplesData.items].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
-  }, [chartData, groupBy])
+
+    return sortedSamples
+      .map((sample, index) => calculateBoxPlotFromSample(sample, index + 1))
+      .filter((box): box is BoxPlotData => box !== null)
+  }, [samplesData])
 
   // Calculate Y-axis domain
   const yDomain = useMemo((): [number, number] => {
@@ -219,9 +197,9 @@ export function BoxWhiskerChart({
     ])
 
     // Include spec limits if showing
-    if (showSpecLimits && chartData) {
-      if (chartData.spec_limits.usl != null) allValues.push(chartData.spec_limits.usl)
-      if (chartData.spec_limits.lsl != null) allValues.push(chartData.spec_limits.lsl)
+    if (showSpecLimits && characteristic) {
+      if (characteristic.usl != null) allValues.push(characteristic.usl)
+      if (characteristic.lsl != null) allValues.push(characteristic.lsl)
     }
 
     const min = Math.min(...allValues)
@@ -229,14 +207,14 @@ export function BoxWhiskerChart({
     const padding = (max - min) * 0.1 || 1
 
     return [min - padding, max + padding]
-  }, [boxPlotData, chartData, showSpecLimits])
+  }, [boxPlotData, characteristic, showSpecLimits])
 
   // Get colors based on scheme
   const boxColor = colorScheme === 'secondary'
     ? chartColors.secondaryLineGradientStart
     : chartColors.lineGradientStart
 
-  const decimalPrecision = chartData?.decimal_precision ?? 3
+  const decimalPrecision = characteristic?.decimal_precision ?? 3
   const formatValue = (value: number) => value.toFixed(decimalPrecision)
 
   // Chart margins
@@ -252,8 +230,9 @@ export function BoxWhiskerChart({
 
   const xScale = (index: number): number => {
     const boxCount = boxPlotData.length
-    const boxWidth = chartWidth / boxCount
-    return boxWidth * index + boxWidth / 2
+    if (boxCount === 0) return 0
+    const boxSpacing = chartWidth / boxCount
+    return boxSpacing * (index - 1) + boxSpacing / 2
   }
 
   // Generate Y-axis ticks
@@ -264,34 +243,44 @@ export function BoxWhiskerChart({
     return Array.from({ length: tickCount }, (_, i) => yMin + step * i)
   }, [yDomain])
 
-  if (isLoading) {
-    return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">Loading chart data...</div>
-      </div>
-    )
-  }
+  // Calculate dynamic box width based on number of samples
+  const boxWidth = useMemo(() => {
+    if (boxPlotData.length === 0) return 20
+    const maxWidth = 40
+    const minWidth = 8
+    const spacing = chartWidth / boxPlotData.length
+    return Math.max(minWidth, Math.min(maxWidth, spacing * 0.7))
+  }, [boxPlotData.length, chartWidth])
 
-  if (!chartData || boxPlotData.length === 0) {
-    return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">No data available for box plot</div>
-      </div>
-    )
-  }
-
-  const boxWidth = Math.min(60, chartWidth / boxPlotData.length * 0.6)
   const whiskerWidth = boxWidth * 0.5
+
+  if (samplesLoading) {
+    return (
+      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Loading samples...</div>
+      </div>
+    )
+  }
+
+  if (boxPlotData.length === 0) {
+    return (
+      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">
+          No sample data available. Box plots require samples with multiple measurements.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
         <h3 className="font-semibold text-sm leading-5">
-          {chartData.characteristic_name} - Box & Whisker Plot
+          {characteristic?.name ?? 'Characteristic'} - Box & Whisker Plot
         </h3>
         <div className="flex gap-4 text-sm text-muted-foreground leading-5">
-          <span>n={boxPlotData.reduce((sum, b) => sum + b.count, 0)}</span>
+          <span>{boxPlotData.length} samples</span>
         </div>
       </div>
 
@@ -315,20 +304,20 @@ export function BoxWhiskerChart({
               ))}
 
               {/* Spec limits */}
-              {showSpecLimits && chartData.spec_limits.usl != null && (
+              {showSpecLimits && characteristic?.usl != null && (
                 <g>
                   <line
                     x1={0}
                     x2={chartWidth}
-                    y1={yScale(chartData.spec_limits.usl)}
-                    y2={yScale(chartData.spec_limits.usl)}
+                    y1={yScale(characteristic.usl)}
+                    y2={yScale(characteristic.usl)}
                     stroke="hsl(357 80% 52%)"
                     strokeWidth={1.5}
                     strokeDasharray="8 4"
                   />
                   <text
                     x={chartWidth + 5}
-                    y={yScale(chartData.spec_limits.usl)}
+                    y={yScale(characteristic.usl)}
                     fill="hsl(357 80% 45%)"
                     fontSize={10}
                     dominantBaseline="middle"
@@ -337,20 +326,20 @@ export function BoxWhiskerChart({
                   </text>
                 </g>
               )}
-              {showSpecLimits && chartData.spec_limits.lsl != null && (
+              {showSpecLimits && characteristic?.lsl != null && (
                 <g>
                   <line
                     x1={0}
                     x2={chartWidth}
-                    y1={yScale(chartData.spec_limits.lsl)}
-                    y2={yScale(chartData.spec_limits.lsl)}
+                    y1={yScale(characteristic.lsl)}
+                    y2={yScale(characteristic.lsl)}
                     stroke="hsl(357 80% 52%)"
                     strokeWidth={1.5}
                     strokeDasharray="8 4"
                   />
                   <text
                     x={chartWidth + 5}
-                    y={yScale(chartData.spec_limits.lsl)}
+                    y={yScale(characteristic.lsl)}
                     fill="hsl(357 80% 45%)"
                     fontSize={10}
                     dominantBaseline="middle"
@@ -360,16 +349,65 @@ export function BoxWhiskerChart({
                 </g>
               )}
 
-              {/* Box plots */}
-              {boxPlotData.map((box, index) => {
-                const x = xScale(index)
-                const isHovered = hoveredBox === index
+              {/* Control limits if available */}
+              {characteristic?.ucl != null && (
+                <g>
+                  <line
+                    x1={0}
+                    x2={chartWidth}
+                    y1={yScale(characteristic.ucl)}
+                    y2={yScale(characteristic.ucl)}
+                    stroke={chartColors.uclLine}
+                    strokeWidth={1.5}
+                    strokeDasharray="5 5"
+                  />
+                  <text
+                    x={chartWidth + 5}
+                    y={yScale(characteristic.ucl)}
+                    fill={chartColors.uclLine}
+                    fontSize={10}
+                    dominantBaseline="middle"
+                  >
+                    UCL
+                  </text>
+                </g>
+              )}
+              {characteristic?.lcl != null && (
+                <g>
+                  <line
+                    x1={0}
+                    x2={chartWidth}
+                    y1={yScale(characteristic.lcl)}
+                    y2={yScale(characteristic.lcl)}
+                    stroke={chartColors.lclLine}
+                    strokeWidth={1.5}
+                    strokeDasharray="5 5"
+                  />
+                  <text
+                    x={chartWidth + 5}
+                    y={yScale(characteristic.lcl)}
+                    fill={chartColors.lclLine}
+                    fontSize={10}
+                    dominantBaseline="middle"
+                  >
+                    LCL
+                  </text>
+                </g>
+              )}
+
+              {/* Box plots - one per sample */}
+              {boxPlotData.map((box) => {
+                const x = xScale(box.index)
+                const isHovered = hoveredBox === box.sampleId
 
                 return (
                   <g
-                    key={box.name}
+                    key={box.sampleId}
                     onMouseEnter={(e) => {
-                      setHoveredBox(index)
+                      setHoveredBox(box.sampleId)
+                      setTooltipData({ box, x: e.clientX, y: e.clientY })
+                    }}
+                    onMouseMove={(e) => {
                       setTooltipData({ box, x: e.clientX, y: e.clientY })
                     }}
                     onMouseLeave={() => {
@@ -413,12 +451,12 @@ export function BoxWhiskerChart({
                       x={x - boxWidth / 2}
                       y={yScale(box.q3)}
                       width={boxWidth}
-                      height={Math.abs(yScale(box.q1) - yScale(box.q3))}
+                      height={Math.max(1, Math.abs(yScale(box.q1) - yScale(box.q3)))}
                       fill={boxColor}
                       fillOpacity={isHovered ? 0.4 : 0.2}
                       stroke={boxColor}
                       strokeWidth={isHovered ? 2 : 1}
-                      rx={4}
+                      rx={2}
                     />
 
                     {/* Median line */}
@@ -431,16 +469,24 @@ export function BoxWhiskerChart({
                       strokeWidth={2}
                     />
 
+                    {/* Mean marker (small diamond) */}
+                    <path
+                      d={`M ${x} ${yScale(box.mean) - 3} L ${x + 3} ${yScale(box.mean)} L ${x} ${yScale(box.mean) + 3} L ${x - 3} ${yScale(box.mean)} Z`}
+                      fill={chartColors.centerLine}
+                      stroke="white"
+                      strokeWidth={0.5}
+                    />
+
                     {/* Outliers */}
                     {box.outliers.map((outlier, oi) => (
                       <circle
                         key={oi}
                         cx={x}
                         cy={yScale(outlier)}
-                        r={4}
+                        r={3}
                         fill={chartColors.violationPoint}
                         stroke="white"
-                        strokeWidth={1}
+                        strokeWidth={0.5}
                       />
                     ))}
                   </g>
@@ -479,19 +525,24 @@ export function BoxWhiskerChart({
                 </g>
               ))}
 
-              {/* X-axis labels */}
-              {boxPlotData.map((box, index) => (
-                <text
-                  key={box.name}
-                  x={xScale(index)}
-                  y={chartHeight + 20}
-                  fill="hsl(var(--muted-foreground))"
-                  fontSize={11}
-                  textAnchor="middle"
-                >
-                  {box.name}
-                </text>
-              ))}
+              {/* X-axis */}
+              <line
+                x1={0}
+                x2={chartWidth}
+                y1={chartHeight}
+                y2={chartHeight}
+                stroke="hsl(var(--muted-foreground))"
+                strokeOpacity={0.5}
+              />
+              <text
+                x={chartWidth / 2}
+                y={chartHeight + 30}
+                fill="hsl(var(--muted-foreground))"
+                fontSize={11}
+                textAnchor="middle"
+              >
+                Sample #
+              </text>
             </g>
           </svg>
         )}
@@ -501,22 +552,26 @@ export function BoxWhiskerChart({
           <div
             className="fixed z-50 bg-popover border border-border rounded-xl p-3 text-sm shadow-xl pointer-events-none"
             style={{
-              left: tooltipData.x + 10,
+              left: Math.min(tooltipData.x + 10, window.innerWidth - 220),
               top: tooltipData.y - 10,
               transform: 'translateY(-50%)',
             }}
           >
-            <div className="font-medium mb-2">{tooltipData.box.name}</div>
+            <div className="font-medium mb-2">Sample #{tooltipData.box.index}</div>
+            <div className="text-xs text-muted-foreground mb-2">
+              {new Date(tooltipData.box.timestamp).toLocaleString()}
+            </div>
             <div className="space-y-1 text-muted-foreground">
               <div>Max: {formatValue(tooltipData.box.max)}</div>
               <div>Q3 (75%): {formatValue(tooltipData.box.q3)}</div>
               <div className="font-medium text-foreground">Median: {formatValue(tooltipData.box.median)}</div>
+              <div className="text-primary">Mean: {formatValue(tooltipData.box.mean)}</div>
               <div>Q1 (25%): {formatValue(tooltipData.box.q1)}</div>
               <div>Min: {formatValue(tooltipData.box.min)}</div>
               <div className="pt-1 border-t border-border mt-1">
                 IQR: {formatValue(tooltipData.box.q3 - tooltipData.box.q1)}
               </div>
-              <div>Count: {tooltipData.box.count}</div>
+              <div>n={tooltipData.box.count}</div>
               {tooltipData.box.outliers.length > 0 && (
                 <div className="text-orange-500">Outliers: {tooltipData.box.outliers.length}</div>
               )}
@@ -528,12 +583,16 @@ export function BoxWhiskerChart({
       {/* Legend */}
       <div className="flex items-center justify-center gap-6 mt-3 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-4 rounded border-2" style={{ borderColor: boxColor, backgroundColor: `${boxColor}33` }} />
+          <div className="w-6 h-4 rounded border-2" style={{ borderColor: boxColor, backgroundColor: `${boxColor}33` }} />
           <span>IQR (Q1-Q3)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5" style={{ backgroundColor: boxColor }} />
-          <span>Whiskers (1.5×IQR)</span>
+          <div className="w-3 h-0.5" style={{ backgroundColor: boxColor }} />
+          <span>Median</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rotate-45" style={{ backgroundColor: chartColors.centerLine }} />
+          <span>Mean</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartColors.violationPoint }} />
