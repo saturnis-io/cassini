@@ -263,29 +263,40 @@ export function ChartTypeSelector({
                 {CATEGORY_LABELS.analysis}
               </div>
               {visibleGroups.analysis.map((chartType) => {
+                const isCompatible = isChartTypeCompatible(chartType.id, subgroupSize)
                 const isSelected = chartType.id === value
 
                 return (
                   <button
                     key={chartType.id}
                     type="button"
-                    onClick={() => handleSelect(chartType.id)}
+                    onClick={() => isCompatible && handleSelect(chartType.id)}
+                    disabled={!isCompatible}
                     className={cn(
                       'w-full flex items-center gap-2 px-2 py-2 rounded-md text-left',
                       'transition-colors',
                       isSelected && 'bg-primary/10',
-                      !isSelected && 'hover:bg-muted'
+                      isCompatible && !isSelected && 'hover:bg-muted',
+                      !isCompatible && 'opacity-50 cursor-not-allowed'
                     )}
                     role="option"
                     aria-selected={isSelected}
+                    aria-disabled={!isCompatible}
                   >
                     <div className="w-4 h-4 flex items-center justify-center">
                       {isSelected && <Check className="w-4 h-4 text-primary" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
-                        {chartType.shortName}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
+                          {chartType.shortName}
+                        </span>
+                        {!isCompatible && (
+                          <span className="text-xs text-muted-foreground">
+                            (requires n≥{chartType.minSubgroupSize})
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">
                         {chartType.description}
                       </p>

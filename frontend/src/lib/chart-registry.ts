@@ -171,9 +171,9 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
     name: 'Box and Whisker Plot',
     shortName: 'Box Plot',
     category: 'analysis',
-    description: 'Shows data distribution using quartiles. Useful for comparing groups.',
-    requiresSubgroupSize: false,
-    minSubgroupSize: 1,
+    description: 'Shows measurement distribution per sample. Requires n≥2.',
+    requiresSubgroupSize: true,
+    minSubgroupSize: 2,  // Need at least 2 measurements to show distribution
     maxSubgroupSize: null,
     dataType: 'continuous',
     isDualChart: false,
