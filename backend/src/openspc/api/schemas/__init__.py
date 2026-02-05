@@ -29,6 +29,11 @@ from openspc.api.schemas.hierarchy import (
     HierarchyTreeNode,
     HierarchyUpdate,
 )
+from openspc.api.schemas.plant import (
+    PlantCreate,
+    PlantResponse,
+    PlantUpdate,
+)
 from openspc.api.schemas.sample import (
     SampleCreate,
     SampleExclude,
@@ -51,6 +56,10 @@ __all__ = [
     "HierarchyUpdate",
     "HierarchyResponse",
     "HierarchyTreeNode",
+    # Plant schemas
+    "PlantCreate",
+    "PlantUpdate",
+    "PlantResponse",
     # Characteristic schemas
     "CharacteristicCreate",
     "CharacteristicUpdate",
