@@ -13,6 +13,7 @@ import {
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
+import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 
 interface ControlChartProps {
   characteristicId: number
@@ -77,6 +78,9 @@ export function ControlChart({
   const chartColors = useChartColors()
   const hierarchyPath = useHierarchyPath(characteristicId)
 
+  // Cross-chart hover sync using sample IDs
+  const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
+
   // Collect all violated rules across all data points for legend
   // This hook must be called unconditionally (before early returns)
   const allViolatedRules = useMemo(() => {
@@ -125,6 +129,7 @@ export function ControlChart({
   // Prepare chart data with mode-specific display values
   const data = data_points.map((point, index) => ({
     index: index + 1,
+    sample_id: point.sample_id, // Stable identifier for cross-chart sync
     // For Mode A, plot z_score; for Mode B/C, plot mean
     mean: isModeA ? (point.z_score ?? point.mean) : point.mean,
     displayValue: point.display_value ?? point.mean,
@@ -224,15 +229,21 @@ export function ControlChart({
           data={data}
           margin={{ top: 20, right: 60, left: 20, bottom: 20 }}
           onMouseMove={(state) => {
-            if (onHoverValue && state?.activeTooltipIndex != null) {
+            if (state?.activeTooltipIndex != null) {
               const index = Number(state.activeTooltipIndex)
               const point = data[index]
               if (point) {
-                onHoverValue(point.displayValue ?? point.mean)
+                // Broadcast sample_id to cross-chart hover context
+                onHoverSample(point.sample_id)
+                // Also call local callback if provided
+                onHoverValue?.(point.displayValue ?? point.mean)
               }
             }
           }}
-          onMouseLeave={() => onHoverValue?.(null)}
+          onMouseLeave={() => {
+            onLeaveSample()
+            onHoverValue?.(null)
+          }}
         >
           {/* Gradient and filter definitions */}
           <defs>
@@ -535,14 +546,20 @@ export function ControlChart({
               const violationRules: number[] = payload.violationRules || []
               const primaryRule = getPrimaryViolationRule(violationRules)
 
-              // Check if this point is highlighted from histogram hover
+              // Check if this point is highlighted from histogram hover (legacy prop)
               const pointValue = payload.displayValue ?? payload.mean
               const isHighlightedFromHistogram = highlightedRange &&
                 pointValue >= highlightedRange[0] &&
                 pointValue < highlightedRange[1]
 
+              // Check if this point is highlighted from cross-chart hover using sample_id
+              const isHighlightedFromCrossChart = hoveredSampleIds?.has(payload.sample_id) ?? false
+
+              // Combined highlight state
+              const isHighlighted = isHighlightedFromHistogram || isHighlightedFromCrossChart
+
               // Determine fill color using preset colors (override with gold if highlighted)
-              const fillColor = isHighlightedFromHistogram
+              const fillColor = isHighlighted
                 ? 'hsl(45, 100%, 50%)'  // Gold highlight color
                 : isExcluded
                   ? chartColors.excludedPoint
@@ -553,12 +570,12 @@ export function ControlChart({
                       : chartColors.normalPoint
 
               // Base radius (larger when highlighted)
-              const baseRadius = isHighlightedFromHistogram ? 7 : isViolation ? 6 : isUndersized ? 5 : 4
+              const baseRadius = isHighlighted ? 7 : isViolation ? 6 : isUndersized ? 5 : 4
 
               return (
                 <g key={payload.index}>
-                  {/* Highlight glow ring for histogram-highlighted points */}
-                  {isHighlightedFromHistogram && (
+                  {/* Highlight glow ring for cross-chart highlighted points */}
+                  {isHighlighted && (
                     <circle
                       cx={cx}
                       cy={cy}
@@ -581,7 +598,7 @@ export function ControlChart({
                     <path
                       d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy + baseRadius * 0.7} L ${cx - baseRadius} ${cy + baseRadius * 0.7} Z`}
                       fill={fillColor}
-                      stroke={isHighlightedFromHistogram ? 'hsl(35, 100%, 45%)' : chartColors.undersizedPoint}
+                      stroke={isHighlighted ? 'hsl(35, 100%, 45%)' : chartColors.undersizedPoint}
                       strokeWidth={1.5}
                     />
                   ) : (
@@ -591,8 +608,8 @@ export function ControlChart({
                       cy={cy}
                       r={baseRadius}
                       fill={fillColor}
-                      stroke={isHighlightedFromHistogram ? 'hsl(35, 100%, 45%)' : undefined}
-                      strokeWidth={isHighlightedFromHistogram ? 2 : 0}
+                      stroke={isHighlighted ? 'hsl(35, 100%, 45%)' : undefined}
+                      strokeWidth={isHighlighted ? 2 : 0}
                     />
                   )}
                   {/* Violation rule number badge */}

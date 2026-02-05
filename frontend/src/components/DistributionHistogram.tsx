@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -14,6 +13,7 @@ import {
 import { Info } from 'lucide-react'
 import { useChartData } from '@/api/hooks'
 import { cn } from '@/lib/utils'
+import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 
 interface DistributionHistogramProps {
   characteristicId: number
@@ -34,9 +34,24 @@ interface DistributionHistogramProps {
   onHoverBin?: (range: [number, number] | null) => void
 }
 
-function calculateHistogramBins(values: number[], binCount: number = 20) {
-  if (values.length === 0) return []
+interface DataPointWithId {
+  value: number
+  sample_id: number
+}
 
+interface HistogramBin {
+  binStart: number
+  binEnd: number
+  binCenter: number
+  count: number
+  normalY: number
+  sampleIds: number[] // Track which samples are in this bin
+}
+
+function calculateHistogramBins(dataPoints: DataPointWithId[], binCount: number = 20): HistogramBin[] {
+  if (dataPoints.length === 0) return []
+
+  const values = dataPoints.map(p => p.value)
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min
@@ -46,20 +61,22 @@ function calculateHistogramBins(values: number[], binCount: number = 20) {
   const extendedMax = max + range * 0.1
   const extendedBinWidth = (extendedMax - extendedMin) / binCount
 
-  const bins = Array.from({ length: binCount }, (_, i) => ({
+  const bins: HistogramBin[] = Array.from({ length: binCount }, (_, i) => ({
     binStart: extendedMin + i * extendedBinWidth,
     binEnd: extendedMin + (i + 1) * extendedBinWidth,
     binCenter: extendedMin + (i + 0.5) * extendedBinWidth,
     count: 0,
     normalY: 0,
+    sampleIds: [],
   }))
 
-  values.forEach((value) => {
+  dataPoints.forEach((point) => {
     const binIndex = Math.min(
-      Math.max(0, Math.floor((value - extendedMin) / extendedBinWidth)),
+      Math.max(0, Math.floor((point.value - extendedMin) / extendedBinWidth)),
       binCount - 1
     )
     bins[binIndex].count++
+    bins[binIndex].sampleIds.push(point.sample_id)
   })
 
   return bins
@@ -86,12 +103,12 @@ function normalPDF(x: number, mean: number, stdDev: number): number {
 
 // Add normal curve values to histogram bins
 function addNormalCurve(
-  bins: ReturnType<typeof calculateHistogramBins>,
+  bins: HistogramBin[],
   mean: number,
   stdDev: number,
   totalCount: number,
   binWidth: number
-) {
+): HistogramBin[] {
   if (stdDev === 0 || bins.length === 0) return bins
 
   const scaleFactor = totalCount * binWidth
@@ -142,6 +159,9 @@ export function DistributionHistogram({
   const colors = colorSchemes[colorScheme]
   const isVertical = orientation === 'vertical'
 
+  // Cross-chart hover sync using sample IDs
+  const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
+
   if (isLoading) {
     return (
       <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
@@ -158,11 +178,16 @@ export function DistributionHistogram({
     )
   }
 
-  const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+  // Build data points with sample_ids for bin tracking
+  const dataPoints: DataPointWithId[] = chartData.data_points
+    .filter((p) => !p.excluded)
+    .map((p) => ({ value: p.mean, sample_id: p.sample_id }))
+
+  const values = dataPoints.map(p => p.value)
   const stats = calculateStatistics(values)
 
-  // Calculate histogram bins
-  let bins = calculateHistogramBins(values)
+  // Calculate histogram bins with sample_id tracking
+  let bins = calculateHistogramBins(dataPoints)
   const binWidth = bins.length > 1 ? bins[1].binCenter - bins[0].binCenter : 1
 
   // Add normal distribution curve to bins
@@ -218,10 +243,25 @@ export function DistributionHistogram({
   const normalGradientId = `normalGradient-${characteristicId}-${colorScheme}`
   const highlightGradientId = `barGradientHighlight-${characteristicId}-${colorScheme}`
 
-  // Find which bin index contains the highlighted value (if any)
-  const highlightedBinIndex = highlightedValue != null
-    ? bins.findIndex((bin) => highlightedValue >= bin.binStart && highlightedValue < bin.binEnd)
-    : -1
+  // Find which bin(s) contain any hovered sample_ids
+  // Also support legacy highlightedValue prop
+  const getHighlightedBinIndex = (): number => {
+    // First check for cross-chart hover via sample_ids
+    if (hoveredSampleIds && hoveredSampleIds.size > 0) {
+      const index = bins.findIndex(bin =>
+        bin.sampleIds.some(id => hoveredSampleIds.has(id))
+      )
+      if (index !== -1) return index
+    }
+    // Fall back to legacy value-based highlighting
+    if (highlightedValue != null) {
+      return bins.findIndex(bin =>
+        highlightedValue >= bin.binStart && highlightedValue < bin.binEnd
+      )
+    }
+    return -1
+  }
+  const highlightedBinIndex = getHighlightedBinIndex()
 
   // For vertical orientation, we render aligned with the control chart
   // Using same padding (p-5), header height (mb-4), and chart height (90%)
@@ -304,14 +344,21 @@ export function DistributionHistogram({
               data={bins}
               margin={{ top: 20, right: 30, left: 5, bottom: 20 }}
               onMouseMove={(state) => {
-                if (onHoverBin && state?.activeTooltipIndex != null) {
-                  const bin = bins[state.activeTooltipIndex]
-                  if (bin) {
-                    onHoverBin([bin.binStart, bin.binEnd])
+                if (state?.activeTooltipIndex != null) {
+                  const binIndex = Number(state.activeTooltipIndex)
+                  const bin = bins[binIndex]
+                  if (bin && bin.sampleIds.length > 0) {
+                    // Broadcast all sample_ids in this bin for cross-chart highlighting
+                    onHoverSample(bin.sampleIds)
+                    // Also call legacy callback if provided
+                    onHoverBin?.([bin.binStart, bin.binEnd])
                   }
                 }
               }}
-              onMouseLeave={() => onHoverBin?.(null)}
+              onMouseLeave={() => {
+                onLeaveSample()
+                onHoverBin?.(null)
+              }}
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
@@ -454,14 +501,21 @@ export function DistributionHistogram({
           data={bins}
           margin={{ top: 25, right: 45, left: 10, bottom: 10 }}
           onMouseMove={(state) => {
-            if (onHoverBin && state?.activeTooltipIndex != null) {
-              const bin = bins[state.activeTooltipIndex]
-              if (bin) {
-                onHoverBin([bin.binStart, bin.binEnd])
+            if (state?.activeTooltipIndex != null) {
+              const binIndex = Number(state.activeTooltipIndex)
+              const bin = bins[binIndex]
+              if (bin && bin.sampleIds.length > 0) {
+                // Broadcast all sample_ids in this bin for cross-chart highlighting
+                onHoverSample(bin.sampleIds)
+                // Also call legacy callback if provided
+                onHoverBin?.([bin.binStart, bin.binEnd])
               }
             }
           }}
-          onMouseLeave={() => onHoverBin?.(null)}
+          onMouseLeave={() => {
+            onLeaveSample()
+            onHoverBin?.(null)
+          }}
         >
           <defs>
             {/* Gradient for histogram bars */}

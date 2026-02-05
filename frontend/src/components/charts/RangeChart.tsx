@@ -18,6 +18,7 @@ import {
 import { useChartData } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
+import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 
 interface RangeChartProps {
   characteristicId: number
@@ -73,6 +74,9 @@ export function RangeChart({
 }: RangeChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
+
+  // Cross-chart hover sync using sample IDs
+  const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
 
   // Calculate range/stddev values and control limits
   const { data, controlLimits, chartLabel, yAxisLabel } = useMemo(() => {
@@ -148,13 +152,34 @@ export function RangeChart({
       lcl = 0 // D3 for n=2 is 0
     }
 
-    // Build chart data
-    const chartPoints = (chartType === 'mr' ? points.slice(1) : points).map((point, index) => ({
-      index: index + 1,
-      value: values[index] ?? 0,
-      timestamp: new Date(point.timestamp).toLocaleTimeString(),
-      hasViolation: false, // TODO: Add violation detection for secondary charts
-    }))
+    // Build chart data with sample IDs for cross-chart sync
+    // For MR chart, each point represents the change between two consecutive samples
+    // We store both sample_ids so we can highlight when either is hovered
+    const chartPoints = (chartType === 'mr' ? points.slice(1) : points).map((point, index) => {
+      if (chartType === 'mr') {
+        // MR chart: point at index represents the range from points[index] to points[index+1]
+        // Since we sliced from index 1, the "from" sample is at points[index]
+        const fromPoint = points[index]
+        return {
+          index: index + 2, // Display as sample #2, #3, etc. (MR starts at sample 2)
+          value: values[index] ?? 0,
+          timestamp: new Date(point.timestamp).toLocaleTimeString(),
+          hasViolation: false,
+          sample_id: point.sample_id, // The "to" sample ID
+          sample_id_from: fromPoint.sample_id, // The "from" sample ID
+        }
+      } else {
+        // R/S charts: one-to-one mapping with X-bar chart
+        return {
+          index: index + 1,
+          value: values[index] ?? 0,
+          timestamp: new Date(point.timestamp).toLocaleTimeString(),
+          hasViolation: false,
+          sample_id: point.sample_id,
+          sample_id_from: null as number | null,
+        }
+      }
+    })
 
     return {
       data: chartPoints,
@@ -217,11 +242,25 @@ export function RangeChart({
             data={data}
             margin={{ top: 10, right: 60, left: 20, bottom: 20 }}
             onMouseMove={(state) => {
-              if (onHoverIndex && state?.activeTooltipIndex != null) {
-                onHoverIndex(Number(state.activeTooltipIndex))
+              if (state?.activeTooltipIndex != null) {
+                const arrayIndex = Number(state.activeTooltipIndex)
+                const point = data[arrayIndex]
+                if (point) {
+                  // Broadcast sample_id(s) for cross-chart sync
+                  // For MR chart, broadcast both "from" and "to" sample IDs
+                  const sampleIds = point.sample_id_from != null
+                    ? [point.sample_id, point.sample_id_from]
+                    : [point.sample_id]
+                  onHoverSample(sampleIds)
+                  // Also call local callback if provided
+                  onHoverIndex?.(arrayIndex)
+                }
               }
             }}
-            onMouseLeave={() => onHoverIndex?.(null)}
+            onMouseLeave={() => {
+              onLeaveSample()
+              onHoverIndex?.(null)
+            }}
           >
             <defs>
               <linearGradient id={lineGradientId} x1="0" y1="0" x2="1" y2="0">
@@ -331,7 +370,17 @@ export function RangeChart({
               dot={({ cx, cy, payload }) => {
                 if (cx === undefined || cy === undefined) return null
 
-                const isHighlighted = highlightedIndex != null && payload.index - 1 === highlightedIndex
+                // Check both local and global highlight state using sample_id
+                const arrayIndex = payload.index - (chartType === 'mr' ? 2 : 1) // Convert display index to array index
+                // Local highlighting uses array index (from DualChartPanel local state)
+                const isHighlightedLocal = highlightedIndex != null && arrayIndex === highlightedIndex
+                // Global cross-chart highlighting using sample_id
+                // For MR chart, highlight if either the "from" or "to" sample is hovered
+                const isHighlightedGlobal = hoveredSampleIds != null && (
+                  hoveredSampleIds.has(payload.sample_id) ||
+                  (payload.sample_id_from != null && hoveredSampleIds.has(payload.sample_id_from))
+                )
+                const isHighlighted = isHighlightedLocal || isHighlightedGlobal
                 const baseRadius = isHighlighted ? 6 : 4
                 const fillColor = isHighlighted ? 'hsl(45, 100%, 50%)' : chartColors.normalPoint
 

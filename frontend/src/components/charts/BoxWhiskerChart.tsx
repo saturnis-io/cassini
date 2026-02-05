@@ -9,6 +9,7 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useSamples, useCharacteristic } from '@/api/hooks'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import type { Sample } from '@/types'
 
 interface BoxWhiskerChartProps {
@@ -93,10 +94,33 @@ function calculateQuartiles(sortedValues: number[]): { q1: number; median: numbe
 }
 
 /**
+ * Extract measurement values from a sample.
+ * Handles both formats: array of numbers OR array of Measurement objects.
+ */
+function getMeasurementValues(sample: Sample): number[] {
+  if (!sample.measurements || sample.measurements.length === 0) {
+    return []
+  }
+  // Check if it's an array of numbers or Measurement objects
+  const first = sample.measurements[0]
+  if (typeof first === 'number') {
+    // Backend returns plain numbers
+    return (sample.measurements as unknown as number[]).filter(
+      (v): v is number => typeof v === 'number' && Number.isFinite(v)
+    )
+  }
+  // It's Measurement objects with .value property
+  return sample.measurements
+    .map((m) => m.value)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+}
+
+/**
  * Calculate box plot statistics from a sample's measurements.
  */
 function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData | null {
-  const values = sample.measurements?.map((m) => m.value) ?? []
+  // Filter to only valid numeric values
+  const values = getMeasurementValues(sample)
 
   // Need at least 2 measurements for a meaningful box plot
   if (values.length < 2) return null
@@ -116,7 +140,13 @@ function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData 
   // Outliers are values outside whisker bounds
   const outliers = iqr > 0 ? sorted.filter((v) => v < whiskerLowBound || v > whiskerHighBound) : []
 
-  return {
+  // Calculate mean from measurements if sample.mean is not available
+  const calculatedMean = values.reduce((a, b) => a + b, 0) / values.length
+  const mean = typeof sample.mean === 'number' && Number.isFinite(sample.mean)
+    ? sample.mean
+    : calculatedMean
+
+  const result = {
     sampleId: sample.id,
     index,
     timestamp: sample.timestamp,
@@ -129,8 +159,16 @@ function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData 
     whiskerHigh,
     outliers,
     count: values.length,
-    mean: sample.mean,
+    mean,
   }
+
+  // Validate all numeric values are finite before returning
+  const numericFields = [result.min, result.q1, result.median, result.q3, result.max, result.whiskerLow, result.whiskerHigh, result.mean]
+  if (numericFields.some((v) => !Number.isFinite(v))) {
+    return null
+  }
+
+  return result
 }
 
 export function BoxWhiskerChart({
@@ -155,6 +193,9 @@ export function BoxWhiskerChart({
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoveredBox, setHoveredBox] = useState<number | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+
+  // Cross-chart hover sync using sample IDs
+  const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
 
   // Track container size
   useEffect(() => {
@@ -240,15 +281,20 @@ export function BoxWhiskerChart({
     const yRange = yMax - yMin
 
     const yScale = (value: number): number => {
+      // Guard against invalid input values
+      if (!Number.isFinite(value)) return chartHeight / 2
       if (yRange === 0) return chartHeight / 2
-      return chartHeight - ((value - yMin) / yRange) * chartHeight
+      const result = chartHeight - ((value - yMin) / yRange) * chartHeight
+      // Guard against NaN results
+      return Number.isFinite(result) ? result : chartHeight / 2
     }
 
     const xScale = (index: number): number => {
       const boxCount = boxPlotData.length
       if (boxCount === 0) return chartWidth / 2
       const boxSpacing = chartWidth / boxCount
-      return boxSpacing * (index - 0.5)
+      const result = boxSpacing * (index - 0.5)
+      return Number.isFinite(result) ? result : chartWidth / 2
     }
 
     return { yScale, xScale }
@@ -429,7 +475,10 @@ export function BoxWhiskerChart({
               {/* Box plots - one per sample */}
               {boxPlotData.map((box) => {
                 const x = xScale(box.index)
-                const isHovered = hoveredBox === box.sampleId
+                const isHoveredLocal = hoveredBox === box.sampleId
+                // Cross-chart highlighting using sample_id
+                const isHoveredGlobal = hoveredSampleIds?.has(box.sampleId) ?? false
+                const isHovered = isHoveredLocal || isHoveredGlobal
 
                 const y_q1 = yScale(box.q1)
                 const y_q3 = yScale(box.q3)
@@ -449,6 +498,8 @@ export function BoxWhiskerChart({
                     onMouseEnter={(e) => {
                       setHoveredBox(box.sampleId)
                       setTooltipPos({ x: e.clientX, y: e.clientY })
+                      // Broadcast sample_id to cross-chart hover context
+                      onHoverSample(box.sampleId)
                     }}
                     onMouseMove={(e) => {
                       setTooltipPos({ x: e.clientX, y: e.clientY })
@@ -456,6 +507,7 @@ export function BoxWhiskerChart({
                     onMouseLeave={() => {
                       setHoveredBox(null)
                       setTooltipPos(null)
+                      onLeaveSample()
                     }}
                     style={{ cursor: 'pointer' }}
                   >
