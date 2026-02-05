@@ -3,7 +3,7 @@ import { useCharacteristics, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
-import { DualChartPanel } from '@/components/charts/DualChartPanel'
+import { DualChartPanel, BoxWhiskerChart } from '@/components/charts'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
@@ -30,6 +30,7 @@ export function OperatorDashboard() {
   // Get current chart type
   const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || 'xbar'
   const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
+  const isBoxWhisker = currentChartType === 'box-whisker'
 
   // Compute chart data options from time range
   const chartOptions = useMemo(() => {
@@ -89,7 +90,13 @@ export function OperatorDashboard() {
 
             {/* Primary Chart with optional histogram */}
             <div className="flex-1 min-h-0">
-              {isDualChart ? (
+              {isBoxWhisker ? (
+                <BoxWhiskerChart
+                  characteristicId={selectedId}
+                  chartOptions={chartOptions}
+                  showSpecLimits={showSpecLimits}
+                />
+              ) : isDualChart ? (
                 <DualChartPanel
                   characteristicId={selectedId}
                   chartType={currentChartType}
