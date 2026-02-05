@@ -6,17 +6,13 @@ interface HeaderProps {
   className?: string
   /** Slot for PlantSelector component */
   plantSelector?: React.ReactNode
-  /** Optional custom app name (for brand customization) */
-  appName?: string
-  /** Optional custom logo URL */
-  logoUrl?: string | null
 }
 
 /**
  * Minimal header component for use with sidebar layout
  *
  * Features:
- * - Logo and app name on the left
+ * - Logo and app name on the left (from brand config)
  * - Plant selector slot in the middle-right
  * - Theme toggle
  * - User menu placeholder
@@ -24,10 +20,9 @@ interface HeaderProps {
 export function Header({
   className,
   plantSelector,
-  appName = 'OpenSPC',
-  logoUrl,
 }: HeaderProps) {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, brandConfig } = useTheme()
+  const { appName, logoUrl } = brandConfig
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']

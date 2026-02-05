@@ -4,21 +4,30 @@ import { AppearanceSettings } from '@/components/AppearanceSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { NotificationsSettings } from '@/components/NotificationsSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
+import { ThemeCustomizer } from '@/components/ThemeCustomizer'
 import { cn } from '@/lib/utils'
-import { Wifi, Key, Bell, Database, Palette } from 'lucide-react'
+import { Wifi, Key, Bell, Database, Palette, Building2 } from 'lucide-react'
+import { useAuth } from '@/providers/AuthProvider'
+import { hasAccess } from '@/lib/roles'
 
-type SettingsTab = 'appearance' | 'mqtt' | 'api-keys' | 'notifications' | 'database'
+type SettingsTab = 'appearance' | 'branding' | 'mqtt' | 'api-keys' | 'notifications' | 'database'
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
+  const { role } = useAuth()
+
+  // Check role-based access for tabs
+  const isAdmin = hasAccess(role, 'admin')
+  const isEngineer = hasAccess(role, 'engineer')
 
   const tabs = [
-    { id: 'appearance' as const, label: 'Appearance', icon: Palette },
-    { id: 'mqtt' as const, label: 'Data Collection', icon: Wifi },
-    { id: 'api-keys' as const, label: 'API Keys', icon: Key },
-    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
-    { id: 'database' as const, label: 'Database', icon: Database },
-  ]
+    { id: 'appearance' as const, label: 'Appearance', icon: Palette, visible: true },
+    { id: 'branding' as const, label: 'Branding', icon: Building2, visible: isAdmin },
+    { id: 'mqtt' as const, label: 'Data Collection', icon: Wifi, visible: isEngineer },
+    { id: 'api-keys' as const, label: 'API Keys', icon: Key, visible: isEngineer },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell, visible: true },
+    { id: 'database' as const, label: 'Database', icon: Database, visible: isEngineer },
+  ].filter((tab) => tab.visible)
 
   return (
     <div className="space-y-6">
@@ -51,6 +60,18 @@ export function SettingsView() {
       {/* Tab Content */}
       <div>
         {activeTab === 'appearance' && <AppearanceSettings />}
+
+        {activeTab === 'branding' && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Brand Customization</h2>
+              <p className="text-sm text-muted-foreground">
+                Customize the application appearance with your brand colors and logo.
+              </p>
+            </div>
+            <ThemeCustomizer />
+          </div>
+        )}
 
         {activeTab === 'mqtt' && <MQTTConfigPanel />}
 
