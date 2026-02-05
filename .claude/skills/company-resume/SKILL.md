@@ -30,8 +30,48 @@ Before proceeding, load the following context:
 2. **Project Context**: Read `.planning/PROJECT.md` (first 30 lines for overview)
 3. **Current Roadmap**: Read `.planning/ROADMAP.md` if it exists
 4. **Git Status**: Run `git status` and `git log --oneline -5`
+5. **Historical Observations** (if claude-mem available): Query recent session context
 
 Use the Read tool to load these files and Bash to check git status.
+
+---
+
+## Claude-Mem Context Recovery (Optional)
+
+If claude-mem is installed, use it to recover context that may not be in formal handoffs:
+
+### Session History
+```
+Use MCP tool: search
+Query: current project name + phase
+Limit: last 10 sessions
+```
+
+### Unresolved Issues
+Search for problems mentioned but potentially not captured in handoffs:
+```
+Use MCP tool: search
+Query: "TODO OR FIXME OR issue OR bug" + project context
+Then: get_observations for details
+```
+
+### Testing Feedback
+Recover debugging/testing observations from previous sessions:
+```
+Use MCP tool: timeline
+Context: observations around last pause point timestamp
+```
+
+### Include in Context Summary
+When presenting the context review to user, add a section:
+```markdown
+## Recovered Observations (from claude-mem)
+{Relevant observations not in formal handoffs}
+- [timestamp] {observation summary}
+- [timestamp] {observation summary}
+```
+
+**Fallback**: If claude-mem is not available, skip this section. The skill works fully with file-based context alone.
 
 ---
 

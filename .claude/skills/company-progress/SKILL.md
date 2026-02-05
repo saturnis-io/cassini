@@ -18,6 +18,35 @@ Before analyzing progress, load the following:
 3. **Phase Artifacts**: List contents of `.planning/phase-*/` directories to see what phases exist and their contents
 4. **Git Status**: Run `git status --short` (first 20 lines)
 5. **Task List**: Run `TaskList()` to see current tasks
+6. **Historical Context** (if claude-mem available): Query relevant observations
+
+---
+
+## Claude-Mem Integration (Optional)
+
+If claude-mem is installed, use its MCP tools to enrich context:
+
+### Check for Recent Issues
+```
+Use MCP tool: search
+Query: "bug OR error OR fix OR issue" for current project/phase
+```
+
+### Retrieve Testing Feedback
+```
+Use MCP tool: search
+Query: "test OR testing OR verification" + current phase name
+Then: timeline to see chronological context
+Then: get_observations for full details on relevant IDs
+```
+
+### Pattern Recognition
+Search for recurring themes that may not be in formal handoffs:
+- UI/UX feedback: "alignment OR spacing OR layout"
+- Performance issues: "slow OR timeout OR performance"
+- Integration problems: "API OR integration OR connection"
+
+**Fallback**: If claude-mem is not available, skip this section and proceed with file-based context only. The skill works fully without it.
 
 ---
 

@@ -13,6 +13,7 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - Task
   - TaskCreate
   - TaskUpdate
   - TaskGet

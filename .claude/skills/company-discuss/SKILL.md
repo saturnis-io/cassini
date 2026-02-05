@@ -14,6 +14,7 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - Task
   - AskUserQuestion
 ---
 

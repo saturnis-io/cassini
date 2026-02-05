@@ -1,0 +1,33 @@
+{
+  "proposal_type": "scope_change",
+  "from_role": "ceo",
+  "timestamp": "2026-02-05T16:56:05Z",
+  "requires_ceo_approval": false,
+  "category": "future_work",
+  "title": "Users and Role Management System",
+  "current_scope": "Roles are hardcoded client-side with a dev role switcher",
+  "proposed_change": "Implement full user and role management system with plant assignment, role assignment, and configurable page permissions.",
+  "reason": "Enterprise deployments require proper user authentication, authorization, and administration capabilities. Must support Active Directory integration for enterprise SSO.",
+  "requirements": [
+    "User management CRUD (create, read, update, delete users)",
+    "Assign users to one or many plants",
+    "Assign users to roles",
+    "Role management (create custom roles)",
+    "Assign users or AD groups to roles (if AD integration enabled)",
+    "Configure page/feature visibility per role",
+    "Admin UI for user and role management",
+    "Active Directory / LDAP integration option"
+  ],
+  "impact": {
+    "timeline": "Large - requires authentication backend, user database, admin UI",
+    "resources": "Backend (auth system) + Frontend (admin pages) + DevOps (AD integration)",
+    "quality": "Critical for enterprise security and multi-user deployment"
+  },
+  "dependencies": [
+    "Role system foundation (completed in enterprise-ui-overhaul)",
+    "Plant selector (completed)",
+    "ProtectedRoute component (completed)"
+  ],
+  "suggested_phase": "phase-user-management",
+  "status": "backlog"
+}

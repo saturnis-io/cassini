@@ -29,15 +29,6 @@
             "command": "python .company/scripts/sync_notify.py"
           }
         ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npm run lint --silent 2>/dev/null || true"
-          }
-        ]
       }
     ]
   }

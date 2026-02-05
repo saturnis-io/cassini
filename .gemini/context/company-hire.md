@@ -27,7 +27,6 @@ Before executing this role, load the following context:
 ---
 name: company-hire
 description: Manually request hiring of a specific specialist.
-disable-model-invocation: true
 argument-hint: [domain-id]
 ---
 

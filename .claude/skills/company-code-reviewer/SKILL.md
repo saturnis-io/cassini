@@ -11,6 +11,7 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - Task
   - TaskGet
   - TaskList
 user-invocable: false

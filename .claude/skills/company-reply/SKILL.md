@@ -268,3 +268,54 @@ To prevent falling out of the framework:
 # Log interaction
 echo "{\"timestamp\":\"$(date -Iseconds)\",\"type\":\"ceo_reply\",\"category\":\"$CATEGORY\",\"routed_to\":\"$ROLE\"}" >> .company/audit/interactions.jsonl
 ```
+
+---
+
+## Claude-Mem Integration (Optional)
+
+If claude-mem is installed, use it to enhance context and prevent repeated issues.
+
+### Before Routing: Search for Similar Issues
+
+When processing bug reports or feedback, check if similar issues were reported before:
+
+```
+Use MCP tool: search
+Query: keywords from CEO message + "bug OR issue OR feedback"
+```
+
+If similar issues found:
+- Reference the previous resolution in the task
+- Include "Related: previously reported [observation ID]" in the task description
+- Alert if this is a recurring issue that wasn't fully resolved
+
+### After Routing: Verify Capture
+
+For bug reports and feedback (especially testing feedback), verify the observation will be available for future reference:
+
+**Key feedback patterns to ensure are captured:**
+- UI/UX issues: "align", "spacing", "doesn't match", "should be"
+- Functional bugs: "doesn't work", "broken", "error", "fails"
+- Design feedback: "should look like", "needs to be", "wrong color/size"
+
+When including feedback in handoffs, use specific language that will be searchable:
+```markdown
+### CEO Feedback (Testing)
+- Issue: [specific description]
+- Component: [which component/file]
+- Expected: [what it should do/look like]
+- Actual: [what it does instead]
+```
+
+### Pattern Detection
+
+Query claude-mem to detect patterns:
+```
+Use MCP tool: search
+Query: current component/feature name
+Review: Are there multiple observations about the same issue?
+```
+
+If pattern detected, escalate: "Note: This issue has been reported [N] times previously. Consider a more comprehensive fix."
+
+**Fallback**: If claude-mem is not available, proceed with standard routing. The skill works fully without it.

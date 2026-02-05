@@ -48,6 +48,7 @@ allowed-tools:
   - Grep
   - Bash
   - WebSearch
+  - Task
 user-invocable: false
 ---
 

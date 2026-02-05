@@ -1,7 +1,6 @@
 ---
 name: company-merge
 description: Merge completed work to main branch with full validation, testing, and approval workflow.
-disable-model-invocation: true
 argument-hint: "[branch-name]"
 skills:
   - company-git-flow
@@ -11,6 +10,7 @@ allowed-tools:
   - Glob
   - Grep
   - Bash
+  - Task
   - AskUserQuestion
 ---
 

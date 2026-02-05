@@ -47,6 +47,7 @@ allowed-tools:
   - Bash
   - WebSearch
   - WebFetch
+  - Task
 user-invocable: false
 ---
 

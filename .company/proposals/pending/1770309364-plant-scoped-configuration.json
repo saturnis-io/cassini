@@ -1,0 +1,29 @@
+{
+  "proposal_type": "scope_change",
+  "from_role": "ceo",
+  "timestamp": "2026-02-05T16:56:04Z",
+  "requires_ceo_approval": false,
+  "category": "future_work",
+  "title": "Plant-Scoped Characteristic Hierarchy and Configuration",
+  "current_scope": "Characteristics and configuration are global across the system",
+  "proposed_change": "Isolate characteristic hierarchy and configuration per plant. All screens should be scoped to the selected plant. Add per-site settings for data connectivity (MQTT/OPC-UA).",
+  "reason": "Enterprise deployments require multi-plant support where each plant has its own characteristic hierarchy, configuration settings, and data connectivity requirements.",
+  "requirements": [
+    "Characteristic hierarchy isolated per plant",
+    "Configuration screens scoped to selected plant",
+    "Plant-specific data connectivity settings (MQTT broker, OPC-UA server)",
+    "Plant selector filters all data views to selected plant",
+    "Plant-level settings page for connectivity configuration"
+  ],
+  "impact": {
+    "timeline": "Significant - requires database schema changes and API refactoring",
+    "resources": "Backend + Frontend coordination required",
+    "quality": "Enables true multi-tenant enterprise deployment"
+  },
+  "dependencies": [
+    "Plant selector (completed in enterprise-ui-overhaul)",
+    "PlantProvider context (completed)"
+  ],
+  "suggested_phase": "phase-plant-isolation",
+  "status": "backlog"
+}
