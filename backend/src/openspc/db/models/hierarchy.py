@@ -5,11 +5,12 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from openspc.db.models.characteristic import Characteristic
+    from openspc.db.models.plant import Plant
 
 
 class Base(DeclarativeBase):
@@ -46,6 +47,9 @@ class Hierarchy(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("hierarchy.id"), nullable=True)
+    plant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -56,6 +60,9 @@ class Hierarchy(Base):
     children: Mapped[list["Hierarchy"]] = relationship(
         "Hierarchy", back_populates="parent", cascade="all, delete-orphan"
     )
+
+    # Plant relationship
+    plant: Mapped[Optional["Plant"]] = relationship("Plant", back_populates="hierarchies")
 
     # Relationship to characteristics
     characteristics: Mapped[list["Characteristic"]] = relationship(

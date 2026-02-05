@@ -4,6 +4,7 @@ from openspc.db.models.api_key import APIKey
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
+from openspc.db.models.plant import Plant
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.models.violation import Severity, Violation
 
@@ -13,6 +14,7 @@ __all__ = [
     # Models
     "APIKey",
     "MQTTBroker",
+    "Plant",
     "Hierarchy",
     "Characteristic",
     "CharacteristicRule",
