@@ -53,6 +53,7 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
 
   // Admin level
   '/settings': 'admin',
+  '/admin/users': 'admin',
 
   // Display modes (operator accessible)
   '/kiosk': 'operator',
@@ -71,6 +72,10 @@ export const ACTION_PERMISSIONS: Record<string, Role> = {
   'settings:theme': 'admin',
   'settings:api-keys': 'engineer',
   'settings:database': 'engineer',
+  'users:create': 'admin',
+  'users:edit': 'admin',
+  'users:deactivate': 'admin',
+  'users:assign-roles': 'admin',
 }
 
 /**

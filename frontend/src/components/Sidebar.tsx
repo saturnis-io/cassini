@@ -6,6 +6,7 @@ import {
   FileText,
   Settings,
   Sliders,
+  Users,
   ChevronsLeft,
   ChevronsRight,
   LogOut,
@@ -68,6 +69,7 @@ export function Sidebar({ className }: SidebarProps) {
   const secondaryNavItems: NavItem[] = [
     { path: '/configuration', label: 'Configuration', icon: <Settings className="h-5 w-5" />, requiredRole: 'engineer' },
     { path: '/settings', label: 'Settings', icon: <Sliders className="h-5 w-5" />, requiredRole: 'admin' },
+    { path: '/admin/users', label: 'Users', icon: <Users className="h-5 w-5" />, requiredRole: 'admin' },
   ]
 
   // Filter navigation items based on current role

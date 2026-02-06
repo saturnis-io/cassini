@@ -6,6 +6,7 @@ import { OperatorDashboard } from '@/pages/OperatorDashboard'
 import { ConfigurationView } from '@/pages/ConfigurationView'
 import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
+import { UserManagementPage } from '@/pages/UserManagementPage'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { KioskView } from '@/pages/KioskView'
@@ -100,6 +101,14 @@ function App() {
                         element={
                           <ProtectedRoute requiredRole="admin">
                             <SettingsView />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="admin/users"
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <UserManagementPage />
                           </ProtectedRoute>
                         }
                       />

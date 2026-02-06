@@ -1,11 +1,16 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { characteristicApi, hierarchyApi, plantApi, sampleApi, violationApi } from './client'
+import { characteristicApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
 import type { Characteristic, PlantCreate, PlantUpdate } from '@/types'
 
 // Query keys
 export const queryKeys = {
+  users: {
+    all: ['users'] as const,
+    list: (params?: object) => [...queryKeys.users.all, 'list', params] as const,
+    detail: (id: number) => [...queryKeys.users.all, 'detail', id] as const,
+  },
   plants: {
     all: ['plants'] as const,
     list: (activeOnly?: boolean) => [...queryKeys.plants.all, 'list', { activeOnly }] as const,
@@ -530,5 +535,100 @@ export function useSampleEditHistory(sampleId: number | null) {
     queryKey: queryKeys.samples.editHistory(sampleId ?? 0),
     queryFn: () => sampleApi.getEditHistory(sampleId!),
     enabled: sampleId !== null,
+  })
+}
+
+// User management hooks
+export function useUsers(params?: { search?: string; active_only?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.users.list(params),
+    queryFn: () => userApi.list(params),
+  })
+}
+
+export function useUser(id: number) {
+  return useQuery({
+    queryKey: queryKeys.users.detail(id),
+    queryFn: () => userApi.get(id),
+    enabled: id > 0,
+  })
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: { username: string; password: string; email?: string }) =>
+      userApi.create(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success(`Created user "${data.username}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create user: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { username?: string; email?: string; password?: string; is_active?: boolean } }) =>
+      userApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success('User updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update user: ${error.message}`)
+    },
+  })
+}
+
+export function useDeactivateUser() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => userApi.deactivate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success('User deactivated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to deactivate user: ${error.message}`)
+    },
+  })
+}
+
+export function useAssignRole() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, data }: { userId: number; data: { plant_id: number; role: string } }) =>
+      userApi.assignRole(userId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success('Role assigned')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to assign role: ${error.message}`)
+    },
+  })
+}
+
+export function useRemoveRole() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, plantId }: { userId: number; plantId: number }) =>
+      userApi.removeRole(userId, plantId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success('Role removed')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to remove role: ${error.message}`)
+    },
   })
 }
