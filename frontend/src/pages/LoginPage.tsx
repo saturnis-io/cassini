@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
 
@@ -22,11 +22,12 @@ export function LoginPage() {
   // Redirect destination after login (from ProtectedRoute)
   const from = (location.state as { from?: string })?.from || '/dashboard'
 
-  // If already authenticated, redirect immediately
-  if (isAuthenticated) {
-    navigate(from, { replace: true })
-    return null
-  }
+  // If already authenticated, redirect via effect (not during render)
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true })
+    }
+  }, [isAuthenticated, from, navigate])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

@@ -7,12 +7,13 @@ interface UserTableProps {
   users: UserResponse[]
   onEdit: (user: UserResponse) => void
   onDeactivate: (user: UserResponse) => void
+  onDelete: (user: UserResponse) => void
 }
 
 /**
  * Table displaying users with username, email, status, plant roles, and actions.
  */
-export function UserTable({ users, onEdit, onDeactivate }: UserTableProps) {
+export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTableProps) {
   const [search, setSearch] = useState('')
   const [showInactive, setShowInactive] = useState(false)
 
@@ -110,12 +111,19 @@ export function UserTable({ users, onEdit, onDeactivate }: UserTableProps) {
                       >
                         Edit
                       </button>
-                      {user.is_active && (
+                      {user.is_active ? (
                         <button
                           onClick={() => onDeactivate(user)}
                           className="px-3 py-1.5 text-xs font-medium rounded-md border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
                         >
                           Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onDelete(user)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                        >
+                          Delete
                         </button>
                       )}
                     </div>

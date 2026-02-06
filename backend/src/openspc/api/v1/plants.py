@@ -1,5 +1,7 @@
 """Plant REST API endpoints."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,8 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openspc.api.deps import get_current_user, get_current_admin
 from openspc.api.schemas.plant import PlantCreate, PlantResponse, PlantUpdate
 from openspc.db.database import get_session
-from openspc.db.models.user import User
+from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.repositories.plant import PlantRepository
+from openspc.db.repositories.user import UserRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/plants", tags=["plants"])
 
@@ -39,11 +44,13 @@ async def create_plant(
     data: PlantCreate,
     repo: PlantRepository = Depends(get_plant_repo),
     _user: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
 ) -> PlantResponse:
     """Create a new plant.
 
     Creates a new plant/site for data isolation. The code is automatically
-    uppercased and must be unique.
+    uppercased and must be unique. All admin users are automatically assigned
+    admin role for the new plant.
     """
     try:
         plant = await repo.create(
@@ -52,6 +59,21 @@ async def create_plant(
             is_active=data.is_active,
             settings=data.settings,
         )
+
+        # Auto-assign admin role for all admin-level users
+        user_repo = UserRepository(session)
+        all_users = await user_repo.get_all()
+        admin_count = 0
+        for user in all_users:
+            for pr in user.plant_roles:
+                if pr.role == UserRole.admin:
+                    # This user is admin somewhere — give them admin on the new plant
+                    await user_repo.assign_plant_role(user.id, plant.id, UserRole.admin)
+                    admin_count += 1
+                    break
+        if admin_count > 0:
+            logger.info(f"Auto-assigned {admin_count} admin user(s) to new plant '{plant.name}'")
+
         return PlantResponse.model_validate(plant)
     except IntegrityError:
         raise HTTPException(

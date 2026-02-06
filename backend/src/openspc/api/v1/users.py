@@ -158,6 +158,38 @@ async def deactivate_user(
         )
 
 
+@router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_permanent(
+    user_id: int,
+    current_user: User = Depends(get_current_admin),
+    repo: UserRepository = Depends(get_user_repo),
+) -> None:
+    """Permanently delete a deactivated user. Admin only.
+
+    The user must be deactivated first. Cannot delete yourself.
+    This removes the user record and frees the username for reuse.
+    """
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
+
+    try:
+        success = await repo.hard_delete(user_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found",
+        )
+
+
 @router.post("/{user_id}/roles", response_model=UserWithRolesResponse)
 async def assign_plant_role(
     user_id: int,

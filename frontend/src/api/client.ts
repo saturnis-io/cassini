@@ -48,7 +48,7 @@ const API_BASE = '/api/v1'
 
 // Access token stored in memory only (not localStorage)
 let accessToken: string | null = null
-let isRefreshing = false
+let refreshPromise: Promise<string | null> | null = null
 
 export function setAccessToken(token: string | null) {
   accessToken = token
@@ -58,65 +58,76 @@ export function getAccessToken(): string | null {
   return accessToken
 }
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options?.headers as Record<string, string> || {}),
-  }
+/**
+ * Perform a token refresh. If a refresh is already in flight, return the
+ * existing promise so all concurrent 401 callers wait on the same refresh.
+ */
+function doRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
 
-  // Attach Bearer token if available
-  if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`
+  refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+    .then(async (res) => {
+      if (res.ok) {
+        const data: RefreshResponse = await res.json()
+        accessToken = data.access_token
+        return accessToken
+      }
+      // Refresh failed — force logout
+      accessToken = null
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      return null
+    })
+    .catch(() => {
+      accessToken = null
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      return null
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return refreshPromise
+}
+
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const buildHeaders = () => {
+    const h: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string> || {}),
+    }
+    if (accessToken) {
+      h['Authorization'] = `Bearer ${accessToken}`
+    }
+    return h
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
-    headers,
-    credentials: 'include', // Send cookies for refresh token
+    headers: buildHeaders(),
+    credentials: 'include',
   })
 
-  // Handle 401 with automatic token refresh (avoid retry on auth endpoints)
+  // Handle 401 with automatic token refresh (skip for auth endpoints)
   if (response.status === 401 && !endpoint.startsWith('/auth/')) {
-    if (!isRefreshing) {
-      isRefreshing = true
-      try {
-        const refreshResult = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        })
-        if (refreshResult.ok) {
-          const data: RefreshResponse = await refreshResult.json()
-          accessToken = data.access_token
-          isRefreshing = false
-
-          // Retry original request with new token
-          headers['Authorization'] = `Bearer ${accessToken}`
-          const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
-            ...options,
-            headers,
-            credentials: 'include',
-          })
-          if (!retryResponse.ok) {
-            const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
-            throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`)
-          }
-          if (retryResponse.status === 204) return undefined as T
-          return retryResponse.json()
-        } else {
-          // Refresh failed - force logout
-          accessToken = null
-          isRefreshing = false
-          window.dispatchEvent(new CustomEvent('auth:logout'))
-          throw new Error('Session expired')
-        }
-      } catch (e) {
-        isRefreshing = false
-        if ((e as Error).message === 'Session expired') throw e
-        accessToken = null
-        window.dispatchEvent(new CustomEvent('auth:logout'))
-        throw new Error('Session expired')
+    const newToken = await doRefresh()
+    if (newToken) {
+      // Retry with the refreshed token
+      const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: buildHeaders(),
+        credentials: 'include',
+      })
+      if (!retryResponse.ok) {
+        const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`)
       }
+      if (retryResponse.status === 204) return undefined as T
+      return retryResponse.json()
     }
+    throw new Error('Session expired')
   }
 
   if (!response.ok) {
@@ -604,6 +615,9 @@ export const userApi = {
 
   deactivate: (id: number) =>
     fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
+
+  deletePermanent: (id: number) =>
+    fetchApi<void>(`/users/${id}/permanent`, { method: 'DELETE' }),
 
   assignRole: (userId: number, data: { plant_id: number; role: string }) =>
     fetchApi<UserResponse>(`/users/${userId}/roles`, {

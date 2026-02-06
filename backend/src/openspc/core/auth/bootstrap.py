@@ -50,20 +50,22 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
     session.add(admin_user)
     await session.flush()
 
-    # Try to assign admin role for the Default plant
-    stmt = select(Plant).where(Plant.code == "DEFAULT")
+    # Assign admin role for ALL existing plants (admin has global access)
+    stmt = select(Plant).where(Plant.is_active == True)  # noqa: E712
     result = await session.execute(stmt)
-    default_plant = result.scalar_one_or_none()
+    all_plants = result.scalars().all()
 
-    if default_plant:
-        role_assignment = UserPlantRole(
-            user_id=admin_user.id,
-            plant_id=default_plant.id,
-            role=UserRole.admin,
-        )
-        session.add(role_assignment)
+    if all_plants:
+        for plant in all_plants:
+            role_assignment = UserPlantRole(
+                user_id=admin_user.id,
+                plant_id=plant.id,
+                role=UserRole.admin,
+            )
+            session.add(role_assignment)
+        logger.info(f"Admin user assigned to {len(all_plants)} plant(s)")
     else:
-        logger.warning("Default plant not found - admin user created without plant assignment")
+        logger.warning("No plants found - admin user created without plant assignment")
 
     await session.commit()
 

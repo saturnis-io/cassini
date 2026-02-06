@@ -9,13 +9,12 @@ import {
   Users,
   ChevronsLeft,
   ChevronsRight,
-  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
 import { useViolationStats } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
-import { canAccessView, ROLE_LABELS, type Role } from '@/lib/roles'
+import { canAccessView, type Role } from '@/lib/roles'
 
 interface NavItem {
   path: string
@@ -39,12 +38,11 @@ interface SidebarProps {
  * - Violation badge count
  * - Active route highlighting
  * - Role-based navigation item filtering
- * - Current user info and logout
  */
 export function Sidebar({ className }: SidebarProps) {
   const { sidebarState, toggleSidebar } = useUIStore()
   const { data: stats } = useViolationStats()
-  const { role, user, logout } = useAuth()
+  const { role } = useAuth()
 
   const isCollapsed = sidebarState === 'collapsed'
   const isHidden = sidebarState === 'hidden'
@@ -131,30 +129,6 @@ export function Sidebar({ className }: SidebarProps) {
 
         {visibleSecondaryItems.map(renderNavItem)}
       </nav>
-
-      {/* User info and logout */}
-      {user && (
-        <div className="border-t p-2">
-          {!isCollapsed && (
-            <div className="px-3 py-1.5 mb-1">
-              <p className="text-sm font-medium text-foreground truncate">{user.username}</p>
-              <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
-            </div>
-          )}
-          <button
-            onClick={() => logout()}
-            className={cn(
-              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-              isCollapsed && 'justify-center px-2'
-            )}
-            title={isCollapsed ? 'Sign Out' : undefined}
-          >
-            <LogOut className="h-5 w-5" />
-            {!isCollapsed && <span>Sign Out</span>}
-          </button>
-        </div>
-      )}
 
       {/* Collapse toggle - chevron button at sidebar edge */}
       <button

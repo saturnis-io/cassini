@@ -102,6 +102,22 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
+    async def hard_delete(self, user_id: int) -> bool:
+        """Permanently delete a user and all their role assignments.
+
+        Only deletes inactive users. Returns False if user not found.
+        Raises ValueError if user is still active.
+        """
+        user = await self.get_by_id(user_id)
+        if user is None:
+            return False
+        if user.is_active:
+            raise ValueError("Cannot delete an active user")
+
+        await self.session.delete(user)
+        await self.session.commit()
+        return True
+
     async def count(self) -> int:
         """Count total users."""
         stmt = select(func.count(User.id))

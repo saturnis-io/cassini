@@ -601,6 +601,21 @@ export function useDeactivateUser() {
   })
 }
 
+export function useDeleteUserPermanent() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => userApi.deletePermanent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success('User permanently deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete user: ${error.message}`)
+    },
+  })
+}
+
 export function useAssignRole() {
   const queryClient = useQueryClient()
 

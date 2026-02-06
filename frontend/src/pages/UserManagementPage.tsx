@@ -6,6 +6,7 @@ import {
   useCreateUser,
   useUpdateUser,
   useDeactivateUser,
+  useDeleteUserPermanent,
   useAssignRole,
   useRemoveRole,
 } from '@/api/hooks'
@@ -24,6 +25,7 @@ export function UserManagementPage() {
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deactivateUser = useDeactivateUser()
+  const deleteUserPermanent = useDeleteUserPermanent()
   const assignRole = useAssignRole()
   const removeRole = useRemoveRole()
 
@@ -31,6 +33,7 @@ export function UserManagementPage() {
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [editingUser, setEditingUser] = useState<UserResponse | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<UserResponse | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<UserResponse | null>(null)
 
   function handleCreate() {
     setDialogMode('create')
@@ -46,6 +49,10 @@ export function UserManagementPage() {
 
   function handleDeactivate(user: UserResponse) {
     setConfirmDeactivate(user)
+  }
+
+  function handleDelete(user: UserResponse) {
+    setConfirmDelete(user)
   }
 
   async function handleFormSubmit(data: {
@@ -121,6 +128,16 @@ export function UserManagementPage() {
     setConfirmDeactivate(null)
   }
 
+  async function confirmDeleteUser() {
+    if (!confirmDelete) return
+    try {
+      await deleteUserPermanent.mutateAsync(confirmDelete.id)
+    } catch {
+      // Error already handled by mutation hook
+    }
+    setConfirmDelete(null)
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -151,6 +168,7 @@ export function UserManagementPage() {
           users={users || []}
           onEdit={handleEdit}
           onDeactivate={handleDeactivate}
+          onDelete={handleDelete}
         />
       )}
 
@@ -187,6 +205,35 @@ export function UserManagementPage() {
                 className="px-4 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
               >
                 {deactivateUser.isPending ? 'Deactivating...' : 'Deactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Confirmation Dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
+          <div className="relative z-50 w-full max-w-sm bg-card border rounded-lg shadow-lg p-6 mx-4">
+            <h3 className="text-lg font-semibold text-destructive">Permanently Delete User</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              Are you sure you want to permanently delete <strong>{confirmDelete.username}</strong>?
+              This cannot be undone. The username will become available for reuse.
+            </p>
+            <div className="flex items-center justify-end gap-3 mt-4">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                disabled={deleteUserPermanent.isPending}
+                className="px-4 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+              >
+                {deleteUserPermanent.isPending ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </div>

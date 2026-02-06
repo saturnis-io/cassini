@@ -1,16 +1,17 @@
 {
-  "phase": "discussed",
-  "goal": "Plant-scoped configuration isolation",
+  "phase": "milestone_start",
+  "goal": "Industrial Connectivity & User Management",
   "project_id": "openspc",
   "started": "2026-02-05",
   "current_role": null,
-  "current_phase": "phase-plant-scoped-config",
-  "completed_milestones": ["v0.1.0"],
-  "completed_phases": [],
-  "pending_proposals": 3,
+  "current_phase": null,
+  "current_milestone": "v0.3.0",
+  "completed_milestones": ["v0.1.0", "v0.2.0"],
+  "completed_phases": ["phase-user-management"],
+  "pending_proposals": 2,
   "active_agents": [],
   "blockers": [],
-  "last_activity": "2026-02-05T18:00:00Z",
+  "last_activity": "2026-02-06T12:30:00Z",
   "milestone_history": {
     "v0.1.0": {
       "completed_at": "2026-02-05T17:45:00Z",
@@ -20,6 +21,14 @@
         "phase-3.5-reporting",
         "phase-4-polymorphic-config",
         "phase-enterprise-ui-overhaul"
+      ]
+    },
+    "v0.2.0": {
+      "completed_at": "2026-02-06T12:30:00Z",
+      "tag": "v0.2.0",
+      "commit": "157bf3f",
+      "phases": [
+        "phase-plant-scoped-config"
       ]
     }
   }
