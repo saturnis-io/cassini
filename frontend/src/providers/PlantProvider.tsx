@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUIStore } from '@/stores/uiStore'
+import { useDashboardStore } from '@/stores/dashboardStore'
+import { useConfigStore } from '@/stores/configStore'
 import { usePlants } from '@/api/hooks'
 import type { Plant } from '@/types'
 
@@ -48,21 +50,33 @@ export function PlantProvider({ children }: PlantProviderProps) {
     ? plants.find((p) => p.id === selectedPlantId) ?? null
     : null
 
-  // Initialize with first plant if none selected
+  // Initialize with first plant if none selected, or if selected plant no longer exists
   useEffect(() => {
-    if (!selectedPlantId && plants.length > 0) {
-      setSelectedPlantId(plants[0].id)
+    if (plants.length > 0) {
+      // If no plant selected, or selected plant doesn't exist in plants array, select the first one
+      const needsSelection = !selectedPlantId || !plants.find((p) => p.id === selectedPlantId)
+      if (needsSelection) {
+        setSelectedPlantId(plants[0].id)
+      }
     }
   }, [selectedPlantId, plants, setSelectedPlantId])
 
   // Invalidate queries when plant changes
   const setSelectedPlant = (plant: Plant) => {
+    // Skip if selecting the same plant
+    if (plant.id === selectedPlantId) return
+
     setSelectedPlantId(plant.id)
-    // Invalidate all plant-specific data
-    queryClient.invalidateQueries({ queryKey: ['hierarchy'] })
-    queryClient.invalidateQueries({ queryKey: ['characteristics'] })
-    queryClient.invalidateQueries({ queryKey: ['samples'] })
-    queryClient.invalidateQueries({ queryKey: ['violations'] })
+
+    // Reset dashboard and config state (clear selections from old plant)
+    useDashboardStore.getState().resetForPlantChange()
+    useConfigStore.getState().resetForPlantChange()
+
+    // Invalidate all plant-specific data - use refetchType: 'all' to force refetch
+    queryClient.invalidateQueries({ queryKey: ['hierarchy'], refetchType: 'all' })
+    queryClient.invalidateQueries({ queryKey: ['characteristics'], refetchType: 'all' })
+    queryClient.invalidateQueries({ queryKey: ['samples'], refetchType: 'all' })
+    queryClient.invalidateQueries({ queryKey: ['violations'], refetchType: 'all' })
   }
 
   return (

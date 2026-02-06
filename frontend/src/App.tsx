@@ -30,9 +30,9 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <ThemeProvider>
-      <PlantProvider>
-        <AuthProvider>
-          <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <PlantProvider>
+          <AuthProvider>
             <ChartHoverProvider>
               <WebSocketProvider>
                 <BrowserRouter>
@@ -101,9 +101,9 @@ function App() {
                 />
               </WebSocketProvider>
             </ChartHoverProvider>
-          </QueryClientProvider>
-        </AuthProvider>
-      </PlantProvider>
+          </AuthProvider>
+        </PlantProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

@@ -396,7 +396,7 @@ async def get_node_characteristics(
 
 @plant_hierarchy_router.get("/", response_model=list[HierarchyTreeNode])
 async def get_plant_hierarchy_tree(
-    plant_id: int = Depends(validate_plant),
+    plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     session: AsyncSession = Depends(get_session),
 ) -> list[HierarchyTreeNode]:
@@ -411,6 +411,15 @@ async def get_plant_hierarchy_tree(
     Returns:
         List of root hierarchy nodes with nested children
     """
+    # Validate plant exists
+    plant_repo = PlantRepository(session)
+    plant = await plant_repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plant {plant_id} not found",
+        )
+
     tree = await repo.get_tree(plant_id=plant_id)
 
     # Get characteristic counts per hierarchy node for this plant
@@ -437,8 +446,9 @@ async def get_plant_hierarchy_tree(
 @plant_hierarchy_router.post("/", response_model=HierarchyResponse, status_code=status.HTTP_201_CREATED)
 async def create_plant_hierarchy_node(
     data: HierarchyCreate,
-    plant_id: int = Depends(validate_plant),
+    plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> HierarchyResponse:
     """Create a hierarchy node in a specific plant.
 
@@ -452,6 +462,15 @@ async def create_plant_hierarchy_node(
     Returns:
         The created hierarchy node
     """
+    # Validate plant exists
+    plant_repo = PlantRepository(session)
+    plant = await plant_repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plant {plant_id} not found",
+        )
+
     # Validate parent exists if provided
     if data.parent_id is not None:
         parent = await repo.get_by_id(data.parent_id)

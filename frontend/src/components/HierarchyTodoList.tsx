@@ -2,7 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useHierarchyTree, useHierarchyCharacteristics, useCharacteristics } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
+import { usePlant } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
 import { SelectionToolbar } from './SelectionToolbar'
 
@@ -163,25 +164,31 @@ interface HierarchyTodoListProps {
 }
 
 export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
-  const { data: nodes, isLoading } = useHierarchyTree()
-  const { data: allCharacteristics } = useCharacteristics()
+  const { selectedPlant, isLoading: plantLoading } = usePlant()
+  const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(selectedPlant?.id ?? 0)
+  const isLoading = plantLoading || hierarchyLoading
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
 
-  // Calculate global status counts from all characteristics
+  // Calculate status counts from hierarchy node characteristic counts
+  // Note: We can't get detailed status without loading all characteristics,
+  // so we show total count only until nodes are expanded
   const statusCounts = useMemo(() => {
     const counts = { OOC: 0, DUE: 0, OK: 0, ALL: 0 }
-    if (allCharacteristics?.items) {
-      allCharacteristics.items.forEach((char) => {
-        const status = getCharacteristicStatus(char)
-        counts[status]++
-        counts.ALL++
+    // Count all characteristics from the hierarchy tree
+    const countCharacteristics = (nodeList: typeof nodes) => {
+      nodeList?.forEach((node) => {
+        counts.ALL += node.characteristic_count ?? 0
+        if (node.children) {
+          countCharacteristics(node.children)
+        }
       })
     }
+    countCharacteristics(nodes)
     return counts
-  }, [allCharacteristics])
+  }, [nodes])
 
   const toggleNodeExpanded = (id: number) => {
     setExpandedNodeIds((prev) => {
@@ -193,6 +200,20 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
       }
       return next
     })
+  }
+
+  // Show message if no plant is selected
+  if (!selectedPlant && !plantLoading) {
+    return (
+      <div className={cn('border rounded-lg bg-card h-full flex flex-col', className)}>
+        <div className="p-4 border-b">
+          <h2 className="font-semibold">Characteristics</h2>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <span>Select a plant to view characteristics</span>
+        </div>
+      </div>
+    )
   }
 
   if (isLoading) {

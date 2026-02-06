@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useHierarchyTree, useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant, useCreateCharacteristic } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant, useCreateCharacteristic } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { usePlant } from '@/providers/PlantProvider'
 import { HierarchyTree } from '@/components/HierarchyTree'
@@ -28,15 +28,12 @@ const PROVIDER_TYPES = [
 export function ConfigurationView() {
   const { selectedPlant, isLoading: plantLoading, error: plantError } = usePlant()
 
-  // Use plant-scoped hierarchy if plant is selected, otherwise fall back to global
-  const { data: plantHierarchy, isLoading: plantHierarchyLoading } = useHierarchyTreeByPlant(
+  // Only use plant-scoped hierarchy - no global fallback
+  const { data: hierarchy, isLoading: hierarchyLoading, error: hierarchyError } = useHierarchyTreeByPlant(
     selectedPlant?.id ?? 0
   )
-  const { data: globalHierarchy, isLoading: globalHierarchyLoading } = useHierarchyTree()
 
-  // Use plant-scoped data when available
-  const hierarchy = selectedPlant ? plantHierarchy : globalHierarchy
-  const isLoading = plantLoading || (selectedPlant ? plantHierarchyLoading : globalHierarchyLoading)
+  const isLoading = plantLoading || hierarchyLoading
 
   const editingId = useConfigStore((state) => state.editingCharacteristicId)
   const isCreatingNew = useConfigStore((state) => state.isCreatingNew)
@@ -119,6 +116,16 @@ export function ConfigurationView() {
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <AlertCircle className="h-8 w-8 text-destructive" />
         <div className="text-destructive">Failed to load plant data</div>
+      </div>
+    )
+  }
+
+  // Show error if hierarchy loading failed
+  if (hierarchyError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertCircle className="h-8 w-8 text-destructive" />
+        <div className="text-destructive">Failed to load hierarchy: {hierarchyError.message}</div>
       </div>
     )
   }

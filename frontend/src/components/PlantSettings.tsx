@@ -1,35 +1,104 @@
 import { useState } from 'react'
-import { usePlants, useCreatePlant, useDeletePlant } from '@/api/hooks'
+import { usePlants, useCreatePlant, useUpdatePlant, useDeletePlant } from '@/api/hooks'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, Factory, Loader2, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Factory, Loader2, AlertCircle, Pencil, X, Power, PowerOff } from 'lucide-react'
+import type { Plant, PlantCreate, PlantUpdate } from '@/types'
 
 /**
  * Plant management settings component
  *
  * Allows admins to:
- * - View all plants
- * - Create new plants
+ * - View all plants with active/inactive status
+ * - Create new plants with name, code, and settings
+ * - Edit existing plants
+ * - Activate/deactivate plants
  * - Delete plants (except Default)
  */
 export function PlantSettings() {
-  const { data: plants, isLoading, error } = usePlants()
+  const { data: plants, isLoading, error } = usePlants() // All plants, not just active
   const createPlant = useCreatePlant()
+  const updatePlant = useUpdatePlant()
   const deletePlant = useDeletePlant()
 
+  // Create form state
   const [newPlantName, setNewPlantName] = useState('')
   const [newPlantCode, setNewPlantCode] = useState('')
+  const [newPlantSettings, setNewPlantSettings] = useState('')
+
+  // Edit modal state
+  const [editingPlant, setEditingPlant] = useState<Plant | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editCode, setEditCode] = useState('')
+  const [editSettings, setEditSettings] = useState('')
+
+  // Delete confirmation state
   const [plantToDelete, setPlantToDelete] = useState<{ id: number; name: string } | null>(null)
 
   const handleCreate = async () => {
     if (!newPlantName || !newPlantCode) return
 
+    let settings: Record<string, unknown> | null = null
+    if (newPlantSettings.trim()) {
+      try {
+        settings = JSON.parse(newPlantSettings)
+      } catch {
+        // Invalid JSON - will be caught by backend validation
+      }
+    }
+
     try {
-      await createPlant.mutateAsync({
+      const data: PlantCreate = {
         name: newPlantName,
         code: newPlantCode.toUpperCase(),
-      })
+        settings,
+      }
+      await createPlant.mutateAsync(data)
       setNewPlantName('')
       setNewPlantCode('')
+      setNewPlantSettings('')
+    } catch {
+      // Error is handled by the hook
+    }
+  }
+
+  const openEditModal = (plant: Plant) => {
+    setEditingPlant(plant)
+    setEditName(plant.name)
+    setEditCode(plant.code)
+    setEditSettings(plant.settings ? JSON.stringify(plant.settings, null, 2) : '')
+  }
+
+  const handleEdit = async () => {
+    if (!editingPlant || !editName || !editCode) return
+
+    let settings: Record<string, unknown> | null = null
+    if (editSettings.trim()) {
+      try {
+        settings = JSON.parse(editSettings)
+      } catch {
+        // Invalid JSON - will be caught by backend validation
+      }
+    }
+
+    try {
+      const data: PlantUpdate = {
+        name: editName,
+        code: editCode.toUpperCase(),
+        settings,
+      }
+      await updatePlant.mutateAsync({ id: editingPlant.id, data })
+      setEditingPlant(null)
+    } catch {
+      // Error is handled by the hook
+    }
+  }
+
+  const handleToggleActive = async (plant: Plant) => {
+    try {
+      await updatePlant.mutateAsync({
+        id: plant.id,
+        data: { is_active: !plant.is_active },
+      })
     } catch {
       // Error is handled by the hook
     }
@@ -77,17 +146,53 @@ export function PlantSettings() {
         {plants?.map((plant) => (
           <div key={plant.id} className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
-              <Factory className="h-5 w-5 text-muted-foreground" />
+              <Factory className={cn('h-5 w-5', plant.is_active ? 'text-muted-foreground' : 'text-muted-foreground/50')} />
               <div>
-                <p className="font-medium">{plant.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className={cn('font-medium', !plant.is_active && 'text-muted-foreground')}>{plant.name}</p>
+                  {!plant.is_active && (
+                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Inactive</span>
+                  )}
+                  {plant.code === 'DEFAULT' && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Default</span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{plant.code}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!plant.is_active && (
-                <span className="text-xs bg-muted px-2 py-1 rounded">Inactive</span>
-              )}
+            <div className="flex items-center gap-1">
+              {/* Edit button */}
+              <button
+                onClick={() => openEditModal(plant)}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                title="Edit plant"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+
+              {/* Activate/Deactivate toggle (not for DEFAULT) */}
               {plant.code !== 'DEFAULT' && (
+                <button
+                  onClick={() => handleToggleActive(plant)}
+                  disabled={updatePlant.isPending}
+                  className={cn(
+                    'p-2 rounded-lg transition-colors',
+                    plant.is_active
+                      ? 'hover:bg-warning/10 hover:text-warning'
+                      : 'hover:bg-success/10 hover:text-success'
+                  )}
+                  title={plant.is_active ? 'Deactivate plant' : 'Activate plant'}
+                >
+                  {plant.is_active ? (
+                    <PowerOff className="h-4 w-4" />
+                  ) : (
+                    <Power className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+
+              {/* Delete button (only for inactive, non-DEFAULT plants) */}
+              {plant.code !== 'DEFAULT' && !plant.is_active && (
                 <button
                   onClick={() => setPlantToDelete({ id: plant.id, name: plant.name })}
                   className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -96,8 +201,9 @@ export function PlantSettings() {
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
+
               {plant.code === 'DEFAULT' && (
-                <span className="text-xs text-muted-foreground">Protected</span>
+                <span className="text-xs text-muted-foreground px-2">Protected</span>
               )}
             </div>
           </div>
@@ -113,8 +219,8 @@ export function PlantSettings() {
       {/* Add New Plant Form */}
       <div className="border rounded-lg p-4 space-y-4">
         <h3 className="font-medium">Add New Plant</h3>
-        <div className="flex gap-4">
-          <div className="flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
             <label className="text-sm font-medium">Plant Name</label>
             <input
               type="text"
@@ -124,7 +230,7 @@ export function PlantSettings() {
               className="w-full mt-1 px-3 py-2 border rounded-lg"
             />
           </div>
-          <div className="w-32">
+          <div>
             <label className="text-sm font-medium">Code</label>
             <input
               type="text"
@@ -134,26 +240,112 @@ export function PlantSettings() {
               maxLength={10}
               className="w-full mt-1 px-3 py-2 border rounded-lg uppercase"
             />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleCreate}
-              disabled={!newPlantName || !newPlantCode || createPlant.isPending}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg',
-                'bg-primary text-primary-foreground hover:bg-primary/90',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-            >
-              <Plus className="h-4 w-4" />
-              {createPlant.isPending ? 'Creating...' : 'Add Plant'}
-            </button>
+            <p className="text-xs text-muted-foreground mt-1">
+              Uppercase letters, numbers, underscores, or hyphens (max 10 chars)
+            </p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Code must be uppercase letters, numbers, underscores, or hyphens (max 10 characters).
-        </p>
+        <div>
+          <label className="text-sm font-medium">Settings (JSON, optional)</label>
+          <textarea
+            value={newPlantSettings}
+            onChange={(e) => setNewPlantSettings(e.target.value)}
+            placeholder='{"timezone": "America/Chicago", "language": "en"}'
+            rows={3}
+            className="w-full mt-1 px-3 py-2 border rounded-lg font-mono text-sm"
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={handleCreate}
+            disabled={!newPlantName || !newPlantCode || createPlant.isPending}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-lg',
+              'bg-primary text-primary-foreground hover:bg-primary/90',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            {createPlant.isPending ? 'Creating...' : 'Add Plant'}
+          </button>
+        </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingPlant && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditingPlant(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Edit Plant</h3>
+              <button
+                onClick={() => setEditingPlant(null)}
+                className="p-1 rounded hover:bg-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Plant Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Code</label>
+                <input
+                  type="text"
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value.toUpperCase())}
+                  maxLength={10}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg uppercase"
+                  disabled={editingPlant.code === 'DEFAULT'}
+                />
+                {editingPlant.code === 'DEFAULT' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Default plant code cannot be changed
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Settings (JSON)</label>
+                <textarea
+                  value={editSettings}
+                  onChange={(e) => setEditSettings(e.target.value)}
+                  placeholder='{"timezone": "America/Chicago"}'
+                  rows={4}
+                  className="w-full mt-1 px-3 py-2 border rounded-lg font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setEditingPlant(null)}
+                disabled={updatePlant.isPending}
+                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={!editName || !editCode || updatePlant.isPending}
+                className={cn(
+                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'bg-primary text-primary-foreground hover:bg-primary/90',
+                  'disabled:opacity-50'
+                )}
+              >
+                {updatePlant.isPending ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {plantToDelete && (

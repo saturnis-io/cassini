@@ -33,6 +33,7 @@ interface DashboardState {
   deselectAllCharacteristics: (ids: number[]) => void
   clearSelection: () => void
   setMultiSelectMode: (enabled: boolean) => void
+  resetForPlantChange: () => void
 
   // Time range selection
   timeRange: TimeRangeState
@@ -129,6 +130,12 @@ export const useDashboardStore = create<DashboardState>()(
   setMultiSelectMode: (enabled) => set({
     isMultiSelectMode: enabled,
     selectedCharacteristicIds: enabled ? new Set() : new Set()
+  }),
+  // Reset all dashboard state when switching plants
+  resetForPlantChange: () => set({
+    selectedCharacteristicId: null,
+    selectedCharacteristicIds: new Set(),
+    isMultiSelectMode: false,
   }),
 
   // Time range

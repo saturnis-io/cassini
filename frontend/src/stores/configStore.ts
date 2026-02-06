@@ -21,6 +21,9 @@ interface ConfigState {
   // UI preferences
   showAdvancedOptions: boolean
   setShowAdvancedOptions: (show: boolean) => void
+
+  // Reset for plant change
+  resetForPlantChange: () => void
 }
 
 export const useConfigStore = create<ConfigState>((set) => ({
@@ -53,4 +56,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
   // UI preferences
   showAdvancedOptions: false,
   setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
+
+  // Reset for plant change
+  resetForPlantChange: () => set({
+    selectedNodeId: null,
+    expandedNodeIds: new Set(),
+    editingCharacteristicId: null,
+    isCreatingNew: false,
+    isDirty: false,
+  }),
 }))
