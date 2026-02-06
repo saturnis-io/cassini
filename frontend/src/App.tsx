@@ -7,6 +7,7 @@ import { ConfigurationView } from '@/pages/ConfigurationView'
 import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
 import { UserManagementPage } from '@/pages/UserManagementPage'
+import { ConnectivityPage } from '@/pages/ConnectivityPage'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { KioskView } from '@/pages/KioskView'
@@ -85,6 +86,14 @@ function App() {
                         element={
                           <ProtectedRoute requiredRole="supervisor">
                             <ReportsView />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="connectivity"
+                        element={
+                          <ProtectedRoute requiredRole="engineer">
+                            <ConnectivityPage />
                           </ProtectedRoute>
                         }
                       />

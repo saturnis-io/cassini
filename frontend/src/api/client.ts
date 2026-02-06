@@ -4,6 +4,7 @@ import type {
   BrokerTestResult,
   Characteristic,
   ChartData,
+  DiscoveredTopic,
   HierarchyNode,
   LoginResponse,
   MQTTBroker,
@@ -16,7 +17,11 @@ import type {
   Sample,
   SampleEditHistory,
   SampleProcessingResult,
+  TagMappingCreate,
+  TagMappingResponse,
+  TagPreviewResponse,
   TagProviderStatus,
+  TopicTreeNode,
   Violation,
   ViolationStats,
 } from '@/types'
@@ -520,6 +525,23 @@ export const brokerApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Multi-broker status
+  getAllStatus: () =>
+    fetchApi<{ states: BrokerConnectionStatus[] }>('/brokers/all/status'),
+
+  // Topic discovery
+  startDiscovery: (id: number) =>
+    fetchApi<{ message: string }>(`/brokers/${id}/discover`, { method: 'POST' }),
+
+  stopDiscovery: (id: number) =>
+    fetchApi<{ message: string }>(`/brokers/${id}/discover`, { method: 'DELETE' }),
+
+  getTopics: (id: number, format: 'flat' | 'tree' = 'flat', search?: string) => {
+    const params = new URLSearchParams({ format })
+    if (search) params.set('search', search)
+    return fetchApi<DiscoveredTopic[] | TopicTreeNode>(`/brokers/${id}/topics?${params}`)
+  },
 }
 
 // Provider Status API
@@ -571,6 +593,32 @@ export const apiKeysApi = {
 
   revoke: (id: string) =>
     fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
+}
+
+// Tag Mapping API
+export const tagApi = {
+  getMappings: (plantId?: number, brokerId?: number) => {
+    const params = new URLSearchParams()
+    if (plantId) params.set('plant_id', String(plantId))
+    if (brokerId) params.set('broker_id', String(brokerId))
+    const query = params.toString()
+    return fetchApi<TagMappingResponse[]>(`/tags/mappings${query ? `?${query}` : ''}`)
+  },
+
+  createMapping: (data: TagMappingCreate) =>
+    fetchApi<TagMappingResponse>('/tags/map', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteMapping: (characteristicId: number) =>
+    fetchApi<void>(`/tags/map/${characteristicId}`, { method: 'DELETE' }),
+
+  preview: (data: { broker_id: number; topic: string; duration_seconds?: number }) =>
+    fetchApi<TagPreviewResponse>('/tags/preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 // User Management types

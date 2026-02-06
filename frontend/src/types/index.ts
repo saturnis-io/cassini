@@ -312,6 +312,60 @@ export interface BrokerTestResult {
   latency_ms: number | null
 }
 
+// Topic discovery types
+export interface DiscoveredTopic {
+  topic: string
+  message_count: number
+  last_seen: string
+  last_payload_size: number
+  is_sparkplug: boolean
+  sparkplug_group: string | null
+  sparkplug_node: string | null
+  sparkplug_device: string | null
+  sparkplug_message_type: string | null
+}
+
+export interface TopicTreeNode {
+  name: string
+  full_topic: string | null
+  children: TopicTreeNode[]
+  message_count: number
+  is_sparkplug: boolean
+}
+
+// Tag mapping types
+export interface TagMappingCreate {
+  characteristic_id: number
+  mqtt_topic: string
+  trigger_strategy: string
+  trigger_tag: string | null
+  broker_id: number
+}
+
+export interface TagMappingResponse {
+  characteristic_id: number
+  characteristic_name: string
+  mqtt_topic: string
+  trigger_strategy: string
+  trigger_tag: string | null
+  broker_id: number
+  broker_name: string
+}
+
+export interface TagPreviewValue {
+  value: number | string | boolean
+  timestamp: string
+  raw_payload: string
+}
+
+export interface TagPreviewResponse {
+  topic: string
+  values: TagPreviewValue[]
+  sample_count: number
+  started_at: string
+  duration_seconds: number
+}
+
 // Provider Status types
 export interface TagProviderStatus {
   is_running: boolean
