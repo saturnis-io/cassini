@@ -19,6 +19,7 @@ from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.users import router as users_router
+from openspc.api.v1.tags import router as tags_router
 from openspc.api.v1.violations import router as violations_router
 from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
@@ -138,6 +139,7 @@ app.include_router(config_router)
 app.include_router(data_entry_router)
 app.include_router(providers_router)
 app.include_router(samples_router)
+app.include_router(tags_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)
 
