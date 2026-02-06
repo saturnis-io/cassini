@@ -189,34 +189,43 @@ export function BoxWhiskerChart({
   const { data: characteristic } = useCharacteristic(characteristicId)
 
   const chartColors = useChartColors()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoveredBox, setHoveredBox] = useState<number | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
+  const rafRef = useRef<number>(0)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
 
-  // Track container size
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setDimensions({ width: rect.width, height: rect.height })
-      }
+  // Track container size via callback ref — fires when the div actually enters the DOM,
+  // solving the race condition where useEffect([]) ran during the loading early-return
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
     }
 
-    // Initial measurement
-    updateDimensions()
+    if (!node) {
+  
+      return
+    }
 
-    const observer = new ResizeObserver(() => {
-      updateDimensions()
-    })
+    const updateDimensions = () => {
+      const rect = node.getBoundingClientRect()
 
-    observer.observe(containerRef.current)
-    return () => observer.disconnect()
+      setDimensions({ width: rect.width, height: rect.height })
+    }
+
+
+    rafRef.current = requestAnimationFrame(updateDimensions)
+
+    observerRef.current = new ResizeObserver(updateDimensions)
+    observerRef.current.observe(node)
   }, [])
 
   // Calculate box plot data for each sample
@@ -325,6 +334,7 @@ export function BoxWhiskerChart({
     : null
 
   if (samplesLoading) {
+
     return (
       <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
         <div className="text-muted-foreground text-sm">Loading samples...</div>
@@ -333,6 +343,7 @@ export function BoxWhiskerChart({
   }
 
   if (boxPlotData.length === 0) {
+
     return (
       <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center p-4">
         <div className="text-muted-foreground text-sm text-center">
@@ -342,6 +353,7 @@ export function BoxWhiskerChart({
       </div>
     )
   }
+
 
   const { yScale, xScale } = scales
 

@@ -178,10 +178,19 @@ export function DistributionHistogram({
     )
   }
 
+  // Detect Z-score mode - use z_score values instead of raw means
+  const isModeA = chartData.subgroup_mode === 'STANDARDIZED'
+
   // Build data points with sample_ids for bin tracking
+  // In STANDARDIZED mode, use z_score (not raw mean) so the histogram
+  // aligns with the control chart's Z-score axis
   const dataPoints: DataPointWithId[] = chartData.data_points
     .filter((p) => !p.excluded)
-    .map((p) => ({ value: p.mean, sample_id: p.sample_id }))
+    .filter((p) => !isModeA || p.z_score != null)
+    .map((p) => ({
+      value: isModeA ? p.z_score! : p.mean,
+      sample_id: p.sample_id,
+    }))
 
   const values = dataPoints.map(p => p.value)
   const stats = calculateStatistics(values)
@@ -194,18 +203,20 @@ export function DistributionHistogram({
   bins = addNormalCurve(bins, stats.mean, stats.stdDev, values.length, binWidth)
 
   const { spec_limits, control_limits } = chartData
-  const usl = spec_limits.usl
-  const lsl = spec_limits.lsl
-  const ucl = control_limits.ucl
-  const lcl = control_limits.lcl
-  const centerLine = control_limits.center_line
 
-  // Calculate Cp and Cpk if we have spec limits
+  // In Z-score mode, use fixed control limits and no spec limits
+  const usl = isModeA ? null : spec_limits.usl
+  const lsl = isModeA ? null : spec_limits.lsl
+  const ucl = isModeA ? 3 : control_limits.ucl
+  const lcl = isModeA ? -3 : control_limits.lcl
+  const centerLine = isModeA ? 0 : control_limits.center_line
+
+  // Calculate Cp and Cpk if we have spec limits (not applicable in Z-score mode)
   let cp = 0
   let cpk = 0
   let ppk = 0
 
-  if (usl !== null && lsl !== null && stats.stdDev > 0) {
+  if (!isModeA && usl !== null && lsl !== null && stats.stdDev > 0) {
     const withinSigma = chartData.zone_boundaries.plus_1_sigma && centerLine
       ? chartData.zone_boundaries.plus_1_sigma - centerLine
       : stats.stdDev
@@ -220,16 +231,23 @@ export function DistributionHistogram({
     ppk = Math.min(ppu, ppl)
   }
 
-  // Calculate domain for X axis to include all limits
-  const allValues = [
-    ...values,
-    ...(usl !== null ? [usl] : []),
-    ...(lsl !== null ? [lsl] : []),
-    ...(ucl !== null ? [ucl] : []),
-    ...(lcl !== null ? [lcl] : []),
-  ]
-  const xMin = Math.min(...allValues) - stats.stdDev * 0.5
-  const xMax = Math.max(...allValues) + stats.stdDev * 0.5
+  // Use shared domain from parent to match the control chart's axis exactly.
+  // Falls back to local calculation only if no shared domain is provided.
+  let xMin: number, xMax: number
+  if (yAxisDomain) {
+    xMin = yAxisDomain[0]
+    xMax = yAxisDomain[1]
+  } else {
+    const allValues = [
+      ...values,
+      ...(usl !== null ? [usl] : []),
+      ...(lsl !== null ? [lsl] : []),
+      ...(ucl !== null ? [ucl] : []),
+      ...(lcl !== null ? [lcl] : []),
+    ]
+    xMin = Math.min(...allValues) - stats.stdDev * 0.5
+    xMax = Math.max(...allValues) + stats.stdDev * 0.5
+  }
 
   // Helper function for capability badge styling
   const getCapabilityStyle = (value: number) => {

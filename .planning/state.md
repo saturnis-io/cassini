@@ -1,59 +1,73 @@
 # Project State
 
 ## Status
-Phase Enterprise UI Overhaul COMPLETE - CEO approved.
+Phase plant-scoped-config COMPLETE - UAT Passed.
 
 ## Current Milestone
-OpenSPC v0.1.0
+OpenSPC v0.2.0
 
 ## Current Phase
-None (milestone ready for completion)
+None active - awaiting next phase selection
+
+## Milestone v0.1.0 Summary
+- Tag: `v0.1.0`
+- Commit: `549a173`
+- Completed: 2026-02-05
+
+### Phases Completed
+| Phase | Plans | Key Features |
+|-------|-------|--------------|
+| phase-3.5-reporting | 7 | Nelson acknowledgement, hierarchy view, exports |
+| phase-4-polymorphic-config | 3 | Config persistence, schedule types, triggers |
+| phase-enterprise-ui-overhaul | 7 | Sidebar, roles, kiosk, wall dashboard, theming |
+
+### Key Deliverables
+1. Real-time control chart visualization
+2. Nelson rules detection and acknowledgement workflow
+3. Hierarchy-based characteristic selection
+4. PDF/Excel/CSV report export
+5. Polymorphic configuration persistence
+6. Collapsible sidebar with role-based navigation
+7. Kiosk display mode with auto-rotation
+8. Wall dashboard with multi-chart grid
+9. Enterprise brand theming
+
+## Milestone v0.2.0 Progress
+
+### Phases Completed
+| Phase | Plans | Key Features | Commit |
+|-------|-------|--------------|--------|
+| phase-plant-scoped-config | 6 | Plant model, CRUD API, plant-scoped hierarchies, UI integration | 9e90712 |
+
+### Key Deliverables (v0.2.0)
+1. Plant/Site model with database migration
+2. Plant CRUD API endpoints
+3. Plant-scoped hierarchy and broker endpoints
+4. PlantProvider with API integration
+5. PlantSelector dropdown with keyboard navigation
+6. PlantSettings admin panel (create, edit, deactivate)
+7. Plant-scoped Dashboard and Configuration views
+8. Data isolation between plants
 
 ## Session Log
 | Timestamp | Action | Details |
 |-----------|--------|---------|
-| 2026-02-05 | Phase 4 Execution | Executed 3 plans for polymorphic characteristic configuration |
-| 2026-02-05 | Plan 1 Complete | Backend schema and model foundation (4919e5e) |
-| 2026-02-05 | Plan 2 Complete | Backend repository and API endpoints (94c2bf3) |
-| 2026-02-05 | Plan 3 Complete | Frontend integration for config persistence (89a379b) |
-| 2026-02-05 | UAT Passed | CEO verified schedule config persistence |
-| 2026-02-05 | Enhancement | Added NONE schedule type for ad-hoc sampling (7e43bbe) |
-
-## Active Decisions
-- Polymorphic config stored as JSON in dedicated table
-- Schedule types: NONE, INTERVAL, SHIFT, CRON, BATCH_START
-- Trigger types: ON_UPDATE, ON_EVENT, ON_VALUE_CHANGE
-- Default schedule is NONE (ad-hoc) for new characteristics
+| 2026-02-05 | Phase Complete | plant-scoped-config - UAT passed, commit 9e90712 |
+| 2026-02-05 | Phase Verified | plant-scoped-config - All automated checks passed |
+| 2026-02-05 | Phase Executed | plant-scoped-config - All 6 plans completed |
+| 2026-02-05 | Phase Planned | plant-scoped-config - 6 plans created |
+| 2026-02-05 | Phase Discussed | plant-scoped-config - 7 decisions resolved |
+| 2026-02-05 | Milestone Complete | v0.1.0 tagged and released |
 
 ## Open Blockers
 None.
 
-## Phase 4 Completion Summary
-- Plans executed: 3/3
-- Tasks completed: 9/9
-- UAT: PASSED
-- Commits: 4919e5e, 94c2bf3, 89a379b, 7e43bbe
-
-## Session Update: 2026-02-05
-- Created 7 plans for Phase enterprise-ui-overhaul
-- Plans organized into 4 waves for parallel/sequential execution
-- Wave 1: Plans 1, 2 (Core Infrastructure + Sidebar/Header) - parallel
-- Wave 2: Plans 3, 4 (Layout Integration + Role-Based Access) - depends on Wave 1
-- Wave 3: Plans 5, 6 (Kiosk Mode + Wall Dashboard) - depends on Plan 3
-- Wave 4: Plan 7 (Brand Theming) - depends on Plan 3
-- Ready for execution
-
-## Phase enterprise-ui-overhaul Verification Summary
-- Verified: 2026-02-05T15:49:00Z
-- Automated checks: PASSED
-- Artifact check: 17/17 files present
-- TypeScript: PASSED (no errors)
-- Plan verification commands: All passed
-- Goal-backward verification: All truths, artifacts, and key links verified
-- Commits: 7 (414365f, 625c544, a30a52a, 30c6100, 92237a7, c4e1498, 69e5cb3)
-
 ## ▶ Next Up
 
-**Milestone Completion** - All phases for v0.1.0 are complete
+**Select next phase for v0.2.0 or complete milestone**
 
-`/company-milestone` to finalize OpenSPC v0.1.0
+Options:
+1. Add more features to v0.2.0 (define new phase)
+2. Complete v0.2.0 milestone and tag release
+
+Run `/company-new-phase` to define a new phase, or `/company-milestone` to complete v0.2.0.

@@ -128,11 +128,17 @@ export function ControlChart({
   const isModeB = subgroup_mode === 'VARIABLE_LIMITS'
 
   // Prepare chart data with mode-specific display values
-  const data = data_points.map((point, index) => ({
+  // In Mode A, filter out points without z_score to prevent raw means from
+  // appearing on the Z-score axis (which would blow up the scale)
+  const validPoints = isModeA
+    ? data_points.filter((p) => p.z_score != null)
+    : data_points
+
+  const data = validPoints.map((point, index) => ({
     index: index + 1,
     sample_id: point.sample_id, // Stable identifier for cross-chart sync
     // For Mode A, plot z_score; for Mode B/C, plot mean
-    mean: isModeA ? (point.z_score ?? point.mean) : point.mean,
+    mean: isModeA ? point.z_score! : point.mean,
     displayValue: point.display_value ?? point.mean,
     hasViolation: point.violation_ids.length > 0,
     violationRules: point.violation_rules ?? [],
@@ -150,10 +156,20 @@ export function ControlChart({
   // Use external domain if provided (for alignment with histogram), otherwise calculate
   let yMin: number, yMax: number, yAxisLabel: string
 
-  if (isModeA) {
-    // Mode A: Fixed domain for Z-scores
-    yMin = externalDomain?.[0] ?? -4
-    yMax = externalDomain?.[1] ?? 4
+  if (isModeA && externalDomain) {
+    // Mode A with shared domain from parent
+    yMin = externalDomain[0]
+    yMax = externalDomain[1]
+    yAxisLabel = 'Z-Score'
+  } else if (isModeA) {
+    // Mode A standalone: dynamic domain from z-score data + ±3 limits
+    const zValues = data.map((p) => p.mean) // already mapped to z_score above
+    const allZLimits = [...zValues, 3, -3]
+    const zMin = Math.min(...allZLimits)
+    const zMax = Math.max(...allZLimits)
+    const zPadding = (zMax - zMin) * 0.1
+    yMin = zMin - zPadding
+    yMax = zMax + zPadding
     yAxisLabel = 'Z-Score'
   } else if (externalDomain) {
     // Use shared domain from parent for alignment

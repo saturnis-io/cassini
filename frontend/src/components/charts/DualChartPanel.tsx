@@ -95,7 +95,17 @@ export function DualChartPanel({
     const isModeA = subgroup_mode === 'STANDARDIZED'
 
     if (isModeA) {
-      return [-4, 4]
+      // Dynamic domain for Z-scores: fit actual data + ±3 control limits
+      const zValues = data_points
+        .filter((p) => p.z_score != null)
+        .map((p) => p.z_score!)
+      if (zValues.length === 0) return [-4, 4]
+
+      const allZLimits = [...zValues, 3, -3]
+      const zMin = Math.min(...allZLimits)
+      const zMax = Math.max(...allZLimits)
+      const zPadding = (zMax - zMin) * 0.1
+      return [zMin - zPadding, zMax + zPadding]
     }
 
     const values = data_points.map((p) => p.mean)
@@ -189,7 +199,7 @@ export function DualChartPanel({
             label={label}
             showSpecLimits={showSpecLimits}
             colorScheme={colorScheme}
-            yAxisDomain={isRightPosition ? yAxisDomain : undefined}
+            yAxisDomain={showHistogram ? yAxisDomain : undefined}
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
           />
@@ -214,7 +224,7 @@ export function DualChartPanel({
               label={label}
               colorScheme={colorScheme}
               chartOptions={chartOptions}
-              yAxisDomain={isRightPosition ? yAxisDomain : undefined}
+              yAxisDomain={yAxisDomain}
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
             />
@@ -243,7 +253,7 @@ export function DualChartPanel({
             label={label}
             showSpecLimits={showSpecLimits}
             colorScheme={colorScheme}
-            yAxisDomain={isRightPosition ? yAxisDomain : undefined}
+            yAxisDomain={showHistogram ? yAxisDomain : undefined}
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
           />
@@ -321,6 +331,7 @@ export function DualChartPanel({
             label={label}
             colorScheme={colorScheme}
             chartOptions={chartOptions}
+            yAxisDomain={yAxisDomain}
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}
           />

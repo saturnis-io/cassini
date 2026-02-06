@@ -1,0 +1,260 @@
+{
+  "proposal_type": "scope_change",
+  "from_role": "ceo",
+  "timestamp": "2026-02-06T12:00:00Z",
+  "requires_ceo_approval": false,
+  "category": "major_feature",
+  "title": "Industrial Connectivity Platform - MQTT, OPC-UA, SparkplugB",
+  "current_scope": "Basic MQTT broker connectivity with TAG provider type. Characteristics are defined first, then optionally connected to an MQTT topic for automated data collection. No OPC-UA support. No outbound publishing of SPC data.",
+  "proposed_change": "Expand into a full industrial connectivity platform supporting MQTT subscription, OPC-UA read, SparkplugB, tag/topic browsing, reverse characteristic creation workflow, and outbound SPC data publishing.",
+  "reason": "Automation engineers and systems integrators need flexible connectivity options to integrate SPC into existing industrial infrastructure. Half the time, users want to browse available tags/topics first and create characteristics from them, rather than defining characteristics first. Publishing SPC results back to the control system enables closed-loop quality monitoring.",
+
+  "feature_tracks": {
+
+    "track_1_inbound_connectivity": {
+      "title": "Inbound Data Connectivity",
+      "description": "Subscribe to and read measurement data from industrial sources",
+      "features": [
+        {
+          "id": "IC-1",
+          "title": "MQTT Topic Browser",
+          "description": "Browse available topics on a connected MQTT broker. Show live topic tree with payload previews. Allow filtering and search.",
+          "status": "new",
+          "depends_on": ["existing MQTT broker model"]
+        },
+        {
+          "id": "IC-2",
+          "title": "OPC-UA Server Model & Connection Management",
+          "description": "New OPC-UA Server model (similar to MQTTBroker). Fields: endpoint_url, security_policy, security_mode, username, password/certificate, namespace_filter, is_active. CRUD API, connect/disconnect, test connection.",
+          "status": "new",
+          "depends_on": []
+        },
+        {
+          "id": "IC-3",
+          "title": "OPC-UA Tag Browser",
+          "description": "Browse the OPC-UA address space as a tree. Show node attributes (data type, access level, description). Allow filtering by namespace and node class. Preview live values.",
+          "status": "new",
+          "depends_on": ["IC-2"]
+        },
+        {
+          "id": "IC-4",
+          "title": "Unified Tag/Topic Browser UI",
+          "description": "Single UI component that can browse both MQTT topics and OPC-UA tags. Source selector (MQTT vs OPC-UA). Consistent browse/search/filter experience regardless of protocol.",
+          "status": "new",
+          "depends_on": ["IC-1", "IC-3"]
+        }
+      ]
+    },
+
+    "track_2_reverse_characteristic_workflow": {
+      "title": "Tag-First Characteristic Creation",
+      "description": "Alternative workflow where user starts from a tag/topic and creates a characteristic from it",
+      "features": [
+        {
+          "id": "RC-1",
+          "title": "Create Characteristic from Tag/Topic",
+          "description": "From the tag browser, select a tag/topic and launch a 'Create Characteristic' wizard. Pre-populates: name from tag path, provider type (TAG), MQTT topic or OPC-UA node ID. User fills in: hierarchy location, subgroup size, spec limits, Nelson rules.",
+          "status": "new",
+          "depends_on": ["IC-4"]
+        },
+        {
+          "id": "RC-2",
+          "title": "Bulk Characteristic Creation from Tags",
+          "description": "Select multiple tags/topics from browser. Batch-create characteristics with shared settings (hierarchy, subgroup size, rules). Individual overrides for spec limits per tag.",
+          "status": "new",
+          "depends_on": ["RC-1"]
+        },
+        {
+          "id": "RC-3",
+          "title": "Coexistence with Existing Workflow",
+          "description": "Both workflows live side-by-side: (A) Define characteristic first → connect to data source, (B) Browse tags first → create characteristic from tag. Navigation: Configuration page gets 'Browse Tags' button/tab alongside existing characteristic list.",
+          "status": "new",
+          "depends_on": ["RC-1"]
+        }
+      ]
+    },
+
+    "track_3_outbound_publishing": {
+      "title": "Outbound SPC Data Publishing",
+      "description": "Publish SPC results, statistics, and violations back to industrial systems",
+      "features": [
+        {
+          "id": "OP-1",
+          "title": "MQTT SPC Data Publisher",
+          "description": "Publish SPC data as JSON to configurable MQTT topics. Configurable per characteristic: topic pattern, publish triggers (on new sample, on violation, periodic). JSON payload includes: last sample, trailing X samples, control limits, zone classifications, active Nelson violations, process capability indices.",
+          "status": "new",
+          "depends_on": []
+        },
+        {
+          "id": "OP-2",
+          "title": "SparkplugB SPC Publisher",
+          "description": "Publish SPC data using SparkplugB protocol. Node/Device structure maps to plant/hierarchy. Metrics use SparkplugB templates for SPC data types. Birth/death certificates for SPC nodes. Supports NBIRTH, DBIRTH, NDATA, DDATA message types.",
+          "status": "new",
+          "depends_on": ["OP-1"]
+        },
+        {
+          "id": "OP-3",
+          "title": "OPC-UA SPC Data Server",
+          "description": "Expose SPC data as OPC-UA nodes. Custom UDT (User-Defined Type) for SPC characteristic data. Address space mirrors plant/hierarchy structure.",
+          "status": "new",
+          "depends_on": ["IC-2"]
+        }
+      ]
+    }
+  },
+
+  "json_payload_schema": {
+    "description": "Standard JSON structure for MQTT/SparkplugB SPC data publishing",
+    "example": {
+      "characteristicId": "uuid",
+      "characteristicName": "Diameter_A",
+      "hierarchyPath": "Plant1/Line2/Station3",
+      "timestamp": "2026-02-06T12:00:00Z",
+      "lastSample": {
+        "value": 25.003,
+        "sampleId": 1234,
+        "timestamp": "2026-02-06T11:59:30Z",
+        "zone": "Zone_C_Upper",
+        "isExcluded": false
+      },
+      "statistics": {
+        "mean": 25.001,
+        "sigma": 0.005,
+        "centerLine": 25.001,
+        "ucl": 25.016,
+        "lcl": 24.986,
+        "usl": 25.05,
+        "lsl": 24.95,
+        "sampleCount": 47
+      },
+      "trailingSamples": [
+        {
+          "value": 25.003,
+          "timestamp": "2026-02-06T11:59:30Z",
+          "zone": "Zone_C_Upper",
+          "violations": []
+        }
+      ],
+      "nelsonViolations": {
+        "activeRules": [],
+        "violationCount": 0,
+        "lastViolation": null
+      },
+      "processCapability": {
+        "cp": 3.33,
+        "cpk": 3.13,
+        "pp": 3.20,
+        "ppk": 3.01
+      }
+    }
+  },
+
+  "opcua_udt_design": {
+    "description": "OPC-UA User-Defined Type for SPC characteristic data. Maps to a structured DataType in the OPC-UA address space.",
+    "type_name": "SPC_CharacteristicDataType",
+    "structure": {
+      "CharacteristicName": "String",
+      "CharacteristicId": "String",
+      "HierarchyPath": "String",
+      "Timestamp": "DateTime",
+      "LastSample": {
+        "_type": "SPC_SampleDataType",
+        "Value": "Double",
+        "SampleId": "Int64",
+        "Timestamp": "DateTime",
+        "Zone": "String",
+        "IsExcluded": "Boolean"
+      },
+      "Statistics": {
+        "_type": "SPC_StatisticsDataType",
+        "Mean": "Double",
+        "Sigma": "Double",
+        "CenterLine": "Double",
+        "UCL": "Double",
+        "LCL": "Double",
+        "USL": "Double",
+        "LSL": "Double",
+        "SampleCount": "UInt32"
+      },
+      "NelsonViolations": {
+        "_type": "SPC_NelsonViolationsDataType",
+        "Rule1_Active": "Boolean",
+        "Rule2_Active": "Boolean",
+        "Rule3_Active": "Boolean",
+        "Rule4_Active": "Boolean",
+        "Rule5_Active": "Boolean",
+        "Rule6_Active": "Boolean",
+        "Rule7_Active": "Boolean",
+        "Rule8_Active": "Boolean",
+        "ViolationCount": "UInt32",
+        "LastViolationTimestamp": "DateTime"
+      },
+      "ProcessCapability": {
+        "_type": "SPC_ProcessCapabilityDataType",
+        "Cp": "Double",
+        "Cpk": "Double",
+        "Pp": "Double",
+        "Ppk": "Double"
+      }
+    },
+    "address_space_layout": {
+      "root": "Objects/OpenSPC",
+      "pattern": "Objects/OpenSPC/{PlantName}/{HierarchyPath}/{CharacteristicName}",
+      "example": "Objects/OpenSPC/PlantA/Line2/Station3/Diameter_A"
+    },
+    "notes": [
+      "Each characteristic is a Variable node of type SPC_CharacteristicDataType",
+      "TrailingSamples exposed as a separate array Variable alongside the main node",
+      "Plant and hierarchy levels are FolderType nodes",
+      "Subscribe to individual characteristics or folder-level for batch monitoring",
+      "Historical access via OPC-UA HA (HistoricalAccess) for sample history"
+    ]
+  },
+
+  "provider_type_expansion": {
+    "current": ["MANUAL", "TAG"],
+    "proposed": ["MANUAL", "MQTT_TAG", "OPCUA_TAG", "SPARKPLUG_METRIC"],
+    "notes": "Rename TAG to MQTT_TAG for clarity. Add OPCUA_TAG for OPC-UA node subscriptions. SPARKPLUG_METRIC for SparkplugB device metrics."
+  },
+
+  "implementation_considerations": [
+    "Python OPC-UA library: asyncua (formerly opcua-asyncio) for async OPC-UA client/server",
+    "SparkplugB: sparkplug-b Python library or manual protobuf implementation",
+    "MQTT publishing reuses existing paho-mqtt client with additional publish logic",
+    "Tag browser needs WebSocket for live value updates during browsing",
+    "OPC-UA browsing can be slow on large address spaces - need pagination and lazy loading",
+    "Security: OPC-UA supports certificates - need certificate management UI",
+    "Plant-scoped: Each plant can have its own OPC-UA server and MQTT broker configs",
+    "Publishing config should be per-characteristic with plant-level defaults"
+  ],
+
+  "suggested_phases": [
+    {
+      "phase": "phase-industrial-connectivity-1",
+      "scope": "OPC-UA Server model, connection management, tag browser, unified browser UI",
+      "estimated_complexity": "large"
+    },
+    {
+      "phase": "phase-industrial-connectivity-2",
+      "scope": "Tag-first characteristic creation workflow (single + bulk), coexistence with existing workflow",
+      "estimated_complexity": "medium"
+    },
+    {
+      "phase": "phase-industrial-connectivity-3",
+      "scope": "Outbound MQTT publishing, SparkplugB, OPC-UA server with UDTs",
+      "estimated_complexity": "large"
+    }
+  ],
+
+  "related_proposals": [
+    "1770309365-user-role-management.json (should be implemented alongside or before - controls who can configure connectivity)"
+  ],
+
+  "impact": {
+    "timeline": "Major - 3 phases estimated, each significant. OPC-UA and SparkplugB add new protocol dependencies.",
+    "resources": "Backend-heavy (protocol implementations), Frontend (browser UIs, wizard workflows), DevOps (OPC-UA certificate management)",
+    "quality": "Transforms OpenSPC from a standalone tool into an industrial-grade connectivity platform. Essential for real-world SI deployments."
+  },
+
+  "status": "pending_review"
+}
