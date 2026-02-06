@@ -6,6 +6,7 @@ MQTT specification for Industrial IoT. It handles:
 - Metric extraction and encoding
 - Session awareness (NBIRTH/NDEATH)
 - Integration with OpenSPC violation events
+- Both protobuf (real SparkplugB) and JSON (fallback) payload formats
 
 References:
     - Sparkplug B Specification: https://sparkplug.eclipse.org/
@@ -20,6 +21,55 @@ from typing import Any
 from openspc.mqtt.client import MQTTClient
 
 logger = logging.getLogger(__name__)
+
+
+# SparkplugB DataType enum mapping (protobuf integer -> string name)
+# See: https://sparkplug.eclipse.org/specification/version/3.0/documents/sparkplug-specification-3.0.0.pdf
+DATA_TYPE_MAP: dict[int, str] = {
+    1: "Int8",
+    2: "Int16",
+    3: "Int32",
+    4: "Int64",
+    5: "UInt8",
+    6: "UInt16",
+    7: "UInt32",
+    8: "UInt64",
+    9: "Float",
+    10: "Double",
+    11: "Boolean",
+    12: "String",
+    13: "DateTime",
+    14: "Text",
+    15: "UUID",
+    16: "DataSet",
+    17: "Bytes",
+    18: "File",
+    19: "Template",
+}
+
+# Reverse map: string name -> protobuf integer
+DATA_TYPE_REVERSE_MAP: dict[str, int] = {v: k for k, v in DATA_TYPE_MAP.items()}
+
+# Map data type names to the protobuf value field to use
+_VALUE_FIELD_MAP: dict[str, str] = {
+    "Int8": "int_value",
+    "Int16": "int_value",
+    "Int32": "int_value",
+    "UInt8": "int_value",
+    "UInt16": "int_value",
+    "UInt32": "int_value",
+    "Int64": "long_value",
+    "UInt64": "long_value",
+    "DateTime": "long_value",
+    "Float": "float_value",
+    "Double": "double_value",
+    "Boolean": "boolean_value",
+    "String": "string_value",
+    "Text": "string_value",
+    "UUID": "string_value",
+    "Bytes": "bytes_value",
+    "File": "bytes_value",
+}
 
 
 @dataclass
@@ -81,12 +131,27 @@ class SparkplugMessage:
     seq: int | None = None
 
 
+def _extract_protobuf_value(metric) -> Any:
+    """Extract value from a protobuf Metric based on its oneof field.
+
+    Args:
+        metric: Protobuf Payload.Metric instance
+
+    Returns:
+        The extracted value (int, float, bool, str, bytes, or None)
+    """
+    value_field = metric.WhichOneof("value")
+    if value_field is None:
+        return None
+    return getattr(metric, value_field)
+
+
 class SparkplugDecoder:
     """Decodes Sparkplug B messages from MQTT payloads.
 
-    Handles topic parsing and payload decoding. This implementation supports
-    a JSON-based payload format for simplicity. For full protobuf compliance,
-    use the official sparkplug-b library.
+    Handles topic parsing and payload decoding. Supports both real protobuf
+    payloads (for interop with Ignition, Cirrus Link, etc.) and JSON payloads
+    (for backward compatibility and testing).
 
     Example:
         >>> decoder = SparkplugDecoder()
@@ -139,11 +204,99 @@ class SparkplugDecoder:
         }
 
     @staticmethod
-    def decode_payload(payload: bytes) -> tuple[datetime, list[SparkplugMetric], int | None]:
+    def decode_payload(
+        payload: bytes,
+        format: str = "protobuf",
+    ) -> tuple[datetime, list[SparkplugMetric], int | None]:
         """Decode Sparkplug B payload to metrics.
 
-        This implementation uses JSON for simplicity. For production use with
-        real Sparkplug devices, use the official protobuf-based implementation.
+        Supports both protobuf and JSON payload formats. When format is
+        "protobuf", uses the real SparkplugB protobuf decoder. Falls back
+        to JSON if protobuf parsing fails.
+
+        Args:
+            payload: Payload bytes (protobuf or JSON encoded)
+            format: Payload format - "protobuf" or "json" (default: "protobuf")
+
+        Returns:
+            Tuple of (timestamp, metrics_list, sequence_number)
+
+        Raises:
+            ValueError: If payload is invalid and cannot be decoded
+
+        Example:
+            >>> ts, metrics, seq = SparkplugDecoder.decode_payload(data, format="protobuf")
+            >>> len(metrics)
+            2
+        """
+        if format == "protobuf":
+            try:
+                return SparkplugDecoder._decode_protobuf(payload)
+            except Exception as e:
+                logger.warning(
+                    f"Protobuf decode failed, attempting JSON fallback: {e}"
+                )
+                try:
+                    return SparkplugDecoder._decode_json(payload)
+                except Exception:
+                    raise ValueError(
+                        f"Payload could not be decoded as protobuf or JSON: {e}"
+                    ) from e
+        else:
+            return SparkplugDecoder._decode_json(payload)
+
+    @staticmethod
+    def _decode_protobuf(
+        payload: bytes,
+    ) -> tuple[datetime, list[SparkplugMetric], int | None]:
+        """Decode a protobuf SparkplugB payload.
+
+        Args:
+            payload: Protobuf-encoded payload bytes
+
+        Returns:
+            Tuple of (timestamp, metrics_list, sequence_number)
+        """
+        from openspc.mqtt.sparkplug_b_pb2 import Payload
+
+        pb = Payload()
+        pb.ParseFromString(payload)
+
+        # Extract timestamp (ms since epoch -> datetime)
+        timestamp = datetime.utcfromtimestamp(pb.timestamp / 1000.0)
+
+        # Extract sequence number
+        seq = pb.seq if pb.seq else None
+
+        # Extract metrics
+        metrics = []
+        for m in pb.metrics:
+            # Determine data type name
+            dt_name = DATA_TYPE_MAP.get(m.datatype, "Float")
+
+            # Extract value from oneof field
+            value = _extract_protobuf_value(m)
+
+            # Extract metric timestamp if present
+            metric_ts = None
+            if m.timestamp:
+                metric_ts = datetime.utcfromtimestamp(m.timestamp / 1000.0)
+
+            metric = SparkplugMetric(
+                name=m.name,
+                value=value,
+                data_type=dt_name,
+                timestamp=metric_ts or timestamp,
+            )
+            metrics.append(metric)
+
+        return timestamp, metrics, seq
+
+    @staticmethod
+    def _decode_json(
+        payload: bytes,
+    ) -> tuple[datetime, list[SparkplugMetric], int | None]:
+        """Decode a JSON SparkplugB payload (backward compatible).
 
         Expected JSON format:
         {
@@ -163,12 +316,6 @@ class SparkplugDecoder:
 
         Raises:
             ValueError: If payload is invalid JSON or missing required fields
-
-        Example:
-            >>> payload = b'{"timestamp": 1706890000000, "metrics": [...]}'
-            >>> ts, metrics, seq = SparkplugDecoder.decode_payload(payload)
-            >>> len(metrics)
-            2
         """
         try:
             data = json.loads(payload.decode("utf-8"))
@@ -205,7 +352,12 @@ class SparkplugDecoder:
 
         return timestamp, metrics, seq
 
-    def decode_message(self, topic: str, payload: bytes) -> SparkplugMessage:
+    def decode_message(
+        self,
+        topic: str,
+        payload: bytes,
+        format: str = "protobuf",
+    ) -> SparkplugMessage:
         """Decode a complete Sparkplug message.
 
         Combines topic parsing and payload decoding into a single message object.
@@ -213,6 +365,7 @@ class SparkplugDecoder:
         Args:
             topic: MQTT topic string
             payload: Message payload bytes
+            format: Payload format - "protobuf" or "json" (default: "protobuf")
 
         Returns:
             Parsed SparkplugMessage object
@@ -227,7 +380,7 @@ class SparkplugDecoder:
             'NDATA: 5 metrics'
         """
         topic_parts = self.parse_topic(topic)
-        timestamp, metrics, seq = self.decode_payload(payload)
+        timestamp, metrics, seq = self.decode_payload(payload, format=format)
 
         return SparkplugMessage(
             topic=topic,
@@ -244,8 +397,9 @@ class SparkplugDecoder:
 class SparkplugEncoder:
     """Encodes Sparkplug B messages for publishing.
 
-    Builds Sparkplug-compliant topics and payloads. Uses JSON encoding
-    for simplicity and compatibility with the decoder.
+    Builds Sparkplug-compliant topics and payloads. Supports both real
+    protobuf encoding (for interop with industrial devices) and JSON
+    encoding (for backward compatibility).
 
     Example:
         >>> encoder = SparkplugEncoder()
@@ -290,10 +444,107 @@ class SparkplugEncoder:
         metrics: list[SparkplugMetric],
         timestamp: datetime | None = None,
         seq: int | None = None,
+        format: str = "protobuf",
     ) -> bytes:
         """Encode metrics to Sparkplug payload.
 
-        Creates a JSON payload matching the Sparkplug metric structure.
+        Supports both protobuf and JSON formats.
+
+        Args:
+            metrics: List of metrics to encode
+            timestamp: Message timestamp (defaults to current time)
+            seq: Optional sequence number for ordering
+            format: Payload format - "protobuf" or "json" (default: "protobuf")
+
+        Returns:
+            Encoded payload as bytes (protobuf binary or JSON)
+
+        Example:
+            >>> metrics = [SparkplugMetric("Temp", 22.5, data_type="Float")]
+            >>> payload = SparkplugEncoder.encode_metrics(metrics, format="protobuf")
+            >>> isinstance(payload, bytes)
+            True
+        """
+        if format == "protobuf":
+            return SparkplugEncoder._encode_protobuf(metrics, timestamp, seq)
+        else:
+            return SparkplugEncoder._encode_json(metrics, timestamp, seq)
+
+    @staticmethod
+    def _encode_protobuf(
+        metrics: list[SparkplugMetric],
+        timestamp: datetime | None = None,
+        seq: int | None = None,
+    ) -> bytes:
+        """Encode metrics to protobuf SparkplugB payload.
+
+        Args:
+            metrics: List of metrics to encode
+            timestamp: Message timestamp (defaults to current time)
+            seq: Optional sequence number for ordering
+
+        Returns:
+            Protobuf-encoded payload as bytes
+        """
+        from openspc.mqtt.sparkplug_b_pb2 import Payload
+
+        if timestamp is None:
+            timestamp = datetime.utcnow()
+
+        pb = Payload()
+        pb.timestamp = int(timestamp.timestamp() * 1000)
+
+        if seq is not None:
+            pb.seq = seq
+
+        for metric in metrics:
+            m = pb.metrics.add()
+            m.name = metric.name
+
+            if metric.timestamp:
+                m.timestamp = int(metric.timestamp.timestamp() * 1000)
+
+            # Set data type
+            dt_int = DATA_TYPE_REVERSE_MAP.get(metric.data_type, 9)  # Default: Float
+            m.datatype = dt_int
+
+            # Set value in appropriate field
+            value_field = _VALUE_FIELD_MAP.get(metric.data_type, "float_value")
+            try:
+                if value_field == "float_value":
+                    m.float_value = float(metric.value)
+                elif value_field == "double_value":
+                    m.double_value = float(metric.value)
+                elif value_field == "int_value":
+                    m.int_value = int(metric.value)
+                elif value_field == "long_value":
+                    m.long_value = int(metric.value)
+                elif value_field == "boolean_value":
+                    m.boolean_value = bool(metric.value)
+                elif value_field == "string_value":
+                    m.string_value = str(metric.value)
+                elif value_field == "bytes_value":
+                    if isinstance(metric.value, bytes):
+                        m.bytes_value = metric.value
+                    else:
+                        m.bytes_value = str(metric.value).encode("utf-8")
+            except (TypeError, ValueError) as e:
+                logger.warning(
+                    f"Failed to set value for metric '{metric.name}': {e}. "
+                    f"Using string fallback."
+                )
+                m.string_value = str(metric.value)
+                m.datatype = DATA_TYPE_REVERSE_MAP.get("String", 12)
+
+        return pb.SerializeToString()
+
+    @staticmethod
+    def _encode_json(
+        metrics: list[SparkplugMetric],
+        timestamp: datetime | None = None,
+        seq: int | None = None,
+    ) -> bytes:
+        """Encode metrics to JSON payload (backward compatible).
 
         Args:
             metrics: List of metrics to encode
@@ -302,12 +553,6 @@ class SparkplugEncoder:
 
         Returns:
             JSON-encoded payload as bytes
-
-        Example:
-            >>> metrics = [SparkplugMetric("Temp", 22.5, data_type="Float")]
-            >>> payload = SparkplugEncoder.encode_metrics(metrics)
-            >>> b'"name": "Temp"' in payload
-            True
         """
         if timestamp is None:
             timestamp = datetime.utcnow()
@@ -342,6 +587,7 @@ class SparkplugEncoder:
         active_rules: list[str],
         operator: str | None = None,
         timestamp: datetime | None = None,
+        format: str = "protobuf",
     ) -> bytes:
         """Encode SPC violation data as Sparkplug metrics.
 
@@ -365,15 +611,16 @@ class SparkplugEncoder:
             active_rules: List of active Nelson rule names
             operator: Optional operator identifier
             timestamp: Optional timestamp (defaults to current time)
+            format: Payload format - "protobuf" or "json" (default: "protobuf")
 
         Returns:
-            JSON-encoded Sparkplug payload
+            Encoded Sparkplug payload
 
         Example:
             >>> payload = SparkplugEncoder.encode_violation_metrics(
             ...     "Diameter", 7.45, 7.6, 7.0, False, ["Rule 1"], "J.Smith"
             ... )
-            >>> b'"State/InControl"' in payload
+            >>> isinstance(payload, bytes)
             True
         """
         metrics = [
@@ -393,7 +640,7 @@ class SparkplugEncoder:
                 SparkplugMetric(name="Context/Operator", value=operator, data_type="String")
             )
 
-        return SparkplugEncoder.encode_metrics(metrics, timestamp)
+        return SparkplugEncoder.encode_metrics(metrics, timestamp, format=format)
 
 
 class SparkplugAdapter:
@@ -420,6 +667,7 @@ class SparkplugAdapter:
         mqtt_client: MQTTClient,
         group_id: str = "spc",
         edge_node_id: str = "openspc-server",
+        payload_format: str = "protobuf",
     ):
         """Initialize Sparkplug adapter.
 
@@ -427,10 +675,12 @@ class SparkplugAdapter:
             mqtt_client: Configured MQTT client instance
             group_id: Sparkplug group identifier
             edge_node_id: Edge node identifier for this server
+            payload_format: Payload format - "protobuf" or "json" (default: "protobuf")
         """
         self._mqtt = mqtt_client
         self._group_id = group_id
         self._edge_node_id = edge_node_id
+        self._payload_format = payload_format
         self._decoder = SparkplugDecoder()
         self._encoder = SparkplugEncoder()
         self._seq = 0  # Sequence counter for ordering
@@ -531,11 +781,13 @@ class SparkplugAdapter:
             active_rules=active_rules,
             operator=operator,
             timestamp=timestamp,
+            format=self._payload_format,
         )
 
         logger.info(
             f"Publishing SPC state for {characteristic_name} to {topic} "
-            f"(in_control={in_control}, active_rules={len(active_rules)})"
+            f"(in_control={in_control}, active_rules={len(active_rules)}, "
+            f"format={self._payload_format})"
         )
 
         await self._mqtt.publish(topic, payload, qos=1)
@@ -572,7 +824,9 @@ class SparkplugAdapter:
                 ),
             ]
 
-        payload = self._encoder.encode_metrics(metrics, seq=0)
+        payload = self._encoder.encode_metrics(
+            metrics, seq=0, format=self._payload_format
+        )
         self._seq = 0  # Reset sequence on birth
 
         logger.info(f"Publishing birth certificate to {topic}")
@@ -594,7 +848,7 @@ class SparkplugAdapter:
         )
 
         # Death certificate has minimal payload
-        payload = self._encoder.encode_metrics([])
+        payload = self._encoder.encode_metrics([], format=self._payload_format)
 
         logger.info(f"Publishing death certificate to {topic}")
         await self._mqtt.publish(topic, payload, qos=1)

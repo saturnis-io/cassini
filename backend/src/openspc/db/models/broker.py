@@ -37,6 +37,9 @@ class MQTTBroker(Base):
     max_reconnect_delay: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
     use_tls: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    payload_format: Mapped[str] = mapped_column(
+        String(20), default="json", nullable=False, server_default="json"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
