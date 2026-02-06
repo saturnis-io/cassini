@@ -25,8 +25,10 @@ from openspc.api.schemas.characteristic import (
     SpecLimits,
     ZoneBoundaries,
 )
+from openspc.api.deps import get_current_user, get_current_engineer
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.core.engine.control_limits import ControlLimitService
+from openspc.db.models.user import User
 from openspc.core.engine.rolling_window import RollingWindowManager
 from openspc.db.database import get_session
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule
@@ -70,6 +72,7 @@ async def list_characteristics(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[CharacteristicResponse]:
     """List characteristics with filtering and pagination.
 
@@ -112,6 +115,7 @@ async def list_characteristics(
 async def create_characteristic(
     data: CharacteristicCreate,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
     """Create a new characteristic.
 
@@ -152,6 +156,7 @@ async def create_characteristic(
 async def get_characteristic(
     char_id: int,
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    _user: User = Depends(get_current_user),
 ) -> CharacteristicResponse:
     """Get characteristic details by ID."""
     characteristic = await repo.get_by_id(char_id)
@@ -170,6 +175,7 @@ async def update_characteristic(
     data: CharacteristicUpdate,
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
     """Update characteristic configuration.
 
@@ -200,6 +206,7 @@ async def delete_characteristic(
     char_id: int,
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> None:
     """Delete characteristic.
 
@@ -237,6 +244,7 @@ async def get_chart_data(
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     sample_repo: SampleRepository = Depends(get_sample_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
 ) -> ChartDataResponse:
     """Get chart rendering data with samples, limits, and zones.
 
@@ -396,6 +404,7 @@ async def recalculate_limits(
     service: ControlLimitService = Depends(get_control_limit_service),
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> dict:
     """Recalculate control limits from historical data.
 
@@ -458,6 +467,7 @@ async def recalculate_limits(
 async def get_rules(
     char_id: int,
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    _user: User = Depends(get_current_user),
 ) -> list[NelsonRuleConfig]:
     """Get Nelson Rule configuration for characteristic.
 
@@ -499,6 +509,7 @@ async def update_rules(
     rules: list[NelsonRuleConfig],
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> list[NelsonRuleConfig]:
     """Update Nelson Rule configuration.
 
@@ -557,6 +568,7 @@ async def change_subgroup_mode(
     repo: CharacteristicRepository = Depends(get_characteristic_repository),
     sample_repo: SampleRepository = Depends(get_sample_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> ChangeModeResponse:
     """Change subgroup mode with historical sample migration.
 

@@ -8,8 +8,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from openspc.api.deps import get_current_admin, get_current_engineer
 from openspc.db.database import get_session
 from openspc.db.models.api_key import APIKey
+from openspc.db.models.user import User
 from openspc.core.auth.api_key import APIKeyAuth
 
 router = APIRouter(prefix="/api/v1/api-keys", tags=["api-keys"])
@@ -57,6 +59,7 @@ class APIKeyUpdate(BaseModel):
 @router.get("/", response_model=list[APIKeyResponse])
 async def list_api_keys(
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> list[APIKeyResponse]:
     """List all API keys (without exposing the actual keys)."""
     stmt = select(APIKey).order_by(APIKey.created_at.desc())
@@ -69,6 +72,7 @@ async def list_api_keys(
 async def create_api_key(
     data: APIKeyCreate,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> APIKeyCreateResponse:
     """Create a new API key.
 
@@ -107,6 +111,7 @@ async def create_api_key(
 async def get_api_key(
     key_id: str,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> APIKeyResponse:
     """Get API key details by ID."""
     stmt = select(APIKey).where(APIKey.id == key_id)
@@ -127,6 +132,7 @@ async def update_api_key(
     key_id: str,
     data: APIKeyUpdate,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> APIKeyResponse:
     """Update API key settings."""
     stmt = select(APIKey).where(APIKey.id == key_id)
@@ -154,6 +160,7 @@ async def update_api_key(
 async def delete_api_key(
     key_id: str,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete (revoke) an API key permanently."""
     stmt = select(APIKey).where(APIKey.id == key_id)
@@ -174,6 +181,7 @@ async def delete_api_key(
 async def revoke_api_key(
     key_id: str,
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_admin),
 ) -> APIKeyResponse:
     """Revoke an API key (set is_active=False) without deleting it."""
     stmt = select(APIKey).where(APIKey.id == key_id)

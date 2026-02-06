@@ -8,7 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_characteristic_repo, get_hierarchy_repo
+from openspc.api.deps import (
+    get_characteristic_repo,
+    get_current_user,
+    get_current_engineer,
+    get_hierarchy_repo,
+)
+from openspc.db.models.user import User
 from openspc.db.database import get_session
 from openspc.db.models.characteristic import Characteristic
 from openspc.api.schemas.characteristic import CharacteristicResponse
@@ -47,6 +53,7 @@ async def validate_plant(
 async def get_hierarchy_tree(
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
 ) -> list[HierarchyTreeNode]:
     """Get full hierarchy as nested tree structure.
 
@@ -113,6 +120,7 @@ async def get_hierarchy_tree(
 async def create_hierarchy_node(
     data: HierarchyCreate,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
     """Create a new hierarchy node.
 
@@ -175,6 +183,7 @@ async def create_hierarchy_node(
 async def get_hierarchy_node(
     node_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    _user: User = Depends(get_current_user),
 ) -> HierarchyResponse:
     """Get a single hierarchy node by ID.
 
@@ -213,6 +222,7 @@ async def update_hierarchy_node(
     node_id: int,
     data: HierarchyUpdate,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
     """Update a hierarchy node.
 
@@ -279,6 +289,7 @@ async def update_hierarchy_node(
 async def delete_hierarchy_node(
     node_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
+    _user: User = Depends(get_current_engineer),
 ) -> None:
     """Delete a hierarchy node.
 
@@ -327,6 +338,7 @@ async def get_node_characteristics(
     include_descendants: bool = False,
     hierarchy_repo: HierarchyRepository = Depends(get_hierarchy_repo),
     char_repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    _user: User = Depends(get_current_user),
 ) -> list[CharacteristicResponse]:
     """Get characteristics under a hierarchy node.
 
@@ -399,6 +411,7 @@ async def get_plant_hierarchy_tree(
     plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
 ) -> list[HierarchyTreeNode]:
     """Get hierarchy tree for a specific plant.
 
@@ -449,6 +462,7 @@ async def create_plant_hierarchy_node(
     plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
     """Create a hierarchy node in a specific plant.
 

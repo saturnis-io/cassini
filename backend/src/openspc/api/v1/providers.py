@@ -9,7 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from openspc.api.deps import get_current_user, get_current_engineer
 from openspc.db.database import get_session
+from openspc.db.models.user import User
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
 
@@ -44,7 +46,9 @@ class ProviderStatusResponse(BaseModel):
 
 
 @router.get("/status", response_model=ProviderStatusResponse)
-async def get_provider_status() -> ProviderStatusResponse:
+async def get_provider_status(
+    _user: User = Depends(get_current_user),
+) -> ProviderStatusResponse:
     """Get status of all data providers.
 
     Returns combined status of MQTT connection and TAG provider.
@@ -78,6 +82,7 @@ async def get_provider_status() -> ProviderStatusResponse:
 @router.post("/tag/restart", response_model=TagProviderStatusResponse)
 async def restart_tag_provider(
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> TagProviderStatusResponse:
     """Restart the TAG provider.
 
@@ -115,6 +120,7 @@ async def restart_tag_provider(
 @router.post("/tag/refresh", response_model=dict)
 async def refresh_tag_subscriptions(
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> dict:
     """Refresh TAG provider subscriptions.
 

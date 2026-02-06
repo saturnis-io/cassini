@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_db_session
+from openspc.api.deps import get_current_user, get_current_engineer, get_db_session
+from openspc.db.models.user import User
 from openspc.api.schemas.characteristic_config import (
     CharacteristicConfigResponse,
     CharacteristicConfigUpdate,
@@ -33,6 +34,7 @@ async def get_characteristic_config(
     char_id: int,
     config_repo: CharacteristicConfigRepository = Depends(get_config_repo),
     char_repo: CharacteristicRepository = Depends(get_char_repo),
+    _user: User = Depends(get_current_user),
 ):
     """Get configuration for a characteristic.
 
@@ -73,6 +75,7 @@ async def update_characteristic_config(
     session: AsyncSession = Depends(get_db_session),
     config_repo: CharacteristicConfigRepository = Depends(get_config_repo),
     char_repo: CharacteristicRepository = Depends(get_char_repo),
+    _user: User = Depends(get_current_engineer),
 ):
     """Create or update configuration for a characteristic.
 
@@ -123,6 +126,7 @@ async def delete_characteristic_config(
     char_id: int,
     session: AsyncSession = Depends(get_db_session),
     config_repo: CharacteristicConfigRepository = Depends(get_config_repo),
+    _user: User = Depends(get_current_engineer),
 ):
     """Delete configuration for a characteristic.
 

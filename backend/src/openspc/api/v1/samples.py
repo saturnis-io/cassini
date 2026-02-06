@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_db_session
+from openspc.api.deps import get_current_user, get_db_session
+from openspc.db.models.user import User
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.sample import (
     SampleCreate,
@@ -195,6 +196,7 @@ async def list_samples(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
     sample_repo: SampleRepository = Depends(get_sample_repo),
+    _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[SampleResponse]:
     """List samples with filtering and pagination.
 
@@ -312,6 +314,7 @@ async def submit_sample(
     session: AsyncSession = Depends(get_db_session),
     engine: SPCEngine = Depends(get_spc_engine),
     provider: ManualProvider = Depends(get_manual_provider),
+    _user: User = Depends(get_current_user),
 ) -> SampleProcessingResult:
     """Submit a manual sample for SPC processing.
 
@@ -394,6 +397,7 @@ async def submit_sample(
 async def get_sample(
     sample_id: int,
     sample_repo: SampleRepository = Depends(get_sample_repo),
+    _user: User = Depends(get_current_user),
 ) -> SampleResponse:
     """Get a sample by ID with measurements.
 
@@ -444,6 +448,7 @@ async def toggle_exclude(
     data: SampleExclude,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
+    _user: User = Depends(get_current_user),
 ) -> SampleResponse:
     """Mark sample as excluded from calculations.
 
@@ -523,6 +528,7 @@ async def delete_sample(
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
+    _user: User = Depends(get_current_user),
 ) -> None:
     """Delete a sample and its measurements permanently.
 
@@ -577,6 +583,7 @@ async def update_sample(
     char_repo: CharacteristicRepository = Depends(get_char_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
     violation_repo: ViolationRepository = Depends(get_violation_repo),
+    _user: User = Depends(get_current_user),
 ) -> SampleProcessingResult:
     """Update sample measurements and recalculate statistics.
 
@@ -761,6 +768,7 @@ async def get_sample_edit_history(
     sample_id: int,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
+    _user: User = Depends(get_current_user),
 ) -> list[SampleEditHistoryResponse]:
     """Get edit history for a sample.
 
@@ -826,6 +834,7 @@ async def batch_import(
     ),
     session: AsyncSession = Depends(get_db_session),
     engine: SPCEngine = Depends(get_spc_engine),
+    _user: User = Depends(get_current_user),
 ) -> BatchImportResult:
     """Batch import samples (for historical data migration).
 

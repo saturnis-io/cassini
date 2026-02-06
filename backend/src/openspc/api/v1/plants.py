@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from openspc.api.deps import get_current_user, get_current_admin
 from openspc.api.schemas.plant import PlantCreate, PlantResponse, PlantUpdate
 from openspc.db.database import get_session
+from openspc.db.models.user import User
 from openspc.db.repositories.plant import PlantRepository
 
 router = APIRouter(prefix="/api/v1/plants", tags=["plants"])
@@ -22,6 +24,7 @@ async def get_plant_repo(
 async def list_plants(
     active_only: bool = Query(False, description="Only return active plants"),
     repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_user),
 ) -> list[PlantResponse]:
     """List all plants.
 
@@ -35,6 +38,7 @@ async def list_plants(
 async def create_plant(
     data: PlantCreate,
     repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_admin),
 ) -> PlantResponse:
     """Create a new plant.
 
@@ -60,6 +64,7 @@ async def create_plant(
 async def get_plant(
     plant_id: int,
     repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_user),
 ) -> PlantResponse:
     """Get a plant by ID.
 
@@ -79,6 +84,7 @@ async def update_plant(
     plant_id: int,
     data: PlantUpdate,
     repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_admin),
 ) -> PlantResponse:
     """Update a plant.
 
@@ -113,6 +119,7 @@ async def update_plant(
 async def delete_plant(
     plant_id: int,
     repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete a plant.
 

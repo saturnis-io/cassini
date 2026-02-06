@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from openspc.api.deps import get_current_user, get_current_admin, get_current_engineer
 from openspc.api.schemas.broker import (
     BrokerConnectionStatus,
     BrokerCreate,
@@ -21,6 +22,7 @@ from openspc.api.schemas.broker import (
 from openspc.api.schemas.common import PaginatedResponse
 from openspc.db.database import get_session
 from openspc.db.models.broker import MQTTBroker
+from openspc.db.models.user import User
 from openspc.db.repositories import BrokerRepository
 
 router = APIRouter(prefix="/api/v1/brokers", tags=["brokers"])
@@ -40,6 +42,7 @@ async def list_brokers(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[BrokerResponse]:
     """List MQTT broker configurations with optional filtering.
 
@@ -78,6 +81,7 @@ async def create_broker(
     data: BrokerCreate,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Create a new MQTT broker configuration.
 
@@ -102,6 +106,7 @@ async def create_broker(
 async def get_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
+    _user: User = Depends(get_current_user),
 ) -> BrokerResponse:
     """Get MQTT broker configuration by ID.
 
@@ -123,6 +128,7 @@ async def update_broker(
     data: BrokerUpdate,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Update MQTT broker configuration.
 
@@ -161,6 +167,7 @@ async def delete_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete MQTT broker configuration.
 
@@ -182,6 +189,7 @@ async def activate_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Set a broker as the active connection.
 
@@ -202,6 +210,7 @@ async def activate_broker(
 async def get_broker_status(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
+    _user: User = Depends(get_current_user),
 ) -> BrokerConnectionStatus:
     """Get connection status for a broker.
 
@@ -246,6 +255,7 @@ async def connect_to_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_engineer),
 ) -> BrokerConnectionStatus:
     """Connect to a specific broker.
 
@@ -281,7 +291,9 @@ async def connect_to_broker(
 
 
 @router.post("/disconnect", response_model=dict)
-async def disconnect_broker() -> dict:
+async def disconnect_broker(
+    _user: User = Depends(get_current_engineer),
+) -> dict:
     """Disconnect from the current MQTT broker.
 
     Gracefully disconnects without changing the active broker configuration.
@@ -294,7 +306,9 @@ async def disconnect_broker() -> dict:
 
 
 @router.get("/current/status", response_model=BrokerConnectionStatus)
-async def get_current_connection_status() -> BrokerConnectionStatus:
+async def get_current_connection_status(
+    _user: User = Depends(get_current_user),
+) -> BrokerConnectionStatus:
     """Get status of the currently connected broker.
 
     Returns connection state without needing to know the broker ID.
@@ -326,6 +340,7 @@ async def get_current_connection_status() -> BrokerConnectionStatus:
 @router.post("/test", response_model=BrokerTestResponse)
 async def test_broker_connection(
     data: BrokerTestRequest,
+    _user: User = Depends(get_current_engineer),
 ) -> BrokerTestResponse:
     """Test connection to an MQTT broker.
 

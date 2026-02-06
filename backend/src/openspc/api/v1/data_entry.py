@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_db_session
+from openspc.api.deps import get_current_user_or_api_key, get_db_session
 from openspc.api.schemas.data_entry import (
     BatchEntryRequest,
     BatchEntryResponse,
@@ -18,7 +18,6 @@ from openspc.api.schemas.data_entry import (
     DataEntryResponse,
     SchemaResponse,
 )
-from openspc.core.auth.api_key import verify_api_key
 from openspc.core.engine.nelson_rules import NelsonRuleLibrary
 from openspc.core.engine.rolling_window import RollingWindowManager
 from openspc.core.engine.spc_engine import SPCEngine
@@ -66,7 +65,7 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
 )
 async def submit_sample(
     data: DataEntryRequest,
-    api_key: APIKey = Depends(verify_api_key),
+    auth: object = Depends(get_current_user_or_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> DataEntryResponse:
     """Submit a single sample from external system.
@@ -89,12 +88,13 @@ async def submit_sample(
         HTTPException: 400 if validation fails.
         HTTPException: 500 if processing fails.
     """
-    # Check permission for this characteristic
-    if not api_key.can_access_characteristic(data.characteristic_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"API key does not have permission for characteristic {data.characteristic_id}",
-        )
+    # Check permission for this characteristic (API key only)
+    if isinstance(auth, APIKey):
+        if not auth.can_access_characteristic(data.characteristic_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key does not have permission for characteristic {data.characteristic_id}",
+            )
 
     engine = await get_spc_engine(session)
 
@@ -159,7 +159,7 @@ async def submit_sample(
 )
 async def submit_batch(
     data: BatchEntryRequest,
-    api_key: APIKey = Depends(verify_api_key),
+    auth: object = Depends(get_current_user_or_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> BatchEntryResponse:
     """Submit multiple samples in a single request.
@@ -185,8 +185,8 @@ async def submit_batch(
     errors: list[str] = []
 
     for idx, sample in enumerate(data.samples):
-        # Check permission for each characteristic
-        if not api_key.can_access_characteristic(sample.characteristic_id):
+        # Check permission for each characteristic (API key only)
+        if isinstance(auth, APIKey) and not auth.can_access_characteristic(sample.characteristic_id):
             errors.append(
                 f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
             )

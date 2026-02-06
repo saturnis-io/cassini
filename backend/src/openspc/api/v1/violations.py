@@ -8,7 +8,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_alert_manager, get_violation_repo, get_db_session
+from openspc.api.deps import get_alert_manager, get_current_user, get_violation_repo, get_db_session, require_role
+from openspc.db.models.user import User
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.violation import (
     AcknowledgeResultItem,
@@ -46,6 +47,7 @@ async def build_hierarchy_path(
 async def list_violations(
     repo: ViolationRepository = Depends(get_violation_repo),
     session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
     characteristic_id: int | None = None,
     sample_id: int | None = None,
     acknowledged: bool | None = None,
@@ -162,6 +164,7 @@ async def list_violations(
 @router.get("/stats", response_model=ViolationStats)
 async def get_violation_stats(
     manager: AlertManager = Depends(get_alert_manager),
+    _user: User = Depends(get_current_user),
     characteristic_id: int | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
@@ -212,7 +215,9 @@ async def get_violation_stats(
 
 
 @router.get("/reason-codes", response_model=list[str])
-async def get_reason_codes() -> list[str]:
+async def get_reason_codes(
+    _user: User = Depends(get_current_user),
+) -> list[str]:
     """Get list of standard acknowledgment reason codes.
 
     Returns predefined reason codes that can be used when
@@ -245,6 +250,7 @@ async def get_reason_codes() -> list[str]:
 async def get_violation(
     violation_id: int,
     repo: ViolationRepository = Depends(get_violation_repo),
+    _user: User = Depends(get_current_user),
 ) -> ViolationResponse:
     """Get violation details.
 
@@ -288,6 +294,7 @@ async def acknowledge_violation(
     violation_id: int,
     data: ViolationAcknowledge,
     manager: AlertManager = Depends(get_alert_manager),
+    _user: User = Depends(require_role("supervisor")),
 ) -> ViolationResponse:
     """Acknowledge a violation.
 
@@ -360,6 +367,7 @@ async def acknowledge_violation(
 async def batch_acknowledge(
     request: BatchAcknowledgeRequest,
     manager: AlertManager = Depends(get_alert_manager),
+    _user: User = Depends(require_role("supervisor")),
 ) -> BatchAcknowledgeResult:
     """Acknowledge multiple violations at once.
 
