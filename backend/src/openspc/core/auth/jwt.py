@@ -1,0 +1,109 @@
+"""JWT token creation and verification.
+
+Provides functions for creating and verifying JWT access and refresh tokens
+using PyJWT with HS256 algorithm.
+"""
+
+import logging
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+import jwt
+
+logger = logging.getLogger(__name__)
+
+# Configuration from environment variables
+JWT_SECRET_KEY: str = os.environ.get("OPENSPC_JWT_SECRET", "")
+JWT_ALGORITHM: str = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+# Generate a random secret for development if not configured
+if not JWT_SECRET_KEY:
+    JWT_SECRET_KEY = secrets.token_urlsafe(64)
+    logger.warning(
+        "No JWT secret configured, using random key "
+        "(sessions won't persist across restarts)"
+    )
+
+
+def create_access_token(user_id: int, username: str) -> str:
+    """Create a JWT access token.
+
+    Args:
+        user_id: The user's database ID.
+        username: The user's username.
+
+    Returns:
+        Encoded JWT string.
+    """
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "username": username,
+        "type": "access",
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "iat": now,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: int) -> str:
+    """Create a JWT refresh token.
+
+    Args:
+        user_id: The user's database ID.
+
+    Returns:
+        Encoded JWT string.
+    """
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(user_id),
+        "type": "refresh",
+        "exp": now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        "iat": now,
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def verify_access_token(token: str) -> Optional[dict]:
+    """Verify and decode a JWT access token.
+
+    Args:
+        token: The JWT token string.
+
+    Returns:
+        Decoded payload dict if valid, None if invalid or expired.
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            return None
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+
+def verify_refresh_token(token: str) -> Optional[dict]:
+    """Verify and decode a JWT refresh token.
+
+    Args:
+        token: The JWT token string.
+
+    Returns:
+        Decoded payload dict if valid, None if invalid or expired.
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None

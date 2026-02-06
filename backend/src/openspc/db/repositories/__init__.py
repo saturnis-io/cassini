@@ -19,6 +19,7 @@ from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.sample import SampleRepository
+from openspc.db.repositories.user import UserRepository
 from openspc.db.repositories.violation import ViolationRepository
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "BrokerRepository",
     "HierarchyRepository",
     "PlantRepository",
+    "UserRepository",
     "CharacteristicRepository",
     "SampleRepository",
     "ViolationRepository",
