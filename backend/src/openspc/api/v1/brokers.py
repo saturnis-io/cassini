@@ -12,12 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.api.deps import get_current_user, get_current_admin, get_current_engineer
 from openspc.api.schemas.broker import (
+    BrokerAllStatesResponse,
     BrokerConnectionStatus,
     BrokerCreate,
     BrokerResponse,
     BrokerTestRequest,
     BrokerTestResponse,
     BrokerUpdate,
+    DiscoveredTopicResponse,
+    TopicTreeNodeResponse,
 )
 from openspc.api.schemas.common import PaginatedResponse
 from openspc.db.database import get_session
@@ -225,11 +228,10 @@ async def get_broker_status(
             detail=f"Broker {broker_id} not found"
         )
 
-    # Get actual status from MQTTManager
-    state = mqtt_manager.state
+    # Get per-broker state from multi-broker manager
+    state = mqtt_manager.get_state(broker_id)
 
-    # Check if this broker is the currently connected one
-    if state.broker_id == broker_id:
+    if state:
         return BrokerConnectionStatus(
             broker_id=broker.id,
             broker_name=broker.name,
@@ -239,13 +241,13 @@ async def get_broker_status(
             subscribed_topics=state.subscribed_topics,
         )
     else:
-        # This broker is not the active one
+        # This broker is not connected
         return BrokerConnectionStatus(
             broker_id=broker.id,
             broker_name=broker.name,
             is_connected=False,
             last_connected=None,
-            error_message="Broker is not active" if not broker.is_active else "Different broker is connected",
+            error_message="Broker is not connected",
             subscribed_topics=[],
         )
 
@@ -385,3 +387,193 @@ async def test_broker_connection(
             success=False,
             message=f"Connection failed: {str(e)}",
         )
+
+
+# -----------------------------------------------------------------------
+# Multi-broker status
+# -----------------------------------------------------------------------
+
+
+@router.get("/all/status", response_model=BrokerAllStatesResponse)
+async def get_all_broker_status(
+    session: AsyncSession = Depends(get_session),
+    _user: User = Depends(get_current_user),
+) -> BrokerAllStatesResponse:
+    """Get connection status of all configured brokers.
+
+    Returns status for every broker in the database, including those
+    that are not currently connected.
+    """
+    from openspc.mqtt import mqtt_manager
+
+    repo = BrokerRepository(session)
+
+    # Get all brokers from DB
+    stmt = select(MQTTBroker).order_by(MQTTBroker.id)
+    result = await session.execute(stmt)
+    brokers = list(result.scalars().all())
+
+    states = []
+    all_states = mqtt_manager.get_all_states()
+
+    for broker in brokers:
+        state = all_states.get(broker.id)
+        if state:
+            states.append(BrokerConnectionStatus(
+                broker_id=broker.id,
+                broker_name=broker.name,
+                is_connected=state.is_connected,
+                last_connected=state.last_connected,
+                error_message=state.error_message,
+                subscribed_topics=state.subscribed_topics,
+            ))
+        else:
+            states.append(BrokerConnectionStatus(
+                broker_id=broker.id,
+                broker_name=broker.name,
+                is_connected=False,
+                last_connected=None,
+                error_message="Not connected",
+                subscribed_topics=[],
+            ))
+
+    return BrokerAllStatesResponse(states=states)
+
+
+# -----------------------------------------------------------------------
+# Topic discovery
+# -----------------------------------------------------------------------
+
+
+@router.post("/{broker_id}/discover", status_code=status.HTTP_202_ACCEPTED)
+async def start_discovery(
+    broker_id: int,
+    repo: BrokerRepository = Depends(get_broker_repository),
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Start topic discovery on a broker.
+
+    Subscribes to wildcard topics to discover available MQTT topics.
+    Requires the broker to be connected.
+    """
+    from openspc.mqtt import mqtt_manager
+    from openspc.mqtt.discovery import TopicDiscoveryService
+
+    broker = await repo.get_by_id(broker_id)
+    if broker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Broker {broker_id} not found"
+        )
+
+    client = mqtt_manager.get_client(broker_id)
+    if client is None or not client.is_connected:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Broker {broker_id} is not connected"
+        )
+
+    # Check if discovery already active
+    existing = mqtt_manager.get_discovery_service(broker_id)
+    if existing and existing.is_active:
+        return {"message": f"Discovery already active on broker {broker.name}"}
+
+    # Create and start discovery service
+    discovery = TopicDiscoveryService(max_topics=10000, ttl_seconds=300)
+    await discovery.start_discovery(client)
+    mqtt_manager.set_discovery_service(broker_id, discovery)
+
+    return {"message": f"Discovery started on broker {broker.name}"}
+
+
+@router.delete("/{broker_id}/discover")
+async def stop_discovery(
+    broker_id: int,
+    repo: BrokerRepository = Depends(get_broker_repository),
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Stop topic discovery on a broker."""
+    from openspc.mqtt import mqtt_manager
+
+    broker = await repo.get_by_id(broker_id)
+    if broker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Broker {broker_id} not found"
+        )
+
+    discovery = mqtt_manager.get_discovery_service(broker_id)
+    if discovery is None:
+        return {"message": "Discovery was not active"}
+
+    client = mqtt_manager.get_client(broker_id)
+    if client:
+        await discovery.stop_discovery(client)
+
+    mqtt_manager.remove_discovery_service(broker_id)
+
+    return {"message": f"Discovery stopped on broker {broker.name}"}
+
+
+def _convert_tree_node(node) -> TopicTreeNodeResponse:
+    """Recursively convert TopicTreeNode to response schema."""
+    return TopicTreeNodeResponse(
+        name=node.name,
+        full_topic=node.full_topic,
+        children=[_convert_tree_node(child) for child in node.children.values()],
+        message_count=node.message_count,
+        is_sparkplug=node.is_sparkplug,
+    )
+
+
+@router.get("/{broker_id}/topics")
+async def get_topics(
+    broker_id: int,
+    format: str = Query("flat", description="Response format: flat or tree"),
+    search: str | None = Query(None, description="Filter topics by substring"),
+    repo: BrokerRepository = Depends(get_broker_repository),
+    _user: User = Depends(get_current_engineer),
+) -> list[DiscoveredTopicResponse] | TopicTreeNodeResponse:
+    """Get discovered topics for a broker.
+
+    Returns topics in either flat list or tree format.
+    Requires discovery to have been started on the broker.
+    """
+    from openspc.mqtt import mqtt_manager
+
+    broker = await repo.get_by_id(broker_id)
+    if broker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Broker {broker_id} not found"
+        )
+
+    discovery = mqtt_manager.get_discovery_service(broker_id)
+    if discovery is None:
+        if format == "tree":
+            return TopicTreeNodeResponse(name="root")
+        return []
+
+    if format == "tree":
+        tree = discovery.get_topic_tree()
+        return _convert_tree_node(tree)
+    else:
+        if search:
+            topics = discovery.search_topics(search)
+        else:
+            topics = discovery.get_discovered_topics()
+
+        return [
+            DiscoveredTopicResponse(
+                topic=t.topic,
+                message_count=t.message_count,
+                last_seen=t.last_seen,
+                last_payload_size=t.last_payload_size,
+                is_sparkplug=t.is_sparkplug,
+                sparkplug_group=t.sparkplug_group,
+                sparkplug_node=t.sparkplug_node,
+                sparkplug_device=t.sparkplug_device,
+                sparkplug_message_type=t.sparkplug_message_type,
+            )
+            for t in topics
+        ]

@@ -117,3 +117,39 @@ class BrokerTestResponse(BaseModel):
     success: bool
     message: str
     latency_ms: float | None = None
+
+
+class DiscoveredTopicResponse(BaseModel):
+    """Schema for a discovered MQTT topic."""
+
+    topic: str
+    message_count: int
+    last_seen: datetime
+    last_payload_size: int
+    is_sparkplug: bool
+    sparkplug_group: str | None = None
+    sparkplug_node: str | None = None
+    sparkplug_device: str | None = None
+    sparkplug_message_type: str | None = None
+
+
+class TopicTreeNodeResponse(BaseModel):
+    """Schema for a topic tree node (recursive)."""
+
+    name: str
+    full_topic: str | None = None
+    children: list["TopicTreeNodeResponse"] = []
+    message_count: int = 0
+    is_sparkplug: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Rebuild model for self-reference
+TopicTreeNodeResponse.model_rebuild()
+
+
+class BrokerAllStatesResponse(BaseModel):
+    """Schema for multi-broker status response."""
+
+    states: list[BrokerConnectionStatus]

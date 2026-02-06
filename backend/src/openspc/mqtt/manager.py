@@ -1,10 +1,11 @@
 """MQTT Manager for application lifecycle integration.
 
-This module provides MQTTManager for managing MQTT client lifecycle
-within the FastAPI application, including loading broker configuration
-from the database and handling connection state.
+This module provides MQTTManager for managing multiple MQTT client connections
+within the FastAPI application, including loading broker configurations
+from the database and handling connection state per broker.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -44,13 +45,17 @@ class ConnectionState:
 
 
 class MQTTManager:
-    """Manages MQTT client lifecycle for the application.
+    """Manages multiple MQTT client connections for the application.
 
-    Provides a singleton-like manager for the MQTT client that:
-    - Loads broker configuration from the database
-    - Initializes and manages the MQTTClient
-    - Tracks connection state
-    - Handles reconnection on configuration changes
+    Provides multi-broker management where each plant can have its own
+    broker connection(s) running independently. Maintains backward
+    compatibility with single-broker API.
+
+    Features:
+    - Multiple concurrent broker connections
+    - Per-broker connection lifecycle
+    - Backward-compatible single-broker API
+    - Topic discovery service integration
 
     Example:
         >>> manager = MQTTManager()
@@ -61,67 +66,239 @@ class MQTTManager:
     """
 
     def __init__(self):
-        """Initialize the MQTT manager."""
-        self._client: MQTTClient | None = None
-        self._state = ConnectionState()
-        self._broker_config: MQTTBroker | None = None
+        """Initialize the MQTT manager with multi-broker support."""
+        self._clients: dict[int, MQTTClient] = {}  # broker_id -> client
+        self._states: dict[int, ConnectionState] = {}  # broker_id -> state
+        self._broker_configs: dict[int, MQTTBroker] = {}  # broker_id -> config
+        self._discovery_services: dict[int, object] = {}  # broker_id -> TopicDiscoveryService
+
+    # -----------------------------------------------------------------------
+    # Backward-compatible single-broker properties
+    # -----------------------------------------------------------------------
 
     @property
     def client(self) -> MQTTClient | None:
-        """Get the underlying MQTT client.
+        """Get the first connected MQTT client (backward compat).
 
         Returns:
-            The MQTTClient instance if initialized, None otherwise
+            The first connected MQTTClient instance, or None
         """
-        return self._client
+        for client in self._clients.values():
+            if client.is_connected:
+                return client
+        # Return first client even if not connected
+        if self._clients:
+            return next(iter(self._clients.values()))
+        return None
 
     @property
     def state(self) -> ConnectionState:
-        """Get current connection state.
+        """Get combined connection state (backward compat).
+
+        Returns the state of the first connected broker, or a default
+        disconnected state if no brokers are connected.
 
         Returns:
             Current ConnectionState
         """
-        # Update connected status from client
-        if self._client:
-            self._state.is_connected = self._client.is_connected
-            self._state.subscribed_topics = list(self._client._subscriptions.keys())
-        return self._state
+        # Find first connected broker state
+        for broker_id, client in self._clients.items():
+            state = self._states.get(broker_id)
+            if state and client.is_connected:
+                state.is_connected = True
+                state.subscribed_topics = list(client._subscriptions.keys())
+                return state
+
+        # Return first state or default
+        if self._states:
+            first_id = next(iter(self._states))
+            state = self._states[first_id]
+            client = self._clients.get(first_id)
+            if client:
+                state.is_connected = client.is_connected
+                state.subscribed_topics = list(client._subscriptions.keys())
+            return state
+
+        return ConnectionState(error_message="No broker configured")
 
     @property
     def is_connected(self) -> bool:
-        """Check if currently connected to a broker.
+        """Check if any broker is currently connected.
 
         Returns:
-            True if connected, False otherwise
+            True if at least one broker is connected, False otherwise
         """
-        return self._client is not None and self._client.is_connected
+        return any(client.is_connected for client in self._clients.values())
+
+    # -----------------------------------------------------------------------
+    # Multi-broker API
+    # -----------------------------------------------------------------------
+
+    def get_client(self, broker_id: int) -> MQTTClient | None:
+        """Get the MQTT client for a specific broker.
+
+        Args:
+            broker_id: ID of the broker
+
+        Returns:
+            The MQTTClient instance if exists, None otherwise
+        """
+        return self._clients.get(broker_id)
+
+    def get_state(self, broker_id: int) -> ConnectionState | None:
+        """Get connection state for a specific broker.
+
+        Args:
+            broker_id: ID of the broker
+
+        Returns:
+            ConnectionState if exists, None otherwise
+        """
+        state = self._states.get(broker_id)
+        if state:
+            client = self._clients.get(broker_id)
+            if client:
+                state.is_connected = client.is_connected
+                state.subscribed_topics = list(client._subscriptions.keys())
+        return state
+
+    def get_all_states(self) -> dict[int, ConnectionState]:
+        """Get connection states for all brokers.
+
+        Returns:
+            Dict mapping broker_id to ConnectionState
+        """
+        result = {}
+        for broker_id, state in self._states.items():
+            client = self._clients.get(broker_id)
+            if client:
+                state.is_connected = client.is_connected
+                state.subscribed_topics = list(client._subscriptions.keys())
+            result[broker_id] = state
+        return result
+
+    def get_discovery_service(self, broker_id: int):
+        """Get the TopicDiscoveryService for a specific broker.
+
+        Args:
+            broker_id: ID of the broker
+
+        Returns:
+            TopicDiscoveryService if exists, None otherwise
+        """
+        return self._discovery_services.get(broker_id)
+
+    def set_discovery_service(self, broker_id: int, service) -> None:
+        """Set the TopicDiscoveryService for a specific broker.
+
+        Args:
+            broker_id: ID of the broker
+            service: TopicDiscoveryService instance
+        """
+        self._discovery_services[broker_id] = service
+
+    def remove_discovery_service(self, broker_id: int) -> None:
+        """Remove the TopicDiscoveryService for a specific broker.
+
+        Args:
+            broker_id: ID of the broker
+        """
+        self._discovery_services.pop(broker_id, None)
+
+    # -----------------------------------------------------------------------
+    # Lifecycle management
+    # -----------------------------------------------------------------------
 
     async def initialize(self, session: AsyncSession) -> bool:
-        """Initialize MQTT client from database configuration.
+        """Initialize MQTT clients from database configuration.
 
-        Loads the active broker configuration from the database and
-        establishes a connection. If no active broker is configured,
-        the manager remains in an unconnected state.
+        Loads all active broker configurations from the database and
+        establishes connections concurrently. If no active brokers are
+        configured, the manager remains in an unconnected state.
 
         Args:
             session: SQLAlchemy async session for database access
 
         Returns:
+            True if at least one connection was established, False otherwise
+        """
+        logger.info("Initializing MQTT manager (multi-broker)")
+
+        # Load all active broker configurations
+        repo = BrokerRepository(session)
+        brokers = await repo.get_all_active()
+
+        if not brokers:
+            logger.info("No active MQTT brokers configured")
+            return False
+
+        # Connect to all active brokers concurrently
+        results = await asyncio.gather(
+            *[self._connect_to_broker(broker) for broker in brokers],
+            return_exceptions=True,
+        )
+
+        connected = sum(1 for r in results if r is True)
+        logger.info(
+            f"MQTT manager initialized: {connected}/{len(brokers)} brokers connected"
+        )
+
+        return connected > 0
+
+    async def connect_broker(self, broker_id: int, session: AsyncSession) -> bool:
+        """Connect to a specific broker by ID.
+
+        Args:
+            broker_id: ID of broker to connect to
+            session: SQLAlchemy async session for database access
+
+        Returns:
             True if connection was established, False otherwise
         """
-        logger.info("Initializing MQTT manager")
+        logger.info(f"Connecting to broker ID: {broker_id}")
 
-        # Load active broker configuration
         repo = BrokerRepository(session)
-        broker = await repo.get_active()
+        broker = await repo.get_by_id(broker_id)
 
         if broker is None:
-            logger.info("No active MQTT broker configured")
-            self._state.error_message = "No active broker configured"
+            logger.error(f"Broker {broker_id} not found")
             return False
 
         return await self._connect_to_broker(broker)
+
+    async def disconnect_broker(self, broker_id: int) -> bool:
+        """Disconnect a specific broker.
+
+        Args:
+            broker_id: ID of broker to disconnect
+
+        Returns:
+            True if disconnected successfully, False if broker not found
+        """
+        logger.info(f"Disconnecting broker ID: {broker_id}")
+
+        client = self._clients.get(broker_id)
+        if client is None:
+            logger.warning(f"No client found for broker {broker_id}")
+            return False
+
+        # Stop discovery if active
+        discovery = self._discovery_services.pop(broker_id, None)
+        if discovery:
+            try:
+                await discovery.stop_discovery(client)
+            except Exception as e:
+                logger.warning(f"Error stopping discovery for broker {broker_id}: {e}")
+
+        await client.disconnect()
+        del self._clients[broker_id]
+
+        if broker_id in self._states:
+            self._states[broker_id].is_connected = False
+            self._states[broker_id].error_message = "Disconnected"
+
+        logger.info(f"Broker {broker_id} disconnected")
+        return True
 
     async def _connect_to_broker(self, broker: MQTTBroker) -> bool:
         """Connect to a specific broker.
@@ -134,10 +311,10 @@ class MQTTManager:
         """
         logger.info(f"Connecting to broker: {broker.name} ({broker.host}:{broker.port})")
 
-        # Disconnect from current broker if any
-        if self._client:
-            await self._client.disconnect()
-            self._client = None
+        # Disconnect existing client for this broker if any
+        if broker.id in self._clients:
+            old_client = self._clients[broker.id]
+            await old_client.disconnect()
 
         # Create config from database model
         config = MQTTConfig(
@@ -150,30 +327,33 @@ class MQTTManager:
             max_reconnect_delay=broker.max_reconnect_delay,
         )
 
-        self._broker_config = broker
-        self._state.broker_id = broker.id
-        self._state.broker_name = broker.name
+        # Initialize state
+        self._broker_configs[broker.id] = broker
+        self._states[broker.id] = ConnectionState(
+            broker_id=broker.id,
+            broker_name=broker.name,
+        )
 
         try:
-            self._client = MQTTClient(config)
-            await self._client.connect()
+            client = MQTTClient(config)
+            await client.connect()
 
-            self._state.is_connected = True
-            self._state.last_connected = datetime.now()
-            self._state.error_message = None
+            self._clients[broker.id] = client
+            self._states[broker.id].is_connected = True
+            self._states[broker.id].last_connected = datetime.now()
+            self._states[broker.id].error_message = None
 
             logger.info(f"Successfully connected to broker: {broker.name}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to connect to broker {broker.name}: {e}")
-            self._state.is_connected = False
-            self._state.error_message = str(e)
-            self._client = None
+            self._states[broker.id].is_connected = False
+            self._states[broker.id].error_message = str(e)
             return False
 
     async def reconnect(self, session: AsyncSession) -> bool:
-        """Reconnect to the active broker.
+        """Reconnect all brokers.
 
         Useful when broker configuration has changed.
 
@@ -181,20 +361,21 @@ class MQTTManager:
             session: SQLAlchemy async session for database access
 
         Returns:
-            True if reconnection was successful, False otherwise
+            True if at least one reconnection was successful, False otherwise
         """
         logger.info("Reconnecting MQTT manager")
 
-        # Disconnect current client
-        if self._client:
-            await self._client.disconnect()
-            self._client = None
+        # Disconnect all current clients
+        await self.shutdown()
 
         # Re-initialize with fresh configuration
         return await self.initialize(session)
 
     async def switch_broker(self, broker_id: int, session: AsyncSession) -> bool:
-        """Switch to a different broker.
+        """Connect to a broker (multi-broker aware, backward compat).
+
+        In multi-broker mode, this simply connects the specified broker
+        without disconnecting others.
 
         Args:
             broker_id: ID of broker to switch to
@@ -203,75 +384,141 @@ class MQTTManager:
         Returns:
             True if switch was successful, False otherwise
         """
-        logger.info(f"Switching to broker ID: {broker_id}")
+        logger.info(f"Connecting broker ID: {broker_id}")
 
         repo = BrokerRepository(session)
         broker = await repo.get_by_id(broker_id)
 
         if broker is None:
             logger.error(f"Broker {broker_id} not found")
-            self._state.error_message = f"Broker {broker_id} not found"
             return False
 
         return await self._connect_to_broker(broker)
 
     async def shutdown(self) -> None:
-        """Shutdown MQTT manager and disconnect client.
+        """Shutdown MQTT manager and disconnect all clients.
 
-        Gracefully disconnects from the broker and cleans up resources.
+        Gracefully disconnects from all brokers and cleans up resources.
         """
         logger.info("Shutting down MQTT manager")
 
-        if self._client:
-            await self._client.disconnect()
-            self._client = None
+        # Stop all discovery services
+        for broker_id, discovery in list(self._discovery_services.items()):
+            client = self._clients.get(broker_id)
+            if client and discovery:
+                try:
+                    await discovery.stop_discovery(client)
+                except Exception as e:
+                    logger.warning(f"Error stopping discovery for broker {broker_id}: {e}")
+        self._discovery_services.clear()
 
-        self._state.is_connected = False
-        self._state.error_message = "Manager shutdown"
+        # Disconnect all clients
+        for broker_id, client in list(self._clients.items()):
+            try:
+                await client.disconnect()
+                logger.debug(f"Disconnected broker {broker_id}")
+            except Exception as e:
+                logger.warning(f"Error disconnecting broker {broker_id}: {e}")
+
+        self._clients.clear()
+
+        # Update all states
+        for state in self._states.values():
+            state.is_connected = False
+            state.error_message = "Manager shutdown"
+
+        self._states.clear()
+        self._broker_configs.clear()
 
         logger.info("MQTT manager shutdown complete")
 
-    async def subscribe(self, topic: str, callback) -> None:
+    # -----------------------------------------------------------------------
+    # Subscribe / Unsubscribe / Publish (with optional broker_id)
+    # -----------------------------------------------------------------------
+
+    async def subscribe(
+        self,
+        topic: str,
+        callback,
+        broker_id: int | None = None,
+    ) -> None:
         """Subscribe to an MQTT topic.
 
         Args:
             topic: Topic pattern to subscribe to
             callback: Async callback for messages
+            broker_id: Optional broker ID (None = first available client)
 
         Raises:
-            RuntimeError: If not connected to a broker
+            RuntimeError: If not connected to any broker
         """
-        if not self._client:
-            raise RuntimeError("MQTT manager not connected to a broker")
-
-        await self._client.subscribe(topic, callback)
+        client = self._get_client_for_operation(broker_id)
+        await client.subscribe(topic, callback)
         logger.info(f"Subscribed to topic: {topic}")
 
-    async def unsubscribe(self, topic: str) -> None:
+    async def unsubscribe(
+        self,
+        topic: str,
+        broker_id: int | None = None,
+    ) -> None:
         """Unsubscribe from an MQTT topic.
 
         Args:
             topic: Topic pattern to unsubscribe from
+            broker_id: Optional broker ID (None = first available client)
         """
-        if self._client:
-            await self._client.unsubscribe(topic)
+        if broker_id is not None:
+            client = self._clients.get(broker_id)
+        else:
+            client = self.client
+
+        if client:
+            await client.unsubscribe(topic)
             logger.info(f"Unsubscribed from topic: {topic}")
 
-    async def publish(self, topic: str, payload: bytes, qos: int = 1) -> None:
+    async def publish(
+        self,
+        topic: str,
+        payload: bytes,
+        qos: int = 1,
+        broker_id: int | None = None,
+    ) -> None:
         """Publish a message to an MQTT topic.
 
         Args:
             topic: Topic to publish to
             payload: Message payload
             qos: Quality of service level
+            broker_id: Optional broker ID (None = first available client)
 
         Raises:
-            RuntimeError: If not connected to a broker
+            RuntimeError: If not connected to any broker
         """
-        if not self._client:
-            raise RuntimeError("MQTT manager not connected to a broker")
+        client = self._get_client_for_operation(broker_id)
+        await client.publish(topic, payload, qos)
 
-        await self._client.publish(topic, payload, qos)
+    def _get_client_for_operation(self, broker_id: int | None = None) -> MQTTClient:
+        """Get client for a subscribe/publish operation.
+
+        Args:
+            broker_id: Optional specific broker ID
+
+        Returns:
+            MQTTClient instance
+
+        Raises:
+            RuntimeError: If no suitable client found
+        """
+        if broker_id is not None:
+            client = self._clients.get(broker_id)
+            if client is None:
+                raise RuntimeError(f"Broker {broker_id} not connected")
+            return client
+
+        client = self.client
+        if client is None:
+            raise RuntimeError("MQTT manager not connected to any broker")
+        return client
 
 
 # Global instance for application use

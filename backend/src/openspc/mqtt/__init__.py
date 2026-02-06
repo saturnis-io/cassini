@@ -1,6 +1,7 @@
 """MQTT/Sparkplug B integration."""
 
 from openspc.mqtt.client import MQTTClient, MQTTConfig, MessageCallback
+from openspc.mqtt.discovery import DiscoveredTopic, TopicDiscoveryService, TopicTreeNode
 from openspc.mqtt.manager import ConnectionState, MQTTManager, mqtt_manager
 from openspc.mqtt.sparkplug import (
     SparkplugAdapter,
@@ -22,4 +23,7 @@ __all__ = [
     "SparkplugEncoder",
     "SparkplugMessage",
     "SparkplugMetric",
+    "TopicDiscoveryService",
+    "DiscoveredTopic",
+    "TopicTreeNode",
 ]
