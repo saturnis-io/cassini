@@ -1,15 +1,18 @@
 import type {
+  AuthUser,
   BrokerConnectionStatus,
   BrokerTestResult,
   Characteristic,
   ChartData,
   HierarchyNode,
+  LoginResponse,
   MQTTBroker,
   PaginatedResponse,
   Plant,
   PlantCreate,
   PlantUpdate,
   ProviderStatus,
+  RefreshResponse,
   Sample,
   SampleEditHistory,
   SampleProcessingResult,
@@ -43,14 +46,78 @@ export interface CharacteristicConfigResponse {
 
 const API_BASE = '/api/v1'
 
+// Access token stored in memory only (not localStorage)
+let accessToken: string | null = null
+let isRefreshing = false
+
+export function setAccessToken(token: string | null) {
+  accessToken = token
+}
+
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  }
+
+  // Attach Bearer token if available
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
     ...options,
+    headers,
+    credentials: 'include', // Send cookies for refresh token
   })
+
+  // Handle 401 with automatic token refresh (avoid retry on auth endpoints)
+  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+    if (!isRefreshing) {
+      isRefreshing = true
+      try {
+        const refreshResult = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+        if (refreshResult.ok) {
+          const data: RefreshResponse = await refreshResult.json()
+          accessToken = data.access_token
+          isRefreshing = false
+
+          // Retry original request with new token
+          headers['Authorization'] = `Bearer ${accessToken}`
+          const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers,
+            credentials: 'include',
+          })
+          if (!retryResponse.ok) {
+            const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
+            throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`)
+          }
+          if (retryResponse.status === 204) return undefined as T
+          return retryResponse.json()
+        } else {
+          // Refresh failed - force logout
+          accessToken = null
+          isRefreshing = false
+          window.dispatchEvent(new CustomEvent('auth:logout'))
+          throw new Error('Session expired')
+        }
+      } catch (e) {
+        isRefreshing = false
+        if ((e as Error).message === 'Session expired') throw e
+        accessToken = null
+        window.dispatchEvent(new CustomEvent('auth:logout'))
+        throw new Error('Session expired')
+      }
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
@@ -75,6 +142,43 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   }
 
   return response.json()
+}
+
+// Auth API
+export const authApi = {
+  login: (username: string, password: string, rememberMe?: boolean) =>
+    fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, remember_me: rememberMe ?? false }),
+      credentials: 'include',
+    }).then(async (res) => {
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: 'Login failed' }))
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'Login failed')
+      }
+      return res.json() as Promise<LoginResponse>
+    }),
+
+  refresh: () =>
+    fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then(async (res) => {
+      if (!res.ok) throw new Error('Refresh failed')
+      return res.json() as Promise<RefreshResponse>
+    }),
+
+  logout: () =>
+    fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then(async (res) => {
+      if (!res.ok) throw new Error('Logout failed')
+      return res.json()
+    }),
+
+  me: () => fetchApi<AuthUser>('/auth/me'),
 }
 
 // Plant API
@@ -456,4 +560,57 @@ export const apiKeysApi = {
 
   revoke: (id: string) =>
     fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
+}
+
+// User Management types
+export interface UserResponse {
+  id: number
+  username: string
+  email: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  plant_roles: {
+    plant_id: number
+    plant_name: string
+    plant_code: string
+    role: string
+  }[]
+}
+
+// User Management API
+export const userApi = {
+  list: (params?: { search?: string; active_only?: boolean }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.search) searchParams.set('search', params.search)
+    if (params?.active_only) searchParams.set('active_only', 'true')
+    const query = searchParams.toString()
+    return fetchApi<UserResponse[]>(`/users/${query ? `?${query}` : ''}`)
+  },
+
+  get: (id: number) => fetchApi<UserResponse>(`/users/${id}`),
+
+  create: (data: { username: string; password: string; email?: string }) =>
+    fetchApi<UserResponse>('/users/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: { username?: string; email?: string; password?: string; is_active?: boolean }) =>
+    fetchApi<UserResponse>(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deactivate: (id: number) =>
+    fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
+
+  assignRole: (userId: number, data: { plant_id: number; role: string }) =>
+    fetchApi<UserResponse>(`/users/${userId}/roles`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  removeRole: (userId: number, plantId: number) =>
+    fetchApi<void>(`/users/${userId}/roles/${plantId}`, { method: 'DELETE' }),
 }

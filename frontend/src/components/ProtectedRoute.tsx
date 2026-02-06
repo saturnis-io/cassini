@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess, ROLE_LABELS, type Role } from '@/lib/roles'
@@ -11,44 +11,43 @@ interface ProtectedRouteProps {
 }
 
 /**
- * Route wrapper for role-based access control
+ * Route wrapper for authentication and role-based access control.
  *
- * Checks if the current user has sufficient privileges to access the route.
- * If not, shows a toast notification and redirects to the specified path.
- *
- * @param children - Content to render if access is granted
- * @param requiredRole - Minimum role required to access this route
- * @param redirectTo - Path to redirect to if access denied (default: '/dashboard')
- *
- * @example
- * <Route
- *   path="/settings"
- *   element={
- *     <ProtectedRoute requiredRole="admin">
- *       <SettingsView />
- *     </ProtectedRoute>
- *   }
- * />
+ * 1. If not authenticated and not loading: redirect to /login
+ * 2. If authenticated but insufficient role: redirect to dashboard with toast
+ * 3. While loading: show nothing (prevents flash)
  */
 export function ProtectedRoute({
   children,
   requiredRole,
   redirectTo = '/dashboard',
 }: ProtectedRouteProps) {
-  const { role } = useAuth()
+  const { role, isAuthenticated, isLoading } = useAuth()
+  const location = useLocation()
 
   const canAccess = hasAccess(role, requiredRole)
 
-  // Show toast on access denied
+  // Show toast on access denied (only when authenticated but wrong role)
   useEffect(() => {
-    if (!canAccess) {
+    if (isAuthenticated && !canAccess) {
       toast.error('Access Denied', {
         description: `This page requires ${ROLE_LABELS[requiredRole]} or higher privileges.`,
         duration: 5000,
       })
     }
-  }, [canAccess, requiredRole])
+  }, [isAuthenticated, canAccess, requiredRole])
 
+  // Still checking auth state
+  if (isLoading) {
+    return null
+  }
+
+  // Not authenticated - redirect to login with return URL
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
+  // Authenticated but insufficient role
   if (!canAccess) {
     return <Navigate to={redirectTo} replace />
   }

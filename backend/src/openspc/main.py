@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from openspc.api.v1.api_keys import router as api_keys_router
+from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
 from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.characteristics import router as characteristics_router
@@ -17,9 +18,11 @@ from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.samples import router as samples_router
+from openspc.api.v1.users import router as users_router
 from openspc.api.v1.violations import router as violations_router
 from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
+from openspc.core.auth.bootstrap import bootstrap_admin_user
 from openspc.core.broadcast import WebSocketBroadcaster
 from openspc.core.events import event_bus
 from openspc.core.providers import tag_provider_manager
@@ -37,6 +40,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize database connection
     db = get_database()
+
+    # Bootstrap admin user if no users exist
+    try:
+        async with db.session() as session:
+            await bootstrap_admin_user(session)
+    except Exception as e:
+        logger.warning(f"Failed to bootstrap admin user: {e}")
 
     # Start WebSocket connection manager
     await ws_manager.start()
@@ -97,7 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="OpenSPC",
     description="Event-Driven Statistical Process Control System",
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -116,6 +126,8 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
 app.include_router(plant_hierarchy_router, prefix="/api/v1/plants/{plant_id}/hierarchies")
 app.include_router(plants_router)

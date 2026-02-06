@@ -1,82 +1,135 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useUIStore } from '@/stores/uiStore'
+import { authApi, setAccessToken } from '@/api/client'
+import type { AuthUser } from '@/types'
 import type { Role } from '@/lib/roles'
-
-/**
- * User definition for authentication context
- */
-export interface User {
-  id: string
-  name: string
-  email: string
-  role: Role
-}
 
 /**
  * Context value for authentication state
  */
 interface AuthContextValue {
-  user: User | null
+  user: AuthUser | null
   role: Role
-  setRole: (role: Role) => void // For dev/testing
   isAuthenticated: boolean
+  isLoading: boolean
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-/**
- * Mock user for development
- * In production, this would come from authentication
- */
-const MOCK_USER: User = {
-  id: 'dev-user-1',
-  name: 'Dev User',
-  email: 'dev@openspc.local',
-  role: 'operator', // Default role, overridden by stored value
-}
 
 interface AuthProviderProps {
   children: ReactNode
 }
 
 /**
- * Provider for authentication context
+ * Provider for JWT-based authentication.
  *
- * Manages the current user and their role. In development mode,
- * provides ability to switch roles for testing purposes.
- * Syncs with uiStore for role persistence.
- *
- * @example
- * <AuthProvider>
- *   <App />
- * </AuthProvider>
+ * On mount, attempts to restore session via refresh token cookie.
+ * Derives user role from plant_roles and the currently selected plant.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { currentRole, setCurrentRole } = useUIStore()
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
 
-  // Derive user with current role from store
-  const [user] = useState<User>(() => ({
-    ...MOCK_USER,
-    role: currentRole,
-  }))
+  // Restore session on mount via refresh token cookie
+  useEffect(() => {
+    let mounted = true
 
-  // Keep user.role in sync with store
-  const effectiveUser: User = {
-    ...user,
-    role: currentRole,
-  }
+    async function restoreSession() {
+      try {
+        const refreshData = await authApi.refresh()
+        setAccessToken(refreshData.access_token)
+        const userData = await authApi.me()
+        if (mounted) {
+          setUser(userData)
+        }
+      } catch {
+        // No valid refresh token - user is not authenticated
+        if (mounted) {
+          setUser(null)
+          setAccessToken(null)
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
 
-  const setRole = (role: Role) => {
-    setCurrentRole(role)
-  }
+    restoreSession()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  // Listen for forced logout from API client (401 with failed refresh)
+  useEffect(() => {
+    function handleLogout() {
+      setUser(null)
+      setAccessToken(null)
+    }
+
+    window.addEventListener('auth:logout', handleLogout)
+    return () => window.removeEventListener('auth:logout', handleLogout)
+  }, [])
+
+  const login = useCallback(async (username: string, password: string, rememberMe?: boolean) => {
+    const data = await authApi.login(username, password, rememberMe)
+    setAccessToken(data.access_token)
+    setUser(data.user)
+  }, [])
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout()
+    } catch {
+      // Ignore logout errors
+    }
+    setAccessToken(null)
+    setUser(null)
+  }, [])
+
+  // Derive role from user's plant_roles and selected plant
+  const role: Role = useMemo(() => {
+    if (!user || !user.plant_roles || user.plant_roles.length === 0) {
+      return 'operator'
+    }
+
+    if (selectedPlantId) {
+      const assignment = user.plant_roles.find((pr) => pr.plant_id === selectedPlantId)
+      if (assignment) {
+        return assignment.role
+      }
+    }
+
+    // Fall back to highest role across all plants
+    const roleHierarchy: Record<string, number> = {
+      operator: 1,
+      supervisor: 2,
+      engineer: 3,
+      admin: 4,
+    }
+    let highest: Role = 'operator'
+    for (const pr of user.plant_roles) {
+      if ((roleHierarchy[pr.role] || 0) > (roleHierarchy[highest] || 0)) {
+        highest = pr.role
+      }
+    }
+    return highest
+  }, [user, selectedPlantId])
 
   return (
     <AuthContext.Provider
       value={{
-        user: effectiveUser,
-        role: currentRole,
-        setRole,
-        isAuthenticated: true, // Always authenticated in mock mode
+        user,
+        role,
+        isAuthenticated: user !== null,
+        isLoading,
+        login,
+        logout,
       }}
     >
       {children}
@@ -87,11 +140,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 /**
  * Hook to access authentication context
  *
- * @returns AuthContextValue with user info and role controls
+ * @returns AuthContextValue with user info, role, and auth functions
  * @throws Error if used outside AuthProvider
- *
- * @example
- * const { user, role, setRole } = useAuth()
  */
 export function useAuth() {
   const context = useContext(AuthContext)

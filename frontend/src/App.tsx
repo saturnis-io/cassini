@@ -10,11 +10,12 @@ import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
+import { LoginPage } from '@/pages/LoginPage'
 import { KioskLayout } from '@/components/KioskLayout'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PlantProvider } from '@/providers/PlantProvider'
-import { AuthProvider } from '@/providers/AuthProvider'
+import { AuthProvider, useAuth } from '@/providers/AuthProvider'
 import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 
@@ -27,18 +28,53 @@ const queryClient = new QueryClient({
   },
 })
 
+/**
+ * Auth gate that redirects unauthenticated users to /login.
+ * Shows nothing while auth is loading to prevent flash.
+ */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground mt-3">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
+
 function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <PlantProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <PlantProvider>
             <ChartHoverProvider>
               <WebSocketProvider>
                 <BrowserRouter>
                   <Routes>
-                    {/* Main app with sidebar layout */}
-                    <Route path="/" element={<Layout />}>
+                    {/* Login page - outside Layout, no auth required */}
+                    <Route path="/login" element={<LoginPage />} />
+
+                    {/* Main app with sidebar layout - requires auth */}
+                    <Route
+                      path="/"
+                      element={
+                        <RequireAuth>
+                          <Layout />
+                        </RequireAuth>
+                      }
+                    >
                       <Route index element={<Navigate to="/dashboard" replace />} />
                       <Route path="dashboard" element={<OperatorDashboard />} />
                       <Route path="data-entry" element={<DataEntryView />} />
@@ -69,21 +105,25 @@ function App() {
                       />
                     </Route>
 
-                    {/* Display modes - no layout chrome */}
+                    {/* Display modes - requires auth but no layout chrome */}
                     <Route
                       path="/kiosk"
                       element={
-                        <KioskLayout>
-                          <KioskView />
-                        </KioskLayout>
+                        <RequireAuth>
+                          <KioskLayout>
+                            <KioskView />
+                          </KioskLayout>
+                        </RequireAuth>
                       }
                     />
                     <Route
                       path="/wall-dashboard"
                       element={
-                        <KioskLayout showStatusBar={false}>
-                          <WallDashboard />
-                        </KioskLayout>
+                        <RequireAuth>
+                          <KioskLayout showStatusBar={false}>
+                            <WallDashboard />
+                          </KioskLayout>
+                        </RequireAuth>
                       }
                     />
                   </Routes>
@@ -101,8 +141,8 @@ function App() {
                 />
               </WebSocketProvider>
             </ChartHoverProvider>
-          </AuthProvider>
-        </PlantProvider>
+          </PlantProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )

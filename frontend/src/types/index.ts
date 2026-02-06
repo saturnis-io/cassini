@@ -1,3 +1,30 @@
+// Auth types
+export interface AuthUser {
+  id: number
+  username: string
+  email: string | null
+  is_active: boolean
+  plant_roles: PlantRole[]
+}
+
+export interface PlantRole {
+  plant_id: number
+  plant_name: string
+  plant_code: string
+  role: 'operator' | 'supervisor' | 'engineer' | 'admin'
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  user: AuthUser
+}
+
+export interface RefreshResponse {
+  access_token: string
+  token_type: string
+}
+
 // Plant types
 export interface Plant {
   id: number

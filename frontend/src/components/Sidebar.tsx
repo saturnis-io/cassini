@@ -8,15 +8,13 @@ import {
   Sliders,
   ChevronsLeft,
   ChevronsRight,
-  Bug,
-  ChevronDown,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
 import { useViolationStats } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessView, ROLE_LABELS, type Role } from '@/lib/roles'
-import { useState } from 'react'
 
 interface NavItem {
   path: string
@@ -40,17 +38,15 @@ interface SidebarProps {
  * - Violation badge count
  * - Active route highlighting
  * - Role-based navigation item filtering
- * - Dev tools for role switching (development only)
+ * - Current user info and logout
  */
 export function Sidebar({ className }: SidebarProps) {
   const { sidebarState, toggleSidebar } = useUIStore()
   const { data: stats } = useViolationStats()
-  const { role, setRole } = useAuth()
-  const [devToolsOpen, setDevToolsOpen] = useState(false)
+  const { role, user, logout } = useAuth()
 
   const isCollapsed = sidebarState === 'collapsed'
   const isHidden = sidebarState === 'hidden'
-  const isDev = import.meta.env.DEV
 
   // Don't render if hidden (used for mobile overlay mode)
   if (isHidden) return null
@@ -115,8 +111,6 @@ export function Sidebar({ className }: SidebarProps) {
     </NavLink>
   )
 
-  const roles: Role[] = ['operator', 'supervisor', 'engineer', 'admin']
-
   return (
     <aside
       className={cn(
@@ -136,53 +130,27 @@ export function Sidebar({ className }: SidebarProps) {
         {visibleSecondaryItems.map(renderNavItem)}
       </nav>
 
-      {/* Dev tools - only in development */}
-      {isDev && (
-        <div className="border-t">
+      {/* User info and logout */}
+      {user && (
+        <div className="border-t p-2">
+          {!isCollapsed && (
+            <div className="px-3 py-1.5 mb-1">
+              <p className="text-sm font-medium text-foreground truncate">{user.username}</p>
+              <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
+            </div>
+          )}
           <button
-            onClick={() => setDevToolsOpen(!devToolsOpen)}
+            onClick={() => logout()}
             className={cn(
-              'flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium transition-colors',
+              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
               'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
               isCollapsed && 'justify-center px-2'
             )}
-            title={isCollapsed ? 'Dev Tools' : undefined}
+            title={isCollapsed ? 'Sign Out' : undefined}
           >
-            <Bug className="h-5 w-5 text-orange-500" />
-            {!isCollapsed && (
-              <>
-                <span className="flex-1">Dev Tools</span>
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 transition-transform duration-150',
-                    devToolsOpen && 'rotate-180'
-                  )}
-                />
-              </>
-            )}
+            <LogOut className="h-5 w-5" />
+            {!isCollapsed && <span>Sign Out</span>}
           </button>
-
-          {devToolsOpen && !isCollapsed && (
-            <div className="px-3 pb-3 space-y-2">
-              <label className="block text-xs font-medium text-muted-foreground">
-                Role
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="w-full px-2 py-1.5 text-sm rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {roles.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Current: {ROLE_LABELS[role]}
-              </p>
-            </div>
-          )}
         </div>
       )}
 

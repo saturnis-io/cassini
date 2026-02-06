@@ -1,19 +1,207 @@
 """FastAPI dependency injection functions.
 
-Provides database sessions and repository instances for API endpoints.
+Provides database sessions, repository instances, and auth dependencies for API endpoints.
 """
 
 from collections.abc import AsyncGenerator
+from typing import Optional
 
-from fastapi import Depends, Request
+from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from openspc.core.alerts.manager import AlertManager
 from openspc.db.database import get_session
+from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.hierarchy import HierarchyRepository
 from openspc.db.repositories.sample import SampleRepository
+from openspc.db.repositories.user import UserRepository
 from openspc.db.repositories.violation import ViolationRepository
+
+# Role hierarchy for comparison
+ROLE_HIERARCHY = {
+    "operator": 1,
+    "supervisor": 2,
+    "engineer": 3,
+    "admin": 4,
+}
+
+
+async def get_user_repo(
+    session: AsyncSession = Depends(get_session),
+) -> UserRepository:
+    """Get user repository instance."""
+    return UserRepository(session)
+
+
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """Extract and validate the current user from JWT Bearer token.
+
+    Args:
+        authorization: Authorization header value.
+        session: Database session.
+
+    Returns:
+        Authenticated User object with plant_roles loaded.
+
+    Raises:
+        HTTPException: 401 if token is invalid, missing, or user not found.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from openspc.core.auth.jwt import verify_access_token
+
+    token = authorization.split(" ", 1)[1]
+    payload = verify_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = int(payload["sub"])
+    repo = UserRepository(session)
+    user = await repo.get_by_id(user_id)
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
+
+
+async def get_current_admin(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Require the current user to be an admin at any plant.
+
+    Args:
+        user: Current authenticated user.
+
+    Returns:
+        The user if they are admin at any plant.
+
+    Raises:
+        HTTPException: 403 if user is not admin anywhere.
+    """
+    for pr in user.plant_roles:
+        if pr.role == UserRole.admin:
+            return user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin privileges required",
+    )
+
+
+async def get_current_engineer(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Require the current user to be at least engineer at any plant.
+
+    Args:
+        user: Current authenticated user.
+
+    Returns:
+        The user if they have engineer+ role at any plant.
+
+    Raises:
+        HTTPException: 403 if insufficient privileges.
+    """
+    for pr in user.plant_roles:
+        if ROLE_HIERARCHY.get(pr.role.value, 0) >= ROLE_HIERARCHY["engineer"]:
+            return user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Engineer or higher privileges required",
+    )
+
+
+def require_role(min_role: str):
+    """Factory that returns a dependency checking if user has >= min_role at any plant.
+
+    Args:
+        min_role: Minimum role required (operator/supervisor/engineer/admin).
+
+    Returns:
+        FastAPI dependency function.
+    """
+    min_level = ROLE_HIERARCHY.get(min_role, 0)
+
+    async def check_role(user: User = Depends(get_current_user)) -> User:
+        for pr in user.plant_roles:
+            if ROLE_HIERARCHY.get(pr.role.value, 0) >= min_level:
+                return user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{min_role} or higher privileges required",
+        )
+
+    return check_role
+
+
+async def get_current_user_or_api_key(
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Dual auth: try JWT first, fall back to API key.
+
+    Returns either a User object (JWT) or an APIKey object (API key).
+
+    Args:
+        authorization: Optional Authorization header with Bearer token.
+        x_api_key: Optional X-API-Key header.
+        session: Database session.
+
+    Returns:
+        User or APIKey object.
+
+    Raises:
+        HTTPException: 401 if neither auth method succeeds.
+    """
+    # Try JWT first
+    if authorization and authorization.startswith("Bearer "):
+        from openspc.core.auth.jwt import verify_access_token as _verify_access
+
+        token = authorization.split(" ", 1)[1]
+        payload = _verify_access(token)
+        if payload is not None:
+            user_id = int(payload["sub"])
+            repo = UserRepository(session)
+            user = await repo.get_by_id(user_id)
+            if user and user.is_active:
+                return user
+
+    # Fall back to API key (lazy import to avoid circular dependency)
+    if x_api_key:
+        try:
+            from openspc.core.auth.api_key import verify_api_key
+
+            api_key = await verify_api_key(x_api_key=x_api_key, session=session)
+            return api_key
+        except HTTPException:
+            pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

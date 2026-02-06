@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Role } from '@/lib/roles'
 
 /**
  * Sidebar display state
@@ -19,10 +18,6 @@ interface UIState {
   // Plant context (ID only, provider manages full plant object)
   selectedPlantId: number | null
   setSelectedPlantId: (id: number | null) => void
-
-  // Role state (mock for development)
-  currentRole: Role
-  setCurrentRole: (role: Role) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -43,17 +38,12 @@ export const useUIStore = create<UIState>()(
         const numericId = typeof id === 'string' ? parseInt(id, 10) : id
         set({ selectedPlantId: isNaN(numericId as number) ? null : numericId })
       },
-
-      // Role - default to operator
-      currentRole: 'operator',
-      setCurrentRole: (role) => set({ currentRole: role }),
     }),
     {
       name: 'openspc-ui',
       partialize: (state) => ({
         sidebarState: state.sidebarState,
         selectedPlantId: state.selectedPlantId,
-        currentRole: state.currentRole,
       }),
     }
   )
