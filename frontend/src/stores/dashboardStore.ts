@@ -5,6 +5,7 @@ import type { ChartTypeId } from '@/types/charts'
 
 export type TimeRangeType = 'points' | 'duration' | 'custom'
 export type HistogramPosition = 'below' | 'right' | 'hidden'
+export type XAxisMode = 'index' | 'timestamp'
 
 export interface TimeRangeOption {
   label: string
@@ -83,6 +84,18 @@ interface DashboardState {
   chartTypes: Map<number, ChartTypeId>
   setChartType: (characteristicId: number, chartType: ChartTypeId) => void
   getChartType: (characteristicId: number) => ChartTypeId
+
+  // X-axis display mode (sample number vs timestamp)
+  xAxisMode: XAxisMode
+  setXAxisMode: (mode: XAxisMode) => void
+
+  // Range slider (Brush) visibility
+  showBrush: boolean
+  setShowBrush: (show: boolean) => void
+
+  // Annotation visibility
+  showAnnotations: boolean
+  setShowAnnotations: (show: boolean) => void
 }
 
 // Default time range: last 50 points
@@ -212,6 +225,18 @@ export const useDashboardStore = create<DashboardState>()(
     // This is a selector, not state - will be used via useDashboardStore.getState()
     return 'xbar' as ChartTypeId
   },
+
+  // X-axis display mode
+  xAxisMode: 'index' as XAxisMode,
+  setXAxisMode: (mode) => set({ xAxisMode: mode }),
+
+  // Range slider (Brush)
+  showBrush: false,
+  setShowBrush: (show) => set({ showBrush: show }),
+
+  // Annotation visibility
+  showAnnotations: true,
+  setShowAnnotations: (show) => set({ showAnnotations: show }),
     }),
     {
       name: 'openspc-dashboard',
@@ -219,6 +244,9 @@ export const useDashboardStore = create<DashboardState>()(
         timeRange: state.timeRange,
         histogramPosition: state.histogramPosition,
         showSpecLimits: state.showSpecLimits,
+        xAxisMode: state.xAxisMode,
+        showBrush: state.showBrush,
+        showAnnotations: state.showAnnotations,
       }),
     }
   )

@@ -9,8 +9,10 @@ import {
   ReferenceLine,
   ReferenceArea,
   ResponsiveContainer,
+  Brush,
 } from 'recharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
@@ -77,6 +79,8 @@ export function ControlChart({
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
   const hierarchyPath = useHierarchyPath(characteristicId)
+  const xAxisMode = useDashboardStore((state) => state.xAxisMode)
+  const showBrush = useDashboardStore((state) => state.showBrush)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -144,6 +148,10 @@ export function ControlChart({
     violationRules: point.violation_rules ?? [],
     excluded: point.excluded,
     timestamp: new Date(point.timestamp).toLocaleTimeString(),
+    timestampMs: new Date(point.timestamp).getTime(),
+    timestampLabel: new Date(point.timestamp).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    }),
     // Mode-specific fields
     actual_n: point.actual_n ?? nominal_subgroup_size,
     is_undersized: point.is_undersized ?? false,
@@ -151,6 +159,21 @@ export function ControlChart({
     effective_lcl: point.effective_lcl,
     z_score: point.z_score,
   }))
+
+  // Timestamp tick formatter - adaptive based on data range
+  const formatTimeTick = (value: number) => {
+    const date = new Date(value)
+    const rangeMs = data.length > 1
+      ? data[data.length - 1].timestampMs - data[0].timestampMs
+      : 0
+    if (rangeMs > 24 * 60 * 60 * 1000) {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    }
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+
+  // Adjust chart bottom margin when Brush is visible
+  const bottomMargin = showBrush && data.length > 10 ? 60 : (xAxisMode === 'timestamp' ? 40 : 20)
 
   // Calculate Y-axis domain based on mode
   // Use external domain if provided (for alignment with histogram), otherwise calculate
@@ -244,7 +267,7 @@ export function ControlChart({
         <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={data}
-          margin={{ top: 20, right: 60, left: 20, bottom: 20 }}
+          margin={{ top: 20, right: 60, left: 20, bottom: bottomMargin }}
           onMouseMove={(state) => {
             if (state?.activeTooltipIndex != null) {
               const index = Number(state.activeTooltipIndex)
@@ -357,9 +380,15 @@ export function ControlChart({
           )}
 
           <XAxis
-            dataKey="index"
+            dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
+            tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : undefined}
+            type={xAxisMode === 'timestamp' ? 'number' : 'category'}
+            domain={xAxisMode === 'timestamp' ? ['dataMin', 'dataMax'] : undefined}
+            angle={xAxisMode === 'timestamp' ? -30 : 0}
+            textAnchor={xAxisMode === 'timestamp' ? 'end' : 'middle'}
+            height={xAxisMode === 'timestamp' ? 50 : 30}
           />
           <YAxis
             domain={[yMin, yMax]}
@@ -684,6 +713,17 @@ export function ControlChart({
             }}
             activeDot={{ r: 6 }}
           />
+
+          {/* Range slider (Brush) for viewport zoom */}
+          {showBrush && data.length > 10 && (
+            <Brush
+              dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
+              height={30}
+              stroke="hsl(var(--primary))"
+              fill="hsl(var(--muted))"
+              tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : (v: string | number) => `#${v}`}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
       </div>

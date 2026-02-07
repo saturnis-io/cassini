@@ -14,8 +14,10 @@ import {
   ReferenceLine,
   ReferenceArea,
   ResponsiveContainer,
+  Brush,
 } from 'recharts'
 import { useChartData } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
@@ -74,6 +76,8 @@ export function RangeChart({
 }: RangeChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
+  const xAxisMode = useDashboardStore((state) => state.xAxisMode)
+  const showBrush = useDashboardStore((state) => state.showBrush)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -164,6 +168,7 @@ export function RangeChart({
           index: index + 2, // Display as sample #2, #3, etc. (MR starts at sample 2)
           value: values[index] ?? 0,
           timestamp: new Date(point.timestamp).toLocaleTimeString(),
+          timestampMs: new Date(point.timestamp).getTime(),
           hasViolation: false,
           sample_id: point.sample_id, // The "to" sample ID
           sample_id_from: fromPoint.sample_id, // The "from" sample ID
@@ -174,6 +179,7 @@ export function RangeChart({
           index: index + 1,
           value: values[index] ?? 0,
           timestamp: new Date(point.timestamp).toLocaleTimeString(),
+          timestampMs: new Date(point.timestamp).getTime(),
           hasViolation: false,
           sample_id: point.sample_id,
           sample_id_from: null as number | null,
@@ -210,6 +216,21 @@ export function RangeChart({
     )
   }
 
+  // Timestamp tick formatter - adaptive based on data range
+  const formatTimeTick = useCallback((value: number) => {
+    const date = new Date(value)
+    const rangeMs = data.length > 1
+      ? data[data.length - 1].timestampMs - data[0].timestampMs
+      : 0
+    if (rangeMs > 24 * 60 * 60 * 1000) {
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    }
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }, [data])
+
+  // Adjust chart bottom margin when Brush is visible
+  const rangeBottomMargin = showBrush && data.length > 10 ? 60 : (xAxisMode === 'timestamp' ? 40 : 20)
+
   // Calculate Y-axis domain
   const values = data.map((d) => d.value)
   const minVal = Math.min(...values, controlLimits.lcl ?? 0)
@@ -240,7 +261,7 @@ export function RangeChart({
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: 10, right: 60, left: 20, bottom: 20 }}
+            margin={{ top: 10, right: 60, left: 20, bottom: rangeBottomMargin }}
             onMouseMove={(state) => {
               if (state?.activeTooltipIndex != null) {
                 const arrayIndex = Number(state.activeTooltipIndex)
@@ -282,9 +303,15 @@ export function RangeChart({
             )}
 
             <XAxis
-              dataKey="index"
+              dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
+              tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : undefined}
+              type={xAxisMode === 'timestamp' ? 'number' : 'category'}
+              domain={xAxisMode === 'timestamp' ? ['dataMin', 'dataMax'] : undefined}
+              angle={xAxisMode === 'timestamp' ? -30 : 0}
+              textAnchor={xAxisMode === 'timestamp' ? 'end' : 'middle'}
+              height={xAxisMode === 'timestamp' ? 50 : 30}
             />
             <YAxis
               domain={[yMin, yMax]}
@@ -405,6 +432,17 @@ export function RangeChart({
               }}
               activeDot={{ r: 5 }}
             />
+
+            {/* Range slider (Brush) for viewport zoom */}
+            {showBrush && data.length > 10 && (
+              <Brush
+                dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
+                height={30}
+                stroke="hsl(var(--primary))"
+                fill="hsl(var(--muted))"
+                tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : (v: string | number) => `#${v}`}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

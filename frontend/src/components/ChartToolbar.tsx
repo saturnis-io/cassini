@@ -1,4 +1,4 @@
-import { Columns2, Eye, EyeOff, ArrowLeftRight } from 'lucide-react'
+import { Columns2, Eye, EyeOff, ArrowLeftRight, CalendarClock, SlidersHorizontal, MessageSquareText, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
@@ -13,6 +13,8 @@ interface ChartToolbarProps {
   subgroupSize?: number
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
+  /** Callback to open the annotation creation dialog */
+  onAddAnnotation?: () => void
 }
 
 export function ChartToolbar({
@@ -20,6 +22,7 @@ export function ChartToolbar({
   subgroupSize = 5,
   onComparisonToggle,
   onChangeSecondary,
+  onAddAnnotation,
 }: ChartToolbarProps) {
   const {
     comparisonMode,
@@ -29,6 +32,12 @@ export function ChartToolbar({
     secondaryCharacteristicId,
     chartTypes,
     setChartType,
+    xAxisMode,
+    setXAxisMode,
+    showBrush,
+    setShowBrush,
+    showAnnotations,
+    setShowAnnotations,
   } = useDashboardStore()
 
   // Get current chart type for the characteristic
@@ -53,9 +62,66 @@ export function ChartToolbar({
             subgroupSize={subgroupSize}
           />
         )}
+
+        {/* Time Axis Toggle */}
+        <button
+          onClick={() => setXAxisMode(xAxisMode === 'index' ? 'timestamp' : 'index')}
+          title={xAxisMode === 'timestamp' ? 'Show sample numbers' : 'Show timestamps'}
+          className={cn(
+            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
+            xAxisMode === 'timestamp'
+              ? 'bg-primary/10 border-primary text-primary'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+          )}
+        >
+          <CalendarClock className="h-4 w-4" />
+          <span className="hidden sm:inline">Time Axis</span>
+        </button>
+
+        {/* Range Slider Toggle */}
+        <button
+          onClick={() => setShowBrush(!showBrush)}
+          title={showBrush ? 'Hide range slider' : 'Show range slider'}
+          className={cn(
+            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
+            showBrush
+              ? 'bg-primary/10 border-primary text-primary'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+          )}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span className="hidden sm:inline">Zoom</span>
+        </button>
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Annotation Visibility Toggle */}
+        <button
+          onClick={() => setShowAnnotations(!showAnnotations)}
+          title={showAnnotations ? 'Hide annotations' : 'Show annotations'}
+          className={cn(
+            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
+            showAnnotations
+              ? 'bg-primary/10 border-primary text-primary'
+              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
+          )}
+        >
+          <MessageSquareText className="h-4 w-4" />
+          <span className="hidden sm:inline">Notes</span>
+        </button>
+
+        {/* Add Annotation Button */}
+        {showAnnotations && onAddAnnotation && (
+          <button
+            onClick={onAddAnnotation}
+            title="Add annotation"
+            className="p-2 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-1.5 text-xs"
+          >
+            <StickyNote className="h-4 w-4" />
+            <span className="hidden sm:inline">Annotate</span>
+          </button>
+        )}
+
         {/* Spec Limits Toggle */}
         <button
           onClick={() => setShowSpecLimits(!showSpecLimits)}
