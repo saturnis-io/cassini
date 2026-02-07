@@ -135,8 +135,11 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
   const buildHeaders = () => {
     const h: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...(options?.headers as Record<string, string> || {}),
+    }
+    // Only set Content-Type for requests that have a body
+    if (options?.body) {
+      h['Content-Type'] = h['Content-Type'] || 'application/json'
     }
     if (accessToken) {
       h['Authorization'] = `Bearer ${accessToken}`
@@ -440,13 +443,13 @@ export const sampleApi = {
     searchParams.set('limit', String(limit))
 
     const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Sample>>(`/samples${query ? `?${query}` : ''}`)
+    return fetchApi<PaginatedResponse<Sample>>(`/samples/${query ? `?${query}` : ''}`)
   },
 
   get: (id: number) => fetchApi<Sample>(`/samples/${id}`),
 
-  submit: (data: { characteristic_id: number; measurements: number[] }) =>
-    fetchApi<SampleProcessingResult>('/samples', {
+  submit: (data: { characteristic_id: number; measurements: number[]; batch_number?: string; operator_id?: string }) =>
+    fetchApi<SampleProcessingResult>('/samples/', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -503,7 +506,7 @@ export const violationApi = {
     if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
     const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Violation>>(`/violations${query ? `?${query}` : ''}`)
+    return fetchApi<PaginatedResponse<Violation>>(`/violations/${query ? `?${query}` : ''}`)
   },
 
   get: (id: number) => fetchApi<Violation>(`/violations/${id}`),

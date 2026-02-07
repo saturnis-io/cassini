@@ -6,13 +6,17 @@ characteristics and receive updates about new samples, violations, and acknowled
 """
 
 import asyncio
+import logging
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["websocket"])
 
@@ -31,7 +35,7 @@ class WSConnection:
     websocket: WebSocket
     connected_at: datetime
     subscribed_characteristics: set[int] = field(default_factory=set)
-    last_heartbeat: datetime = field(default_factory=datetime.utcnow)
+    last_heartbeat: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ConnectionManager:
@@ -97,7 +101,7 @@ class ConnectionManager:
         await websocket.accept()
         self._connections[connection_id] = WSConnection(
             websocket=websocket,
-            connected_at=datetime.utcnow(),
+            connected_at=datetime.now(timezone.utc),
         )
 
     async def disconnect(self, connection_id: str) -> None:
@@ -215,7 +219,7 @@ class ConnectionManager:
             connection_id: ID of the connection to update
         """
         if connection_id in self._connections:
-            self._connections[connection_id].last_heartbeat = datetime.utcnow()
+            self._connections[connection_id].last_heartbeat = datetime.now(timezone.utc)
 
     async def _cleanup_loop(self) -> None:
         """Background task that periodically removes stale connections.
@@ -227,7 +231,7 @@ class ConnectionManager:
         while True:
             try:
                 await asyncio.sleep(self._heartbeat_interval)
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 stale = []
 
                 for conn_id, conn in self._connections.items():
@@ -286,11 +290,14 @@ manager = ConnectionManager()
 
 
 @router.websocket("/ws/samples")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    token: str | None = Query(None),
+):
     """WebSocket endpoint for real-time updates.
 
-    This endpoint accepts WebSocket connections and handles message routing
-    for subscriptions, heartbeats, and broadcasts.
+    Requires JWT authentication via the ``token`` query parameter.
+    If the token is missing or invalid the connection is closed with code 4001.
 
     Message Protocol:
         Client -> Server:
@@ -299,15 +306,31 @@ async def websocket_endpoint(websocket: WebSocket):
             - {"type": "ping"}
 
         Server -> Client:
-            - {"type": "sample", "payload": {...}}
-            - {"type": "violation", "payload": {...}}
-            - {"type": "ack_update", "payload": {...}}
+            - {"type": "sample", "characteristic_id": ..., "sample": {...}, "violations": [...]}
+            - {"type": "violation", "violation": {...}}
+            - {"type": "ack_update", "violation_id": ..., ...}
+            - {"type": "limits_update", "characteristic_id": ..., ...}
             - {"type": "pong"}
             - {"type": "error", "message": "..."}
 
     Args:
         websocket: The WebSocket connection instance
+        token: JWT access token as query parameter
     """
+    # --- authenticate ---
+    from openspc.core.auth.jwt import verify_access_token
+
+    if not token or verify_access_token(token) is None:
+        # Accept first so the close frame goes through the proxy cleanly
+        # (closing before accept sends HTTP 403 which breaks WS proxies)
+        await websocket.accept()
+        await websocket.send_json({
+            "type": "error",
+            "message": "Authentication required" if not token else "Invalid or expired token",
+        })
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
     connection_id = str(uuid.uuid4())
     await manager.connect(websocket, connection_id)
 
@@ -316,58 +339,59 @@ async def websocket_endpoint(websocket: WebSocket):
             # Receive message from client
             data = await websocket.receive_json()
 
-            # Validate message has a type
-            if "type" not in data:
+            # Accept both "type" and "action" as the message type field
+            message_type = data.get("type") or data.get("action")
+            if not message_type:
                 await websocket.send_json({
                     "type": "error",
-                    "message": "Message must contain 'type' field"
+                    "message": "Message must contain 'type' or 'action' field"
                 })
                 continue
 
-            message_type = data["type"]
-
             # Handle subscribe message
             if message_type == "subscribe":
-                if "characteristic_ids" not in data:
+                # Accept both "characteristic_ids" (array) and "characteristic_id" (single)
+                char_ids = data.get("characteristic_ids")
+                if char_ids is None and "characteristic_id" in data:
+                    char_ids = [data["characteristic_id"]]
+
+                if char_ids is None:
                     await websocket.send_json({
                         "type": "error",
-                        "message": "Subscribe message must contain 'characteristic_ids' field"
+                        "message": "Subscribe message must contain 'characteristic_ids' or 'characteristic_id' field"
                     })
                     continue
 
-                if not isinstance(data["characteristic_ids"], list):
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "'characteristic_ids' must be a list"
-                    })
-                    continue
+                if not isinstance(char_ids, list):
+                    char_ids = [char_ids]
 
-                await manager.subscribe(connection_id, data["characteristic_ids"])
+                await manager.subscribe(connection_id, char_ids)
                 await websocket.send_json({
                     "type": "subscribed",
-                    "characteristic_ids": data["characteristic_ids"]
+                    "characteristic_ids": char_ids
                 })
 
             # Handle unsubscribe message
             elif message_type == "unsubscribe":
-                if "characteristic_ids" not in data:
+                # Accept both "characteristic_ids" (array) and "characteristic_id" (single)
+                char_ids = data.get("characteristic_ids")
+                if char_ids is None and "characteristic_id" in data:
+                    char_ids = [data["characteristic_id"]]
+
+                if char_ids is None:
                     await websocket.send_json({
                         "type": "error",
-                        "message": "Unsubscribe message must contain 'characteristic_ids' field"
+                        "message": "Unsubscribe message must contain 'characteristic_ids' or 'characteristic_id' field"
                     })
                     continue
 
-                if not isinstance(data["characteristic_ids"], list):
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "'characteristic_ids' must be a list"
-                    })
-                    continue
+                if not isinstance(char_ids, list):
+                    char_ids = [char_ids]
 
-                await manager.unsubscribe(connection_id, data["characteristic_ids"])
+                await manager.unsubscribe(connection_id, char_ids)
                 await websocket.send_json({
                     "type": "unsubscribed",
-                    "characteristic_ids": data["characteristic_ids"]
+                    "characteristic_ids": char_ids
                 })
 
             # Handle ping message
@@ -385,10 +409,10 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         # Client disconnected normally
         await manager.disconnect(connection_id)
-    except Exception as e:
+    except Exception:
         # Unexpected error, clean up connection
+        logger.exception("Unexpected error in WebSocket connection %s", connection_id)
         await manager.disconnect(connection_id)
-        # In production, you would want to log this error
 
 
 async def notify_sample(
@@ -398,6 +422,7 @@ async def notify_sample(
     value: float,
     zone: str,
     in_control: bool,
+    violations: list[dict[str, Any]] | None = None,
 ) -> None:
     """Notify clients about a new sample.
 
@@ -411,17 +436,20 @@ async def notify_sample(
         value: Sample mean value
         zone: Zone classification (e.g., "zone_c_upper")
         in_control: Whether the sample is in control
+        violations: List of violation dicts to include in the message
     """
     message = {
         "type": "sample",
-        "payload": {
-            "sample_id": sample_id,
+        "characteristic_id": char_id,
+        "sample": {
+            "id": sample_id,
             "characteristic_id": char_id,
             "timestamp": timestamp.isoformat(),
-            "value": value,
+            "mean": value,
             "zone": zone,
             "in_control": in_control,
-        }
+        },
+        "violations": violations or [],
     }
     await manager.broadcast_to_characteristic(char_id, message)
 
@@ -449,14 +477,14 @@ async def notify_violation(
     """
     message = {
         "type": "violation",
-        "payload": {
-            "violation_id": violation_id,
+        "violation": {
+            "id": violation_id,
             "characteristic_id": char_id,
             "sample_id": sample_id,
             "rule_id": rule_id,
             "rule_name": rule_name,
             "severity": severity,
-        }
+        },
     }
     await manager.broadcast_to_characteristic(char_id, message)
 
@@ -482,13 +510,11 @@ async def notify_acknowledgment(
     """
     message = {
         "type": "ack_update",
-        "payload": {
-            "violation_id": violation_id,
-            "characteristic_id": char_id,
-            "acknowledged": acknowledged,
-            "ack_user": ack_user,
-            "ack_reason": ack_reason,
-        }
+        "characteristic_id": char_id,
+        "violation_id": violation_id,
+        "acknowledged": acknowledged,
+        "ack_user": ack_user,
+        "ack_reason": ack_reason,
     }
     await manager.broadcast_to_characteristic(char_id, message)
 

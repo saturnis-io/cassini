@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useCallback, type ReactNo
 import { useQueryClient } from '@tanstack/react-query'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { queryKeys } from '@/api/hooks'
+import { getAccessToken } from '@/api/client'
 import type { WSMessage } from '@/types'
 
 const WS_RECONNECT_DELAY_BASE = 1000
@@ -81,9 +82,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Don't connect without a token — the backend requires JWT auth
+    const token = getAccessToken()
+    if (!token) {
+      // Retry after a short delay (token may become available after refresh)
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        connectRef.current()
+      }, WS_RECONNECT_DELAY_BASE)
+      return
+    }
+
     // Use Vite proxy - connect via the frontend server which proxies to backend
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws/samples`
+    const wsUrl = `${protocol}//${window.location.host}/ws/samples?token=${encodeURIComponent(token)}`
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
@@ -95,7 +106,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
       // Re-subscribe to all characteristics
       subscriptionsRef.current.forEach((id) => {
-        ws.send(JSON.stringify({ action: 'subscribe', characteristic_id: id }))
+        ws.send(JSON.stringify({ type: 'subscribe', characteristic_ids: [id] }))
       })
     }
 
@@ -128,7 +139,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ action: 'subscribe', characteristic_id: characteristicId })
+        JSON.stringify({ type: 'subscribe', characteristic_ids: [characteristicId] })
       )
     }
   }, [])
@@ -138,7 +149,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ action: 'unsubscribe', characteristic_id: characteristicId })
+        JSON.stringify({ type: 'unsubscribe', characteristic_ids: [characteristicId] })
       )
     }
   }, [])
