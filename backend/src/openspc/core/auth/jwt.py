@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 import jwt
@@ -20,13 +21,20 @@ JWT_ALGORITHM: str = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
 REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-# Generate a random secret for development if not configured
+# When no env var is set, persist a random secret to a file so it
+# survives uvicorn --reload restarts during development.
 if not JWT_SECRET_KEY:
-    JWT_SECRET_KEY = secrets.token_urlsafe(64)
-    logger.warning(
-        "No JWT secret configured, using random key "
-        "(sessions won't persist across restarts)"
-    )
+    _secret_file = Path(".jwt_secret")
+    if _secret_file.exists():
+        JWT_SECRET_KEY = _secret_file.read_text().strip()
+        logger.info("Loaded JWT secret from .jwt_secret file")
+    else:
+        JWT_SECRET_KEY = secrets.token_urlsafe(64)
+        _secret_file.write_text(JWT_SECRET_KEY)
+        logger.info(
+            "Generated new JWT secret and saved to .jwt_secret "
+            "(sessions will persist across --reload restarts)"
+        )
 
 
 def create_access_token(user_id: int, username: str) -> str:

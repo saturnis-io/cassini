@@ -40,6 +40,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# JWT secret (auto-generated for development)
+.jwt_secret
+
 # Build outputs
 dashboard/client/dist/
 

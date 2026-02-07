@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Database, Download, Trash2, RefreshCw, HardDrive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { characteristicApi, sampleApi, violationApi } from '@/api/client'
 import type { Sample } from '@/types'
 
 interface DatabaseStats {
@@ -13,18 +14,18 @@ interface DatabaseStats {
   api_keys_count: number
 }
 
-// Fetch database stats from various endpoints
+// Fetch database stats from various endpoints (using authenticated fetchApi)
 async function fetchDatabaseStats(): Promise<DatabaseStats> {
   const [chars, samples, violations] = await Promise.all([
-    fetch('/api/v1/characteristics/').then((r) => r.json()),
-    fetch('/api/v1/samples?per_page=1').then((r) => r.json()),
-    fetch('/api/v1/violations?per_page=1').then((r) => r.json()),
+    characteristicApi.list().catch(() => ({ total: 0 })),
+    sampleApi.list({ per_page: 1 }).catch(() => ({ total: 0 })),
+    violationApi.list({ per_page: 1 }).catch(() => ({ total: 0 })),
   ])
 
   return {
-    characteristics_count: chars.total || 0,
-    samples_count: samples.total || 0,
-    violations_count: violations.total || 0,
+    characteristics_count: (chars as { total?: number }).total || 0,
+    samples_count: (samples as { total?: number }).total || 0,
+    violations_count: (violations as { total?: number }).total || 0,
     hierarchy_nodes_count: 0, // Would need endpoint
     api_keys_count: 0, // Would need endpoint
   }
@@ -44,11 +45,11 @@ export function DatabaseSettings() {
   const handleExport = async (format: 'json' | 'csv') => {
     setIsExporting(true)
     try {
-      // Fetch all data
+      // Fetch all data (using authenticated fetchApi)
       const [chars, samples, violations] = await Promise.all([
-        fetch('/api/v1/characteristics/?limit=10000').then((r) => r.json()),
-        fetch('/api/v1/samples?per_page=10000').then((r) => r.json()),
-        fetch('/api/v1/violations?per_page=10000').then((r) => r.json()),
+        characteristicApi.list(),
+        sampleApi.list({ per_page: 10000 }),
+        violationApi.list({ per_page: 10000 }),
       ])
 
       const exportData = {

@@ -68,6 +68,32 @@ export function getAccessToken(): string | null {
 }
 
 /**
+ * Decode JWT payload without signature verification (just base64).
+ * Returns the exp timestamp in seconds, or null if unparseable.
+ */
+function getTokenExpiry(token: string): number | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if the access token is about to expire (within 2 minutes).
+ */
+function isTokenExpiringSoon(): boolean {
+  if (!accessToken) return false
+  const exp = getTokenExpiry(accessToken)
+  if (exp === null) return false
+  const nowSec = Math.floor(Date.now() / 1000)
+  return exp - nowSec < 120 // less than 2 minutes remaining
+}
+
+/**
  * Perform a token refresh. If a refresh is already in flight, return the
  * existing promise so all concurrent 401 callers wait on the same refresh.
  */
@@ -102,6 +128,11 @@ function doRefresh(): Promise<string | null> {
 }
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // Proactively refresh token before it expires to avoid 401 round-trips
+  if (accessToken && isTokenExpiringSoon() && !endpoint.startsWith('/auth/')) {
+    await doRefresh()
+  }
+
   const buildHeaders = () => {
     const h: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -731,4 +762,19 @@ export const userApi = {
 
   removeRole: (userId: number, plantId: number) =>
     fetchApi<void>(`/users/${userId}/roles/${plantId}`, { method: 'DELETE' }),
+}
+
+// Dev Tools API (sandbox mode only)
+export const devtoolsApi = {
+  getStatus: () =>
+    fetchApi<{
+      sandbox: boolean
+      scripts: { key: string; name: string; description: string; estimated_samples: string }[]
+    }>('/devtools/status'),
+
+  runSeed: (data: { script: string }) =>
+    fetchApi<{ status: string; output: string }>('/devtools/reset-and-seed', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }

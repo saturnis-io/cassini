@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock } from 'lucide-react'
+import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock, AlertTriangle } from 'lucide-react'
 import { useSamples, useDeleteSample, useExcludeSample } from '@/api/hooks'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
 import { SampleEditModal } from './SampleEditModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
@@ -45,6 +46,7 @@ function FilterChip({
 }
 
 export function SampleHistoryPanel() {
+  const { selectedPlant } = usePlantContext()
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
   const [includeExcluded, setIncludeExcluded] = useState(false)
@@ -86,7 +88,7 @@ export function SampleHistoryPanel() {
   const [editingSample, setEditingSample] = useState<Sample | null>(null)
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null)
 
-  const { data: samplesData, isLoading: loadingSamples } = useSamples(queryParams)
+  const { data: samplesData, isLoading: loadingSamples, error: samplesError } = useSamples(queryParams)
 
   const deleteSample = useDeleteSample()
   const excludeSample = useExcludeSample()
@@ -235,6 +237,7 @@ export function SampleHistoryPanel() {
               <HierarchyCharacteristicSelector
                 selectedCharId={selectedChar?.id ?? null}
                 onSelect={handleCharacteristicSelect}
+                plantId={selectedPlant?.id}
               />
               {selectedChar && (
                 <div className="mt-2 flex items-center justify-between p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
@@ -342,6 +345,21 @@ export function SampleHistoryPanel() {
                     <div className="flex flex-col items-center gap-2">
                       <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       <span className="text-muted-foreground">Loading samples...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : samplesError ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <AlertTriangle className="h-8 w-8 text-destructive/50" />
+                      <span className="text-destructive font-medium">Failed to load samples</span>
+                      <span className="text-xs text-muted-foreground">
+                        {samplesError instanceof Error ? samplesError.message : 'Unknown error'}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Try refreshing the page or logging in again.
+                      </span>
                     </div>
                   </td>
                 </tr>

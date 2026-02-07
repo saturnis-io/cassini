@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCharacteristics, useCharacteristic, useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
@@ -6,10 +6,11 @@ import { ChartPanel } from '@/components/ChartPanel'
 import { DualChartPanel, BoxWhiskerChart } from '@/components/charts'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
+import { ChartRangeSlider } from '@/components/ChartRangeSlider'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
-import { DUAL_CHART_TYPES } from '@/lib/chart-registry'
+import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 
 export function OperatorDashboard() {
@@ -23,6 +24,8 @@ export function OperatorDashboard() {
   const setSecondaryCharacteristicId = useDashboardStore((state) => state.setSecondaryCharacteristicId)
   const timeRange = useDashboardStore((state) => state.timeRange)
   const chartTypes = useDashboardStore((state) => state.chartTypes)
+  const showBrush = useDashboardStore((state) => state.showBrush)
+  const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
   const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
   const [annotationInitialMode, setAnnotationInitialMode] = useState<'point' | 'period'>('period')
@@ -31,11 +34,9 @@ export function OperatorDashboard() {
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
 
-  // Get chart data for annotation dialog sample selection
-  const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions)
-
-  // Get current chart type
-  const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || 'xbar'
+  // Get current chart type — default to recommended type for the characteristic's subgroup size
+  const subgroupSize = selectedCharacteristic?.subgroup_size ?? 5
+  const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || recommendChartType(subgroupSize)
   const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
   const isBoxWhisker = currentChartType === 'box-whisker'
 
@@ -57,6 +58,26 @@ export function OperatorDashboard() {
     }
     return { limit: 50 }
   })()
+
+  // Get chart data for annotation dialog and range slider sparkline
+  const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions)
+
+  // Sparkline values for range slider
+  const sparklineValues = useMemo(() => {
+    if (!chartDataForAnnotation?.data_points) return []
+    return chartDataForAnnotation.data_points.map((p) => p.mean)
+  }, [chartDataForAnnotation])
+
+  // Timestamps for range slider time labels
+  const sparklineTimestamps = useMemo(() => {
+    if (!chartDataForAnnotation?.data_points) return []
+    return chartDataForAnnotation.data_points.map((p) => p.timestamp)
+  }, [chartDataForAnnotation])
+
+  // Reset range window when characteristic changes
+  useEffect(() => {
+    setRangeWindow(null)
+  }, [selectedId, setRangeWindow])
 
   // Use app-level WebSocket context
   const { subscribe, unsubscribe } = useWebSocketContext()
@@ -104,6 +125,15 @@ export function OperatorDashboard() {
                 setAnnotationDialogOpen(true)
               }}
             />
+
+            {/* Range slider for chart viewport windowing */}
+            {showBrush && sparklineValues.length > 10 && (
+              <ChartRangeSlider
+                totalPoints={sparklineValues.length}
+                values={sparklineValues}
+                timestamps={sparklineTimestamps}
+              />
+            )}
 
             {/* Primary Chart with optional histogram */}
             <div className="flex-1 min-h-0">
