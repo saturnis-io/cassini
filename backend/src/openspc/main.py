@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
 from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
@@ -72,7 +73,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 else:
                     logger.info("TAG provider initialization deferred")
             else:
-                logger.info("MQTT manager initialized but not connected (no active broker)")
+                logger.info(
+                    "MQTT manager initialized — brokers connecting in background "
+                    "or no active brokers configured"
+                )
     except Exception as e:
         logger.warning(f"Failed to initialize MQTT manager: {e}")
 
@@ -127,6 +131,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(annotations_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")

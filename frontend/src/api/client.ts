@@ -1,4 +1,8 @@
 import type {
+  Annotation,
+  AnnotationCreate,
+  AnnotationType,
+  AnnotationUpdate,
   AuthUser,
   BrokerConnectionStatus,
   BrokerTestResult,
@@ -264,6 +268,7 @@ export const characteristicApi = {
     hierarchy_id?: number
     provider_type?: string
     in_control?: boolean
+    plant_id?: number
     page?: number
     per_page?: number
   }) => {
@@ -271,6 +276,7 @@ export const characteristicApi = {
     if (params?.hierarchy_id) searchParams.set('hierarchy_id', String(params.hierarchy_id))
     if (params?.provider_type) searchParams.set('provider_type', params.provider_type)
     if (params?.in_control !== undefined) searchParams.set('in_control', String(params.in_control))
+    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
     if (params?.page) searchParams.set('page', String(params.page))
     if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
@@ -308,11 +314,32 @@ export const characteristicApi = {
     return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
   },
 
-  recalculateLimits: (id: number, excludeOoc?: boolean) =>
-    fetchApi<{ before: object; after: object }>(`/characteristics/${id}/recalculate-limits`, {
-      method: 'POST',
-      body: JSON.stringify({ exclude_ooc: excludeOoc ?? true }),
-    }),
+  recalculateLimits: (id: number, options?: {
+    excludeOoc?: boolean
+    startDate?: string
+    endDate?: string
+    lastN?: number
+  }) => {
+    const params = new URLSearchParams()
+    if (options?.excludeOoc !== undefined) params.set('exclude_ooc', String(options.excludeOoc))
+    if (options?.startDate) params.set('start_date', options.startDate)
+    if (options?.endDate) params.set('end_date', options.endDate)
+    if (options?.lastN) params.set('last_n', String(options.lastN))
+    const query = params.toString()
+    return fetchApi<{ before: object; after: object; calculation: object }>(
+      `/characteristics/${id}/recalculate-limits${query ? `?${query}` : ''}`,
+      { method: 'POST' },
+    )
+  },
+
+  setManualLimits: (id: number, data: { ucl: number; lcl: number; center_line: number; sigma: number }) =>
+    fetchApi<{ before: object; after: object; calculation: object }>(
+      `/characteristics/${id}/set-limits`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+    ),
 
   getRules: async (id: number) => {
     // Backend returns [{rule_id, is_enabled, require_acknowledgement}, ...]
@@ -467,9 +494,12 @@ export const violationApi = {
 
 // MQTT Broker API
 export const brokerApi = {
-  list: (activeOnly?: boolean) => {
-    const params = activeOnly ? '?active_only=true' : ''
-    return fetchApi<PaginatedResponse<MQTTBroker>>(`/brokers/${params}`)
+  list: (opts?: { activeOnly?: boolean; plantId?: number }) => {
+    const params = new URLSearchParams()
+    if (opts?.activeOnly) params.set('active_only', 'true')
+    if (opts?.plantId != null) params.set('plant_id', String(opts.plantId))
+    const qs = params.toString()
+    return fetchApi<PaginatedResponse<MQTTBroker>>(`/brokers/${qs ? `?${qs}` : ''}`)
   },
 
   get: (id: number) => fetchApi<MQTTBroker>(`/brokers/${id}`),
@@ -484,6 +514,7 @@ export const brokerApi = {
     keepalive?: number
     use_tls?: boolean
     is_active?: boolean
+    plant_id?: number | null
   }) =>
     fetchApi<MQTTBroker>('/brokers/', {
       method: 'POST',
@@ -527,8 +558,10 @@ export const brokerApi = {
     }),
 
   // Multi-broker status
-  getAllStatus: () =>
-    fetchApi<{ states: BrokerConnectionStatus[] }>('/brokers/all/status'),
+  getAllStatus: (plantId?: number) => {
+    const params = plantId ? `?plant_id=${plantId}` : ''
+    return fetchApi<{ states: BrokerConnectionStatus[] }>(`/brokers/all/status${params}`)
+  },
 
   // Topic discovery
   startDiscovery: (id: number) =>
@@ -618,6 +651,29 @@ export const tagApi = {
     fetchApi<TagPreviewResponse>('/tags/preview', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+}
+
+// Annotation API
+export const annotationApi = {
+  list: (characteristicId: number, type?: AnnotationType) =>
+    fetchApi<Annotation[]>(`/characteristics/${characteristicId}/annotations${type ? `?annotation_type=${type}` : ''}`),
+
+  create: (characteristicId: number, data: AnnotationCreate) =>
+    fetchApi<Annotation>(`/characteristics/${characteristicId}/annotations`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (characteristicId: number, annotationId: number, data: AnnotationUpdate) =>
+    fetchApi<Annotation>(`/characteristics/${characteristicId}/annotations/${annotationId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (characteristicId: number, annotationId: number) =>
+    fetchApi<void>(`/characteristics/${characteristicId}/annotations/${annotationId}`, {
+      method: 'DELETE',
     }),
 }
 

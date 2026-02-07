@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for OpenSPC database schema."""
 
+from openspc.db.models.annotation import Annotation
 from openspc.db.models.api_key import APIKey
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
@@ -13,6 +14,7 @@ __all__ = [
     # Base
     "Base",
     # Models
+    "Annotation",
     "APIKey",
     "MQTTBroker",
     "Plant",

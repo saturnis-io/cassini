@@ -78,6 +78,7 @@ export interface Characteristic {
   lcl: number | null
   mqtt_topic: string | null
   trigger_tag: string | null
+  metric_name: string | null
   // Subgroup mode configuration
   subgroup_mode: SubgroupMode
   min_measurements: number
@@ -207,6 +208,7 @@ export interface ChartData {
   subgroup_mode: SubgroupMode
   nominal_subgroup_size: number
   decimal_precision: number
+  stored_sigma: number | null
 }
 
 // Violation types
@@ -293,6 +295,7 @@ export interface MQTTBroker {
   max_reconnect_delay: number
   use_tls: boolean
   is_active: boolean
+  plant_id: number | null
   created_at: string
   updated_at: string
 }
@@ -313,6 +316,11 @@ export interface BrokerTestResult {
 }
 
 // Topic discovery types
+export interface SparkplugMetricInfo {
+  name: string
+  data_type: string
+}
+
 export interface DiscoveredTopic {
   topic: string
   message_count: number
@@ -323,6 +331,7 @@ export interface DiscoveredTopic {
   sparkplug_node: string | null
   sparkplug_device: string | null
   sparkplug_message_type: string | null
+  sparkplug_metrics: SparkplugMetricInfo[]
 }
 
 export interface TopicTreeNode {
@@ -331,6 +340,7 @@ export interface TopicTreeNode {
   children: TopicTreeNode[]
   message_count: number
   is_sparkplug: boolean
+  sparkplug_metrics: SparkplugMetricInfo[]
 }
 
 // Tag mapping types
@@ -340,6 +350,7 @@ export interface TagMappingCreate {
   trigger_strategy: string
   trigger_tag: string | null
   broker_id: number
+  metric_name: string | null
 }
 
 export interface TagMappingResponse {
@@ -350,12 +361,14 @@ export interface TagMappingResponse {
   trigger_tag: string | null
   broker_id: number
   broker_name: string
+  metric_name: string | null
 }
 
 export interface TagPreviewValue {
   value: number | string | boolean
   timestamp: string
   raw_payload: string
+  metric_name: string | null
 }
 
 export interface TagPreviewResponse {
@@ -388,4 +401,35 @@ export interface MQTTStatus {
 export interface ProviderStatus {
   mqtt: MQTTStatus
   tag_provider: TagProviderStatus
+}
+
+// Annotation types
+export type AnnotationType = 'point' | 'period'
+
+export interface Annotation {
+  id: number
+  characteristic_id: number
+  annotation_type: AnnotationType
+  text: string
+  color: string | null
+  sample_id: number | null
+  start_sample_id: number | null
+  end_sample_id: number | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AnnotationCreate {
+  annotation_type: AnnotationType
+  text: string
+  color?: string | null
+  sample_id?: number | null
+  start_sample_id?: number | null
+  end_sample_id?: number | null
+}
+
+export interface AnnotationUpdate {
+  text?: string
+  color?: string | null
 }

@@ -1,8 +1,8 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { characteristicApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
-import type { Characteristic, PlantCreate, PlantUpdate } from '@/types'
+import { annotationApi, characteristicApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
+import type { AnnotationCreate, AnnotationUpdate, Characteristic, PlantCreate, PlantUpdate } from '@/types'
 
 // Query keys
 export const queryKeys = {
@@ -44,6 +44,10 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.violations.all, 'detail', id] as const,
     stats: () => [...queryKeys.violations.all, 'stats'] as const,
   },
+  annotations: {
+    all: ['annotations'] as const,
+    list: (characteristicId: number) => [...queryKeys.annotations.all, 'list', characteristicId] as const,
+  },
 }
 
 // Plant hooks
@@ -69,10 +73,10 @@ export function useCreatePlant() {
     mutationFn: (data: PlantCreate) => plantApi.create(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
-      toast.success(`Created plant "${data.name}"`)
+      toast.success(`Created site "${data.name}"`)
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create plant: ${error.message}`)
+      toast.error(`Failed to create site: ${error.message}`)
     },
   })
 }
@@ -85,10 +89,10 @@ export function useUpdatePlant() {
       plantApi.update(id, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
-      toast.success(`Updated plant "${data.name}"`)
+      toast.success(`Updated site "${data.name}"`)
     },
     onError: (error: Error) => {
-      toast.error(`Failed to update plant: ${error.message}`)
+      toast.error(`Failed to update site: ${error.message}`)
     },
   })
 }
@@ -100,10 +104,10 @@ export function useDeletePlant() {
     mutationFn: (id: number) => plantApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
-      toast.success('Plant deleted')
+      toast.success('Site deleted')
     },
     onError: (error: Error) => {
-      toast.error(`Failed to delete plant: ${error.message}`)
+      toast.error(`Failed to delete site: ${error.message}`)
     },
   })
 }
@@ -130,9 +134,8 @@ export function useCreateHierarchyNodeInPlant() {
   return useMutation({
     mutationFn: ({ plantId, data }: { plantId: number; data: { name: string; type: string; parent_id: number | null } }) =>
       hierarchyApi.createNodeInPlant(plantId, data),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.treeByPlant(variables.plantId) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
     onError: (error: Error) => {
@@ -164,7 +167,7 @@ export function useCreateHierarchyNode() {
     mutationFn: (data: { name: string; type: string; parent_id: number | null }) =>
       hierarchyApi.createNode(data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
     onError: (error: Error) => {
@@ -179,7 +182,7 @@ export function useDeleteHierarchyNode() {
   return useMutation({
     mutationFn: (id: number) => hierarchyApi.deleteNode(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success('Node deleted')
     },
     onError: (error: Error) => {
@@ -256,8 +259,7 @@ export function useCreateCharacteristic() {
     }) => characteristicApi.create(data as Partial<Characteristic>),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.characteristics(variables.hierarchy_id) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
     onError: (error: Error) => {
@@ -286,7 +288,7 @@ export function useDeleteCharacteristic() {
     mutationFn: (id: number) => characteristicApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.tree() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success('Characteristic deleted')
     },
     onError: (error: Error) => {
@@ -329,11 +331,16 @@ export function useRecalculateLimits() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, excludeOoc }: { id: number; excludeOoc?: boolean }) =>
-      characteristicApi.recalculateLimits(id, excludeOoc),
+    mutationFn: ({ id, excludeOoc, startDate, endDate, lastN }: {
+      id: number
+      excludeOoc?: boolean
+      startDate?: string
+      endDate?: string
+      lastN?: number
+    }) =>
+      characteristicApi.recalculateLimits(id, { excludeOoc, startDate, endDate, lastN }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
-      // Use partial key match to invalidate all chart data variations
       queryClient.invalidateQueries({
         queryKey: ['characteristics', 'chartData', variables.id],
       })
@@ -341,6 +348,28 @@ export function useRecalculateLimits() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to recalculate limits: ${error.message}`)
+    },
+  })
+}
+
+export function useSetManualLimits() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: {
+      id: number
+      data: { ucl: number; lcl: number; center_line: number; sigma: number }
+    }) =>
+      characteristicApi.setManualLimits(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', variables.id],
+      })
+      toast.success('Control limits set manually')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to set limits: ${error.message}`)
     },
   })
 }
@@ -644,6 +673,63 @@ export function useRemoveRole() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to remove role: ${error.message}`)
+    },
+  })
+}
+
+// Annotation hooks
+export function useAnnotations(characteristicId: number, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.annotations.list(characteristicId),
+    queryFn: () => annotationApi.list(characteristicId),
+    enabled: characteristicId > 0 && enabled,
+  })
+}
+
+export function useCreateAnnotation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ characteristicId, data }: { characteristicId: number; data: AnnotationCreate }) =>
+      annotationApi.create(characteristicId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      toast.success('Annotation created')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create annotation: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateAnnotation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ characteristicId, annotationId, data }: { characteristicId: number; annotationId: number; data: AnnotationUpdate }) =>
+      annotationApi.update(characteristicId, annotationId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      toast.success('Annotation updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update annotation: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteAnnotation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ characteristicId, annotationId }: { characteristicId: number; annotationId: number }) =>
+      annotationApi.delete(characteristicId, annotationId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      toast.success('Annotation deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete annotation: ${error.message}`)
     },
   })
 }
