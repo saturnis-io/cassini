@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { X, Save, FolderOpen, Grid2x2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristics, useChartData } from '@/api/hooks'
+import { useTheme } from '@/providers/ThemeProvider'
 import { WallChartCard } from '@/components/WallChartCard'
 import { ControlChart } from '@/components/ControlChart'
 
@@ -174,6 +175,7 @@ function ExpandedChartModal({
  * - URL parameter configuration
  */
 export function WallDashboard() {
+  const { brandConfig } = useTheme()
   const [searchParams, setSearchParams] = useSearchParams()
   const [gridSize, setGridSize] = useState<GridSize>(() => {
     const param = searchParams.get('grid')
@@ -267,7 +269,21 @@ export function WallDashboard() {
   }, [setSearchParams])
 
   return (
-    <div className="h-full flex flex-col p-4 bg-zinc-950">
+    <div className="h-full flex flex-col p-4 bg-zinc-950 relative">
+      {/* Brand Badge */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-60 z-10">
+        {brandConfig.logoUrl ? (
+          <img
+            src={brandConfig.logoUrl}
+            alt=""
+            className="h-6 w-6 object-contain"
+          />
+        ) : null}
+        <span className="text-sm font-medium text-muted-foreground">
+          {brandConfig.appName}
+        </span>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-zinc-100">Wall Dashboard</h1>

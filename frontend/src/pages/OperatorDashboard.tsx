@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useCharacteristics, useCharacteristic } from '@/api/hooks'
+import { useCharacteristics, useCharacteristic, useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
@@ -7,6 +7,7 @@ import { DualChartPanel, BoxWhiskerChart } from '@/components/charts'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
+import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { DUAL_CHART_TYPES } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
@@ -23,9 +24,15 @@ export function OperatorDashboard() {
   const timeRange = useDashboardStore((state) => state.timeRange)
   const chartTypes = useDashboardStore((state) => state.chartTypes)
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
+  const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
+  const [annotationInitialMode, setAnnotationInitialMode] = useState<'point' | 'period'>('period')
+  const [annotationSampleId, setAnnotationSampleId] = useState<number | undefined>(undefined)
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
+
+  // Get chart data for annotation dialog sample selection
+  const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions)
 
   // Get current chart type
   const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || 'xbar'
@@ -91,6 +98,11 @@ export function OperatorDashboard() {
               characteristicId={selectedId}
               subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
               onChangeSecondary={() => setShowComparisonSelector(true)}
+              onAddAnnotation={() => {
+                setAnnotationInitialMode('period')
+                setAnnotationSampleId(undefined)
+                setAnnotationDialogOpen(true)
+              }}
             />
 
             {/* Primary Chart with optional histogram */}
@@ -117,6 +129,11 @@ export function OperatorDashboard() {
                   label={comparisonMode ? 'Primary' : undefined}
                   histogramPosition={histogramPosition}
                   showSpecLimits={showSpecLimits}
+                  onPointAnnotation={(sampleId) => {
+                    setAnnotationInitialMode('point')
+                    setAnnotationSampleId(sampleId)
+                    setAnnotationDialogOpen(true)
+                  }}
                 />
               )}
             </div>
@@ -167,6 +184,21 @@ export function OperatorDashboard() {
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}
+
+      {/* Annotation Dialog */}
+      {annotationDialogOpen && selectedId && chartDataForAnnotation && (
+        <AnnotationDialog
+          characteristicId={selectedId}
+          dataPoints={chartDataForAnnotation.data_points.map((p, i) => ({
+            sample_id: p.sample_id,
+            index: i + 1,
+            timestamp: p.timestamp,
+          }))}
+          onClose={() => setAnnotationDialogOpen(false)}
+          initialMode={annotationInitialMode}
+          initialSampleId={annotationSampleId}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
-import { Wifi, WifiOff } from 'lucide-react'
+import { Wifi, WifiOff, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface KioskLayoutProps {
   children: React.ReactNode
@@ -25,6 +26,7 @@ interface KioskLayoutProps {
  */
 export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps) {
   const wsConnected = useDashboardStore((state) => state.wsConnected)
+  const { brandConfig } = useTheme()
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col overflow-hidden">
@@ -71,7 +73,18 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
           </div>
 
           {/* Branding */}
-          <span className="text-zinc-500 font-medium">OpenSPC Kiosk</span>
+          <div className="flex items-center gap-2">
+            {brandConfig.logoUrl ? (
+              <img
+                src={brandConfig.logoUrl}
+                alt={`${brandConfig.appName} logo`}
+                className="h-5 w-5 object-contain"
+              />
+            ) : (
+              <Activity className="h-4 w-4 text-zinc-400" />
+            )}
+            <span className="text-zinc-500 font-medium">{brandConfig.appName} Kiosk</span>
+          </div>
         </footer>
       )}
     </div>

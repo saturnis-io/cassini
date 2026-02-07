@@ -9,8 +9,10 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
+import { Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChartData, useViolations, useCharacteristic } from '@/api/hooks'
+import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
 import type { ReportTemplate, ReportSection } from '@/lib/report-templates'
 import type { ChartData, Violation } from '@/types'
@@ -31,6 +33,7 @@ interface ReportPreviewProps {
  */
 export function ReportPreview({ template, characteristicIds, chartOptions, className }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
+  const { brandConfig } = useTheme()
 
   // Fetch data for primary characteristic using the provided chart options
   const { data: chartData, isLoading: chartLoading } = useChartData(primaryCharId || 0, chartOptions)
@@ -61,6 +64,29 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
   return (
     <div className={cn('bg-white dark:bg-card border border-border rounded-xl shadow-sm overflow-hidden', className)}>
       <div className="p-6 space-y-6" id="report-content">
+        {/* Report Header with Brand Logo */}
+        <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
+          <div className="flex items-center gap-3">
+            {brandConfig.logoUrl ? (
+              <img
+                src={brandConfig.logoUrl}
+                alt={`${brandConfig.appName} logo`}
+                className="h-8 w-8 object-contain"
+              />
+            ) : (
+              <Activity className="h-6 w-6 text-primary" />
+            )}
+            <div>
+              <h1 className="text-lg font-bold">{brandConfig.appName}</h1>
+              <p className="text-xs text-muted-foreground">SPC Report</p>
+            </div>
+          </div>
+          <div className="text-right text-sm text-muted-foreground">
+            <div>Generated: {new Date().toLocaleString()}</div>
+            {characteristic && <div>Characteristic: {characteristic.name}</div>}
+          </div>
+        </div>
+
         {template.sections.map((section) => (
           <ReportSectionComponent
             key={section}

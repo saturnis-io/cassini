@@ -11,11 +11,12 @@ import {
   ResponsiveContainer,
   Brush,
 } from 'recharts'
-import { useChartData, useHierarchyPath } from '@/api/hooks'
+import { useAnnotations, useChartData, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { renderAnnotations } from './AnnotationLayer'
 
 interface ControlChartProps {
   characteristicId: number
@@ -33,6 +34,8 @@ interface ControlChartProps {
   onHoverValue?: (value: number | null) => void
   /** Range [min, max] from histogram bar hover to highlight corresponding points */
   highlightedRange?: [number, number] | null
+  /** Callback when a data point is clicked for point annotation creation */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
 // Hook to subscribe to chart color changes
@@ -75,12 +78,15 @@ export function ControlChart({
   yAxisDomain: externalDomain,
   onHoverValue,
   highlightedRange,
+  onPointAnnotation,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const showBrush = useDashboardStore((state) => state.showBrush)
+  const showAnnotations = useDashboardStore((state) => state.showAnnotations)
+  const { data: annotations } = useAnnotations(characteristicId, showAnnotations)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -576,6 +582,13 @@ export function ControlChart({
             />
           )}
 
+          {/* Annotation markers (render behind data line) */}
+          {showAnnotations && annotations && renderAnnotations({
+            annotations,
+            data,
+            xAxisMode,
+          })}
+
           {/* Data line */}
           <Line
             type="linear"
@@ -638,6 +651,8 @@ export function ControlChart({
                       d={`M ${cx} ${cy - baseRadius} L ${cx + baseRadius} ${cy} L ${cx} ${cy + baseRadius} L ${cx - baseRadius} ${cy} Z`}
                       fill={fillColor}
                       filter="url(#violationGlow)"
+                      onClick={(e) => { e.stopPropagation(); onPointAnnotation?.(payload.sample_id) }}
+                      style={{ cursor: onPointAnnotation ? 'pointer' : 'default' }}
                     />
                   ) : isUndersized ? (
                     // Triangle shape for undersized
@@ -646,6 +661,8 @@ export function ControlChart({
                       fill={fillColor}
                       stroke={isHighlighted ? 'hsl(35, 100%, 45%)' : chartColors.undersizedPoint}
                       strokeWidth={1.5}
+                      onClick={(e) => { e.stopPropagation(); onPointAnnotation?.(payload.sample_id) }}
+                      style={{ cursor: onPointAnnotation ? 'pointer' : 'default' }}
                     />
                   ) : (
                     // Circle for normal points
@@ -656,6 +673,8 @@ export function ControlChart({
                       fill={fillColor}
                       stroke={isHighlighted ? 'hsl(35, 100%, 45%)' : undefined}
                       strokeWidth={isHighlighted ? 2 : 0}
+                      onClick={(e) => { e.stopPropagation(); onPointAnnotation?.(payload.sample_id) }}
+                      style={{ cursor: onPointAnnotation ? 'pointer' : 'default' }}
                     />
                   )}
                   {/* Violation rule number badge */}

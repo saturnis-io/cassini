@@ -20,6 +20,8 @@ interface ChartPanelProps {
   defaultHistogramWidth?: number
   /** Initial height for horizontal histogram panel (default 192px) */
   defaultHistogramHeight?: number
+  /** Callback when a data point is clicked for point annotation creation */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
 /**
@@ -39,6 +41,7 @@ export function ChartPanel({
   className,
   defaultHistogramWidth = 280,
   defaultHistogramHeight = 192,
+  onPointAnnotation,
 }: ChartPanelProps) {
   const isRightPosition = histogramPosition === 'right'
   const isBelowPosition = histogramPosition === 'below'
@@ -179,6 +182,7 @@ export function ChartPanel({
           yAxisDomain={showHistogram ? yAxisDomain : undefined}
           onHoverValue={showHistogram ? setHoveredValue : undefined}
           highlightedRange={hoveredBinRange}
+          onPointAnnotation={onPointAnnotation}
         />
       </div>
 
