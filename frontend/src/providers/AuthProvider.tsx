@@ -95,6 +95,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Derive role from user's plant_roles and selected plant
   const role: Role = useMemo(() => {
     if (!user || !user.plant_roles || user.plant_roles.length === 0) {
+      if (user) {
+        console.warn(
+          `[AuthProvider] User "${user.username}" has no plant_roles — defaulting to 'operator'. ` +
+          'An admin should assign this user a role via the user management page.'
+        )
+      }
       return 'operator'
     }
 

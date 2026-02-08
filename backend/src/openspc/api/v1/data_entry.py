@@ -142,9 +142,9 @@ async def submit_sample(
             ],
         )
 
-    except ValueError as e:
+    except ValueError:
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input")
     except Exception:
         logger.exception("Failed to process data entry sample")
         await session.rollback()

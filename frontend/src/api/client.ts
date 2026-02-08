@@ -55,9 +55,19 @@ export interface CharacteristicConfigResponse {
 
 const API_BASE = '/api/v1'
 
-// Access token stored in memory only (not localStorage)
+/** Minimum seconds before token expiry to trigger proactive refresh */
+const TOKEN_EXPIRY_BUFFER_SEC = 120
+
+/** Cooldown period (ms) after a refresh completes before allowing another */
+const REFRESH_COOLDOWN_MS = 5_000
+
+// Access token stored in memory only (not localStorage).
+// Module-scope is acceptable here: this runs in a single browser JS context
+// and the token is never persisted to storage. Only fetchApi and auth hooks
+// access it via the exported getter/setter.
 let accessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
+let lastRefreshTime = 0
 
 export function setAccessToken(token: string | null) {
   accessToken = token
@@ -90,7 +100,7 @@ function isTokenExpiringSoon(): boolean {
   const exp = getTokenExpiry(accessToken)
   if (exp === null) return false
   const nowSec = Math.floor(Date.now() / 1000)
-  return exp - nowSec < 120 // less than 2 minutes remaining
+  return exp - nowSec < TOKEN_EXPIRY_BUFFER_SEC
 }
 
 /**
@@ -99,6 +109,12 @@ function isTokenExpiringSoon(): boolean {
  */
 function doRefresh(): Promise<string | null> {
   if (refreshPromise) return refreshPromise
+
+  // If a refresh just completed within the cooldown window, skip to avoid overlap
+  // between proactive refresh and 401-triggered refresh
+  if (Date.now() - lastRefreshTime < REFRESH_COOLDOWN_MS && accessToken) {
+    return Promise.resolve(accessToken)
+  }
 
   refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
@@ -121,6 +137,7 @@ function doRefresh(): Promise<string | null> {
       return null
     })
     .finally(() => {
+      lastRefreshTime = Date.now()
       refreshPromise = null
     })
 
@@ -436,11 +453,8 @@ export const sampleApi = {
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     if (params?.include_excluded) searchParams.set('include_excluded', 'true')
-    // Backend uses offset/limit, convert from page/per_page
-    const limit = params?.per_page ?? 100
-    const offset = params?.page ? (params.page - 1) * limit : 0
-    searchParams.set('offset', String(offset))
-    searchParams.set('limit', String(limit))
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
     const query = searchParams.toString()
     return fetchApi<PaginatedResponse<Sample>>(`/samples/${query ? `?${query}` : ''}`)

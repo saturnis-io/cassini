@@ -159,10 +159,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     connect()
 
     // Only cleanup on full app unmount (browser close/refresh)
+    // Reset reconnect delay so next session starts fresh (not at max backoff)
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
+      reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
       wsRef.current?.close()
     }
   }, [connect])

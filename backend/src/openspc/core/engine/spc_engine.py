@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Default number of recent samples used for auto-limit calculation.
 # Override via CharacteristicConfig or recalculate-limits last_n param.
+# TODO: Make this configurable per-characteristic via a field on the
+# characteristic_config model (e.g. limit_window_size) with this as default.
 DEFAULT_LIMIT_WINDOW_SIZE = 100
 
 

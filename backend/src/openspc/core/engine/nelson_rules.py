@@ -15,6 +15,9 @@ from typing import Protocol
 
 from openspc.core.engine.rolling_window import RollingWindow, WindowSample, Zone
 
+# All 8 standard Nelson Rule IDs
+NELSON_RULE_IDS = list(range(1, 9))
+
 
 class Severity(Enum):
     """Violation severity levels."""

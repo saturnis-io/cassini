@@ -244,6 +244,11 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'openspc-dashboard',
+      // Only persist plain-object fields. Map/Set fields (latestSamples,
+      // selectedCharacteristicIds, chartTypes) are excluded because
+      // JSON.stringify cannot serialize Map/Set — they would be stored as
+      // empty objects "{}". These are transient runtime state that gets
+      // rebuilt on page load from API data and user interaction.
       partialize: (state) => ({
         timeRange: state.timeRange,
         histogramPosition: state.histogramPosition,

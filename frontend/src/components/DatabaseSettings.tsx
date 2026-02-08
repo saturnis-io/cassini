@@ -6,13 +6,17 @@ import { toast } from 'sonner'
 import { characteristicApi, sampleApi, violationApi } from '@/api/client'
 import type { Sample } from '@/types'
 
+/** Maximum records per entity for client-side export */
+const EXPORT_MAX_RECORDS = 10_000
+
 interface DatabaseStats {
   characteristics_count: number
   samples_count: number
   violations_count: number
 }
 
-// Fetch database stats from various endpoints (using authenticated fetchApi)
+// TODO: Replace with a single GET /api/v1/stats endpoint when available.
+// Currently makes 3 parallel requests with per_page=1 to extract total counts.
 async function fetchDatabaseStats(): Promise<DatabaseStats> {
   const [chars, samples, violations] = await Promise.all([
     characteristicApi.list().catch(() => ({ total: 0 })),
@@ -38,20 +42,22 @@ export function DatabaseSettings() {
     refetchInterval: 30000,
   })
 
+  // Known limitation: export is client-side with a 10,000 record cap per entity.
+  // For large datasets, a server-side streaming export endpoint (e.g. GET /api/v1/export)
+  // would be the proper solution to avoid browser memory constraints.
   const handleExport = async (format: 'json' | 'csv') => {
     setIsExporting(true)
     try {
-      // Fetch all data (using authenticated fetchApi)
       const [chars, samples, violations] = await Promise.all([
         characteristicApi.list(),
-        sampleApi.list({ per_page: 10000 }),
-        violationApi.list({ per_page: 10000 }),
+        sampleApi.list({ per_page: EXPORT_MAX_RECORDS }),
+        violationApi.list({ per_page: EXPORT_MAX_RECORDS }),
       ])
 
       const totalSamples = (samples as { total?: number }).total ?? 0
       const totalViolations = (violations as { total?: number }).total ?? 0
-      if (totalSamples > 10000 || totalViolations > 10000) {
-        toast.warning(`Export truncated: ${totalSamples} samples, ${totalViolations} violations (max 10,000 each)`)
+      if (totalSamples > EXPORT_MAX_RECORDS || totalViolations > EXPORT_MAX_RECORDS) {
+        toast.warning(`Export truncated: ${totalSamples} samples, ${totalViolations} violations (max ${EXPORT_MAX_RECORDS.toLocaleString()} each)`)
       }
 
       const exportData = {
@@ -71,9 +77,9 @@ export function DatabaseSettings() {
         mimeType = 'application/json'
       } else {
         // Simple CSV export for samples
-        const headers = ['id', 'characteristic_id', 'timestamp', 'mean', 'range', 'excluded']
+        const headers = ['id', 'characteristic_id', 'timestamp', 'mean', 'range_value', 'is_excluded']
         const rows = (samples.items || []).map((s: Sample) =>
-          [s.id, s.characteristic_id, s.timestamp, s.mean, s.range, s.excluded].join(',')
+          [s.id, s.characteristic_id, s.timestamp, s.mean, s.range_value, s.is_excluded].join(',')
         )
         content = [headers.join(','), ...rows].join('\n')
         filename = `openspc-samples-${new Date().toISOString().split('T')[0]}.csv`

@@ -7,7 +7,6 @@ and re-seed functionality for development and testing.
 import importlib.util
 import io
 import logging
-import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -91,9 +90,14 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
             detail=f"Unknown script '{body.script}'. Available: {list(AVAILABLE_SCRIPTS.keys())}",
         )
 
-    # Dispose the current DB connection pool so the seed script gets exclusive access
+    # Dispose the current DB connection pool so the seed script gets exclusive access.
+    # dispose() is async and handles draining active connections.
     db = get_database()
     await db.dispose()
+
+    # Brief pause to allow in-flight requests to complete
+    import asyncio
+    await asyncio.sleep(0.1)
 
     # Reset the singleton so the next request creates a fresh connection
     reset_singleton()
@@ -102,10 +106,15 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
 
     # Load the seed module by file path and call its seed() function directly.
     # This avoids Windows asyncio subprocess limitations.
-    # Capture stdout to return to the client.
-    captured = io.StringIO()
-    old_stdout = sys.stdout
-    sys.stdout = captured
+    # Capture log output via a dedicated logging handler (async-safe).
+    log_capture = io.StringIO()
+    capture_handler = logging.StreamHandler(log_capture)
+    capture_handler.setLevel(logging.DEBUG)
+    capture_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    # Attach handler to root logger to capture seed script output
+    root_logger = logging.getLogger()
+    root_logger.addHandler(capture_handler)
 
     try:
         module = _load_seed_module(body.script)
@@ -120,12 +129,12 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
         logger.error(f"Seed script failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Seed script failed: {e}",
+            detail="Seed script failed",
         )
     finally:
-        sys.stdout = old_stdout
+        root_logger.removeHandler(capture_handler)
 
-    output = captured.getvalue()
+    output = log_capture.getvalue()
     logger.info("Seed script completed successfully")
 
     return SeedResponse(status="complete", output=output[-4000:])

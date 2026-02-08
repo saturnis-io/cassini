@@ -491,7 +491,7 @@ async def start_discovery(
         return {"message": f"Discovery already active on broker {broker.name}"}
 
     # Create and start discovery service
-    discovery = TopicDiscoveryService(max_topics=10000, ttl_seconds=300)
+    discovery = TopicDiscoveryService()
     await discovery.start_discovery(client)
     mqtt_manager.set_discovery_service(broker_id, discovery)
 

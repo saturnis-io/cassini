@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -23,14 +23,8 @@ import { AuthProvider, useAuth } from '@/providers/AuthProvider'
 import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10000,
-      retry: 1,
-    },
-  },
-})
+/** Default stale time for React Query caches (ms) */
+const QUERY_STALE_TIME_MS = 10_000
 
 /**
  * Error boundary to catch render errors and prevent full-app crashes.
@@ -120,7 +114,33 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * Shared wrapper for display modes (kiosk, wall dashboard).
+ * Combines RequireAuth + AuthenticatedProviders in one component to avoid duplication.
+ */
+function AuthenticatedDisplayMode({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <AuthenticatedProviders>
+        {children}
+      </AuthenticatedProviders>
+    </RequireAuth>
+  )
+}
+
 function App() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: QUERY_STALE_TIME_MS,
+            retry: 1,
+          },
+        },
+      })
+  )
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
@@ -201,25 +221,21 @@ function App() {
               <Route
                 path="/kiosk"
                 element={
-                  <RequireAuth>
-                    <AuthenticatedProviders>
-                      <KioskLayout>
-                        <KioskView />
-                      </KioskLayout>
-                    </AuthenticatedProviders>
-                  </RequireAuth>
+                  <AuthenticatedDisplayMode>
+                    <KioskLayout>
+                      <KioskView />
+                    </KioskLayout>
+                  </AuthenticatedDisplayMode>
                 }
               />
               <Route
                 path="/wall-dashboard"
                 element={
-                  <RequireAuth>
-                    <AuthenticatedProviders>
-                      <KioskLayout showStatusBar={false}>
-                        <WallDashboard />
-                      </KioskLayout>
-                    </AuthenticatedProviders>
-                  </RequireAuth>
+                  <AuthenticatedDisplayMode>
+                    <KioskLayout showStatusBar={false}>
+                      <WallDashboard />
+                    </KioskLayout>
+                  </AuthenticatedDisplayMode>
                 }
               />
             </Routes>

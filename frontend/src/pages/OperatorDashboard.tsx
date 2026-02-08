@@ -14,6 +14,9 @@ import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 
+/** Maximum data points to fetch for duration/custom time ranges */
+const MAX_CHART_POINTS = 500
+
 export function OperatorDashboard() {
   const { data: characteristicsData, isLoading } = useCharacteristics()
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
@@ -44,6 +47,10 @@ export function OperatorDashboard() {
   const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
   const isBoxWhisker = currentChartType === 'box-whisker'
 
+  // Use app-level WebSocket context — when connected, WS delivers real-time
+  // updates so polling is redundant and can be disabled
+  const { isConnected: wsConnected, subscribe, unsubscribe } = useWebSocketContext()
+
   // Compute chart data options from time range
   // Note: For duration-based ranges, we compute dates at render time
   // This is acceptable since the options are used immediately for data fetching
@@ -56,16 +63,19 @@ export function OperatorDashboard() {
       const now = Math.floor(Date.now() / 60000) * 60000
       const endDate = new Date(now).toISOString()
       const startDate = new Date(now - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
-      return { startDate, endDate, limit: 500 } // Cap at 500 for performance
+      return { startDate, endDate, limit: MAX_CHART_POINTS }
     }
     if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
-      return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: 500 }
+      return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: MAX_CHART_POINTS }
     }
     return { limit: 50 }
   })()
 
   // Get chart data for annotation dialog and range slider sparkline
-  const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions)
+  // Disable polling when WebSocket is connected — WS pushes invalidations in real-time
+  const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions, {
+    refetchInterval: wsConnected ? false : undefined,
+  })
 
   // Sparkline values for range slider
   const sparklineValues = useMemo(() => {
@@ -108,8 +118,6 @@ export function OperatorDashboard() {
     setRangeWindow(null)
   }, [selectedId, setRangeWindow])
 
-  // Use app-level WebSocket context
-  const { subscribe, unsubscribe } = useWebSocketContext()
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []
   const characteristicIdsKey = characteristicIds.join(',')
 

@@ -246,9 +246,7 @@ class ConnectionManager:
                 # Task was cancelled, exit cleanly
                 break
             except Exception:
-                # Log the error but continue running
-                # In production, you would want to log this properly
-                pass
+                logger.debug("WebSocket cleanup error", exc_info=True)
 
     def get_connection_count(self) -> int:
         """Get the total number of active connections.

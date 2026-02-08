@@ -1,5 +1,6 @@
 """Database configuration and session management."""
 
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -43,14 +44,23 @@ class DatabaseConfig:
             AsyncEngine instance
         """
         if self._engine is None:
+            is_sqlite = self.database_url.startswith("sqlite")
+
+            engine_kwargs: dict = {
+                "echo": self.echo,
+            }
+            # NullPool is needed for SQLite (doesn't support connection pooling well)
+            # but other databases benefit from connection pooling.
+            if is_sqlite:
+                engine_kwargs["poolclass"] = NullPool
+
             self._engine = create_async_engine(
                 self.database_url,
-                echo=self.echo,
-                poolclass=NullPool,  # SQLite doesn't support connection pooling well
+                **engine_kwargs,
             )
 
             # Configure SQLite for WAL mode and foreign keys
-            if "sqlite" in self.database_url:
+            if is_sqlite:
 
                 @event.listens_for(self._engine.sync_engine, "connect")
                 def set_sqlite_pragma(dbapi_conn, connection_record):
@@ -125,6 +135,7 @@ class DatabaseConfig:
 
 # Global database instance
 _db_config: Optional[DatabaseConfig] = None
+_db_lock = threading.Lock()
 
 
 def get_database() -> DatabaseConfig:
@@ -135,12 +146,15 @@ def get_database() -> DatabaseConfig:
     """
     global _db_config
     if _db_config is None:
-        from openspc.core.config import get_settings
+        with _db_lock:
+            # Double-checked locking
+            if _db_config is None:
+                from openspc.core.config import get_settings
 
-        _db_config = DatabaseConfig(
-            database_url=get_settings().database_url,
-            echo=False,
-        )
+                _db_config = DatabaseConfig(
+                    database_url=get_settings().database_url,
+                    echo=False,
+                )
     return _db_config
 
 
@@ -151,14 +165,16 @@ def set_database(config: DatabaseConfig) -> None:
         config: DatabaseConfig instance to use globally
     """
     global _db_config
-    _db_config = config
+    with _db_lock:
+        _db_config = config
 
 
 def reset_singleton() -> None:
     """Clear the global database singleton so the next get_database() call
     creates a fresh connection pool. Used by devtools reset-and-seed."""
     global _db_config
-    _db_config = None
+    with _db_lock:
+        _db_config = None
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

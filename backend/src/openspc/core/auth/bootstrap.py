@@ -39,6 +39,13 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
     username = cfg.admin_username
     password = cfg.admin_password
 
+    if not password:
+        logger.critical(
+            "OPENSPC_ADMIN_PASSWORD is not set. Skipping admin bootstrap. "
+            "Set the environment variable to create an initial admin user."
+        )
+        return
+
     # Hash the password
     hashed = hash_password(password)
 
@@ -69,8 +76,5 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
         logger.warning("No plants found - admin user created without plant assignment")
 
     await session.commit()
-
-    if password == "password":
-        logger.warning("Default admin credentials in use - change immediately")
 
     logger.info(f"Bootstrap admin user '{username}' created")

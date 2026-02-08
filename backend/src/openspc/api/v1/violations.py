@@ -8,7 +8,15 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_alert_manager, get_current_user, get_violation_repo, get_db_session, require_role
+from openspc.api.deps import (
+    check_plant_role,
+    get_alert_manager,
+    get_current_user,
+    get_db_session,
+    get_violation_repo,
+    require_role,
+    resolve_plant_id_for_characteristic,
+)
 from openspc.db.models.user import User
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.violation import (
@@ -302,7 +310,9 @@ async def acknowledge_violation(
     violation_id: int,
     data: ViolationAcknowledge,
     manager: AlertManager = Depends(get_alert_manager),
-    _user: User = Depends(require_role("supervisor")),
+    repo: ViolationRepository = Depends(get_violation_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
 ) -> ViolationResponse:
     """Acknowledge a violation.
 
@@ -344,6 +354,32 @@ async def acknowledge_violation(
         }
         ```
     """
+    # Plant-scoped authorization: look up the violation's characteristic's plant
+    violation_obj = await repo.get_by_id(violation_id)
+    if violation_obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Violation {violation_id} not found",
+        )
+    if violation_obj.sample and violation_obj.sample.characteristic:
+        plant_id = await resolve_plant_id_for_characteristic(
+            violation_obj.sample.char_id, session
+        )
+        check_plant_role(_user, plant_id, "supervisor")
+    else:
+        # Fallback: require supervisor at any plant if we can't resolve
+        from openspc.api.deps import ROLE_HIERARCHY
+
+        has_role = any(
+            ROLE_HIERARCHY.get(pr.role.value, 0) >= ROLE_HIERARCHY["supervisor"]
+            for pr in _user.plant_roles
+        )
+        if not has_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="supervisor or higher privileges required",
+            )
+
     try:
         violation = await manager.acknowledge(
             violation_id=violation_id,
@@ -375,7 +411,9 @@ async def acknowledge_violation(
 async def batch_acknowledge(
     request: BatchAcknowledgeRequest,
     manager: AlertManager = Depends(get_alert_manager),
-    _user: User = Depends(require_role("supervisor")),
+    repo: ViolationRepository = Depends(get_violation_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
 ) -> BatchAcknowledgeResult:
     """Acknowledge multiple violations at once.
 
@@ -430,6 +468,16 @@ async def batch_acknowledge(
 
     for violation_id in request.violation_ids:
         try:
+            # Plant-scoped authorization per violation
+            violation_obj = await repo.get_by_id(violation_id)
+            if violation_obj is None:
+                raise ValueError(f"Violation {violation_id} not found")
+            if violation_obj.sample and violation_obj.sample.characteristic:
+                plant_id = await resolve_plant_id_for_characteristic(
+                    violation_obj.sample.char_id, session
+                )
+                check_plant_role(_user, plant_id, "supervisor")
+
             await manager.acknowledge(
                 violation_id=violation_id,
                 user=request.user,
@@ -444,6 +492,15 @@ async def batch_acknowledge(
                 )
             )
             successful += 1
+        except HTTPException as e:
+            results.append(
+                AcknowledgeResultItem(
+                    violation_id=violation_id,
+                    success=False,
+                    error=e.detail,
+                )
+            )
+            failed += 1
         except ValueError as e:
             results.append(
                 AcknowledgeResultItem(

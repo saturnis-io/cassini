@@ -38,6 +38,7 @@ from openspc.api.deps import (
 )
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.core.engine.control_limits import ControlLimitService
+from openspc.core.engine.nelson_rules import NELSON_RULE_IDS
 from openspc.db.models.user import User
 from openspc.core.engine.rolling_window import RollingWindowManager
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule
@@ -48,12 +49,10 @@ router = APIRouter(prefix="/api/v1/characteristics", tags=["characteristics"])
 
 # Dependency for ControlLimitService
 async def get_control_limit_service(
-    session: AsyncSession = Depends(get_db_session),
+    char_repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
 ) -> ControlLimitService:
     """Dependency to get ControlLimitService instance."""
-    char_repo = CharacteristicRepository(session)
-    sample_repo = SampleRepository(session)
-    # Create window manager with default settings
     window_manager = RollingWindowManager(sample_repo)
     return ControlLimitService(sample_repo, char_repo, window_manager)
 
@@ -184,7 +183,7 @@ async def create_characteristic(
     characteristic = await repo.create(**data.model_dump())
 
     # Initialize Nelson Rules configuration (all enabled by default)
-    for rule_id in range(1, 9):
+    for rule_id in NELSON_RULE_IDS:
         rule = CharacteristicRule(
             char_id=characteristic.id,
             rule_id=rule_id,
@@ -251,6 +250,8 @@ async def update_characteristic(
     return CharacteristicResponse.model_validate(characteristic)
 
 
+# TODO: Consider adding soft-delete (deleted_at column) instead of hard delete
+# to support audit trails and accidental deletion recovery.
 @router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_characteristic(
     char_id: int,
@@ -498,10 +499,10 @@ async def recalculate_limits(
             end_date=end_date,
             last_n=last_n,
         )
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail="Invalid input for limit calculation"
         )
 
     # Get updated characteristic
@@ -629,7 +630,7 @@ async def get_rules(
 
     # Ensure all 8 rules are present (fill in defaults if missing)
     existing_rule_ids = {rule.rule_id for rule in rules}
-    for rule_id in range(1, 9):
+    for rule_id in NELSON_RULE_IDS:
         if rule_id not in existing_rule_ids:
             rules.append(NelsonRuleConfig(rule_id=rule_id, is_enabled=True, require_acknowledgement=True))
 

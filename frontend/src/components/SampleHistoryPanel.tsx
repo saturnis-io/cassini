@@ -11,6 +11,9 @@ import { LocalTimeRangeSelector, type TimeRangeState } from './LocalTimeRangeSel
 import { EditHistoryTooltip } from './EditHistoryTooltip'
 import type { Sample, Characteristic } from '@/types'
 
+/** Samples shown per page in the history table */
+const SAMPLES_PER_PAGE = 20
+
 // Default time range: last 100 samples
 const defaultTimeRange: TimeRangeState = {
   type: 'points',
@@ -55,7 +58,7 @@ export function SampleHistoryPanel() {
   const [includeExcluded, setIncludeExcluded] = useState(false)
   const [page, setPage] = useState(1)
   const [filtersExpanded, setFiltersExpanded] = useState(true)
-  const perPage = 20
+  const perPage = SAMPLES_PER_PAGE
 
   // Convert time range to query params
   const queryParams = useMemo(() => {
@@ -112,7 +115,7 @@ export function SampleHistoryPanel() {
   }
 
   const handleToggleExclude = (sample: Sample) => {
-    const isCurrentlyExcluded = sample.excluded || sample.is_excluded
+    const isCurrentlyExcluded = sample.is_excluded
     excludeSample.mutate({
       id: sample.id,
       excluded: !isCurrentlyExcluded,
@@ -378,7 +381,7 @@ export function SampleHistoryPanel() {
                 </tr>
               ) : (
                 displayedSamples.map((sample: Sample) => {
-                  const isExcluded = sample.excluded || sample.is_excluded
+                  const isExcluded = sample.is_excluded
                   const isModified = sample.is_modified
                   const measurementValues = getMeasurementValues(sample)
                   return (

@@ -6,6 +6,9 @@ import { useAuth } from '@/providers/AuthProvider'
 import { NELSON_RULES } from '@/components/ViolationLegend'
 import type { Severity } from '@/types'
 
+/** Number of violations to fetch per page */
+const VIOLATIONS_PER_PAGE = 50
+
 type FilterStatus = 'all' | 'required' | 'informational' | 'acknowledged'
 
 export function ViolationsView() {
@@ -16,10 +19,12 @@ export function ViolationsView() {
   const { data: violations, isLoading, refetch } = useViolations({
     acknowledged: statusFilter === 'acknowledged' ? true : statusFilter === 'all' ? undefined : false,
     rule_id: selectedRule ?? undefined,
-    per_page: 50,
+    per_page: VIOLATIONS_PER_PAGE,
   })
 
-  // Filter violations based on requires_acknowledgement
+  // TODO: Move requires_acknowledgement filtering to backend API once the endpoint
+  // supports a `requires_acknowledgement` query parameter. Currently filtered client-side
+  // because the backend violations endpoint does not accept this filter.
   const filteredViolations = violations?.items.filter((v) => {
     if (statusFilter === 'required') {
       return v.requires_acknowledgement && !v.acknowledged

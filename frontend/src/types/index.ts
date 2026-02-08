@@ -110,14 +110,11 @@ export interface CharacteristicSummary extends Characteristic {
 export interface Sample {
   id: number
   characteristic_id: number
-  char_id?: number // Backend canonical name, also sent as characteristic_id
   timestamp: string
   mean: number
-  range: number | null
-  range_value?: number | null // Backend canonical name for range
+  range_value: number | null
   std_dev: number | null
-  excluded: boolean
-  is_excluded?: boolean // Backend canonical name, also sent as excluded
+  is_excluded: boolean
   source: string
   batch_number?: string | null
   operator_id?: string | null
@@ -277,8 +274,11 @@ export type WSMessage = WSSampleMessage | WSViolationMessage | WSAckMessage | WS
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
-  offset: number
-  limit: number
+  // Backend may return offset/limit or page/per_page depending on endpoint
+  offset?: number
+  limit?: number
+  page?: number
+  per_page?: number
 }
 
 export interface ApiError {

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Admin bootstrap
     admin_username: str = "admin"
-    admin_password: str = "password"
+    admin_password: str = ""
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"

@@ -28,16 +28,78 @@ ROLE_HIERARCHY = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Session dependency — single canonical source for all database sessions
+# ---------------------------------------------------------------------------
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get async database session.
+
+    This is the canonical session dependency. All repository factories and
+    endpoints should use this instead of importing ``get_session`` directly.
+
+    Yields:
+        AsyncSession instance for database operations
+    """
+    async for session in get_session():
+        yield session
+
+
+# ---------------------------------------------------------------------------
+# Repository factories
+# ---------------------------------------------------------------------------
 async def get_user_repo(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> UserRepository:
     """Get user repository instance."""
     return UserRepository(session)
 
 
+async def get_hierarchy_repo(
+    session: AsyncSession = Depends(get_db_session),
+) -> HierarchyRepository:
+    """Get hierarchy repository instance."""
+    return HierarchyRepository(session)
+
+
+async def get_characteristic_repo(
+    session: AsyncSession = Depends(get_db_session),
+) -> CharacteristicRepository:
+    """Get characteristic repository instance."""
+    return CharacteristicRepository(session)
+
+
+async def get_violation_repo(
+    session: AsyncSession = Depends(get_db_session),
+) -> ViolationRepository:
+    """Get violation repository instance."""
+    return ViolationRepository(session)
+
+
+async def get_sample_repo(
+    session: AsyncSession = Depends(get_db_session),
+) -> SampleRepository:
+    """Get sample repository instance."""
+    return SampleRepository(session)
+
+
+async def get_alert_manager(
+    request: Request,
+    violation_repo: ViolationRepository = Depends(get_violation_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+) -> AlertManager:
+    """Get alert manager instance with broadcaster wired."""
+    manager = AlertManager(violation_repo, sample_repo)
+    if hasattr(request.app.state, "broadcaster"):
+        manager.add_notifier(request.app.state.broadcaster)
+    return manager
+
+
+# ---------------------------------------------------------------------------
+# Auth dependencies
+# ---------------------------------------------------------------------------
 async def get_current_user(
     authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> User:
     """Extract and validate the current user from JWT Bearer token.
 
@@ -86,17 +148,7 @@ async def get_current_user(
 async def get_current_admin(
     user: User = Depends(get_current_user),
 ) -> User:
-    """Require the current user to be an admin at any plant.
-
-    Args:
-        user: Current authenticated user.
-
-    Returns:
-        The user if they are admin at any plant.
-
-    Raises:
-        HTTPException: 403 if user is not admin anywhere.
-    """
+    """Require the current user to be an admin at any plant."""
     for pr in user.plant_roles:
         if pr.role == UserRole.admin:
             return user
@@ -110,17 +162,7 @@ async def get_current_admin(
 async def get_current_engineer(
     user: User = Depends(get_current_user),
 ) -> User:
-    """Require the current user to be at least engineer at any plant.
-
-    Args:
-        user: Current authenticated user.
-
-    Returns:
-        The user if they have engineer+ role at any plant.
-
-    Raises:
-        HTTPException: 403 if insufficient privileges.
-    """
+    """Require the current user to be at least engineer at any plant."""
     for pr in user.plant_roles:
         if ROLE_HIERARCHY.get(pr.role.value, 0) >= ROLE_HIERARCHY["engineer"]:
             return user
@@ -132,14 +174,7 @@ async def get_current_engineer(
 
 
 def require_role(min_role: str):
-    """Factory that returns a dependency checking if user has >= min_role at any plant.
-
-    Args:
-        min_role: Minimum role required (operator/supervisor/engineer/admin).
-
-    Returns:
-        FastAPI dependency function.
-    """
+    """Factory that returns a dependency checking if user has >= min_role at any plant."""
     min_level = ROLE_HIERARCHY.get(min_role, 0)
 
     async def check_role(user: User = Depends(get_current_user)) -> User:
@@ -154,6 +189,9 @@ def require_role(min_role: str):
     return check_role
 
 
+# ---------------------------------------------------------------------------
+# Plant-scoped RBAC helpers
+# ---------------------------------------------------------------------------
 def get_user_role_level_for_plant(user: User, plant_id: int) -> int:
     """Get the user's effective role level for a specific plant.
 
@@ -178,16 +216,7 @@ def get_user_role_level_for_plant(user: User, plant_id: int) -> int:
 
 
 def check_plant_role(user: User, plant_id: int, min_role: str) -> None:
-    """Verify user has at least min_role for a specific plant. Raises 403 if not.
-
-    Args:
-        user: Authenticated user.
-        plant_id: Plant the resource belongs to.
-        min_role: Minimum required role.
-
-    Raises:
-        HTTPException: 403 if user lacks the required role for the plant.
-    """
+    """Verify user has at least min_role for a specific plant. Raises 403 if not."""
     min_level = ROLE_HIERARCHY.get(min_role, 0)
     if get_user_role_level_for_plant(user, plant_id) < min_level:
         raise HTTPException(
@@ -199,22 +228,11 @@ def check_plant_role(user: User, plant_id: int, min_role: str) -> None:
 async def get_current_user_or_api_key(
     authorization: Optional[str] = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ):
     """Dual auth: try JWT first, fall back to API key.
 
     Returns either a User object (JWT) or an APIKey object (API key).
-
-    Args:
-        authorization: Optional Authorization header with Bearer token.
-        x_api_key: Optional X-API-Key header.
-        session: Database session.
-
-    Returns:
-        User or APIKey object.
-
-    Raises:
-        HTTPException: 401 if neither auth method succeeds.
     """
     # Try JWT first
     if authorization and authorization.startswith("Bearer "):
@@ -246,155 +264,11 @@ async def get_current_user_or_api_key(
     )
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session.
-
-    Yields:
-        AsyncSession instance for database operations
-
-    Example:
-        @router.get("/items")
-        async def get_items(session: AsyncSession = Depends(get_db_session)):
-            result = await session.execute(select(Item))
-            return result.scalars().all()
-    """
-    async for session in get_session():
-        yield session
-
-
-async def get_hierarchy_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> HierarchyRepository:
-    """Get hierarchy repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        HierarchyRepository instance
-
-    Example:
-        @router.get("/hierarchy")
-        async def get_hierarchies(
-            repo: HierarchyRepository = Depends(get_hierarchy_repo)
-        ):
-            return await repo.get_all()
-    """
-    return HierarchyRepository(session)
-
-
-async def get_characteristic_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> CharacteristicRepository:
-    """Get characteristic repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        CharacteristicRepository instance
-
-    Example:
-        @router.get("/characteristics")
-        async def get_characteristics(
-            repo: CharacteristicRepository = Depends(get_characteristic_repo)
-        ):
-            return await repo.get_all()
-    """
-    return CharacteristicRepository(session)
-
-
-async def get_violation_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> ViolationRepository:
-    """Get violation repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        ViolationRepository instance
-
-    Example:
-        @router.get("/violations")
-        async def get_violations(
-            repo: ViolationRepository = Depends(get_violation_repo)
-        ):
-            return await repo.get_all()
-    """
-    return ViolationRepository(session)
-
-
-async def get_sample_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> SampleRepository:
-    """Get sample repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        SampleRepository instance
-
-    Example:
-        @router.get("/samples")
-        async def get_samples(
-            repo: SampleRepository = Depends(get_sample_repo)
-        ):
-            return await repo.get_all()
-    """
-    return SampleRepository(session)
-
-
-async def get_alert_manager(
-    request: Request,
-    violation_repo: ViolationRepository = Depends(get_violation_repo),
-    sample_repo: SampleRepository = Depends(get_sample_repo),
-) -> AlertManager:
-    """Get alert manager instance with broadcaster wired.
-
-    Args:
-        request: FastAPI request object (for accessing app state)
-        violation_repo: Violation repository from dependency injection
-        sample_repo: Sample repository from dependency injection
-
-    Returns:
-        AlertManager instance with broadcaster as notifier
-
-    Example:
-        @router.post("/violations/{violation_id}/acknowledge")
-        async def acknowledge(
-            violation_id: int,
-            manager: AlertManager = Depends(get_alert_manager)
-        ):
-            return await manager.acknowledge(violation_id, "user", "reason")
-    """
-    # Create AlertManager instance
-    manager = AlertManager(violation_repo, sample_repo)
-
-    # Wire broadcaster as notifier if available in app state
-    if hasattr(request.app.state, "broadcaster"):
-        manager.add_notifier(request.app.state.broadcaster)
-
-    return manager
-
-
 async def resolve_plant_id_for_characteristic(
     characteristic_id: int,
     session: AsyncSession,
 ) -> int:
-    """Resolve the plant_id that a characteristic belongs to via hierarchy.
-
-    Args:
-        characteristic_id: The characteristic to look up.
-        session: Active database session.
-
-    Returns:
-        plant_id of the plant this characteristic belongs to.
-
-    Raises:
-        HTTPException: 404 if characteristic or hierarchy not found.
-    """
+    """Resolve the plant_id that a characteristic belongs to via hierarchy."""
     from sqlalchemy import select as sa_select
 
     from openspc.db.models.characteristic import Characteristic

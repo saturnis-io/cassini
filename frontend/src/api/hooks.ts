@@ -4,9 +4,9 @@ import { toast } from 'sonner'
 import { annotationApi, characteristicApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
 import type { AnnotationCreate, AnnotationUpdate, Characteristic, PlantCreate, PlantUpdate } from '@/types'
 
-/** Polling intervals (ms) */
+/** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
-const VIOLATION_STATS_REFETCH_MS = 30_000
+const VIOLATION_STATS_REFETCH_MS = 45_000
 
 // Query keys
 export const queryKeys = {
@@ -261,7 +261,7 @@ export function useCreateCharacteristic() {
       lsl?: number | null
       mqtt_topic?: string | null
     }) => characteristicApi.create(data as Partial<Characteristic>),
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
@@ -276,12 +276,15 @@ export function useChartData(id: number, options?: {
   limit?: number
   startDate?: string
   endDate?: string
+}, config?: {
+  /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
+  refetchInterval?: number | false
 }) {
   return useQuery({
     queryKey: queryKeys.characteristics.chartData(id, options?.limit, options?.startDate, options?.endDate),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,
-    refetchInterval: CHART_DATA_REFETCH_MS,
+    refetchInterval: config?.refetchInterval ?? CHART_DATA_REFETCH_MS,
   })
 }
 
@@ -308,17 +311,9 @@ export function useSubmitSample() {
     mutationFn: sampleApi.submit,
     onSuccess: (data, variables) => {
       // Invalidate ALL chart data queries for this characteristic (regardless of limit/date params)
-      // Use predicate to match any query that includes this characteristic's chart data
+      // Uses key-prefix matching consistent with WebSocketProvider invalidation
       queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey
-          return (
-            Array.isArray(key) &&
-            key[0] === 'characteristics' &&
-            key[1] === 'chartData' &&
-            key[2] === variables.characteristic_id
-          )
-        },
+        queryKey: queryKeys.characteristics.chartData(variables.characteristic_id),
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })

@@ -43,6 +43,7 @@ from openspc.db.repositories import (
     SampleRepository,
     ViolationRepository,
 )
+from openspc.utils.statistics import calculate_mean_range
 
 router = APIRouter(prefix="/api/v1/samples", tags=["samples"])
 
@@ -107,19 +108,11 @@ class BatchImportResult(BaseModel):
 
 
 async def get_spc_engine(
-    session: AsyncSession = Depends(get_db_session),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    char_repo: CharacteristicRepository = Depends(get_char_repo),
+    violation_repo: ViolationRepository = Depends(get_violation_repo),
 ) -> SPCEngine:
-    """Get SPC engine instance with all dependencies.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        SPCEngine instance configured with all required dependencies
-    """
-    sample_repo = SampleRepository(session)
-    char_repo = CharacteristicRepository(session)
-    violation_repo = ViolationRepository(session)
+    """Get SPC engine instance with all dependencies."""
     window_manager = RollingWindowManager(sample_repo)
     rule_library = NelsonRuleLibrary()
 
@@ -135,14 +128,7 @@ async def get_spc_engine(
 async def get_manual_provider(
     char_repo: CharacteristicRepository = Depends(get_char_repo),
 ) -> ManualProvider:
-    """Get manual provider instance.
-
-    Args:
-        char_repo: Characteristic repository from dependency injection
-
-    Returns:
-        ManualProvider instance
-    """
+    """Get manual provider instance."""
     return ManualProvider(char_repo)
 
 
@@ -151,11 +137,8 @@ async def get_window_manager(
 ) -> RollingWindowManager:
     """Get rolling window manager instance.
 
-    Args:
-        sample_repo: Sample repository from dependency injection
-
-    Returns:
-        RollingWindowManager instance
+    TODO: Cache as app-state singleton to preserve LRU window cache across
+    requests. Currently recreated per request, losing the in-memory cache.
     """
     return RollingWindowManager(sample_repo)
 
@@ -231,10 +214,7 @@ async def list_samples(
     response_items = []
     for sample in paginated_samples:
         measurements = [m.value for m in sample.measurements]
-        mean = sum(measurements) / len(measurements) if measurements else 0.0
-        range_value = None
-        if len(measurements) > 1:
-            range_value = max(measurements) - min(measurements)
+        mean, range_value = calculate_mean_range(measurements)
 
         # Get edit count if edit_history is loaded (defensive for pre-migration)
         edit_count = 0
@@ -355,8 +335,8 @@ async def submit_sample(
     except ValueError as e:
         # Validation errors (characteristic not found, wrong measurement count, etc.)
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input")
+    except Exception:
         # Unexpected errors
         await session.rollback()
         logger.exception("Failed to process sample")
@@ -397,10 +377,7 @@ async def get_sample(
 
     # Calculate statistics
     measurements = [m.value for m in sample.measurements]
-    mean = sum(measurements) / len(measurements) if measurements else 0.0
-    range_value = None
-    if len(measurements) > 1:
-        range_value = max(measurements) - min(measurements)
+    mean, range_value = calculate_mean_range(measurements)
 
     return SampleResponse(
         id=sample.id,
@@ -470,10 +447,7 @@ async def toggle_exclude(
 
         # Calculate statistics
         measurements = [m.value for m in sample.measurements]
-        mean = sum(measurements) / len(measurements) if measurements else 0.0
-        range_value = None
-        if len(measurements) > 1:
-            range_value = max(measurements) - min(measurements)
+        mean, range_value = calculate_mean_range(measurements)
 
         return SampleResponse(
             id=sample.id,
@@ -662,25 +636,20 @@ async def update_sample(
 
         # Calculate new statistics
         values = data.measurements
-        mean = sum(values) / len(values)
-        range_value = max(values) - min(values) if len(values) > 1 else None
+        mean, range_value = calculate_mean_range(values)
 
-        # Determine zone based on control limits
+        # Determine zone based on control limits using shared utility
         zone = "unknown"
         if characteristic.ucl is not None and characteristic.lcl is not None:
+            from openspc.utils.statistics import classify_zone, calculate_zones, ZoneBoundaries
+
             center = (characteristic.ucl + characteristic.lcl) / 2
             sigma = (characteristic.ucl - center) / 3
-
-            if mean > characteristic.ucl or mean < characteristic.lcl:
-                zone = "out_of_control"
-            elif sigma > 0:
-                z = abs(mean - center) / sigma
-                if z <= 1:
-                    zone = "zone_c_upper" if mean >= center else "zone_c_lower"
-                elif z <= 2:
-                    zone = "zone_b_upper" if mean >= center else "zone_b_lower"
-                else:
-                    zone = "zone_a_upper" if mean >= center else "zone_a_lower"
+            if sigma > 0:
+                zones = calculate_zones(center, sigma)
+                zone = classify_zone(mean, zones, center)
+            elif mean > characteristic.ucl or mean < characteristic.lcl:
+                zone = "beyond_ucl" if mean > characteristic.ucl else "beyond_lcl"
 
         # Re-run Nelson Rules evaluation
         rule_library = NelsonRuleLibrary()
@@ -796,6 +765,12 @@ async def get_sample_edit_history(
     history_records = result.scalars().all()
 
     # Convert to response models
+    def _safe_json_loads(raw: str) -> list[float]:
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
     return [
         SampleEditHistoryResponse(
             id=record.id,
@@ -803,8 +778,8 @@ async def get_sample_edit_history(
             edited_at=record.edited_at,
             edited_by=record.edited_by,
             reason=record.reason,
-            previous_values=json.loads(record.previous_values),
-            new_values=json.loads(record.new_values),
+            previous_values=_safe_json_loads(record.previous_values),
+            new_values=_safe_json_loads(record.new_values),
             previous_mean=record.previous_mean,
             new_mean=record.new_mean,
         )

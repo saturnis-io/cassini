@@ -20,6 +20,9 @@ from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.sample import Sample
 from openspc.db.models.user import User
 
+# TODO: This router shares the /api/v1/characteristics prefix with the main
+# characteristics router. Consider moving annotation routes to a dedicated
+# /api/v1/annotations prefix to avoid potential confusion.
 router = APIRouter(
     prefix="/api/v1/characteristics",
     tags=["annotations"],

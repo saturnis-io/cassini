@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useChartData, useViolations, useCharacteristic, useAnnotations } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
@@ -6,6 +6,35 @@ import { ControlChart } from '@/components/ControlChart'
 import { useECharts } from '@/hooks/useECharts'
 import type { ReportTemplate, ReportSection } from '@/lib/report-templates'
 import type { ChartData, Violation, Annotation } from '@/types'
+
+/**
+ * Hook that wraps useECharts and captures a static PNG data URL from the chart
+ * once it renders. For print/report contexts, canvas-based ECharts don't
+ * reliably print, so we render a static <img> fallback alongside the
+ * hidden canvas container (which drives the capture).
+ */
+function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
+  const { containerRef, chartRef } = useECharts(opts)
+  const [dataURL, setDataURL] = useState<string | null>(null)
+
+  // Capture a static image after the chart has rendered
+  useEffect(() => {
+    // Small delay so ECharts finishes its animation/render cycle
+    const timer = setTimeout(() => {
+      const chart = chartRef.current
+      if (!chart) return
+      try {
+        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+        setDataURL(url)
+      } catch {
+        // Chart may not be ready yet
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [chartRef, opts.option])
+
+  return { containerRef, dataURL }
+}
 
 interface ReportPreviewProps {
   template: ReportTemplate
@@ -139,6 +168,10 @@ function ReportSectionComponent({
 
     case 'controlChart':
       if (!chartData || characteristicIds.length === 0) return null
+      // NOTE: ControlChart uses canvas-based ECharts which may not render reliably
+      // in print. The histogram and trend sub-charts use useStaticChart to capture
+      // a static PNG fallback. A full static-image replacement for the main control
+      // chart would require exposing getDataURL from ControlChart's internal instance.
       return (
         <div className="border border-border rounded-lg p-4">
           <h2 className="text-lg font-semibold mb-4">Control Chart</h2>
@@ -494,7 +527,7 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
     }
   }, [values, chartData])
 
-  const { containerRef } = useECharts({ option, notMerge: true })
+  const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
   if (values.length === 0) return null
 
@@ -505,7 +538,9 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
     <div className="border border-border rounded-lg p-4">
       <h2 className="text-lg font-semibold mb-4">Distribution Histogram</h2>
       <div className="h-48 relative">
-        <div ref={containerRef} className="absolute inset-0" />
+        {/* Hidden canvas for chart capture; static image shown for print reliability */}
+        <div ref={containerRef} className="absolute inset-0" style={{ visibility: dataURL ? 'hidden' : 'visible' }} />
+        {dataURL && <img src={dataURL} alt="Distribution histogram" className="absolute inset-0 w-full h-full object-contain" />}
       </div>
       <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
         <span>Mean: {mean.toFixed(4)}</span>
@@ -759,7 +794,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
     }
   }, [dataPoints, chartData])
 
-  const { containerRef } = useECharts({ option, notMerge: true })
+  const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
   if (dataPoints.length < 5) return null
 
@@ -767,7 +802,9 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
     <div className="border border-border rounded-lg p-4">
       <h2 className="text-lg font-semibold mb-4">Trend Analysis</h2>
       <div className="h-48 relative">
-        <div ref={containerRef} className="absolute inset-0" />
+        {/* Hidden canvas for chart capture; static image shown for print reliability */}
+        <div ref={containerRef} className="absolute inset-0" style={{ visibility: dataURL ? 'hidden' : 'visible' }} />
+        {dataURL && <img src={dataURL} alt="Trend analysis chart" className="absolute inset-0 w-full h-full object-contain" />}
       </div>
       <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">

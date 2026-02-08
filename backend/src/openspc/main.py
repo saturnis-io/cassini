@@ -1,4 +1,11 @@
-"""OpenSPC FastAPI Application."""
+"""OpenSPC FastAPI Application.
+
+TODO: Adopt structured logging (e.g. structlog or python-json-logger) for
+machine-parseable log output in production deployments.
+
+TODO: Add Alembic migration version check at startup to warn when the
+database schema is out of date.
+"""
 
 import logging
 from contextlib import asynccontextmanager

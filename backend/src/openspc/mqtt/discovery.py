@@ -15,6 +15,10 @@ from openspc.mqtt.client import MQTTClient
 
 logger = logging.getLogger(__name__)
 
+# Default configuration for topic discovery
+DISCOVERY_MAX_TOPICS = 10000
+DISCOVERY_TTL_SECONDS = 300
+
 
 @dataclass
 class SparkplugMetricInfo:
@@ -103,7 +107,7 @@ class TopicDiscoveryService:
         >>> await svc.stop_discovery(mqtt_client)
     """
 
-    def __init__(self, max_topics: int = 10000, ttl_seconds: int = 300):
+    def __init__(self, max_topics: int = DISCOVERY_MAX_TOPICS, ttl_seconds: int = DISCOVERY_TTL_SECONDS):
         """Initialize the discovery service.
 
         Args:
