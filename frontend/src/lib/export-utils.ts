@@ -32,16 +32,52 @@ function cssColorToRgb(cssColor: string): string | null {
 /** Pattern matching modern CSS color functions that html2canvas cannot parse */
 const UNSUPPORTED_COLOR_RE = /oklch|oklab|lab\(|lch\(|color-mix\(|color\(/
 
-/** CSS properties that hold color values */
-const COLOR_PROPS = [
-  'color', 'background-color',
-  'border-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
-  'outline-color', 'text-decoration-color',
-]
+/** Names of CSS color functions that need conversion */
+const COLOR_FN_NAMES = ['oklch', 'oklab', 'lab', 'lch', 'color-mix', 'color']
+const COLOR_FN_RE = new RegExp(`(${COLOR_FN_NAMES.join('|')})\\(`, 'g')
+
+/**
+ * Replace all modern CSS color functions within a value string with RGB
+ * equivalents.  Handles compound values like box-shadow that mix colors
+ * with lengths, and nested parens like color-mix(in srgb, oklch(...) 50%, …).
+ */
+function replaceModernColors(value: string): string {
+  let result = ''
+  let lastIndex = 0
+  let match
+
+  COLOR_FN_RE.lastIndex = 0
+  while ((match = COLOR_FN_RE.exec(value)) !== null) {
+    result += value.slice(lastIndex, match.index)
+
+    // Walk forward to find the balanced closing paren
+    let depth = 1
+    let i = match.index + match[0].length
+    while (i < value.length && depth > 0) {
+      if (value[i] === '(') depth++
+      else if (value[i] === ')') depth--
+      i++
+    }
+
+    const colorExpr = value.substring(match.index, i)
+    const rgb = cssColorToRgb(colorExpr)
+    // If canvas conversion fails (e.g. contains var()), fall back to
+    // transparent so html2canvas doesn't throw on the unsupported function.
+    result += rgb ?? 'transparent'
+    lastIndex = i
+  }
+
+  result += value.slice(lastIndex)
+  return result
+}
 
 /**
  * Walk every element in `root` and force any modern-CSS color values
  * to RGB inline styles so html2canvas can parse them.
+ *
+ * Iterates ALL computed style properties (not a fixed list) so that
+ * compound properties like box-shadow, background shorthand, etc. are
+ * also covered.
  */
 function forceRgbColors(root: HTMLElement) {
   const walk = (el: HTMLElement) => {
@@ -49,11 +85,14 @@ function forceRgbColors(root: HTMLElement) {
     if (!view) return
     const computed = view.getComputedStyle(el)
 
-    for (const prop of COLOR_PROPS) {
+    for (let i = 0; i < computed.length; i++) {
+      const prop = computed[i]
       const value = computed.getPropertyValue(prop)
       if (UNSUPPORTED_COLOR_RE.test(value)) {
-        const rgb = cssColorToRgb(value)
-        if (rgb) el.style.setProperty(prop, rgb, 'important')
+        const fixed = replaceModernColors(value)
+        if (fixed !== value) {
+          el.style.setProperty(prop, fixed, 'important')
+        }
       }
     }
 
@@ -62,6 +101,22 @@ function forceRgbColors(root: HTMLElement) {
     }
   }
   walk(root)
+}
+
+/**
+ * Sanitize all stylesheets in the cloned document by replacing unsupported
+ * CSS color functions (oklab, oklch, etc.) with RGB equivalents in the raw
+ * CSS text.  This is necessary because html2canvas parses stylesheets
+ * directly (for pseudo-elements, cascade, etc.) — inline style overrides
+ * alone are not sufficient.
+ */
+function sanitizeStylesheets(doc: Document) {
+  doc.querySelectorAll('style').forEach((styleEl) => {
+    const text = styleEl.textContent
+    if (text && UNSUPPORTED_COLOR_RE.test(text)) {
+      styleEl.textContent = replaceModernColors(text)
+    }
+  })
 }
 
 /**
@@ -77,9 +132,12 @@ export async function exportToPdf(
     logging: false,
     useCORS: true,
     backgroundColor: '#ffffff',
-    onclone: (_clonedDoc: Document, clonedElement: HTMLElement) => {
-      // Convert modern CSS colors (oklab, oklch, etc.) to RGB on the
-      // cloned DOM *before* html2canvas parses the tree.
+    onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
+      // 1. Sanitize raw CSS in <style> tags — covers pseudo-elements,
+      //    cascade rules, and anything html2canvas parses from stylesheets.
+      sanitizeStylesheets(clonedDoc)
+      // 2. Override computed styles on elements as a belt-and-suspenders
+      //    measure for any resolved values that still contain modern colors.
       forceRgbColors(clonedElement)
     },
   })
