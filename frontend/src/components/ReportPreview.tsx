@@ -1,19 +1,9 @@
-import {
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ResponsiveContainer,
-} from 'recharts'
-import { Activity } from 'lucide-react'
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { useChartData, useViolations, useCharacteristic } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
+import { useECharts } from '@/hooks/useECharts'
 import type { ReportTemplate, ReportSection } from '@/lib/report-templates'
 import type { ChartData, Violation } from '@/types'
 
@@ -67,15 +57,11 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
         {/* Report Header with Brand Logo */}
         <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
           <div className="flex items-center gap-3">
-            {brandConfig.logoUrl ? (
-              <img
-                src={brandConfig.logoUrl}
-                alt={`${brandConfig.appName} logo`}
-                className="h-8 w-8 object-contain"
-              />
-            ) : (
-              <Activity className="h-6 w-6 text-primary" />
-            )}
+            <img
+              src={brandConfig.logoUrl || '/openspc-isometric-light.png'}
+              alt={`${brandConfig.appName} logo`}
+              className="h-8 w-8 object-contain"
+            />
             <div>
               <h1 className="text-lg font-bold">{brandConfig.appName}</h1>
               <p className="text-xs text-muted-foreground">SPC Report</p>
@@ -362,80 +348,108 @@ function calculateStatistics(chartData: ChartData) {
 }
 
 /**
- * Histogram section for reports
+ * Histogram section for reports (ECharts)
  */
 function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
   const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+
+  const option = useMemo(() => {
+    if (values.length === 0) return null
+
+    const { spec_limits, control_limits } = chartData
+
+    // Calculate domain including all limits so they're always visible
+    const allValues = [
+      ...values,
+      ...(spec_limits.lsl != null ? [spec_limits.lsl] : []),
+      ...(spec_limits.usl != null ? [spec_limits.usl] : []),
+      ...(control_limits.lcl != null ? [control_limits.lcl] : []),
+      ...(control_limits.ucl != null ? [control_limits.ucl] : []),
+    ]
+    const domainMin = Math.min(...allValues)
+    const domainMax = Math.max(...allValues)
+    const domainPadding = (domainMax - domainMin) * 0.1
+
+    // Calculate histogram bins
+    const binCount = 15
+    const binMin = domainMin - domainPadding
+    const binMax = domainMax + domainPadding
+    const binWidth = (binMax - binMin) / binCount || 1
+
+    const bins = Array.from({ length: binCount }, (_, i) => ({
+      binCenter: binMin + (i + 0.5) * binWidth,
+      count: 0,
+    }))
+
+    values.forEach((value) => {
+      const binIndex = Math.min(Math.max(0, Math.floor((value - binMin) / binWidth)), binCount - 1)
+      bins[binIndex].count++
+    })
+
+    const mean = values.reduce((a, b) => a + b, 0) / values.length
+    const maxCount = Math.max(...bins.map((b) => b.count))
+
+    // Build reference markLines
+    const markLineData: Array<{ xAxis: number; lineStyle: { color: string; width: number; type: string }; label?: { show: boolean } }> = [
+      { xAxis: mean, lineStyle: { color: 'hsl(212 100% 35%)', width: 2, type: 'dashed' }, label: { show: false } },
+    ]
+    if (control_limits.lcl != null)
+      markLineData.push({ xAxis: control_limits.lcl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+    if (control_limits.ucl != null)
+      markLineData.push({ xAxis: control_limits.ucl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+    if (spec_limits.lsl != null)
+      markLineData.push({ xAxis: spec_limits.lsl, lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' }, label: { show: false } })
+    if (spec_limits.usl != null)
+      markLineData.push({ xAxis: spec_limits.usl, lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' }, label: { show: false } })
+
+    return {
+      grid: { top: 10, right: 30, left: 40, bottom: 30 },
+      xAxis: {
+        type: 'value' as const,
+        min: binMin,
+        max: binMax,
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
+        splitLine: { show: true, lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+      },
+      yAxis: {
+        type: 'value' as const,
+        max: Math.ceil(maxCount * 1.1),
+        axisLabel: { fontSize: 10 },
+      },
+      tooltip: {
+        trigger: 'item' as const,
+        formatter: (params: { data: [number, number] }) => {
+          return `Value: ${params.data[0].toFixed(3)}<br/>Count: ${params.data[1]}`
+        },
+      },
+      series: [
+        {
+          type: 'bar' as const,
+          data: bins.map((b) => [b.binCenter, b.count]),
+          barWidth: `${(100 / binCount) * 0.8}%`,
+          itemStyle: { color: 'hsl(212 100% 45%)', opacity: 0.7 },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            data: markLineData,
+          },
+        },
+      ],
+    }
+  }, [values, chartData])
+
+  const { containerRef } = useECharts({ option, notMerge: true })
+
   if (values.length === 0) return null
 
-  const { spec_limits, control_limits } = chartData
-
-  // Calculate domain including all limits so they're always visible
-  const allValues = [
-    ...values,
-    ...(spec_limits.lsl != null ? [spec_limits.lsl] : []),
-    ...(spec_limits.usl != null ? [spec_limits.usl] : []),
-    ...(control_limits.lcl != null ? [control_limits.lcl] : []),
-    ...(control_limits.ucl != null ? [control_limits.ucl] : []),
-  ]
-  const domainMin = Math.min(...allValues)
-  const domainMax = Math.max(...allValues)
-  const domainPadding = (domainMax - domainMin) * 0.1
-
-  // Calculate histogram bins based on extended domain
-  const binCount = 15
-  const binMin = domainMin - domainPadding
-  const binMax = domainMax + domainPadding
-  const binWidth = (binMax - binMin) / binCount || 1
-
-  const bins = Array.from({ length: binCount }, (_, i) => ({
-    binCenter: binMin + (i + 0.5) * binWidth,
-    count: 0,
-  }))
-
-  values.forEach((value) => {
-    const binIndex = Math.min(Math.max(0, Math.floor((value - binMin) / binWidth)), binCount - 1)
-    bins[binIndex].count++
-  })
-
   const mean = values.reduce((a, b) => a + b, 0) / values.length
-  const maxCount = Math.max(...bins.map((b) => b.count))
+  const { spec_limits, control_limits } = chartData
 
   return (
     <div className="border border-border rounded-lg p-4">
       <h2 className="text-lg font-semibold mb-4">Distribution Histogram</h2>
-      <div className="h-48">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={bins} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 90%)" />
-            <XAxis
-              dataKey="binCenter"
-              type="number"
-              domain={[binMin, binMax]}
-              tick={{ fontSize: 10 }}
-              tickFormatter={(v) => v.toFixed(2)}
-            />
-            <YAxis tick={{ fontSize: 10 }} domain={[0, maxCount * 1.1]} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const bin = payload[0].payload
-                return (
-                  <div className="bg-popover border rounded p-2 text-xs shadow">
-                    <div>Value: {bin.binCenter.toFixed(3)}</div>
-                    <div>Count: {bin.count}</div>
-                  </div>
-                )
-              }}
-            />
-            <Bar dataKey="count" fill="hsl(212 100% 45%)" opacity={0.7} />
-            <ReferenceLine x={mean} stroke="hsl(212 100% 35%)" strokeWidth={2} strokeDasharray="4 4" />
-            {control_limits.lcl != null && <ReferenceLine x={control_limits.lcl} stroke="hsl(179 50% 59%)" strokeWidth={1.5} strokeDasharray="4 2" />}
-            {control_limits.ucl != null && <ReferenceLine x={control_limits.ucl} stroke="hsl(179 50% 59%)" strokeWidth={1.5} strokeDasharray="4 2" />}
-            {spec_limits.lsl != null && <ReferenceLine x={spec_limits.lsl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
-            {spec_limits.usl != null && <ReferenceLine x={spec_limits.usl} stroke="hsl(357 80% 52%)" strokeWidth={2} />}
-          </ComposedChart>
-        </ResponsiveContainer>
+      <div className="h-48 relative">
+        <div ref={containerRef} className="absolute inset-0" />
       </div>
       <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
         <span>Mean: {mean.toFixed(4)}</span>
@@ -603,70 +617,101 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
 }
 
 /**
- * Trend chart section for reports
+ * Trend chart section for reports (ECharts)
  */
 function ReportTrendSection({ chartData }: { chartData: ChartData }) {
   const dataPoints = chartData.data_points.filter((p) => !p.excluded)
-  if (dataPoints.length < 5) return null
-
-  // Calculate moving average (5-point)
   const windowSize = 5
-  const trendData = dataPoints.map((dp, i) => {
-    const windowStart = Math.max(0, i - windowSize + 1)
-    const window = dataPoints.slice(windowStart, i + 1)
-    const ma = window.reduce((sum, p) => sum + p.mean, 0) / window.length
+
+  const option = useMemo(() => {
+    if (dataPoints.length < 5) return null
+
+    // Calculate moving average (5-point)
+    const trendData = dataPoints.map((dp, i) => {
+      const windowStart = Math.max(0, i - windowSize + 1)
+      const windowSlice = dataPoints.slice(windowStart, i + 1)
+      const ma = windowSlice.reduce((sum, p) => sum + p.mean, 0) / windowSlice.length
+      return {
+        date: new Date(dp.timestamp).toLocaleDateString(),
+        timestamp: dp.timestamp,
+        value: dp.mean,
+        ma: i >= windowSize - 1 ? ma : null,
+      }
+    })
+
+    const { control_limits } = chartData
+    const values = dataPoints.map((p) => p.mean)
+    const minVal = Math.min(...values, control_limits.lcl ?? Infinity)
+    const maxVal = Math.max(...values, control_limits.ucl ?? -Infinity)
+    const padding = (maxVal - minVal) * 0.1
+
+    // Build markLine data for control limits
+    const markLineData: Array<{ yAxis: number; lineStyle: { color: string; width: number; type: string }; label?: { show: boolean } }> = []
+    if (control_limits.ucl != null)
+      markLineData.push({ yAxis: control_limits.ucl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+    if (control_limits.lcl != null)
+      markLineData.push({ yAxis: control_limits.lcl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+    if (control_limits.center_line != null)
+      markLineData.push({ yAxis: control_limits.center_line, lineStyle: { color: 'hsl(104 55% 40%)', width: 1, type: 'dashed' }, label: { show: false } })
 
     return {
-      timestamp: dp.timestamp,
-      value: dp.mean,
-      ma: i >= windowSize - 1 ? ma : null,
-      date: new Date(dp.timestamp).toLocaleDateString(),
+      grid: { top: 10, right: 20, left: 40, bottom: 30 },
+      xAxis: {
+        type: 'category' as const,
+        data: trendData.map((d) => d.date),
+        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)) },
+      },
+      yAxis: {
+        type: 'value' as const,
+        min: minVal - padding,
+        max: maxVal + padding,
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
+        splitLine: { lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+      },
+      tooltip: {
+        trigger: 'axis' as const,
+        formatter: (params: Array<{ data: number | null; seriesName: string; axisValue: string }>) => {
+          const item = trendData[params[0]?.axisValue ? trendData.findIndex((d) => d.date === params[0].axisValue) : 0]
+          if (!item) return ''
+          let html = `${new Date(item.timestamp).toLocaleString()}<br/>Value: ${item.value.toFixed(4)}`
+          if (item.ma != null) html += `<br/>MA(${windowSize}): ${item.ma.toFixed(4)}`
+          return html
+        },
+      },
+      series: [
+        {
+          name: 'Value',
+          type: 'line' as const,
+          data: trendData.map((d) => d.value),
+          smooth: false,
+          symbol: 'circle',
+          symbolSize: 4,
+          lineStyle: { color: 'hsl(212 100% 45%)', width: 1 },
+          itemStyle: { color: 'hsl(212 100% 45%)' },
+          markLine: markLineData.length > 0 ? { silent: true, symbol: 'none', data: markLineData } : undefined,
+        },
+        {
+          name: 'Moving Avg',
+          type: 'line' as const,
+          data: trendData.map((d) => d.ma),
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { color: 'hsl(25 95% 53%)', width: 2 },
+          itemStyle: { color: 'hsl(25 95% 53%)' },
+        },
+      ],
     }
-  })
+  }, [dataPoints, chartData])
 
-  const { control_limits } = chartData
-  const values = dataPoints.map((p) => p.mean)
-  const minVal = Math.min(...values, control_limits.lcl ?? Infinity)
-  const maxVal = Math.max(...values, control_limits.ucl ?? -Infinity)
-  const padding = (maxVal - minVal) * 0.1
+  const { containerRef } = useECharts({ option, notMerge: true })
+
+  if (dataPoints.length < 5) return null
 
   return (
     <div className="border border-border rounded-lg p-4">
       <h2 className="text-lg font-semibold mb-4">Trend Analysis</h2>
-      <div className="h-48">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={trendData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 90%)" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 9 }}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[minVal - padding, maxVal + padding]}
-              tick={{ fontSize: 10 }}
-              tickFormatter={(v) => v.toFixed(2)}
-            />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const data = payload[0].payload
-                return (
-                  <div className="bg-popover border rounded p-2 text-xs shadow">
-                    <div>{new Date(data.timestamp).toLocaleString()}</div>
-                    <div>Value: {data.value.toFixed(4)}</div>
-                    {data.ma && <div>MA({windowSize}): {data.ma.toFixed(4)}</div>}
-                  </div>
-                )
-              }}
-            />
-            {control_limits.ucl && <ReferenceLine y={control_limits.ucl} stroke="hsl(179 50% 59%)" strokeDasharray="4 2" />}
-            {control_limits.lcl && <ReferenceLine y={control_limits.lcl} stroke="hsl(179 50% 59%)" strokeDasharray="4 2" />}
-            {control_limits.center_line && <ReferenceLine y={control_limits.center_line} stroke="hsl(104 55% 40%)" strokeDasharray="2 2" />}
-            <Line type="monotone" dataKey="value" stroke="hsl(212 100% 45%)" strokeWidth={1} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey="ma" stroke="hsl(25 95% 53%)" strokeWidth={2} dot={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
+      <div className="h-48 relative">
+        <div ref={containerRef} className="absolute inset-0" />
       </div>
       <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">

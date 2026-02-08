@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Activity, Sun, Moon, Monitor, User, LogOut, ChevronDown } from 'lucide-react'
+import { Sun, Moon, Monitor, User, LogOut, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -24,9 +24,10 @@ export function Header({
   className,
   plantSelector,
 }: HeaderProps) {
-  const { theme, setTheme, brandConfig } = useTheme()
+  const { theme, setTheme, resolvedTheme, brandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
+  const defaultLogo = resolvedTheme === 'dark' ? '/openspc-isometric-dark.png' : '/openspc-isometric-light.png'
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
@@ -74,17 +75,13 @@ export function Header({
       )}
     >
       {/* Left: Logo and app name */}
-      <div className="flex items-center gap-2">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={`${appName} logo`}
-            className="h-6 w-6 object-contain"
-          />
-        ) : (
-          <Activity className="h-5 w-5 text-primary" />
-        )}
-        <span className="text-lg font-semibold">{appName}</span>
+      <div className="flex items-center gap-2.5">
+        <img
+          src={logoUrl || defaultLogo}
+          alt={`${appName} logo`}
+          className="h-9 w-9 object-contain"
+        />
+        <span className="text-xl font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>{appName}</span>
       </div>
 
       {/* Right: Plant selector, theme toggle, user menu */}

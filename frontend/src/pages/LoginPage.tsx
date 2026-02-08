@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+import { useTheme } from '@/providers/ThemeProvider'
 
 /**
  * Login page with username/password form.
@@ -10,8 +11,10 @@ import { useAuth } from '@/providers/AuthProvider'
  */
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth()
+  const { resolvedTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+  const logoSrc = resolvedTheme === 'dark' ? '/openspc-isometric-dark.png' : '/openspc-isometric-light.png'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -49,6 +52,11 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Branding */}
         <div className="text-center mb-8">
+          <img
+            src={logoSrc}
+            alt="OpenSPC logo"
+            className="h-16 w-16 mx-auto mb-3 object-contain"
+          />
           <h1 className="text-3xl font-bold tracking-tight text-foreground">OpenSPC</h1>
           <p className="text-sm text-muted-foreground mt-1">Statistical Process Control</p>
         </div>

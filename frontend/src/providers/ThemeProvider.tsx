@@ -204,6 +204,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     applyBrandColors(brandConfig)
   }, [brandConfig])
 
+  // Switch favicon based on resolved theme
+  useEffect(() => {
+    const favicon = document.getElementById('favicon') as HTMLLinkElement | null
+    if (favicon) {
+      favicon.href = resolvedTheme === 'dark' ? '/favicon-dark.ico' : '/favicon-light.ico'
+    }
+  }, [resolvedTheme])
+
   // Listen for system theme changes when in 'system' mode
   useEffect(() => {
     if (theme !== 'system') return

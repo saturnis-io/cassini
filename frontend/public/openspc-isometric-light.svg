@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="l_bar_front" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="l_bar_side" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="l_bar_top" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#93c5fd"/>
+      <stop offset="100%" stop-color="#bfdbfe"/>
+    </linearGradient>
+    <linearGradient id="l_viol_front" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="l_viol_side" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b45309"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+    <linearGradient id="l_viol_top" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+    <linearGradient id="l_trend" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="60%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <filter id="l_shadow" x="-10%" y="-5%" width="120%" height="120%">
+      <feDropShadow dx="2" dy="4" stdDeviation="5" flood-color="#1e3a5f" flood-opacity="0.12"/>
+    </filter>
+    <filter id="l_glow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Transparent background - works on light surfaces -->
+
+  <!-- Subtle isometric grid floor -->
+  <g opacity="0.06" stroke="#3b82f6" stroke-width="0.75">
+    <line x1="40" y1="340" x2="472" y2="340"/>
+    <line x1="20" y1="370" x2="492" y2="370"/>
+    <line x1="0" y1="400" x2="512" y2="400"/>
+    <line x1="-20" y1="430" x2="532" y2="430"/>
+    <line x1="130" y1="340" x2="90" y2="460"/>
+    <line x1="205" y1="340" x2="180" y2="460"/>
+    <line x1="280" y1="340" x2="270" y2="460"/>
+    <line x1="355" y1="340" x2="360" y2="460"/>
+    <line x1="430" y1="340" x2="450" y2="460"/>
+  </g>
+
+  <!-- ── 3D BAR CHART ── -->
+  <g filter="url(#l_shadow)">
+    <!-- Bar 1 -->
+    <polygon points="95,330 125,315 125,255 95,270" fill="url(#l_bar_front)"/>
+    <polygon points="125,315 158,330 158,270 125,255" fill="url(#l_bar_side)"/>
+    <polygon points="95,270 125,255 158,270 128,285" fill="url(#l_bar_top)"/>
+
+    <!-- Bar 2 -->
+    <polygon points="160,330 190,315 190,230 160,245" fill="url(#l_bar_front)"/>
+    <polygon points="190,315 223,330 223,245 190,230" fill="url(#l_bar_side)"/>
+    <polygon points="160,245 190,230 223,245 193,260" fill="url(#l_bar_top)"/>
+
+    <!-- Bar 3 -->
+    <polygon points="225,330 255,315 255,262 225,277" fill="url(#l_bar_front)"/>
+    <polygon points="255,315 288,330 288,277 255,262" fill="url(#l_bar_side)"/>
+    <polygon points="225,277 255,262 288,277 258,292" fill="url(#l_bar_top)"/>
+
+    <!-- Bar 4 - VIOLATION (amber) -->
+    <polygon points="290,330 320,315 320,168 290,183" fill="url(#l_viol_front)"/>
+    <polygon points="320,315 353,330 353,183 320,168" fill="url(#l_viol_side)"/>
+    <polygon points="290,183 320,168 353,183 323,198" fill="url(#l_viol_top)"/>
+
+    <!-- Bar 5 -->
+    <polygon points="355,330 385,315 385,270 355,285" fill="url(#l_bar_front)"/>
+    <polygon points="385,315 418,330 418,285 385,270" fill="url(#l_bar_side)"/>
+    <polygon points="355,285 385,270 418,285 388,300" fill="url(#l_bar_top)"/>
+  </g>
+
+  <!-- UCL line -->
+  <line x1="70" y1="205" x2="440" y2="205" stroke="#d97706" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.45"/>
+  <text x="448" y="209" font-family="Arial,sans-serif" font-size="11" fill="#d97706" opacity="0.55">UCL</text>
+
+  <!-- Center line -->
+  <line x1="70" y1="275" x2="440" y2="275" stroke="#94a3b8" stroke-width="0.75" stroke-dasharray="4,4" opacity="0.2"/>
+
+  <!-- Trend line overlay -->
+  <polyline points="128,270 193,245 258,277 323,183 388,285"
+    fill="none" stroke="url(#l_trend)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#l_glow)" opacity="0.85"/>
+  <!-- Trend dots -->
+  <g fill="#ffffff" stroke="#2563eb" stroke-width="1.5">
+    <circle cx="128" cy="270" r="4"/>
+    <circle cx="193" cy="245" r="4"/>
+    <circle cx="258" cy="277" r="4"/>
+    <circle cx="388" cy="285" r="4"/>
+  </g>
+  <!-- Violation dot -->
+  <circle cx="323" cy="183" r="5" fill="#f59e0b" stroke="#d97706" stroke-width="1"/>
+  <!-- Alert ring -->
+  <circle cx="323" cy="183" r="12" fill="none" stroke="#d97706" stroke-width="1.5" opacity="0.35">
+    <animate attributeName="r" values="10;16;10" dur="2.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.4;0.08;0.4" dur="2.5s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Alert triangle -->
+  <g transform="translate(323,150)">
+    <polygon points="0,-12 10,5 -10,5" fill="#d97706" opacity="0.8"/>
+    <text x="0" y="2" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#ffffff">!</text>
+  </g>
+
+  <!-- Label -->
+  <text x="256" y="410" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif" font-size="36" font-weight="700" fill="#1e293b" letter-spacing="2">OpenSPC</text>
+  <text x="256" y="435" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif" font-size="12" fill="#94a3b8" letter-spacing="6">ANALYTICS</text>
+</svg>

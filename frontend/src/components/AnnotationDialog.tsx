@@ -6,10 +6,11 @@
  * - Period: Annotate a time range (opened by the toolbar Annotate button)
  */
 
-import { useState } from 'react'
-import { X, MapPin, CalendarRange } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { X, MapPin, CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCreateAnnotation } from '@/api/hooks'
+import { TimePicker } from './TimePicker'
 
 interface AnnotationDialogProps {
   characteristicId: number
@@ -20,12 +21,6 @@ interface AnnotationDialogProps {
   sampleId?: number
   /** For point mode: display info about the sample */
   sampleLabel?: string
-}
-
-/** Convert a Date to datetime-local input value (local timezone) */
-function toDatetimeLocal(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 export function AnnotationDialog({
@@ -41,15 +36,21 @@ export function AnnotationDialog({
   // Period mode: default to last 1 hour
   const now = new Date()
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-  const [startTime, setStartTime] = useState(toDatetimeLocal(oneHourAgo))
-  const [endTime, setEndTime] = useState(toDatetimeLocal(now))
+  const [startDate, setStartDate] = useState<Date>(oneHourAgo)
+  const [endDate, setEndDate] = useState<Date>(now)
+  const [activeField, setActiveField] = useState<'start' | 'end'>('start')
+  const [viewMonth, setViewMonth] = useState(now.getMonth())
+  const [viewYear, setViewYear] = useState(now.getFullYear())
+
+  const activeDate = activeField === 'start' ? startDate : endDate
+  const setActiveDate = activeField === 'start' ? setStartDate : setEndDate
 
   const createAnnotation = useCreateAnnotation()
 
   const canSubmit = (() => {
     if (!text.trim()) return false
     if (mode === 'point' && !sampleId) return false
-    if (mode === 'period' && (!startTime || !endTime || new Date(startTime) >= new Date(endTime))) return false
+    if (mode === 'period' && startDate >= endDate) return false
     return true
   })()
 
@@ -73,14 +74,58 @@ export function AnnotationDialog({
           annotation_type: 'period',
           text: text.trim(),
           color: color || undefined,
-          start_time: new Date(startTime).toISOString(),
-          end_time: new Date(endTime).toISOString(),
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
         },
       })
     }
 
     onClose()
   }
+
+  // Calendar helpers
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(viewYear, viewMonth, 1)
+    const lastDay = new Date(viewYear, viewMonth + 1, 0)
+    const startPad = firstDay.getDay()
+    const days: (Date | null)[] = []
+    for (let i = 0; i < startPad; i++) days.push(null)
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(viewYear, viewMonth, d))
+    }
+    return days
+  }, [viewMonth, viewYear])
+
+  const handleDateSelect = (date: Date) => {
+    const newDate = new Date(date)
+    newDate.setHours(activeDate.getHours(), activeDate.getMinutes(), 0, 0)
+    setActiveDate(newDate)
+  }
+
+  const handleTimeChange = (hour: number, minute: number) => {
+    const newDate = new Date(activeDate)
+    newDate.setHours(hour, minute, 0, 0)
+    setActiveDate(newDate)
+  }
+
+  const formatDateDisplay = (date: Date) =>
+    date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const formatTimeDisplay = (date: Date) =>
+    date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
+
+  const isSameDay = (d1: Date | null, d2: Date) => {
+    if (!d1) return false
+    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()
+  }
+
+  const isInRange = (date: Date | null) => {
+    if (!date) return false
+    return date >= startDate && date <= endDate
+  }
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -90,10 +135,14 @@ export function AnnotationDialog({
         onClick={onClose}
       />
 
-      {/* Dialog */}
-      <div className="relative z-10 w-full max-w-md bg-card border border-border rounded-2xl shadow-xl p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+      {/* Dialog - wider for period mode, scrollable */}
+      <div className={cn(
+        'relative z-10 w-full bg-card border border-border rounded-2xl shadow-xl flex flex-col',
+        mode === 'period' ? 'max-w-lg' : 'max-w-md',
+        'max-h-[90vh]'
+      )}>
+        {/* Header - fixed */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
           <div className="flex items-center gap-2">
             {mode === 'point' ? (
               <MapPin className="h-5 w-5 text-amber-500" />
@@ -112,99 +161,169 @@ export function AnnotationDialog({
           </button>
         </div>
 
-        {/* Mode-specific fields */}
-        {mode === 'point' ? (
-          <div className="mb-4 px-3 py-2.5 bg-muted/50 border border-border rounded-lg">
-            <div className="text-xs font-medium text-muted-foreground mb-0.5">Data Point</div>
-            <div className="text-sm font-medium">{sampleLabel || `Sample #${sampleId}`}</div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Start</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+        {/* Scrollable content */}
+        <div className="overflow-y-auto px-6 pb-6 flex-1 min-h-0">
+          {/* Mode-specific fields */}
+          {mode === 'point' ? (
+            <div className="mb-4 px-3 py-2.5 bg-muted/50 border border-border rounded-lg">
+              <div className="text-xs font-medium text-muted-foreground mb-0.5">Data Point</div>
+              <div className="text-sm font-medium">{sampleLabel || `Sample #${sampleId}`}</div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">End</label>
-              <input
-                type="datetime-local"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
-            {startTime && endTime && new Date(startTime) >= new Date(endTime) && (
-              <div className="col-span-2 text-xs text-destructive">
-                Start time must be before end time.
+          ) : (
+            <div className="mb-4 space-y-3">
+              {/* Start / End selector buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setActiveField('start')}
+                  className={cn(
+                    'flex-1 text-left p-2.5 rounded-lg border text-xs transition-colors',
+                    activeField === 'start' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <div className="text-muted-foreground">Start</div>
+                  <div className="font-medium">{formatDateDisplay(startDate)}</div>
+                  <div className="text-muted-foreground">{formatTimeDisplay(startDate)}</div>
+                </button>
+                <button
+                  onClick={() => setActiveField('end')}
+                  className={cn(
+                    'flex-1 text-left p-2.5 rounded-lg border text-xs transition-colors',
+                    activeField === 'end' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                  )}
+                >
+                  <div className="text-muted-foreground">End</div>
+                  <div className="font-medium">{formatDateDisplay(endDate)}</div>
+                  <div className="text-muted-foreground">{formatTimeDisplay(endDate)}</div>
+                </button>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Text input */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1.5">Note</label>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={mode === 'point' ? 'Note about this data point...' : 'e.g., Changeover, Material batch switch, Equipment maintenance...'}
-            rows={3}
-            maxLength={500}
-            className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
-            autoFocus
-          />
-          <div className="text-xs text-muted-foreground mt-1">{text.length}/500</div>
-        </div>
+              {/* Calendar */}
+              <div className="border border-border rounded-lg p-2.5">
+                <div className="flex items-center justify-between mb-2">
+                  <button
+                    onClick={() => {
+                      if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1) }
+                      else { setViewMonth(viewMonth - 1) }
+                    }}
+                    className="p-1 hover:bg-muted rounded"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm font-medium">{monthNames[viewMonth]} {viewYear}</span>
+                  <button
+                    onClick={() => {
+                      if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1) }
+                      else { setViewMonth(viewMonth + 1) }
+                    }}
+                    className="p-1 hover:bg-muted rounded"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                  {dayNames.map((day) => (
+                    <div key={day} className="text-muted-foreground py-1">{day}</div>
+                  ))}
+                  {calendarDays.map((date, i) => (
+                    <button
+                      key={i}
+                      disabled={!date}
+                      onClick={() => date && handleDateSelect(date)}
+                      className={cn(
+                        'py-1 rounded text-xs transition-colors',
+                        !date && 'invisible',
+                        date && isSameDay(date, activeDate) && 'bg-primary text-primary-foreground',
+                        date && !isSameDay(date, activeDate) && isInRange(date) && 'bg-primary/20',
+                        date && !isSameDay(date, activeDate) && !isInRange(date) && 'hover:bg-muted'
+                      )}
+                    >
+                      {date?.getDate()}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        {/* Color picker */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-1.5">Color (optional)</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={color || '#6366f1'}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-8 h-8 rounded cursor-pointer border border-border"
+              {/* Time picker */}
+              <div className="border border-border rounded-lg p-3">
+                <div className="text-xs text-muted-foreground mb-2 text-center">
+                  Time for {activeField === 'start' ? 'Start' : 'End'}
+                </div>
+                <TimePicker
+                  hour={activeDate.getHours()}
+                  minute={activeDate.getMinutes()}
+                  onTimeChange={handleTimeChange}
+                  use12Hour={true}
+                />
+              </div>
+
+              {startDate >= endDate && (
+                <div className="text-xs text-destructive">
+                  Start time must be before end time.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Text input */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1.5">Note</label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={mode === 'point' ? 'Note about this data point...' : 'e.g., Changeover, Material batch switch, Equipment maintenance...'}
+              rows={3}
+              maxLength={500}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+              autoFocus={mode === 'point'}
             />
-            <span className="text-sm text-muted-foreground">
-              {color || 'Default (theme primary)'}
-            </span>
-            {color && (
-              <button
-                onClick={() => setColor('')}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
-              >
-                Reset
-              </button>
-            )}
+            <div className="text-xs text-muted-foreground mt-1">{text.length}/500</div>
           </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || createAnnotation.isPending}
-            className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-              canSubmit && !createAnnotation.isPending
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-muted text-muted-foreground cursor-not-allowed'
-            )}
-          >
-            {createAnnotation.isPending ? 'Creating...' : 'Create'}
-          </button>
+          {/* Color picker */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-1.5">Color (optional)</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={color || '#6366f1'}
+                onChange={(e) => setColor(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border border-border"
+              />
+              <span className="text-sm text-muted-foreground">
+                {color || 'Default (theme primary)'}
+              </span>
+              {color && (
+                <button
+                  onClick={() => setColor('')}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit || createAnnotation.isPending}
+              className={cn(
+                'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                canSubmit && !createAnnotation.isPending
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+              )}
+            >
+              {createAnnotation.isPending ? 'Creating...' : 'Create'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

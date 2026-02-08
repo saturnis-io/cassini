@@ -1,17 +1,16 @@
-/* Import Inter font for modern typography */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Import Sansation for headings + Inter for body */
+@import url('https://fonts.googleapis.com/css2?family=Sansation:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 @theme {
-  /* Sepasoft Brand Theme
-   * Official brand colors from https://www.sepasoft.com/sepasoft-brand-guidelines/
-   * Industrial MES aesthetic - Professional, Clean, Trustworthy
+  /* OpenSPC Brand Theme
+   * Industrial SPC aesthetic - Professional, Clean, Trustworthy
    */
 
-  /* Base - Clean white with Sepasoft Dark Gray text */
+  /* Base - Clean white with OpenSPC Dark Gray text */
   --color-background: hsl(210 20% 98%);
-  --color-foreground: hsl(30 9% 16%);           /* #2D2A26 Sepasoft Dark Gray */
+  --color-foreground: hsl(30 9% 16%);           /* #2D2A26 OpenSPC Dark Gray */
 
   /* Card surfaces - Clean white */
   --color-card: hsl(0 0% 100%);
@@ -19,7 +18,7 @@
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: hsl(30 9% 16%);
 
-  /* Primary - Sepasoft Blue */
+  /* Primary - OpenSPC Blue */
   --color-primary: hsl(212 100% 30%);           /* #004A98 */
   --color-primary-foreground: hsl(0 0% 100%);
 
@@ -31,15 +30,15 @@
   --color-muted: hsl(210 10% 96%);
   --color-muted-foreground: hsl(210 8% 46%);
 
-  /* Accent - Sepasoft Teal */
+  /* Accent - OpenSPC Teal */
   --color-accent: hsl(179 50% 59%);             /* #62CBC9 */
   --color-accent-foreground: hsl(30 9% 16%);
 
-  /* Semantic colors - Sepasoft palette */
-  --color-destructive: hsl(357 80% 52%);        /* #EC1C24 Sepasoft Red */
+  /* Semantic colors - OpenSPC palette */
+  --color-destructive: hsl(357 80% 52%);        /* #EC1C24 OpenSPC Red */
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-warning: hsl(32 63% 51%);             /* #D48232 Sepasoft Orange */
-  --color-success: hsl(104 55% 40%);            /* #4C9C2E Sepasoft Green */
+  --color-warning: hsl(32 63% 51%);             /* #D48232 OpenSPC Orange */
+  --color-success: hsl(104 55% 40%);            /* #4C9C2E OpenSPC Green */
 
   /* Borders and inputs */
   --color-border: hsl(210 15% 90%);
@@ -47,17 +46,17 @@
   --color-ring: hsl(212 100% 30% / 0.4);
   --radius: 0.75rem;
 
-  /* SPC Zone colors - Sepasoft palette mapping */
-  --color-zone-c: hsl(104 55% 40%);             /* Sepasoft Green - in control */
-  --color-zone-b: hsl(48 100% 50%);             /* #FFCD00 Sepasoft Yellow - caution */
-  --color-zone-a: hsl(32 63% 51%);              /* Sepasoft Orange - warning */
-  --color-violation: hsl(357 80% 52%);          /* Sepasoft Red - out of control */
+  /* SPC Zone colors - OpenSPC palette mapping */
+  --color-zone-c: hsl(104 55% 40%);             /* OpenSPC Green - in control */
+  --color-zone-b: hsl(48 100% 50%);             /* #FFCD00 OpenSPC Yellow - caution */
+  --color-zone-a: hsl(32 63% 51%);              /* OpenSPC Orange - warning */
+  --color-violation: hsl(357 80% 52%);          /* OpenSPC Red - out of control */
 
-  /* Chart colors - Sepasoft harmonious palette */
-  --color-chart-primary: hsl(212 100% 30%);     /* Sepasoft Blue */
-  --color-chart-secondary: hsl(179 50% 59%);    /* Sepasoft Teal */
-  --color-chart-tertiary: hsl(248 33% 59%);     /* #7473C0 Sepasoft Purple */
-  --color-chart-quaternary: hsl(32 63% 51%);    /* Sepasoft Orange */
+  /* Chart colors - OpenSPC harmonious palette */
+  --color-chart-primary: hsl(212 100% 30%);     /* OpenSPC Blue */
+  --color-chart-secondary: hsl(179 50% 59%);    /* OpenSPC Teal */
+  --color-chart-tertiary: hsl(248 33% 59%);     /* #7473C0 OpenSPC Purple */
+  --color-chart-quaternary: hsl(32 63% 51%);    /* OpenSPC Orange */
 
   /* Chart styling variables */
   --chart-line-width: 2.5;
@@ -176,7 +175,7 @@ button:not(:disabled):active {
   transform: translateY(0) scale(0.98);
 }
 
-/* Primary button with glow - Sepasoft Blue */
+/* Primary button with glow - OpenSPC Blue */
 .bg-primary {
   background: linear-gradient(135deg, hsl(212 100% 35%) 0%, hsl(212 100% 28%) 100%);
   box-shadow: var(--shadow-sm), 0 2px 8px hsl(212 100% 30% / 0.25);
@@ -197,7 +196,7 @@ button:not(:disabled):active {
   fill: color-mix(in srgb, var(--color-zone-a) 12%, transparent);
 }
 
-/* Violation pulse animation - Sepasoft Red glow */
+/* Violation pulse animation - OpenSPC Red glow */
 @keyframes pulse-violation {
   0%, 100% {
     opacity: 1;
@@ -234,15 +233,15 @@ button:not(:disabled):active {
   animation: point-enter 300ms ease-out;
 }
 
-/* Card status indicators - Subtle left border accent (Sepasoft colors) */
+/* Card status indicators - Subtle left border accent (OpenSPC colors) */
 .card-ok {
   border-color: var(--color-border);
 }
 .card-due {
-  border-left: 3px solid hsl(32 63% 51%);   /* Sepasoft Orange */
+  border-left: 3px solid hsl(32 63% 51%);   /* OpenSPC Orange */
 }
 .card-ooc {
-  border-left: 3px solid hsl(357 80% 52%);  /* Sepasoft Red */
+  border-left: 3px solid hsl(357 80% 52%);  /* OpenSPC Red */
 }
 
 /* Scrollbar styling - Minimal, refined */
@@ -264,13 +263,13 @@ button:not(:disabled):active {
   background: hsl(240 4% 55% / 0.6);
 }
 
-/* Selection styling - Sepasoft Blue */
+/* Selection styling - OpenSPC Blue */
 ::selection {
   background: hsl(212 100% 30% / 0.15);
   color: inherit;
 }
 
-/* Focus visible - Accessibility ring (Sepasoft Blue) */
+/* Focus visible - Accessibility ring (OpenSPC Blue) */
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px hsl(0 0% 100%), 0 0 0 4px hsl(212 100% 30% / 0.5);
@@ -283,13 +282,14 @@ button:not(:disabled):active {
   }
 }
 
-/* Typography refinements */
+/* Typography refinements - Sansation for headings */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
+  font-family: 'Sansation', 'Inter', sans-serif;
+  font-weight: 700;
   letter-spacing: -0.025em;
 }
 
-/* Subtle gradient text for headings (Sepasoft Blue to Green) */
+/* Subtle gradient text for headings (OpenSPC Blue to Green) */
 .gradient-text {
   background: linear-gradient(135deg, hsl(212 100% 30%) 0%, hsl(104 55% 40%) 100%);
   -webkit-background-clip: text;
@@ -317,15 +317,15 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0;
 }
 .stat-badge-success {
-  background: hsl(104 55% 40% / 0.1);  /* Sepasoft Green */
+  background: hsl(104 55% 40% / 0.1);  /* OpenSPC Green */
   color: hsl(104 55% 32%);
 }
 .stat-badge-warning {
-  background: hsl(32 63% 51% / 0.1);   /* Sepasoft Orange */
+  background: hsl(32 63% 51% / 0.1);   /* OpenSPC Orange */
   color: hsl(32 63% 41%);
 }
 .stat-badge-danger {
-  background: hsl(357 80% 52% / 0.1);  /* Sepasoft Red */
+  background: hsl(357 80% 52% / 0.1);  /* OpenSPC Red */
   color: hsl(357 80% 45%);
 }
 
@@ -341,7 +341,7 @@ h1, h2, h3, h4, h5, h6 {
   --color-popover: hsl(220 15% 15%);
   --color-popover-foreground: hsl(0 0% 95%);
 
-  /* Primary - Brightened Sepasoft Blue */
+  /* Primary - Brightened OpenSPC Blue */
   --color-primary: hsl(212 100% 50%);
   --color-primary-foreground: hsl(0 0% 100%);
 
@@ -353,7 +353,7 @@ h1, h2, h3, h4, h5, h6 {
   --color-muted: hsl(220 10% 20%);
   --color-muted-foreground: hsl(220 5% 60%);
 
-  /* Accent - Brightened Sepasoft Teal */
+  /* Accent - Brightened OpenSPC Teal */
   --color-accent: hsl(179 55% 65%);
   --color-accent-foreground: hsl(220 15% 10%);
 

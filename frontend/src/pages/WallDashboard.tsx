@@ -272,13 +272,11 @@ export function WallDashboard() {
     <div className="h-full flex flex-col p-4 bg-zinc-950 relative">
       {/* Brand Badge */}
       <div className="absolute top-4 right-4 flex items-center gap-2 opacity-60 z-10">
-        {brandConfig.logoUrl ? (
-          <img
-            src={brandConfig.logoUrl}
-            alt=""
-            className="h-6 w-6 object-contain"
-          />
-        ) : null}
+        <img
+          src={brandConfig.logoUrl || '/openspc-isometric-dark.png'}
+          alt=""
+          className="h-6 w-6 object-contain"
+        />
         <span className="text-sm font-medium text-muted-foreground">
           {brandConfig.appName}
         </span>

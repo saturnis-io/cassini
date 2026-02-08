@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { Upload, RotateCcw, Activity } from 'lucide-react'
+import { Upload, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme, type BrandConfig } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -70,15 +70,11 @@ function PreviewPanel({
       <div className="flex items-center gap-3 p-3 rounded bg-background border">
         {/* Logo/App name preview */}
         <div className="flex items-center gap-2">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Logo preview"
-              className="h-6 w-6 object-contain"
-            />
-          ) : (
-            <Activity className="h-5 w-5" style={{ color: primaryColor }} />
-          )}
+          <img
+            src={logoUrl || '/openspc-isometric-light.png'}
+            alt="Logo preview"
+            className="h-6 w-6 object-contain"
+          />
           <span className="font-semibold">{appName}</span>
         </div>
 
