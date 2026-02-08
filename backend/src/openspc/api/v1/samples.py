@@ -152,7 +152,7 @@ async def list_samples(
     include_excluded: bool = Query(False, description="Include excluded samples"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
-    sort_dir: str = Query("desc", regex="^(asc|desc)$", description="Sort direction for timestamp (asc or desc)"),
+    sort_dir: str = Query("desc", pattern="^(asc|desc)$", description="Sort direction for timestamp (asc or desc)"),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[SampleResponse]:

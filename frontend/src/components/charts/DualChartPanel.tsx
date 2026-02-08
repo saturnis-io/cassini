@@ -146,8 +146,7 @@ export function DualChartPanel({
       label = 'Range'
       symbol = 'R̄'
     } else if (secondaryChartType === 'stddev') {
-      const d2 = getSPCConstant(SPC_CONSTANTS.d2, n) ?? 2.326
-      values = points.map((p) => (p.range ?? 0) / d2).filter((v) => v > 0)
+      values = points.map((p) => p.std_dev ?? 0).filter((v) => v > 0)
       label = 'Std Dev'
       symbol = 'S̄'
     } else if (secondaryChartType === 'mr') {
@@ -383,24 +382,41 @@ export function DualChartPanel({
             style={{ width: histogramWidth }}
           >
             {secondaryStats && (
-              <div className="h-full border border-border rounded-lg bg-card flex flex-col justify-center px-3 py-2 overflow-hidden">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 truncate">
+              <div className="h-full border border-border rounded-2xl bg-card flex flex-col justify-center px-4 py-3 overflow-hidden">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 truncate">
                   {secondaryStats.label} Summary
                 </div>
+
+                {/* Center line — hero value */}
+                <div className="text-center mb-3">
+                  <div className="text-[10px] text-muted-foreground mb-0.5">{secondaryStats.symbol}</div>
+                  <div className="text-lg font-semibold font-mono tabular-nums text-foreground">
+                    {secondaryStats.mean.toFixed(3)}
+                  </div>
+                </div>
+
+                {/* Control limits */}
                 <div className="space-y-1.5 text-xs tabular-nums">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">UCL</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <span className="w-3 border-t-2 border-dashed border-red-500/60" />
+                      UCL
+                    </span>
                     <span className="font-mono text-red-500/80">{secondaryStats.ucl?.toFixed(3) ?? '—'}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{secondaryStats.symbol}</span>
-                    <span className="font-mono font-medium text-foreground">{secondaryStats.mean.toFixed(3)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">LCL</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <span className="w-3 border-t-2 border-dashed border-red-500/60" />
+                      LCL
+                    </span>
                     <span className="font-mono text-red-500/80">{secondaryStats.lcl?.toFixed(3) ?? '—'}</span>
                   </div>
-                  <div className="my-1.5 border-t border-border" />
+                </div>
+
+                <div className="my-2.5 border-t border-border" />
+
+                {/* Observed range */}
+                <div className="space-y-1.5 text-xs tabular-nums">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Max</span>
                     <span className="font-mono">{secondaryStats.max.toFixed(3)}</span>
@@ -410,7 +426,7 @@ export function DualChartPanel({
                     <span className="font-mono">{secondaryStats.min.toFixed(3)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">n</span>
+                    <span className="text-muted-foreground">Samples</span>
                     <span className="font-mono">{secondaryStats.count}</span>
                   </div>
                 </div>

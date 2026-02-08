@@ -102,8 +102,7 @@ export function RangeChart({
       label = 'Range Chart'
       yLabel = 'Range'
     } else if (chartType === 'stddev') {
-      const d2 = getSPCConstant(SPC_CONSTANTS.d2, n) ?? 2.326
-      values = points.map((p) => (p.range ?? 0) / d2)
+      values = points.map((p) => p.std_dev ?? 0)
       label = 'S Chart (Std Dev)'
       yLabel = 'Std Dev'
     } else if (chartType === 'mr') {

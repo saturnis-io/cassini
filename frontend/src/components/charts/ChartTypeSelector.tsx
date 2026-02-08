@@ -133,7 +133,7 @@ export function ChartTypeSelector({
           ref={dropdownRef}
           className={cn(
             'absolute top-full left-0 mt-1 z-50',
-            'min-w-[280px] max-h-[400px] overflow-y-auto',
+            'min-w-[280px]',
             'bg-popover border border-border rounded-lg shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-150'
           )}

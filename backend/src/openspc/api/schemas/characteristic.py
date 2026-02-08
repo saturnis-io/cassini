@@ -230,6 +230,7 @@ class ChartSample(BaseModel):
         timestamp: When the sample was taken
         mean: Subgroup mean (plotted value for X-bar chart)
         range: Subgroup range value for R chart (max - min)
+        std_dev: Sample standard deviation for S chart (ddof=1)
         excluded: Whether this sample is excluded from calculations
         violation_ids: List of violation IDs for this sample
         violation_rules: List of Nelson rule numbers (1-8) that were violated
@@ -246,6 +247,7 @@ class ChartSample(BaseModel):
     timestamp: str  # ISO format datetime string
     mean: float
     range: float | None
+    std_dev: float | None = None
     excluded: bool = False
     violation_ids: list[int] = []
     violation_rules: list[int] = []

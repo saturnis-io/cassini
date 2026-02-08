@@ -392,11 +392,15 @@ async def get_chart_data(
 
     # Convert samples to chart samples
     from openspc.utils.statistics import classify_zone, calculate_mean_range
+    import numpy as np
 
     chart_samples = []
     for sample in samples:
         values = [m.value for m in sample.measurements]
         value, range_value = calculate_mean_range(values)
+        std_dev_value: float | None = None
+        if len(values) >= 2:
+            std_dev_value = float(np.std(values, ddof=1))
 
         # Classify zone using shared utility
         zone = classify_zone(value, zones, center_line)
@@ -411,6 +415,7 @@ async def get_chart_data(
             timestamp=sample.timestamp.isoformat(),
             mean=value,
             range=range_value,
+            std_dev=std_dev_value,
             excluded=sample.is_excluded,
             violation_ids=violation_ids,
             violation_rules=violation_rules,

@@ -166,6 +166,7 @@ export interface ChartDataPoint {
   timestamp: string
   mean: number
   range: number | null
+  std_dev: number | null
   excluded: boolean
   violation_ids: number[]
   violation_rules: number[]  // Nelson rule numbers (1-8) that were violated
