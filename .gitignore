@@ -48,3 +48,11 @@ dashboard/client/dist/
 
 # Internal references
 .internal/
+.claude/
+.company/
+.gemini/
+.planning/
+
+# Windows artifacts
+nul
+NUL

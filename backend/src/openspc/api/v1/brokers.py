@@ -4,13 +4,13 @@ Provides CRUD operations for MQTT broker configuration and connection management
 """
 
 import asyncio
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_user, get_current_admin, get_current_engineer
+from openspc.api.deps import get_current_user, get_current_admin, get_current_engineer, get_db_session
 from openspc.api.schemas.broker import (
     BrokerAllStatesResponse,
     BrokerConnectionStatus,
@@ -23,7 +23,6 @@ from openspc.api.schemas.broker import (
     TopicTreeNodeResponse,
 )
 from openspc.api.schemas.common import PaginatedResponse
-from openspc.db.database import get_session
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.user import User
 from openspc.db.repositories import BrokerRepository
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/api/v1/brokers", tags=["brokers"])
 
 # Dependency for BrokerRepository
 async def get_broker_repository(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> BrokerRepository:
     """Dependency to get BrokerRepository instance."""
     return BrokerRepository(session)
@@ -42,9 +41,10 @@ async def get_broker_repository(
 @router.get("/", response_model=PaginatedResponse[BrokerResponse])
 async def list_brokers(
     active_only: bool = Query(False, description="Only return active brokers"),
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[BrokerResponse]:
     """List MQTT broker configurations with optional filtering.
@@ -54,6 +54,9 @@ async def list_brokers(
     """
     # Build query
     stmt = select(MQTTBroker)
+
+    if plant_id is not None:
+        stmt = stmt.where(MQTTBroker.plant_id == plant_id)
 
     if active_only:
         stmt = stmt.where(MQTTBroker.is_active == True)
@@ -83,7 +86,7 @@ async def list_brokers(
 async def create_broker(
     data: BrokerCreate,
     repo: BrokerRepository = Depends(get_broker_repository),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Create a new MQTT broker configuration.
@@ -103,6 +106,163 @@ async def create_broker(
     await session.commit()
 
     return BrokerResponse.model_validate(broker)
+
+
+# -----------------------------------------------------------------------
+# Static routes MUST come before /{broker_id} to avoid path conflicts
+# -----------------------------------------------------------------------
+
+
+@router.get("/all/status", response_model=BrokerAllStatesResponse)
+async def get_all_broker_status(
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
+) -> BrokerAllStatesResponse:
+    """Get connection status of all configured brokers.
+
+    Returns status for every broker in the database, including those
+    that are not currently connected. Optionally filter by plant.
+    """
+    from openspc.mqtt import mqtt_manager
+
+    repo = BrokerRepository(session)
+
+    # Get brokers from DB, optionally filtered by plant
+    stmt = select(MQTTBroker)
+    if plant_id is not None:
+        stmt = stmt.where(MQTTBroker.plant_id == plant_id)
+    stmt = stmt.order_by(MQTTBroker.id)
+    result = await session.execute(stmt)
+    brokers = list(result.scalars().all())
+
+    states = []
+    all_states = mqtt_manager.get_all_states()
+
+    for broker in brokers:
+        state = all_states.get(broker.id)
+        if state:
+            states.append(BrokerConnectionStatus(
+                broker_id=broker.id,
+                broker_name=broker.name,
+                is_connected=state.is_connected,
+                last_connected=state.last_connected,
+                error_message=state.error_message,
+                subscribed_topics=state.subscribed_topics,
+            ))
+        else:
+            states.append(BrokerConnectionStatus(
+                broker_id=broker.id,
+                broker_name=broker.name,
+                is_connected=False,
+                last_connected=None,
+                error_message="Not connected",
+                subscribed_topics=[],
+            ))
+
+    return BrokerAllStatesResponse(states=states)
+
+
+@router.get("/current/status", response_model=BrokerConnectionStatus)
+async def get_current_connection_status(
+    _user: User = Depends(get_current_user),
+) -> BrokerConnectionStatus:
+    """Get status of the currently connected broker.
+
+    Returns connection state without needing to know the broker ID.
+    """
+    from openspc.mqtt import mqtt_manager
+
+    state = mqtt_manager.state
+
+    if state.broker_id is None:
+        return BrokerConnectionStatus(
+            broker_id=0,
+            broker_name="None",
+            is_connected=False,
+            last_connected=None,
+            error_message=state.error_message or "No broker configured",
+            subscribed_topics=[],
+        )
+
+    return BrokerConnectionStatus(
+        broker_id=state.broker_id,
+        broker_name=state.broker_name or "Unknown",
+        is_connected=state.is_connected,
+        last_connected=state.last_connected,
+        error_message=state.error_message,
+        subscribed_topics=state.subscribed_topics,
+    )
+
+
+@router.post("/disconnect", response_model=dict)
+async def disconnect_broker(
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Disconnect from the current MQTT broker.
+
+    Gracefully disconnects without changing the active broker configuration.
+    """
+    from openspc.mqtt import mqtt_manager
+
+    await mqtt_manager.shutdown()
+
+    return {"message": "Disconnected from MQTT broker"}
+
+
+@router.post("/test", response_model=BrokerTestResponse)
+async def test_broker_connection(
+    data: BrokerTestRequest,
+    _user: User = Depends(get_current_engineer),
+) -> BrokerTestResponse:
+    """Test connection to an MQTT broker.
+
+    Attempts to connect with provided settings and returns success/failure.
+    Does not persist any configuration.
+    """
+    try:
+        import aiomqtt
+
+        # Create config for test connection
+        start_time = asyncio.get_event_loop().time()
+
+        async with aiomqtt.Client(
+            hostname=data.host,
+            port=data.port,
+            username=data.username,
+            password=data.password,
+            identifier="openspc-test-client",
+            timeout=5.0,
+        ) as client:
+            # Connection successful
+            latency = (asyncio.get_event_loop().time() - start_time) * 1000
+
+            return BrokerTestResponse(
+                success=True,
+                message=f"Successfully connected to {data.host}:{data.port}",
+                latency_ms=round(latency, 2),
+            )
+
+    except ImportError:
+        return BrokerTestResponse(
+            success=False,
+            message="aiomqtt library not installed",
+        )
+    except asyncio.TimeoutError:
+        return BrokerTestResponse(
+            success=False,
+            message=f"Connection timeout connecting to {data.host}:{data.port}",
+        )
+    except Exception as e:
+        return BrokerTestResponse(
+            success=False,
+            message=f"Connection failed: {str(e)}",
+        )
+
+
+# -----------------------------------------------------------------------
+# Parameterized /{broker_id} routes
+# -----------------------------------------------------------------------
 
 
 @router.get("/{broker_id}", response_model=BrokerResponse)
@@ -130,7 +290,7 @@ async def update_broker(
     broker_id: int,
     data: BrokerUpdate,
     repo: BrokerRepository = Depends(get_broker_repository),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Update MQTT broker configuration.
@@ -169,7 +329,7 @@ async def update_broker(
 async def delete_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete MQTT broker configuration.
@@ -191,7 +351,7 @@ async def delete_broker(
 async def activate_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> BrokerResponse:
     """Set a broker as the active connection.
@@ -256,7 +416,7 @@ async def get_broker_status(
 async def connect_to_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> BrokerConnectionStatus:
     """Connect to a specific broker.
@@ -290,154 +450,6 @@ async def connect_to_broker(
         error_message=state.error_message if not success else None,
         subscribed_topics=state.subscribed_topics,
     )
-
-
-@router.post("/disconnect", response_model=dict)
-async def disconnect_broker(
-    _user: User = Depends(get_current_engineer),
-) -> dict:
-    """Disconnect from the current MQTT broker.
-
-    Gracefully disconnects without changing the active broker configuration.
-    """
-    from openspc.mqtt import mqtt_manager
-
-    await mqtt_manager.shutdown()
-
-    return {"message": "Disconnected from MQTT broker"}
-
-
-@router.get("/current/status", response_model=BrokerConnectionStatus)
-async def get_current_connection_status(
-    _user: User = Depends(get_current_user),
-) -> BrokerConnectionStatus:
-    """Get status of the currently connected broker.
-
-    Returns connection state without needing to know the broker ID.
-    """
-    from openspc.mqtt import mqtt_manager
-
-    state = mqtt_manager.state
-
-    if state.broker_id is None:
-        return BrokerConnectionStatus(
-            broker_id=0,
-            broker_name="None",
-            is_connected=False,
-            last_connected=None,
-            error_message=state.error_message or "No broker configured",
-            subscribed_topics=[],
-        )
-
-    return BrokerConnectionStatus(
-        broker_id=state.broker_id,
-        broker_name=state.broker_name or "Unknown",
-        is_connected=state.is_connected,
-        last_connected=state.last_connected,
-        error_message=state.error_message,
-        subscribed_topics=state.subscribed_topics,
-    )
-
-
-@router.post("/test", response_model=BrokerTestResponse)
-async def test_broker_connection(
-    data: BrokerTestRequest,
-    _user: User = Depends(get_current_engineer),
-) -> BrokerTestResponse:
-    """Test connection to an MQTT broker.
-
-    Attempts to connect with provided settings and returns success/failure.
-    Does not persist any configuration.
-    """
-    try:
-        import aiomqtt
-
-        # Create config for test connection
-        start_time = asyncio.get_event_loop().time()
-
-        async with aiomqtt.Client(
-            hostname=data.host,
-            port=data.port,
-            username=data.username,
-            password=data.password,
-            identifier="openspc-test-client",
-            timeout=5.0,
-        ) as client:
-            # Connection successful
-            latency = (asyncio.get_event_loop().time() - start_time) * 1000
-
-            return BrokerTestResponse(
-                success=True,
-                message=f"Successfully connected to {data.host}:{data.port}",
-                latency_ms=round(latency, 2),
-            )
-
-    except ImportError:
-        return BrokerTestResponse(
-            success=False,
-            message="aiomqtt library not installed",
-        )
-    except asyncio.TimeoutError:
-        return BrokerTestResponse(
-            success=False,
-            message=f"Connection timeout connecting to {data.host}:{data.port}",
-        )
-    except Exception as e:
-        return BrokerTestResponse(
-            success=False,
-            message=f"Connection failed: {str(e)}",
-        )
-
-
-# -----------------------------------------------------------------------
-# Multi-broker status
-# -----------------------------------------------------------------------
-
-
-@router.get("/all/status", response_model=BrokerAllStatesResponse)
-async def get_all_broker_status(
-    session: AsyncSession = Depends(get_session),
-    _user: User = Depends(get_current_user),
-) -> BrokerAllStatesResponse:
-    """Get connection status of all configured brokers.
-
-    Returns status for every broker in the database, including those
-    that are not currently connected.
-    """
-    from openspc.mqtt import mqtt_manager
-
-    repo = BrokerRepository(session)
-
-    # Get all brokers from DB
-    stmt = select(MQTTBroker).order_by(MQTTBroker.id)
-    result = await session.execute(stmt)
-    brokers = list(result.scalars().all())
-
-    states = []
-    all_states = mqtt_manager.get_all_states()
-
-    for broker in brokers:
-        state = all_states.get(broker.id)
-        if state:
-            states.append(BrokerConnectionStatus(
-                broker_id=broker.id,
-                broker_name=broker.name,
-                is_connected=state.is_connected,
-                last_connected=state.last_connected,
-                error_message=state.error_message,
-                subscribed_topics=state.subscribed_topics,
-            ))
-        else:
-            states.append(BrokerConnectionStatus(
-                broker_id=broker.id,
-                broker_name=broker.name,
-                is_connected=False,
-                last_connected=None,
-                error_message="Not connected",
-                subscribed_topics=[],
-            ))
-
-    return BrokerAllStatesResponse(states=states)
 
 
 # -----------------------------------------------------------------------
@@ -517,19 +529,25 @@ async def stop_discovery(
 
 def _convert_tree_node(node) -> TopicTreeNodeResponse:
     """Recursively convert TopicTreeNode to response schema."""
+    from openspc.api.schemas.broker import SparkplugMetricInfoResponse
+
     return TopicTreeNodeResponse(
         name=node.name,
         full_topic=node.full_topic,
         children=[_convert_tree_node(child) for child in node.children.values()],
         message_count=node.message_count,
         is_sparkplug=node.is_sparkplug,
+        sparkplug_metrics=[
+            SparkplugMetricInfoResponse(name=m.name, data_type=m.data_type)
+            for m in node.sparkplug_metrics
+        ],
     )
 
 
 @router.get("/{broker_id}/topics")
 async def get_topics(
     broker_id: int,
-    format: str = Query("flat", description="Response format: flat or tree"),
+    format: Literal["flat", "tree"] = Query("flat", description="Response format: flat or tree"),
     search: str | None = Query(None, description="Filter topics by substring"),
     repo: BrokerRepository = Depends(get_broker_repository),
     _user: User = Depends(get_current_engineer),
@@ -563,6 +581,8 @@ async def get_topics(
         else:
             topics = discovery.get_discovered_topics()
 
+        from openspc.api.schemas.broker import SparkplugMetricInfoResponse
+
         return [
             DiscoveredTopicResponse(
                 topic=t.topic,
@@ -574,6 +594,10 @@ async def get_topics(
                 sparkplug_node=t.sparkplug_node,
                 sparkplug_device=t.sparkplug_device,
                 sparkplug_message_type=t.sparkplug_message_type,
+                sparkplug_metrics=[
+                    SparkplugMetricInfoResponse(name=m.name, data_type=m.data_type)
+                    for m in t.sparkplug_metrics
+                ],
             )
             for t in topics
         ]

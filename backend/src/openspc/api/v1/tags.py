@@ -6,13 +6,14 @@ previewing live topic values, and managing tag-to-characteristic mappings.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from openspc.api.deps import get_current_engineer
+from openspc.api.deps import get_current_engineer, get_db_session
 from openspc.api.schemas.tag import (
     TagMappingCreate,
     TagMappingResponse,
@@ -20,7 +21,6 @@ from openspc.api.schemas.tag import (
     TagPreviewResponse,
     TagPreviewValue,
 )
-from openspc.db.database import get_session
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.user import User
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
 async def list_mappings(
     plant_id: int | None = Query(None, description="Filter by plant ID"),
     broker_id: int | None = Query(None, description="Filter by broker ID"),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> list[TagMappingResponse]:
     """List all tag-to-characteristic mappings.
@@ -42,12 +42,15 @@ async def list_mappings(
     Returns characteristics that have an mqtt_topic configured, joined
     with broker information.
     """
-    # Get all characteristics with mqtt_topic set
+    # Get all characteristics with mqtt_topic set, join hierarchy for plant filtering
+    from openspc.db.models.hierarchy import Hierarchy
+
     stmt = select(Characteristic).where(Characteristic.mqtt_topic.isnot(None))
 
     if plant_id is not None:
-        # Filter by plant through hierarchy (if plant_id field exists on hierarchy)
-        pass  # TODO: Add plant filtering when hierarchy has plant_id
+        stmt = stmt.join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id).where(
+            Hierarchy.plant_id == plant_id
+        )
 
     result = await session.execute(stmt)
     chars = list(result.scalars().all())
@@ -94,6 +97,7 @@ async def list_mappings(
                 trigger_tag=char.trigger_tag,
                 broker_id=b_id,
                 broker_name=broker_name,
+                metric_name=char.metric_name,
             )
         )
 
@@ -103,7 +107,7 @@ async def list_mappings(
 @router.post("/map", response_model=TagMappingResponse)
 async def create_mapping(
     data: TagMappingCreate,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> TagMappingResponse:
     """Create or update a tag-to-characteristic mapping.
@@ -136,6 +140,7 @@ async def create_mapping(
     # Update the characteristic
     char.mqtt_topic = data.mqtt_topic
     char.trigger_tag = data.trigger_tag
+    char.metric_name = data.metric_name
     char.provider_type = "TAG"
 
     await session.commit()
@@ -157,13 +162,14 @@ async def create_mapping(
         trigger_tag=char.trigger_tag,
         broker_id=broker.id,
         broker_name=broker.name,
+        metric_name=char.metric_name,
     )
 
 
 @router.delete("/map/{characteristic_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mapping(
     characteristic_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> None:
     """Remove a tag mapping from a characteristic.
@@ -182,6 +188,7 @@ async def delete_mapping(
 
     char.mqtt_topic = None
     char.trigger_tag = None
+    char.metric_name = None
 
     await session.commit()
 
@@ -216,10 +223,32 @@ async def preview_topic(
 
     # Collect values during the preview period
     collected_values: list[TagPreviewValue] = []
-    started_at = datetime.utcnow()
+    started_at = datetime.now(timezone.utc)
+
+    # Check if this is a SparkplugB topic for protobuf decoding
+    is_sparkplug = data.topic.startswith("spBv1.0/")
 
     async def on_preview_message(topic: str, payload: bytes) -> None:
         try:
+            if is_sparkplug:
+                # Decode SparkplugB protobuf payload into individual metrics
+                from openspc.mqtt.sparkplug import SparkplugDecoder
+                try:
+                    ts, metrics, _seq = SparkplugDecoder.decode_payload(payload)
+                    for metric in metrics:
+                        collected_values.append(
+                            TagPreviewValue(
+                                value=metric.value if isinstance(metric.value, (int, float, bool, str)) else str(metric.value),
+                                timestamp=metric.timestamp or ts,
+                                raw_payload=f"{metric.name} ({metric.data_type})",
+                                metric_name=metric.name,
+                            )
+                        )
+                    return
+                except Exception as e:
+                    logger.warning(f"SparkplugB decode failed for preview, falling back to raw: {e}")
+
+            # Non-SparkplugB or fallback: decode as UTF-8 text
             raw = payload.decode("utf-8", errors="replace")[:200]
             # Try to parse as float, otherwise keep as string
             try:
@@ -233,7 +262,7 @@ async def preview_topic(
             collected_values.append(
                 TagPreviewValue(
                     value=value,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     raw_payload=raw,
                 )
             )
@@ -251,7 +280,7 @@ async def preview_topic(
         except Exception:
             pass
 
-    elapsed = (datetime.utcnow() - started_at).total_seconds()
+    elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
 
     return TagPreviewResponse(
         topic=data.topic,

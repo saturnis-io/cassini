@@ -4,55 +4,64 @@ import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 
 /**
- * Convert oklch colors to RGB in an element's computed styles
- * html2canvas doesn't support oklch() color function
+ * Convert a CSS color string to RGB using Canvas 2D pixel readback.
+ * Works with any color format the browser supports (oklab, oklch, lab, lch, color-mix, etc.)
+ * because it renders to a pixel and reads back the RGBA values.
  */
-function convertOklchToRgb(element: HTMLElement): () => void {
-  const elementsWithOklch: Array<{ el: HTMLElement; prop: string; original: string }> = []
+function cssColorToRgb(cssColor: string): string | null {
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
 
-  const processElement = (el: HTMLElement) => {
-    const computed = window.getComputedStyle(el)
-    const propsToCheck = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor']
+    ctx.clearRect(0, 0, 1, 1)
+    ctx.fillStyle = '#000000' // reset
+    ctx.fillStyle = cssColor   // set target color — ignored if invalid
+    ctx.fillRect(0, 0, 1, 1)
 
-    for (const prop of propsToCheck) {
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+    if (a === 0) return 'transparent'
+    if (a >= 254) return `rgb(${r}, ${g}, ${b})`
+    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`
+  } catch {
+    return null
+  }
+}
+
+/** Pattern matching modern CSS color functions that html2canvas cannot parse */
+const UNSUPPORTED_COLOR_RE = /oklch|oklab|lab\(|lch\(|color-mix\(|color\(/
+
+/** CSS properties that hold color values */
+const COLOR_PROPS = [
+  'color', 'background-color',
+  'border-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+  'outline-color', 'text-decoration-color',
+]
+
+/**
+ * Walk every element in `root` and force any modern-CSS color values
+ * to RGB inline styles so html2canvas can parse them.
+ */
+function forceRgbColors(root: HTMLElement) {
+  const walk = (el: HTMLElement) => {
+    const view = el.ownerDocument.defaultView
+    if (!view) return
+    const computed = view.getComputedStyle(el)
+
+    for (const prop of COLOR_PROPS) {
       const value = computed.getPropertyValue(prop)
-      if (value.includes('oklch')) {
-        // Store original inline style
-        const inlineStyle = el.style.getPropertyValue(prop)
-        elementsWithOklch.push({ el, prop, original: inlineStyle })
-
-        // Create a temp element to compute the RGB value
-        const temp = document.createElement('div')
-        temp.style.color = value
-        document.body.appendChild(temp)
-        const rgbValue = window.getComputedStyle(temp).color
-        document.body.removeChild(temp)
-
-        // Apply RGB value
-        el.style.setProperty(prop, rgbValue, 'important')
+      if (UNSUPPORTED_COLOR_RE.test(value)) {
+        const rgb = cssColorToRgb(value)
+        if (rgb) el.style.setProperty(prop, rgb, 'important')
       }
     }
 
-    // Process children
     for (const child of el.children) {
-      if (child instanceof HTMLElement) {
-        processElement(child)
-      }
+      if (child instanceof HTMLElement) walk(child)
     }
   }
-
-  processElement(element)
-
-  // Return cleanup function to restore original styles
-  return () => {
-    for (const { el, prop, original } of elementsWithOklch) {
-      if (original) {
-        el.style.setProperty(prop, original)
-      } else {
-        el.style.removeProperty(prop)
-      }
-    }
-  }
+  walk(root)
 }
 
 /**
@@ -63,16 +72,17 @@ export async function exportToPdf(
   filename: string,
   options?: { orientation?: 'portrait' | 'landscape' }
 ) {
-  // Convert oklch colors to RGB before capture
-  const restoreColors = convertOklchToRgb(element)
-
-  try {
-    const canvas = await html2canvas(element, {
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    })
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    logging: false,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    onclone: (_clonedDoc: Document, clonedElement: HTMLElement) => {
+      // Convert modern CSS colors (oklab, oklch, etc.) to RGB on the
+      // cloned DOM *before* html2canvas parses the tree.
+      forceRgbColors(clonedElement)
+    },
+  })
 
   const imgData = canvas.toDataURL('image/png')
 
@@ -101,10 +111,6 @@ export async function exportToPdf(
   }
 
   pdf.save(`${filename}.pdf`)
-  } finally {
-    // Restore original colors
-    restoreColors()
-  }
 }
 
 /**

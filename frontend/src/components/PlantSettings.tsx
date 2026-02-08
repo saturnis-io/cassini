@@ -127,7 +127,7 @@ export function PlantSettings() {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-4">
         <AlertCircle className="h-8 w-8 text-destructive" />
-        <p className="text-destructive">Failed to load plants</p>
+        <p className="text-destructive">Failed to load sites</p>
       </div>
     )
   }
@@ -135,9 +135,9 @@ export function PlantSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Plant Management</h2>
+        <h2 className="text-lg font-semibold">Site Management</h2>
         <p className="text-sm text-muted-foreground">
-          Manage plant locations for data isolation. Each plant has its own hierarchy, characteristics, and MQTT brokers.
+          Manage site locations for data isolation. Each site has its own hierarchy, characteristics, and MQTT brokers.
         </p>
       </div>
 
@@ -165,7 +165,7 @@ export function PlantSettings() {
               <button
                 onClick={() => openEditModal(plant)}
                 className="p-2 rounded-lg hover:bg-muted transition-colors"
-                title="Edit plant"
+                title="Edit site"
               >
                 <Pencil className="h-4 w-4" />
               </button>
@@ -181,7 +181,7 @@ export function PlantSettings() {
                       ? 'hover:bg-warning/10 hover:text-warning'
                       : 'hover:bg-success/10 hover:text-success'
                   )}
-                  title={plant.is_active ? 'Deactivate plant' : 'Activate plant'}
+                  title={plant.is_active ? 'Deactivate site' : 'Activate site'}
                 >
                   {plant.is_active ? (
                     <PowerOff className="h-4 w-4" />
@@ -196,7 +196,7 @@ export function PlantSettings() {
                 <button
                   onClick={() => setPlantToDelete({ id: plant.id, name: plant.name })}
                   className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors"
-                  title="Delete plant"
+                  title="Delete site"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -211,17 +211,17 @@ export function PlantSettings() {
 
         {plants?.length === 0 && (
           <div className="p-8 text-center text-muted-foreground">
-            No plants configured
+            No sites configured
           </div>
         )}
       </div>
 
       {/* Add New Plant Form */}
       <div className="border rounded-lg p-4 space-y-4">
-        <h3 className="font-medium">Add New Plant</h3>
+        <h3 className="font-medium">Add New Site</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium">Plant Name</label>
+            <label className="text-sm font-medium">Site Name</label>
             <input
               type="text"
               value={newPlantName}
@@ -266,7 +266,7 @@ export function PlantSettings() {
             )}
           >
             <Plus className="h-4 w-4" />
-            {createPlant.isPending ? 'Creating...' : 'Add Plant'}
+            {createPlant.isPending ? 'Creating...' : 'Add Site'}
           </button>
         </div>
       </div>
@@ -276,7 +276,7 @@ export function PlantSettings() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditingPlant(null)}>
           <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Edit Plant</h3>
+              <h3 className="text-lg font-semibold">Edit Site</h3>
               <button
                 onClick={() => setEditingPlant(null)}
                 className="p-1 rounded hover:bg-muted"
@@ -287,7 +287,7 @@ export function PlantSettings() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Plant Name</label>
+                <label className="text-sm font-medium">Site Name</label>
                 <input
                   type="text"
                   value={editName}
@@ -307,7 +307,7 @@ export function PlantSettings() {
                 />
                 {editingPlant.code === 'DEFAULT' && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Default plant code cannot be changed
+                    Default site code cannot be changed
                   </p>
                 )}
               </div>
@@ -351,10 +351,10 @@ export function PlantSettings() {
       {plantToDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setPlantToDelete(null)}>
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Delete Plant?</h3>
+            <h3 className="text-lg font-semibold mb-2">Delete Site?</h3>
             <p className="text-muted-foreground mb-4">
               Are you sure you want to delete <strong>{plantToDelete.name}</strong>?
-              This will also delete all hierarchies, characteristics, and data associated with this plant.
+              This will also delete all hierarchies, characteristics, and data associated with this site.
               This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
@@ -374,7 +374,7 @@ export function PlantSettings() {
                   'disabled:opacity-50'
                 )}
               >
-                {deletePlant.isPending ? 'Deleting...' : 'Delete Plant'}
+                {deletePlant.isPending ? 'Deleting...' : 'Delete Site'}
               </button>
             </div>
           </div>

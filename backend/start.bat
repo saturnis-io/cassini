@@ -65,10 +65,22 @@ if errorlevel 1 (
     echo.
 )
 
+REM Enable sandbox mode (dev tools: database reset, seed scripts)
+set "OPENSPC_SANDBOX=true"
+
+REM Stable JWT secret for dev (sessions survive server restarts)
+set "OPENSPC_JWT_SECRET=openspc-dev-secret-do-not-use-in-production"
+
+REM Admin credentials (change via OPENSPC_ADMIN_USERNAME / OPENSPC_ADMIN_PASSWORD)
+set "OPENSPC_ADMIN_USERNAME=admin"
+set "OPENSPC_ADMIN_PASSWORD=password"
+
 REM Start the server
 echo.
 echo  %GREEN%→%R% Backend:  %GREEN%http://localhost:8000%R%
 echo  %GREEN%→%R% API Docs: %GREEN%http://localhost:8000/docs%R%
+echo  %DIM%  Sandbox mode enabled (dev tools available)%R%
+echo  %DIM%  Login: admin / password%R%
 echo  %DIM%  Press Ctrl+C to stop%R%
 echo.
 

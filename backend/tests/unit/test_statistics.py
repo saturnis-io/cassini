@@ -116,12 +116,12 @@ class TestSigmaEstimation:
 
     def test_estimate_sigma_rbar_exact_calculation(self):
         """Test R-bar method with exact manual calculation."""
-        # R-bar = 5.25 / 4 = 1.3125
+        # R-bar = 5.325 / 4 = 1.33125
         # d2(5) = 2.326
-        # sigma = 1.3125 / 2.326 = 0.5643...
+        # sigma = 1.33125 / 2.326 = 0.5723...
         ranges = [1.2, 1.5, 1.0, 1.625]
         result = estimate_sigma_rbar(ranges, 5)
-        assert pytest.approx(result, abs=0.001) == 0.564
+        assert pytest.approx(result, abs=0.001) == 0.572
 
     def test_estimate_sigma_rbar_empty_list_raises_error(self):
         """Verify error is raised for empty ranges list."""
@@ -448,6 +448,8 @@ class TestIntegration:
 
     def test_full_xbar_r_workflow(self):
         """Test complete workflow for X-bar R chart."""
+        import math
+
         # Sample data
         means = [100.1, 99.9, 100.2, 100.0, 99.8]
         ranges = [2.5, 2.8, 2.3, 2.6, 2.4]
@@ -460,12 +462,14 @@ class TestIntegration:
         expected_sigma = estimate_sigma_rbar(ranges, subgroup_size)
         assert limits.xbar_limits.sigma == expected_sigma
 
-        # Calculate zones for X-bar chart
-        zones = calculate_zones(limits.xbar_limits.center_line, limits.xbar_limits.sigma)
+        # For X-bar chart, zones use sigma_xbar = sigma / sqrt(n)
+        sigma_xbar = expected_sigma / math.sqrt(subgroup_size)
+        zones = calculate_zones(limits.xbar_limits.center_line, sigma_xbar)
 
-        # Verify UCL matches +3 sigma zone
-        assert pytest.approx(zones.plus_3_sigma, abs=0.001) == limits.xbar_limits.ucl
-        assert pytest.approx(zones.minus_3_sigma, abs=0.001) == limits.xbar_limits.lcl
+        # Verify UCL approximately matches +3 sigma_xbar zone
+        # (Small difference due to A2 table rounding vs exact 3/(d2*sqrt(n)))
+        assert pytest.approx(zones.plus_3_sigma, abs=0.01) == limits.xbar_limits.ucl
+        assert pytest.approx(zones.minus_3_sigma, abs=0.01) == limits.xbar_limits.lcl
 
     def test_full_imr_workflow(self):
         """Test complete workflow for I-MR chart."""

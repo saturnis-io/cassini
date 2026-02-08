@@ -21,6 +21,7 @@ class TagMappingCreate(BaseModel):
     trigger_strategy: str = Field(default="on_change", pattern="^(on_change|on_trigger|on_timer)$")
     trigger_tag: str | None = Field(None, max_length=500)
     broker_id: int
+    metric_name: str | None = Field(None, max_length=255)
 
 
 class TagMappingResponse(BaseModel):
@@ -43,6 +44,7 @@ class TagMappingResponse(BaseModel):
     trigger_tag: str | None = None
     broker_id: int
     broker_name: str
+    metric_name: str | None = None
 
 
 class TagPreviewValue(BaseModel):
@@ -51,6 +53,7 @@ class TagPreviewValue(BaseModel):
     value: float | str | bool
     timestamp: datetime
     raw_payload: str
+    metric_name: str | None = None
 
 
 class TagPreviewRequest(BaseModel):

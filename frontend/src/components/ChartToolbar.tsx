@@ -4,6 +4,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
+import { recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 
 interface ChartToolbarProps {
@@ -40,8 +41,8 @@ export function ChartToolbar({
     setShowAnnotations,
   } = useDashboardStore()
 
-  // Get current chart type for the characteristic
-  const currentChartType: ChartTypeId = (characteristicId && chartTypes.get(characteristicId)) || 'xbar'
+  // Get current chart type for the characteristic (fall back to recommended type for subgroup size)
+  const currentChartType: ChartTypeId = (characteristicId && chartTypes.get(characteristicId)) || recommendChartType(subgroupSize)
 
   const handleChartTypeChange = (chartType: ChartTypeId) => {
     if (characteristicId) {

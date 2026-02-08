@@ -3,7 +3,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_user, get_current_engineer, get_db_session
+from openspc.api.deps import (
+    get_characteristic_repo as get_char_repo,
+    get_current_user,
+    get_current_engineer,
+    get_db_session,
+)
 from openspc.db.models.user import User
 from openspc.api.schemas.characteristic_config import (
     CharacteristicConfigResponse,
@@ -20,13 +25,6 @@ async def get_config_repo(
 ) -> CharacteristicConfigRepository:
     """Get characteristic config repository instance."""
     return CharacteristicConfigRepository(session)
-
-
-async def get_char_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> CharacteristicRepository:
-    """Get characteristic repository instance."""
-    return CharacteristicRepository(session)
 
 
 @router.get("/{char_id}/config", response_model=CharacteristicConfigResponse | None)

@@ -79,7 +79,7 @@ export function Header({
         <img
           src={logoUrl || defaultLogo}
           alt={`${appName} logo`}
-          className="h-9 w-9 object-contain"
+          className="h-12 w-12 object-contain"
         />
         <span className="text-xl font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>{appName}</span>
       </div>

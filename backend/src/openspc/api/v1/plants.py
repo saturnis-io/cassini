@@ -6,9 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_user, get_current_admin
+from openspc.api.deps import get_current_user, get_current_admin, get_db_session
 from openspc.api.schemas.plant import PlantCreate, PlantResponse, PlantUpdate
-from openspc.db.database import get_session
 from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.user import UserRepository
@@ -19,7 +18,7 @@ router = APIRouter(prefix="/api/v1/plants", tags=["plants"])
 
 
 async def get_plant_repo(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> PlantRepository:
     """Dependency to get PlantRepository instance."""
     return PlantRepository(session)
@@ -44,7 +43,7 @@ async def create_plant(
     data: PlantCreate,
     repo: PlantRepository = Depends(get_plant_repo),
     _user: User = Depends(get_current_admin),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> PlantResponse:
     """Create a new plant.
 

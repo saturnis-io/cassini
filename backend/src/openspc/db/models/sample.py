@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,7 +31,7 @@ class Sample(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     char_id: Mapped[int] = mapped_column(ForeignKey("characteristic.id"), nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=_utc_now, nullable=False
     )
     batch_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     operator_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -100,7 +104,7 @@ class SampleEditHistory(Base):
 
     # When the edit was made
     edited_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=_utc_now, nullable=False
     )
 
     # Who made the edit (optional - could be operator_id or user identifier)

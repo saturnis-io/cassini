@@ -5,7 +5,7 @@ acknowledgment workflow, and notification broadcasting.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Protocol
 
 from openspc.core.engine.nelson_rules import RuleResult
@@ -296,7 +296,7 @@ class AlertManager:
         violation.acknowledged = True
         violation.ack_user = user
         violation.ack_reason = reason
-        violation.ack_timestamp = datetime.utcnow()
+        violation.ack_timestamp = datetime.now(timezone.utc)
 
         await self._violation_repo.session.flush()
         await self._violation_repo.session.refresh(violation)

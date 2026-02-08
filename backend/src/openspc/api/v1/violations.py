@@ -57,6 +57,8 @@ async def list_violations(
     end_date: datetime | None = None,
     offset: int = 0,
     limit: int = 100,
+    page: int | None = None,
+    per_page: int | None = None,
 ) -> PaginatedResponse[ViolationResponse]:
     """List violations with comprehensive filtering.
 
@@ -99,6 +101,12 @@ async def list_violations(
         }
         ```
     """
+    # Convert page/per_page to offset/limit if provided
+    if per_page is not None:
+        limit = per_page
+    if page is not None:
+        offset = (page - 1) * limit
+
     violations, total = await repo.list_violations(
         characteristic_id=characteristic_id,
         sample_id=sample_id,
@@ -446,9 +454,15 @@ async def batch_acknowledge(
             )
             failed += 1
 
+    # Build frontend-friendly fields
+    acknowledged_ids = [r.violation_id for r in results if r.success]
+    error_map = {r.violation_id: (r.error or "Unknown error") for r in results if not r.success}
+
     return BatchAcknowledgeResult(
         total=len(request.violation_ids),
         successful=successful,
         failed=failed,
         results=results,
+        acknowledged=acknowledged_ids,
+        errors=error_map,
     )

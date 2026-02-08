@@ -8,6 +8,7 @@
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useSamples, useCharacteristic } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import type { Sample } from '@/types'
@@ -188,6 +189,8 @@ export function BoxWhiskerChart({
   // Fetch characteristic for spec limits and decimal precision
   const { data: characteristic } = useCharacteristic(characteristicId)
 
+  const rangeWindow = useDashboardStore((state) => state.rangeWindow)
+  const showBrush = useDashboardStore((state) => state.showBrush)
   const chartColors = useChartColors()
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoveredBox, setHoveredBox] = useState<number | null>(null)
@@ -229,7 +232,7 @@ export function BoxWhiskerChart({
   }, [])
 
   // Calculate box plot data for each sample
-  const boxPlotData = useMemo((): BoxPlotData[] => {
+  const allBoxPlotData = useMemo((): BoxPlotData[] => {
     if (!samplesData?.items?.length) return []
 
     // Sort samples by timestamp and calculate box plots
@@ -241,6 +244,16 @@ export function BoxWhiskerChart({
       .map((sample, index) => calculateBoxPlotFromSample(sample, index + 1))
       .filter((box): box is BoxPlotData => box !== null)
   }, [samplesData])
+
+  // Apply range window to slice visible box plot data
+  const boxPlotData = useMemo(() => {
+    if (!showBrush || !rangeWindow || allBoxPlotData.length === 0) return allBoxPlotData
+    const [start, end] = rangeWindow
+    return allBoxPlotData.slice(start, end + 1).map((box, i) => ({
+      ...box,
+      index: start + i + 1,
+    }))
+  }, [allBoxPlotData, rangeWindow, showBrush])
 
   // Chart margins and dimensions
   const margin = { top: 20, right: 50, bottom: 50, left: 70 }

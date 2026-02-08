@@ -24,7 +24,7 @@ export function SettingsView() {
   const tabs = [
     { id: 'appearance' as const, label: 'Appearance', icon: Palette, visible: true },
     { id: 'branding' as const, label: 'Branding', icon: Building2, visible: isAdmin },
-    { id: 'plants' as const, label: 'Plants', icon: Factory, visible: isAdmin },
+    { id: 'plants' as const, label: 'Sites', icon: Factory, visible: isAdmin },
     { id: 'mqtt' as const, label: 'Data Collection', icon: Wifi, visible: isEngineer },
     { id: 'api-keys' as const, label: 'API Keys', icon: Key, visible: isEngineer },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell, visible: true },

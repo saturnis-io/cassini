@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock, AlertTriangle } from 'lucide-react'
 import { useSamples, useDeleteSample, useExcludeSample } from '@/api/hooks'
+import { useAuth } from '@/providers/AuthProvider'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { canPerformAction } from '@/lib/roles'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
 import { SampleEditModal } from './SampleEditModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
@@ -46,6 +48,7 @@ function FilterChip({
 }
 
 export function SampleHistoryPanel() {
+  const { role } = useAuth()
   const { selectedPlant } = usePlantContext()
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
@@ -416,31 +419,37 @@ export function SampleHistoryPanel() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex justify-end gap-1">
-                          <button
-                            onClick={() => setEditingSample(sample)}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleExclude(sample)}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
-                            title={isExcluded ? 'Include' : 'Exclude'}
-                          >
-                            {isExcluded ? (
-                              <Eye className="h-4 w-4" />
-                            ) : (
-                              <EyeOff className="h-4 w-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setDeletingSampleId(sample.id)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {canPerformAction(role, 'samples:edit') && (
+                            <button
+                              onClick={() => setEditingSample(sample)}
+                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {canPerformAction(role, 'samples:exclude') && (
+                            <button
+                              onClick={() => handleToggleExclude(sample)}
+                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                              title={isExcluded ? 'Include' : 'Exclude'}
+                            >
+                              {isExcluded ? (
+                                <Eye className="h-4 w-4" />
+                              ) : (
+                                <EyeOff className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
+                          {canPerformAction(role, 'samples:delete') && (
+                            <button
+                              onClick={() => setDeletingSampleId(sample.id)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

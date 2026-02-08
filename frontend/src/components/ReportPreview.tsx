@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { useChartData, useViolations, useCharacteristic } from '@/api/hooks'
+import { useChartData, useViolations, useCharacteristic, useAnnotations } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
 import { useECharts } from '@/hooks/useECharts'
 import type { ReportTemplate, ReportSection } from '@/lib/report-templates'
-import type { ChartData, Violation } from '@/types'
+import type { ChartData, Violation, Annotation } from '@/types'
 
 interface ReportPreviewProps {
   template: ReportTemplate
@@ -32,6 +32,7 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
     characteristic_id: primaryCharId || undefined,
     per_page: 50,
   })
+  const { data: annotations } = useAnnotations(primaryCharId || 0, !!primaryCharId)
 
   const isLoading = chartLoading || violationsLoading
 
@@ -60,7 +61,7 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
             <img
               src={brandConfig.logoUrl || '/openspc-isometric-light.png'}
               alt={`${brandConfig.appName} logo`}
-              className="h-8 w-8 object-contain"
+              className="h-12 w-12 object-contain"
             />
             <div>
               <h1 className="text-lg font-bold">{brandConfig.appName}</h1>
@@ -81,6 +82,7 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
             chartData={chartData}
             characteristic={characteristic}
             violations={violations?.items || []}
+            annotations={annotations || []}
             characteristicIds={characteristicIds}
             chartOptions={chartOptions}
           />
@@ -96,6 +98,7 @@ interface SectionProps {
   chartData?: ChartData
   characteristic?: { name: string; id: number }
   violations: Violation[]
+  annotations: Annotation[]
   characteristicIds: number[]
   chartOptions?: {
     limit?: number
@@ -110,6 +113,7 @@ function ReportSectionComponent({
   chartData,
   characteristic,
   violations,
+  annotations,
   characteristicIds,
   chartOptions,
 }: SectionProps) {
@@ -266,6 +270,58 @@ function ReportSectionComponent({
     case 'trendChart':
       if (!chartData) return null
       return <ReportTrendSection chartData={chartData} />
+
+    case 'annotations':
+      return (
+        <div className="border border-border rounded-lg p-4">
+          <h2 className="text-lg font-semibold mb-4">Annotations</h2>
+          {annotations.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No annotations recorded</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="border-b">
+                <tr>
+                  <th className="text-left py-2">Date</th>
+                  <th className="text-left py-2">Type</th>
+                  <th className="text-left py-2">Note</th>
+                  <th className="text-left py-2">Time Range</th>
+                  <th className="text-left py-2">Author</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annotations.map((a) => (
+                  <tr key={a.id} className="border-b border-border/50">
+                    <td className="py-2">{new Date(a.created_at).toLocaleDateString()}</td>
+                    <td className="py-2">
+                      <span className={cn(
+                        'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
+                        a.annotation_type === 'point'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                      )}>
+                        {a.annotation_type === 'point' ? 'Point' : 'Period'}
+                      </span>
+                    </td>
+                    <td className="py-2 max-w-[200px] truncate" title={a.text}>{a.text}</td>
+                    <td className="py-2 text-xs text-muted-foreground">
+                      {a.annotation_type === 'period' && a.start_time && a.end_time ? (
+                        <>
+                          {new Date(a.start_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {' — '}
+                          {new Date(a.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </>
+                      ) : a.annotation_type === 'point' ? (
+                        <span>Sample #{a.sample_id}</span>
+                      ) : '—'}
+                    </td>
+                    <td className="py-2 text-muted-foreground">{a.created_by || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )
 
     case 'samples':
       if (!chartData) return null

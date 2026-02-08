@@ -1,6 +1,6 @@
 """Repository for Violation model with acknowledgment tracking."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +84,31 @@ class ViolationRepository(BaseRepository[Violation]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_sample_ids(self, sample_ids: list[int]) -> dict[int, list[Violation]]:
+        """Batch-load violations for multiple samples in a single query.
+
+        Args:
+            sample_ids: List of sample IDs to query.
+
+        Returns:
+            Dict mapping sample_id -> list of violations for that sample.
+        """
+        if not sample_ids:
+            return {}
+
+        stmt = (
+            select(Violation)
+            .where(Violation.sample_id.in_(sample_ids))
+            .execution_options(populate_existing=True)
+        )
+        result = await self.session.execute(stmt)
+        violations = list(result.scalars().all())
+
+        grouped: dict[int, list[Violation]] = {}
+        for v in violations:
+            grouped.setdefault(v.sample_id, []).append(v)
+        return grouped
+
     async def acknowledge(
         self, violation_id: int, user: str, reason: str
     ) -> Violation | None:
@@ -115,7 +140,7 @@ class ViolationRepository(BaseRepository[Violation]):
         violation.acknowledged = True
         violation.ack_user = user
         violation.ack_reason = reason
-        violation.ack_timestamp = datetime.utcnow()
+        violation.ack_timestamp = datetime.now(timezone.utc)
 
         await self.session.flush()
         await self.session.refresh(violation)

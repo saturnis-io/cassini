@@ -3,7 +3,11 @@
 Implements ISA-95 equipment hierarchy management endpoints.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,10 +16,10 @@ from openspc.api.deps import (
     get_characteristic_repo,
     get_current_user,
     get_current_engineer,
+    get_db_session,
     get_hierarchy_repo,
 )
 from openspc.db.models.user import User
-from openspc.db.database import get_session
 from openspc.db.models.characteristic import Characteristic
 from openspc.api.schemas.characteristic import CharacteristicResponse
 from openspc.api.schemas.hierarchy import (
@@ -36,7 +40,7 @@ plant_hierarchy_router = APIRouter(tags=["hierarchy"])
 
 async def validate_plant(
     plant_id: int,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> int:
     """Validate plant exists and return plant_id."""
     repo = PlantRepository(session)
@@ -52,7 +56,7 @@ async def validate_plant(
 @router.get("/", response_model=list[HierarchyTreeNode])
 async def get_hierarchy_tree(
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> list[HierarchyTreeNode]:
     """Get full hierarchy as nested tree structure.
@@ -172,10 +176,11 @@ async def create_hierarchy_node(
             type=data.type,
         )
         return HierarchyResponse.model_validate(node)
-    except IntegrityError as e:
+    except IntegrityError:
+        logger.exception("Database integrity error in hierarchy operation")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Database integrity error: {str(e)}",
+            detail="Database integrity error: duplicate or invalid reference",
         )
 
 
@@ -278,10 +283,11 @@ async def update_hierarchy_node(
                 detail=f"Hierarchy node {node_id} not found",
             )
         return HierarchyResponse.model_validate(node)
-    except IntegrityError as e:
+    except IntegrityError:
+        logger.exception("Database integrity error in hierarchy operation")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Database integrity error: {str(e)}",
+            detail="Database integrity error: duplicate or invalid reference",
         )
 
 
@@ -410,7 +416,7 @@ async def get_node_characteristics(
 async def get_plant_hierarchy_tree(
     plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> list[HierarchyTreeNode]:
     """Get hierarchy tree for a specific plant.
@@ -461,7 +467,7 @@ async def create_plant_hierarchy_node(
     data: HierarchyCreate,
     plant_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
     """Create a hierarchy node in a specific plant.
@@ -502,8 +508,9 @@ async def create_plant_hierarchy_node(
             parent_id=data.parent_id,
         )
         return HierarchyResponse.model_validate(node)
-    except IntegrityError as e:
+    except IntegrityError:
+        logger.exception("Database integrity error in hierarchy operation")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Database integrity error: {str(e)}",
+            detail="Database integrity error: duplicate or invalid reference",
         )

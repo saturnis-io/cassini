@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
@@ -26,12 +27,14 @@ from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
 from openspc.core.auth.bootstrap import bootstrap_admin_user
 from openspc.core.broadcast import WebSocketBroadcaster
+from openspc.core.config import get_settings
 from openspc.core.events import event_bus
 from openspc.core.providers import tag_provider_manager
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -112,19 +115,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="OpenSPC",
     description="Event-Driven Statistical Process Control System",
-    version="0.3.0",
+    version=settings.app_version,
     lifespan=lifespan,
 )
 
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:3000",
-    ],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -148,11 +146,24 @@ app.include_router(tags_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)
 
+# Dev tools router — only registered in sandbox mode
+if settings.sandbox:
+    from openspc.api.v1.devtools import router as devtools_router
+
+    app.include_router(devtools_router)
+    logger.info("Sandbox mode enabled — devtools router registered")
+
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check endpoint with real DB connectivity verification."""
+    try:
+        db = get_database()
+        async with db.session() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "healthy"}
+    except Exception:
+        return {"status": "unhealthy"}
 
 
 @app.get("/")
@@ -160,6 +171,6 @@ async def root() -> dict[str, str]:
     """Root endpoint."""
     return {
         "name": "OpenSPC",
-        "version": "0.1.0",
+        "version": settings.app_version,
         "docs": "/docs",
     }

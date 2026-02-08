@@ -59,7 +59,7 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Username</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
               <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Plant Roles</th>
+              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Site Roles</th>
               <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>

@@ -154,6 +154,48 @@ def require_role(min_role: str):
     return check_role
 
 
+def get_user_role_level_for_plant(user: User, plant_id: int) -> int:
+    """Get the user's effective role level for a specific plant.
+
+    Admin users at any plant are treated as admin everywhere.
+
+    Args:
+        user: The authenticated user with plant_roles loaded.
+        plant_id: The plant to check authorization for.
+
+    Returns:
+        Numeric role level (0 if no role for that plant).
+    """
+    max_level = 0
+    for pr in user.plant_roles:
+        level = ROLE_HIERARCHY.get(pr.role.value, 0)
+        # Admin at any plant implies admin everywhere
+        if level >= ROLE_HIERARCHY["admin"]:
+            return level
+        if pr.plant_id == plant_id and level > max_level:
+            max_level = level
+    return max_level
+
+
+def check_plant_role(user: User, plant_id: int, min_role: str) -> None:
+    """Verify user has at least min_role for a specific plant. Raises 403 if not.
+
+    Args:
+        user: Authenticated user.
+        plant_id: Plant the resource belongs to.
+        min_role: Minimum required role.
+
+    Raises:
+        HTTPException: 403 if user lacks the required role for the plant.
+    """
+    min_level = ROLE_HIERARCHY.get(min_role, 0)
+    if get_user_role_level_for_plant(user, plant_id) < min_level:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{min_role} or higher privileges required for this plant",
+        )
+
+
 async def get_current_user_or_api_key(
     authorization: Optional[str] = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
@@ -335,3 +377,40 @@ async def get_alert_manager(
         manager.add_notifier(request.app.state.broadcaster)
 
     return manager
+
+
+async def resolve_plant_id_for_characteristic(
+    characteristic_id: int,
+    session: AsyncSession,
+) -> int:
+    """Resolve the plant_id that a characteristic belongs to via hierarchy.
+
+    Args:
+        characteristic_id: The characteristic to look up.
+        session: Active database session.
+
+    Returns:
+        plant_id of the plant this characteristic belongs to.
+
+    Raises:
+        HTTPException: 404 if characteristic or hierarchy not found.
+    """
+    from sqlalchemy import select as sa_select
+
+    from openspc.db.models.characteristic import Characteristic
+    from openspc.db.models.hierarchy import Hierarchy
+
+    row = (
+        await session.execute(
+            sa_select(Hierarchy.plant_id)
+            .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+            .where(Characteristic.id == characteristic_id)
+        )
+    ).scalar_one_or_none()
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {characteristic_id} not found",
+        )
+    return row

@@ -13,6 +13,7 @@ export type ReportSection =
   | 'violationStats'
   | 'violationTable'
   | 'trendChart'
+  | 'annotations'
 
 export type RequiredData = 'chartData' | 'violations' | 'samples' | 'stats'
 
@@ -31,7 +32,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Characteristic Summary',
     description: 'Control chart, statistics, and recent violations for a single characteristic',
     icon: BarChart2,
-    sections: ['header', 'controlChart', 'statistics', 'violations', 'samples'],
+    sections: ['header', 'controlChart', 'statistics', 'violations', 'annotations', 'samples'],
     requiredData: ['chartData', 'violations', 'samples'],
   },
   {
@@ -39,7 +40,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Capability Analysis',
     description: 'Process capability metrics (Cp, Cpk, Pp, Ppk) with distribution analysis',
     icon: TrendingUp,
-    sections: ['header', 'histogram', 'capabilityMetrics', 'interpretation'],
+    sections: ['header', 'histogram', 'capabilityMetrics', 'interpretation', 'annotations'],
     requiredData: ['chartData', 'samples'],
   },
   {
@@ -55,7 +56,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Trend Analysis',
     description: 'Time-series analysis with moving average and trend detection',
     icon: LineChart,
-    sections: ['header', 'trendChart', 'statistics', 'interpretation'],
+    sections: ['header', 'trendChart', 'statistics', 'interpretation', 'annotations'],
     requiredData: ['chartData', 'samples'],
   },
 ]

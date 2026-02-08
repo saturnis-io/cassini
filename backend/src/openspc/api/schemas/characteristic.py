@@ -149,6 +149,7 @@ class CharacteristicResponse(BaseModel):
     provider_type: str
     mqtt_topic: str | None
     trigger_tag: str | None
+    metric_name: str | None = None
     subgroup_mode: str
     min_measurements: int
     warn_below_count: int | None
@@ -297,6 +298,7 @@ class ChartDataResponse(BaseModel):
     subgroup_mode: str = "NOMINAL_TOLERANCE"
     nominal_subgroup_size: int = 1
     decimal_precision: int = 3
+    stored_sigma: float | None = None
 
 
 class NelsonRuleConfig(BaseModel):
@@ -330,6 +332,31 @@ class ControlLimitsResponse(BaseModel):
     before: dict
     after: dict
     calculation: dict
+
+
+class SetLimitsRequest(BaseModel):
+    """Schema for manually setting control limits from an external study.
+
+    Attributes:
+        ucl: Upper Control Limit
+        lcl: Lower Control Limit
+        center_line: Process center line (X-bar)
+        sigma: Process standard deviation (must be > 0)
+    """
+
+    ucl: float
+    lcl: float
+    center_line: float
+    sigma: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_limits(self) -> Self:
+        """Validate that UCL > LCL and center_line is between them."""
+        if self.ucl <= self.lcl:
+            raise ValueError("UCL must be greater than LCL")
+        if not (self.lcl <= self.center_line <= self.ucl):
+            raise ValueError("center_line must be between LCL and UCL")
+        return self
 
 
 class ChangeModeRequest(BaseModel):

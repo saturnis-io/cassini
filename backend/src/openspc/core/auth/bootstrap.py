@@ -5,12 +5,12 @@ Configurable via environment variables for production deployments.
 """
 
 import logging
-import os
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.core.auth.passwords import hash_password
+from openspc.core.config import get_settings
 from openspc.db.models.plant import Plant
 from openspc.db.models.user import User, UserPlantRole, UserRole
 
@@ -34,9 +34,10 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
     if user_count > 0:
         return
 
-    # Read configuration from environment
-    username = os.environ.get("OPENSPC_ADMIN_USERNAME", "admin")
-    password = os.environ.get("OPENSPC_ADMIN_PASSWORD", "password")
+    # Read configuration from centralized settings
+    cfg = get_settings()
+    username = cfg.admin_username
+    password = cfg.admin_password
 
     # Hash the password
     hashed = hash_password(password)

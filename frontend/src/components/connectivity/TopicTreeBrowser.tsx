@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronRight,
@@ -10,11 +10,11 @@ import {
   GitBranch,
 } from 'lucide-react'
 import { brokerApi } from '@/api/client'
-import type { DiscoveredTopic, TopicTreeNode } from '@/types'
+import type { DiscoveredTopic, TopicTreeNode, SparkplugMetricInfo } from '@/types'
 
 interface TopicTreeBrowserProps {
   brokerId: number | null
-  onSelectTopic?: (topic: string | null) => void
+  onSelectTopic?: (topic: string | null, metrics?: SparkplugMetricInfo[]) => void
 }
 
 /**
@@ -25,6 +25,7 @@ interface TopicTreeBrowserProps {
  * - Flat list with sorting
  * - Search/filter with debounce
  * - SparkplugB topic badges
+ * - SparkplugB metric name/type display
  * - Message count and last-seen display
  */
 export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserProps) {
@@ -32,7 +33,7 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree')
+  const [viewMode, setViewMode] = useState<'tree' | 'search'>('tree')
 
   // Debounce search input
   const handleSearchChange = useCallback(
@@ -44,14 +45,15 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
     []
   )
 
-  // Fetch topics in appropriate format
+  // Fetch topics in appropriate format (API uses 'flat'/'tree', UI uses 'search'/'tree')
+  const apiFormat = viewMode === 'search' ? 'flat' : 'tree'
   const { data: topicsData, isLoading } = useQuery({
     queryKey: ['broker-topics', brokerId, viewMode, debouncedSearch],
     queryFn: () => {
       if (!brokerId) return null
       return brokerApi.getTopics(
         brokerId,
-        viewMode,
+        apiFormat,
         debouncedSearch || undefined
       )
     },
@@ -59,10 +61,10 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
     refetchInterval: 10000,
   })
 
-  const handleSelect = (topic: string) => {
+  const handleSelect = (topic: string, metrics?: SparkplugMetricInfo[]) => {
     const newValue = selectedTopic === topic ? null : topic
     setSelectedTopic(newValue)
-    onSelectTopic?.(newValue)
+    onSelectTopic?.(newValue, newValue ? metrics : undefined)
   }
 
   const toggleExpand = (path: string) => {
@@ -124,9 +126,9 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
             <GitBranch className="h-4 w-4" />
           </button>
           <button
-            onClick={() => setViewMode('flat')}
-            className={`p-1.5 ${viewMode === 'flat' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'} rounded-r-md transition-colors`}
-            title="Flat view"
+            onClick={() => setViewMode('search')}
+            className={`p-1.5 ${viewMode === 'search' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'} rounded-r-md transition-colors`}
+            title="Search view"
           >
             <List className="h-4 w-4" />
           </button>
@@ -148,13 +150,35 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
             onSelect={handleSelect}
           />
         ) : (
-          <FlatView
+          <SearchView
             data={topicsData as DiscoveredTopic[] | null}
             selectedTopic={selectedTopic}
             onSelect={handleSelect}
           />
         )}
       </div>
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Metric Pills
+ * ----------------------------------------------------------------------- */
+
+function MetricsPills({ metrics }: { metrics: SparkplugMetricInfo[] }) {
+  if (!metrics || metrics.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {metrics.map((m) => (
+        <span
+          key={m.name}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border"
+        >
+          <span className="font-semibold">{m.name}</span>
+          <span className="italic text-muted-foreground">({m.data_type})</span>
+        </span>
+      ))}
     </div>
   )
 }
@@ -174,7 +198,7 @@ function TreeView({
   expandedNodes: Set<string>
   selectedTopic: string | null
   onToggle: (path: string) => void
-  onSelect: (topic: string) => void
+  onSelect: (topic: string, metrics?: SparkplugMetricInfo[]) => void
 }) {
   if (!data || !data.children || Object.keys(data.children).length === 0) {
     return (
@@ -222,7 +246,7 @@ function TreeNodeItem({
   expandedNodes: Set<string>
   selectedTopic: string | null
   onToggle: (path: string) => void
-  onSelect: (topic: string) => void
+  onSelect: (topic: string, metrics?: SparkplugMetricInfo[]) => void
 }) {
   const hasChildren =
     node.children &&
@@ -230,6 +254,7 @@ function TreeNodeItem({
   const isExpanded = expandedNodes.has(path)
   const isLeaf = node.full_topic !== null
   const isSelected = isLeaf && selectedTopic === node.full_topic
+  const hasMetrics = node.sparkplug_metrics && node.sparkplug_metrics.length > 0
 
   const children = Array.isArray(node.children)
     ? node.children
@@ -246,7 +271,7 @@ function TreeNodeItem({
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
           if (hasChildren) onToggle(path)
-          if (isLeaf && node.full_topic) onSelect(node.full_topic)
+          if (isLeaf && node.full_topic) onSelect(node.full_topic, node.sparkplug_metrics)
         }}
       >
         {/* Expand/collapse icon */}
@@ -270,6 +295,13 @@ function TreeNodeItem({
           </span>
         )}
 
+        {/* Metric count badge for leaves */}
+        {isLeaf && hasMetrics && (
+          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
+            {node.sparkplug_metrics.length} metrics
+          </span>
+        )}
+
         {/* Message count for leaves */}
         {isLeaf && node.message_count > 0 && (
           <span className="ml-auto text-xs text-muted-foreground shrink-0">
@@ -277,6 +309,16 @@ function TreeNodeItem({
           </span>
         )}
       </div>
+
+      {/* Metrics for selected leaf */}
+      {isLeaf && isSelected && hasMetrics && (
+        <div
+          style={{ paddingLeft: `${depth * 16 + 28}px` }}
+          className="pb-1"
+        >
+          <MetricsPills metrics={node.sparkplug_metrics} />
+        </div>
+      )}
 
       {/* Children */}
       {hasChildren && isExpanded && (
@@ -300,17 +342,17 @@ function TreeNodeItem({
 }
 
 /* -----------------------------------------------------------------------
- * Flat View
+ * Search View (flat list)
  * ----------------------------------------------------------------------- */
 
-function FlatView({
+function SearchView({
   data,
   selectedTopic,
   onSelect,
 }: {
   data: DiscoveredTopic[] | null
   selectedTopic: string | null
-  onSelect: (topic: string) => void
+  onSelect: (topic: string, metrics?: SparkplugMetricInfo[]) => void
 }) {
   if (!data || data.length === 0) {
     return (
@@ -326,33 +368,48 @@ function FlatView({
     <div className="space-y-0.5">
       {data.map((topic) => {
         const isSelected = selectedTopic === topic.topic
+        const hasMetrics = topic.sparkplug_metrics && topic.sparkplug_metrics.length > 0
         return (
-          <div
-            key={topic.topic}
-            onClick={() => onSelect(topic.topic)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer transition-colors ${
-              isSelected
-                ? 'bg-primary text-primary-foreground'
-                : 'hover:bg-accent'
-            }`}
-          >
-            <span className="truncate flex-1 font-mono text-xs">
-              {topic.topic}
-            </span>
-
-            {topic.is_sparkplug && (
-              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
-                SpB
+          <div key={topic.topic}>
+            <div
+              onClick={() => onSelect(topic.topic, topic.sparkplug_metrics)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer transition-colors ${
+                isSelected
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-accent'
+              }`}
+            >
+              <span className="truncate flex-1 font-mono text-xs">
+                {topic.topic}
               </span>
+
+              {topic.is_sparkplug && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
+                  SpB
+                </span>
+              )}
+
+              {hasMetrics && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
+                  {topic.sparkplug_metrics.length} metrics
+                </span>
+              )}
+
+              <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                {topic.message_count} msgs
+              </span>
+
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatRelativeTime(topic.last_seen)}
+              </span>
+            </div>
+
+            {/* Show metrics when selected */}
+            {isSelected && hasMetrics && (
+              <div className="px-3 pb-1">
+                <MetricsPills metrics={topic.sparkplug_metrics} />
+              </div>
             )}
-
-            <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-              {topic.message_count} msgs
-            </span>
-
-            <span className="text-xs text-muted-foreground shrink-0">
-              {formatRelativeTime(topic.last_seen)}
-            </span>
           </div>
         )
       })}

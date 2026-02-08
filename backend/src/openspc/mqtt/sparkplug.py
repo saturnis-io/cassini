@@ -15,7 +15,7 @@ References:
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from openspc.mqtt.client import MQTTClient
@@ -489,7 +489,7 @@ class SparkplugEncoder:
         from openspc.mqtt.sparkplug_b_pb2 import Payload
 
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         pb = Payload()
         pb.timestamp = int(timestamp.timestamp() * 1000)
@@ -555,7 +555,7 @@ class SparkplugEncoder:
             JSON-encoded payload as bytes
         """
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         # Convert to milliseconds since epoch
         timestamp_ms = int(timestamp.timestamp() * 1000)

@@ -9,11 +9,24 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from openspc.mqtt.client import MQTTClient
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SparkplugMetricInfo:
+    """Metadata for a single metric discovered in a SparkplugB payload.
+
+    Attributes:
+        name: Metric name (e.g., "Temperature")
+        data_type: SparkplugB data type (e.g., "Float", "Boolean")
+    """
+
+    name: str
+    data_type: str
 
 
 @dataclass
@@ -30,17 +43,19 @@ class DiscoveredTopic:
         sparkplug_node: SparkplugB edge node ID (if applicable)
         sparkplug_device: SparkplugB device ID (if applicable)
         sparkplug_message_type: SparkplugB message type (if applicable)
+        sparkplug_metrics: Metric name/type pairs from decoded SparkplugB payload
     """
 
     topic: str
     message_count: int = 0
-    last_seen: datetime = field(default_factory=datetime.utcnow)
+    last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_payload_size: int = 0
     is_sparkplug: bool = False
     sparkplug_group: str | None = None
     sparkplug_node: str | None = None
     sparkplug_device: str | None = None
     sparkplug_message_type: str | None = None
+    sparkplug_metrics: list[SparkplugMetricInfo] = field(default_factory=list)
 
 
 @dataclass
@@ -54,6 +69,7 @@ class TopicTreeNode:
         message_count: Total messages across this node and children
         last_seen: Most recent message timestamp
         is_sparkplug: Whether any child is a SparkplugB topic
+        sparkplug_metrics: Metric metadata (only on leaf nodes with SparkplugB data)
     """
 
     name: str
@@ -62,6 +78,7 @@ class TopicTreeNode:
     message_count: int = 0
     last_seen: datetime | None = None
     is_sparkplug: bool = False
+    sparkplug_metrics: list[SparkplugMetricInfo] = field(default_factory=list)
 
 
 class TopicDiscoveryService:
@@ -190,6 +207,7 @@ class TopicDiscoveryService:
         """Callback for incoming messages during discovery.
 
         Rate-limits updates to at most 1 per topic per second.
+        For SparkplugB topics, decodes the payload to extract metric metadata.
 
         Args:
             topic: MQTT topic the message was received on
@@ -209,13 +227,21 @@ class TopicDiscoveryService:
         # Parse SparkplugB topic if applicable
         sparkplug_info = self._parse_sparkplug_topic(topic)
 
+        # Decode SparkplugB payload to extract metric metadata
+        sparkplug_metrics: list[SparkplugMetricInfo] = []
+        if sparkplug_info is not None:
+            sparkplug_metrics = self._extract_sparkplug_metrics(payload)
+
         with self._lock:
             if topic in self._topics:
                 # Update existing
                 existing = self._topics[topic]
                 existing.message_count += 1
-                existing.last_seen = datetime.utcnow()
+                existing.last_seen = datetime.now(timezone.utc)
                 existing.last_payload_size = len(payload)
+                # Update metrics if we got new ones (keeps latest schema)
+                if sparkplug_metrics:
+                    existing.sparkplug_metrics = sparkplug_metrics
             else:
                 # Add new topic
                 if len(self._topics) >= self._max_topics:
@@ -230,13 +256,14 @@ class TopicDiscoveryService:
                 self._topics[topic] = DiscoveredTopic(
                     topic=topic,
                     message_count=1,
-                    last_seen=datetime.utcnow(),
+                    last_seen=datetime.now(timezone.utc),
                     last_payload_size=len(payload),
                     is_sparkplug=sparkplug_info is not None,
                     sparkplug_group=sparkplug_info.get("group") if sparkplug_info else None,
                     sparkplug_node=sparkplug_info.get("node") if sparkplug_info else None,
                     sparkplug_device=sparkplug_info.get("device") if sparkplug_info else None,
                     sparkplug_message_type=sparkplug_info.get("message_type") if sparkplug_info else None,
+                    sparkplug_metrics=sparkplug_metrics,
                 )
 
     @staticmethod
@@ -267,6 +294,32 @@ class TopicDiscoveryService:
         return result
 
     @staticmethod
+    def _extract_sparkplug_metrics(payload: bytes) -> list[SparkplugMetricInfo]:
+        """Decode a SparkplugB payload and extract metric name/type pairs.
+
+        Args:
+            payload: SparkplugB protobuf (or JSON fallback) payload bytes
+
+        Returns:
+            List of SparkplugMetricInfo with name and data_type, or empty on failure
+        """
+        try:
+            from openspc.mqtt.sparkplug import SparkplugDecoder
+
+            _ts, metrics, _seq = SparkplugDecoder.decode_payload(payload)
+            # Deduplicate by name (keep first occurrence)
+            seen: set[str] = set()
+            result: list[SparkplugMetricInfo] = []
+            for m in metrics:
+                if m.name not in seen:
+                    seen.add(m.name)
+                    result.append(SparkplugMetricInfo(name=m.name, data_type=m.data_type))
+            return result
+        except Exception as e:
+            logger.debug(f"Could not extract SparkplugB metrics: {e}")
+            return []
+
+    @staticmethod
     def _build_tree(topics: dict[str, DiscoveredTopic]) -> TopicTreeNode:
         """Build hierarchical tree from flat topic list.
 
@@ -294,8 +347,10 @@ class TopicDiscoveryService:
                 if topic_info.is_sparkplug:
                     current.is_sparkplug = True
 
-            # Set full topic on leaf node
+            # Set full topic and metrics on leaf node
             current.full_topic = topic_str
+            if topic_info.sparkplug_metrics:
+                current.sparkplug_metrics = topic_info.sparkplug_metrics
 
         return root
 
@@ -304,7 +359,7 @@ class TopicDiscoveryService:
         if self._ttl_seconds <= 0:
             return
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         with self._lock:
             stale = [
                 topic

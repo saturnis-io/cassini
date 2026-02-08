@@ -29,6 +29,8 @@ interface DualChartPanelProps {
   className?: string
   /** Default height ratio for primary chart (0-1, default 0.6) */
   defaultPrimaryRatio?: number
+  /** Callback when a data point is clicked for point annotation creation */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
 /**
@@ -56,6 +58,7 @@ export function DualChartPanel({
   showSpecLimits = true,
   className,
   defaultPrimaryRatio = 0.6,
+  onPointAnnotation,
 }: DualChartPanelProps) {
   const secondaryChartType = getSecondaryChartType(chartType)
   const isRightPosition = histogramPosition === 'right'
@@ -202,6 +205,7 @@ export function DualChartPanel({
             yAxisDomain={showHistogram ? yAxisDomain : undefined}
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
+            onPointAnnotation={onPointAnnotation}
           />
         </div>
         {showHistogram && (
@@ -256,6 +260,7 @@ export function DualChartPanel({
             yAxisDomain={showHistogram ? yAxisDomain : undefined}
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
+            onPointAnnotation={onPointAnnotation}
           />
         </div>
 

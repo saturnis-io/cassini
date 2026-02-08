@@ -11,9 +11,12 @@ Calculation methods:
 """
 
 import logging
+import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+import numpy as np
 
 from openspc.core.events import ControlLimitsUpdatedEvent, EventBus
 from openspc.utils.constants import get_c4, get_d2
@@ -106,6 +109,9 @@ class ControlLimitService:
         characteristic_id: int,
         exclude_ooc: bool = False,
         min_samples: int = 25,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        last_n: int | None = None,
     ) -> CalculationResult:
         """Calculate control limits from historical data.
 
@@ -138,8 +144,12 @@ class ControlLimitService:
         if characteristic is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
-        # Fetch all samples (not just rolling window)
-        all_samples = await self._sample_repo.get_by_characteristic(characteristic_id)
+        # Fetch samples (optionally filtered by date range)
+        all_samples = await self._sample_repo.get_by_characteristic(
+            characteristic_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         # Filter out excluded samples if requested
         if exclude_ooc:
@@ -149,6 +159,10 @@ class ControlLimitService:
         else:
             samples = all_samples
             excluded_count = 0
+
+        # Take only the most recent N samples if requested
+        if last_n is not None and last_n > 0 and len(samples) > last_n:
+            samples = samples[-last_n:]
 
         # Check minimum sample requirement
         if len(samples) < min_samples:
@@ -180,7 +194,7 @@ class ControlLimitService:
             method=method,
             sample_count=len(samples),
             excluded_count=excluded_count,
-            calculated_at=datetime.utcnow(),
+            calculated_at=datetime.now(timezone.utc),
         )
 
     async def recalculate_and_persist(
@@ -188,6 +202,9 @@ class ControlLimitService:
         characteristic_id: int,
         exclude_ooc: bool = False,
         min_samples: int = 25,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        last_n: int | None = None,
     ) -> CalculationResult:
         """Calculate limits and persist to characteristic.
 
@@ -220,6 +237,9 @@ class ControlLimitService:
             characteristic_id=characteristic_id,
             exclude_ooc=exclude_ooc,
             min_samples=min_samples,
+            start_date=start_date,
+            end_date=end_date,
+            last_n=last_n,
         )
 
         # Update characteristic with new limits and stored parameters
@@ -320,10 +340,10 @@ class ControlLimitService:
         for sample in samples:
             measurement_values = [m.value for m in sample.measurements]
             if measurement_values:
-                values.append(sum(measurement_values) / len(measurement_values))
+                values.append(float(np.mean(measurement_values)))
 
         # Calculate center line (X-bar)
-        center_line = sum(values) / len(values)
+        center_line = float(np.mean(values))
 
         # Estimate sigma using moving range
         sigma = estimate_sigma_moving_range(values, span=2)
@@ -342,9 +362,13 @@ class ControlLimitService:
         Uses the range-based method for subgroup sizes 2-10:
         - X-bar = mean of subgroup means
         - R-bar = mean of subgroup ranges
-        - sigma = R-bar / d2
-        - UCL = X-bar + 3*sigma
-        - LCL = X-bar - 3*sigma
+        - sigma = R-bar / d2  (process standard deviation)
+        - sigma_xbar = sigma / sqrt(n)  (standard error of the mean)
+        - UCL = X-bar + 3 * sigma_xbar
+        - LCL = X-bar - 3 * sigma_xbar
+
+        The returned sigma is the process standard deviation (not sigma_xbar),
+        which is needed for Mode A/B variable subgroup calculations.
 
         Args:
             samples: List of Sample objects with measurements
@@ -352,14 +376,6 @@ class ControlLimitService:
 
         Returns:
             Tuple of (center_line, ucl, lcl, sigma)
-
-        Example:
-            For subgroup means [10.0, 10.2, 9.8, 10.1] and ranges [1.2, 1.5, 1.0, 1.3]:
-            With n=5:
-            - X-bar = 10.025
-            - R-bar = 1.25
-            - sigma = 1.25 / 2.326 = 0.537
-            - UCL = 11.637, LCL = 8.413
         """
         # Calculate subgroup means and ranges
         subgroup_means = []
@@ -368,23 +384,20 @@ class ControlLimitService:
         for sample in samples:
             measurement_values = [m.value for m in sample.measurements]
             if measurement_values:
-                # Calculate mean
-                subgroup_mean = sum(measurement_values) / len(measurement_values)
-                subgroup_means.append(subgroup_mean)
-
-                # Calculate range
-                subgroup_range = max(measurement_values) - min(measurement_values)
-                subgroup_ranges.append(subgroup_range)
+                arr = np.asarray(measurement_values, dtype=np.float64)
+                subgroup_means.append(float(np.mean(arr)))
+                subgroup_ranges.append(float(np.ptp(arr)))
 
         # Calculate center line (X-double-bar)
-        center_line = sum(subgroup_means) / len(subgroup_means)
+        center_line = float(np.mean(subgroup_means))
 
-        # Estimate sigma using R-bar method
+        # Estimate process sigma using R-bar method
         sigma = estimate_sigma_rbar(subgroup_ranges, subgroup_size)
 
-        # Calculate control limits (3-sigma)
-        ucl = center_line + 3 * sigma
-        lcl = center_line - 3 * sigma
+        # Control limits use sigma of the mean (sigma / sqrt(n))
+        sigma_xbar = sigma / math.sqrt(subgroup_size)
+        ucl = center_line + 3 * sigma_xbar
+        lcl = center_line - 3 * sigma_xbar
 
         return center_line, ucl, lcl, sigma
 
@@ -396,9 +409,13 @@ class ControlLimitService:
         Uses the standard deviation method for subgroup sizes > 10:
         - X-bar = mean of subgroup means
         - S-bar = mean of subgroup standard deviations
-        - sigma = S-bar / c4
-        - UCL = X-bar + 3*sigma
-        - LCL = X-bar - 3*sigma
+        - sigma = S-bar / c4  (process standard deviation)
+        - sigma_xbar = sigma / sqrt(n)  (standard error of the mean)
+        - UCL = X-bar + 3 * sigma_xbar
+        - LCL = X-bar - 3 * sigma_xbar
+
+        The returned sigma is the process standard deviation (not sigma_xbar),
+        which is needed for Mode A/B variable subgroup calculations.
 
         Args:
             samples: List of Sample objects with measurements
@@ -406,14 +423,6 @@ class ControlLimitService:
 
         Returns:
             Tuple of (center_line, ucl, lcl, sigma)
-
-        Example:
-            For subgroup means [10.0, 10.2, 9.8, 10.1] and stds [0.5, 0.6, 0.4, 0.5]:
-            With n=15:
-            - X-bar = 10.025
-            - S-bar = 0.5
-            - sigma = 0.5 / 0.9823 = 0.509
-            - UCL = 11.552, LCL = 8.498
         """
         # Calculate subgroup means and standard deviations
         subgroup_means = []
@@ -422,25 +431,19 @@ class ControlLimitService:
         for sample in samples:
             measurement_values = [m.value for m in sample.measurements]
             if measurement_values and len(measurement_values) > 1:
-                # Calculate mean
-                subgroup_mean = sum(measurement_values) / len(measurement_values)
-                subgroup_means.append(subgroup_mean)
-
-                # Calculate standard deviation
-                variance = sum(
-                    (x - subgroup_mean) ** 2 for x in measurement_values
-                ) / (len(measurement_values) - 1)
-                subgroup_std = variance ** 0.5
-                subgroup_stds.append(subgroup_std)
+                arr = np.asarray(measurement_values, dtype=np.float64)
+                subgroup_means.append(float(np.mean(arr)))
+                subgroup_stds.append(float(np.std(arr, ddof=1)))
 
         # Calculate center line (X-double-bar)
-        center_line = sum(subgroup_means) / len(subgroup_means)
+        center_line = float(np.mean(subgroup_means))
 
-        # Estimate sigma using S-bar method
+        # Estimate process sigma using S-bar method
         sigma = estimate_sigma_sbar(subgroup_stds, subgroup_size)
 
-        # Calculate control limits (3-sigma)
-        ucl = center_line + 3 * sigma
-        lcl = center_line - 3 * sigma
+        # Control limits use sigma of the mean (sigma / sqrt(n))
+        sigma_xbar = sigma / math.sqrt(subgroup_size)
+        ucl = center_line + 3 * sigma_xbar
+        lcl = center_line - 3 * sigma_xbar
 
         return center_line, ucl, lcl, sigma

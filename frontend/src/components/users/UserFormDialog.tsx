@@ -231,7 +231,7 @@ export function UserFormDialog({
           {/* Plant Role Assignments */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-foreground">Plant Roles</label>
+              <label className="block text-sm font-medium text-foreground">Site Roles</label>
               <button
                 type="button"
                 onClick={addPlantRole}
@@ -242,7 +242,7 @@ export function UserFormDialog({
             </div>
 
             {plantRoles.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No plant assignments</p>
+              <p className="text-xs text-muted-foreground italic">No site assignments</p>
             ) : (
               <div className="space-y-2">
                 {plantRoles.map((pr, idx) => (

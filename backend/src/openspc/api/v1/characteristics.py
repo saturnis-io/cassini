@@ -4,7 +4,7 @@ Provides CRUD operations, chart data, limit recalculation, and rule management
 for SPC characteristics.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,41 +21,34 @@ from openspc.api.schemas.characteristic import (
     ChartDataResponse,
     ChartSample,
     ControlLimits,
+    ControlLimitsResponse,
     NelsonRuleConfig,
+    SetLimitsRequest,
     SpecLimits,
     ZoneBoundaries,
 )
-from openspc.api.deps import get_current_user, get_current_engineer
+from openspc.api.deps import (
+    check_plant_role,
+    get_characteristic_repo,
+    get_current_user,
+    get_current_engineer,
+    get_db_session,
+    get_sample_repo,
+    resolve_plant_id_for_characteristic,
+)
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.core.engine.control_limits import ControlLimitService
 from openspc.db.models.user import User
 from openspc.core.engine.rolling_window import RollingWindowManager
-from openspc.db.database import get_session
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule
 from openspc.db.repositories import CharacteristicRepository, SampleRepository
 
 router = APIRouter(prefix="/api/v1/characteristics", tags=["characteristics"])
 
 
-# Dependency for CharacteristicRepository
-async def get_characteristic_repository(
-    session: AsyncSession = Depends(get_session),
-) -> CharacteristicRepository:
-    """Dependency to get CharacteristicRepository instance."""
-    return CharacteristicRepository(session)
-
-
-# Dependency for SampleRepository
-async def get_sample_repository(
-    session: AsyncSession = Depends(get_session),
-) -> SampleRepository:
-    """Dependency to get SampleRepository instance."""
-    return SampleRepository(session)
-
-
 # Dependency for ControlLimitService
 async def get_control_limit_service(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ControlLimitService:
     """Dependency to get ControlLimitService instance."""
     char_repo = CharacteristicRepository(session)
@@ -69,26 +62,76 @@ async def get_control_limit_service(
 async def list_characteristics(
     hierarchy_id: int | None = Query(None, description="Filter by hierarchy node ID"),
     provider_type: str | None = Query(None, description="Filter by provider type (MANUAL, TAG)"),
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
+    in_control: bool | None = Query(None, description="Filter by in-control status of latest sample"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
-    session: AsyncSession = Depends(get_session),
+    page: int | None = Query(None, ge=1, description="Page number (1-indexed, alternative to offset)"),
+    per_page: int | None = Query(None, ge=1, le=1000, description="Items per page (alternative to limit)"),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[CharacteristicResponse]:
     """List characteristics with filtering and pagination.
 
-    Supports filtering by hierarchy node and provider type.
+    Supports filtering by hierarchy node, provider type, plant, and in_control status.
     Returns paginated results with total count.
+
+    Accepts both offset/limit and page/per_page pagination styles.
+    If page/per_page are provided, they take precedence over offset/limit.
     """
+    # Convert page/per_page to offset/limit if provided
+    if per_page is not None:
+        limit = per_page
+    if page is not None:
+        offset = (page - 1) * limit
+
     repo = CharacteristicRepository(session)
 
     # Build query with filters
     stmt = select(Characteristic)
+
+    if plant_id is not None:
+        from openspc.db.models.hierarchy import Hierarchy
+        stmt = stmt.join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id).where(
+            Hierarchy.plant_id == plant_id
+        )
 
     if hierarchy_id is not None:
         stmt = stmt.where(Characteristic.hierarchy_id == hierarchy_id)
 
     if provider_type is not None:
         stmt = stmt.where(Characteristic.provider_type == provider_type)
+
+    if in_control is not None:
+        from openspc.db.models.sample import Sample
+        from openspc.db.models.violation import Violation
+
+        # Subquery: latest sample per characteristic
+        latest_sample = (
+            select(
+                Sample.char_id,
+                func.max(Sample.id).label("latest_id"),
+            )
+            .where(Sample.is_excluded.is_(False))
+            .group_by(Sample.char_id)
+            .subquery()
+        )
+        # Subquery: characteristics whose latest sample has unacknowledged violations
+        has_violations = (
+            select(Sample.char_id)
+            .join(latest_sample, (Sample.char_id == latest_sample.c.char_id) & (Sample.id == latest_sample.c.latest_id))
+            .join(Violation, Violation.sample_id == Sample.id)
+            .where(Violation.acknowledged.is_(False))
+            .distinct()
+            .subquery()
+        )
+
+        if in_control:
+            # Want in-control: exclude characteristics with violations on latest sample
+            stmt = stmt.where(Characteristic.id.notin_(select(has_violations.c.char_id)))
+        else:
+            # Want out-of-control: only characteristics with violations on latest sample
+            stmt = stmt.where(Characteristic.id.in_(select(has_violations.c.char_id)))
 
     # Get total count for pagination
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -114,7 +157,7 @@ async def list_characteristics(
 @router.post("/", response_model=CharacteristicResponse, status_code=status.HTTP_201_CREATED)
 async def create_characteristic(
     data: CharacteristicCreate,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
     """Create a new characteristic.
@@ -133,6 +176,9 @@ async def create_characteristic(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Hierarchy node {data.hierarchy_id} not found"
         )
+
+    # Plant-scoped authorization: engineer+ at the owning plant
+    check_plant_role(_user, hierarchy.plant_id, "engineer")
 
     # Create characteristic
     characteristic = await repo.create(**data.model_dump())
@@ -155,7 +201,7 @@ async def create_characteristic(
 @router.get("/{char_id}", response_model=CharacteristicResponse)
 async def get_characteristic(
     char_id: int,
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
     _user: User = Depends(get_current_user),
 ) -> CharacteristicResponse:
     """Get characteristic details by ID."""
@@ -173,8 +219,8 @@ async def get_characteristic(
 async def update_characteristic(
     char_id: int,
     data: CharacteristicUpdate,
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
     """Update characteristic configuration.
@@ -190,6 +236,10 @@ async def update_characteristic(
             detail=f"Characteristic {char_id} not found"
         )
 
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
     # Update only provided fields
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -204,8 +254,8 @@ async def update_characteristic(
 @router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_characteristic(
     char_id: int,
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> None:
     """Delete characteristic.
@@ -220,6 +270,10 @@ async def delete_characteristic(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
 
     # Check if characteristic has samples
     sample_repo = SampleRepository(session)
@@ -241,9 +295,9 @@ async def get_chart_data(
     limit: int = Query(100, ge=1, le=1000, description="Number of recent samples to return"),
     start_date: datetime | None = Query(None, description="Start date for filtering samples"),
     end_date: datetime | None = Query(None, description="End date for filtering samples"),
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    sample_repo: SampleRepository = Depends(get_sample_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> ChartDataResponse:
     """Get chart rendering data with samples, limits, and zones.
@@ -301,58 +355,55 @@ async def get_chart_data(
             exclude_excluded=True,
         )
 
-    # Calculate center line and sigma from control limits
-    center_line = (characteristic.ucl + characteristic.lcl) / 2
-    sigma = (characteristic.ucl - center_line) / 3
+    import math as _math
 
-    # Calculate zone boundaries
-    zones = ZoneBoundaries(
-        plus_1_sigma=center_line + sigma,
-        plus_2_sigma=center_line + 2 * sigma,
-        plus_3_sigma=characteristic.ucl,
-        minus_1_sigma=center_line - sigma,
-        minus_2_sigma=center_line - 2 * sigma,
-        minus_3_sigma=characteristic.lcl,
+    # Use stored parameters if available (set by recalculate-limits),
+    # otherwise derive from control limits for backward compatibility
+    center_line = (
+        characteristic.stored_center_line
+        if characteristic.stored_center_line is not None
+        else (characteristic.ucl + characteristic.lcl) / 2
     )
 
-    # Load violations for each sample
+    # stored_sigma is process sigma; zone boundaries need sigma of the mean
+    n = characteristic.subgroup_size or 1
+    if characteristic.stored_sigma is not None:
+        sigma_xbar = characteristic.stored_sigma / _math.sqrt(n) if n > 1 else characteristic.stored_sigma
+    else:
+        # Fallback: derive from control limits (already sigma_xbar)
+        sigma_xbar = (characteristic.ucl - center_line) / 3
+
+    # Calculate zone boundaries using sigma of the mean
+    zones = ZoneBoundaries(
+        plus_1_sigma=center_line + sigma_xbar,
+        plus_2_sigma=center_line + 2 * sigma_xbar,
+        plus_3_sigma=center_line + 3 * sigma_xbar,
+        minus_1_sigma=center_line - sigma_xbar,
+        minus_2_sigma=center_line - 2 * sigma_xbar,
+        minus_3_sigma=center_line - 3 * sigma_xbar,
+    )
+
+    # Batch-load all violations for all samples in one query (avoids N+1)
     from openspc.db.repositories import ViolationRepository
     violation_repo = ViolationRepository(session)
+    sample_ids = [s.id for s in samples]
+    violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
 
     # Convert samples to chart samples
+    from openspc.utils.statistics import classify_zone, calculate_mean_range
+
     chart_samples = []
     for sample in samples:
-        # Calculate sample value (mean of measurements)
         values = [m.value for m in sample.measurements]
-        value = sum(values) / len(values) if values else 0.0
+        value, range_value = calculate_mean_range(values)
 
-        # Calculate range for subgroups
-        range_value = None
-        if len(values) > 1:
-            range_value = max(values) - min(values)
+        # Classify zone using shared utility
+        zone = classify_zone(value, zones, center_line)
 
-        # Classify zone
-        if value >= zones.plus_3_sigma:
-            zone = "beyond_ucl"
-        elif value >= zones.plus_2_sigma:
-            zone = "zone_a_upper"
-        elif value >= zones.plus_1_sigma:
-            zone = "zone_b_upper"
-        elif value >= center_line:
-            zone = "zone_c_upper"
-        elif value >= zones.minus_1_sigma:
-            zone = "zone_c_lower"
-        elif value >= zones.minus_2_sigma:
-            zone = "zone_b_lower"
-        elif value >= zones.minus_3_sigma:
-            zone = "zone_a_lower"
-        else:
-            zone = "beyond_lcl"
-
-        # Get violations for this sample
-        violations = await violation_repo.get_by_sample(sample.id)
-        violation_ids = [v.id for v in violations]
-        violation_rules = list(set(v.rule_id for v in violations))  # Unique rule IDs
+        # Get violations for this sample from batch-loaded data
+        sample_violations = violations_by_sample.get(sample.id, [])
+        violation_ids = [v.id for v in sample_violations]
+        violation_rules = list(set(v.rule_id for v in sample_violations))
 
         chart_samples.append(ChartSample(
             sample_id=sample.id,
@@ -393,6 +444,7 @@ async def get_chart_data(
         subgroup_mode=characteristic.subgroup_mode,
         nominal_subgroup_size=characteristic.subgroup_size,
         decimal_precision=characteristic.decimal_precision,
+        stored_sigma=characteristic.stored_sigma,
     )
 
 
@@ -401,9 +453,12 @@ async def recalculate_limits(
     char_id: int,
     exclude_ooc: bool = Query(False, description="Exclude out-of-control samples from calculation"),
     min_samples: int = Query(25, ge=1, description="Minimum samples required for calculation"),
+    start_date: datetime | None = Query(None, description="Start date for baseline period"),
+    end_date: datetime | None = Query(None, description="End date for baseline period"),
+    last_n: int | None = Query(None, ge=1, description="Use only the most recent N samples"),
     service: ControlLimitService = Depends(get_control_limit_service),
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> dict:
     """Recalculate control limits from historical data.
@@ -422,6 +477,10 @@ async def recalculate_limits(
             detail=f"Characteristic {char_id} not found"
         )
 
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
     # Store before values
     before = {
         "ucl": characteristic.ucl,
@@ -435,6 +494,9 @@ async def recalculate_limits(
             characteristic_id=char_id,
             exclude_ooc=exclude_ooc,
             min_samples=min_samples,
+            start_date=start_date,
+            end_date=end_date,
+            last_n=last_n,
         )
     except ValueError as e:
         raise HTTPException(
@@ -459,14 +521,88 @@ async def recalculate_limits(
             "sample_count": result.sample_count,
             "excluded_count": result.excluded_count,
             "calculated_at": result.calculated_at.isoformat(),
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "last_n": last_n,
         },
     }
+
+
+@router.post("/{char_id}/set-limits", response_model=ControlLimitsResponse)
+async def set_limits(
+    char_id: int,
+    request: SetLimitsRequest,
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_engineer),
+) -> ControlLimitsResponse:
+    """Manually set control limits from an external capability study.
+
+    Sets UCL, LCL, center line, and sigma directly rather than calculating
+    from sample data. Useful for regulated industries (pharma IQ/OQ/PQ,
+    automotive PPAP) where limits come from validation protocols.
+    """
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found",
+        )
+
+    before = {
+        "ucl": characteristic.ucl,
+        "lcl": characteristic.lcl,
+        "center_line": characteristic.stored_center_line,
+    }
+
+    # Apply manual limits
+    characteristic.ucl = request.ucl
+    characteristic.lcl = request.lcl
+    characteristic.stored_center_line = request.center_line
+    characteristic.stored_sigma = request.sigma
+
+    await session.commit()
+
+    # Invalidate rolling window cache
+    window_manager = RollingWindowManager(sample_repo)
+    await window_manager.invalidate(char_id)
+
+    # Publish event
+    from openspc.core.events import ControlLimitsUpdatedEvent, event_bus
+
+    event = ControlLimitsUpdatedEvent(
+        characteristic_id=char_id,
+        center_line=request.center_line,
+        ucl=request.ucl,
+        lcl=request.lcl,
+        method="manual",
+        sample_count=0,
+        timestamp=datetime.now(timezone.utc),
+    )
+    await event_bus.publish(event)
+
+    return ControlLimitsResponse(
+        before=before,
+        after={
+            "ucl": request.ucl,
+            "lcl": request.lcl,
+            "center_line": request.center_line,
+        },
+        calculation={
+            "method": "manual",
+            "sigma": request.sigma,
+            "sample_count": 0,
+            "excluded_count": 0,
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 @router.get("/{char_id}/rules", response_model=list[NelsonRuleConfig])
 async def get_rules(
     char_id: int,
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
     _user: User = Depends(get_current_user),
 ) -> list[NelsonRuleConfig]:
     """Get Nelson Rule configuration for characteristic.
@@ -507,8 +643,8 @@ async def get_rules(
 async def update_rules(
     char_id: int,
     rules: list[NelsonRuleConfig],
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> list[NelsonRuleConfig]:
     """Update Nelson Rule configuration.
@@ -565,9 +701,9 @@ async def update_rules(
 async def change_subgroup_mode(
     char_id: int,
     request: ChangeModeRequest,
-    repo: CharacteristicRepository = Depends(get_characteristic_repository),
-    sample_repo: SampleRepository = Depends(get_sample_repository),
-    session: AsyncSession = Depends(get_session),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> ChangeModeResponse:
     """Change subgroup mode with historical sample migration.
@@ -592,56 +728,80 @@ async def change_subgroup_mode(
     previous_mode = characteristic.subgroup_mode
     new_mode = request.new_mode.value
 
-    # Get all samples for this characteristic
-    samples = await sample_repo.get_by_characteristic(char_id)
+    # Count samples for this characteristic
+    from openspc.db.models.sample import Measurement, Sample as SampleModel
+    from sqlalchemy import update as sa_update
+
+    sample_count_stmt = select(func.count()).where(SampleModel.char_id == char_id)
+    sample_count = (await session.execute(sample_count_stmt)).scalar_one()
 
     # Validate prerequisites for Mode A/B only when samples exist
-    # If no samples, mode change is just a configuration change
-    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS") and len(samples) > 0:
+    if new_mode in ("STANDARDIZED", "VARIABLE_LIMITS") and sample_count > 0:
         if characteristic.stored_sigma is None or characteristic.stored_center_line is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="stored_sigma and stored_center_line must be set. Run recalculate-limits first."
             )
+
     samples_migrated = 0
 
-    # Recalculate values for each sample based on new mode
-    for sample in samples:
-        actual_n = sample.actual_n or 1
+    if new_mode == "NOMINAL_TOLERANCE":
+        # Bulk SQL UPDATE -- no per-sample computation needed
+        await session.execute(
+            sa_update(SampleModel)
+            .where(SampleModel.char_id == char_id)
+            .values(z_score=None, effective_ucl=None, effective_lcl=None)
+        )
+        samples_migrated = sample_count
 
-        # Calculate sample mean from measurements
-        measurements = sample.measurements
-        if measurements:
-            sample_mean = sum(m.value for m in measurements) / len(measurements)
-        else:
-            sample_mean = 0.0
+    elif sample_count > 0:
+        # For STANDARDIZED / VARIABLE_LIMITS: process in batches to limit memory
+        BATCH_SIZE = 500
+        batch_offset = 0
 
-        if new_mode == "STANDARDIZED":
-            # Calculate z_score
-            if characteristic.stored_sigma > 0:
-                sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
-                sample.z_score = (sample_mean - characteristic.stored_center_line) / sigma_x_bar
-            else:
-                sample.z_score = 0.0
-            # Clear variable limit fields
-            sample.effective_ucl = None
-            sample.effective_lcl = None
+        while batch_offset < sample_count:
+            batch_stmt = (
+                select(SampleModel)
+                .options(selectinload(SampleModel.measurements))
+                .where(SampleModel.char_id == char_id)
+                .order_by(SampleModel.id)
+                .offset(batch_offset)
+                .limit(BATCH_SIZE)
+                .execution_options(populate_existing=True)
+            )
+            batch_result = await session.execute(batch_stmt)
+            batch_samples = list(batch_result.scalars().all())
 
-        elif new_mode == "VARIABLE_LIMITS":
-            # Calculate effective limits based on actual_n
-            sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
-            sample.effective_ucl = characteristic.stored_center_line + 3 * sigma_x_bar
-            sample.effective_lcl = characteristic.stored_center_line - 3 * sigma_x_bar
-            # Clear z_score
-            sample.z_score = None
+            if not batch_samples:
+                break
 
-        else:  # NOMINAL_TOLERANCE
-            # Clear mode-specific fields
-            sample.z_score = None
-            sample.effective_ucl = None
-            sample.effective_lcl = None
+            for sample in batch_samples:
+                actual_n = sample.actual_n or 1
+                measurements = sample.measurements
+                if measurements:
+                    sample_mean = sum(m.value for m in measurements) / len(measurements)
+                else:
+                    sample_mean = 0.0
 
-        samples_migrated += 1
+                if new_mode == "STANDARDIZED":
+                    if characteristic.stored_sigma > 0:
+                        sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+                        sample.z_score = (sample_mean - characteristic.stored_center_line) / sigma_x_bar
+                    else:
+                        sample.z_score = 0.0
+                    sample.effective_ucl = None
+                    sample.effective_lcl = None
+
+                elif new_mode == "VARIABLE_LIMITS":
+                    sigma_x_bar = characteristic.stored_sigma / math.sqrt(actual_n)
+                    sample.effective_ucl = characteristic.stored_center_line + 3 * sigma_x_bar
+                    sample.effective_lcl = characteristic.stored_center_line - 3 * sigma_x_bar
+                    sample.z_score = None
+
+                samples_migrated += 1
+
+            await session.flush()
+            batch_offset += BATCH_SIZE
 
     # Update the characteristic's subgroup_mode
     characteristic.subgroup_mode = new_mode

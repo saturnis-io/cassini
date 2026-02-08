@@ -91,23 +91,30 @@ class MQTTClient:
     async def connect(self) -> None:
         """Connect to MQTT broker with auto-reconnection.
 
-        Establishes connection to the broker and starts the message processing
-        loop. If connection fails, automatically retries with exponential backoff.
+        Attempts a single connection to the broker. If successful, starts
+        the message processing loop. If the initial connection fails,
+        starts background reconnection with exponential backoff so the
+        application can continue starting up without blocking.
 
-        This method returns after the initial connection is established.
-        If the connection drops later, automatic reconnection happens in the
-        background.
-
-        Raises:
-            MqttError: If unable to connect after initial attempt
+        If the connection drops later, automatic reconnection happens in
+        the background via the message loop.
         """
         logger.info(
             f"Connecting to MQTT broker at {self._config.host}:{self._config.port}"
         )
         self._shutdown_event.clear()
-        await self._connect_with_retry()
-        self._message_task = asyncio.create_task(self._message_loop())
-        logger.info("MQTT client connected and message loop started")
+
+        # Try a single connection attempt (non-blocking startup)
+        if await self._try_connect_once():
+            self._message_task = asyncio.create_task(self._message_loop())
+            logger.info("MQTT client connected and message loop started")
+        else:
+            # Start background reconnection so the app isn't blocked
+            logger.warning(
+                f"Initial connection to {self._config.host}:{self._config.port} failed, "
+                "will retry in background"
+            )
+            self._reconnect_task = asyncio.create_task(self._background_connect_loop())
 
     async def disconnect(self) -> None:
         """Gracefully disconnect from broker.
@@ -230,11 +237,100 @@ class MQTTClient:
             logger.error(f"Failed to publish to {topic}: {e}")
             raise
 
-    async def _connect_with_retry(self) -> None:
-        """Connect with exponential backoff retry.
+    async def _try_connect_once(self) -> bool:
+        """Attempt a single connection to the broker.
 
-        Attempts to establish connection to the broker. If connection fails,
-        retries with exponentially increasing delay up to max_reconnect_delay.
+        Creates a new client, connects, and restores subscriptions.
+        On failure, cleans up the partially-created client.
+
+        Returns:
+            True if connected successfully, False otherwise
+        """
+        try:
+            self._client = Client(
+                hostname=self._config.host,
+                port=self._config.port,
+                username=self._config.username,
+                password=self._config.password,
+                identifier=self._config.client_id,
+                keepalive=self._config.keepalive,
+            )
+            await self._client.__aenter__()
+            self._connected = True
+            logger.info("Successfully connected to MQTT broker")
+
+            # Restore subscriptions
+            if self._subscriptions:
+                logger.info(
+                    f"Restoring {len(self._subscriptions)} subscriptions"
+                )
+                for topic in self._subscriptions:
+                    try:
+                        await self._client.subscribe(topic)
+                        logger.debug(f"Restored subscription: {topic}")
+                    except MqttError as e:
+                        logger.error(f"Failed to restore subscription {topic}: {e}")
+
+            return True
+
+        except (MqttError, OSError) as e:
+            self._connected = False
+            logger.warning(f"Connection attempt failed: {e}")
+            # Clean up failed client
+            if self._client:
+                try:
+                    await self._client.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                self._client = None
+            return False
+
+        except Exception as e:
+            self._connected = False
+            logger.error(f"Unexpected error during connection: {e}")
+            if self._client:
+                try:
+                    await self._client.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                self._client = None
+            return False
+
+    async def _background_connect_loop(self) -> None:
+        """Background task that retries connection with exponential backoff.
+
+        Runs after a failed initial connection attempt. Keeps retrying until
+        connected, then starts the message loop. This allows the application
+        to start up and function without waiting for broker connectivity.
+        """
+        delay = 1
+        attempt = 1
+
+        while not self._shutdown_event.is_set():
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, self._config.max_reconnect_delay)
+
+            if self._shutdown_event.is_set():
+                break
+
+            attempt += 1
+            logger.info(
+                f"Background reconnection attempt {attempt} to "
+                f"{self._config.host}:{self._config.port}"
+            )
+
+            if await self._try_connect_once():
+                self._message_task = asyncio.create_task(self._message_loop())
+                logger.info("Background reconnection successful, message loop started")
+                return
+
+        logger.info("Background reconnection cancelled (shutdown)")
+
+    async def _connect_with_retry(self) -> None:
+        """Connect with exponential backoff retry (blocking).
+
+        Used by the message loop to reconnect after losing an established
+        connection. Blocks until reconnected or shutdown is signaled.
 
         Restores all subscriptions after successful connection.
         """
@@ -243,53 +339,20 @@ class MQTTClient:
 
         while not self._shutdown_event.is_set():
             attempt += 1
-            try:
-                logger.info(
-                    f"Connection attempt {attempt} to "
-                    f"{self._config.host}:{self._config.port}"
-                )
+            logger.info(
+                f"Reconnection attempt {attempt} to "
+                f"{self._config.host}:{self._config.port}"
+            )
 
-                self._client = Client(
-                    hostname=self._config.host,
-                    port=self._config.port,
-                    username=self._config.username,
-                    password=self._config.password,
-                    identifier=self._config.client_id,
-                    keepalive=self._config.keepalive,
-                )
-                await self._client.__aenter__()
-                self._connected = True
-                logger.info("Successfully connected to MQTT broker")
-
-                # Restore subscriptions
-                if self._subscriptions:
-                    logger.info(
-                        f"Restoring {len(self._subscriptions)} subscriptions"
-                    )
-                    for topic in self._subscriptions:
-                        try:
-                            await self._client.subscribe(topic)
-                            logger.debug(f"Restored subscription: {topic}")
-                        except MqttError as e:
-                            logger.error(f"Failed to restore subscription {topic}: {e}")
-
+            if await self._try_connect_once():
                 return
 
-            except MqttError as e:
-                self._connected = False
-                logger.warning(
-                    f"Connection attempt {attempt} failed: {e}. "
-                    f"Retrying in {delay}s..."
-                )
-
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, self._config.max_reconnect_delay)
-
-            except Exception as e:
-                self._connected = False
-                logger.error(f"Unexpected error during connection: {e}")
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, self._config.max_reconnect_delay)
+            logger.warning(
+                f"Reconnection attempt {attempt} failed. "
+                f"Retrying in {delay}s..."
+            )
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, self._config.max_reconnect_delay)
 
     async def _message_loop(self) -> None:
         """Process incoming messages.

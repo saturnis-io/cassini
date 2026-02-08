@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Default number of recent samples used for auto-limit calculation.
+# Override via CharacteristicConfig or recalculate-limits last_n param.
+DEFAULT_LIMIT_WINDOW_SIZE = 100
+
 
 @dataclass
 class ViolationInfo:
@@ -472,65 +476,6 @@ class SPCEngine:
 
         return result
 
-    async def _get_zone_boundaries(
-        self, characteristic_id: int, char=None
-    ) -> ZoneBoundaries:
-        """Get zone boundaries for a characteristic.
-
-        Uses stored control limits if available, otherwise calculates from
-        historical data.
-
-        Args:
-            characteristic_id: ID of the characteristic
-            char: Optional pre-loaded characteristic object
-
-        Returns:
-            ZoneBoundaries with all zone boundaries calculated
-
-        Raises:
-            ValueError: If no control limits available and insufficient data
-        """
-        if char is None:
-            char = await self._char_repo.get_by_id(characteristic_id)
-            if char is None:
-                raise ValueError(f"Characteristic {characteristic_id} not found")
-
-        # If control limits are already stored, use them
-        if char.ucl is not None and char.lcl is not None:
-            # Calculate center line and sigma from stored limits
-            center_line = (char.ucl + char.lcl) / 2
-            sigma = (char.ucl - char.lcl) / 6  # UCL/LCL are typically +/- 3 sigma
-
-            zones = calculate_zones(center_line, sigma)
-            return ZoneBoundaries(
-                center_line=zones.center_line,
-                plus_1_sigma=zones.plus_1_sigma,
-                plus_2_sigma=zones.plus_2_sigma,
-                plus_3_sigma=zones.plus_3_sigma,
-                minus_1_sigma=zones.minus_1_sigma,
-                minus_2_sigma=zones.minus_2_sigma,
-                minus_3_sigma=zones.minus_3_sigma,
-                sigma=sigma,
-            )
-
-        # Otherwise, calculate from historical data
-        center_line, ucl, lcl = await self.recalculate_limits(
-            characteristic_id, exclude_ooc=False
-        )
-
-        sigma = (ucl - lcl) / 6
-        zones = calculate_zones(center_line, sigma)
-
-        return ZoneBoundaries(
-            center_line=zones.center_line,
-            plus_1_sigma=zones.plus_1_sigma,
-            plus_2_sigma=zones.plus_2_sigma,
-            plus_3_sigma=zones.plus_3_sigma,
-            minus_1_sigma=zones.minus_1_sigma,
-            minus_2_sigma=zones.minus_2_sigma,
-            minus_3_sigma=zones.minus_3_sigma,
-            sigma=sigma,
-        )
 
     async def _get_zone_boundaries_with_values(
         self,
@@ -618,10 +563,8 @@ class SPCEngine:
             # Look up require_acknowledgement for this rule (default True)
             requires_ack = rule_require_ack.get(result.rule_id, True)
 
-            # Create violation record in database
-            from openspc.db.models.violation import Violation
-
-            violation = Violation(
+            # Create violation record through repository
+            await self._violation_repo.create(
                 sample_id=sample_id,
                 rule_id=result.rule_id,
                 rule_name=result.rule_name,
@@ -629,8 +572,6 @@ class SPCEngine:
                 acknowledged=False,
                 requires_acknowledgement=requires_ack,
             )
-            self._sample_repo.session.add(violation)
-            await self._sample_repo.session.flush()
 
             # Create ViolationInfo for result
             violations.append(
@@ -677,7 +618,7 @@ class SPCEngine:
         # Get historical samples as plain dicts to avoid lazy loading issues
         sample_data = await self._sample_repo.get_rolling_window_data(
             char_id=characteristic_id,
-            window_size=100,  # Use last 100 samples for limit calculation
+            window_size=DEFAULT_LIMIT_WINDOW_SIZE,
             exclude_excluded=True,
         )
 

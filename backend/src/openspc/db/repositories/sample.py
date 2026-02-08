@@ -1,6 +1,6 @@
 """Repository for Sample model with rolling window queries."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -151,8 +151,8 @@ class SampleRepository(BaseRepository[Sample]):
             samples = await repo.get_by_characteristic(char_id=1)
 
             # Get samples from the last month
-            from datetime import datetime, timedelta
-            start = datetime.utcnow() - timedelta(days=30)
+            from datetime import datetime, timedelta, timezone
+            start = datetime.now(timezone.utc) - timedelta(days=30)
             samples = await repo.get_by_characteristic(char_id=1, start_date=start)
 
             # Get samples for a specific date range

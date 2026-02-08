@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { brokerApi } from '@/api/client'
+import { useUIStore } from '@/stores/uiStore'
 import { ConnectionMetrics } from '@/components/connectivity/ConnectionMetrics'
 import { BrokerStatusCards } from '@/components/connectivity/BrokerStatusCards'
 import { TopicTreeBrowser } from '@/components/connectivity/TopicTreeBrowser'
@@ -10,19 +11,20 @@ import { TagMappingPanel } from '@/components/connectivity/TagMappingPanel'
  * Connectivity page for managing MQTT broker connections and topic discovery.
  *
  * Features:
- * - Multi-broker status overview
+ * - Multi-broker status overview (scoped to selected plant)
  * - Connect/disconnect brokers
  * - Start/stop topic discovery
  * - Browse discovered topics in tree/flat view
  * - Tag mapping workflow with live preview
  */
 export function ConnectivityPage() {
+  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
   const [selectedBrokerId, setSelectedBrokerId] = useState<number | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
 
   const { data: allStatus } = useQuery({
-    queryKey: ['brokers-all-status'],
-    queryFn: () => brokerApi.getAllStatus(),
+    queryKey: ['brokers-all-status', selectedPlantId],
+    queryFn: () => brokerApi.getAllStatus(selectedPlantId ?? undefined),
     refetchInterval: 5000,
   })
 
@@ -66,6 +68,7 @@ export function ConnectivityPage() {
         <TagMappingPanel
           brokerId={selectedBrokerId}
           selectedTopic={selectedTopic}
+          plantId={selectedPlantId}
         />
       </div>
     </div>

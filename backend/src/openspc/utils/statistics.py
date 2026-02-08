@@ -9,6 +9,8 @@ This module provides functions for:
 from dataclasses import dataclass
 from typing import List
 
+import numpy as np
+
 from .constants import get_constants, get_d2, get_c4, get_A2, get_D3, get_D4
 
 
@@ -99,7 +101,7 @@ def estimate_sigma_rbar(ranges: List[float], subgroup_size: int) -> float:
     if any(r < 0 for r in ranges):
         raise ValueError("Ranges cannot be negative")
 
-    r_bar = sum(ranges) / len(ranges)
+    r_bar = float(np.mean(ranges))
     d2 = get_d2(subgroup_size)
 
     return r_bar / d2
@@ -137,7 +139,7 @@ def estimate_sigma_sbar(std_devs: List[float], subgroup_size: int) -> float:
     if any(s < 0 for s in std_devs):
         raise ValueError("Standard deviations cannot be negative")
 
-    s_bar = sum(std_devs) / len(std_devs)
+    s_bar = float(np.mean(std_devs))
     c4 = get_c4(subgroup_size)
 
     return s_bar / c4
@@ -172,15 +174,18 @@ def estimate_sigma_moving_range(values: List[float], span: int = 2) -> float:
             f"Need at least {span} values for moving range calculation, got {len(values)}"
         )
 
-    # Calculate moving ranges
-    moving_ranges = []
-    for i in range(len(values) - span + 1):
-        span_values = values[i:i + span]
-        moving_range = max(span_values) - min(span_values)
-        moving_ranges.append(moving_range)
+    # Calculate moving ranges using numpy
+    arr = np.asarray(values, dtype=np.float64)
+    if span == 2:
+        # Optimised path for the most common case
+        moving_ranges = np.abs(np.diff(arr))
+    else:
+        # General case: rolling window max - min
+        moving_ranges = np.array([
+            np.ptp(arr[i:i + span]) for i in range(len(arr) - span + 1)
+        ])
 
-    # Average of moving ranges
-    mr_bar = sum(moving_ranges) / len(moving_ranges)
+    mr_bar = float(np.mean(moving_ranges))
 
     # Use d2 for the span size (typically span=2, so d2=1.128)
     d2 = get_d2(span)
@@ -232,8 +237,8 @@ def calculate_xbar_r_limits(
         raise ValueError("Ranges cannot be negative")
 
     # Calculate X-bar chart limits
-    xbar = sum(subgroup_means) / len(subgroup_means)
-    r_bar = sum(ranges) / len(ranges)
+    xbar = float(np.mean(subgroup_means))
+    r_bar = float(np.mean(ranges))
 
     A2 = get_A2(subgroup_size)
     xbar_ucl = xbar + A2 * r_bar
@@ -293,7 +298,7 @@ def calculate_imr_limits(values: List[float], span: int = 2) -> XbarRLimits:
         )
 
     # Calculate individuals (I) chart limits
-    x_bar = sum(values) / len(values)
+    x_bar = float(np.mean(values))
     sigma = estimate_sigma_moving_range(values, span)
 
     # For individuals chart, limits are x-bar +/- 3*sigma
@@ -308,13 +313,15 @@ def calculate_imr_limits(values: List[float], span: int = 2) -> XbarRLimits:
     )
 
     # Calculate moving range (MR) chart limits
-    moving_ranges = []
-    for i in range(len(values) - span + 1):
-        span_values = values[i:i + span]
-        moving_range = max(span_values) - min(span_values)
-        moving_ranges.append(moving_range)
+    arr = np.asarray(values, dtype=np.float64)
+    if span == 2:
+        moving_ranges = np.abs(np.diff(arr))
+    else:
+        moving_ranges = np.array([
+            np.ptp(arr[i:i + span]) for i in range(len(arr) - span + 1)
+        ])
 
-    mr_bar = sum(moving_ranges) / len(moving_ranges)
+    mr_bar = float(np.mean(moving_ranges))
 
     # For MR chart with span=2: UCL = D4 * MR_bar, LCL = D3 * MR_bar
     D3 = get_D3(span)
@@ -417,3 +424,50 @@ def calculate_control_limits_from_sigma(
         lcl=lcl,
         sigma=sigma
     )
+
+
+def classify_zone(value: float, zones: ZoneBoundaries, center_line: float) -> str:
+    """Classify a value into a zone label based on zone boundaries.
+
+    Args:
+        value: The sample value to classify.
+        zones: ZoneBoundaries with all six boundaries.
+        center_line: The center line of the chart.
+
+    Returns:
+        Zone label string: "beyond_ucl", "zone_a_upper", "zone_b_upper",
+        "zone_c_upper", "zone_c_lower", "zone_b_lower", "zone_a_lower",
+        or "beyond_lcl".
+    """
+    if value >= zones.plus_3_sigma:
+        return "beyond_ucl"
+    elif value >= zones.plus_2_sigma:
+        return "zone_a_upper"
+    elif value >= zones.plus_1_sigma:
+        return "zone_b_upper"
+    elif value >= center_line:
+        return "zone_c_upper"
+    elif value >= zones.minus_1_sigma:
+        return "zone_c_lower"
+    elif value >= zones.minus_2_sigma:
+        return "zone_b_lower"
+    elif value >= zones.minus_3_sigma:
+        return "zone_a_lower"
+    else:
+        return "beyond_lcl"
+
+
+def calculate_mean_range(values: List[float]) -> tuple[float, float | None]:
+    """Calculate mean and range from a list of measurement values.
+
+    Args:
+        values: Non-empty list of measurement values.
+
+    Returns:
+        Tuple of (mean, range). Range is None for single values.
+    """
+    if not values:
+        return 0.0, None
+    mean = sum(values) / len(values)
+    range_val = (max(values) - min(values)) if len(values) > 1 else None
+    return mean, range_val

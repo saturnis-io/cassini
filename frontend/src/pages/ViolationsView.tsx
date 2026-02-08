@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle, Check, Clock, Filter, RefreshCw, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useViolations, useViolationStats, useAcknowledgeViolation } from '@/api/hooks'
+import { useAuth } from '@/providers/AuthProvider'
 import { NELSON_RULES } from '@/components/ViolationLegend'
 import type { Severity } from '@/types'
 
@@ -29,11 +30,12 @@ export function ViolationsView() {
     return true // 'all' or 'acknowledged'
   })
 
+  const { user } = useAuth()
   const acknowledgeMutation = useAcknowledgeViolation()
 
   const handleAcknowledge = (violationId: number) => {
     acknowledgeMutation.mutate(
-      { id: violationId, reason: 'Acknowledged from violations view', user: 'Operator' },
+      { id: violationId, reason: 'Acknowledged from violations view', user: user?.username ?? 'Unknown' },
       {
         onSuccess: () => {
           refetch()

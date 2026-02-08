@@ -5,13 +5,25 @@ retrieval, and management. Samples are processed through the SPC engine
 and evaluated against Nelson Rules.
 """
 
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_user, get_db_session
+from openspc.api.deps import (
+    check_plant_role,
+    get_characteristic_repo as get_char_repo,
+    get_current_user,
+    get_db_session,
+    get_sample_repo,
+    get_violation_repo,
+    require_role,
+    resolve_plant_id_for_characteristic,
+)
 from openspc.db.models.user import User
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.sample import (
@@ -79,57 +91,19 @@ class BatchImportResult(BaseModel):
 
     Attributes:
         total: Total number of samples submitted
-        successful: Number of samples successfully processed
+        imported: Number of samples successfully processed
+        successful: Alias for imported (backward compat)
         failed: Number of samples that failed
         errors: List of error messages for failed samples
     """
     total: int
-    successful: int
+    imported: int
     failed: int
     errors: list[str]
 
-
-# Dependency injection helpers
-async def get_sample_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> SampleRepository:
-    """Get sample repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        SampleRepository instance
-    """
-    return SampleRepository(session)
-
-
-async def get_char_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> CharacteristicRepository:
-    """Get characteristic repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        CharacteristicRepository instance
-    """
-    return CharacteristicRepository(session)
-
-
-async def get_violation_repo(
-    session: AsyncSession = Depends(get_db_session),
-) -> ViolationRepository:
-    """Get violation repository instance.
-
-    Args:
-        session: Database session from dependency injection
-
-    Returns:
-        ViolationRepository instance
-    """
-    return ViolationRepository(session)
+    @property
+    def successful(self) -> int:
+        return self.imported
 
 
 async def get_spc_engine(
@@ -218,46 +192,40 @@ async def list_samples(
     Raises:
         HTTPException: 404 if characteristic not found (when filtering by characteristic)
     """
-    # Build query based on filters
+    # Build base query with filters pushed to SQL
+    from sqlalchemy import func as sa_func, select
+    from sqlalchemy.orm import selectinload
+    from openspc.db.models.sample import Sample
+
+    base_stmt = select(Sample)
+
     if characteristic_id is not None:
-        samples = await sample_repo.get_by_characteristic(
-            char_id=characteristic_id,
-            start_date=start_date,
-            end_date=end_date,
-        )
-    else:
-        # If no characteristic filter, get all samples in date range
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
-        from openspc.db.models.sample import Sample
-
-        stmt = (
-            select(Sample)
-            .options(
-                selectinload(Sample.measurements),
-                selectinload(Sample.edit_history),
-            )
-            .order_by(Sample.timestamp)
-            .execution_options(populate_existing=True)
-        )
-
-        if start_date is not None:
-            stmt = stmt.where(Sample.timestamp >= start_date)
-        if end_date is not None:
-            stmt = stmt.where(Sample.timestamp <= end_date)
-
-        result = await sample_repo.session.execute(stmt)
-        samples = list(result.scalars().all())
-
-    # Apply exclusion filter
+        base_stmt = base_stmt.where(Sample.char_id == characteristic_id)
+    if start_date is not None:
+        base_stmt = base_stmt.where(Sample.timestamp >= start_date)
+    if end_date is not None:
+        base_stmt = base_stmt.where(Sample.timestamp <= end_date)
     if not include_excluded:
-        samples = [s for s in samples if not s.is_excluded]
+        base_stmt = base_stmt.where(Sample.is_excluded.is_(False))
 
-    # Get total count before pagination
-    total = len(samples)
+    # Get total count via SQL (no full-table load)
+    count_stmt = select(sa_func.count()).select_from(base_stmt.subquery())
+    total = (await sample_repo.session.execute(count_stmt)).scalar_one()
 
-    # Apply pagination
-    paginated_samples = samples[offset : offset + limit]
+    # Paginate at SQL level
+    paginated_stmt = (
+        base_stmt
+        .options(
+            selectinload(Sample.measurements),
+            selectinload(Sample.edit_history),
+        )
+        .order_by(Sample.timestamp)
+        .offset(offset)
+        .limit(limit)
+        .execution_options(populate_existing=True)
+    )
+    result = await sample_repo.session.execute(paginated_stmt)
+    paginated_samples = list(result.scalars().all())
 
     # Convert to response models
     response_items = []
@@ -336,6 +304,10 @@ async def submit_sample(
                       measurement count, etc.)
         HTTPException: 500 if processing fails
     """
+    # Plant-scoped authorization: operator+ at the owning plant
+    plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+    check_plant_role(_user, plant_id, "operator")
+
     try:
         # Process sample through SPC engine
         context = SampleContext(
@@ -387,9 +359,10 @@ async def submit_sample(
     except Exception as e:
         # Unexpected errors
         await session.rollback()
+        logger.exception("Failed to process sample")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process sample: {str(e)}",
+            detail="Failed to process sample",
         )
 
 
@@ -448,7 +421,7 @@ async def toggle_exclude(
     data: SampleExclude,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_role("supervisor")),
 ) -> SampleResponse:
     """Mark sample as excluded from calculations.
 
@@ -478,13 +451,16 @@ async def toggle_exclude(
                 detail=f"Sample {sample_id} not found",
             )
 
+        # Plant-scoped authorization
+        plant_id = await resolve_plant_id_for_characteristic(sample.char_id, session)
+        check_plant_role(_user, plant_id, "supervisor")
+
         # Update exclusion status
         sample.is_excluded = data.is_excluded
 
         # Note: The reason field is not stored in the Sample model currently
         # If needed, it could be added to the model or stored in a separate audit table
 
-        await session.flush()
         await session.commit()
 
         # Invalidate the rolling window to trigger rebuild
@@ -516,9 +492,10 @@ async def toggle_exclude(
         raise
     except Exception as e:
         await session.rollback()
+        logger.exception("Failed to update sample exclusion status")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update sample: {str(e)}",
+            detail="Failed to update sample",
         )
 
 
@@ -528,7 +505,7 @@ async def delete_sample(
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_role("supervisor")),
 ) -> None:
     """Delete a sample and its measurements permanently.
 
@@ -554,6 +531,10 @@ async def delete_sample(
                 detail=f"Sample {sample_id} not found",
             )
 
+        # Plant-scoped authorization
+        plant_id = await resolve_plant_id_for_characteristic(sample.char_id, session)
+        check_plant_role(_user, plant_id, "supervisor")
+
         char_id = sample.char_id
 
         # Delete the sample (measurements and violations cascade via FK)
@@ -568,9 +549,10 @@ async def delete_sample(
         raise
     except Exception as e:
         await session.rollback()
+        logger.exception("Failed to delete sample")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete sample: {str(e)}",
+            detail="Failed to delete sample",
         )
 
 
@@ -583,7 +565,7 @@ async def update_sample(
     char_repo: CharacteristicRepository = Depends(get_char_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
     violation_repo: ViolationRepository = Depends(get_violation_repo),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_role("supervisor")),
 ) -> SampleProcessingResult:
     """Update sample measurements and recalculate statistics.
 
@@ -621,6 +603,10 @@ async def update_sample(
                 detail=f"Sample {sample_id} not found",
             )
 
+        # Plant-scoped authorization
+        plant_id = await resolve_plant_id_for_characteristic(sample.char_id, session)
+        check_plant_role(_user, plant_id, "supervisor")
+
         # Get characteristic with rules eagerly loaded
         characteristic = await char_repo.get_with_rules(sample.char_id)
         if characteristic is None:
@@ -657,10 +643,10 @@ async def update_sample(
         # Calculate new mean for edit history
         new_mean = sum(data.measurements) / len(data.measurements)
 
-        # Create edit history record
+        # Create edit history record -- always use authenticated user's username
         edit_history = SampleEditHistory(
             sample_id=sample_id,
-            edited_by=data.edited_by,
+            edited_by=_user.username,
             reason=data.reason,
             previous_values=json.dumps(previous_values),
             new_values=json.dumps(data.measurements),
@@ -757,9 +743,10 @@ async def update_sample(
         raise
     except Exception as e:
         await session.rollback()
+        logger.exception("Failed to update sample measurements")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update sample: {str(e)}",
+            detail="Failed to update sample",
         )
 
 
@@ -825,13 +812,22 @@ async def get_sample_edit_history(
     ]
 
 
+class BatchImportRequest(BaseModel):
+    """Wrapped batch import request matching the frontend's format.
+
+    Attributes:
+        characteristic_id: Shared characteristic ID for all samples
+        samples: List of sample data (measurements + optional timestamp)
+        skip_rule_evaluation: If True, skip Nelson Rule evaluation
+    """
+    characteristic_id: int
+    samples: list[dict] = Field(..., max_length=1000)
+    skip_rule_evaluation: bool = False
+
+
 @router.post("/batch", response_model=BatchImportResult)
 async def batch_import(
-    data: list[SampleCreate],
-    skip_rule_evaluation: bool = Query(
-        False,
-        description="If True, skip Nelson Rule evaluation (for historical data import)",
-    ),
+    request: BatchImportRequest,
     session: AsyncSession = Depends(get_db_session),
     engine: SPCEngine = Depends(get_spc_engine),
     _user: User = Depends(get_current_user),
@@ -842,42 +838,54 @@ async def batch_import(
     migrating historical data or bulk data entry. Optionally skip Nelson
     Rule evaluation for performance during large imports.
 
+    Accepts a wrapped format: { characteristic_id, samples: [{measurements, timestamp?}], skip_rule_evaluation? }
+
     Args:
-        data: List of sample creation data
-        skip_rule_evaluation: If True, skip Nelson Rule evaluation
+        request: Batch import request with shared characteristic_id and sample list
         session: Database session dependency
         engine: SPC engine dependency
 
     Returns:
         Batch import result with success/failure counts and error messages
     """
-    total = len(data)
+    char_id = request.characteristic_id
+
+    # Plant-scoped authorization: operator+ for the owning plant
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "operator")
+
+    skip_rule_evaluation = request.skip_rule_evaluation
+    total = len(request.samples)
     successful = 0
     failed = 0
     errors: list[str] = []
 
-    for idx, sample_data in enumerate(data):
+    for idx, sample_dict in enumerate(request.samples):
         try:
+            measurements = sample_dict.get("measurements", [])
+            batch_number = sample_dict.get("batch_number")
+            operator_id = sample_dict.get("operator_id")
+
             if skip_rule_evaluation:
                 # Direct database insertion without rule evaluation
                 sample_repo = SampleRepository(session)
                 await sample_repo.create_with_measurements(
-                    char_id=sample_data.characteristic_id,
-                    values=sample_data.measurements,
-                    batch_number=sample_data.batch_number,
-                    operator_id=sample_data.operator_id,
+                    char_id=char_id,
+                    values=measurements,
+                    batch_number=batch_number,
+                    operator_id=operator_id,
                 )
             else:
                 # Full SPC processing with rule evaluation
                 context = SampleContext(
-                    batch_number=sample_data.batch_number,
-                    operator_id=sample_data.operator_id,
+                    batch_number=batch_number,
+                    operator_id=operator_id,
                     source="MANUAL",
                 )
 
                 await engine.process_sample(
-                    characteristic_id=sample_data.characteristic_id,
-                    measurements=sample_data.measurements,
+                    characteristic_id=char_id,
+                    measurements=measurements,
                     context=context,
                 )
 
@@ -887,24 +895,26 @@ async def batch_import(
             # Validation error
             failed += 1
             errors.append(f"Sample {idx + 1}: {str(e)}")
-        except Exception as e:
+        except Exception:
             # Unexpected error
+            logger.exception("Unexpected error processing sample %d in batch import", idx + 1)
             failed += 1
-            errors.append(f"Sample {idx + 1}: Unexpected error - {str(e)}")
+            errors.append(f"Sample {idx + 1}: Unexpected error")
 
     # Commit all successful samples
     try:
         await session.commit()
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to commit batch import")
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to commit batch import: {str(e)}",
+            detail="Failed to commit batch import",
         )
 
     return BatchImportResult(
         total=total,
-        successful=successful,
+        imported=successful,
         failed=failed,
         errors=errors,
     )

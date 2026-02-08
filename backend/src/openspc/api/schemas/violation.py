@@ -126,15 +126,21 @@ class BatchAcknowledgeResult(BaseModel):
     """Schema for batch acknowledgment operation results.
 
     Provides summary and detailed results for batch acknowledgment.
+    Includes both the detailed `results` list and the frontend-friendly
+    `acknowledged` (list of successful IDs) and `errors` (map of failed IDs to messages).
 
     Attributes:
         total: Total number of violations in the batch
         successful: Number of successfully acknowledged violations
         failed: Number of failed acknowledgments
         results: Detailed results for each violation
+        acknowledged: List of successfully acknowledged violation IDs
+        errors: Map of failed violation IDs to error messages
     """
 
     total: int
     successful: int
     failed: int
     results: list[AcknowledgeResultItem]
+    acknowledged: list[int] = Field(default_factory=list)
+    errors: dict[int, str] = Field(default_factory=dict)

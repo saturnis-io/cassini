@@ -67,7 +67,7 @@ class BatchEntryRequest(BaseModel):
         samples: List of individual sample requests to process.
     """
 
-    samples: list[DataEntryRequest]
+    samples: list[DataEntryRequest] = Field(..., max_length=1000)
 
 
 class BatchEntryResponse(BaseModel):

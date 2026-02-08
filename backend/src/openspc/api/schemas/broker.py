@@ -31,6 +31,7 @@ class BrokerCreate(BaseModel):
     max_reconnect_delay: int = Field(default=300, ge=10, le=3600)
     use_tls: bool = False
     is_active: bool = True
+    plant_id: int | None = Field(None, description="Plant/site this broker belongs to")
 
 
 class BrokerUpdate(BaseModel):
@@ -67,6 +68,7 @@ class BrokerResponse(BaseModel):
     max_reconnect_delay: int
     use_tls: bool
     is_active: bool
+    plant_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -119,6 +121,13 @@ class BrokerTestResponse(BaseModel):
     latency_ms: float | None = None
 
 
+class SparkplugMetricInfoResponse(BaseModel):
+    """Schema for a SparkplugB metric name/type pair."""
+
+    name: str
+    data_type: str
+
+
 class DiscoveredTopicResponse(BaseModel):
     """Schema for a discovered MQTT topic."""
 
@@ -131,6 +140,7 @@ class DiscoveredTopicResponse(BaseModel):
     sparkplug_node: str | None = None
     sparkplug_device: str | None = None
     sparkplug_message_type: str | None = None
+    sparkplug_metrics: list[SparkplugMetricInfoResponse] = []
 
 
 class TopicTreeNodeResponse(BaseModel):
@@ -141,6 +151,7 @@ class TopicTreeNodeResponse(BaseModel):
     children: list["TopicTreeNodeResponse"] = []
     message_count: int = 0
     is_sparkplug: bool = False
+    sparkplug_metrics: list[SparkplugMetricInfoResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 

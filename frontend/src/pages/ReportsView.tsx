@@ -5,7 +5,7 @@ import { REPORT_TEMPLATES } from '@/lib/report-templates'
 import type { ReportTemplate } from '@/lib/report-templates'
 import { ReportPreview } from '@/components/ReportPreview'
 import { ExportDropdown } from '@/components/ExportDropdown'
-import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
+import { HierarchyCharacteristicSelector } from '@/components/HierarchyCharacteristicSelector'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartData, useViolations } from '@/api/hooks'
@@ -14,20 +14,20 @@ import { FileText, ChevronRight } from 'lucide-react'
 export function ReportsView() {
   const [searchParams] = useSearchParams()
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null)
-  const [selectedCharacteristicIds, setSelectedCharacteristicIds] = useState<number[]>([])
+  const [selectedCharId, setSelectedCharId] = useState<number | null>(null)
   const reportContentRef = useRef<HTMLDivElement>(null)
 
   // Use the same time range state as the dashboard
   const timeRange = useDashboardStore((state) => state.timeRange)
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
-   
+
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
       const ids = characteristicsParam.split(',').map(Number).filter((n) => !isNaN(n))
       if (ids.length > 0) {
-        setSelectedCharacteristicIds(ids)
+        setSelectedCharId(ids[0])
         // Auto-select first template if not already selected
         if (!selectedTemplate) {
           setSelectedTemplate(REPORT_TEMPLATES[0])
@@ -35,10 +35,6 @@ export function ReportsView() {
       }
     }
   }, [searchParams])
-
-  const handleClearSelection = () => {
-    setSelectedCharacteristicIds([])
-  }
 
   // Build chart options from time range - memoize to avoid query key changes on every render
   const chartOptions = useMemo(() => {
@@ -66,10 +62,9 @@ export function ReportsView() {
   }, [timeRange.type, timeRange.pointsLimit, timeRange.hoursBack, timeRange.startDate, timeRange.endDate])
 
   // Fetch data for export functionality
-  const primaryCharId = selectedCharacteristicIds[0] || 0
-  const { data: chartData } = useChartData(primaryCharId, chartOptions)
+  const { data: chartData } = useChartData(selectedCharId || 0, chartOptions)
   const { data: violations } = useViolations({
-    characteristic_id: primaryCharId || undefined,
+    characteristic_id: selectedCharId || undefined,
     per_page: 100,
   })
 
@@ -136,20 +131,19 @@ export function ReportsView() {
           {/* Characteristic Selection - Hierarchy Navigation */}
           <div className="border border-border rounded-xl bg-card overflow-hidden flex-1 flex flex-col min-h-0">
             <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-              <h3 className="font-semibold text-sm">Characteristics</h3>
-              {selectedCharacteristicIds.length > 0 && (
+              <h3 className="font-semibold text-sm">Characteristic</h3>
+              {selectedCharId && (
                 <button
-                  onClick={handleClearSelection}
+                  onClick={() => setSelectedCharId(null)}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  Clear ({selectedCharacteristicIds.length})
+                  Clear
                 </button>
               )}
             </div>
-            <HierarchyMultiSelector
-              selectedIds={selectedCharacteristicIds}
-              onSelectionChange={setSelectedCharacteristicIds}
-              className="flex-1 overflow-auto p-2"
+            <HierarchyCharacteristicSelector
+              selectedCharId={selectedCharId}
+              onSelect={(char) => setSelectedCharId(char.id)}
             />
           </div>
         </div>
@@ -165,26 +159,19 @@ export function ReportsView() {
                   <ChevronRight className="h-4 w-4" />
                   <span className="text-foreground font-medium">{selectedTemplate.name}</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  {selectedCharacteristicIds.length > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      {selectedCharacteristicIds.length} characteristic{selectedCharacteristicIds.length !== 1 ? 's' : ''} selected
-                    </span>
-                  )}
-                  <ExportDropdown
-                    contentRef={reportContentRef}
-                    exportData={exportData}
-                    filename={`${selectedTemplate.id}-report`}
-                    disabled={selectedCharacteristicIds.length === 0}
-                  />
-                </div>
+                <ExportDropdown
+                  contentRef={reportContentRef}
+                  exportData={exportData}
+                  filename={`${selectedTemplate.id}-report`}
+                  disabled={!selectedCharId}
+                />
               </div>
 
               {/* Report Preview */}
               <div ref={reportContentRef} className="flex-1 overflow-auto">
                 <ReportPreview
                   template={selectedTemplate}
-                  characteristicIds={selectedCharacteristicIds}
+                  characteristicIds={selectedCharId ? [selectedCharId] : []}
                   chartOptions={chartOptions}
                 />
               </div>

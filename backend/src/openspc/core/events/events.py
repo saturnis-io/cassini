@@ -6,7 +6,7 @@ Events follow the dataclass pattern with immutable timestamps for audit trails.
 
 from abc import ABC
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -46,7 +46,7 @@ class SampleProcessedEvent(Event):
     range_value: float | None
     zone: str
     in_control: bool
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -73,7 +73,7 @@ class ViolationCreatedEvent(Event):
     rule_id: int
     rule_name: str
     severity: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -93,7 +93,7 @@ class ViolationAcknowledgedEvent(Event):
     violation_id: int
     user: str
     reason: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -119,7 +119,7 @@ class ControlLimitsUpdatedEvent(Event):
     lcl: float
     method: str = "moving_range"
     sample_count: int = 0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -137,7 +137,7 @@ class CharacteristicUpdatedEvent(Event):
 
     characteristic_id: int
     changes: dict[str, Any]
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -158,7 +158,7 @@ class CharacteristicCreatedEvent(Event):
     name: str
     hierarchy_id: int
     chart_type: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -176,7 +176,7 @@ class CharacteristicDeletedEvent(Event):
 
     characteristic_id: int
     name: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -198,4 +198,4 @@ class AlertThresholdExceededEvent(Event):
     threshold_type: str
     threshold_value: float
     current_value: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

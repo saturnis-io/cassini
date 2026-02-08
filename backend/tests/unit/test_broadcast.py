@@ -82,12 +82,14 @@ class TestWebSocketBroadcaster:
 
         assert char_id == 1
         assert message["type"] == "sample"
-        assert message["payload"]["sample_id"] == 42
-        assert message["payload"]["characteristic_id"] == 1
-        assert message["payload"]["value"] == 10.5
-        assert message["payload"]["zone"] == "zone_c_upper"
-        assert message["payload"]["in_control"] is True
-        assert message["payload"]["timestamp"] == "2024-01-15T10:30:00"
+        assert message["characteristic_id"] == 1
+        assert message["sample"]["id"] == 42
+        assert message["sample"]["characteristic_id"] == 1
+        assert message["sample"]["mean"] == 10.5
+        assert message["sample"]["zone"] == "zone_c_upper"
+        assert message["sample"]["in_control"] is True
+        assert message["sample"]["timestamp"] == "2024-01-15T10:30:00"
+        assert message["violations"] == []
 
     async def test_sample_processed_broadcast_out_of_control(
         self, broadcaster, mock_connection_manager, event_bus
@@ -113,8 +115,8 @@ class TestWebSocketBroadcaster:
         call_args = mock_connection_manager.broadcast_to_characteristic.call_args
         message = call_args[0][1]
 
-        assert message["payload"]["in_control"] is False
-        assert message["payload"]["zone"] == "zone_a_upper"
+        assert message["sample"]["in_control"] is False
+        assert message["sample"]["zone"] == "zone_a_upper"
 
     async def test_control_limits_updated_broadcast(
         self, broadcaster, mock_connection_manager, event_bus
@@ -143,13 +145,11 @@ class TestWebSocketBroadcaster:
         message = call_args[0][1]
 
         assert char_id == 1
-        assert message["type"] == "control_limits"
-        assert message["payload"]["characteristic_id"] == 1
-        assert message["payload"]["center_line"] == 100.0
-        assert message["payload"]["ucl"] == 103.0
-        assert message["payload"]["lcl"] == 97.0
-        assert message["payload"]["method"] == "moving_range"
-        assert message["payload"]["sample_count"] == 50
+        assert message["type"] == "limits_update"
+        assert message["characteristic_id"] == 1
+        assert message["center_line"] == 100.0
+        assert message["ucl"] == 103.0
+        assert message["lcl"] == 97.0
 
     async def test_violation_created_broadcast(
         self, broadcaster, mock_connection_manager
@@ -178,13 +178,13 @@ class TestWebSocketBroadcaster:
 
         assert char_id == 1
         assert message["type"] == "violation"
-        assert message["payload"]["violation_id"] == 10
-        assert message["payload"]["sample_id"] == 42
-        assert message["payload"]["characteristic_id"] == 1
-        assert message["payload"]["rule_id"] == 1
-        assert message["payload"]["rule_name"] == "Outlier"
-        assert message["payload"]["severity"] == "CRITICAL"
-        assert message["payload"]["timestamp"] == "2024-01-15T10:30:00"
+        assert message["violation"]["id"] == 10
+        assert message["violation"]["sample_id"] == 42
+        assert message["violation"]["characteristic_id"] == 1
+        assert message["violation"]["rule_id"] == 1
+        assert message["violation"]["rule_name"] == "Outlier"
+        assert message["violation"]["severity"] == "CRITICAL"
+        assert message["violation"]["timestamp"] == "2024-01-15T10:30:00"
 
     async def test_violation_acknowledged_broadcast(
         self, broadcaster, mock_connection_manager
@@ -209,11 +209,9 @@ class TestWebSocketBroadcaster:
         message = call_args[0][0]
 
         assert message["type"] == "ack_update"
-        assert message["payload"]["violation_id"] == 10
-        assert message["payload"]["acknowledged"] is True
-        assert message["payload"]["user"] == "john.doe"
-        assert message["payload"]["reason"] == "Tool Change"
-        assert message["payload"]["timestamp"] == "2024-01-15T11:00:00"
+        assert message["violation_id"] == 10
+        assert message["ack_user"] == "john.doe"
+        assert message["ack_reason"] == "Tool Change"
 
     async def test_multiple_events_broadcast(
         self, broadcaster, mock_connection_manager, event_bus
@@ -252,7 +250,7 @@ class TestWebSocketBroadcaster:
         calls = mock_connection_manager.broadcast_to_characteristic.call_args_list
         message_types = [call[0][1]["type"] for call in calls]
         assert "sample" in message_types
-        assert "control_limits" in message_types
+        assert "limits_update" in message_types
 
     async def test_broadcast_to_different_characteristics(
         self, broadcaster, mock_connection_manager, event_bus
@@ -404,9 +402,7 @@ class TestWebSocketBroadcaster:
         for call_obj in mock_connection_manager.broadcast_to_all.call_args_list:
             messages.append(call_obj[0][0])
 
-        # Verify all messages have type and payload
+        # Verify all messages have a type field
         for message in messages:
             assert "type" in message
-            assert "payload" in message
             assert isinstance(message["type"], str)
-            assert isinstance(message["payload"], dict)

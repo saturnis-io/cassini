@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { brokerApi, providerApi } from '@/api/client'
 import { HelpTooltip } from './HelpTooltip'
 import { NumberInput } from './NumberInput'
+import { usePlant } from '@/providers/PlantProvider'
 import type { MQTTBroker } from '@/types'
 
 interface BrokerFormData {
@@ -29,15 +30,16 @@ const defaultFormData: BrokerFormData = {
 
 export function MQTTConfigPanel() {
   const queryClient = useQueryClient()
+  const { selectedPlant } = usePlant()
   const [editingBroker, setEditingBroker] = useState<MQTTBroker | null>(null)
   const [formData, setFormData] = useState<BrokerFormData>(defaultFormData)
   const [showForm, setShowForm] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 
-  // Fetch brokers
+  // Fetch brokers scoped to the selected site
   const { data: brokersResponse, isLoading: loadingBrokers } = useQuery({
-    queryKey: ['brokers'],
-    queryFn: () => brokerApi.list(),
+    queryKey: ['brokers', selectedPlant?.id],
+    queryFn: () => brokerApi.list({ plantId: selectedPlant?.id ?? undefined }),
   })
 
   // Fetch provider status
@@ -126,7 +128,7 @@ export function MQTTConfigPanel() {
     if (editingBroker) {
       updateMutation.mutate({ id: editingBroker.id, data })
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate({ ...data, plant_id: selectedPlant?.id ?? undefined })
     }
   }
 
@@ -240,6 +242,11 @@ export function MQTTConfigPanel() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2">
             MQTT Brokers
+            {selectedPlant && (
+              <span className="text-xs font-normal text-muted-foreground">
+                — {selectedPlant.name}
+              </span>
+            )}
             <HelpTooltip helpKey="mqtt_broker" />
           </h3>
           {!showForm && (

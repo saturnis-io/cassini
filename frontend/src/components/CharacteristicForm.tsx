@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig } from '@/api/hooks'
+import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useSetManualLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Trash2 } from 'lucide-react'
@@ -21,6 +21,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const updateCharacteristic = useUpdateCharacteristic()
   const updateConfig = useUpdateCharacteristicConfig()
   const recalculateLimits = useRecalculateLimits()
+  const setManualLimits = useSetManualLimits()
   const changeMode = useChangeMode()
   const deleteCharacteristic = useDeleteCharacteristic()
   const isDirty = useConfigStore((state) => state.isDirty)
@@ -214,9 +215,20 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     setIsDirty(false)
   }
 
-  const handleRecalculate = async () => {
+  const handleRecalculate = async (options?: { excludeOoc?: boolean; startDate?: string; endDate?: string; lastN?: number }) => {
     if (!characteristicId) return
-    await recalculateLimits.mutateAsync({ id: characteristicId, excludeOoc: true })
+    await recalculateLimits.mutateAsync({
+      id: characteristicId,
+      excludeOoc: options?.excludeOoc ?? true,
+      startDate: options?.startDate,
+      endDate: options?.endDate,
+      lastN: options?.lastN,
+    })
+  }
+
+  const handleSetManualLimits = async (data: { ucl: number; lcl: number; center_line: number; sigma: number }) => {
+    if (!characteristicId) return
+    await setManualLimits.mutateAsync({ id: characteristicId, data })
   }
 
   const handleDelete = async () => {
@@ -252,6 +264,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             characteristic={{
               provider_type: characteristic.provider_type,
               hierarchy_id: characteristic.hierarchy_id,
+              mqtt_topic: characteristic.mqtt_topic,
+              trigger_tag: characteristic.trigger_tag,
+              metric_name: characteristic.metric_name,
               created_at: characteristic.created_at,
               updated_at: characteristic.updated_at,
               sample_count: characteristic.sample_count,
@@ -277,7 +292,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             }}
             onChange={handleChange}
             onRecalculate={handleRecalculate}
+            onSetManualLimits={handleSetManualLimits}
             isRecalculating={recalculateLimits.isPending}
+            isSettingManual={setManualLimits.isPending}
           />
         )
       case 'sampling':

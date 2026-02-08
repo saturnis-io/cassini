@@ -95,26 +95,30 @@ class WebSocketBroadcaster:
         Message Format:
             {
                 "type": "sample",
-                "payload": {
-                    "sample_id": int,
+                "characteristic_id": int,
+                "sample": {
+                    "id": int,
                     "characteristic_id": int,
                     "timestamp": str (ISO format),
-                    "value": float,
+                    "mean": float,
                     "zone": str,
                     "in_control": bool
-                }
+                },
+                "violations": []
             }
         """
         message = {
             "type": "sample",
-            "payload": {
-                "sample_id": event.sample_id,
+            "characteristic_id": event.characteristic_id,
+            "sample": {
+                "id": event.sample_id,
                 "characteristic_id": event.characteristic_id,
                 "timestamp": event.timestamp.isoformat(),
-                "value": event.mean,
+                "mean": event.mean,
                 "zone": event.zone,
                 "in_control": event.in_control,
             },
+            "violations": [],
         }
 
         logger.debug(
@@ -137,27 +141,19 @@ class WebSocketBroadcaster:
 
         Message Format:
             {
-                "type": "control_limits",
-                "payload": {
-                    "characteristic_id": int,
-                    "center_line": float,
-                    "ucl": float,
-                    "lcl": float,
-                    "method": str,
-                    "sample_count": int
-                }
+                "type": "limits_update",
+                "characteristic_id": int,
+                "ucl": float,
+                "lcl": float,
+                "center_line": float
             }
         """
         message = {
-            "type": "control_limits",
-            "payload": {
-                "characteristic_id": event.characteristic_id,
-                "center_line": event.center_line,
-                "ucl": event.ucl,
-                "lcl": event.lcl,
-                "method": event.method,
-                "sample_count": event.sample_count,
-            },
+            "type": "limits_update",
+            "characteristic_id": event.characteristic_id,
+            "ucl": event.ucl,
+            "lcl": event.lcl,
+            "center_line": event.center_line,
         }
 
         logger.debug(
@@ -183,8 +179,8 @@ class WebSocketBroadcaster:
         Message Format:
             {
                 "type": "violation",
-                "payload": {
-                    "violation_id": int,
+                "violation": {
+                    "id": int,
                     "sample_id": int,
                     "characteristic_id": int,
                     "rule_id": int,
@@ -196,8 +192,8 @@ class WebSocketBroadcaster:
         """
         message = {
             "type": "violation",
-            "payload": {
-                "violation_id": event.violation_id,
+            "violation": {
+                "id": event.violation_id,
                 "sample_id": event.sample_id,
                 "characteristic_id": event.characteristic_id,
                 "rule_id": event.rule_id,
@@ -232,24 +228,16 @@ class WebSocketBroadcaster:
         Message Format:
             {
                 "type": "ack_update",
-                "payload": {
-                    "violation_id": int,
-                    "acknowledged": bool,
-                    "user": str,
-                    "reason": str,
-                    "timestamp": str (ISO format)
-                }
+                "violation_id": int,
+                "ack_user": str,
+                "ack_reason": str
             }
         """
         message = {
             "type": "ack_update",
-            "payload": {
-                "violation_id": event.violation_id,
-                "acknowledged": True,
-                "user": event.user,
-                "reason": event.reason,
-                "timestamp": event.timestamp.isoformat(),
-            },
+            "violation_id": event.violation_id,
+            "ack_user": event.user,
+            "ack_reason": event.reason,
         }
 
         logger.info(

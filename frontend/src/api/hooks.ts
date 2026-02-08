@@ -1,8 +1,12 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
+import { annotationApi, characteristicApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
 import type { AnnotationCreate, AnnotationUpdate, Characteristic, PlantCreate, PlantUpdate } from '@/types'
+
+/** Polling intervals (ms) */
+const CHART_DATA_REFETCH_MS = 30_000
+const VIOLATION_STATS_REFETCH_MS = 30_000
 
 // Query keys
 export const queryKeys = {
@@ -277,7 +281,7 @@ export function useChartData(id: number, options?: {
     queryKey: queryKeys.characteristics.chartData(id, options?.limit, options?.startDate, options?.endDate),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    refetchInterval: CHART_DATA_REFETCH_MS,
   })
 }
 
@@ -474,7 +478,7 @@ export function useViolationStats() {
   return useQuery({
     queryKey: queryKeys.violations.stats(),
     queryFn: violationApi.getStats,
-    refetchInterval: 30000,
+    refetchInterval: VIOLATION_STATS_REFETCH_MS,
   })
 }
 
@@ -730,6 +734,25 @@ export function useDeleteAnnotation() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete annotation: ${error.message}`)
+    },
+  })
+}
+
+// Dev Tools hooks (sandbox mode)
+export function useDevToolsStatus() {
+  return useQuery({
+    queryKey: ['devtools', 'status'] as const,
+    queryFn: () => devtoolsApi.getStatus(),
+    retry: false,
+    // Silent failure — returns undefined when not in sandbox mode (404)
+  })
+}
+
+export function useRunSeed() {
+  return useMutation({
+    mutationFn: (data: { script: string }) => devtoolsApi.runSeed(data),
+    onError: (error: Error) => {
+      toast.error(`Seed failed: ${error.message}`)
     },
   })
 }

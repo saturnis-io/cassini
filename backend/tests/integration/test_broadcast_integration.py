@@ -114,7 +114,7 @@ class TestBroadcastIntegration:
         mock_connection_manager.broadcast_to_characteristic.assert_called_once()
         call_args = mock_connection_manager.broadcast_to_characteristic.call_args
         assert call_args[0][0] == 1  # characteristic_id
-        assert call_args[0][1]["type"] == "control_limits"
+        assert call_args[0][1]["type"] == "limits_update"
 
     async def test_violation_created_through_alert_manager(
         self, mock_connection_manager, broadcaster, mock_violation_repo, mock_sample_repo
@@ -154,8 +154,8 @@ class TestBroadcastIntegration:
         call_args = mock_connection_manager.broadcast_to_characteristic.call_args
         assert call_args[0][0] == 1  # characteristic_id
         assert call_args[0][1]["type"] == "violation"
-        assert call_args[0][1]["payload"]["rule_id"] == 1
-        assert call_args[0][1]["payload"]["severity"] == "CRITICAL"
+        assert call_args[0][1]["violation"]["rule_id"] == 1
+        assert call_args[0][1]["violation"]["severity"] == "CRITICAL"
 
     async def test_violation_acknowledged_through_alert_manager(
         self, mock_connection_manager, broadcaster, mock_violation_repo, mock_sample_repo
@@ -196,9 +196,9 @@ class TestBroadcastIntegration:
         mock_connection_manager.broadcast_to_all.assert_called_once()
         call_args = mock_connection_manager.broadcast_to_all.call_args
         assert call_args[0][0]["type"] == "ack_update"
-        assert call_args[0][0]["payload"]["violation_id"] == 1
-        assert call_args[0][0]["payload"]["user"] == "john.doe"
-        assert call_args[0][0]["payload"]["reason"] == "Tool Change"
+        assert call_args[0][0]["violation_id"] == 1
+        assert call_args[0][0]["ack_user"] == "john.doe"
+        assert call_args[0][0]["ack_reason"] == "Tool Change"
 
     async def test_multiple_events_in_sequence(
         self, event_bus, mock_connection_manager, broadcaster
@@ -246,7 +246,7 @@ class TestBroadcastIntegration:
         # Verify message types
         calls = mock_connection_manager.broadcast_to_characteristic.call_args_list
         message_types = [call[0][1]["type"] for call in calls]
-        assert message_types == ["sample", "control_limits", "sample"]
+        assert message_types == ["sample", "limits_update", "sample"]
 
     async def test_broadcaster_handles_multiple_notifiers(
         self, mock_connection_manager, mock_violation_repo, mock_sample_repo, event_bus

@@ -3,19 +3,10 @@
  * Designed to be displayed below an X-bar chart in DualChartPanel.
  */
 
-import { useMemo, useState, useEffect, useCallback } from 'react'
-import {
-  ComposedChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  ReferenceArea,
-  ResponsiveContainer,
-  Brush,
-} from 'recharts'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { graphic } from '@/lib/echarts'
+import { useECharts } from '@/hooks/useECharts'
+import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
@@ -66,6 +57,16 @@ function useChartColors(): ChartColors {
   return colors
 }
 
+interface RangeDataPoint {
+  index: number
+  value: number
+  timestamp: string
+  timestampMs: number
+  hasViolation: boolean
+  sample_id: number
+  sample_id_from: number | null
+}
+
 export function RangeChart({
   characteristicId,
   chartOptions,
@@ -77,6 +78,7 @@ export function RangeChart({
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
   const chartColors = useChartColors()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
+  const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
 
   // Cross-chart hover sync using sample IDs
@@ -85,31 +87,26 @@ export function RangeChart({
   // Calculate range/stddev values and control limits
   const { data, controlLimits, chartLabel, yAxisLabel } = useMemo(() => {
     if (!chartData?.data_points?.length) {
-      return { data: [], controlLimits: { ucl: null, lcl: null, cl: null }, chartLabel: '', yAxisLabel: '' }
+      return { data: [] as RangeDataPoint[], controlLimits: { ucl: null as number | null, lcl: null as number | null, cl: null as number | null }, chartLabel: '', yAxisLabel: '' }
     }
 
     const points = chartData.data_points
     const n = chartData.nominal_subgroup_size
 
-    // Get values based on chart type
     let values: number[] = []
     let label = ''
     let yLabel = ''
 
     if (chartType === 'range') {
-      // Range values from samples
       values = points.map((p) => p.range ?? 0)
       label = 'Range Chart'
       yLabel = 'Range'
     } else if (chartType === 'stddev') {
-      // Standard deviation - would need backend support
-      // For now, estimate from range using d2
       const d2 = getSPCConstant(SPC_CONSTANTS.d2, n) ?? 2.326
       values = points.map((p) => (p.range ?? 0) / d2)
       label = 'S Chart (Std Dev)'
       yLabel = 'Std Dev'
     } else if (chartType === 'mr') {
-      // Moving Range - difference between consecutive points
       values = []
       for (let i = 1; i < points.length; i++) {
         const mr = Math.abs(points[i].mean - points[i - 1].mean)
@@ -119,62 +116,44 @@ export function RangeChart({
       yLabel = 'MR'
     }
 
-    // Calculate control limits based on chart type
     let ucl: number | null = null
     let lcl: number | null = null
     let cl: number | null = null
 
     if (chartType === 'range' && values.length > 0) {
-      // R-bar (average range)
       const rBar = values.reduce((sum, v) => sum + v, 0) / values.length
       cl = rBar
-
-      // D3 and D4 constants for control limits
       const D3 = getSPCConstant(SPC_CONSTANTS.D3, n) ?? 0
       const D4 = getSPCConstant(SPC_CONSTANTS.D4, n) ?? 3.267
-
       ucl = D4 * rBar
       lcl = D3 * rBar
     } else if (chartType === 'stddev' && values.length > 0) {
-      // S-bar (average std dev)
       const sBar = values.reduce((sum, v) => sum + v, 0) / values.length
       cl = sBar
-
-      // B3 and B4 constants
       const B3 = getSPCConstant(SPC_CONSTANTS.B3, n) ?? 0
       const B4 = getSPCConstant(SPC_CONSTANTS.B4, n) ?? 3.267
-
       ucl = B4 * sBar
       lcl = B3 * sBar
     } else if (chartType === 'mr' && values.length > 0) {
-      // MR-bar (average moving range)
       const mrBar = values.reduce((sum, v) => sum + v, 0) / values.length
       cl = mrBar
-
-      // For MR chart with span of 2
-      ucl = 3.267 * mrBar // D4 for n=2
-      lcl = 0 // D3 for n=2 is 0
+      ucl = 3.267 * mrBar
+      lcl = 0
     }
 
-    // Build chart data with sample IDs for cross-chart sync
-    // For MR chart, each point represents the change between two consecutive samples
-    // We store both sample_ids so we can highlight when either is hovered
-    const chartPoints = (chartType === 'mr' ? points.slice(1) : points).map((point, index) => {
+    const chartPoints: RangeDataPoint[] = (chartType === 'mr' ? points.slice(1) : points).map((point, index) => {
       if (chartType === 'mr') {
-        // MR chart: point at index represents the range from points[index] to points[index+1]
-        // Since we sliced from index 1, the "from" sample is at points[index]
         const fromPoint = points[index]
         return {
-          index: index + 2, // Display as sample #2, #3, etc. (MR starts at sample 2)
+          index: index + 2,
           value: values[index] ?? 0,
           timestamp: new Date(point.timestamp).toLocaleTimeString(),
           timestampMs: new Date(point.timestamp).getTime(),
           hasViolation: false,
-          sample_id: point.sample_id, // The "to" sample ID
-          sample_id_from: fromPoint.sample_id, // The "from" sample ID
+          sample_id: point.sample_id,
+          sample_id_from: fromPoint.sample_id,
         }
       } else {
-        // R/S charts: one-to-one mapping with X-bar chart
         return {
           index: index + 1,
           value: values[index] ?? 0,
@@ -182,7 +161,7 @@ export function RangeChart({
           timestampMs: new Date(point.timestamp).getTime(),
           hasViolation: false,
           sample_id: point.sample_id,
-          sample_id_from: null as number | null,
+          sample_id_from: null,
         }
       }
     })
@@ -195,256 +174,264 @@ export function RangeChart({
     }
   }, [chartData, chartType])
 
-  const lineGradientId = `rangeChartGradient-${characteristicId}-${chartType}`
-  const lineColors = colorScheme === 'secondary'
-    ? { start: chartColors.secondaryLineGradientStart, end: chartColors.secondaryLineGradientEnd }
-    : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd }
-
-  if (isLoading) {
-    return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">Loading...</div>
-      </div>
-    )
-  }
-
-  if (!data.length) {
-    return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">No data available</div>
-      </div>
-    )
-  }
-
-  // Timestamp tick formatter - adaptive based on data range
-  const formatTimeTick = useCallback((value: number) => {
-    const date = new Date(value)
-    const rangeMs = data.length > 1
-      ? data[data.length - 1].timestampMs - data[0].timestampMs
-      : 0
-    if (rangeMs > 24 * 60 * 60 * 1000) {
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  // Apply range window to slice visible data
+  const visibleData = useMemo(() => {
+    if (!showBrush || !rangeWindow) return data
+    const [start, end] = rangeWindow
+    if (chartType === 'mr') {
+      const mrStart = Math.max(0, start - 1)
+      const mrEnd = Math.min(data.length - 1, end - 1)
+      return data.slice(mrStart, mrEnd + 1)
     }
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  }, [data])
+    return data.slice(start, end + 1)
+  }, [data, rangeWindow, showBrush, chartType])
 
-  // Adjust chart bottom margin when Brush is visible
-  const rangeBottomMargin = showBrush && data.length > 10 ? 60 : (xAxisMode === 'timestamp' ? 40 : 20)
+  const lineColors = useMemo(() => colorScheme === 'secondary'
+    ? { start: chartColors.secondaryLineGradientStart, end: chartColors.secondaryLineGradientEnd }
+    : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd },
+  [colorScheme, chartColors])
 
-  // Calculate Y-axis domain
-  const values = data.map((d) => d.value)
-  const minVal = Math.min(...values, controlLimits.lcl ?? 0)
-  const maxVal = Math.max(...values, controlLimits.ucl ?? 0)
-  const padding = (maxVal - minVal) * 0.2 || 1
-  const yMin = Math.max(0, minVal - padding) // Range can't be negative
-  const yMax = maxVal + padding
+  // Store visibleData in ref for event handlers
+  const dataRef = useRef(visibleData)
+  useEffect(() => {
+    dataRef.current = visibleData
+  }, [visibleData])
 
-  const decimalPrecision = chartData?.decimal_precision ?? 3
-  const formatValue = (value: number) => value.toFixed(decimalPrecision)
+  // --- ECharts option builder ---
+  const echartsOption = useMemo(() => {
+    if (!visibleData.length) return null
+
+    const isTimestamp = xAxisMode === 'timestamp'
+
+    // Calculate Y-axis domain (use full data for stable domain during sliding)
+    const allValues = data.map((d) => d.value)
+    const minVal = Math.min(...allValues, controlLimits.lcl ?? 0)
+    const maxVal = Math.max(...allValues, controlLimits.ucl ?? 0)
+    const padding = (maxVal - minVal) * 0.2 || 1
+    const yMin = Math.max(0, minVal - padding)
+    const yMax = maxVal + padding
+
+    const decimalPrecision = chartData?.decimal_precision ?? 3
+    const formatVal = (value: number) => value.toFixed(decimalPrecision)
+
+    // Build markLine for control limits
+    const markLineData: Record<string, unknown>[] = []
+
+    if (controlLimits.ucl != null) {
+      markLineData.push({ yAxis: controlLimits.ucl, lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 }, label: { formatter: `UCL: ${formatVal(controlLimits.ucl)}`, position: 'end', color: chartColors.uclLine, fontSize: 11, fontWeight: 500 } })
+    }
+    if (controlLimits.cl != null) {
+      markLineData.push({ yAxis: controlLimits.cl, lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2 }, label: { formatter: `CL: ${formatVal(controlLimits.cl)}`, position: 'end', color: chartColors.centerLine, fontSize: 11, fontWeight: 600 } })
+    }
+    if (controlLimits.lcl != null && controlLimits.lcl > 0) {
+      markLineData.push({ yAxis: controlLimits.lcl, lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 }, label: { formatter: `LCL: ${formatVal(controlLimits.lcl)}`, position: 'end', color: chartColors.lclLine, fontSize: 11, fontWeight: 500 } })
+    }
+
+    // Build markArea for out-of-control zone above UCL
+    const markAreaData: [Record<string, unknown>, Record<string, unknown>][] = []
+    if (controlLimits.ucl != null) {
+      markAreaData.push([
+        { yAxis: controlLimits.ucl, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
+        { yAxis: yMax },
+      ])
+    }
+
+    // Custom series renderItem for data point symbols with highlighting
+    const localVisibleData = visibleData
+    const localChartColors = chartColors
+    const localHoveredSampleIds = hoveredSampleIds
+    const localHighlightedIndex = highlightedIndex
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customRenderItem = (_params: any, api: any) => {
+      const arrIndex = api.value(2) as number
+      if (arrIndex < 0 || arrIndex >= localVisibleData.length) return { type: 'group', children: [] }
+      const point = localVisibleData[arrIndex]
+
+      // Use dimensions 0,1 (x,y) directly for pixel mapping — guarantees dots align with line
+      const coord = api.coord([api.value(0), api.value(1)])
+      const cx = coord[0]
+      const cy = coord[1]
+
+      const arrayIndex = point.index - (chartType === 'mr' ? 2 : 1)
+      const isHighlightedLocal = localHighlightedIndex != null && arrayIndex === localHighlightedIndex
+      const isHighlightedGlobal = localHoveredSampleIds != null && localHoveredSampleIds.has(point.sample_id)
+      const isHighlighted = isHighlightedLocal || isHighlightedGlobal
+      const baseRadius = isHighlighted ? 6 : 4
+      const fillColor = isHighlighted ? 'hsl(45, 100%, 50%)' : localChartColors.normalPoint
+
+      const children: Record<string, unknown>[] = []
+
+      if (isHighlighted) {
+        children.push({
+          type: 'circle',
+          shape: { cx, cy, r: baseRadius + 3 },
+          style: { fill: 'none', stroke: 'hsl(45, 100%, 50%)', lineWidth: 2, opacity: 0.5 },
+        })
+      }
+
+      children.push({
+        type: 'circle',
+        shape: { cx, cy, r: baseRadius },
+        style: {
+          fill: fillColor,
+          stroke: isHighlighted ? 'hsl(35, 100%, 45%)' : undefined,
+          lineWidth: isHighlighted ? 1.5 : 0,
+        },
+      })
+
+      return { type: 'group', children }
+    }
+
+    // Time range for adaptive formatting
+    const dataTimeRangeMs = visibleData.length > 1
+      ? visibleData[visibleData.length - 1].timestampMs - visibleData[0].timestampMs
+      : 0
+
+    const bottomMargin = isTimestamp ? 60 : 30
+    const xCategoryData = visibleData.map((p) => String(p.index))
+
+    const xAxisConfig = isTimestamp
+      ? {
+          type: 'value' as const,
+          min: visibleData[0]?.timestampMs,
+          max: visibleData[visibleData.length - 1]?.timestampMs,
+          axisLabel: {
+            fontSize: 12,
+            rotate: 30,
+            formatter: (value: number) => {
+              const date = new Date(value)
+              return dataTimeRangeMs > 86400000
+                ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+            },
+          },
+          splitLine: { show: false },
+          axisTick: { alignWithLabel: true },
+        }
+      : {
+          type: 'category' as const,
+          data: xCategoryData,
+          axisLabel: { fontSize: 12 },
+          splitLine: { show: false },
+          axisTick: { alignWithLabel: true },
+        }
+
+    return {
+      animation: false,
+      grid: { top: 10, right: 60, left: 60, bottom: bottomMargin, containLabel: false },
+      xAxis: xAxisConfig,
+      yAxis: {
+        type: 'value' as const,
+        min: yMin,
+        max: yMax,
+        axisLabel: { fontSize: 12, formatter: (value: number) => value.toFixed(decimalPrecision) },
+        name: yAxisLabel,
+        nameLocation: 'middle' as const,
+        nameGap: 45,
+        nameTextStyle: { fontSize: 12 },
+        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3 } },
+      },
+      tooltip: {
+        trigger: 'item' as const,
+        transitionDuration: 0,
+        extraCssText: 'transition: none !important;',
+        position: (point: number[]) => [point[0] + 10, point[1] - 10],
+        formatter: (params: unknown) => {
+          const p = params as { dataIndex: number; seriesType: string }
+          if (p.seriesType === 'line') return ''
+          const point = localVisibleData[p.dataIndex]
+          if (!point) return ''
+          return `<div style="font-size:13px;font-weight:500">Sample #${point.index}</div>` +
+            `<div>${yAxisLabel}: ${formatVal(point.value)}</div>` +
+            `<div style="opacity:0.7">${point.timestamp}</div>`
+        },
+      },
+      series: [
+        {
+          type: 'line',
+          data: isTimestamp ? visibleData.map((p) => [p.timestampMs, p.value]) : visibleData.map((p) => p.value),
+          lineStyle: {
+            width: 2,
+            color: new graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: lineColors.start },
+              { offset: 1, color: lineColors.end },
+            ]),
+          },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
+          markArea: { silent: true, data: markAreaData as never[] },
+          z: 5,
+        },
+        {
+          type: 'custom',
+          data: visibleData.map((p, i) => {
+            const xVal = isTimestamp ? p.timestampMs : i
+            return [xVal, p.value, i]
+          }),
+          renderItem: customRenderItem,
+          coordinateSystem: 'cartesian2d',
+          encode: { x: 0, y: 1 },
+          z: 10,
+          silent: false,
+        },
+      ],
+    }
+  }, [visibleData, data, xAxisMode, chartColors, lineColors, controlLimits, chartData?.decimal_precision, yAxisLabel, chartType, hoveredSampleIds, highlightedIndex])
+
+  // Mouse event handlers
+  const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
+    const idx = params.dataIndex
+    const point = dataRef.current[idx]
+    if (point) {
+      onHoverSample(point.sample_id)
+      onHoverIndex?.(idx)
+    }
+  }, [onHoverSample, onHoverIndex])
+
+  const handleMouseOut = useCallback(() => {
+    onLeaveSample()
+    onHoverIndex?.(null)
+  }, [onLeaveSample, onHoverIndex])
+
+  const { containerRef, refresh } = useECharts({
+    option: echartsOption,
+    notMerge: true,
+    onMouseMove: handleMouseMove,
+    onMouseOut: handleMouseOut,
+  })
+
+  // Refresh on theme color changes
+  useEffect(() => {
+    refresh()
+  }, [chartColors, refresh])
+
+  const hasData = visibleData.length > 0
 
   return (
     <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-        <h3 className="font-semibold text-sm leading-5">{chartLabel}</h3>
-        <div className="flex gap-4 text-sm text-muted-foreground leading-5">
-          {controlLimits.ucl != null && <span>UCL: {formatValue(controlLimits.ucl)}</span>}
-          {controlLimits.cl != null && <span>CL: {formatValue(controlLimits.cl)}</span>}
-          {controlLimits.lcl != null && controlLimits.lcl > 0 && (
-            <span>LCL: {formatValue(controlLimits.lcl)}</span>
-          )}
+      {hasData && (
+        <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
+          <h3 className="font-semibold text-sm leading-5">{chartLabel}</h3>
         </div>
-      </div>
+      )}
 
-      {/* Chart */}
-      <div className="flex-1 min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart
-            data={data}
-            margin={{ top: 10, right: 60, left: 20, bottom: rangeBottomMargin }}
-            onMouseMove={(state) => {
-              if (state?.activeTooltipIndex != null) {
-                const arrayIndex = Number(state.activeTooltipIndex)
-                const point = data[arrayIndex]
-                if (point) {
-                  // Broadcast only the primary sample_id for cross-chart sync
-                  // For MR chart, use only the "to" sample to avoid highlighting two points
-                  onHoverSample(point.sample_id)
-                  // Also call local callback if provided
-                  onHoverIndex?.(arrayIndex)
-                }
-              }
-            }}
-            onMouseLeave={() => {
-              onLeaveSample()
-              onHoverIndex?.(null)
-            }}
-          >
-            <defs>
-              <linearGradient id={lineGradientId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={lineColors.start} />
-                <stop offset="100%" stopColor={lineColors.end} />
-              </linearGradient>
-              <pattern id={`rangeOocPattern-${characteristicId}`} patternUnits="userSpaceOnUse" width="8" height="8">
-                <rect width="8" height="8" fill={chartColors.outOfControl} fillOpacity="0.15" />
-                <line x1="0" y1="8" x2="8" y2="0" stroke={chartColors.outOfControl} strokeWidth="0.5" strokeOpacity="0.3" />
-              </pattern>
-            </defs>
-
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-
-            {/* Out-of-control zone above UCL */}
-            {controlLimits.ucl != null && (
-              <ReferenceArea
-                y1={controlLimits.ucl}
-                y2={yMax}
-                fill={`url(#rangeOocPattern-${characteristicId})`}
-              />
-            )}
-
-            <XAxis
-              dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
-              tick={{ fontSize: 12 }}
-              className="text-muted-foreground"
-              tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : undefined}
-              type={xAxisMode === 'timestamp' ? 'number' : 'category'}
-              domain={xAxisMode === 'timestamp' ? ['dataMin', 'dataMax'] : undefined}
-              angle={xAxisMode === 'timestamp' ? -30 : 0}
-              textAnchor={xAxisMode === 'timestamp' ? 'end' : 'middle'}
-              height={xAxisMode === 'timestamp' ? 50 : 30}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              tick={{ fontSize: 12 }}
-              className="text-muted-foreground"
-              tickFormatter={(value) => value.toFixed(decimalPrecision)}
-              label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-            />
-
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const point = payload[0].payload
-                return (
-                  <div className="bg-popover border border-border rounded-xl p-3 text-sm shadow-xl">
-                    <div className="font-medium">Sample #{point.index}</div>
-                    <div>{yAxisLabel}: {formatValue(point.value)}</div>
-                    <div className="text-muted-foreground">{point.timestamp}</div>
-                  </div>
-                )
-              }}
-            />
-
-            {/* UCL */}
-            {controlLimits.ucl != null && (
-              <ReferenceLine
-                y={controlLimits.ucl}
-                stroke={chartColors.uclLine}
-                strokeDasharray="5 5"
-                strokeWidth={1.5}
-                label={{
-                  value: 'UCL',
-                  position: 'right',
-                  fill: chartColors.uclLine,
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              />
-            )}
-
-            {/* Center Line */}
-            {controlLimits.cl != null && (
-              <ReferenceLine
-                y={controlLimits.cl}
-                stroke={chartColors.centerLine}
-                strokeWidth={2}
-                label={{
-                  value: 'CL',
-                  position: 'right',
-                  fill: chartColors.centerLine,
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              />
-            )}
-
-            {/* LCL (only if > 0) */}
-            {controlLimits.lcl != null && controlLimits.lcl > 0 && (
-              <ReferenceLine
-                y={controlLimits.lcl}
-                stroke={chartColors.lclLine}
-                strokeDasharray="5 5"
-                strokeWidth={1.5}
-                label={{
-                  value: 'LCL',
-                  position: 'right',
-                  fill: chartColors.lclLine,
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}
-              />
-            )}
-
-            {/* Data line */}
-            <Line
-              type="linear"
-              dataKey="value"
-              stroke={`url(#${lineGradientId})`}
-              strokeWidth={2}
-              dot={({ cx, cy, payload }) => {
-                if (cx === undefined || cy === undefined) return null
-
-                // Check both local and global highlight state using sample_id
-                const arrayIndex = payload.index - (chartType === 'mr' ? 2 : 1) // Convert display index to array index
-                // Local highlighting uses array index (from DualChartPanel local state)
-                const isHighlightedLocal = highlightedIndex != null && arrayIndex === highlightedIndex
-                // Global cross-chart highlighting using sample_id
-                // For MR chart, only highlight if the "to" sample matches (not both from and to)
-                // This ensures a single MR point is highlighted when hovering on X-bar
-                const isHighlightedGlobal = hoveredSampleIds != null && hoveredSampleIds.has(payload.sample_id)
-                const isHighlighted = isHighlightedLocal || isHighlightedGlobal
-                const baseRadius = isHighlighted ? 6 : 4
-                const fillColor = isHighlighted ? 'hsl(45, 100%, 50%)' : chartColors.normalPoint
-
-                return (
-                  <g key={payload.index}>
-                    {isHighlighted && (
-                      <circle
-                        cx={cx}
-                        cy={cy}
-                        r={baseRadius + 3}
-                        fill="none"
-                        stroke="hsl(45, 100%, 50%)"
-                        strokeWidth={2}
-                        opacity={0.5}
-                      />
-                    )}
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={baseRadius}
-                      fill={fillColor}
-                      stroke={isHighlighted ? 'hsl(35, 100%, 45%)' : undefined}
-                      strokeWidth={isHighlighted ? 1.5 : 0}
-                    />
-                  </g>
-                )
-              }}
-              activeDot={{ r: 5 }}
-            />
-
-            {/* Range slider (Brush) for viewport zoom */}
-            {showBrush && data.length > 10 && (
-              <Brush
-                dataKey={xAxisMode === 'timestamp' ? 'timestampMs' : 'index'}
-                height={30}
-                stroke="hsl(var(--primary))"
-                fill="hsl(var(--muted))"
-                tickFormatter={xAxisMode === 'timestamp' ? formatTimeTick : (v: string | number) => `#${v}`}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
+      {/* Chart container — ALWAYS rendered so useECharts can init */}
+      <div className="flex-1 min-h-0 relative">
+        <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-muted-foreground text-sm">Loading...</div>
+          </div>
+        )}
+        {!isLoading && !hasData && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-muted-foreground text-sm">No data available</div>
+          </div>
+        )}
       </div>
     </div>
   )

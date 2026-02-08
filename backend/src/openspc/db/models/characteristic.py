@@ -61,6 +61,7 @@ class Characteristic(Base):
     provider_type: Mapped[str] = mapped_column(String, nullable=False)
     mqtt_topic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     trigger_tag: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    metric_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Subgroup mode configuration
     subgroup_mode: Mapped[str] = mapped_column(

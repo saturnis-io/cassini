@@ -4,7 +4,7 @@ Tests for the ConnectionManager, WebSocket endpoint, and notification helpers.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,7 +25,7 @@ class TestWSConnection:
     def test_ws_connection_creation(self):
         """Test creating a WSConnection instance."""
         mock_ws = MagicMock(spec=WebSocket)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         conn = WSConnection(
             websocket=mock_ws,
@@ -40,7 +40,7 @@ class TestWSConnection:
     def test_ws_connection_with_subscriptions(self):
         """Test WSConnection with initial subscriptions."""
         mock_ws = MagicMock(spec=WebSocket)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         char_ids = {1, 2, 3}
 
         conn = WSConnection(
@@ -280,7 +280,7 @@ class TestConnectionManager:
         await manager.subscribe(conn_id, [1])
 
         # Manually set old heartbeat
-        manager._connections[conn_id].last_heartbeat = datetime.utcnow() - timedelta(seconds=5)
+        manager._connections[conn_id].last_heartbeat = datetime.now(timezone.utc) - timedelta(seconds=5)
 
         # Start cleanup task
         await manager.start()
@@ -382,7 +382,7 @@ class TestNotificationHelpers:
         mock_manager = AsyncMock()
 
         with patch("openspc.api.v1.websocket.manager", mock_manager):
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
             await notify_sample(
                 char_id=1,
                 sample_id=100,
@@ -397,11 +397,13 @@ class TestNotificationHelpers:
             assert call_args[0][0] == 1  # char_id
             message = call_args[0][1]
             assert message["type"] == "sample"
-            assert message["payload"]["sample_id"] == 100
-            assert message["payload"]["characteristic_id"] == 1
-            assert message["payload"]["value"] == 10.5
-            assert message["payload"]["zone"] == "zone_c_upper"
-            assert message["payload"]["in_control"] is True
+            assert message["characteristic_id"] == 1
+            assert message["sample"]["id"] == 100
+            assert message["sample"]["characteristic_id"] == 1
+            assert message["sample"]["mean"] == 10.5
+            assert message["sample"]["zone"] == "zone_c_upper"
+            assert message["sample"]["in_control"] is True
+            assert message["violations"] == []
 
     @pytest.mark.asyncio
     async def test_notify_violation(self):
@@ -423,12 +425,12 @@ class TestNotificationHelpers:
             assert call_args[0][0] == 1  # char_id
             message = call_args[0][1]
             assert message["type"] == "violation"
-            assert message["payload"]["violation_id"] == 200
-            assert message["payload"]["characteristic_id"] == 1
-            assert message["payload"]["sample_id"] == 100
-            assert message["payload"]["rule_id"] == 1
-            assert message["payload"]["rule_name"] == "One point beyond 3 sigma"
-            assert message["payload"]["severity"] == "CRITICAL"
+            assert message["violation"]["id"] == 200
+            assert message["violation"]["characteristic_id"] == 1
+            assert message["violation"]["sample_id"] == 100
+            assert message["violation"]["rule_id"] == 1
+            assert message["violation"]["rule_name"] == "One point beyond 3 sigma"
+            assert message["violation"]["severity"] == "CRITICAL"
 
     @pytest.mark.asyncio
     async def test_notify_acknowledgment(self):
@@ -449,11 +451,11 @@ class TestNotificationHelpers:
             assert call_args[0][0] == 1  # char_id
             message = call_args[0][1]
             assert message["type"] == "ack_update"
-            assert message["payload"]["violation_id"] == 200
-            assert message["payload"]["characteristic_id"] == 1
-            assert message["payload"]["acknowledged"] is True
-            assert message["payload"]["ack_user"] == "operator1"
-            assert message["payload"]["ack_reason"] == "Adjusted process"
+            assert message["violation_id"] == 200
+            assert message["characteristic_id"] == 1
+            assert message["acknowledged"] is True
+            assert message["ack_user"] == "operator1"
+            assert message["ack_reason"] == "Adjusted process"
 
     @pytest.mark.asyncio
     async def test_notify_acknowledgment_unack(self):
@@ -470,6 +472,6 @@ class TestNotificationHelpers:
             mock_manager.broadcast_to_characteristic.assert_called_once()
             call_args = mock_manager.broadcast_to_characteristic.call_args
             message = call_args[0][1]
-            assert message["payload"]["acknowledged"] is False
-            assert message["payload"]["ack_user"] is None
-            assert message["payload"]["ack_reason"] is None
+            assert message["acknowledged"] is False
+            assert message["ack_user"] is None
+            assert message["ack_reason"] is None

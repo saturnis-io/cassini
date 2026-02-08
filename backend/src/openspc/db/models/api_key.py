@@ -1,8 +1,12 @@
 """API Key model for external data entry authentication."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import uuid
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import Boolean, DateTime, Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column
@@ -34,9 +38,12 @@ class APIKey(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    key_prefix: Mapped[Optional[str]] = mapped_column(
+        String(16), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=_utc_now,
         nullable=False,
     )
     expires_at: Mapped[Optional[datetime]] = mapped_column(
@@ -71,7 +78,7 @@ class APIKey(Base):
         """
         if self.expires_at is None:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def can_access_characteristic(self, char_id: int) -> bool:
         """Check if key has permission for a specific characteristic.

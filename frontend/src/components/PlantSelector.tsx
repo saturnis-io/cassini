@@ -90,7 +90,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-1.5', className)}>
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading plants...</span>
+        <span className="text-sm text-muted-foreground">Loading sites...</span>
       </div>
     )
   }
@@ -100,7 +100,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-1.5 text-destructive', className)}>
         <AlertCircle className="h-4 w-4" />
-        <span className="text-sm">Failed to load plants</span>
+        <span className="text-sm">Failed to load sites</span>
       </div>
     )
   }
@@ -110,7 +110,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-1.5 text-muted-foreground', className)}>
         <Building2 className="h-4 w-4" />
-        <span className="text-sm">No plants configured</span>
+        <span className="text-sm">No sites configured</span>
       </div>
     )
   }
@@ -135,7 +135,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
         aria-haspopup="listbox"
       >
         <Building2 className="h-4 w-4 text-muted-foreground" />
-        <span className="font-medium">{selectedPlant?.name ?? 'Select Plant'}</span>
+        <span className="font-medium">{selectedPlant?.name ?? 'Select Site'}</span>
         <ChevronDown
           className={cn(
             'h-4 w-4 text-muted-foreground transition-transform duration-150',

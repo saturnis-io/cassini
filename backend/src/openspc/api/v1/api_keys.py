@@ -8,8 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_admin, get_current_engineer
-from openspc.db.database import get_session
+from openspc.api.deps import get_current_admin, get_current_engineer, get_db_session
 from openspc.db.models.api_key import APIKey
 from openspc.db.models.user import User
 from openspc.core.auth.api_key import APIKeyAuth
@@ -58,7 +57,7 @@ class APIKeyUpdate(BaseModel):
 
 @router.get("/", response_model=list[APIKeyResponse])
 async def list_api_keys(
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> list[APIKeyResponse]:
     """List all API keys (without exposing the actual keys)."""
@@ -71,7 +70,7 @@ async def list_api_keys(
 @router.post("/", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     data: APIKeyCreate,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> APIKeyCreateResponse:
     """Create a new API key.
@@ -87,6 +86,7 @@ async def create_api_key(
     api_key = APIKey(
         name=data.name,
         key_hash=key_hash,
+        key_prefix=APIKeyAuth.extract_prefix(plain_key),
         expires_at=data.expires_at,
         rate_limit_per_minute=data.rate_limit_per_minute,
     )
@@ -110,7 +110,7 @@ async def create_api_key(
 @router.get("/{key_id}", response_model=APIKeyResponse)
 async def get_api_key(
     key_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> APIKeyResponse:
     """Get API key details by ID."""
@@ -131,7 +131,7 @@ async def get_api_key(
 async def update_api_key(
     key_id: str,
     data: APIKeyUpdate,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> APIKeyResponse:
     """Update API key settings."""
@@ -159,7 +159,7 @@ async def update_api_key(
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_api_key(
     key_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete (revoke) an API key permanently."""
@@ -180,7 +180,7 @@ async def delete_api_key(
 @router.post("/{key_id}/revoke", response_model=APIKeyResponse)
 async def revoke_api_key(
     key_id: str,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
 ) -> APIKeyResponse:
     """Revoke an API key (set is_active=False) without deleting it."""

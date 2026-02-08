@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSubmitSample } from '@/api/hooks'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
 import { NumberInput } from './NumberInput'
 import type { Characteristic } from '@/types'
 
 export function ManualEntryPanel() {
+  const { selectedPlant } = usePlantContext()
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
   const [measurements, setMeasurements] = useState<string[]>([])
   const [batchNumber, setBatchNumber] = useState('')
@@ -71,6 +73,8 @@ export function ManualEntryPanel() {
       {
         characteristic_id: selectedChar.id,
         measurements: values,
+        batch_number: batchNumber || undefined,
+        operator_id: operatorId || undefined,
       },
       {
         onSuccess: () => {
@@ -93,6 +97,7 @@ export function ManualEntryPanel() {
           selectedCharId={selectedChar?.id ?? null}
           onSelect={handleCharacteristicSelect}
           filterProvider="MANUAL"
+          plantId={selectedPlant?.id}
         />
         {selectedChar && (
           <div className="mt-3 p-3 bg-muted/50 rounded-lg">

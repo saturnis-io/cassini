@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useHierarchyTree, useHierarchyCharacteristics } from '@/api/hooks'
+import { useHierarchyTree, useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
 import type { HierarchyNode, Characteristic } from '@/types'
 
 interface HierarchyCharacteristicSelectorProps {
   selectedCharId: number | null
   onSelect: (char: Characteristic) => void
   filterProvider?: 'MANUAL' | 'TAG'
+  plantId?: number | null
 }
 
 const nodeTypeIcons: Record<string, React.ReactNode> = {
@@ -25,8 +26,11 @@ export function HierarchyCharacteristicSelector({
   selectedCharId,
   onSelect,
   filterProvider,
+  plantId,
 }: HierarchyCharacteristicSelectorProps) {
-  const { data: hierarchy, isLoading } = useHierarchyTree()
+  const globalTree = useHierarchyTree()
+  const plantTree = useHierarchyTreeByPlant(plantId ?? 0)
+  const { data: hierarchy, isLoading } = plantId ? plantTree : globalTree
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set())
 
   const toggleExpanded = (nodeId: number) => {

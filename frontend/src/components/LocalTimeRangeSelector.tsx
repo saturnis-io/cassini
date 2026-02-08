@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useRef, useLayoutEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TimePicker } from './TimePicker'
@@ -223,6 +224,31 @@ const defaultPresets: TimeRangeOption[] = [
 export function LocalTimeRangeSelector({ value, onChange, presets = defaultPresets }: LocalTimeRangeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+
+  // Position the dropdown synchronously before paint so there's no flash
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current || !dropdownRef.current) return
+
+    const btnRect = buttonRef.current.getBoundingClientRect()
+    const dropRect = dropdownRef.current.getBoundingClientRect()
+    const viewportH = window.innerHeight
+    const gap = 4
+
+    const spaceBelow = viewportH - btnRect.bottom - gap
+    const spaceAbove = btnRect.top - gap
+
+    const top = spaceBelow >= dropRect.height || spaceBelow >= spaceAbove
+      ? btnRect.bottom + gap
+      : btnRect.top - gap - dropRect.height
+
+    setDropdownStyle({
+      top: Math.max(4, top),
+      left: btnRect.left,
+    })
+  }, [isOpen, showCustom])
 
   const getCurrentLabel = (): string => {
     if (value.type === 'custom') {
@@ -232,11 +258,17 @@ export function LocalTimeRangeSelector({ value, onChange, presets = defaultPrese
       const preset = presets.find(p => p.type === 'points' && p.value === value.pointsLimit)
       return preset?.label ?? `Last ${value.pointsLimit}`
     }
-    if (value.type === 'duration' && value.hoursBack) {
+    if (value.type === 'duration' && value.hoursBack != null && value.hoursBack > 0) {
       const preset = presets.find(p => p.type === 'duration' && p.value === value.hoursBack)
       return preset?.label ?? `Last ${value.hoursBack}h`
     }
-    return 'Last 50'
+    // Check if there's a "zero" preset (e.g. "All data") for when hoursBack is 0 or null
+    const fallbackPreset = presets.find(p => p.type === 'duration' && p.value === 0)
+    if (fallbackPreset && (value.hoursBack === 0 || value.hoursBack === null)) {
+      return fallbackPreset.label
+    }
+    // Default label from first preset
+    return presets[0]?.label ?? 'Last 50'
   }
 
   const handlePresetSelect = (preset: TimeRangeOption) => {
@@ -253,8 +285,9 @@ export function LocalTimeRangeSelector({ value, onChange, presets = defaultPrese
   }
 
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors',
@@ -267,7 +300,7 @@ export function LocalTimeRangeSelector({ value, onChange, presets = defaultPrese
         <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <>
           <div
             className="fixed inset-0 z-40"
@@ -277,40 +310,48 @@ export function LocalTimeRangeSelector({ value, onChange, presets = defaultPrese
             }}
           />
 
-          <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-lg min-w-[180px]">
+          <div
+            ref={dropdownRef}
+            className="fixed z-50 bg-card border border-border rounded-lg shadow-lg min-w-[180px]"
+            style={dropdownStyle}
+          >
             {!showCustom ? (
               <>
-                <div className="p-1">
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Samples</div>
-                  {presets.filter(p => p.type === 'points').map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                        value.type === 'points' && value.pointsLimit === preset.value && 'bg-primary/10 text-primary'
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
+                {presets.some(p => p.type === 'points') && (
+                  <div className="p-1">
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Samples</div>
+                    {presets.filter(p => p.type === 'points').map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={cn(
+                          'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
+                          value.type === 'points' && value.pointsLimit === preset.value && 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                <div className="border-t border-border p-1">
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Time</div>
-                  {presets.filter(p => p.type === 'duration').map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                        value.type === 'duration' && value.hoursBack === preset.value && 'bg-primary/10 text-primary'
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
+                {presets.some(p => p.type === 'duration') && (
+                  <div className={cn(presets.some(p => p.type === 'points') && 'border-t border-border', 'p-1')}>
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Time</div>
+                    {presets.filter(p => p.type === 'duration').map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={cn(
+                          'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
+                          value.type === 'duration' && value.hoursBack === preset.value && 'bg-primary/10 text-primary'
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="border-t border-border p-1">
                   <button
@@ -343,7 +384,8 @@ export function LocalTimeRangeSelector({ value, onChange, presets = defaultPrese
               />
             )}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   )

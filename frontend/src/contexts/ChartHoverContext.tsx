@@ -17,7 +17,7 @@
  *    - Use hoveredSampleIds.has(sampleId) to check if a point should be highlighted
  */
 
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
 
 export interface HoveredSamples {
   characteristicId: number
@@ -50,16 +50,25 @@ interface ChartHoverProviderProps {
 
 export function ChartHoverProvider({ children }: ChartHoverProviderProps) {
   const [hoveredSamples, setHoveredSamples] = useState<HoveredSamples | null>(null)
+  const rafRef = useRef<number | null>(null)
 
   const broadcastHover = useCallback((
     characteristicId: number,
     sampleIds: number[] | null
   ) => {
-    if (sampleIds === null || sampleIds.length === 0) {
-      setHoveredSamples(null)
-    } else {
-      setHoveredSamples({ characteristicId, sampleIds: new Set(sampleIds) })
+    // Throttle hover updates to one per animation frame to prevent
+    // cascading re-renders at 60fps mouse events
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
     }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      if (sampleIds === null || sampleIds.length === 0) {
+        setHoveredSamples(null)
+      } else {
+        setHoveredSamples({ characteristicId, sampleIds: new Set(sampleIds) })
+      }
+    })
   }, [])
 
   const getHoveredSampleIds = useCallback((characteristicId: number): Set<number> | null => {

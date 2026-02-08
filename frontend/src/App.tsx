@@ -1,3 +1,4 @@
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -7,6 +8,7 @@ import { ConfigurationView } from '@/pages/ConfigurationView'
 import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsView } from '@/pages/SettingsView'
 import { UserManagementPage } from '@/pages/UserManagementPage'
+import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
@@ -29,6 +31,53 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+/**
+ * Error boundary to catch render errors and prevent full-app crashes.
+ * Shows a recovery UI instead of a white screen.
+ */
+class RouteErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Route error boundary caught:', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-8">
+          <div className="text-center max-w-md">
+            <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+            <p className="text-muted-foreground mb-4 text-sm">
+              {this.state.error?.message || 'An unexpected error occurred'}
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null })
+                window.location.href = '/dashboard'
+              }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 /**
  * Auth gate that redirects unauthenticated users to /login.
@@ -55,111 +104,138 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/**
+ * Providers that depend on authentication (plant data, WebSocket, etc.).
+ * Only mounted after auth is confirmed to prevent 401 cascades on fresh sessions.
+ */
+function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <PlantProvider>
+      <ChartHoverProvider>
+        <WebSocketProvider>
+          {children}
+        </WebSocketProvider>
+      </ChartHoverProvider>
+    </PlantProvider>
+  )
+}
+
 function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <PlantProvider>
-            <ChartHoverProvider>
-              <WebSocketProvider>
-                <BrowserRouter>
-                  <Routes>
-                    {/* Login page - outside Layout, no auth required */}
-                    <Route path="/login" element={<LoginPage />} />
+          <BrowserRouter>
+            <Routes>
+              {/* Login page - outside auth gate, no providers needed */}
+              <Route path="/login" element={<LoginPage />} />
 
-                    {/* Main app with sidebar layout - requires auth */}
-                    <Route
-                      path="/"
-                      element={
-                        <RequireAuth>
-                          <Layout />
-                        </RequireAuth>
-                      }
-                    >
-                      <Route index element={<Navigate to="/dashboard" replace />} />
-                      <Route path="dashboard" element={<OperatorDashboard />} />
-                      <Route path="data-entry" element={<DataEntryView />} />
-                      <Route path="violations" element={<ViolationsView />} />
-                      <Route
-                        path="reports"
-                        element={
-                          <ProtectedRoute requiredRole="supervisor">
-                            <ReportsView />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="connectivity"
-                        element={
-                          <ProtectedRoute requiredRole="engineer">
-                            <ConnectivityPage />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="configuration"
-                        element={
-                          <ProtectedRoute requiredRole="engineer">
-                            <ConfigurationView />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="settings"
-                        element={
-                          <ProtectedRoute requiredRole="admin">
-                            <SettingsView />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path="admin/users"
-                        element={
-                          <ProtectedRoute requiredRole="admin">
-                            <UserManagementPage />
-                          </ProtectedRoute>
-                        }
-                      />
-                    </Route>
-
-                    {/* Display modes - requires auth but no layout chrome */}
-                    <Route
-                      path="/kiosk"
-                      element={
-                        <RequireAuth>
-                          <KioskLayout>
-                            <KioskView />
-                          </KioskLayout>
-                        </RequireAuth>
-                      }
-                    />
-                    <Route
-                      path="/wall-dashboard"
-                      element={
-                        <RequireAuth>
-                          <KioskLayout showStatusBar={false}>
-                            <WallDashboard />
-                          </KioskLayout>
-                        </RequireAuth>
-                      }
-                    />
-                  </Routes>
-                </BrowserRouter>
-                <Toaster
-                  position="top-right"
-                  closeButton
-                  toastOptions={{
-                    duration: 10000,
-                    classNames: {
-                      error: 'bg-destructive text-destructive-foreground',
-                      warning: 'bg-warning text-warning-foreground',
-                    },
-                  }}
+              {/* Main app with sidebar layout - requires auth */}
+              <Route
+                path="/"
+                element={
+                  <RequireAuth>
+                    <AuthenticatedProviders>
+                      <RouteErrorBoundary>
+                        <Layout />
+                      </RouteErrorBoundary>
+                    </AuthenticatedProviders>
+                  </RequireAuth>
+                }
+              >
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<OperatorDashboard />} />
+                <Route path="data-entry" element={<DataEntryView />} />
+                <Route path="violations" element={<ViolationsView />} />
+                <Route
+                  path="reports"
+                  element={
+                    <ProtectedRoute requiredRole="supervisor">
+                      <ReportsView />
+                    </ProtectedRoute>
+                  }
                 />
-              </WebSocketProvider>
-            </ChartHoverProvider>
-          </PlantProvider>
+                <Route
+                  path="connectivity"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <ConnectivityPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="configuration"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <ConfigurationView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <ProtectedRoute requiredRole="admin">
+                      <SettingsView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="admin/users"
+                  element={
+                    <ProtectedRoute requiredRole="admin">
+                      <UserManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="dev-tools"
+                  element={
+                    <ProtectedRoute requiredRole="admin">
+                      <DevToolsPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+
+              {/* Display modes - requires auth but no layout chrome */}
+              <Route
+                path="/kiosk"
+                element={
+                  <RequireAuth>
+                    <AuthenticatedProviders>
+                      <KioskLayout>
+                        <KioskView />
+                      </KioskLayout>
+                    </AuthenticatedProviders>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/wall-dashboard"
+                element={
+                  <RequireAuth>
+                    <AuthenticatedProviders>
+                      <KioskLayout showStatusBar={false}>
+                        <WallDashboard />
+                      </KioskLayout>
+                    </AuthenticatedProviders>
+                  </RequireAuth>
+                }
+              />
+            </Routes>
+          </BrowserRouter>
+          <Toaster
+            position="top-right"
+            closeButton
+            toastOptions={{
+              duration: 3000,
+              classNames: {
+                error: 'bg-destructive text-destructive-foreground',
+                warning: 'bg-warning text-warning-foreground',
+              },
+            }}
+            expand={false}
+          />
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

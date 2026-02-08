@@ -11,6 +11,7 @@ Tests verify:
 - Error handling for insufficient samples
 """
 
+import math
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -175,10 +176,13 @@ class TestRBarCalculation:
         Expected:
         - X-double-bar = 10.245
         - R-bar = 0.3
-        - sigma = 0.3 / 2.326 = 0.129
-        - UCL = 10.245 + 3*0.129 = 10.632
-        - LCL = 10.245 - 3*0.129 = 9.858
+        - sigma = 0.3 / 2.326 = 0.129 (process sigma)
+        - sigma_xbar = 0.129 / sqrt(5) = 0.0577
+        - UCL = 10.245 + 3 * 0.0577 = 10.418
+        - LCL = 10.245 - 3 * 0.0577 = 10.072
         """
+        import math
+
         service = ControlLimitService(
             sample_repo=MagicMock(),
             char_repo=MagicMock(),
@@ -210,11 +214,15 @@ class TestRBarCalculation:
         # Verify results
         assert abs(center_line - 10.245) < 0.01
         assert abs(sigma - 0.129) < 0.01
-        assert abs(ucl - 10.632) < 0.01
-        assert abs(lcl - 9.858) < 0.01
+        # UCL/LCL use sigma_xbar = sigma / sqrt(n)
+        sigma_xbar = sigma / math.sqrt(5)
+        assert ucl == pytest.approx(center_line + 3 * sigma_xbar, rel=1e-9)
+        assert lcl == pytest.approx(center_line - 3 * sigma_xbar, rel=1e-9)
 
     def test_r_bar_with_varying_ranges(self):
         """Test R-bar calculation with varying subgroup ranges."""
+        import math
+
         service = ControlLimitService(
             sample_repo=MagicMock(),
             char_repo=MagicMock(),
@@ -247,11 +255,13 @@ class TestRBarCalculation:
         expected_mean = sum(sum(sg) / len(sg) for sg in subgroups) / len(subgroups)
         expected_r_bar = (1.0 + 2.0 + 1.5 + 0.5) / 4  # 1.25
         expected_sigma = expected_r_bar / 1.693  # d2 for n=3
+        # Control limits use sigma_xbar = sigma / sqrt(n)
+        expected_sigma_xbar = expected_sigma / math.sqrt(3)
 
         assert abs(center_line - expected_mean) < 0.01
         assert abs(sigma - expected_sigma) < 0.01
-        assert abs(ucl - (expected_mean + 3 * expected_sigma)) < 0.01
-        assert abs(lcl - (expected_mean - 3 * expected_sigma)) < 0.01
+        assert ucl == pytest.approx(expected_mean + 3 * expected_sigma_xbar, abs=0.01)
+        assert lcl == pytest.approx(expected_mean - 3 * expected_sigma_xbar, abs=0.01)
 
 
 class TestSBarCalculation:
@@ -299,7 +309,9 @@ class TestSBarCalculation:
         assert 1.5 < sigma < 2.5  # Sigma should be around 2
         assert ucl > center_line
         assert lcl < center_line
-        assert (ucl - center_line) == pytest.approx(3 * sigma, rel=1e-9)
+        # Control limits use sigma_xbar = sigma / sqrt(n)
+        sigma_xbar = sigma / math.sqrt(15)
+        assert (ucl - center_line) == pytest.approx(3 * sigma_xbar, rel=1e-9)
 
     def test_s_bar_verifies_c4_correction(self):
         """Test that S-bar method applies c4 correction factor."""

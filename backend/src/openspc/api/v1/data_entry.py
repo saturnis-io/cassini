@@ -5,7 +5,10 @@ with API key authentication. External systems can submit samples via these
 endpoints without using the web UI.
 """
 
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -142,11 +145,12 @@ async def submit_sample(
     except ValueError as e:
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to process data entry sample")
         await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process sample: {str(e)}",
+            detail="Failed to process sample",
         )
 
 
@@ -229,8 +233,9 @@ async def submit_batch(
                 )
             )
 
-        except Exception as e:
-            errors.append(f"Sample {idx}: {str(e)}")
+        except Exception:
+            logger.exception("Unexpected error processing data entry sample %d", idx)
+            errors.append(f"Sample {idx}: Unexpected error")
 
     # Commit all successful samples
     await session.commit()

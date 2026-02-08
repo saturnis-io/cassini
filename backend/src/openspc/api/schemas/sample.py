@@ -32,16 +32,19 @@ class SampleCreate(BaseModel):
 class SampleResponse(BaseModel):
     """Schema for sample response.
 
+    Includes both backend-canonical field names and frontend-friendly aliases
+    so the response works with either naming convention.
+
     Attributes:
         id: Unique identifier
-        char_id: Characteristic ID
+        char_id: Characteristic ID (also available as characteristic_id)
         timestamp: When the sample was taken
         batch_number: Batch/lot identifier
         operator_id: Operator identifier
-        is_excluded: Whether this sample is excluded from control limit calculations
+        is_excluded: Whether this sample is excluded (also available as excluded)
         measurements: List of measurement values
         mean: Calculated mean of measurements (X-bar)
-        range_value: Calculated range (max - min) for R chart
+        range_value: Calculated range (also available as range)
         actual_n: Actual number of measurements in this sample
         is_undersized: Whether sample has fewer measurements than expected
         effective_ucl: Per-point UCL for Mode B (variable limits)
@@ -68,7 +71,18 @@ class SampleResponse(BaseModel):
     is_modified: bool = False
     edit_count: int = 0
 
+    # Frontend-friendly alias fields
+    characteristic_id: int | None = None
+    excluded: bool | None = None
+
     model_config = ConfigDict(from_attributes=True)
+
+    def model_post_init(self, __context: object) -> None:
+        """Populate alias fields from canonical fields."""
+        if self.characteristic_id is None:
+            self.characteristic_id = self.char_id
+        if self.excluded is None:
+            self.excluded = self.is_excluded
 
 
 class SampleExclude(BaseModel):

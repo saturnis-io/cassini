@@ -336,18 +336,24 @@ class MQTTManager:
 
         try:
             client = MQTTClient(config)
-            await client.connect()
+            await client.connect()  # Non-blocking: returns immediately even if broker is offline
 
+            # Always register the client — it may be reconnecting in background
             self._clients[broker.id] = client
-            self._states[broker.id].is_connected = True
-            self._states[broker.id].last_connected = datetime.now()
-            self._states[broker.id].error_message = None
+            self._states[broker.id].is_connected = client.is_connected
 
-            logger.info(f"Successfully connected to broker: {broker.name}")
-            return True
+            if client.is_connected:
+                self._states[broker.id].last_connected = datetime.now()
+                self._states[broker.id].error_message = None
+                logger.info(f"Successfully connected to broker: {broker.name}")
+            else:
+                self._states[broker.id].error_message = "Connecting in background"
+                logger.info(f"Broker {broker.name} will reconnect in background")
+
+            return client.is_connected
 
         except Exception as e:
-            logger.error(f"Failed to connect to broker {broker.name}: {e}")
+            logger.error(f"Failed to initialize broker {broker.name}: {e}")
             self._states[broker.id].is_connected = False
             self._states[broker.id].error_message = str(e)
             return False

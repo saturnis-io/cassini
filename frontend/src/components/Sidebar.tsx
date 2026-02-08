@@ -8,12 +8,13 @@ import {
   Sliders,
   Network,
   Users,
+  Wrench,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
-import { useViolationStats } from '@/api/hooks'
+import { useViolationStats, useDevToolsStatus } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessView, type Role } from '@/lib/roles'
 
@@ -43,6 +44,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const { sidebarState, toggleSidebar } = useUIStore()
   const { data: stats } = useViolationStats()
+  const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
 
   const isCollapsed = sidebarState === 'collapsed'
@@ -71,6 +73,9 @@ export function Sidebar({ className }: SidebarProps) {
     { path: '/settings', label: 'Settings', icon: <Sliders className="h-5 w-5" />, requiredRole: 'admin' },
     { path: '/admin/users', label: 'Users', icon: <Users className="h-5 w-5" />, requiredRole: 'admin' },
   ]
+
+  // Dev tools nav item — only when sandbox mode is active and user is admin
+  const showDevTools = devToolsStatus?.sandbox && canAccessView(role, '/dev-tools')
 
   // Filter navigation items based on current role
   const visibleMainItems = mainNavItems.filter(
@@ -130,6 +135,18 @@ export function Sidebar({ className }: SidebarProps) {
         {visibleSecondaryItems.length > 0 && <div className="my-2 border-t" />}
 
         {visibleSecondaryItems.map(renderNavItem)}
+
+        {/* Dev Tools — sandbox mode only */}
+        {showDevTools && (
+          <>
+            <div className="my-2 border-t border-amber-500/30" />
+            {renderNavItem({
+              path: '/dev-tools',
+              label: 'Dev Tools',
+              icon: <Wrench className="h-5 w-5 text-amber-500" />,
+            })}
+          </>
+        )}
       </nav>
 
       {/* Collapse toggle - chevron button at sidebar edge */}

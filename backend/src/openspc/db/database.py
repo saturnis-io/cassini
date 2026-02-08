@@ -2,7 +2,6 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import event
@@ -136,10 +135,10 @@ def get_database() -> DatabaseConfig:
     """
     global _db_config
     if _db_config is None:
-        # Default to local SQLite database
-        db_path = Path("./openspc.db")
+        from openspc.core.config import get_settings
+
         _db_config = DatabaseConfig(
-            database_url=f"sqlite+aiosqlite:///{db_path}",
+            database_url=get_settings().database_url,
             echo=False,
         )
     return _db_config
@@ -153,6 +152,13 @@ def set_database(config: DatabaseConfig) -> None:
     """
     global _db_config
     _db_config = config
+
+
+def reset_singleton() -> None:
+    """Clear the global database singleton so the next get_database() call
+    creates a fresh connection pool. Used by devtools reset-and-seed."""
+    global _db_config
+    _db_config = None
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

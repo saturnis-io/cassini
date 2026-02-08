@@ -89,9 +89,12 @@ interface DashboardState {
   xAxisMode: XAxisMode
   setXAxisMode: (mode: XAxisMode) => void
 
-  // Range slider (Brush) visibility
+  // Range slider visibility and window
   showBrush: boolean
   setShowBrush: (show: boolean) => void
+  /** Range window as [startIndex, endIndex] — null means show all */
+  rangeWindow: [number, number] | null
+  setRangeWindow: (window: [number, number] | null) => void
 
   // Annotation visibility
   showAnnotations: boolean
@@ -109,7 +112,7 @@ const defaultTimeRange: TimeRangeState = {
 
 export const useDashboardStore = create<DashboardState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
   // Selected characteristic
   selectedCharacteristicId: null,
   setSelectedCharacteristicId: (id) => set({ selectedCharacteristicId: id }),
@@ -221,9 +224,8 @@ export const useDashboardStore = create<DashboardState>()(
       newMap.set(characteristicId, chartType)
       return { chartTypes: newMap }
     }),
-  getChartType: () => {
-    // This is a selector, not state - will be used via useDashboardStore.getState()
-    return 'xbar' as ChartTypeId
+  getChartType: (characteristicId: number) => {
+    return get().chartTypes.get(characteristicId) ?? ('xbar' as ChartTypeId)
   },
 
   // X-axis display mode
@@ -232,7 +234,9 @@ export const useDashboardStore = create<DashboardState>()(
 
   // Range slider (Brush)
   showBrush: false,
-  setShowBrush: (show) => set({ showBrush: show }),
+  setShowBrush: (show) => set({ showBrush: show, rangeWindow: show ? null : null }),
+  rangeWindow: null,
+  setRangeWindow: (window) => set({ rangeWindow: window }),
 
   // Annotation visibility
   showAnnotations: true,

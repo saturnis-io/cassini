@@ -4,7 +4,7 @@ This module provides the ManualProvider class, which handles validation
 and submission of manually-entered measurement data through the REST API.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from openspc.core.providers.protocol import SampleCallback, SampleContext, SampleEvent
@@ -140,7 +140,7 @@ class ManualProvider:
         event = SampleEvent(
             characteristic_id=characteristic_id,
             measurements=measurements,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             context=SampleContext(
                 batch_number=batch_number,
                 operator_id=operator_id,

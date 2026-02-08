@@ -10,8 +10,6 @@ interface DatabaseStats {
   characteristics_count: number
   samples_count: number
   violations_count: number
-  hierarchy_nodes_count: number
-  api_keys_count: number
 }
 
 // Fetch database stats from various endpoints (using authenticated fetchApi)
@@ -26,8 +24,6 @@ async function fetchDatabaseStats(): Promise<DatabaseStats> {
     characteristics_count: (chars as { total?: number }).total || 0,
     samples_count: (samples as { total?: number }).total || 0,
     violations_count: (violations as { total?: number }).total || 0,
-    hierarchy_nodes_count: 0, // Would need endpoint
-    api_keys_count: 0, // Would need endpoint
   }
 }
 
@@ -51,6 +47,12 @@ export function DatabaseSettings() {
         sampleApi.list({ per_page: 10000 }),
         violationApi.list({ per_page: 10000 }),
       ])
+
+      const totalSamples = (samples as { total?: number }).total ?? 0
+      const totalViolations = (violations as { total?: number }).total ?? 0
+      if (totalSamples > 10000 || totalViolations > 10000) {
+        toast.warning(`Export truncated: ${totalSamples} samples, ${totalViolations} violations (max 10,000 each)`)
+      }
 
       const exportData = {
         exported_at: new Date().toISOString(),

@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant, useCreateCharacteristic } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { usePlant } from '@/providers/PlantProvider'
 import { HierarchyTree } from '@/components/HierarchyTree'
 import { CharacteristicForm } from '@/components/CharacteristicForm'
-import { NumberInput } from '@/components/NumberInput'
+import { CreateCharacteristicWizard } from '@/components/characteristic-config/CreateCharacteristicWizard'
 import { Plus, X, Factory, Box, Cog, Cpu, Settings, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,11 +18,6 @@ const NODE_TYPES = [
   { value: 'Cell', label: 'Cell', icon: Cpu },
   { value: 'Equipment', label: 'Equipment', icon: Settings },
   { value: 'Tag', label: 'Tag', icon: Settings },
-]
-
-const PROVIDER_TYPES = [
-  { value: 'MANUAL', label: 'Manual Entry' },
-  { value: 'TAG', label: 'MQTT Tag' },
 ]
 
 export function ConfigurationView() {
@@ -41,24 +36,14 @@ export function ConfigurationView() {
 
   // Modal states
   const [showAddNodeModal, setShowAddNodeModal] = useState(false)
-  const [showAddCharModal, setShowAddCharModal] = useState(false)
+  const [showWizard, setShowWizard] = useState(false)
 
   // Node form state
   const [nodeName, setNodeName] = useState('')
   const [nodeType, setNodeType] = useState('SITE')
 
-  // Characteristic form state
-  const [charName, setCharName] = useState('')
-  const [charProvider, setCharProvider] = useState<'MANUAL' | 'TAG'>('MANUAL')
-  const [charSubgroupSize, setCharSubgroupSize] = useState('5')
-  const [charTarget, setCharTarget] = useState('')
-  const [charUSL, setCharUSL] = useState('')
-  const [charLSL, setCharLSL] = useState('')
-  const [charMqttTopic, setCharMqttTopic] = useState('')
-
   const createNode = useCreateHierarchyNode()
   const createNodeInPlant = useCreateHierarchyNodeInPlant()
-  const createChar = useCreateCharacteristic()
 
   const handleCreateNode = async () => {
     if (!nodeName.trim()) return
@@ -83,31 +68,6 @@ export function ConfigurationView() {
 
     setNodeName('')
     setShowAddNodeModal(false)
-  }
-
-  const handleCreateCharacteristic = async () => {
-    if (!charName.trim() || !selectedNodeId) return
-
-    await createChar.mutateAsync({
-      name: charName.trim(),
-      hierarchy_id: selectedNodeId,
-      provider_type: charProvider,
-      subgroup_size: parseInt(charSubgroupSize) || 5,
-      target_value: charTarget ? parseFloat(charTarget) : null,
-      usl: charUSL ? parseFloat(charUSL) : null,
-      lsl: charLSL ? parseFloat(charLSL) : null,
-      mqtt_topic: charProvider === 'TAG' ? charMqttTopic : null,
-    })
-
-    // Reset form
-    setCharName('')
-    setCharProvider('MANUAL')
-    setCharSubgroupSize('5')
-    setCharTarget('')
-    setCharUSL('')
-    setCharLSL('')
-    setCharMqttTopic('')
-    setShowAddCharModal(false)
   }
 
   // Show error if plant loading failed
@@ -135,7 +95,7 @@ export function ConfigurationView() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <Factory className="h-8 w-8 text-muted-foreground" />
-        <div className="text-muted-foreground">Select a plant to view and manage hierarchy</div>
+        <div className="text-muted-foreground">Select a site to view and manage hierarchy</div>
       </div>
     )
   }
@@ -170,7 +130,7 @@ export function ConfigurationView() {
         {selectedNodeId && (
           <div className="p-3 border-t">
             <button
-              onClick={() => setShowAddCharModal(true)}
+              onClick={() => setShowWizard(true)}
               className={cn(
                 'w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg',
                 'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
@@ -192,7 +152,7 @@ export function ConfigurationView() {
             <p>Select a characteristic from the hierarchy to edit</p>
             {selectedNodeId && (
               <button
-                onClick={() => setShowAddCharModal(true)}
+                onClick={() => setShowWizard(true)}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg',
                   'bg-primary text-primary-foreground hover:bg-primary/90'
@@ -278,131 +238,14 @@ export function ConfigurationView() {
         </div>
       )}
 
-      {/* Add Characteristic Modal */}
-      {showAddCharModal && selectedNodeId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Add Characteristic</h3>
-              <button
-                onClick={() => setShowAddCharModal(false)}
-                className="p-1 rounded hover:bg-muted"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Name</label>
-                  <input
-                    type="text"
-                    value={charName}
-                    onChange={(e) => setCharName(e.target.value)}
-                    placeholder="e.g., Temperature"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Provider Type</label>
-                  <select
-                    value={charProvider}
-                    onChange={(e) => setCharProvider(e.target.value as 'MANUAL' | 'TAG')}
-                    className="w-full mt-1 px-3 py-2 border rounded-lg bg-background"
-                  >
-                    {PROVIDER_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Subgroup Size</label>
-                <NumberInput
-                  min={1}
-                  max={25}
-                  value={charSubgroupSize}
-                  onChange={setCharSubgroupSize}
-                  className="w-full mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Number of measurements per sample (1-25)
-                </p>
-              </div>
-
-              {charProvider === 'TAG' && (
-                <div>
-                  <label className="text-sm font-medium">MQTT Topic</label>
-                  <input
-                    type="text"
-                    value={charMqttTopic}
-                    onChange={(e) => setCharMqttTopic(e.target.value)}
-                    placeholder="e.g., sensors/temp/value"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Target</label>
-                  <NumberInput
-                    step="any"
-                    value={charTarget}
-                    onChange={setCharTarget}
-                    placeholder="Optional"
-                    className="w-full mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">USL</label>
-                  <NumberInput
-                    step="any"
-                    value={charUSL}
-                    onChange={setCharUSL}
-                    placeholder="Optional"
-                    className="w-full mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">LSL</label>
-                  <NumberInput
-                    step="any"
-                    value={charLSL}
-                    onChange={setCharLSL}
-                    placeholder="Optional"
-                    className="w-full mt-1"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowAddCharModal(false)}
-                className="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateCharacteristic}
-                disabled={!charName.trim() || createChar.isPending}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium rounded-lg',
-                  'bg-primary text-primary-foreground hover:bg-primary/90',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                {createChar.isPending ? 'Creating...' : 'Create Characteristic'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Create Characteristic Wizard */}
+      {selectedNodeId && (
+        <CreateCharacteristicWizard
+          isOpen={showWizard}
+          onClose={() => setShowWizard(false)}
+          selectedNodeId={selectedNodeId}
+          plantId={selectedPlant?.id ?? null}
+        />
       )}
     </div>
   )

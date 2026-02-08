@@ -5,7 +5,6 @@ using PyJWT with HS256 algorithm.
 """
 
 import logging
-import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -13,13 +12,16 @@ from typing import Optional
 
 import jwt
 
+from openspc.core.config import get_settings
+
 logger = logging.getLogger(__name__)
 
-# Configuration from environment variables
-JWT_SECRET_KEY: str = os.environ.get("OPENSPC_JWT_SECRET", "")
 JWT_ALGORITHM: str = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
 REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+# Load secret from centralized settings
+JWT_SECRET_KEY: str = get_settings().jwt_secret
 
 # When no env var is set, persist a random secret to a file so it
 # survives uvicorn --reload restarts during development.

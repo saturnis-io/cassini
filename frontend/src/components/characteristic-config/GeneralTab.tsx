@@ -1,19 +1,12 @@
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { ChevronRight } from 'lucide-react'
+import type { Characteristic } from '@/types'
 
 interface FormData {
   name: string
   description: string
   decimal_precision: string
-}
-
-interface Characteristic {
-  provider_type: string
-  hierarchy_id: number
-  created_at?: string
-  updated_at?: string
-  sample_count?: number
 }
 
 interface HierarchyBreadcrumb {
@@ -109,6 +102,28 @@ export function GeneralTab({
               </div>
             </div>
           </div>
+
+          {/* MQTT Tag Details (only for TAG provider) */}
+          {characteristic.provider_type === 'TAG' && characteristic.mqtt_topic && (
+            <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+              <div>
+                <span className="text-xs text-muted-foreground">Topic</span>
+                <p className="text-sm font-mono">{characteristic.mqtt_topic}</p>
+              </div>
+              {characteristic.metric_name && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Metric</span>
+                  <p className="text-sm font-mono">{characteristic.metric_name}</p>
+                </div>
+              )}
+              {characteristic.trigger_tag && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Trigger Tag</span>
+                  <p className="text-sm font-mono">{characteristic.trigger_tag}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </AccordionSection>
 

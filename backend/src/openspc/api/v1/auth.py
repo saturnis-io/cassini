@@ -4,13 +4,12 @@ Provides login, token refresh, logout, and current user endpoints.
 Uses JWT access tokens (in response body) and refresh tokens (in httpOnly cookies).
 """
 
-import os
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_user, get_user_repo
+from openspc.api.deps import get_current_user, get_db_session, get_user_repo
 from openspc.api.schemas.user import (
     LoginRequest,
     LoginResponse,
@@ -20,14 +19,14 @@ from openspc.api.schemas.user import (
 )
 from openspc.core.auth.jwt import create_access_token, create_refresh_token, verify_refresh_token
 from openspc.core.auth.passwords import verify_password
-from openspc.db.database import get_session
+from openspc.core.config import get_settings
 from openspc.db.models.user import User
 from openspc.db.repositories.user import UserRepository
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 # Cookie configuration
-COOKIE_SECURE = os.environ.get("OPENSPC_COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SECURE = get_settings().cookie_secure
 REFRESH_COOKIE_PATH = "/api/v1/auth"
 REFRESH_COOKIE_KEY = "refresh_token"
 
@@ -107,7 +106,7 @@ async def login(
 async def refresh(
     response: Response,
     refresh_token: Optional[str] = Cookie(None),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> TokenResponse:
     """Get a new access token using the refresh token cookie.
 

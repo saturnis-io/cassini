@@ -1,6 +1,6 @@
 """API key authentication for data entry endpoints."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import secrets
 
@@ -63,6 +63,21 @@ class APIKeyAuth:
         """
         return f"openspc_{secrets.token_urlsafe(32)}"
 
+    @staticmethod
+    def extract_prefix(plain_key: str) -> str:
+        """Extract the lookup prefix from a plain API key.
+
+        The prefix is the first 8 characters of the key, stored unhashed
+        to allow O(1) candidate narrowing before bcrypt verification.
+
+        Args:
+            plain_key: The full plain text API key.
+
+        Returns:
+            First 8 characters of the key.
+        """
+        return plain_key[:8]
+
 
 async def verify_api_key(
     x_api_key: str = Header(..., alias="X-API-Key"),
@@ -83,15 +98,28 @@ async def verify_api_key(
     Raises:
         HTTPException: 401 if key is invalid, expired, or inactive.
     """
-    # Query all active keys (we need to check hash against each)
+    # Use key prefix for O(1) candidate narrowing when available
+    prefix = APIKeyAuth.extract_prefix(x_api_key)
     stmt = select(APIKey).where(APIKey.is_active == True)  # noqa: E712
-    result = await session.execute(stmt)
-    api_keys = result.scalars().all()
 
-    # Find matching key by verifying against each hash
+    # First try prefix-based lookup (fast path)
+    prefix_stmt = stmt.where(APIKey.key_prefix == prefix)
+    result = await session.execute(prefix_stmt)
+    api_keys = list(result.scalars().all())
+
+    # Fallback: keys without prefix set (created before migration)
+    if not api_keys:
+        fallback_stmt = stmt.where(APIKey.key_prefix.is_(None))
+        fallback_result = await session.execute(fallback_stmt)
+        api_keys = list(fallback_result.scalars().all())
+
+    # Verify against candidate(s) using bcrypt
     matched_key: Optional[APIKey] = None
     for api_key in api_keys:
         if APIKeyAuth.verify_key(x_api_key, api_key.key_hash):
+            # Backfill prefix if missing (one-time migration)
+            if api_key.key_prefix is None:
+                api_key.key_prefix = prefix
             matched_key = api_key
             break
 
@@ -111,38 +139,7 @@ async def verify_api_key(
         )
 
     # Update last_used_at timestamp
-    matched_key.last_used_at = datetime.utcnow()
+    matched_key.last_used_at = datetime.now(timezone.utc)
     await session.flush()
 
     return matched_key
-
-
-def require_characteristic_permission(char_id: int):
-    """Factory for dependency that checks characteristic permission.
-
-    Creates a FastAPI dependency that verifies the API key has permission
-    to access a specific characteristic.
-
-    Args:
-        char_id: The characteristic ID to check permission for.
-
-    Returns:
-        A FastAPI dependency function.
-
-    Usage:
-        @router.post("/")
-        async def endpoint(
-            api_key: APIKey = Depends(verify_api_key),
-            _: None = Depends(require_characteristic_permission(char_id)),
-        ):
-            ...
-    """
-
-    async def check_permission(api_key: APIKey = Depends(verify_api_key)):
-        if not api_key.can_access_characteristic(char_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"API key does not have permission for characteristic {char_id}",
-            )
-
-    return check_permission
