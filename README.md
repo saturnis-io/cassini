@@ -46,7 +46,7 @@ All charts are rendered on HTML5 canvas via ECharts for high performance with th
 - **Specification limits** (USL/LSL) with toggleable visibility
 - **Zone shading** (A/B/C zones) for visual sigma-level reference
 - **Distribution histogram** — vertical (right-side) or horizontal (below), synchronized with the control chart
-- **Comparison mode** — overlay two characteristics on the same chart
+- **Comparison mode** — view two characteristics side by side with independent color schemes
 - **Gradient line strokes** and custom point shapes (circles, diamonds for violations, triangles for undersized)
 - **Cross-chart hover sync** — hovering a point on X-bar highlights the corresponding point on the Range chart
 - **Resizable chart panels** — drag dividers between primary/secondary charts and histogram

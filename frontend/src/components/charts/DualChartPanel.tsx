@@ -2,8 +2,9 @@
  * DualChartPanel - Renders synchronized dual control charts.
  * Used for X-bar/Range, X-bar/S, and I-MR chart combinations.
  *
- * Layout: The histogram (when positioned right) aligns ONLY with the primary chart,
- * not the full height of both charts, ensuring visual alignment.
+ * Layout: The histogram (when positioned right) aligns with the primary chart.
+ * A summary stats panel of matching width sits beside the secondary chart
+ * so both rows share the same column widths.
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
@@ -12,6 +13,7 @@ import { ControlChart } from '@/components/ControlChart'
 import { DistributionHistogram } from '@/components/DistributionHistogram'
 import { RangeChart } from './RangeChart'
 import { useChartData } from '@/api/hooks'
+import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import type { ChartTypeId } from '@/types/charts'
 import type { HistogramPosition } from '@/stores/dashboardStore'
 
@@ -127,6 +129,61 @@ export function DualChartPanel({
 
     return [domainMin - padding, domainMax + padding]
   }, [chartData])
+
+  // Compute secondary chart summary stats (for the side panel)
+  const secondaryStats = useMemo(() => {
+    if (!secondaryChartType || !chartData?.data_points?.length) return null
+
+    const points = chartData.data_points
+    const n = chartData.nominal_subgroup_size
+
+    let values: number[] = []
+    let label = ''
+    let symbol = ''
+
+    if (secondaryChartType === 'range') {
+      values = points.map((p) => p.range ?? 0).filter((v) => v > 0)
+      label = 'Range'
+      symbol = 'R̄'
+    } else if (secondaryChartType === 'stddev') {
+      const d2 = getSPCConstant(SPC_CONSTANTS.d2, n) ?? 2.326
+      values = points.map((p) => (p.range ?? 0) / d2).filter((v) => v > 0)
+      label = 'Std Dev'
+      symbol = 'S̄'
+    } else if (secondaryChartType === 'mr') {
+      for (let i = 1; i < points.length; i++) {
+        values.push(Math.abs(points[i].mean - points[i - 1].mean))
+      }
+      label = 'Moving Range'
+      symbol = 'MR'
+    }
+
+    if (values.length === 0) return null
+
+    const mean = values.reduce((s, v) => s + v, 0) / values.length
+    let ucl: number | null = null
+    let lcl: number | null = null
+
+    if (secondaryChartType === 'range') {
+      const D3 = getSPCConstant(SPC_CONSTANTS.D3, n) ?? 0
+      const D4 = getSPCConstant(SPC_CONSTANTS.D4, n) ?? 3.267
+      ucl = D4 * mean
+      lcl = D3 * mean
+    } else if (secondaryChartType === 'stddev') {
+      const B3 = getSPCConstant(SPC_CONSTANTS.B3, n) ?? 0
+      const B4 = getSPCConstant(SPC_CONSTANTS.B4, n) ?? 3.267
+      ucl = B4 * mean
+      lcl = B3 * mean
+    } else if (secondaryChartType === 'mr') {
+      ucl = 3.267 * mean
+      lcl = 0
+    }
+
+    const max = Math.max(...values)
+    const min = Math.min(...values)
+
+    return { label, symbol, mean, ucl, lcl, max, min, count: values.length }
+  }, [chartData, secondaryChartType])
 
   // Handle vertical divider drag (between primary and secondary charts)
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
@@ -303,19 +360,64 @@ export function DualChartPanel({
         <div className="w-16 h-1 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
       </div>
 
-      {/* Secondary Chart Row: Range/S/MR (no histogram) */}
+      {/* Secondary Chart Row: Range/S/MR + stats panel (aligned with histogram) */}
       <div
-        className="flex-1 min-h-0"
+        className="flex-1 min-h-0 flex gap-2"
         style={{ height: `calc(${(1 - primaryRatio) * 100}% - 6px)` }}
       >
-        <RangeChart
-          characteristicId={characteristicId}
-          chartOptions={chartOptions}
-          chartType={secondaryChartType}
-          colorScheme={colorScheme}
-          onHoverIndex={setHoveredIndex}
-          highlightedIndex={hoveredIndex}
-        />
+        <div className="flex-1 min-w-0 h-full">
+          <RangeChart
+            characteristicId={characteristicId}
+            chartOptions={chartOptions}
+            chartType={secondaryChartType}
+            colorScheme={colorScheme}
+            onHoverIndex={setHoveredIndex}
+            highlightedIndex={hoveredIndex}
+          />
+        </div>
+
+        {/* Stats panel — matches histogram width for alignment */}
+        {isRightPosition && showHistogram && (
+          <div
+            className="flex-shrink-0 h-full"
+            style={{ width: histogramWidth }}
+          >
+            {secondaryStats && (
+              <div className="h-full border border-border rounded-lg bg-card flex flex-col justify-center px-3 py-2 overflow-hidden">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 truncate">
+                  {secondaryStats.label} Summary
+                </div>
+                <div className="space-y-1.5 text-xs tabular-nums">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">UCL</span>
+                    <span className="font-mono text-red-500/80">{secondaryStats.ucl?.toFixed(3) ?? '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{secondaryStats.symbol}</span>
+                    <span className="font-mono font-medium text-foreground">{secondaryStats.mean.toFixed(3)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">LCL</span>
+                    <span className="font-mono text-red-500/80">{secondaryStats.lcl?.toFixed(3) ?? '—'}</span>
+                  </div>
+                  <div className="my-1.5 border-t border-border" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Max</span>
+                    <span className="font-mono">{secondaryStats.max.toFixed(3)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Min</span>
+                    <span className="font-mono">{secondaryStats.min.toFixed(3)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">n</span>
+                    <span className="font-mono">{secondaryStats.count}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Horizontal Histogram - below both charts */}
