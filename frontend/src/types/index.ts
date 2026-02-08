@@ -110,14 +110,14 @@ export interface CharacteristicSummary extends Characteristic {
 export interface Sample {
   id: number
   characteristic_id: number
-  char_id?: number // Backend uses char_id, but some places expect characteristic_id
+  char_id?: number // Backend canonical name, also sent as characteristic_id
   timestamp: string
   mean: number
   range: number | null
-  range_value?: number | null // Backend uses range_value
+  range_value?: number | null // Backend canonical name for range
   std_dev: number | null
   excluded: boolean
-  is_excluded?: boolean // Backend uses is_excluded
+  is_excluded?: boolean // Backend canonical name, also sent as excluded
   source: string
   batch_number?: string | null
   operator_id?: string | null
@@ -257,6 +257,8 @@ export interface WSViolationMessage {
 export interface WSAckMessage {
   type: 'ack_update'
   violation_id: number
+  characteristic_id: number
+  acknowledged: boolean
   ack_user: string
   ack_reason: string
 }
@@ -406,6 +408,13 @@ export interface ProviderStatus {
 // Annotation types
 export type AnnotationType = 'point' | 'period'
 
+export interface AnnotationHistoryEntry {
+  id: number
+  previous_text: string
+  changed_by: string | null
+  changed_at: string
+}
+
 export interface Annotation {
   id: number
   characteristic_id: number
@@ -415,9 +424,12 @@ export interface Annotation {
   sample_id: number | null
   start_sample_id: number | null
   end_sample_id: number | null
+  start_time: string | null
+  end_time: string | null
   created_by: string | null
   created_at: string
   updated_at: string
+  history: AnnotationHistoryEntry[]
 }
 
 export interface AnnotationCreate {
@@ -425,8 +437,8 @@ export interface AnnotationCreate {
   text: string
   color?: string | null
   sample_id?: number | null
-  start_sample_id?: number | null
-  end_sample_id?: number | null
+  start_time?: string | null
+  end_time?: string | null
 }
 
 export interface AnnotationUpdate {

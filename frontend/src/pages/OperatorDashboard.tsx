@@ -9,6 +9,7 @@ import { ChartToolbar } from '@/components/ChartToolbar'
 import { ChartRangeSlider } from '@/components/ChartRangeSlider'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
+import { AnnotationListPanel } from '@/components/AnnotationListPanel'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
@@ -25,11 +26,14 @@ export function OperatorDashboard() {
   const timeRange = useDashboardStore((state) => state.timeRange)
   const chartTypes = useDashboardStore((state) => state.chartTypes)
   const showBrush = useDashboardStore((state) => state.showBrush)
+  const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
+  const showAnnotations = useDashboardStore((state) => state.showAnnotations)
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
   const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
-  const [annotationInitialMode, setAnnotationInitialMode] = useState<'point' | 'period'>('period')
+  const [annotationMode, setAnnotationMode] = useState<'point' | 'period'>('period')
   const [annotationSampleId, setAnnotationSampleId] = useState<number | undefined>(undefined)
+  const [annotationSampleLabel, setAnnotationSampleLabel] = useState<string | undefined>(undefined)
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
@@ -48,7 +52,8 @@ export function OperatorDashboard() {
       return { limit: timeRange.pointsLimit }
     }
     if (timeRange.type === 'duration' && timeRange.hoursBack) {
-      const now = Date.now()
+      // Quantize to nearest minute so the query key stays stable between renders
+      const now = Math.floor(Date.now() / 60000) * 60000
       const endDate = new Date(now).toISOString()
       const startDate = new Date(now - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
       return { startDate, endDate, limit: 500 } // Cap at 500 for performance
@@ -73,6 +78,30 @@ export function OperatorDashboard() {
     if (!chartDataForAnnotation?.data_points) return []
     return chartDataForAnnotation.data_points.map((p) => p.timestamp)
   }, [chartDataForAnnotation])
+
+  // Compute visible sample IDs and time range for annotation panel filtering
+  const visibleSampleIds = useMemo(() => {
+    if (!chartDataForAnnotation?.data_points) return null
+    const pts = chartDataForAnnotation.data_points
+    if (!showBrush || !rangeWindow) {
+      return new Set(pts.map((p) => p.sample_id))
+    }
+    const [start, end] = rangeWindow
+    return new Set(pts.slice(start, end + 1).map((p) => p.sample_id))
+  }, [chartDataForAnnotation, rangeWindow, showBrush])
+
+  // Visible time range for filtering time-based period annotations
+  const visibleTimeRange = useMemo<[string, string] | null>(() => {
+    if (!chartDataForAnnotation?.data_points?.length) return null
+    const pts = chartDataForAnnotation.data_points
+    if (!showBrush || !rangeWindow) {
+      return [pts[0].timestamp, pts[pts.length - 1].timestamp]
+    }
+    const [start, end] = rangeWindow
+    const slice = pts.slice(start, end + 1)
+    if (slice.length === 0) return null
+    return [slice[0].timestamp, slice[slice.length - 1].timestamp]
+  }, [chartDataForAnnotation, rangeWindow, showBrush])
 
   // Reset range window when characteristic changes
   useEffect(() => {
@@ -120,8 +149,9 @@ export function OperatorDashboard() {
               subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
               onChangeSecondary={() => setShowComparisonSelector(true)}
               onAddAnnotation={() => {
-                setAnnotationInitialMode('period')
+                setAnnotationMode('period')
                 setAnnotationSampleId(undefined)
+                setAnnotationSampleLabel(undefined)
                 setAnnotationDialogOpen(true)
               }}
             />
@@ -151,6 +181,13 @@ export function OperatorDashboard() {
                   label={comparisonMode ? 'Primary' : undefined}
                   histogramPosition={histogramPosition}
                   showSpecLimits={showSpecLimits}
+                  onPointAnnotation={(sampleId) => {
+                    const pt = chartDataForAnnotation?.data_points.find(p => p.sample_id === sampleId)
+                    setAnnotationMode('point')
+                    setAnnotationSampleId(sampleId)
+                    setAnnotationSampleLabel(pt ? `Sample — ${new Date(pt.timestamp).toLocaleString()}` : undefined)
+                    setAnnotationDialogOpen(true)
+                  }}
                 />
               ) : (
                 <ChartPanel
@@ -160,8 +197,10 @@ export function OperatorDashboard() {
                   histogramPosition={histogramPosition}
                   showSpecLimits={showSpecLimits}
                   onPointAnnotation={(sampleId) => {
-                    setAnnotationInitialMode('point')
+                    const pt = chartDataForAnnotation?.data_points.find(p => p.sample_id === sampleId)
+                    setAnnotationMode('point')
                     setAnnotationSampleId(sampleId)
+                    setAnnotationSampleLabel(pt ? `Sample — ${new Date(pt.timestamp).toLocaleString()}` : undefined)
                     setAnnotationDialogOpen(true)
                   }}
                 />
@@ -204,6 +243,14 @@ export function OperatorDashboard() {
                 )}
               </div>
             )}
+          {/* Annotation List Panel */}
+          {showAnnotations && selectedId && (
+            <AnnotationListPanel
+              characteristicId={selectedId}
+              visibleSampleIds={visibleSampleIds}
+              visibleTimeRange={visibleTimeRange}
+            />
+          )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -216,17 +263,13 @@ export function OperatorDashboard() {
       {inputModalOpen && <InputModal />}
 
       {/* Annotation Dialog */}
-      {annotationDialogOpen && selectedId && chartDataForAnnotation && (
+      {annotationDialogOpen && selectedId && (
         <AnnotationDialog
           characteristicId={selectedId}
-          dataPoints={chartDataForAnnotation.data_points.map((p, i) => ({
-            sample_id: p.sample_id,
-            index: i + 1,
-            timestamp: p.timestamp,
-          }))}
           onClose={() => setAnnotationDialogOpen(false)}
-          initialMode={annotationInitialMode}
-          initialSampleId={annotationSampleId}
+          mode={annotationMode}
+          sampleId={annotationSampleId}
+          sampleLabel={annotationSampleLabel}
         />
       )}
     </div>

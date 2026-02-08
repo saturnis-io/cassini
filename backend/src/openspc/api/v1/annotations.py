@@ -7,6 +7,7 @@ scoped under characteristics.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from openspc.api.deps import get_current_user, get_db_session, require_role
 from openspc.api.schemas.annotation import (
@@ -14,7 +15,7 @@ from openspc.api.schemas.annotation import (
     AnnotationResponse,
     AnnotationUpdate,
 )
-from openspc.db.models.annotation import Annotation
+from openspc.db.models.annotation import Annotation, AnnotationHistory
 from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.sample import Sample
 from openspc.db.models.user import User
@@ -57,6 +58,7 @@ async def list_annotations(
 
     stmt = (
         select(Annotation)
+        .options(selectinload(Annotation.history))
         .where(Annotation.characteristic_id == characteristic_id)
         .order_by(Annotation.created_at.desc())
     )
@@ -104,7 +106,7 @@ async def create_annotation(
             detail=f"Characteristic {characteristic_id} not found",
         )
 
-    # Validate sample references belong to this characteristic
+    # Validate sample reference for point annotations
     if data.annotation_type == "point" and data.sample_id is not None:
         sample_result = await session.execute(
             select(Sample).where(
@@ -118,23 +120,37 @@ async def create_annotation(
                 detail=f"Sample {data.sample_id} does not belong to characteristic {characteristic_id}",
             )
 
-    if data.annotation_type == "period":
-        for sample_id, label in [
-            (data.start_sample_id, "start"),
-            (data.end_sample_id, "end"),
-        ]:
-            if sample_id is not None:
-                sample_result = await session.execute(
-                    select(Sample).where(
-                        Sample.id == sample_id,
-                        Sample.char_id == characteristic_id,
-                    )
+    # Period annotations use time range — no sample validation needed
+
+    # Point annotations: upsert — one annotation per sample.
+    # If an annotation already exists for this sample, update it (saving old text to history).
+    if data.annotation_type == "point" and data.sample_id is not None:
+        existing_result = await session.execute(
+            select(Annotation)
+            .options(selectinload(Annotation.history))
+            .where(
+                Annotation.characteristic_id == characteristic_id,
+                Annotation.annotation_type == "point",
+                Annotation.sample_id == data.sample_id,
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+
+        if existing is not None:
+            # Save old text to history if it changed
+            if existing.text != data.text:
+                history_entry = AnnotationHistory(
+                    annotation_id=existing.id,
+                    previous_text=existing.text,
+                    changed_by=user.username,
                 )
-                if sample_result.scalar_one_or_none() is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"{label.capitalize()} sample {sample_id} does not belong to characteristic {characteristic_id}",
-                    )
+                session.add(history_entry)
+                existing.text = data.text
+            if data.color is not None:
+                existing.color = data.color
+            await session.commit()
+            await session.refresh(existing, attribute_names=["history"])
+            return AnnotationResponse.model_validate(existing)
 
     annotation = Annotation(
         characteristic_id=characteristic_id,
@@ -142,13 +158,13 @@ async def create_annotation(
         text=data.text,
         color=data.color,
         sample_id=data.sample_id,
-        start_sample_id=data.start_sample_id,
-        end_sample_id=data.end_sample_id,
+        start_time=data.start_time,
+        end_time=data.end_time,
         created_by=user.username,
     )
     session.add(annotation)
     await session.commit()
-    await session.refresh(annotation)
+    await session.refresh(annotation, attribute_names=["history"])
 
     return AnnotationResponse.model_validate(annotation)
 
@@ -162,23 +178,27 @@ async def update_annotation(
     annotation_id: int,
     data: AnnotationUpdate,
     session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_role("supervisor")),
+    user: User = Depends(require_role("supervisor")),
 ) -> AnnotationResponse:
     """Update an annotation's text or color.
 
-    Supervisor+ role required.
+    Supervisor+ role required. When text is changed, the previous value
+    is saved to annotation_history for audit trail.
 
     Args:
         characteristic_id: ID of the characteristic
         annotation_id: ID of the annotation to update
         data: Fields to update
         session: Database session dependency
+        user: Current user (supervisor+)
 
     Returns:
-        Updated annotation
+        Updated annotation with history
     """
     result = await session.execute(
-        select(Annotation).where(
+        select(Annotation)
+        .options(selectinload(Annotation.history))
+        .where(
             Annotation.id == annotation_id,
             Annotation.characteristic_id == characteristic_id,
         )
@@ -191,13 +211,21 @@ async def update_annotation(
             detail=f"Annotation {annotation_id} not found for characteristic {characteristic_id}",
         )
 
-    if data.text is not None:
+    # Save old text to history before updating
+    if data.text is not None and data.text != annotation.text:
+        history_entry = AnnotationHistory(
+            annotation_id=annotation.id,
+            previous_text=annotation.text,
+            changed_by=user.username,
+        )
+        session.add(history_entry)
         annotation.text = data.text
+
     if data.color is not None:
         annotation.color = data.color
 
     await session.commit()
-    await session.refresh(annotation)
+    await session.refresh(annotation, attribute_names=["history"])
 
     return AnnotationResponse.model_validate(annotation)
 

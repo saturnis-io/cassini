@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2, MessageSquare, Clock, User } from 'lucide-react'
+import { Pencil, Trash2, MessageSquare, Clock, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 import type { Annotation } from '@/types'
@@ -110,6 +110,34 @@ export function AnnotationDetailPopover({
                   {updateAnnotation.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
+              {/* Edit history */}
+              {annotation.history && annotation.history.length > 0 && (
+                <div className="pt-2 border-t border-border/50">
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <History className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                      Previous values
+                    </span>
+                  </div>
+                  <div className="max-h-24 overflow-y-auto space-y-1.5">
+                    {annotation.history.map((entry) => (
+                      <div key={entry.id} className="text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px]">
+                            {new Date(entry.changed_at).toLocaleString(undefined, {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </span>
+                          {entry.changed_by && (
+                            <span className="text-[10px]">&mdash; {entry.changed_by}</span>
+                          )}
+                        </div>
+                        <p className="italic pl-2 border-l border-border/50">&ldquo;{entry.previous_text}&rdquo;</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{annotation.text}</p>

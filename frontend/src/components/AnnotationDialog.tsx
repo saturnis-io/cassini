@@ -1,62 +1,83 @@
 /**
- * AnnotationDialog - Modal for creating point and period annotations.
+ * AnnotationDialog - Modal for creating annotations.
  *
- * Provides a dedicated UI for both annotation types, with period annotations
- * as the primary use case per CEO clarification.
+ * Two modes (determined by how the dialog was opened — no toggle):
+ * - Point: Annotate a specific data point (opened by clicking a chart point)
+ * - Period: Annotate a time range (opened by the toolbar Annotate button)
  */
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, MapPin, CalendarRange } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCreateAnnotation } from '@/api/hooks'
-import type { AnnotationType } from '@/types'
 
 interface AnnotationDialogProps {
   characteristicId: number
-  dataPoints: Array<{ sample_id: number; index: number; timestamp: string }>
   onClose: () => void
-  /** Pre-selected mode and sample for point annotations from chart click */
-  initialMode?: 'point' | 'period'
-  initialSampleId?: number
+  /** Mode determines the annotation type — set by the caller, not toggleable. */
+  mode: 'point' | 'period'
+  /** For point mode: the sample being annotated */
+  sampleId?: number
+  /** For point mode: display info about the sample */
+  sampleLabel?: string
+}
+
+/** Convert a Date to datetime-local input value (local timezone) */
+function toDatetimeLocal(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 export function AnnotationDialog({
   characteristicId,
-  dataPoints,
   onClose,
-  initialMode = 'period',
-  initialSampleId,
+  mode,
+  sampleId,
+  sampleLabel,
 }: AnnotationDialogProps) {
-  const [mode, setMode] = useState<AnnotationType>(initialMode)
   const [text, setText] = useState('')
   const [color, setColor] = useState<string>('')
-  const [sampleId, setSampleId] = useState<number | null>(initialSampleId ?? null)
-  const [startSampleId, setStartSampleId] = useState<number | null>(null)
-  const [endSampleId, setEndSampleId] = useState<number | null>(null)
+
+  // Period mode: default to last 1 hour
+  const now = new Date()
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+  const [startTime, setStartTime] = useState(toDatetimeLocal(oneHourAgo))
+  const [endTime, setEndTime] = useState(toDatetimeLocal(now))
 
   const createAnnotation = useCreateAnnotation()
 
   const canSubmit = (() => {
     if (!text.trim()) return false
-    if (mode === 'point' && sampleId === null) return false
-    if (mode === 'period' && (startSampleId === null || endSampleId === null)) return false
+    if (mode === 'point' && !sampleId) return false
+    if (mode === 'period' && (!startTime || !endTime || new Date(startTime) >= new Date(endTime))) return false
     return true
   })()
 
   const handleSubmit = async () => {
     if (!canSubmit) return
 
-    await createAnnotation.mutateAsync({
-      characteristicId,
-      data: {
-        annotation_type: mode,
-        text: text.trim(),
-        color: color || undefined,
-        sample_id: mode === 'point' ? sampleId : undefined,
-        start_sample_id: mode === 'period' ? startSampleId : undefined,
-        end_sample_id: mode === 'period' ? endSampleId : undefined,
-      },
-    })
+    if (mode === 'point') {
+      await createAnnotation.mutateAsync({
+        characteristicId,
+        data: {
+          annotation_type: 'point',
+          text: text.trim(),
+          color: color || undefined,
+          sample_id: sampleId,
+        },
+      })
+    } else {
+      await createAnnotation.mutateAsync({
+        characteristicId,
+        data: {
+          annotation_type: 'period',
+          text: text.trim(),
+          color: color || undefined,
+          start_time: new Date(startTime).toISOString(),
+          end_time: new Date(endTime).toISOString(),
+        },
+      })
+    }
 
     onClose()
   }
@@ -73,7 +94,16 @@ export function AnnotationDialog({
       <div className="relative z-10 w-full max-w-md bg-card border border-border rounded-2xl shadow-xl p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold">Add Annotation</h2>
+          <div className="flex items-center gap-2">
+            {mode === 'point' ? (
+              <MapPin className="h-5 w-5 text-amber-500" />
+            ) : (
+              <CalendarRange className="h-5 w-5 text-amber-500" />
+            )}
+            <h2 className="text-lg font-semibold">
+              {mode === 'point' ? 'Annotate Data Point' : 'Annotate Time Range'}
+            </h2>
+          </div>
           <button
             onClick={onClose}
             className="p-1 rounded-lg hover:bg-muted transition-colors"
@@ -82,96 +112,51 @@ export function AnnotationDialog({
           </button>
         </div>
 
-        {/* Mode tabs */}
-        <div className="flex gap-1 mb-5 p-1 bg-muted rounded-lg">
-          <button
-            onClick={() => setMode('period')}
-            className={cn(
-              'flex-1 py-1.5 text-sm font-medium rounded-md transition-colors',
-              mode === 'period'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            Period
-          </button>
-          <button
-            onClick={() => setMode('point')}
-            className={cn(
-              'flex-1 py-1.5 text-sm font-medium rounded-md transition-colors',
-              mode === 'point'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            Point
-          </button>
-        </div>
-
         {/* Mode-specific fields */}
         {mode === 'point' ? (
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1.5">Sample</label>
-            <select
-              value={sampleId ?? ''}
-              onChange={(e) => setSampleId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">Select a sample...</option>
-              {dataPoints.map((point) => (
-                <option key={point.sample_id} value={point.sample_id}>
-                  Sample #{point.index} - {new Date(point.timestamp).toLocaleString()}
-                </option>
-              ))}
-            </select>
+          <div className="mb-4 px-3 py-2.5 bg-muted/50 border border-border rounded-lg">
+            <div className="text-xs font-medium text-muted-foreground mb-0.5">Data Point</div>
+            <div className="text-sm font-medium">{sampleLabel || `Sample #${sampleId}`}</div>
           </div>
         ) : (
-          <>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1.5">Start Sample</label>
-              <select
-                value={startSampleId ?? ''}
-                onChange={(e) => setStartSampleId(e.target.value ? Number(e.target.value) : null)}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Start</label>
+              <input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                <option value="">Select start sample...</option>
-                {dataPoints.map((point) => (
-                  <option key={point.sample_id} value={point.sample_id}>
-                    Sample #{point.index} - {new Date(point.timestamp).toLocaleString()}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1.5">End Sample</label>
-              <select
-                value={endSampleId ?? ''}
-                onChange={(e) => setEndSampleId(e.target.value ? Number(e.target.value) : null)}
+            <div>
+              <label className="block text-sm font-medium mb-1.5">End</label>
+              <input
+                type="datetime-local"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
                 className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                <option value="">Select end sample...</option>
-                {dataPoints
-                  .filter((p) => startSampleId === null || p.index >= (dataPoints.find(d => d.sample_id === startSampleId)?.index ?? 0))
-                  .map((point) => (
-                    <option key={point.sample_id} value={point.sample_id}>
-                      Sample #{point.index} - {new Date(point.timestamp).toLocaleString()}
-                    </option>
-                  ))}
-              </select>
+              />
             </div>
-          </>
+            {startTime && endTime && new Date(startTime) >= new Date(endTime) && (
+              <div className="col-span-2 text-xs text-destructive">
+                Start time must be before end time.
+              </div>
+            )}
+          </div>
         )}
 
         {/* Text input */}
         <div className="mb-4">
-          <label className="block text-sm font-medium mb-1.5">Annotation Text</label>
+          <label className="block text-sm font-medium mb-1.5">Note</label>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Enter annotation text..."
+            placeholder={mode === 'point' ? 'Note about this data point...' : 'e.g., Changeover, Material batch switch, Equipment maintenance...'}
             rows={3}
             maxLength={500}
             className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+            autoFocus
           />
           <div className="text-xs text-muted-foreground mt-1">{text.length}/500</div>
         </div>

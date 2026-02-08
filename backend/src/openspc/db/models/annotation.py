@@ -6,8 +6,12 @@ annotations (spanning a range of samples).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,7 +51,7 @@ class Annotation(Base):
         ForeignKey("sample.id"), nullable=True
     )
 
-    # For period annotations: references start and end samples
+    # For period annotations (legacy): references start and end samples
     start_sample_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("sample.id"), nullable=True
     )
@@ -55,13 +59,21 @@ class Annotation(Base):
         ForeignKey("sample.id"), nullable=True
     )
 
+    # For period annotations: time-based range (not tied to specific samples)
+    start_time: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    end_time: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+
     # Audit fields
     created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=_utc_now, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=_utc_now, onupdate=_utc_now, nullable=False
     )
 
     # Relationships
@@ -77,9 +89,41 @@ class Annotation(Base):
     end_sample: Mapped[Optional["Sample"]] = relationship(
         "Sample", foreign_keys=[end_sample_id]
     )
+    history: Mapped[list["AnnotationHistory"]] = relationship(
+        "AnnotationHistory",
+        back_populates="annotation",
+        cascade="all, delete-orphan",
+        order_by="AnnotationHistory.changed_at.desc()",
+    )
 
     def __repr__(self) -> str:
         return (
             f"<Annotation(id={self.id}, type={self.annotation_type}, "
             f"characteristic_id={self.characteristic_id})>"
+        )
+
+
+class AnnotationHistory(Base):
+    """Records previous text values whenever an annotation is edited."""
+
+    __tablename__ = "annotation_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    annotation_id: Mapped[int] = mapped_column(
+        ForeignKey("annotation.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    previous_text: Mapped[str] = mapped_column(Text, nullable=False)
+    changed_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_utc_now, nullable=False
+    )
+
+    # Relationships
+    annotation: Mapped["Annotation"] = relationship(
+        "Annotation", back_populates="history"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AnnotationHistory(id={self.id}, annotation_id={self.annotation_id})>"
         )

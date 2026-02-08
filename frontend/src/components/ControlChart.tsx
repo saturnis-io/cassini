@@ -294,19 +294,50 @@ export function ControlChart({
             label: { show: false },
           })
           annotationMarkerData.push([xVal, ann.id, annIdx])
-        } else if (ann.annotation_type === 'period' && ann.start_sample_id != null && ann.end_sample_id != null) {
-          const startPt = sampleMap.get(ann.start_sample_id)
-          const endPt = sampleMap.get(ann.end_sample_id)
-          if (!startPt || !endPt) continue
-          const x1 = isTimestamp ? startPt.timestampMs : startPt.catIndex
-          const x2 = isTimestamp ? endPt.timestampMs : endPt.catIndex
-          annotationMarkAreas.push([
-            { xAxis: x1, itemStyle: { color, opacity: 0.08, borderColor: color, borderWidth: 1, borderType: 'dashed' as const }, label: { show: false } },
-            { xAxis: x2 },
-          ])
-          // Place * marker at midpoint of the period
-          const midX = isTimestamp ? (x1 + x2) / 2 : (x1 + x2) / 2
-          annotationMarkerData.push([midX, ann.id, annIdx])
+        } else if (ann.annotation_type === 'period') {
+          let x1: number | null = null
+          let x2: number | null = null
+
+          if (ann.start_time && ann.end_time) {
+            // Time-based period annotation
+            const startMs = new Date(ann.start_time).getTime()
+            const endMs = new Date(ann.end_time).getTime()
+            if (isTimestamp) {
+              x1 = startMs
+              x2 = endMs
+            } else {
+              // Index mode: find nearest data points by timestamp
+              let bestStartIdx = 0
+              let bestEndIdx = visibleData.length - 1
+              for (let i = 0; i < visibleData.length; i++) {
+                if (visibleData[i].timestampMs >= startMs) { bestStartIdx = i; break }
+              }
+              for (let i = visibleData.length - 1; i >= 0; i--) {
+                if (visibleData[i].timestampMs <= endMs) { bestEndIdx = i; break }
+              }
+              if (bestStartIdx <= bestEndIdx) {
+                x1 = bestStartIdx
+                x2 = bestEndIdx
+              }
+            }
+          } else if (ann.start_sample_id != null && ann.end_sample_id != null) {
+            // Legacy sample-based period annotation
+            const startPt = sampleMap.get(ann.start_sample_id)
+            const endPt = sampleMap.get(ann.end_sample_id)
+            if (startPt && endPt) {
+              x1 = isTimestamp ? startPt.timestampMs : startPt.catIndex
+              x2 = isTimestamp ? endPt.timestampMs : endPt.catIndex
+            }
+          }
+
+          if (x1 != null && x2 != null) {
+            annotationMarkAreas.push([
+              { xAxis: x1, itemStyle: { color, opacity: 0.08, borderColor: color, borderWidth: 1, borderType: 'dashed' as const }, label: { show: false } },
+              { xAxis: x2 },
+            ])
+            const midX = (x1 + x2) / 2
+            annotationMarkerData.push([midX, ann.id, annIdx])
+          }
         }
         annIdx++
       }
@@ -614,6 +645,9 @@ export function ControlChart({
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
   const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
+    // Only trigger hover for data point series (0 = line, 1 = custom markers)
+    // Ignore annotation marker series (seriesIndex 2) to prevent random highlights
+    if (params.seriesIndex != null && params.seriesIndex >= 2) return
     const idx = params.dataIndex
     const point = dataRef.current[idx]
     if (point) {
@@ -669,7 +703,7 @@ export function ControlChart({
   const hasData = !!chartData && !!chartData.data_points && chartData.data_points.length > 0
 
   const isModeB = chartData?.subgroup_mode === 'VARIABLE_LIMITS'
-  const chartTypeLabel = isModeA ? 'Z-Score Chart' : isModeB ? 'Variable Limits Chart' : 'X-Bar Chart'
+  const chartTypeLabel = isModeA ? 'Z-Score Chart' : isModeB ? 'Variable Limits Chart' : nominalN === 1 ? 'Individuals Chart' : 'X-Bar Chart'
 
   const breadcrumb = hierarchyPath.length > 0
     ? [...hierarchyPath, chartData?.characteristic_name].filter(Boolean).join(' / ')

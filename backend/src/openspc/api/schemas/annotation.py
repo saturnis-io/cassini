@@ -10,21 +10,18 @@ from typing_extensions import Self
 class AnnotationCreate(BaseModel):
     """Schema for creating a new annotation.
 
-    Attributes:
-        annotation_type: Either 'point' (single sample) or 'period' (sample range)
-        text: Annotation text content
-        color: Optional hex color string (e.g., '#ff6b6b')
-        sample_id: Sample ID for point annotations
-        start_sample_id: Start sample ID for period annotations
-        end_sample_id: End sample ID for period annotations
+    Point annotations require a sample_id.
+    Period annotations require start_time and end_time (time-based range).
     """
 
     annotation_type: Literal["point", "period"]
     text: str = Field(..., min_length=1, max_length=500)
     color: str | None = None
+    # Point annotations
     sample_id: int | None = None
-    start_sample_id: int | None = None
-    end_sample_id: int | None = None
+    # Period annotations (time-based)
+    start_time: datetime | None = None
+    end_time: datetime | None = None
 
     @model_validator(mode="after")
     def validate_annotation_fields(self) -> Self:
@@ -32,15 +29,17 @@ class AnnotationCreate(BaseModel):
         if self.annotation_type == "point":
             if self.sample_id is None:
                 raise ValueError("sample_id is required for point annotations")
-            if self.start_sample_id is not None or self.end_sample_id is not None:
+            if self.start_time is not None or self.end_time is not None:
                 raise ValueError(
-                    "start_sample_id and end_sample_id must be null for point annotations"
+                    "start_time and end_time must be null for point annotations"
                 )
         elif self.annotation_type == "period":
-            if self.start_sample_id is None or self.end_sample_id is None:
+            if self.start_time is None or self.end_time is None:
                 raise ValueError(
-                    "start_sample_id and end_sample_id are required for period annotations"
+                    "start_time and end_time are required for period annotations"
                 )
+            if self.start_time >= self.end_time:
+                raise ValueError("start_time must be before end_time")
             if self.sample_id is not None:
                 raise ValueError("sample_id must be null for period annotations")
         return self
@@ -58,22 +57,19 @@ class AnnotationUpdate(BaseModel):
     color: str | None = None
 
 
-class AnnotationResponse(BaseModel):
-    """Schema for annotation response.
+class AnnotationHistoryResponse(BaseModel):
+    """Schema for an annotation history entry."""
 
-    Attributes:
-        id: Unique identifier
-        characteristic_id: Parent characteristic ID
-        annotation_type: 'point' or 'period'
-        text: Annotation text content
-        color: Display color (hex)
-        sample_id: Sample ID for point annotations
-        start_sample_id: Start sample ID for period annotations
-        end_sample_id: End sample ID for period annotations
-        created_by: Username of creator
-        created_at: Creation timestamp
-        updated_at: Last update timestamp
-    """
+    id: int
+    previous_text: str
+    changed_by: str | None
+    changed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AnnotationResponse(BaseModel):
+    """Schema for annotation response."""
 
     id: int
     characteristic_id: int
@@ -83,8 +79,11 @@ class AnnotationResponse(BaseModel):
     sample_id: int | None
     start_sample_id: int | None
     end_sample_id: int | None
+    start_time: datetime | None
+    end_time: datetime | None
     created_by: str | None
     created_at: datetime
     updated_at: datetime
+    history: list[AnnotationHistoryResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
