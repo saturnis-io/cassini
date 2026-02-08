@@ -1,13 +1,26 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSubmitSample } from '@/api/hooks'
+import { useSubmitSample, useCharacteristic } from '@/api/hooks'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
 import { NumberInput } from './NumberInput'
 import type { Characteristic } from '@/types'
 
 export function ManualEntryPanel() {
   const { selectedPlant } = usePlantContext()
+  const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
+  const setGlobalCharId = useDashboardStore((s) => s.setSelectedCharacteristicId)
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
+
+  // Restore selection from global store on mount
+  const { data: restoredChar } = useCharacteristic(
+    globalCharId && !selectedChar ? globalCharId : 0
+  )
+  useEffect(() => {
+    if (restoredChar && !selectedChar && globalCharId) {
+      setSelectedChar(restoredChar)
+    }
+  }, [restoredChar, selectedChar, globalCharId])
   const [measurements, setMeasurements] = useState<string[]>([])
   const [batchNumber, setBatchNumber] = useState('')
   const [operatorId, setOperatorId] = useState('')
@@ -44,6 +57,7 @@ export function ManualEntryPanel() {
 
   const handleCharacteristicSelect = (char: Characteristic) => {
     setSelectedChar(char)
+    setGlobalCharId(char.id)
   }
 
   const handleMeasurementChange = (index: number, value: string) => {
@@ -94,7 +108,7 @@ export function ManualEntryPanel() {
       <div className="bg-card border border-border rounded-xl p-5">
         <h3 className="font-semibold mb-4">Select Characteristic</h3>
         <HierarchyCharacteristicSelector
-          selectedCharId={selectedChar?.id ?? null}
+          selectedCharId={globalCharId}
           onSelect={handleCharacteristicSelect}
           filterProvider="MANUAL"
           plantId={selectedPlant?.id}

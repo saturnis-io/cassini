@@ -43,7 +43,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             message.sample.timestamp
           )
           queryClient.invalidateQueries({
-            queryKey: queryKeys.characteristics.chartData(message.characteristic_id),
+            queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
           })
           message.violations.forEach((violation) => {
             addPendingViolation(violation)
@@ -67,7 +67,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             queryKey: queryKeys.characteristics.detail(message.characteristic_id),
           })
           queryClient.invalidateQueries({
-            queryKey: queryKeys.characteristics.chartData(message.characteristic_id),
+            queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
           })
           break
         }

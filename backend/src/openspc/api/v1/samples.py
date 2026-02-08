@@ -152,6 +152,7 @@ async def list_samples(
     include_excluded: bool = Query(False, description="Include excluded samples"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
+    sort_dir: str = Query("desc", regex="^(asc|desc)$", description="Sort direction for timestamp (asc or desc)"),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[SampleResponse]:
@@ -202,7 +203,7 @@ async def list_samples(
             selectinload(Sample.measurements),
             selectinload(Sample.edit_history),
         )
-        .order_by(Sample.timestamp)
+        .order_by(Sample.timestamp.desc() if sort_dir == "desc" else Sample.timestamp.asc())
         .offset(offset)
         .limit(limit)
         .execution_options(populate_existing=True)
@@ -652,6 +653,10 @@ async def update_sample(
                 zone = "beyond_ucl" if mean > characteristic.ucl else "beyond_lcl"
 
         # Re-run Nelson Rules evaluation
+        # Invalidate rolling window cache BEFORE re-evaluation so get_window()
+        # reloads from DB with the updated measurements (flushed above).
+        await window_manager.invalidate(sample.char_id)
+
         rule_library = NelsonRuleLibrary()
         window = await window_manager.get_window(sample.char_id)
 

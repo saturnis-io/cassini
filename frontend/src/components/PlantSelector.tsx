@@ -148,7 +148,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
       {isOpen && (
         <div
           className={cn(
-            'absolute top-full right-0 mt-1 w-48 z-50',
+            'absolute top-full right-0 mt-1 min-w-full w-max z-50',
             'bg-popover border rounded-md shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-100'
           )}

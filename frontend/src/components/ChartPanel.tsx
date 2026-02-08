@@ -226,6 +226,7 @@ export function ChartPanel({
             yAxisDomain={yAxisDomain}
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}
+            showSpecLimits={showSpecLimits}
           />
         </div>
       )}

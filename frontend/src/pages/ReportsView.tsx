@@ -7,14 +7,17 @@ import { ReportPreview } from '@/components/ReportPreview'
 import { ExportDropdown } from '@/components/ExportDropdown'
 import { HierarchyCharacteristicSelector } from '@/components/HierarchyCharacteristicSelector'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartData, useViolations } from '@/api/hooks'
 import { FileText, ChevronRight } from 'lucide-react'
 
 export function ReportsView() {
   const [searchParams] = useSearchParams()
+  const { selectedPlant } = usePlantContext()
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null)
-  const [selectedCharId, setSelectedCharId] = useState<number | null>(null)
+  const selectedCharId = useDashboardStore((state) => state.selectedCharacteristicId)
+  const setSelectedCharId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const reportContentRef = useRef<HTMLDivElement>(null)
 
   // Use the same time range state as the dashboard
@@ -34,7 +37,7 @@ export function ReportsView() {
         }
       }
     }
-  }, [searchParams])
+  }, [searchParams, setSelectedCharId])
 
   // Build chart options from time range - memoize to avoid query key changes on every render
   const chartOptions = useMemo(() => {
@@ -144,6 +147,7 @@ export function ReportsView() {
             <HierarchyCharacteristicSelector
               selectedCharId={selectedCharId}
               onSelect={(char) => setSelectedCharId(char.id)}
+              plantId={selectedPlant?.id}
             />
           </div>
         </div>

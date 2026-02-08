@@ -22,6 +22,8 @@ interface DistributionHistogramProps {
   yAxisDomain?: [number, number]
   highlightedValue?: number | null
   onHoverBin?: (range: [number, number] | null) => void
+  /** Whether to show spec limit lines (LSL/USL). Default: true */
+  showSpecLimits?: boolean
 }
 
 interface DataPointWithId {
@@ -168,6 +170,7 @@ export function DistributionHistogram({
   yAxisDomain,
   highlightedValue,
   onHoverBin,
+  showSpecLimits = true,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
   const chartColors = useChartColors()
@@ -175,6 +178,7 @@ export function DistributionHistogram({
   const isVertical = orientation === 'vertical'
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
+  const xAxisMode = useDashboardStore((state) => state.xAxisMode)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -299,15 +303,15 @@ export function DistributionHistogram({
       markLineData.push({ xAxis: stats.mean, lineStyle: { color: colors.meanColor, type: 'dashed', width: 2 }, label: { formatter: `x\u0304 = ${stats.mean.toFixed(3)}`, position: 'start', color: colors.meanTextColor, fontSize: 11, fontWeight: 600 } })
     }
 
-    // Spec limits
-    if (lsl !== null) {
+    // Spec limits (respect showSpecLimits toggle)
+    if (showSpecLimits && lsl !== null) {
       if (isVertical) {
         markLineData.push({ yAxis: lsl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 }, label: { formatter: 'LSL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' } })
       } else {
         markLineData.push({ xAxis: lsl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 2 }, label: { formatter: 'LSL', position: 'insideStartTop', fontSize: 10, fontWeight: 600, color: 'hsl(357, 80%, 45%)' } })
       }
     }
-    if (usl !== null) {
+    if (showSpecLimits && usl !== null) {
       if (isVertical) {
         markLineData.push({ yAxis: usl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 }, label: { formatter: 'USL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' } })
       } else {
@@ -346,6 +350,16 @@ export function DistributionHistogram({
       const localHighlight = highlightedBinIndex
       const localColors = colors
 
+      // Match ControlChart grid margins for pixel-perfect Y-axis alignment
+      // ControlChart uses: top = hasAnnotationMarkers ? 32 : 20, bottom = isTimestamp ? 60 : 30
+      const isTimestamp = xAxisMode === 'timestamp'
+      const matchedGridTop = 20
+      const matchedGridBottom = isTimestamp ? 60 : 30
+
+      console.debug('[DistributionHistogram] vertical grid alignment:', {
+        top: matchedGridTop, bottom: matchedGridBottom, xAxisMode,
+      })
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const histogramRenderItem = (_params: any, api: any) => {
         const binIndex = api.value(3) as number
@@ -381,7 +395,7 @@ export function DistributionHistogram({
 
       return {
         animation: false,
-        grid: { top: 20, right: 30, left: 40, bottom: 20, containLabel: false },
+        grid: { top: matchedGridTop, right: 30, left: 40, bottom: matchedGridBottom, containLabel: false },
         xAxis: {
           type: 'value' as const,
           max: maxCount * 1.1,
@@ -505,7 +519,7 @@ export function DistributionHistogram({
         },
       ],
     }
-  }, [chartData, bins, values, stats, isModeA, yAxisDomain, isVertical, colors, highlightedBinIndex])
+  }, [chartData, bins, values, stats, isModeA, yAxisDomain, isVertical, colors, highlightedBinIndex, showSpecLimits, xAxisMode])
 
   // Mouse event handlers
   const handleMouseMove = useCallback((params: EChartsMouseEvent) => {

@@ -121,7 +121,11 @@ export function AnnotationDialog({
 
   const isInRange = (date: Date | null) => {
     if (!date) return false
-    return date >= startDate && date <= endDate
+    // Compare date-only (ignore time) so the full day range highlights correctly
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    const s = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime()
+    const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()).getTime()
+    return d >= s && d <= e
   }
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

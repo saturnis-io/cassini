@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
-import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock, AlertTriangle } from 'lucide-react'
-import { useSamples, useDeleteSample, useExcludeSample } from '@/api/hooks'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { useSamples, useDeleteSample, useExcludeSample, useCharacteristic } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { canPerformAction } from '@/lib/roles'
 import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
 import { SampleEditModal } from './SampleEditModal'
@@ -53,12 +54,41 @@ function FilterChip({
 export function SampleHistoryPanel() {
   const { role } = useAuth()
   const { selectedPlant } = usePlantContext()
+  const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
+  const setGlobalCharId = useDashboardStore((s) => s.setSelectedCharacteristicId)
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
+
+  // Restore selection from global store on mount
+  const { data: restoredChar } = useCharacteristic(
+    globalCharId && !selectedChar ? globalCharId : 0
+  )
+  useEffect(() => {
+    if (restoredChar && !selectedChar && globalCharId) {
+      setSelectedChar(restoredChar)
+    }
+  }, [restoredChar, selectedChar, globalCharId])
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
   const [includeExcluded, setIncludeExcluded] = useState(false)
   const [page, setPage] = useState(1)
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const perPage = SAMPLES_PER_PAGE
+
+  // Sort state
+  type SortField = 'timestamp' | 'mean'
+  type SortDir = 'asc' | 'desc'
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const handleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      // Cycle: asc → desc → off
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortField(null) }
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }, [sortField, sortDir])
 
   // Convert time range to query params
   const queryParams = useMemo(() => {
@@ -69,11 +99,13 @@ export function SampleHistoryPanel() {
       include_excluded?: boolean
       page: number
       per_page: number
+      sort_dir?: 'asc' | 'desc'
     } = {
       characteristic_id: selectedChar?.id,
       include_excluded: includeExcluded,
       page,
       per_page: perPage,
+      sort_dir: sortField === 'timestamp' ? sortDir : 'desc',
     }
 
     if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
@@ -85,10 +117,9 @@ export function SampleHistoryPanel() {
       params.start_date = start.toISOString()
       params.end_date = now.toISOString()
     }
-    // For 'points' type, we use limit/offset pagination directly
 
     return params
-  }, [selectedChar?.id, timeRange, includeExcluded, page, perPage])
+  }, [selectedChar?.id, timeRange, includeExcluded, page, perPage, sortField, sortDir])
 
   // Modal state
   const [editingSample, setEditingSample] = useState<Sample | null>(null)
@@ -100,11 +131,24 @@ export function SampleHistoryPanel() {
   const excludeSample = useExcludeSample()
 
   const samples = samplesData?.items || []
-  const totalSamples = samplesData?.total || 0
+  const rawTotal = samplesData?.total || 0
+  // For "Last X points" mode, cap total to pointsLimit so pagination doesn't exceed it
+  const totalSamples = timeRange.type === 'points' && timeRange.pointsLimit
+    ? Math.min(rawTotal, timeRange.pointsLimit)
+    : rawTotal
   const totalPages = Math.ceil(totalSamples / perPage)
 
-  // Backend handles exclusion filtering via include_excluded param
-  const displayedSamples = samples
+  // Apply optional client-side sort for mean column (timestamp sort is handled server-side)
+  const displayedSamples = useMemo(() => {
+    if (sortField !== 'mean') return samples
+    const sorted = [...samples]
+    sorted.sort((a, b) => {
+      const av = a.mean
+      const bv = b.mean
+      return sortDir === 'asc' ? av - bv : bv - av
+    })
+    return sorted
+  }, [samples, sortField, sortDir])
 
   const handleDelete = () => {
     if (deletingSampleId !== null) {
@@ -138,6 +182,7 @@ export function SampleHistoryPanel() {
 
   const handleCharacteristicSelect = (char: Characteristic) => {
     setSelectedChar(char)
+    setGlobalCharId(char.id)
     setPage(1)
   }
 
@@ -158,6 +203,7 @@ export function SampleHistoryPanel() {
   // Reset all filters
   const handleResetFilters = () => {
     setSelectedChar(null)
+    setGlobalCharId(null)
     setTimeRange(defaultTimeRange)
     setIncludeExcluded(false)
     setPage(1)
@@ -210,6 +256,7 @@ export function SampleHistoryPanel() {
                 label={selectedChar.name}
                 onRemove={() => {
                   setSelectedChar(null)
+                  setGlobalCharId(null)
                   setPage(1)
                 }}
               />
@@ -241,7 +288,7 @@ export function SampleHistoryPanel() {
                 Characteristic
               </label>
               <HierarchyCharacteristicSelector
-                selectedCharId={selectedChar?.id ?? null}
+                selectedCharId={globalCharId}
                 onSelect={handleCharacteristicSelect}
                 plantId={selectedPlant?.id}
               />
@@ -256,6 +303,7 @@ export function SampleHistoryPanel() {
                   <button
                     onClick={() => {
                       setSelectedChar(null)
+                      setGlobalCharId(null)
                       setPage(1)
                     }}
                     className="p-1 rounded hover:bg-muted transition-colors"
@@ -322,8 +370,28 @@ export function SampleHistoryPanel() {
             <thead className="bg-muted/50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Timestamp</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">Mean</th>
+                <th
+                  className="px-4 py-3 text-left text-sm font-medium cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                  onClick={() => handleSort('timestamp')}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    Timestamp
+                    {sortField === 'timestamp'
+                      ? (sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)
+                      : <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                  </span>
+                </th>
+                <th
+                  className="px-4 py-3 text-right text-sm font-medium cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                  onClick={() => handleSort('mean')}
+                >
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Mean
+                    {sortField === 'mean'
+                      ? (sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)
+                      : <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                  </span>
+                </th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Measurements</th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>

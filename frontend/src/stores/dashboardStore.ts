@@ -250,6 +250,7 @@ export const useDashboardStore = create<DashboardState>()(
       // empty objects "{}". These are transient runtime state that gets
       // rebuilt on page load from API data and user interaction.
       partialize: (state) => ({
+        selectedCharacteristicId: state.selectedCharacteristicId,
         timeRange: state.timeRange,
         histogramPosition: state.histogramPosition,
         showSpecLimits: state.showSpecLimits,

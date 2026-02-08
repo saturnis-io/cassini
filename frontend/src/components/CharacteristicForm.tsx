@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useSetManualLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig } from '@/api/hooks'
+import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useSetManualLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig, useHierarchyPath } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Trash2 } from 'lucide-react'
@@ -18,6 +18,7 @@ interface CharacteristicFormProps {
 export function CharacteristicForm({ characteristicId }: CharacteristicFormProps) {
   const { data: characteristic, isLoading } = useCharacteristic(characteristicId ?? 0)
   const { data: configData } = useCharacteristicConfig(characteristicId)
+  const hierarchyPath = useHierarchyPath(characteristicId)
   const updateCharacteristic = useUpdateCharacteristic()
   const updateConfig = useUpdateCharacteristicConfig()
   const recalculateLimits = useRecalculateLimits()
@@ -271,6 +272,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               updated_at: characteristic.updated_at,
               sample_count: characteristic.sample_count,
             }}
+            hierarchyPath={hierarchyPath}
             onChange={handleChange}
           />
         )

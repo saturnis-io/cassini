@@ -445,16 +445,22 @@ export const sampleApi = {
     include_excluded?: boolean
     /** Page number (1-indexed, converted to offset internally) */
     page?: number
-    /** Items per page (maps to limit) */
+    /** Items per page (maps to backend limit) */
     per_page?: number
+    /** Sort direction for timestamp ordering */
+    sort_dir?: 'asc' | 'desc'
   }) => {
     const searchParams = new URLSearchParams()
     if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     if (params?.include_excluded) searchParams.set('include_excluded', 'true')
-    if (params?.page) searchParams.set('page', String(params.page))
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
+    // Convert page/per_page to offset/limit for the backend
+    const perPage = params?.per_page ?? 100
+    const page = params?.page ?? 1
+    searchParams.set('offset', String((page - 1) * perPage))
+    searchParams.set('limit', String(perPage))
+    if (params?.sort_dir) searchParams.set('sort_dir', params.sort_dir)
 
     const query = searchParams.toString()
     return fetchApi<PaginatedResponse<Sample>>(`/samples/${query ? `?${query}` : ''}`)

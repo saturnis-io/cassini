@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useHierarchyTree, useHierarchyCharacteristics } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
+import { usePlantContext } from '@/providers/PlantProvider'
 import type { HierarchyNode } from '@/types'
 
 interface ComparisonSelectorProps {
@@ -26,7 +27,8 @@ const nodeTypeIcons: Record<string, React.ReactNode> = {
  * Displays as a modal overlay with the full hierarchy tree.
  */
 export function ComparisonSelector({ excludeId, onSelect, onCancel }: ComparisonSelectorProps) {
-  const { data: hierarchy, isLoading } = useHierarchyTree()
+  const { selectedPlant } = usePlantContext()
+  const { data: hierarchy, isLoading } = useHierarchyTreeByPlant(selectedPlant?.id ?? 0)
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set())
 
   const toggleExpanded = (nodeId: number) => {

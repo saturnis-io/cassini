@@ -177,7 +177,7 @@ export function SamplingTab({
           title={
             <div className="flex items-center gap-2">
               <span>Stored Parameters</span>
-              {formData.subgroup_mode === 'STANDARDIZED' && <HelpTooltip helpKey="z-score" />}
+              {formData.subgroup_mode === 'STANDARDIZED' && <HelpTooltip helpKey="z-score" triggerAs="span" />}
             </div>
           }
         >
@@ -224,7 +224,7 @@ export function SamplingTab({
           title={
             <div className="flex items-center gap-2">
               <span>Schedule</span>
-              <HelpTooltip helpKey="schedule-configuration" />
+              <HelpTooltip helpKey="schedule-configuration" triggerAs="span" />
             </div>
           }
         >

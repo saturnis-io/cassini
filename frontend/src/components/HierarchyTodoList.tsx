@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useHierarchyCharacteristics, useCharacteristic } from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
 import { SelectionToolbar } from './SelectionToolbar'
@@ -163,6 +163,21 @@ interface HierarchyTodoListProps {
   className?: string
 }
 
+/**
+ * Walk the hierarchy tree to find the path of node IDs leading to `targetNodeId`.
+ * Returns array of node IDs from root to target (inclusive), or empty if not found.
+ */
+function findPathToNode(tree: HierarchyNode[], targetNodeId: number): number[] {
+  for (const node of tree) {
+    if (node.id === targetNodeId) return [node.id]
+    if (node.children && node.children.length > 0) {
+      const childPath = findPathToNode(node.children, targetNodeId)
+      if (childPath.length > 0) return [node.id, ...childPath]
+    }
+  }
+  return []
+}
+
 export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   const { selectedPlant, isLoading: plantLoading } = usePlant()
   const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(selectedPlant?.id ?? 0)
@@ -171,6 +186,29 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
+
+  // Auto-expand hierarchy to reveal the persisted selected characteristic
+  const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
+  const { data: selectedChar } = useCharacteristic(selectedId ?? 0)
+  const autoExpandedRef = useRef(false)
+
+  useEffect(() => {
+    if (autoExpandedRef.current || !nodes || !selectedChar?.hierarchy_id) return
+    const path = findPathToNode(nodes, selectedChar.hierarchy_id)
+    if (path.length > 0) {
+      setExpandedNodeIds((prev) => {
+        const next = new Set(prev)
+        path.forEach((id) => next.add(id))
+        return next
+      })
+      autoExpandedRef.current = true
+    }
+  }, [nodes, selectedChar])
+
+  // Reset auto-expand flag when plant changes
+  useEffect(() => {
+    autoExpandedRef.current = false
+  }, [selectedPlant?.id])
 
   // Calculate status counts from hierarchy node characteristic counts
   // Note: We can't get detailed status without loading all characteristics,

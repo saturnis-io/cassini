@@ -10,6 +10,7 @@ import { ChartRangeSlider } from '@/components/ChartRangeSlider'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { AnnotationListPanel } from '@/components/AnnotationListPanel'
+import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
@@ -37,6 +38,9 @@ export function OperatorDashboard() {
   const [annotationMode, setAnnotationMode] = useState<'point' | 'period'>('period')
   const [annotationSampleId, setAnnotationSampleId] = useState<number | undefined>(undefined)
   const [annotationSampleLabel, setAnnotationSampleLabel] = useState<string | undefined>(undefined)
+  // Sample Inspector modal state
+  const [sampleInspectorOpen, setSampleInspectorOpen] = useState(false)
+  const [sampleInspectorSampleId, setSampleInspectorSampleId] = useState<number>(0)
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
@@ -190,11 +194,8 @@ export function OperatorDashboard() {
                   histogramPosition={histogramPosition}
                   showSpecLimits={showSpecLimits}
                   onPointAnnotation={(sampleId) => {
-                    const pt = chartDataForAnnotation?.data_points.find(p => p.sample_id === sampleId)
-                    setAnnotationMode('point')
-                    setAnnotationSampleId(sampleId)
-                    setAnnotationSampleLabel(pt ? `Sample — ${new Date(pt.timestamp).toLocaleString()}` : undefined)
-                    setAnnotationDialogOpen(true)
+                    setSampleInspectorSampleId(sampleId)
+                    setSampleInspectorOpen(true)
                   }}
                 />
               ) : (
@@ -205,11 +206,8 @@ export function OperatorDashboard() {
                   histogramPosition={histogramPosition}
                   showSpecLimits={showSpecLimits}
                   onPointAnnotation={(sampleId) => {
-                    const pt = chartDataForAnnotation?.data_points.find(p => p.sample_id === sampleId)
-                    setAnnotationMode('point')
-                    setAnnotationSampleId(sampleId)
-                    setAnnotationSampleLabel(pt ? `Sample — ${new Date(pt.timestamp).toLocaleString()}` : undefined)
-                    setAnnotationDialogOpen(true)
+                    setSampleInspectorSampleId(sampleId)
+                    setSampleInspectorOpen(true)
                   }}
                 />
               )}
@@ -270,7 +268,7 @@ export function OperatorDashboard() {
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}
 
-      {/* Annotation Dialog */}
+      {/* Annotation Dialog (period mode from toolbar button) */}
       {annotationDialogOpen && selectedId && (
         <AnnotationDialog
           characteristicId={selectedId}
@@ -278,6 +276,15 @@ export function OperatorDashboard() {
           mode={annotationMode}
           sampleId={annotationSampleId}
           sampleLabel={annotationSampleLabel}
+        />
+      )}
+
+      {/* Sample Inspector Modal (point click on chart) */}
+      {sampleInspectorOpen && selectedId && sampleInspectorSampleId > 0 && (
+        <SampleInspectorModal
+          sampleId={sampleInspectorSampleId}
+          characteristicId={selectedId}
+          onClose={() => setSampleInspectorOpen(false)}
         />
       )}
     </div>

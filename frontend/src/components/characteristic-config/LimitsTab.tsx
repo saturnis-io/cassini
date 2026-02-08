@@ -520,6 +520,7 @@ export function LimitsTab({
                   ? 'ucl-lcl-variable'
                   : 'ucl-lcl-nominal'
               }
+              triggerAs="span"
             />
           </div>
         }

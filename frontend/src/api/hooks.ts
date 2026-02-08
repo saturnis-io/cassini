@@ -2,7 +2,7 @@ import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { annotationApi, characteristicApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
-import type { AnnotationCreate, AnnotationUpdate, Characteristic, PlantCreate, PlantUpdate } from '@/types'
+import type { AnnotationCreate, AnnotationUpdate, Characteristic, HierarchyNode, PlantCreate, PlantUpdate } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
@@ -211,38 +211,48 @@ export function useCharacteristic(id: number) {
   })
 }
 
+export interface HierarchyBreadcrumb {
+  id: number
+  name: string
+  type: string
+}
+
 /**
  * Hook to get the hierarchy breadcrumb path for a characteristic.
- * Returns an array of node names from root to the characteristic's parent node.
+ * Returns an array of { id, name, type } from root to the characteristic's parent node.
+ * Accepts either a characteristicId (fetches the characteristic to get hierarchy_id)
+ * or a direct hierarchyId.
  */
-export function useHierarchyPath(characteristicId: number) {
-  const { data: characteristic } = useCharacteristic(characteristicId)
+export function useHierarchyPath(characteristicId: number | null, hierarchyId?: number) {
+  const { data: characteristic } = useCharacteristic(characteristicId ?? 0)
   const { data: hierarchyTree } = useHierarchyTree()
 
-  // Build the path by traversing the tree
-  const path = React.useMemo(() => {
-    if (!characteristic || !hierarchyTree) return []
+  const path = React.useMemo<HierarchyBreadcrumb[]>(() => {
+    if (!hierarchyTree) return []
 
-    const hierarchyId = characteristic.hierarchy_id
+    const targetId = hierarchyId ?? characteristic?.hierarchy_id
+    if (!targetId) return []
 
-    // Helper function to find a node and build path to it
-    function findPath(nodes: typeof hierarchyTree, targetId: number, currentPath: string[]): string[] | null {
-      if (!nodes) return null
+    function findPath(
+      nodes: HierarchyNode[],
+      target: number,
+      current: HierarchyBreadcrumb[],
+    ): HierarchyBreadcrumb[] | null {
       for (const node of nodes) {
-        if (node.id === targetId) {
-          return [...currentPath, node.name]
+        const entry = { id: node.id, name: node.name, type: node.type }
+        if (node.id === target) {
+          return [...current, entry]
         }
         if (node.children && node.children.length > 0) {
-          const found = findPath(node.children, targetId, [...currentPath, node.name])
+          const found = findPath(node.children, target, [...current, entry])
           if (found) return found
         }
       }
       return null
     }
 
-    const foundPath = findPath(hierarchyTree, hierarchyId, [])
-    return foundPath || []
-  }, [characteristic, hierarchyTree])
+    return findPath(hierarchyTree, targetId, []) ?? []
+  }, [characteristic, hierarchyTree, hierarchyId])
 
   return path
 }
@@ -311,9 +321,9 @@ export function useSubmitSample() {
     mutationFn: sampleApi.submit,
     onSuccess: (data, variables) => {
       // Invalidate ALL chart data queries for this characteristic (regardless of limit/date params)
-      // Uses key-prefix matching consistent with WebSocketProvider invalidation
+      // Use raw prefix key so it matches any chartData query for this ID, regardless of params
       queryClient.invalidateQueries({
-        queryKey: queryKeys.characteristics.chartData(variables.characteristic_id),
+        queryKey: [...queryKeys.characteristics.all, 'chartData', variables.characteristic_id],
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
@@ -495,6 +505,14 @@ export function useAcknowledgeViolation() {
 }
 
 // Sample hooks
+export function useSample(id: number) {
+  return useQuery({
+    queryKey: queryKeys.samples.detail(id),
+    queryFn: () => sampleApi.get(id),
+    enabled: id > 0,
+  })
+}
+
 export function useSamples(params?: Parameters<typeof sampleApi.list>[0]) {
   return useQuery({
     queryKey: queryKeys.samples.list(params),

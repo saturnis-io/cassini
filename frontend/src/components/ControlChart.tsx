@@ -501,6 +501,11 @@ export function ControlChart({
 
     const gridTop = hasAnnotationMarkers ? 32 : 20
 
+    console.debug('[ControlChart] grid alignment:', {
+      top: gridTop, right: 60, left: 60, bottom: bottomMargin,
+      hasAnnotationMarkers, xAxisMode,
+    })
+
     const option = {
       animation: false,
       grid: { top: gridTop, right: 60, left: 60, bottom: bottomMargin, containLabel: false },
@@ -705,8 +710,9 @@ export function ControlChart({
   const isModeB = chartData?.subgroup_mode === 'VARIABLE_LIMITS'
   const chartTypeLabel = isModeA ? 'Z-Score Chart' : isModeB ? 'Variable Limits Chart' : nominalN === 1 ? 'Individuals Chart' : 'X-Bar Chart'
 
-  const breadcrumb = hierarchyPath.length > 0
-    ? [...hierarchyPath, chartData?.characteristic_name].filter(Boolean).join(' / ')
+  const hierarchyNames = hierarchyPath.map((h) => h.name)
+  const breadcrumb = hierarchyNames.length > 0
+    ? [...hierarchyNames, chartData?.characteristic_name].filter(Boolean).join(' / ')
     : chartData?.characteristic_name ?? ''
 
   return (
@@ -722,7 +728,7 @@ export function ControlChart({
                 </span>
               )}
               <h3 className="font-semibold text-sm leading-5 truncate" title={breadcrumb}>
-                <span className="text-muted-foreground">{hierarchyPath.join(' / ')}{hierarchyPath.length > 0 && ' / '}</span>
+                <span className="text-muted-foreground">{hierarchyNames.join(' / ')}{hierarchyNames.length > 0 && ' / '}</span>
                 <span>{chartData?.characteristic_name}</span>
                 <span className="text-muted-foreground font-normal"> - {chartTypeLabel}</span>
               </h3>

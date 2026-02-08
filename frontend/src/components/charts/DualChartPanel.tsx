@@ -231,6 +231,7 @@ export function DualChartPanel({
               yAxisDomain={yAxisDomain}
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
+              showSpecLimits={showSpecLimits}
             />
           </div>
         )}
@@ -287,6 +288,7 @@ export function DualChartPanel({
               yAxisDomain={yAxisDomain}
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
+              showSpecLimits={showSpecLimits}
             />
           </div>
         )}
@@ -339,6 +341,7 @@ export function DualChartPanel({
             yAxisDomain={yAxisDomain}
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}
+            showSpecLimits={showSpecLimits}
           />
         </div>
       )}
