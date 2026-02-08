@@ -396,6 +396,440 @@ alembic history           # View migration history
 
 ---
 
+## Production Deployment
+
+This section covers deploying OpenSPC in a production environment. Choose the tier that matches your scale.
+
+### Sizing Guide
+
+| Tier | Users | Characteristics | Infrastructure | Database |
+|------|-------|-----------------|----------------|----------|
+| **Small** | 1–25 | < 100 | Single server | SQLite |
+| **Medium** | 25–200 | 100–1,000 | 2–3 servers | PostgreSQL |
+| **Large** | 200+ | 1,000+ | Containerized / HA | PostgreSQL (managed) |
+
+---
+
+### Common Steps (All Tiers)
+
+#### 1. Build the frontend
+
+On your build machine (or CI), produce the static bundle:
+
+```bash
+cd frontend
+npm ci
+npm run build
+# Output: frontend/dist/
+```
+
+This generates a `dist/` directory of static HTML/JS/CSS files. These are served by Nginx — the Node.js runtime is **not** needed on the production server.
+
+#### 2. Install the backend
+
+```bash
+cd backend
+python -m venv /opt/openspc/venv
+source /opt/openspc/venv/bin/activate
+pip install -e .
+```
+
+#### 3. Generate a JWT secret
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+Save this value — you'll use it in the environment file.
+
+#### 4. Create the environment file
+
+```bash
+# /opt/openspc/.env
+OPENSPC_JWT_SECRET=<your-generated-secret>
+OPENSPC_ADMIN_USERNAME=admin
+OPENSPC_ADMIN_PASSWORD=<strong-password>
+OPENSPC_COOKIE_SECURE=true
+OPENSPC_CORS_ORIGINS=https://spc.yourcompany.com
+OPENSPC_SANDBOX=false
+```
+
+#### 5. Run migrations
+
+```bash
+cd /opt/openspc/backend
+source /opt/openspc/venv/bin/activate
+alembic upgrade head
+```
+
+---
+
+### Small Deployment (Single Server)
+
+A single Linux server running Nginx, the Python backend, and SQLite. Suitable for a single plant or lab with a handful of concurrent users.
+
+**Server requirements:** 2 CPU cores, 4 GB RAM, 20 GB disk.
+
+#### System layout
+
+```
+/opt/openspc/
+├── backend/          # Python application + SQLite database
+├── frontend/dist/    # Built static files
+├── venv/             # Python virtual environment
+└── .env              # Environment variables
+```
+
+#### systemd service — `/etc/systemd/system/openspc.service`
+
+```ini
+[Unit]
+Description=OpenSPC Backend
+After=network.target
+
+[Service]
+Type=exec
+User=openspc
+Group=openspc
+WorkingDirectory=/opt/openspc/backend
+EnvironmentFile=/opt/openspc/.env
+ExecStart=/opt/openspc/venv/bin/uvicorn openspc.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin openspc
+sudo chown -R openspc:openspc /opt/openspc
+sudo systemctl daemon-reload
+sudo systemctl enable --now openspc
+```
+
+#### Nginx — `/etc/nginx/sites-available/openspc`
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name spc.yourcompany.com;
+
+    ssl_certificate     /etc/ssl/certs/openspc.crt;
+    ssl_certificate_key /etc/ssl/private/openspc.key;
+
+    # Frontend static files
+    root /opt/openspc/frontend/dist;
+    index index.html;
+
+    # API and WebSocket → backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+
+    location /docs {
+        proxy_pass http://127.0.0.1:8000;
+    }
+
+    location /openapi.json {
+        proxy_pass http://127.0.0.1:8000;
+    }
+
+    location /health {
+        proxy_pass http://127.0.0.1:8000;
+    }
+
+    # SPA fallback — serve index.html for client-side routes
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 80;
+    server_name spc.yourcompany.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/openspc /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+#### SQLite considerations
+
+SQLite works well at this scale. A few things to keep in mind:
+
+- The database file lives at `/opt/openspc/backend/openspc.db` by default
+- **Back up** the file with a cron job (copy while the app is idle, or use `sqlite3 .backup`)
+- SQLite handles concurrent reads well but serializes writes — this is fine for < 25 users
+- Ensure the `openspc` user has write permission to the directory containing the database
+
+#### Backup cron — `/etc/cron.d/openspc-backup`
+
+```cron
+0 2 * * * openspc sqlite3 /opt/openspc/backend/openspc.db ".backup /opt/openspc/backups/openspc-$(date +\%Y\%m\%d).db"
+0 3 * * 0 find /opt/openspc/backups -name "*.db" -mtime +30 -delete
+```
+
+---
+
+### Medium Deployment (Separate Services)
+
+Separate the database onto its own server (or use a managed PostgreSQL service). Multiple uvicorn workers handle increased concurrency. Suitable for multiple plants with dozens of active users.
+
+**Server requirements:**
+- App server: 4 CPU cores, 8 GB RAM
+- Database: 2 CPU cores, 4 GB RAM, SSD storage
+
+#### Switch to PostgreSQL
+
+Install PostgreSQL on the database server and create the database:
+
+```sql
+CREATE USER openspc WITH PASSWORD 'strong-password-here';
+CREATE DATABASE openspc OWNER openspc;
+```
+
+Install the async PostgreSQL driver on the app server:
+
+```bash
+source /opt/openspc/venv/bin/activate
+pip install asyncpg
+```
+
+Update the environment file:
+
+```bash
+# /opt/openspc/.env
+OPENSPC_DATABASE_URL=postgresql+asyncpg://openspc:strong-password-here@db.internal:5432/openspc
+```
+
+Run migrations against the new database:
+
+```bash
+cd /opt/openspc/backend
+alembic upgrade head
+```
+
+#### Scale the backend
+
+Increase workers based on CPU cores (guideline: `2 × cores + 1`):
+
+```ini
+# In openspc.service
+ExecStart=/opt/openspc/venv/bin/uvicorn openspc.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 9
+```
+
+#### PostgreSQL tuning
+
+Add to `postgresql.conf` for an SPC workload (many small reads, periodic writes):
+
+```ini
+shared_buffers = 1GB
+effective_cache_size = 3GB
+work_mem = 16MB
+maintenance_work_mem = 256MB
+max_connections = 100
+```
+
+#### PostgreSQL backups
+
+```bash
+# Daily logical backup
+pg_dump -U openspc -h db.internal openspc | gzip > /backups/openspc-$(date +%Y%m%d).sql.gz
+
+# Point-in-time recovery: enable WAL archiving in postgresql.conf
+wal_level = replica
+archive_mode = on
+archive_command = 'cp %p /backups/wal/%f'
+```
+
+#### MQTT broker integration
+
+If connecting to plant-floor MQTT brokers for automated data ingestion:
+
+- Configure broker connections via the Admin UI (**Connectivity** page) or API
+- The backend's MQTT manager maintains persistent connections and reconnects automatically
+- Sparkplug B payloads are decoded natively — no middleware required
+- Ensure the app server can reach the MQTT broker(s) on TCP port 1883 (or 8883 for TLS)
+- For brokers on isolated OT networks, place the OpenSPC server on a DMZ or use a firewall rule to allow outbound MQTT only
+
+---
+
+### Large Deployment (Containerized / HA)
+
+For enterprise-scale deployments with high availability, horizontal scaling, and centralized orchestration. Suitable for multi-site organizations with hundreds of users and thousands of characteristics.
+
+#### Docker
+
+Create a `Dockerfile` for the backend:
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY backend/ .
+RUN pip install --no-cache-dir -e .
+
+EXPOSE 8000
+CMD ["uvicorn", "openspc.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+```
+
+Build the frontend into an Nginx image:
+
+```dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY frontend/ .
+RUN npm ci && npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+```
+
+#### Docker Compose
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: openspc
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: openspc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openspc"]
+      interval: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      OPENSPC_DATABASE_URL: postgresql+asyncpg://openspc:${DB_PASSWORD}@db:5432/openspc
+      OPENSPC_JWT_SECRET: ${JWT_SECRET}
+      OPENSPC_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      OPENSPC_COOKIE_SECURE: "true"
+      OPENSPC_CORS_ORIGINS: https://spc.yourcompany.com
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "443:443"
+    depends_on:
+      - backend
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+volumes:
+  pgdata:
+```
+
+```bash
+# Generate secrets
+export DB_PASSWORD=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+export JWT_SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(64))")
+export ADMIN_PASSWORD="<your-admin-password>"
+
+docker compose up -d
+docker compose exec backend alembic upgrade head
+```
+
+#### Kubernetes considerations
+
+For Kubernetes deployments:
+
+- Run the backend as a **Deployment** with 3+ replicas behind a **Service**
+- Use a **managed PostgreSQL** service (AWS RDS, GCP Cloud SQL, Azure Database) instead of running Postgres in a pod
+- Store secrets in a **Secret** resource, not environment variables in the manifest
+- Use an **Ingress** controller (nginx-ingress, Traefik) for TLS termination and routing
+- Mount the frontend `dist/` as a ConfigMap or build it into a separate Nginx deployment
+- WebSocket connections are long-lived — configure your Ingress with appropriate read timeouts (`proxy-read-timeout: 86400`)
+- The health endpoint (`GET /health`) can be used for **readiness and liveness probes**
+
+#### High availability notes
+
+- **Backend**: Stateless — scale horizontally. Each replica connects to the shared database and manages its own WebSocket connections.
+- **Database**: Use PostgreSQL streaming replication or a managed service with automated failover.
+- **WebSocket fan-out**: Each backend instance only pushes updates to its own connected WebSocket clients. All instances receive the same database events, so clients connected to any replica see real-time updates.
+- **MQTT**: Only one backend instance should connect to each MQTT broker to avoid duplicate sample ingestion. Use a leader-election pattern or designate a single "ingest" replica.
+
+---
+
+### Security Checklist
+
+Before going live, verify:
+
+- [ ] `OPENSPC_JWT_SECRET` is set to a unique, random value (at least 64 characters)
+- [ ] `OPENSPC_ADMIN_PASSWORD` is changed from the default
+- [ ] `OPENSPC_COOKIE_SECURE=true` is set (requires HTTPS)
+- [ ] `OPENSPC_SANDBOX=false` (disables dev tools)
+- [ ] `OPENSPC_CORS_ORIGINS` lists only your actual frontend domain(s)
+- [ ] HTTPS is enforced (HTTP redirects to HTTPS)
+- [ ] Nginx does **not** expose `/docs` or `/redoc` externally (remove those `location` blocks, or restrict by IP)
+- [ ] Database credentials are not hardcoded in source control
+- [ ] Firewall rules restrict database access to the app server only
+- [ ] WebSocket endpoint is behind the same TLS termination as the API
+- [ ] Regular backups are configured and tested (restore drill at least once)
+- [ ] The `openspc` system user has minimal permissions (no shell, no sudo)
+- [ ] If using MQTT: broker connections use TLS where the network is untrusted
+
+### Monitoring
+
+OpenSPC exposes a health endpoint for monitoring:
+
+```
+GET /health → 200 OK  {"status": "healthy", "database": "connected"}
+GET /health → 503      {"status": "unhealthy", "database": "unreachable"}
+```
+
+Integrate this with your existing monitoring stack:
+
+- **Uptime checks**: Point Pingdom, UptimeRobot, or Nagios at `https://spc.yourcompany.com/health`
+- **Metrics**: Use Nginx access logs + a log collector (Filebeat, Promtail) for request rate, latency, and error rate
+- **Database monitoring**: Standard PostgreSQL monitoring (pg_stat_statements, connection count, replication lag)
+- **Alerting**: Alert on health endpoint failures, 5xx error spikes, and disk space thresholds (especially for SQLite deployments)
+
+---
+
 ## Development
 
 ### Running Tests
