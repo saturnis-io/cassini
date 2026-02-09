@@ -3,6 +3,8 @@
 Admin-only endpoints for user CRUD operations and plant role assignment.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 
@@ -18,6 +20,8 @@ from openspc.api.schemas.user import (
 from openspc.core.auth.passwords import hash_password
 from openspc.db.models.user import User, UserRole
 from openspc.db.repositories.user import UserRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -178,6 +182,7 @@ async def delete_user_permanent(
     try:
         success = await repo.hard_delete(user_id)
     except ValueError as e:
+        logger.warning("User deletion rejected: %s (user_id=%d)", e, user_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),

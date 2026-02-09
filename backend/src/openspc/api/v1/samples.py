@@ -872,7 +872,7 @@ async def batch_import(
             successful += 1
 
         except ValueError as e:
-            # Validation error
+            # SPC engine validation errors are safe to surface (e.g., measurement count mismatch)
             failed += 1
             errors.append(f"Sample {idx + 1}: {str(e)}")
         except Exception:

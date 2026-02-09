@@ -132,11 +132,11 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Seed script failed: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Seed script '%s' failed", body.script)
         raise HTTPException(
             status_code=500,
-            detail="Seed script failed",
+            detail="Seed script failed. Check server logs for details.",
         )
     finally:
         root_logger.removeHandler(capture_handler)

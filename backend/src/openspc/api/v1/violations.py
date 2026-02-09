@@ -14,7 +14,6 @@ from openspc.api.deps import (
     get_current_user,
     get_db_session,
     get_violation_repo,
-    require_role,
     resolve_plant_id_for_characteristic,
 )
 from openspc.db.models.user import User
