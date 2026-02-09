@@ -36,6 +36,7 @@ from openspc.core.auth.bootstrap import bootstrap_admin_user
 from openspc.core.broadcast import WebSocketBroadcaster
 from openspc.core.config import get_settings
 from openspc.core.events import event_bus
+from openspc.core.rate_limit import limiter
 from openspc.core.providers import tag_provider_manager
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
@@ -125,6 +126,13 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
 )
+
+# Rate limiting — attach limiter to app state and register 429 handler
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware for frontend
 app.add_middleware(

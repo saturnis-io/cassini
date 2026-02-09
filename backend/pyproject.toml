@@ -20,6 +20,7 @@ dependencies = [
     "PyJWT>=2.8.0",
     "argon2-cffi>=23.1.0",
     "protobuf>=5.29.0",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]

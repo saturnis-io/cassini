@@ -10,8 +10,10 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from openspc.core.rate_limit import limiter
 
 from openspc.api.deps import get_current_user_or_api_key, get_db_session
 from openspc.api.schemas.data_entry import (
@@ -66,7 +68,9 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     summary="Submit single sample",
     description="Submit a single sample from an external system. Requires API key authentication.",
 )
+@limiter.limit("30/minute")
 async def submit_sample(
+    request: Request,
     data: DataEntryRequest,
     auth: object = Depends(get_current_user_or_api_key),
     session: AsyncSession = Depends(get_db_session),

@@ -6,8 +6,10 @@ Uses JWT access tokens (in response body) and refresh tokens (in httpOnly cookie
 
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from openspc.core.rate_limit import limiter
 
 from openspc.api.deps import get_current_user, get_db_session, get_user_repo
 from openspc.api.schemas.user import (
@@ -55,7 +57,9 @@ def _build_user_response(user: User) -> UserWithRolesResponse:
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit(get_settings().rate_limit_login)
 async def login(
+    request: Request,
     data: LoginRequest,
     response: Response,
     repo: UserRepository = Depends(get_user_repo),
@@ -109,7 +113,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def refresh(
+    request: Request,
     response: Response,
     refresh_token: Optional[str] = Cookie(None),
     session: AsyncSession = Depends(get_db_session),

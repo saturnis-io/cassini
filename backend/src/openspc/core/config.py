@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
 
+    # Rate limiting
+    rate_limit_login: str = "5/minute"
+    rate_limit_default: str = "60/minute"
+
     # Dev / sandbox
     sandbox: bool = False
     # Dev mode -- disables enterprise enforcement (forced password change, etc.)
