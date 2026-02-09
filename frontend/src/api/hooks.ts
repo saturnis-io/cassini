@@ -1,8 +1,8 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
-import type { AnnotationCreate, AnnotationUpdate, Characteristic, HierarchyNode, PlantCreate, PlantUpdate } from '@/types'
+import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
+import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, PlantCreate, PlantUpdate } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
@@ -51,6 +51,12 @@ export const queryKeys = {
   annotations: {
     all: ['annotations'] as const,
     list: (characteristicId: number) => [...queryKeys.annotations.all, 'list', characteristicId] as const,
+  },
+  database: {
+    all: ['database'] as const,
+    config: () => [...queryKeys.database.all, 'config'] as const,
+    status: () => [...queryKeys.database.all, 'status'] as const,
+    migrations: () => [...queryKeys.database.all, 'migrations'] as const,
   },
 }
 
@@ -839,6 +845,97 @@ export function useDeleteAnnotation() {
     },
     onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+    },
+  })
+}
+
+// Database Admin hooks
+const DATABASE_REFETCH_MS = 30_000
+
+export function useDatabaseConfig() {
+  return useQuery({
+    queryKey: queryKeys.database.config(),
+    queryFn: databaseApi.getConfig,
+    refetchInterval: DATABASE_REFETCH_MS,
+  })
+}
+
+export function useDatabaseStatus() {
+  return useQuery({
+    queryKey: queryKeys.database.status(),
+    queryFn: databaseApi.getStatus,
+    refetchInterval: DATABASE_REFETCH_MS,
+  })
+}
+
+export function useMigrationStatus() {
+  return useQuery({
+    queryKey: queryKeys.database.migrations(),
+    queryFn: databaseApi.getMigrationStatus,
+    refetchInterval: DATABASE_REFETCH_MS,
+  })
+}
+
+export function useUpdateDatabaseConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      dialect: DatabaseDialect
+      host?: string
+      port?: number
+      database?: string
+      username?: string
+      password?: string
+      options?: Record<string, string | number | boolean>
+    }) => databaseApi.updateConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.database.all })
+      toast.success('Database configuration saved. Restart required to apply changes.')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save config: ${error.message}`)
+    },
+  })
+}
+
+export function useTestConnection() {
+  return useMutation({
+    mutationFn: (data: {
+      dialect: DatabaseDialect
+      host?: string
+      port?: number
+      database?: string
+      username?: string
+      password?: string
+      options?: Record<string, string | number | boolean>
+    }) => databaseApi.testConnection(data),
+    onError: (error: Error) => {
+      toast.error(`Connection test failed: ${error.message}`)
+    },
+  })
+}
+
+export function useDatabaseBackup() {
+  return useMutation({
+    mutationFn: (params?: { backup_dir?: string }) => databaseApi.backup(params?.backup_dir),
+    onError: (error: Error) => {
+      toast.error(`Backup failed: ${error.message}`)
+    },
+  })
+}
+
+export function useDatabaseVacuum() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => databaseApi.vacuum(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.database.status() })
+      toast.success(data.message)
+    },
+    onError: (error: Error) => {
+      toast.error(`Maintenance failed: ${error.message}`)
     },
   })
 }

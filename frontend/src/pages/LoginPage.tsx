@@ -135,7 +135,7 @@ export function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground mt-4">
-          OpenSPC v0.3.0
+          OpenSPC v0.4.0
         </p>
       </div>
     </div>

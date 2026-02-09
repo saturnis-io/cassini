@@ -12,6 +12,7 @@ from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
 from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
+from openspc.api.v1.database_admin import router as database_admin_router
 from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.characteristics import router as characteristics_router
 from openspc.api.v1.data_entry import router as data_entry_router
@@ -178,6 +179,7 @@ app.include_router(api_keys_router)
 app.include_router(brokers_router)
 app.include_router(characteristics_router)
 app.include_router(config_router)
+app.include_router(database_admin_router)
 app.include_router(data_entry_router)
 app.include_router(providers_router)
 app.include_router(samples_router)

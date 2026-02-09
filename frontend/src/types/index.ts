@@ -444,3 +444,41 @@ export interface AnnotationUpdate {
   text?: string
   color?: string | null
 }
+
+// Database Administration types
+export type DatabaseDialect = 'sqlite' | 'postgresql' | 'mysql' | 'mssql'
+
+export interface DatabaseConfig {
+  dialect: DatabaseDialect
+  host: string
+  port: number
+  database: string
+  username: string
+  has_password: boolean
+  options: Record<string, string | number | boolean>
+}
+
+export interface DatabaseStatus {
+  dialect: string
+  is_connected: boolean
+  version: string
+  table_count: number
+  database_size_mb: number | null
+  migration_current: string | null
+  migration_head: string | null
+  is_up_to_date: boolean
+}
+
+export interface ConnectionTestResult {
+  success: boolean
+  message: string
+  latency_ms: number | null
+  server_version: string | null
+}
+
+export interface MigrationInfo {
+  current_revision: string | null
+  head_revision: string | null
+  pending_count: number
+  is_up_to_date: boolean
+}

@@ -50,22 +50,22 @@ class Characteristic(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     hierarchy_id: Mapped[int] = mapped_column(ForeignKey("hierarchy.id"), nullable=False)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     subgroup_size: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     target_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     usl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Upper Spec Limit
     lsl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Spec Limit
     ucl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Upper Control Limit
     lcl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Control Limit
-    provider_type: Mapped[str] = mapped_column(String, nullable=False)
-    mqtt_topic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    trigger_tag: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    mqtt_topic: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    trigger_tag: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     metric_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Subgroup mode configuration
     subgroup_mode: Mapped[str] = mapped_column(
-        String, default="NOMINAL_TOLERANCE", nullable=False
+        String(50), default="NOMINAL_TOLERANCE", nullable=False
     )
     min_measurements: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     warn_below_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

@@ -34,12 +34,12 @@ class Violation(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), nullable=False)
     rule_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    rule_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    severity: Mapped[str] = mapped_column(String, nullable=False)
+    rule_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     requires_acknowledgement: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    ack_user: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    ack_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ack_user: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    ack_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     ack_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationship

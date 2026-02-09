@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import structlog
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -14,7 +15,16 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from openspc.db.dialects import (
+    DatabaseDialect,
+    build_database_url,
+    detect_dialect,
+    get_encryption_key,
+    load_db_config,
+)
 from openspc.db.models import Base
+
+logger = structlog.get_logger(__name__)
 
 
 class DatabaseConfig:
@@ -32,6 +42,7 @@ class DatabaseConfig:
             echo: Enable SQL query logging
         """
         self.database_url = database_url
+        self.dialect = detect_dialect(database_url)
         self.echo = echo
         self._engine: Optional[AsyncEngine] = None
         self._session_factory: Optional[async_sessionmaker[AsyncSession]] = None
@@ -44,15 +55,19 @@ class DatabaseConfig:
             AsyncEngine instance
         """
         if self._engine is None:
-            is_sqlite = self.database_url.startswith("sqlite")
-
             engine_kwargs: dict = {
                 "echo": self.echo,
             }
-            # NullPool is needed for SQLite (doesn't support connection pooling well)
-            # but other databases benefit from connection pooling.
-            if is_sqlite:
+
+            if self.dialect == DatabaseDialect.SQLITE:
+                # NullPool is needed for SQLite (doesn't support connection pooling well)
                 engine_kwargs["poolclass"] = NullPool
+            else:
+                # Server databases benefit from connection pooling
+                engine_kwargs["pool_size"] = 10
+                engine_kwargs["max_overflow"] = 20
+                engine_kwargs["pool_recycle"] = 3600
+                engine_kwargs["pool_pre_ping"] = True
 
             self._engine = create_async_engine(
                 self.database_url,
@@ -60,7 +75,7 @@ class DatabaseConfig:
             )
 
             # Configure SQLite for WAL mode and foreign keys
-            if is_sqlite:
+            if self.dialect == DatabaseDialect.SQLITE:
 
                 @event.listens_for(self._engine.sync_engine, "connect")
                 def set_sqlite_pragma(dbapi_conn, connection_record):
@@ -133,6 +148,50 @@ class DatabaseConfig:
                 raise
 
 
+def _resolve_database_url() -> str:
+    """Resolve the database URL using the priority order:
+
+    1. db_config.json (encrypted credentials) — preferred for enterprise
+    2. OPENSPC_DATABASE_URL environment variable — logs warning
+    3. SQLite default — sqlite+aiosqlite:///./openspc.db
+
+    Returns:
+        Resolved SQLAlchemy async database URL.
+    """
+    # 1. Check for db_config.json
+    config = load_db_config()
+    if config is not None:
+        try:
+            key = get_encryption_key()
+            url = build_database_url(config, key)
+            logger.info(
+                "database_url_resolved",
+                source="db_config.json",
+                dialect=config.dialect.value,
+            )
+            return url
+        except Exception as e:
+            logger.error("db_config_url_build_failed", error=str(e))
+            # Fall through to other methods
+
+    # 2. Check environment variable
+    from openspc.core.config import get_settings
+
+    settings = get_settings()
+    default_url = "sqlite+aiosqlite:///./openspc.db"
+
+    if settings.database_url != default_url:
+        logger.warning(
+            "database_url_from_env",
+            msg="Using unencrypted connection string from environment variable",
+        )
+        return settings.database_url
+
+    # 3. SQLite default
+    logger.info("database_url_resolved", source="default", dialect="sqlite")
+    return default_url
+
+
 # Global database instance
 _db_config: Optional[DatabaseConfig] = None
 _db_lock = threading.Lock()
@@ -149,10 +208,8 @@ def get_database() -> DatabaseConfig:
         with _db_lock:
             # Double-checked locking
             if _db_config is None:
-                from openspc.core.config import get_settings
-
                 _db_config = DatabaseConfig(
-                    database_url=get_settings().database_url,
+                    database_url=_resolve_database_url(),
                     echo=False,
                 )
     return _db_config

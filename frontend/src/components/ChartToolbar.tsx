@@ -18,6 +18,36 @@ interface ChartToolbarProps {
   onAddAnnotation?: () => void
 }
 
+/**
+ * Compact toolbar button matching the trading-terminal aesthetic.
+ */
+function ToolbarBtn({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active?: boolean
+  onClick: () => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={cn(
+        'flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors',
+        active
+          ? 'bg-primary/15 text-primary border border-primary/30'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 export function ChartToolbar({
   characteristicId,
   subgroupSize = 5,
@@ -51,11 +81,15 @@ export function ChartToolbar({
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 mb-4">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1 py-1 flex-shrink-0 flex-wrap">
+      {/* Left group — data controls */}
+      <div className="flex items-center gap-1">
         <TimeRangeSelector />
+
+        <div className="h-4 w-px bg-border/40 mx-0.5" />
+
         <HistogramPositionSelector />
-        {/* Chart Type Selector */}
+
         {characteristicId && (
           <ChartTypeSelector
             value={currentChartType}
@@ -64,108 +98,82 @@ export function ChartToolbar({
           />
         )}
 
-        {/* Time Axis Toggle */}
-        <button
+        <div className="h-4 w-px bg-border/40 mx-0.5" />
+
+        <ToolbarBtn
+          active={xAxisMode === 'timestamp'}
           onClick={() => setXAxisMode(xAxisMode === 'index' ? 'timestamp' : 'index')}
           title={xAxisMode === 'timestamp' ? 'Show sample numbers' : 'Show timestamps'}
-          className={cn(
-            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
-            xAxisMode === 'timestamp'
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
-          )}
         >
-          <CalendarClock className="h-4 w-4" />
-          <span className="hidden sm:inline">Time Axis</span>
-        </button>
+          <CalendarClock className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Time</span>
+        </ToolbarBtn>
 
-        {/* Range Slider Toggle */}
-        <button
+        <ToolbarBtn
+          active={showBrush}
           onClick={() => setShowBrush(!showBrush)}
           title={showBrush ? 'Hide range slider' : 'Show range slider'}
-          className={cn(
-            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
-            showBrush
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
-          )}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <SlidersHorizontal className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Zoom</span>
-        </button>
+        </ToolbarBtn>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Annotation Visibility Toggle */}
-        <button
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Right group — visibility toggles */}
+      <div className="flex items-center gap-1">
+        <ToolbarBtn
+          active={showAnnotations}
           onClick={() => setShowAnnotations(!showAnnotations)}
           title={showAnnotations ? 'Hide annotations' : 'Show annotations'}
-          className={cn(
-            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
-            showAnnotations
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
-          )}
         >
-          <MessageSquareText className="h-4 w-4" />
+          <MessageSquareText className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Notes</span>
-        </button>
+        </ToolbarBtn>
 
-        {/* Add Annotation Button */}
         {showAnnotations && onAddAnnotation && (
-          <button
+          <ToolbarBtn
             onClick={onAddAnnotation}
             title="Add annotation"
-            className="p-2 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-1.5 text-xs"
           >
-            <StickyNote className="h-4 w-4" />
+            <StickyNote className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Annotate</span>
-          </button>
+          </ToolbarBtn>
         )}
 
-        {/* Spec Limits Toggle */}
-        <button
+        <ToolbarBtn
+          active={showSpecLimits}
           onClick={() => setShowSpecLimits(!showSpecLimits)}
           title={showSpecLimits ? 'Hide spec limits' : 'Show spec limits'}
-          className={cn(
-            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
-            showSpecLimits
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
-          )}
         >
-          {showSpecLimits ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          {showSpecLimits ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">LSL/USL</span>
-        </button>
+        </ToolbarBtn>
 
-        {/* Comparison Toggle */}
-        <button
+        <div className="h-4 w-px bg-border/40 mx-0.5" />
+
+        <ToolbarBtn
+          active={comparisonMode}
           onClick={() => {
             setComparisonMode(!comparisonMode)
             onComparisonToggle?.()
           }}
           title={comparisonMode ? 'Exit comparison' : 'Compare charts'}
-          className={cn(
-            'p-2 rounded-lg border transition-colors flex items-center gap-1.5 text-xs',
-            comparisonMode
-              ? 'bg-primary/10 border-primary text-primary'
-              : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/50'
-          )}
         >
-          <Columns2 className="h-4 w-4" />
+          <Columns2 className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Compare</span>
-        </button>
+        </ToolbarBtn>
 
-        {/* Change Secondary Characteristic (only in comparison mode with secondary selected) */}
         {comparisonMode && secondaryCharacteristicId && onChangeSecondary && (
-          <button
+          <ToolbarBtn
             onClick={onChangeSecondary}
             title="Change comparison characteristic"
-            className="p-2 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors flex items-center gap-1.5 text-xs"
           >
-            <ArrowLeftRight className="h-4 w-4" />
+            <ArrowLeftRight className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Change</span>
-          </button>
+          </ToolbarBtn>
         )}
       </div>
     </div>

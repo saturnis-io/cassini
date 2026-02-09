@@ -70,7 +70,7 @@ export function Header({
   return (
     <header
       className={cn(
-        'h-14 border-b bg-card flex items-center justify-between px-4',
+        'h-12 border-b bg-card flex items-center justify-between px-4',
         className
       )}
     >
@@ -79,9 +79,9 @@ export function Header({
         <img
           src={logoUrl || defaultLogo}
           alt={`${appName} logo`}
-          className="h-12 w-12 object-contain"
+          className="h-9 w-9 object-contain"
         />
-        <span className="text-xl font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>{appName}</span>
+        <span className="text-lg font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>{appName}</span>
       </div>
 
       {/* Right: Plant selector, theme toggle, user menu */}

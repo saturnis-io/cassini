@@ -120,11 +120,11 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
   if (isLoading) return null
 
   return (
-    <div className={cn('bg-card border border-border rounded-xl overflow-hidden flex-shrink-0', className)}>
+    <div className={cn('bg-card border border-border rounded-lg overflow-hidden flex-shrink-0', className)}>
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-muted/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <MessageSquare className="h-4 w-4 text-amber-500" />

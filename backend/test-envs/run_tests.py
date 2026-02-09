@@ -1,4 +1,4 @@
-"""Automated API test runner for WS-4 Phase 2 UAT.
+"""Automated API test runner for OpenSPC UAT.
 
 Starts a backend server with the requested configuration, runs API tests
 against it, reports results, and shuts down. Designed to be invoked by
@@ -9,6 +9,8 @@ Usage:
     python run_tests.py rate-limit          # Run only rate-limit suite
     python run_tests.py dev-mode            # Run only dev-mode bypass suite
     python run_tests.py code-quality        # Run only code-quality suite
+    python run_tests.py database-admin      # Run only database admin suite
+    python run_tests.py dialect-module      # Run only dialect module suite
 
 The script manages its own server lifecycle — no need to start anything
 beforehand. It uses a temporary database so your main openspc.db is
@@ -35,7 +37,8 @@ import jwt as pyjwt  # PyJWT -- for crafting expired/invalid tokens in tests
 # ---------------------------------------------------------------------------
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
-BASE_URL = "http://127.0.0.1:8000"
+TEST_PORT = int(os.environ.get("OPENSPC_TEST_PORT", "8000"))
+BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
 API = f"{BASE_URL}/api/v1"
 
 ADMIN_USER = "admin"
@@ -139,7 +142,7 @@ class ServerProcess:
                 sys.executable, "-m", "uvicorn",
                 "openspc.main:app",
                 "--host", "127.0.0.1",
-                "--port", "8000",
+                "--port", str(TEST_PORT),
             ],
             cwd=str(BACKEND_DIR),
             env=env,
@@ -157,7 +160,7 @@ class ServerProcess:
                     # 404 is fine — means the server is up, just no /health route
                     print("  [setup] Server is ready")
                     return
-            except httpx.ConnectError:
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout):
                 pass
             # Also try login endpoint with GET (will return 405 if server is up)
             try:
@@ -165,10 +168,19 @@ class ServerProcess:
                 if r.status_code in (200, 405, 422):
                     print("  [setup] Server is ready")
                     return
-            except httpx.ConnectError:
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout):
                 pass
             time.sleep(0.5)
 
+        # Dump stderr for debugging before stopping
+        if hasattr(self, "_stderr_file") and self._stderr_file:
+            self._stderr_file.flush()
+        if hasattr(self, "_stderr_path") and self._stderr_path.exists():
+            stderr_content = self._stderr_path.read_text(errors="replace")
+            if stderr_content.strip():
+                print(f"  [server-stderr] Last output:")
+                for line in stderr_content.splitlines()[-20:]:
+                    print(f"    {line}")
         self.stop()
         raise RuntimeError(f"Server did not start within {SERVER_STARTUP_TIMEOUT}s")
 
@@ -990,6 +1002,528 @@ def suite_rbac_isolation() -> TestSuite:
 
 
 # ---------------------------------------------------------------------------
+# WS-1: Multi-Database test suites
+# ---------------------------------------------------------------------------
+
+def suite_dialect_module() -> TestSuite:
+    """Test the dialects.py module: encryption, config I/O, validation, detection."""
+    suite = TestSuite("Dialect Module (encryption, config, validation)")
+
+    # Add backend/src to sys.path so we can import openspc directly
+    src_dir = str(BACKEND_DIR / "src")
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+
+    from pathlib import Path as _Path
+    import tempfile as _tempfile
+
+    # --- Test 1: Encryption round-trip ---
+    try:
+        from openspc.db.dialects import encrypt_password, decrypt_password
+        from cryptography.fernet import Fernet
+
+        test_key = Fernet.generate_key()
+        original = "MyS3cr3tP@ss!"
+        encrypted = encrypt_password(original, test_key)
+        decrypted = decrypt_password(encrypted, test_key)
+        suite.record(
+            "Encryption round-trip (encrypt > decrypt = original)",
+            decrypted == original,
+            f"original={original!r}, decrypted={decrypted!r}",
+        )
+    except Exception as e:
+        suite.record("Encryption round-trip", False, str(e))
+
+    # --- Test 2: Decrypt with wrong key fails ---
+    try:
+        wrong_key = Fernet.generate_key()
+        try:
+            decrypt_password(encrypted, wrong_key)
+            suite.record("Decrypt with wrong key raises ValueError", False, "No exception raised")
+        except ValueError:
+            suite.record("Decrypt with wrong key raises ValueError", True, "ValueError raised")
+        except Exception as e:
+            suite.record("Decrypt with wrong key raises ValueError", False, f"Wrong exception: {type(e).__name__}: {e}")
+    except Exception as e:
+        suite.record("Decrypt with wrong key raises ValueError", False, str(e))
+
+    # --- Test 3: Config save/load round-trip ---
+    try:
+        from openspc.db.dialects import (
+            DatabaseConnectionConfig,
+            DatabaseDialect,
+            save_db_config,
+            load_db_config,
+        )
+
+        with _tempfile.TemporaryDirectory() as tmpdir:
+            cfg_path = _Path(tmpdir) / "test_db_config.json"
+            config = DatabaseConnectionConfig(
+                dialect=DatabaseDialect.POSTGRESQL,
+                host="db.example.com",
+                port=5432,
+                database="openspc_test",
+                username="testuser",
+                encrypted_password="fakeencrypted",
+                options={"pool_size": 10},
+            )
+            save_db_config(config, path=cfg_path)
+            loaded = load_db_config(path=cfg_path)
+
+            match = (
+                loaded is not None
+                and loaded.dialect == config.dialect
+                and loaded.host == config.host
+                and loaded.port == config.port
+                and loaded.database == config.database
+                and loaded.username == config.username
+                and loaded.encrypted_password == config.encrypted_password
+            )
+            suite.record(
+                "Config save/load round-trip",
+                match,
+                f"saved={config.dialect.value}:{config.host}, loaded={'OK' if match else 'MISMATCH'}",
+            )
+    except Exception as e:
+        suite.record("Config save/load round-trip", False, str(e))
+
+    # --- Test 4: load_db_config returns None for missing file ---
+    try:
+        result = load_db_config(path=_Path("/nonexistent/path/db_config.json"))
+        suite.record(
+            "load_db_config returns None for missing file",
+            result is None,
+            f"result={result}",
+        )
+    except Exception as e:
+        suite.record("load_db_config returns None for missing file", False, str(e))
+
+    # --- Test 5: Options whitelist enforcement ---
+    try:
+        from openspc.db.dialects import validate_connection_options
+
+        # Valid options should pass
+        validate_connection_options({"pool_size": 10, "pool_timeout": 30})
+        suite.record("Valid options pass whitelist", True, "pool_size, pool_timeout accepted")
+    except Exception as e:
+        suite.record("Valid options pass whitelist", False, str(e))
+
+    try:
+        try:
+            validate_connection_options({"pool_size": 10, "init_command": "DROP TABLE users"})
+            suite.record("Invalid option rejected by whitelist", False, "No exception raised")
+        except ValueError as e:
+            suite.record(
+                "Invalid option rejected by whitelist",
+                "init_command" in str(e),
+                f"ValueError: {e}",
+            )
+    except Exception as e:
+        suite.record("Invalid option rejected by whitelist", False, str(e))
+
+    # --- Test 6: Dialect detection ---
+    try:
+        from openspc.db.dialects import detect_dialect
+
+        cases = [
+            ("sqlite+aiosqlite:///./test.db", DatabaseDialect.SQLITE),
+            ("sqlite:///./test.db", DatabaseDialect.SQLITE),
+            ("postgresql+asyncpg://user:pass@host:5432/db", DatabaseDialect.POSTGRESQL),
+            ("mysql+aiomysql://user:pass@host:3306/db", DatabaseDialect.MYSQL),
+            ("mssql+aioodbc://user:pass@host:1433/db", DatabaseDialect.MSSQL),
+        ]
+        all_pass = True
+        details = []
+        for url, expected in cases:
+            result = detect_dialect(url)
+            ok = result == expected
+            if not ok:
+                all_pass = False
+            details.append(f"{expected.value}={'OK' if ok else f'GOT {result.value}'}")
+
+        suite.record("Dialect detection for all 4 dialects", all_pass, ", ".join(details))
+    except Exception as e:
+        suite.record("Dialect detection for all 4 dialects", False, str(e))
+
+    # --- Test 7: build_database_url for SQLite ---
+    try:
+        from openspc.db.dialects import build_database_url
+
+        config = DatabaseConnectionConfig(
+            dialect=DatabaseDialect.SQLITE,
+            database="./my_test.db",
+        )
+        url = build_database_url(config, test_key)
+        suite.record(
+            "build_database_url for SQLite",
+            "sqlite+aiosqlite:///./my_test.db" == url,
+            f"url={url}",
+        )
+    except Exception as e:
+        suite.record("build_database_url for SQLite", False, str(e))
+
+    # --- Test 8: build_database_url for PostgreSQL with encrypted password ---
+    try:
+        enc_pw = encrypt_password("secret123", test_key)
+        config = DatabaseConnectionConfig(
+            dialect=DatabaseDialect.POSTGRESQL,
+            host="localhost",
+            port=5432,
+            database="mydb",
+            username="myuser",
+            encrypted_password=enc_pw,
+        )
+        url = build_database_url(config, test_key)
+        expected_prefix = "postgresql+asyncpg://myuser:secret123@localhost:5432/mydb"
+        suite.record(
+            "build_database_url for PostgreSQL (with password)",
+            url == expected_prefix,
+            f"url={url}",
+        )
+    except Exception as e:
+        suite.record("build_database_url for PostgreSQL (with password)", False, str(e))
+
+    # --- Test 9: build_database_url rejects invalid port ---
+    try:
+        config = DatabaseConnectionConfig(
+            dialect=DatabaseDialect.POSTGRESQL,
+            host="localhost",
+            port=9999,
+            database="mydb",
+            username="myuser",
+        )
+        try:
+            build_database_url(config, test_key)
+            suite.record("build_database_url rejects invalid port", False, "No exception raised")
+        except ValueError as e:
+            suite.record("build_database_url rejects invalid port", True, f"ValueError: {e}")
+    except Exception as e:
+        suite.record("build_database_url rejects invalid port", False, str(e))
+
+    # --- Test 10: Encryption key auto-generation ---
+    try:
+        from openspc.db.dialects import get_encryption_key
+
+        with _tempfile.TemporaryDirectory() as tmpdir:
+            key_path = _Path(tmpdir) / "test_encryption_key"
+            # Should not exist yet
+            assert not key_path.exists()
+            key = get_encryption_key(key_path=key_path)
+            # Should now exist
+            exists_after = key_path.exists()
+            # Should be valid Fernet key
+            Fernet(key)  # Will raise if invalid
+            suite.record(
+                "Encryption key auto-generated on first use",
+                exists_after and len(key) > 0,
+                f"key_len={len(key)}, file_created={exists_after}",
+            )
+    except Exception as e:
+        suite.record("Encryption key auto-generated on first use", False, str(e))
+
+    # --- Test 11: Host validation rejects malicious input ---
+    try:
+        try:
+            DatabaseConnectionConfig(
+                dialect=DatabaseDialect.POSTGRESQL,
+                host="evil.com/../../etc/passwd",
+                port=5432,
+                database="test",
+            )
+            suite.record("Host validation rejects path traversal", False, "No exception raised")
+        except ValueError:
+            suite.record("Host validation rejects path traversal", True, "ValueError raised")
+    except Exception as e:
+        suite.record("Host validation rejects path traversal", False, str(e))
+
+    return suite
+
+
+def suite_database_admin() -> TestSuite:
+    """Test all 7 database admin API endpoints (admin-only, rate-limited)."""
+    suite = TestSuite("Database Admin API (config, test, status, backup, vacuum, migrations)")
+    server = ServerProcess(dev_mode=True)
+
+    try:
+        server.start()
+        client = httpx.Client(timeout=10)
+
+        # --- Login as admin ---
+        token = login(client)
+        hdrs = auth_headers(token)
+        suite.record("Login as admin", True, "Token obtained")
+
+        # =====================================================================
+        # 1. GET /database/config — returns current SQLite config
+        # =====================================================================
+        r = client.get(f"{API}/database/config", headers=hdrs)
+        config_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "GET /database/config returns 200",
+            r.status_code == 200,
+            f"HTTP {r.status_code}",
+        )
+        suite.record(
+            "Config response has dialect field",
+            "dialect" in config_body,
+            f"dialect={config_body.get('dialect', 'MISSING')}",
+        )
+        suite.record(
+            "Config response has has_password field (not raw password)",
+            "has_password" in config_body and "password" not in config_body,
+            f"has_password={config_body.get('has_password')}, password_key={'password' in config_body}",
+        )
+
+        # =====================================================================
+        # 2. GET /database/status — returns DB health info
+        # =====================================================================
+        r = client.get(f"{API}/database/status", headers=hdrs)
+        status_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "GET /database/status returns 200",
+            r.status_code == 200,
+            f"HTTP {r.status_code}",
+        )
+        suite.record(
+            "Status shows SQLite dialect and connected",
+            status_body.get("dialect") == "sqlite" and status_body.get("is_connected") is True,
+            f"dialect={status_body.get('dialect')}, connected={status_body.get('is_connected')}",
+        )
+        suite.record(
+            "Status includes version and table_count",
+            "version" in status_body and "table_count" in status_body,
+            f"version={status_body.get('version', 'N/A')}, tables={status_body.get('table_count', 'N/A')}",
+        )
+        suite.record(
+            "Status includes migration info",
+            "migration_current" in status_body and "migration_head" in status_body,
+            f"current={status_body.get('migration_current')}, head={status_body.get('migration_head')}",
+        )
+
+        # =====================================================================
+        # 3. POST /database/test — test SQLite connection
+        # =====================================================================
+        r = client.post(f"{API}/database/test", json={
+            "dialect": "sqlite",
+            "database": "./test_automated.db",
+        }, headers=hdrs)
+        test_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "POST /database/test SQLite succeeds",
+            r.status_code == 200 and test_body.get("success") is True,
+            f"HTTP {r.status_code}, success={test_body.get('success')}, msg={test_body.get('message', 'N/A')}",
+        )
+        suite.record(
+            "Connection test returns latency_ms",
+            test_body.get("latency_ms") is not None,
+            f"latency_ms={test_body.get('latency_ms')}",
+        )
+        suite.record(
+            "Connection test returns server_version",
+            test_body.get("server_version") is not None and "SQLite" in str(test_body.get("server_version", "")),
+            f"server_version={test_body.get('server_version')}",
+        )
+
+        # =====================================================================
+        # 4. POST /database/test — SSRF protection (invalid port)
+        # =====================================================================
+        r = client.post(f"{API}/database/test", json={
+            "dialect": "postgresql",
+            "host": "localhost",
+            "port": 9999,
+            "database": "test",
+        }, headers=hdrs)
+        suite.record(
+            "Connection test rejects invalid port (SSRF protection)",
+            r.status_code == 400,
+            f"HTTP {r.status_code}: {r.text[:100]}",
+        )
+
+        # =====================================================================
+        # 5. PUT /database/config — save config (with invalid options)
+        # =====================================================================
+        r = client.put(f"{API}/database/config", json={
+            "dialect": "sqlite",
+            "database": "./test_save.db",
+            "options": {"init_command": "DROP TABLE users"},
+        }, headers=hdrs)
+        suite.record(
+            "PUT /database/config rejects invalid options",
+            r.status_code == 400,
+            f"HTTP {r.status_code}: {r.text[:100]}",
+        )
+
+        # =====================================================================
+        # 6. PUT /database/config — valid update
+        # =====================================================================
+        r = client.put(f"{API}/database/config", json={
+            "dialect": "sqlite",
+            "database": "./openspc.db",
+        }, headers=hdrs)
+        update_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "PUT /database/config with valid data succeeds",
+            r.status_code == 200 and update_body.get("dialect") == "sqlite",
+            f"HTTP {r.status_code}, dialect={update_body.get('dialect')}",
+        )
+
+        # =====================================================================
+        # 7. POST /database/backup — SQLite backup
+        # =====================================================================
+        r = client.post(f"{API}/database/backup", headers=hdrs)
+        backup_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "POST /database/backup succeeds for SQLite",
+            r.status_code == 200 and "message" in backup_body,
+            f"HTTP {r.status_code}, msg={backup_body.get('message', 'N/A')[:60]}",
+        )
+        # Clean up backup file if created
+        backup_path = backup_body.get("path")
+        if backup_path:
+            try:
+                Path(backup_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        # =====================================================================
+        # 8. POST /database/vacuum — VACUUM + ANALYZE
+        # =====================================================================
+        r = client.post(f"{API}/database/vacuum", headers=hdrs)
+        vacuum_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "POST /database/vacuum succeeds for SQLite",
+            r.status_code == 200 and "VACUUM" in vacuum_body.get("message", ""),
+            f"HTTP {r.status_code}, msg={vacuum_body.get('message', 'N/A')}",
+        )
+
+        # =====================================================================
+        # 9. GET /database/migrations — migration status
+        # =====================================================================
+        r = client.get(f"{API}/database/migrations", headers=hdrs)
+        mig_body = r.json() if r.status_code == 200 else {}
+        suite.record(
+            "GET /database/migrations returns 200",
+            r.status_code == 200,
+            f"HTTP {r.status_code}",
+        )
+        suite.record(
+            "Migration status shows up-to-date",
+            mig_body.get("is_up_to_date") is True,
+            f"current={mig_body.get('current_revision')}, head={mig_body.get('head_revision')}, pending={mig_body.get('pending_count')}",
+        )
+
+        # =====================================================================
+        # 10. Non-admin user cannot access database admin endpoints
+        # =====================================================================
+        # Create a non-admin user
+        r = client.post(f"{API}/plants/", json={
+            "name": "DB Admin Test Plant", "code": "DBTEST",
+        }, headers=hdrs)
+        plant_id = r.json().get("id") if r.status_code in (200, 201) else None
+        if not plant_id:
+            r2 = client.get(f"{API}/plants/", headers=hdrs)
+            plants = r2.json() if r2.status_code == 200 else []
+            if isinstance(plants, list) and plants:
+                plant_id = plants[0]["id"]
+
+        if plant_id:
+            r = client.post(f"{API}/users/", json={
+                "username": "db_operator",
+                "password": "testpass123",
+                "plant_roles": [{"plant_id": plant_id, "role": "operator"}],
+            }, headers=hdrs)
+            op_created = r.status_code in (200, 201)
+
+            if op_created:
+                # Login as operator
+                r = client.post(f"{API}/auth/login", json={
+                    "username": "db_operator", "password": "testpass123",
+                })
+                op_body = r.json() if r.status_code == 200 else {}
+                op_token = op_body.get("access_token", "")
+                op_hdrs = auth_headers(op_token)
+
+                # Try accessing admin endpoints
+                r = client.get(f"{API}/database/config", headers=op_hdrs)
+                suite.record(
+                    "Non-admin GET /database/config returns 403",
+                    r.status_code == 403,
+                    f"HTTP {r.status_code}",
+                )
+
+                r = client.get(f"{API}/database/status", headers=op_hdrs)
+                suite.record(
+                    "Non-admin GET /database/status returns 403",
+                    r.status_code == 403,
+                    f"HTTP {r.status_code}",
+                )
+
+                r = client.post(f"{API}/database/test", json={
+                    "dialect": "sqlite", "database": "./test.db",
+                }, headers=op_hdrs)
+                suite.record(
+                    "Non-admin POST /database/test returns 403",
+                    r.status_code == 403,
+                    f"HTTP {r.status_code}",
+                )
+
+                r = client.get(f"{API}/database/migrations", headers=op_hdrs)
+                suite.record(
+                    "Non-admin GET /database/migrations returns 403",
+                    r.status_code == 403,
+                    f"HTTP {r.status_code}",
+                )
+            else:
+                suite.record("Non-admin access tests", False, "Could not create operator user")
+        else:
+            suite.record("Non-admin access tests", False, "Could not create plant")
+
+        # =====================================================================
+        # 11. Unauthenticated access returns 401
+        # =====================================================================
+        r = client.get(f"{API}/database/config")
+        suite.record(
+            "Unauthenticated GET /database/config returns 401",
+            r.status_code == 401,
+            f"HTTP {r.status_code}",
+        )
+
+        # =====================================================================
+        # 12. PUT /database/config — SSRF: server dialect with invalid port
+        # =====================================================================
+        r = client.put(f"{API}/database/config", json={
+            "dialect": "postgresql",
+            "host": "localhost",
+            "port": 8080,
+            "database": "test",
+            "username": "user",
+            "password": "pass",
+        }, headers=hdrs)
+        suite.record(
+            "PUT config rejects non-allowed port for server dialect",
+            r.status_code == 400,
+            f"HTTP {r.status_code}: {r.text[:100]}",
+        )
+
+        # Clean up db_config.json that may have been created by the PUT test
+        try:
+            (BACKEND_DIR / "db_config.json").unlink(missing_ok=True)
+        except OSError:
+            pass
+
+        client.close()
+    finally:
+        server.stop()
+        # Clean up any db_config.json left by tests
+        try:
+            (BACKEND_DIR / "db_config.json").unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    return suite
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1000,6 +1534,8 @@ SUITES = {
     "auth-flow": suite_auth_flow,
     "negative-auth": suite_negative_auth,
     "rbac-isolation": suite_rbac_isolation,
+    "dialect-module": suite_dialect_module,
+    "database-admin": suite_database_admin,
 }
 
 

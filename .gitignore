@@ -43,6 +43,10 @@ Thumbs.db
 # JWT secret (auto-generated for development)
 .jwt_secret
 
+# Database encryption key and config (auto-generated, contains credentials)
+.db_encryption_key
+db_config.json
+
 # Build outputs
 dashboard/client/dist/
 
@@ -54,6 +58,10 @@ dashboard/client/dist/
 .planning/
 docs/internal/
 .playwright-cli/
+
+# Test environment scripts (phase-specific start.bat files)
+backend/test-envs/
+frontend/test-envs/
 
 # Windows artifacts
 nul

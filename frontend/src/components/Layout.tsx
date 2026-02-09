@@ -36,13 +36,13 @@ export function Layout() {
         <Sidebar />
 
         {/* Content area */}
-        <main className="flex-1 overflow-auto px-6 py-6">
+        <main className="flex-1 overflow-auto px-4 py-3">
           <Outlet />
         </main>
       </div>
 
       {/* Footer / Status bar - full width */}
-      <footer className="border-t bg-card py-2 px-6 shrink-0">
+      <footer className="border-t bg-card py-1.5 px-4 shrink-0">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             {wsConnected ? (

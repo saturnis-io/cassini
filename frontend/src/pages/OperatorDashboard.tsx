@@ -15,9 +15,49 @@ import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
+import { cn } from '@/lib/utils'
+import {
+  AlertTriangle,
+  TrendingUp,
+  Activity,
+  Hash,
+  Target,
+  Gauge,
+} from 'lucide-react'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
+
+/**
+ * Stat pill — compact key-value badge for the stats ticker bar.
+ */
+function StatPill({
+  icon: Icon,
+  label,
+  value,
+  variant = 'default',
+}: {
+  icon: React.ElementType
+  label: string
+  value: string | number
+  variant?: 'default' | 'success' | 'warning' | 'danger'
+}) {
+  const variantClasses = {
+    default: 'text-muted-foreground',
+    success: 'text-green-500',
+    warning: 'text-amber-500',
+    danger: 'text-destructive',
+  }
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/40 border border-border/50 text-xs">
+      <Icon className={cn('h-3 w-3', variantClasses[variant])} />
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('font-semibold tabular-nums', variantClasses[variant])}>
+        {value}
+      </span>
+    </div>
+  )
+}
 
 export function OperatorDashboard() {
   const { data: characteristicsData, isLoading } = useCharacteristics()
@@ -57,14 +97,11 @@ export function OperatorDashboard() {
   const { isConnected: wsConnected, subscribe, unsubscribe } = useWebSocketContext()
 
   // Compute chart data options from time range
-  // Note: For duration-based ranges, we compute dates at render time
-  // This is acceptable since the options are used immediately for data fetching
   const chartOptions = (() => {
     if (timeRange.type === 'points' && timeRange.pointsLimit) {
       return { limit: timeRange.pointsLimit }
     }
     if (timeRange.type === 'duration' && timeRange.hoursBack) {
-      // Quantize to nearest minute so the query key stays stable between renders
       const now = Math.floor(Date.now() / 60000) * 60000
       const endDate = new Date(now).toISOString()
       const startDate = new Date(now - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
@@ -76,8 +113,7 @@ export function OperatorDashboard() {
     return { limit: 50 }
   })()
 
-  // Get chart data for annotation dialog and range slider sparkline
-  // Disable polling when WebSocket is connected — WS pushes invalidations in real-time
+  // Get chart data for annotation dialog, range slider sparkline, and stats
   const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions, {
     refetchInterval: wsConnected ? false : undefined,
   })
@@ -154,6 +190,43 @@ export function OperatorDashboard() {
     return [slice[0].timestamp, slice[slice.length - 1].timestamp]
   }, [chartDataForAnnotation, rangeWindow, showBrush])
 
+  // Compute quick stats for the selected characteristic
+  const quickStats = useMemo(() => {
+    if (!chartDataForAnnotation?.data_points?.length) return null
+    const pts = chartDataForAnnotation.data_points
+    const { control_limits, spec_limits } = chartDataForAnnotation
+
+    const totalSamples = pts.length
+    const violationCount = pts.filter((p) => p.violation_ids.length > 0).length
+    const lastMean = pts[pts.length - 1].mean
+    const centerLine = control_limits.center_line
+
+    // Compute Cpk if spec limits exist
+    let cpk: number | null = null
+    if (spec_limits.usl != null && spec_limits.lsl != null && control_limits.center_line != null) {
+      const values = pts.map((p) => p.mean)
+      const mean = values.reduce((a, b) => a + b, 0) / values.length
+      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1)
+      const sigma = Math.sqrt(variance)
+      if (sigma > 0) {
+        const cpkUpper = (spec_limits.usl - mean) / (3 * sigma)
+        const cpkLower = (mean - spec_limits.lsl) / (3 * sigma)
+        cpk = Math.min(cpkUpper, cpkLower)
+      }
+    }
+
+    return {
+      totalSamples,
+      violationCount,
+      lastMean,
+      centerLine,
+      cpk,
+      ucl: control_limits.ucl,
+      lcl: control_limits.lcl,
+      precision: chartDataForAnnotation.decimal_precision ?? 2,
+    }
+  }, [chartDataForAnnotation])
+
   // Reset range window when characteristic changes
   useEffect(() => {
     setRangeWindow(null)
@@ -167,8 +240,6 @@ export function OperatorDashboard() {
     characteristicIds.forEach((id) => subscribe(id))
 
     return () => {
-      // Only unsubscribe from these specific IDs when dashboard unmounts
-      // The WebSocket connection itself stays open
       characteristicIds.forEach((id) => unsubscribe(id))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,172 +253,253 @@ export function OperatorDashboard() {
     )
   }
 
+  const precision = quickStats?.precision ?? 2
+
   return (
-    <div className="flex gap-6 h-[calc(100vh-10rem)]">
-      {/* Left panel - Hierarchy-based characteristic selection */}
-      <div className="w-80 flex-shrink-0">
-        <HierarchyTodoList />
-      </div>
+    <div className="flex flex-col h-[calc(100vh-5.5rem)] -mx-4 -my-3 px-3 py-2 gap-2">
 
-      {/* Right panel - Visualization */}
-      <div className="flex-1 flex flex-col gap-4 min-h-0">
-        {selectedId ? (
-          <>
-            <ChartToolbar
-              characteristicId={selectedId}
-              subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
-              onChangeSecondary={() => setShowComparisonSelector(true)}
-              onAddAnnotation={() => {
-                setAnnotationMode('period')
-                setAnnotationSampleId(undefined)
-                setAnnotationSampleLabel(undefined)
-                setAnnotationDialogOpen(true)
-              }}
-            />
-
-            {/* Range slider for chart viewport windowing */}
-            {showBrush && sparklineValues.length > 10 && (
-              <ChartRangeSlider
-                totalPoints={sparklineValues.length}
-                values={sparklineValues}
-                timestamps={sparklineTimestamps}
-              />
+      {/* ── Stats Ticker Bar ── */}
+      {selectedId && quickStats && (
+        <div className="flex items-center gap-2 px-1 py-1 overflow-x-auto flex-shrink-0">
+          {/* Characteristic name + chart type */}
+          <div className="flex items-center gap-2 mr-2 flex-shrink-0">
+            <span className="text-sm font-semibold truncate max-w-[200px]">
+              {selectedCharacteristic?.name ?? '—'}
+            </span>
+            {selectedCharacteristic?.unit && (
+              <span className="text-xs text-muted-foreground">
+                ({selectedCharacteristic.unit})
+              </span>
             )}
+          </div>
 
-            {/* Primary Chart with optional histogram */}
-            <div className="flex-1 min-h-0">
-              {isBoxWhisker ? (
-                histogramPosition === 'right' ? (
-                  <div className="flex gap-4 h-full">
-                    <div className="flex-1 min-w-0">
-                      <BoxWhiskerChart
-                        characteristicId={selectedId}
-                        chartOptions={chartOptions}
-                        showSpecLimits={showSpecLimits}
-                        yAxisDomain={boxWhiskerYDomain}
-                        hideLegend
-                      />
-                    </div>
-                    <div className="w-[280px] flex-shrink-0">
-                      <DistributionHistogram
-                        characteristicId={selectedId}
-                        orientation="vertical"
-                        chartOptions={chartOptions}
-                        yAxisDomain={boxWhiskerYDomain}
-                        showSpecLimits={showSpecLimits}
-                        gridBottom={50}
-                      />
-                    </div>
-                  </div>
-                ) : histogramPosition === 'below' ? (
-                  <div className="flex flex-col gap-4 h-full">
-                    <div className="flex-1 min-h-0">
-                      <BoxWhiskerChart
-                        characteristicId={selectedId}
-                        chartOptions={chartOptions}
-                        showSpecLimits={showSpecLimits}
-                      />
-                    </div>
-                    <div className="h-[192px] flex-shrink-0">
-                      <DistributionHistogram
-                        characteristicId={selectedId}
-                        orientation="horizontal"
-                        chartOptions={chartOptions}
-                        showSpecLimits={showSpecLimits}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <BoxWhiskerChart
-                    characteristicId={selectedId}
-                    chartOptions={chartOptions}
-                    showSpecLimits={showSpecLimits}
-                  />
-                )
-              ) : isDualChart ? (
-                <DualChartPanel
-                  characteristicId={selectedId}
-                  chartType={currentChartType}
-                  chartOptions={chartOptions}
-                  label={comparisonMode ? 'Primary' : undefined}
-                  histogramPosition={histogramPosition}
-                  showSpecLimits={showSpecLimits}
-                  onPointAnnotation={(sampleId) => {
-                    setSampleInspectorSampleId(sampleId)
-                    setSampleInspectorOpen(true)
-                  }}
-                />
-              ) : (
-                <ChartPanel
-                  characteristicId={selectedId}
-                  chartOptions={chartOptions}
-                  label={comparisonMode ? 'Primary' : undefined}
-                  histogramPosition={histogramPosition}
-                  showSpecLimits={showSpecLimits}
-                  onPointAnnotation={(sampleId) => {
-                    setSampleInspectorSampleId(sampleId)
-                    setSampleInspectorOpen(true)
-                  }}
+          <div className="h-4 w-px bg-border/60 flex-shrink-0" />
+
+          {/* Stats pills */}
+          <StatPill
+            icon={Activity}
+            label="Last"
+            value={quickStats.lastMean.toFixed(precision)}
+          />
+          {quickStats.centerLine != null && (
+            <StatPill
+              icon={Target}
+              label="CL"
+              value={quickStats.centerLine.toFixed(precision)}
+            />
+          )}
+          {quickStats.ucl != null && (
+            <StatPill
+              icon={TrendingUp}
+              label="UCL"
+              value={quickStats.ucl.toFixed(precision)}
+            />
+          )}
+          {quickStats.lcl != null && (
+            <StatPill
+              icon={TrendingUp}
+              label="LCL"
+              value={quickStats.lcl.toFixed(precision)}
+            />
+          )}
+          <StatPill
+            icon={Hash}
+            label="n"
+            value={quickStats.totalSamples}
+          />
+          <StatPill
+            icon={AlertTriangle}
+            label="OOC"
+            value={quickStats.violationCount}
+            variant={quickStats.violationCount > 0 ? 'danger' : 'success'}
+          />
+          {quickStats.cpk != null && (
+            <StatPill
+              icon={Gauge}
+              label="Cpk"
+              value={quickStats.cpk.toFixed(2)}
+              variant={
+                quickStats.cpk >= 1.33
+                  ? 'success'
+                  : quickStats.cpk >= 1.0
+                  ? 'warning'
+                  : 'danger'
+              }
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── Main Content Area ── */}
+      <div className="flex gap-2 flex-1 min-h-0">
+
+        {/* Left Panel — Hierarchy / Characteristics (Watchlist-style) */}
+        <div className="w-72 flex-shrink-0">
+          <HierarchyTodoList className="h-full" />
+        </div>
+
+        {/* Center + Right — Chart area */}
+        <div className="flex-1 flex flex-col gap-2 min-h-0 min-w-0">
+          {selectedId ? (
+            <>
+              {/* ── Toolbar ── */}
+              <ChartToolbar
+                characteristicId={selectedId}
+                subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
+                onChangeSecondary={() => setShowComparisonSelector(true)}
+                onAddAnnotation={() => {
+                  setAnnotationMode('period')
+                  setAnnotationSampleId(undefined)
+                  setAnnotationSampleLabel(undefined)
+                  setAnnotationDialogOpen(true)
+                }}
+              />
+
+              {/* ── Range Slider ── */}
+              {showBrush && sparklineValues.length > 10 && (
+                <ChartRangeSlider
+                  totalPoints={sparklineValues.length}
+                  values={sparklineValues}
+                  timestamps={sparklineTimestamps}
                 />
               )}
-            </div>
 
-            {/* Secondary Chart (Comparison Mode) */}
-            {comparisonMode && (
-              <div className="flex-1 min-h-0 relative">
-                {secondaryCharacteristicId ? (
-                  <ChartPanel
-                    characteristicId={secondaryCharacteristicId}
+              {/* ── Primary Chart ── */}
+              <div className="flex-1 min-h-0">
+                {isBoxWhisker ? (
+                  histogramPosition === 'right' ? (
+                    <div className="flex gap-2 h-full">
+                      <div className="flex-1 min-w-0">
+                        <BoxWhiskerChart
+                          characteristicId={selectedId}
+                          chartOptions={chartOptions}
+                          showSpecLimits={showSpecLimits}
+                          yAxisDomain={boxWhiskerYDomain}
+                          hideLegend
+                        />
+                      </div>
+                      <div className="w-[280px] flex-shrink-0">
+                        <DistributionHistogram
+                          characteristicId={selectedId}
+                          orientation="vertical"
+                          chartOptions={chartOptions}
+                          yAxisDomain={boxWhiskerYDomain}
+                          showSpecLimits={showSpecLimits}
+                          gridBottom={50}
+                        />
+                      </div>
+                    </div>
+                  ) : histogramPosition === 'below' ? (
+                    <div className="flex flex-col gap-2 h-full">
+                      <div className="flex-1 min-h-0">
+                        <BoxWhiskerChart
+                          characteristicId={selectedId}
+                          chartOptions={chartOptions}
+                          showSpecLimits={showSpecLimits}
+                        />
+                      </div>
+                      <div className="h-[192px] flex-shrink-0">
+                        <DistributionHistogram
+                          characteristicId={selectedId}
+                          orientation="horizontal"
+                          chartOptions={chartOptions}
+                          showSpecLimits={showSpecLimits}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <BoxWhiskerChart
+                      characteristicId={selectedId}
+                      chartOptions={chartOptions}
+                      showSpecLimits={showSpecLimits}
+                    />
+                  )
+                ) : isDualChart ? (
+                  <DualChartPanel
+                    characteristicId={selectedId}
+                    chartType={currentChartType}
                     chartOptions={chartOptions}
-                    label="Secondary"
+                    label={comparisonMode ? 'Primary' : undefined}
                     histogramPosition={histogramPosition}
                     showSpecLimits={showSpecLimits}
+                    onPointAnnotation={(sampleId) => {
+                      setSampleInspectorSampleId(sampleId)
+                      setSampleInspectorOpen(true)
+                    }}
                   />
                 ) : (
-                  <div className="h-full bg-card border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground">
-                    <p className="mb-3">Select a characteristic to compare</p>
-                    <button
-                      onClick={() => setShowComparisonSelector(true)}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                    >
-                      Browse Hierarchy
-                    </button>
-                  </div>
-                )}
-
-                {/* Comparison Selector Modal */}
-                {showComparisonSelector && (
-                  <ComparisonSelector
-                    excludeId={selectedId}
-                    onSelect={(id) => {
-                      setSecondaryCharacteristicId(id)
-                      setShowComparisonSelector(false)
+                  <ChartPanel
+                    characteristicId={selectedId}
+                    chartOptions={chartOptions}
+                    label={comparisonMode ? 'Primary' : undefined}
+                    histogramPosition={histogramPosition}
+                    showSpecLimits={showSpecLimits}
+                    onPointAnnotation={(sampleId) => {
+                      setSampleInspectorSampleId(sampleId)
+                      setSampleInspectorOpen(true)
                     }}
-                    onCancel={() => setShowComparisonSelector(false)}
                   />
                 )}
               </div>
-            )}
-          {/* Annotation List Panel */}
-          {showAnnotations && selectedId && (
-            <AnnotationListPanel
-              characteristicId={selectedId}
-              visibleSampleIds={visibleSampleIds}
-              visibleTimeRange={visibleTimeRange}
-            />
+
+              {/* ── Secondary Chart (Comparison Mode) ── */}
+              {comparisonMode && (
+                <div className="flex-1 min-h-0 relative">
+                  {secondaryCharacteristicId ? (
+                    <ChartPanel
+                      characteristicId={secondaryCharacteristicId}
+                      chartOptions={chartOptions}
+                      label="Secondary"
+                      histogramPosition={histogramPosition}
+                      showSpecLimits={showSpecLimits}
+                    />
+                  ) : (
+                    <div className="h-full bg-card border border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+                      <p className="mb-3 text-sm">Select a characteristic to compare</p>
+                      <button
+                        onClick={() => setShowComparisonSelector(true)}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                      >
+                        Browse Hierarchy
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Comparison Selector Modal */}
+                  {showComparisonSelector && (
+                    <ComparisonSelector
+                      excludeId={selectedId}
+                      onSelect={(id) => {
+                        setSecondaryCharacteristicId(id)
+                        setShowComparisonSelector(false)
+                      }}
+                      onCancel={() => setShowComparisonSelector(false)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* ── Annotation List Panel ── */}
+              {showAnnotations && selectedId && (
+                <AnnotationListPanel
+                  characteristicId={selectedId}
+                  visibleSampleIds={visibleSampleIds}
+                  visibleTimeRange={visibleTimeRange}
+                />
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+              Select a characteristic from the list to view its control chart
+            </div>
           )}
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Select a characteristic from the list to view its control chart
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}
 
-      {/* Annotation Dialog (period mode from toolbar button) */}
+      {/* Annotation Dialog */}
       {annotationDialogOpen && selectedId && (
         <AnnotationDialog
           characteristicId={selectedId}
@@ -358,7 +510,7 @@ export function OperatorDashboard() {
         />
       )}
 
-      {/* Sample Inspector Modal (point click on chart) */}
+      {/* Sample Inspector Modal */}
       {sampleInspectorOpen && selectedId && sampleInspectorSampleId > 0 && (
         <SampleInspectorModal
           sampleId={sampleInspectorSampleId}

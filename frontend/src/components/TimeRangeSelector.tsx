@@ -240,14 +240,14 @@ export function TimeRangeSelector() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors',
+          'flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors',
           'bg-card border-border hover:border-primary/50',
           isOpen && 'border-primary'
         )}
       >
-        <Clock className="h-4 w-4 text-muted-foreground" />
+        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
         <span>{getCurrentLabel()}</span>
-        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+        <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
       </button>
 
       {isOpen && (

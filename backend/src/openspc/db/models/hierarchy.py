@@ -50,8 +50,8 @@ class Hierarchy(Base):
     plant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=True
     )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    type: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Self-referential relationship for parent-child hierarchy
     parent: Mapped[Optional["Hierarchy"]] = relationship(

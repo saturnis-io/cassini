@@ -53,7 +53,7 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   '/configuration': 'engineer',
 
   // Admin level
-  '/settings': 'admin',
+  '/settings': 'engineer',
   '/admin/users': 'admin',
   '/dev-tools': 'admin',
 

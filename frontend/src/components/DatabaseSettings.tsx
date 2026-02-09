@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Database, Download, Trash2, RefreshCw, HardDrive } from 'lucide-react'
+import { Database, Download, Trash2, RefreshCw, HardDrive, Server, Settings, ChevronDown, ChevronRight, GitBranch, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { characteristicApi, sampleApi, violationApi } from '@/api/client'
+import { useDatabaseStatus } from '@/api/hooks'
+import { useAuth } from '@/providers/AuthProvider'
+import { hasAccess } from '@/lib/roles'
+import { DatabaseConnectionForm } from '@/components/DatabaseConnectionForm'
+import { DatabaseMigrationStatus } from '@/components/DatabaseMigrationStatus'
+import { DatabaseMaintenancePanel } from '@/components/DatabaseMaintenancePanel'
 import type { Sample } from '@/types'
 
 /** Maximum records per entity for client-side export */
@@ -31,27 +37,57 @@ async function fetchDatabaseStats(): Promise<DatabaseStats> {
   }
 }
 
+const DIALECT_LABELS: Record<string, string> = {
+  sqlite: 'SQLite',
+  postgresql: 'PostgreSQL',
+  mysql: 'MySQL',
+  mssql: 'MSSQL',
+}
+
 export function DatabaseSettings() {
   const [showClearDialog, setShowClearDialog] = useState(false)
   const [clearTarget, setClearTarget] = useState<'samples' | 'all' | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [showConnectionConfig, setShowConnectionConfig] = useState(false)
 
-  const { data: stats, isLoading, refetch } = useQuery({
+  const { role } = useAuth()
+  const isAdmin = hasAccess(role, 'admin')
+
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['database-stats'],
     queryFn: fetchDatabaseStats,
     refetchInterval: 30000,
   })
 
-  // Known limitation: export is client-side with a 10,000 record cap per entity.
-  // For large datasets, a server-side streaming export endpoint (e.g. GET /api/v1/export)
-  // would be the proper solution to avoid browser memory constraints.
+  const { data: dbStatus, isLoading: statusLoading, refetch: refetchStatus } = useDatabaseStatus()
+
+  // Paginated fetch helper — fetches all pages up to EXPORT_MAX_RECORDS
+  const fetchAllPages = async <T,>(
+    fetcher: (params: { page: number; per_page: number }) => Promise<{ items: T[]; total: number }>,
+    pageSize = 1000,
+  ): Promise<{ items: T[]; total: number }> => {
+    const allItems: T[] = []
+    let page = 1
+    let total = 0
+    while (allItems.length < EXPORT_MAX_RECORDS) {
+      const result = await fetcher({ page, per_page: pageSize })
+      total = result.total
+      const items = result.items || []
+      if (items.length === 0) break
+      allItems.push(...items)
+      if (allItems.length >= total) break
+      page++
+    }
+    return { items: allItems.slice(0, EXPORT_MAX_RECORDS), total }
+  }
+
   const handleExport = async (format: 'json' | 'csv') => {
     setIsExporting(true)
     try {
       const [chars, samples, violations] = await Promise.all([
         characteristicApi.list(),
-        sampleApi.list({ per_page: EXPORT_MAX_RECORDS }),
-        violationApi.list({ per_page: EXPORT_MAX_RECORDS }),
+        fetchAllPages((p) => sampleApi.list(p)),
+        fetchAllPages((p) => violationApi.list(p)),
       ])
 
       const totalSamples = (samples as { total?: number }).total ?? 0
@@ -119,6 +155,62 @@ export function DatabaseSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Database Status */}
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Server className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Database Status</h3>
+          </div>
+          <button
+            onClick={() => refetchStatus()}
+            disabled={statusLoading}
+            className="p-2 hover:bg-muted rounded-lg"
+            title="Refresh status"
+          >
+            <RefreshCw className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {dbStatus ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Engine</div>
+              <div className="font-medium text-sm">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">
+                  {DIALECT_LABELS[dbStatus.dialect] || dbStatus.dialect}
+                </span>
+              </div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Status</div>
+              <div className="flex items-center gap-1.5">
+                <div className={cn('h-2 w-2 rounded-full', dbStatus.is_connected ? 'bg-green-500' : 'bg-red-500')} />
+                <span className="text-sm font-medium">{dbStatus.is_connected ? 'Connected' : 'Disconnected'}</span>
+              </div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Tables</div>
+              <div className="text-sm font-medium">{dbStatus.table_count}</div>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Size</div>
+              <div className="text-sm font-medium">
+                {dbStatus.database_size_mb != null ? `${dbStatus.database_size_mb} MB` : 'N/A'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Loading status...</div>
+        )}
+
+        {dbStatus?.version && (
+          <div className="mt-3 text-xs text-muted-foreground truncate">
+            Version: {dbStatus.version}
+          </div>
+        )}
+      </div>
+
       {/* Database Statistics */}
       <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
@@ -127,12 +219,12 @@ export function DatabaseSettings() {
             <h3 className="font-semibold">Database Statistics</h3>
           </div>
           <button
-            onClick={() => refetch()}
-            disabled={isLoading}
+            onClick={() => refetchStats()}
+            disabled={statsLoading}
             className="p-2 hover:bg-muted rounded-lg"
             title="Refresh statistics"
           >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', statsLoading && 'animate-spin')} />
           </button>
         </div>
 
@@ -151,6 +243,54 @@ export function DatabaseSettings() {
           ))}
         </div>
       </div>
+
+      {/* Connection Configuration (Admin only) */}
+      {isAdmin && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <button
+            onClick={() => setShowConnectionConfig(!showConnectionConfig)}
+            className="flex items-center justify-between w-full"
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Connection Configuration</h3>
+            </div>
+            {showConnectionConfig ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {showConnectionConfig && (
+            <div className="mt-4">
+              <DatabaseConnectionForm />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Migration Status (Admin only) */}
+      {isAdmin && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <GitBranch className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Migration Status</h3>
+          </div>
+          <DatabaseMigrationStatus />
+        </div>
+      )}
+
+      {/* Maintenance (Admin only) */}
+      {isAdmin && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Wrench className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Maintenance</h3>
+          </div>
+          <DatabaseMaintenancePanel />
+        </div>
+      )}
 
       {/* Export Data */}
       <div className="bg-card border border-border rounded-xl p-6">

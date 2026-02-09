@@ -123,18 +123,18 @@ function StatusFilterTabs({
   ]
 
   return (
-    <div className="flex border border-border rounded-lg overflow-hidden">
+    <div className="flex border border-border rounded overflow-hidden">
       {tabs.map((tab) => (
         <button
           key={tab.status}
           onClick={() => onChange(tab.status)}
           className={cn(
-            'px-3 py-1.5 text-sm transition-colors flex items-center gap-1 font-medium',
+            'px-2 py-1 text-xs transition-colors flex items-center gap-1 font-medium',
             value === tab.status ? tab.activeClass : tab.inactiveClass
           )}
         >
           {tab.label}
-          <span className="text-xs opacity-70">({counts[tab.status]})</span>
+          <span className="text-[10px] opacity-70">({counts[tab.status]})</span>
         </button>
       ))}
     </div>
@@ -243,11 +243,11 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   // Show message if no plant is selected
   if (!selectedPlant && !plantLoading) {
     return (
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col', className)}>
-        <div className="p-4 border-b">
-          <h2 className="font-semibold">Characteristics</h2>
+      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
+        <div className="px-3 py-2 border-b">
+          <h2 className="font-semibold text-sm">Characteristics</h2>
         </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
           <span>Select a plant to view characteristics</span>
         </div>
       </div>
@@ -256,12 +256,12 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
 
   if (isLoading) {
     return (
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col', className)}>
-        <div className="p-4 border-b">
-          <h2 className="font-semibold">Characteristics</h2>
+      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
+        <div className="px-3 py-2 border-b">
+          <h2 className="font-semibold text-sm">Characteristics</h2>
         </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
           <span>Loading hierarchy...</span>
         </div>
       </div>
@@ -270,10 +270,10 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
 
   return (
     <>
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col', className)}>
-        <div className="p-4 border-b space-y-3">
+      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
+        <div className="px-3 py-2 border-b space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Characteristics</h2>
+            <h2 className="font-semibold text-sm">Characteristics</h2>
             <button
               onClick={() => setMultiSelectMode(!isMultiSelectMode)}
               className={cn(
@@ -399,10 +399,10 @@ function TodoTreeNode({
     <div>
       <div
         className={cn(
-          'flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer',
+          'flex items-center gap-1 px-2 py-1 rounded cursor-pointer',
           'hover:bg-muted'
         )}
-        style={{ paddingLeft: `${level * 16 + 8}px` }}
+        style={{ paddingLeft: `${level * 14 + 6}px` }}
         onClick={handleToggle}
       >
         {isMultiSelectMode && isExpanded && folderSelectionState.charIds.length > 0 && (
@@ -429,8 +429,8 @@ function TodoTreeNode({
             <span className="w-4" />
           )}
         </button>
-        {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
-        <span className="flex-1 text-sm font-medium">{node.name}</span>
+        {nodeTypeIcons[node.type] || <Box className="h-3.5 w-3.5" />}
+        <span className="flex-1 text-xs font-medium">{node.name}</span>
         {isExpanded && (
           <FolderStatusSummary oocCount={statusCounts.OOC} dueCount={statusCounts.DUE} />
         )}
@@ -458,19 +458,19 @@ function TodoTreeNode({
           {/* Loading indicator for characteristics */}
           {isLoadingChars && (
             <div
-              className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground"
-              style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+              className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"
+              style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
             >
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading characteristics...</span>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Loading...</span>
             </div>
           )}
 
           {/* No matching characteristics message */}
           {!isLoadingChars && characteristics && characteristics.length > 0 && filteredCharacteristics?.length === 0 && (
             <div
-              className="px-2 py-2 text-sm text-muted-foreground italic"
-              style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+              className="px-2 py-1 text-xs text-muted-foreground italic"
+              style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
             >
               No {statusFilter.toLowerCase()} characteristics
             </div>
@@ -486,14 +486,14 @@ function TodoTreeNode({
               <div
                 key={char.id}
                 className={cn(
-                  'group flex items-center gap-2 px-2 py-2 rounded cursor-pointer',
-                  'hover:bg-muted text-sm transition-colors',
+                  'group flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer',
+                  'hover:bg-muted text-xs transition-colors',
                   isSelected && !isMultiSelectMode && 'bg-primary/10 ring-1 ring-primary/30',
                   isChecked && isMultiSelectMode && 'bg-primary/10',
                   status === 'OOC' && !isChecked && 'bg-destructive/5',
                   status === 'DUE' && !isChecked && 'bg-yellow-500/5'
                 )}
-                style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+                style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
                 onClick={() => {
                   if (isMultiSelectMode) {
                     toggleCharacteristicSelection(char.id)

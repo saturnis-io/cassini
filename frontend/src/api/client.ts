@@ -8,9 +8,14 @@ import type {
   BrokerTestResult,
   Characteristic,
   ChartData,
+  ConnectionTestResult,
+  DatabaseConfig,
+  DatabaseDialect,
+  DatabaseStatus,
   DiscoveredTopic,
   HierarchyNode,
   LoginResponse,
+  MigrationInfo,
   MQTTBroker,
   PaginatedResponse,
   Plant,
@@ -741,6 +746,55 @@ export const annotationApi = {
     fetchApi<void>(`/characteristics/${characteristicId}/annotations/${annotationId}`, {
       method: 'DELETE',
     }),
+}
+
+// Database Admin API
+export const databaseApi = {
+  getConfig: () => fetchApi<DatabaseConfig>('/database/config'),
+
+  updateConfig: (data: {
+    dialect: DatabaseDialect
+    host?: string
+    port?: number
+    database?: string
+    username?: string
+    password?: string
+    options?: Record<string, string | number | boolean>
+  }) =>
+    fetchApi<DatabaseConfig>('/database/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  testConnection: (data: {
+    dialect: DatabaseDialect
+    host?: string
+    port?: number
+    database?: string
+    username?: string
+    password?: string
+    options?: Record<string, string | number | boolean>
+  }) =>
+    fetchApi<ConnectionTestResult>('/database/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getStatus: () => fetchApi<DatabaseStatus>('/database/status'),
+
+  backup: (backupDir?: string) => {
+    const params = backupDir ? `?backup_dir=${encodeURIComponent(backupDir)}` : ''
+    return fetchApi<{ message: string; path?: string; directory?: string; size_mb?: number; command?: string }>(`/database/backup${params}`, {
+      method: 'POST',
+    })
+  },
+
+  vacuum: () =>
+    fetchApi<{ message: string }>('/database/vacuum', {
+      method: 'POST',
+    }),
+
+  getMigrationStatus: () => fetchApi<MigrationInfo>('/database/migrations'),
 }
 
 // User Management types

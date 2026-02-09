@@ -33,8 +33,8 @@ class Sample(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime, default=_utc_now, nullable=False
     )
-    batch_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    operator_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    batch_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    operator_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_excluded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Variable subgroup size tracking
