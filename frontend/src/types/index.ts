@@ -276,11 +276,8 @@ export type WSMessage = WSSampleMessage | WSViolationMessage | WSAckMessage | WS
 export interface PaginatedResponse<T> {
   items: T[]
   total: number
-  // Backend may return offset/limit or page/per_page depending on endpoint
-  offset?: number
-  limit?: number
-  page?: number
-  per_page?: number
+  offset: number
+  limit: number
 }
 
 export interface ApiError {

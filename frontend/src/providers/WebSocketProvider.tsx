@@ -45,6 +45,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           queryClient.invalidateQueries({
             queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
           })
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.characteristics.detail(message.characteristic_id),
+          })
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.violations.stats(),
+          })
           message.violations.forEach((violation) => {
             addPendingViolation(violation)
           })
@@ -59,6 +65,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
         case 'ack_update': {
           queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.violations.stats(),
+          })
           break
         }
 

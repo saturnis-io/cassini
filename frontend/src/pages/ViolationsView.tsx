@@ -18,21 +18,12 @@ export function ViolationsView() {
   const { data: stats, refetch: refetchStats } = useViolationStats()
   const { data: violations, isLoading, refetch } = useViolations({
     acknowledged: statusFilter === 'acknowledged' ? true : statusFilter === 'all' ? undefined : false,
+    requires_acknowledgement:
+      statusFilter === 'required' ? true
+      : statusFilter === 'informational' ? false
+      : undefined,
     rule_id: selectedRule ?? undefined,
     per_page: VIOLATIONS_PER_PAGE,
-  })
-
-  // TODO: Move requires_acknowledgement filtering to backend API once the endpoint
-  // supports a `requires_acknowledgement` query parameter. Currently filtered client-side
-  // because the backend violations endpoint does not accept this filter.
-  const filteredViolations = violations?.items.filter((v) => {
-    if (statusFilter === 'required') {
-      return v.requires_acknowledgement && !v.acknowledged
-    }
-    if (statusFilter === 'informational') {
-      return !v.requires_acknowledgement && !v.acknowledged
-    }
-    return true // 'all' or 'acknowledged'
   })
 
   const { user } = useAuth()
@@ -173,14 +164,14 @@ export function ViolationsView() {
                   Loading violations...
                 </td>
               </tr>
-            ) : !filteredViolations || filteredViolations.length === 0 ? (
+            ) : !violations?.items || violations?.items.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                   No violations found
                 </td>
               </tr>
             ) : (
-              filteredViolations.map((violation) => {
+              violations?.items.map((violation) => {
                 const isInformational = !violation.requires_acknowledgement
                 return (
                   <tr

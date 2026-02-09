@@ -513,6 +513,7 @@ export const sampleApi = {
 export const violationApi = {
   list: (params?: {
     acknowledged?: boolean
+    requires_acknowledgement?: boolean
     severity?: string
     rule_id?: number
     characteristic_id?: number
@@ -523,13 +524,18 @@ export const violationApi = {
   }) => {
     const searchParams = new URLSearchParams()
     if (params?.acknowledged !== undefined) searchParams.set('acknowledged', String(params.acknowledged))
+    if (params?.requires_acknowledgement !== undefined)
+      searchParams.set('requires_acknowledgement', String(params.requires_acknowledgement))
     if (params?.severity) searchParams.set('severity', params.severity)
     if (params?.rule_id) searchParams.set('rule_id', String(params.rule_id))
     if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
-    if (params?.page) searchParams.set('page', String(params.page))
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
+    // Convert page/per_page to offset/limit for the backend
+    const perPage = params?.per_page ?? 50
+    const page = params?.page ?? 1
+    searchParams.set('offset', String((page - 1) * perPage))
+    searchParams.set('limit', String(perPage))
 
     const query = searchParams.toString()
     return fetchApi<PaginatedResponse<Violation>>(`/violations/${query ? `?${query}` : ''}`)
