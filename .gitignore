@@ -52,6 +52,8 @@ dashboard/client/dist/
 .company/
 .gemini/
 .planning/
+docs/internal/
+.playwright-cli/
 
 # Windows artifacts
 nul

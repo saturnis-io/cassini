@@ -25,7 +25,7 @@
 
 **Free, open-source Statistical Process Control for any scale.** Monitor process stability, detect out-of-control conditions with Nelson rules, and drive continuous improvement -- from a single machine to a multi-site enterprise. No vendor lock-in, no license fees.
 
-<!-- Screenshots coming soon: control chart with violations, operator dashboard, kiosk mode, connectivity page -->
+![OpenSPC Dashboard](docs/images/dashboard.png)
 
 ---
 
