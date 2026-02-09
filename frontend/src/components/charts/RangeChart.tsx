@@ -65,6 +65,10 @@ interface RangeDataPoint {
   hasViolation: boolean
   sample_id: number
   sample_id_from: number | null
+  // Enriched fields for informative tooltips
+  mean: number
+  previousMean: number | null
+  actual_n: number
 }
 
 export function RangeChart({
@@ -151,6 +155,9 @@ export function RangeChart({
           hasViolation: false,
           sample_id: point.sample_id,
           sample_id_from: fromPoint.sample_id,
+          mean: point.mean,
+          previousMean: fromPoint.mean,
+          actual_n: point.actual_n,
         }
       } else {
         return {
@@ -161,6 +168,9 @@ export function RangeChart({
           hasViolation: false,
           sample_id: point.sample_id,
           sample_id_from: null,
+          mean: point.mean,
+          previousMean: null,
+          actual_n: point.actual_n,
         }
       }
     })
@@ -341,9 +351,38 @@ export function RangeChart({
           if (p.seriesType === 'line') return ''
           const point = localVisibleData[p.dataIndex]
           if (!point) return ''
-          return `<div style="font-size:13px;font-weight:500">Sample #${point.index}</div>` +
-            `<div>${yAxisLabel}: ${formatVal(point.value)}</div>` +
-            `<div style="opacity:0.7">${point.timestamp}</div>`
+
+          const clVal = controlLimits.cl
+          const dim = 'style="opacity:0.6;font-size:11px"'
+
+          if (chartType === 'mr') {
+            // Moving Range: show both individual values and their difference
+            const prevLabel = point.previousMean != null ? formatVal(point.previousMean) : '—'
+            return `<div style="font-size:13px;font-weight:500">Sample #${point.index}</div>` +
+              `<div>Current X = ${formatVal(point.mean)}</div>` +
+              `<div>Previous X = ${prevLabel}</div>` +
+              `<div>MR = |Δ| = ${formatVal(point.value)}</div>` +
+              (clVal != null ? `<div ${dim}>MR̄ = ${formatVal(clVal)}</div>` : '') +
+              `<div ${dim}>${point.timestamp}</div>`
+          }
+
+          if (chartType === 'stddev') {
+            // S Chart: show subgroup size, X-bar, S, and S-bar
+            return `<div style="font-size:13px;font-weight:500">Sample #${point.index}` +
+              `<span ${dim}>&ensp;(n=${point.actual_n})</span></div>` +
+              `<div>X̄ = ${formatVal(point.mean)}</div>` +
+              `<div>S = ${formatVal(point.value)}</div>` +
+              (clVal != null ? `<div ${dim}>S̄ = ${formatVal(clVal)}</div>` : '') +
+              `<div ${dim}>${point.timestamp}</div>`
+          }
+
+          // Range Chart: show subgroup size, X-bar, Range, and R-bar
+          return `<div style="font-size:13px;font-weight:500">Sample #${point.index}` +
+            `<span ${dim}>&ensp;(n=${point.actual_n})</span></div>` +
+            `<div>X̄ = ${formatVal(point.mean)}</div>` +
+            `<div>Range = ${formatVal(point.value)}</div>` +
+            (clVal != null ? `<div ${dim}>R̄ = ${formatVal(clVal)}</div>` : '') +
+            `<div ${dim}>${point.timestamp}</div>`
         },
       },
       series: [

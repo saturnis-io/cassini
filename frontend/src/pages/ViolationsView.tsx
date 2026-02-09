@@ -209,7 +209,7 @@ export function ViolationsView() {
                         {violation.characteristic_name || 'Unknown'}
                       </div>
                       {violation.hierarchy_path && (
-                        <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={violation.hierarchy_path}>
+                        <div className="text-xs text-muted-foreground">
                           {violation.hierarchy_path}
                         </div>
                       )}

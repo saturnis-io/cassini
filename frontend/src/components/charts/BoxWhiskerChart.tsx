@@ -22,6 +22,10 @@ interface BoxWhiskerChartProps {
   }
   colorScheme?: 'primary' | 'secondary'
   showSpecLimits?: boolean
+  /** When provided, overrides internal Y-axis domain (for alignment with histogram) */
+  yAxisDomain?: [number, number]
+  /** When true, hides the legend row so chart container height matches histogram */
+  hideLegend?: boolean
 }
 
 interface BoxPlotData {
@@ -177,6 +181,8 @@ export function BoxWhiskerChart({
   chartOptions,
   colorScheme = 'primary',
   showSpecLimits = true,
+  yAxisDomain: externalYDomain,
+  hideLegend = false,
 }: BoxWhiskerChartProps) {
   // Fetch samples with measurements
   const { data: samplesData, isLoading: samplesLoading } = useSamples({
@@ -245,23 +251,30 @@ export function BoxWhiskerChart({
       .filter((box): box is BoxPlotData => box !== null)
   }, [samplesData])
 
-  // Apply range window to slice visible box plot data
-  const boxPlotData = useMemo(() => {
-    if (!showBrush || !rangeWindow || allBoxPlotData.length === 0) return allBoxPlotData
-    const [start, end] = rangeWindow
-    return allBoxPlotData.slice(start, end + 1).map((box, i) => ({
-      ...box,
-      index: start + i + 1,
-    }))
+  // Visible range — determines which boxes are in the viewport
+  const visibleRange = useMemo((): [number, number] => {
+    if (!showBrush || !rangeWindow || allBoxPlotData.length === 0) {
+      return [0, allBoxPlotData.length - 1]
+    }
+    return [
+      Math.max(0, rangeWindow[0]),
+      Math.min(allBoxPlotData.length - 1, rangeWindow[1]),
+    ]
   }, [allBoxPlotData, rangeWindow, showBrush])
+
+  // boxPlotData is always the full dataset — the range slider controls the viewport, not the data
+  const boxPlotData = allBoxPlotData
 
   // Chart margins and dimensions
   const margin = { top: 20, right: 50, bottom: 50, left: 70 }
   const chartWidth = Math.max(100, dimensions.width - margin.left - margin.right)
   const chartHeight = Math.max(100, dimensions.height - margin.top - margin.bottom)
 
-  // Calculate Y-axis domain
+  // Calculate Y-axis domain from ALL data so axis stays stable while panning
+  // When an external domain is provided (for histogram alignment), use it directly
   const yDomain = useMemo((): [number, number] => {
+    if (externalYDomain) return externalYDomain
+
     if (boxPlotData.length === 0) return [0, 100]
 
     const allValues = boxPlotData.flatMap((box) => [
@@ -287,7 +300,7 @@ export function BoxWhiskerChart({
     const padding = range > 0 ? range * 0.1 : 1
 
     return [min - padding, max + padding]
-  }, [boxPlotData, characteristic, showSpecLimits])
+  }, [boxPlotData, characteristic, showSpecLimits, externalYDomain])
 
   // Get colors based on scheme
   const boxColor = colorScheme === 'secondary'
@@ -311,16 +324,20 @@ export function BoxWhiskerChart({
       return Number.isFinite(result) ? result : chartHeight / 2
     }
 
+    // X scale maps the visible range [vStart, vEnd] across the chart width
+    const [vStart, vEnd] = visibleRange
+    const visibleCount = vEnd - vStart + 1
+
     const xScale = (index: number): number => {
-      const boxCount = boxPlotData.length
-      if (boxCount === 0) return chartWidth / 2
-      const boxSpacing = chartWidth / boxCount
-      const result = boxSpacing * (index - 0.5)
+      if (visibleCount === 0) return chartWidth / 2
+      const boxSpacing = chartWidth / visibleCount
+      // Position relative to the visible range start
+      const result = boxSpacing * (index - vStart - 0.5)
       return Number.isFinite(result) ? result : chartWidth / 2
     }
 
     return { yScale, xScale }
-  }, [yDomain, chartHeight, chartWidth, boxPlotData.length])
+  }, [yDomain, chartHeight, chartWidth, visibleRange])
 
   // Generate Y-axis ticks
   const yTicks = useMemo(() => {
@@ -330,14 +347,16 @@ export function BoxWhiskerChart({
     return Array.from({ length: tickCount }, (_, i) => yMin + step * i)
   }, [yDomain])
 
-  // Calculate dynamic box width based on number of samples
+  // Calculate dynamic box width based on number of visible samples
   const boxWidth = useMemo(() => {
-    if (boxPlotData.length === 0) return 20
+    const [vStart, vEnd] = visibleRange
+    const visibleCount = vEnd - vStart + 1
+    if (visibleCount === 0) return 20
     const maxWidth = 50
     const minWidth = 10
-    const spacing = chartWidth / boxPlotData.length
+    const spacing = chartWidth / visibleCount
     return Math.max(minWidth, Math.min(maxWidth, spacing * 0.6))
-  }, [boxPlotData.length, chartWidth])
+  }, [visibleRange, chartWidth])
 
   const whiskerWidth = boxWidth * 0.6
 
@@ -378,7 +397,11 @@ export function BoxWhiskerChart({
           {characteristic?.name ?? 'Characteristic'} - Box & Whisker Plot
         </h3>
         <div className="flex gap-4 text-sm text-muted-foreground leading-5">
-          <span>{boxPlotData.length} samples</span>
+          <span>
+            {visibleRange[1] - visibleRange[0] + 1 < boxPlotData.length
+              ? `${visibleRange[1] - visibleRange[0] + 1} of ${boxPlotData.length} samples`
+              : `${boxPlotData.length} samples`}
+          </span>
         </div>
       </div>
 
@@ -390,6 +413,11 @@ export function BoxWhiskerChart({
             height={dimensions.height}
             style={{ display: 'block' }}
           >
+            <defs>
+              <clipPath id={`box-clip-${characteristicId}`}>
+                <rect x={0} y={-margin.top} width={chartWidth} height={chartHeight + margin.top + margin.bottom} />
+              </clipPath>
+            </defs>
             <g transform={`translate(${margin.left}, ${margin.top})`}>
               {/* Grid lines */}
               {yTicks.map((tick, i) => (
@@ -497,8 +525,9 @@ export function BoxWhiskerChart({
                 </>
               )}
 
-              {/* Box plots - one per sample */}
-              {boxPlotData.map((box) => {
+              {/* Box plots - clipped to visible viewport */}
+              <g clipPath={`url(#box-clip-${characteristicId})`}>
+              {boxPlotData.slice(visibleRange[0], visibleRange[1] + 1).map((box) => {
                 const x = xScale(box.index)
                 const isHoveredLocal = hoveredBox === box.sampleId
                 // Cross-chart highlighting using sample_id
@@ -612,6 +641,7 @@ export function BoxWhiskerChart({
                   </g>
                 )
               })}
+              </g>
 
               {/* Y-axis */}
               <line
@@ -666,9 +696,12 @@ export function BoxWhiskerChart({
               >
                 Sample Number
               </text>
-              {/* Sample number labels (show subset if too many) */}
-              {boxPlotData.length <= 20 ? (
-                boxPlotData.map((box) => (
+              {/* Sample number labels — only for visible range */}
+              {(() => {
+                const visible = boxPlotData.slice(visibleRange[0], visibleRange[1] + 1)
+                const maxLabels = 20
+                const step = visible.length <= maxLabels ? 1 : Math.ceil(visible.length / 10)
+                return visible.filter((_, i) => i % step === 0).map((box) => (
                   <text
                     key={box.sampleId}
                     x={xScale(box.index)}
@@ -681,22 +714,7 @@ export function BoxWhiskerChart({
                     {box.index}
                   </text>
                 ))
-              ) : (
-                // Show every nth label
-                boxPlotData.filter((_, i) => i % Math.ceil(boxPlotData.length / 10) === 0).map((box) => (
-                  <text
-                    key={box.sampleId}
-                    x={xScale(box.index)}
-                    y={chartHeight + 15}
-                    fill="currentColor"
-                    fillOpacity={0.6}
-                    fontSize={10}
-                    textAnchor="middle"
-                  >
-                    {box.index}
-                  </text>
-                ))
-              )}
+              })()}
             </g>
           </svg>
         )}
@@ -743,24 +761,26 @@ export function BoxWhiskerChart({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-5 h-3 rounded-sm border-2" style={{ borderColor: boxColor, backgroundColor: `${boxColor}40` }} />
-          <span>IQR</span>
+      {!hideLegend && (
+        <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-3 rounded-sm border-2" style={{ borderColor: boxColor, backgroundColor: `${boxColor}40` }} />
+            <span>IQR</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded" style={{ backgroundColor: boxColor }} />
+            <span>Median</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rotate-45" style={{ backgroundColor: chartColors.centerLine }} />
+            <span>Mean</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartColors.violationPoint }} />
+            <span>Outlier</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded" style={{ backgroundColor: boxColor }} />
-          <span>Median</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rotate-45" style={{ backgroundColor: chartColors.centerLine }} />
-          <span>Mean</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartColors.violationPoint }} />
-          <span>Outlier</span>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -35,6 +35,12 @@ AVAILABLE_SCRIPTS = {
         "estimated_samples": "~1,200",
         "script_file": "scripts/seed_test_nelson.py",
     },
+    "chart_showcase": {
+        "name": "Chart Showcase",
+        "description": "Single plant with 4 characteristics showcasing I-MR, X-bar R (variable n), and X-bar S chart types with realistic process behaviors.",
+        "estimated_samples": "~360",
+        "script_file": "scripts/seed_chart_showcase.py",
+    },
 }
 
 
@@ -123,6 +129,7 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
             await module.seed(keep_existing=False)
         else:
             await module.seed()
+
     except HTTPException:
         raise
     except Exception as e:

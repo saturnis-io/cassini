@@ -4,6 +4,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
 import { DualChartPanel, BoxWhiskerChart } from '@/components/charts'
+import { DistributionHistogram } from '@/components/DistributionHistogram'
 import { InputModal } from '@/components/InputModal'
 import { ChartToolbar } from '@/components/ChartToolbar'
 import { ChartRangeSlider } from '@/components/ChartRangeSlider'
@@ -93,6 +94,42 @@ export function OperatorDashboard() {
     return chartDataForAnnotation.data_points.map((p) => p.timestamp)
   }, [chartDataForAnnotation])
 
+  // Shared Y-axis domain for box-whisker + histogram alignment
+  const boxWhiskerYDomain = useMemo((): [number, number] | undefined => {
+    if (!isBoxWhisker || !chartDataForAnnotation?.data_points?.length) return undefined
+
+    const { control_limits, spec_limits, subgroup_mode, data_points } = chartDataForAnnotation
+    const isModeA = subgroup_mode === 'STANDARDIZED'
+
+    if (isModeA) {
+      const zValues = data_points
+        .filter((p) => p.z_score != null)
+        .map((p) => p.z_score!)
+      if (zValues.length === 0) return [-4, 4]
+      const allZLimits = [...zValues, 3, -3]
+      const zMin = Math.min(...allZLimits)
+      const zMax = Math.max(...allZLimits)
+      const zPadding = (zMax - zMin) * 0.1
+      return [zMin - zPadding, zMax + zPadding]
+    }
+
+    const values = data_points.map((p) => p.mean)
+    const minVal = Math.min(...values)
+    const maxVal = Math.max(...values)
+
+    const allLimits = [minVal, maxVal]
+    if (control_limits.ucl != null) allLimits.push(control_limits.ucl)
+    if (control_limits.lcl != null) allLimits.push(control_limits.lcl)
+    if (spec_limits.usl != null) allLimits.push(spec_limits.usl)
+    if (spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
+
+    const domainMin = Math.min(...allLimits)
+    const domainMax = Math.max(...allLimits)
+    const padding = (domainMax - domainMin) * 0.1
+
+    return [domainMin - padding, domainMax + padding]
+  }, [isBoxWhisker, chartDataForAnnotation])
+
   // Compute visible sample IDs and time range for annotation panel filtering
   const visibleSampleIds = useMemo(() => {
     if (!chartDataForAnnotation?.data_points) return null
@@ -180,11 +217,53 @@ export function OperatorDashboard() {
             {/* Primary Chart with optional histogram */}
             <div className="flex-1 min-h-0">
               {isBoxWhisker ? (
-                <BoxWhiskerChart
-                  characteristicId={selectedId}
-                  chartOptions={chartOptions}
-                  showSpecLimits={showSpecLimits}
-                />
+                histogramPosition === 'right' ? (
+                  <div className="flex gap-4 h-full">
+                    <div className="flex-1 min-w-0">
+                      <BoxWhiskerChart
+                        characteristicId={selectedId}
+                        chartOptions={chartOptions}
+                        showSpecLimits={showSpecLimits}
+                        yAxisDomain={boxWhiskerYDomain}
+                        hideLegend
+                      />
+                    </div>
+                    <div className="w-[280px] flex-shrink-0">
+                      <DistributionHistogram
+                        characteristicId={selectedId}
+                        orientation="vertical"
+                        chartOptions={chartOptions}
+                        yAxisDomain={boxWhiskerYDomain}
+                        showSpecLimits={showSpecLimits}
+                        gridBottom={50}
+                      />
+                    </div>
+                  </div>
+                ) : histogramPosition === 'below' ? (
+                  <div className="flex flex-col gap-4 h-full">
+                    <div className="flex-1 min-h-0">
+                      <BoxWhiskerChart
+                        characteristicId={selectedId}
+                        chartOptions={chartOptions}
+                        showSpecLimits={showSpecLimits}
+                      />
+                    </div>
+                    <div className="h-[192px] flex-shrink-0">
+                      <DistributionHistogram
+                        characteristicId={selectedId}
+                        orientation="horizontal"
+                        chartOptions={chartOptions}
+                        showSpecLimits={showSpecLimits}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <BoxWhiskerChart
+                    characteristicId={selectedId}
+                    chartOptions={chartOptions}
+                    showSpecLimits={showSpecLimits}
+                  />
+                )
               ) : isDualChart ? (
                 <DualChartPanel
                   characteristicId={selectedId}

@@ -86,8 +86,7 @@ export function HelpTooltip({
 
     const triggerRect = triggerRef.current.getBoundingClientRect()
     const tooltipRect = tooltipRef.current.getBoundingClientRect()
-    const scrollX = window.scrollX
-    const scrollY = window.scrollY
+    // No scroll offsets — tooltip uses position:fixed, so coords are viewport-relative
     const padding = 8
 
     let top = 0
@@ -95,20 +94,20 @@ export function HelpTooltip({
 
     switch (placement) {
       case 'top':
-        top = triggerRect.top + scrollY - tooltipRect.height - padding
-        left = triggerRect.left + scrollX + triggerRect.width / 2 - tooltipRect.width / 2
+        top = triggerRect.top - tooltipRect.height - padding
+        left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
         break
       case 'bottom':
-        top = triggerRect.bottom + scrollY + padding
-        left = triggerRect.left + scrollX + triggerRect.width / 2 - tooltipRect.width / 2
+        top = triggerRect.bottom + padding
+        left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2
         break
       case 'left':
-        top = triggerRect.top + scrollY + triggerRect.height / 2 - tooltipRect.height / 2
-        left = triggerRect.left + scrollX - tooltipRect.width - padding
+        top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2
+        left = triggerRect.left - tooltipRect.width - padding
         break
       case 'right':
-        top = triggerRect.top + scrollY + triggerRect.height / 2 - tooltipRect.height / 2
-        left = triggerRect.right + scrollX + padding
+        top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2
+        left = triggerRect.right + padding
         break
     }
 
@@ -124,10 +123,10 @@ export function HelpTooltip({
     }
 
     // Vertical bounds check
-    if (top < scrollY + padding) {
-      top = scrollY + padding
-    } else if (top + tooltipRect.height > scrollY + viewportHeight - padding) {
-      top = scrollY + viewportHeight - tooltipRect.height - padding
+    if (top < padding) {
+      top = padding
+    } else if (top + tooltipRect.height > viewportHeight - padding) {
+      top = viewportHeight - tooltipRect.height - padding
     }
 
     setPosition({ top, left })

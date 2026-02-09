@@ -24,6 +24,8 @@ interface DistributionHistogramProps {
   onHoverBin?: (range: [number, number] | null) => void
   /** Whether to show spec limit lines (LSL/USL). Default: true */
   showSpecLimits?: boolean
+  /** Override the grid.bottom value in vertical mode (for alignment with adjacent charts) */
+  gridBottom?: number
 }
 
 interface DataPointWithId {
@@ -171,6 +173,7 @@ export function DistributionHistogram({
   highlightedValue,
   onHoverBin,
   showSpecLimits = true,
+  gridBottom,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
   const chartColors = useChartColors()
@@ -395,7 +398,7 @@ export function DistributionHistogram({
 
       return {
         animation: false,
-        grid: { top: matchedGridTop, right: 30, left: 40, bottom: matchedGridBottom, containLabel: false },
+        grid: { top: matchedGridTop, right: 30, left: 40, bottom: gridBottom ?? matchedGridBottom, containLabel: false },
         xAxis: {
           type: 'value' as const,
           max: maxCount * 1.1,
@@ -519,7 +522,7 @@ export function DistributionHistogram({
         },
       ],
     }
-  }, [chartData, bins, values, stats, isModeA, yAxisDomain, isVertical, colors, highlightedBinIndex, showSpecLimits, xAxisMode])
+  }, [chartData, bins, values, stats, isModeA, yAxisDomain, isVertical, colors, highlightedBinIndex, showSpecLimits, xAxisMode, gridBottom])
 
   // Mouse event handlers
   const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
