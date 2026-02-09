@@ -3,7 +3,7 @@
 Admin-only endpoints for user CRUD operations and plant role assignment.
 """
 
-import logging
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
@@ -21,7 +21,7 @@ from openspc.core.auth.passwords import hash_password
 from openspc.db.models.user import User, UserRole
 from openspc.db.repositories.user import UserRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 

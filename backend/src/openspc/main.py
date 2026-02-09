@@ -1,6 +1,6 @@
 """OpenSPC FastAPI Application."""
 
-import logging
+import structlog
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -34,14 +34,17 @@ from openspc.core.providers import tag_provider_manager
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
-    # Startup
+    # Startup -- configure structlog BEFORE any logging calls
+    from openspc.core.logging import configure_logging
+    configure_logging(settings.log_format)
+
     logger.info("Starting OpenSPC application")
 
     # Initialize database connection
@@ -52,7 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with db.session() as session:
             await bootstrap_admin_user(session)
     except Exception as e:
-        logger.warning(f"Failed to bootstrap admin user: {e}")
+        logger.warning("admin_bootstrap_failed", error=str(e))
 
     # Check if database schema is up to date with Alembic head
     try:
@@ -110,7 +113,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     "or no active brokers configured"
                 )
     except Exception as e:
-        logger.warning(f"Failed to initialize MQTT manager: {e}")
+        logger.warning("mqtt_init_failed", error=str(e))
 
     # Store managers in app state
     app.state.mqtt_manager = mqtt_manager

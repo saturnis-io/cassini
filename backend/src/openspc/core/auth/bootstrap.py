@@ -4,7 +4,7 @@ Creates a default admin user on startup if no users exist in the database.
 Configurable via environment variables for production deployments.
 """
 
-import logging
+import structlog
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ from openspc.core.config import get_settings
 from openspc.db.models.plant import Plant
 from openspc.db.models.user import User, UserPlantRole, UserRole
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def bootstrap_admin_user(session: AsyncSession) -> None:
@@ -72,10 +72,10 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
                 role=UserRole.admin,
             )
             session.add(role_assignment)
-        logger.info(f"Admin user assigned to {len(all_plants)} plant(s)")
+        logger.info("admin_assigned_to_plants", plant_count=len(all_plants))
     else:
         logger.warning("No plants found - admin user created without plant assignment")
 
     await session.commit()
 
-    logger.info(f"Bootstrap admin user '{username}' created")
+    logger.info("bootstrap_admin_created", username=username)

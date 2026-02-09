@@ -6,7 +6,7 @@ within the FastAPI application, connecting it to the MQTT manager and SPC engine
 
 from __future__ import annotations
 
-import logging
+import structlog
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -19,7 +19,7 @@ from openspc.core.providers.tag import TagProvider
 if TYPE_CHECKING:
     from openspc.core.engine.spc_engine import SPCEngine
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -164,7 +164,7 @@ class TagProviderManager:
             logger.info("TAG provider manager initialized successfully")
             return True
         except Exception as e:
-            logger.error(f"Failed to start TAG provider: {e}")
+            logger.error("tag_provider_start_failed", error=str(e))
             self._state.error_message = str(e)
             return False
 
@@ -181,8 +181,9 @@ class TagProviderManager:
             return
 
         logger.info(
-            f"Processing sample from TAG provider for characteristic {event.characteristic_id} "
-            f"with {len(event.measurements)} measurements"
+            "processing_tag_sample",
+            characteristic_id=event.characteristic_id,
+            measurement_count=len(event.measurements),
         )
 
         try:
@@ -196,14 +197,19 @@ class TagProviderManager:
             self._state.last_sample_time = datetime.now()
 
             logger.info(
-                f"Processed sample {result.sample_id}: "
-                f"mean={result.mean:.3f}, zone={result.zone}, "
-                f"in_control={result.in_control}, violations={len(result.violations)}"
+                "tag_sample_processed",
+                sample_id=result.sample_id,
+                mean=round(result.mean, 3),
+                zone=result.zone,
+                in_control=result.in_control,
+                violation_count=len(result.violations),
             )
 
         except Exception as e:
             logger.error(
-                f"Error processing sample for characteristic {event.characteristic_id}: {e}",
+                "tag_sample_processing_error",
+                characteristic_id=event.characteristic_id,
+                error=str(e),
                 exc_info=True,
             )
 

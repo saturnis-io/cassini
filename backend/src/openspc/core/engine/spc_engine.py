@@ -4,7 +4,7 @@ This module provides the main SPCEngine class that coordinates sample processing
 rule evaluation, violation creation, and statistics calculation.
 """
 
-import logging
+import structlog
 import math
 import time
 from dataclasses import dataclass, field
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         ViolationRepository,
     )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default number of recent samples used for auto-limit calculation.
 # Override via CharacteristicConfig or recalculate-limits last_n param.
@@ -470,8 +470,9 @@ class SPCEngine:
         )
 
         logger.debug(
-            f"Publishing SampleProcessedEvent for sample {sample.id} "
-            f"(characteristic {characteristic_id})"
+            "publishing_sample_processed_event",
+            sample_id=sample.id,
+            characteristic_id=characteristic_id,
         )
 
         await self._event_bus.publish(event)

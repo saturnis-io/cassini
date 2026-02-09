@@ -12,7 +12,7 @@ Key features:
 """
 
 import asyncio
-import logging
+import structlog
 from collections.abc import Awaitable, Callable
 from typing import Type
 
@@ -21,7 +21,7 @@ from openspc.core.events.events import Event
 # Type alias for event handler functions
 EventHandler = Callable[[Event], Awaitable[None]]
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class EventBus:
@@ -80,7 +80,9 @@ class EventBus:
             self._handlers[event_type] = []
         self._handlers[event_type].append(handler)
         logger.debug(
-            f"Subscribed handler {handler.__name__} to {event_type.__name__}"
+            "handler_subscribed",
+            handler=handler.__name__,
+            event_type=event_type.__name__,
         )
 
     def unsubscribe(self, event_type: Type[Event], handler: EventHandler) -> None:
@@ -101,7 +103,9 @@ class EventBus:
                 h for h in self._handlers[event_type] if h != handler
             ]
             logger.debug(
-                f"Unsubscribed handler {handler.__name__} from {event_type.__name__}"
+                "handler_unsubscribed",
+                handler=handler.__name__,
+                event_type=event_type.__name__,
             )
 
     async def publish(self, event: Event) -> None:
@@ -132,7 +136,9 @@ class EventBus:
 
         if handlers:
             logger.debug(
-                f"Publishing {event_type.__name__} to {len(handlers)} handler(s)"
+                "publishing_event",
+                event_type=event_type.__name__,
+                handler_count=len(handlers),
             )
 
         for handler in handlers:
@@ -170,8 +176,9 @@ class EventBus:
 
         if handlers:
             logger.debug(
-                f"Publishing {event_type.__name__} to {len(handlers)} handler(s) "
-                f"(synchronous)"
+                "publishing_event_sync",
+                event_type=event_type.__name__,
+                handler_count=len(handlers),
             )
 
         tasks = [
@@ -184,8 +191,10 @@ class EventBus:
 
         if errors:
             logger.warning(
-                f"{len(errors)}/{len(handlers)} handler(s) failed for "
-                f"{event_type.__name__}"
+                "handlers_failed",
+                failed=len(errors),
+                total=len(handlers),
+                event_type=event_type.__name__,
             )
 
         return errors
@@ -204,8 +213,10 @@ class EventBus:
             await handler(event)
         except Exception as e:
             logger.error(
-                f"Event handler {handler.__name__} failed for "
-                f"{type(event).__name__}: {e}",
+                "event_handler_failed",
+                handler=handler.__name__,
+                event_type=type(event).__name__,
+                error=str(e),
                 exc_info=True,
             )
 
@@ -228,8 +239,10 @@ class EventBus:
             return None
         except Exception as e:
             logger.error(
-                f"Event handler {handler.__name__} failed for "
-                f"{type(event).__name__}: {e}",
+                "event_handler_failed",
+                handler=handler.__name__,
+                event_type=type(event).__name__,
+                error=str(e),
                 exc_info=True,
             )
             return e
@@ -245,7 +258,7 @@ class EventBus:
             >>> await bus.shutdown()
         """
         if self._running_tasks:
-            logger.info(f"Waiting for {len(self._running_tasks)} event handler(s) to complete")
+            logger.info("waiting_for_handlers", count=len(self._running_tasks))
             await asyncio.gather(*self._running_tasks, return_exceptions=True)
             logger.info("All event handlers completed")
 
@@ -286,7 +299,7 @@ class EventBus:
             logger.debug("Cleared all event handlers")
         else:
             self._handlers.pop(event_type, None)
-            logger.debug(f"Cleared handlers for {event_type.__name__}")
+            logger.debug("handlers_cleared", event_type=event_type.__name__)
 
 
 # Global event bus instance

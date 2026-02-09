@@ -5,7 +5,7 @@ previewing live topic values, and managing tag-to-characteristic mappings.
 """
 
 import asyncio
-import logging
+import structlog
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,7 +25,7 @@ from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/tags", tags=["tags"])
 
@@ -152,7 +152,7 @@ async def create_mapping(
         async with session.begin_nested():
             await tag_provider_manager.refresh_subscriptions(session)
     except Exception as e:
-        logger.warning(f"Failed to refresh tag subscriptions: {e}")
+        logger.warning("tag_subscription_refresh_failed", error=str(e))
 
     return TagMappingResponse(
         characteristic_id=char.id,
@@ -198,7 +198,7 @@ async def delete_mapping(
         async with session.begin_nested():
             await tag_provider_manager.refresh_subscriptions(session)
     except Exception as e:
-        logger.warning(f"Failed to refresh tag subscriptions: {e}")
+        logger.warning("tag_subscription_refresh_failed", error=str(e))
 
 
 @router.post("/preview", response_model=TagPreviewResponse)
@@ -246,7 +246,7 @@ async def preview_topic(
                         )
                     return
                 except Exception as e:
-                    logger.warning(f"SparkplugB decode failed for preview, falling back to raw: {e}")
+                    logger.warning("sparkplug_preview_decode_failed", error=str(e))
 
             # Non-SparkplugB or fallback: decode as UTF-8 text
             raw = payload.decode("utf-8", errors="replace")[:200]
@@ -267,7 +267,7 @@ async def preview_topic(
                 )
             )
         except Exception as e:
-            logger.warning(f"Error processing preview message: {e}")
+            logger.warning("preview_message_error", error=str(e))
 
     # Subscribe and wait
     await client.subscribe(data.topic, on_preview_message)

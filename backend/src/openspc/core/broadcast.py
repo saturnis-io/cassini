@@ -9,7 +9,7 @@ and subscribes to the Event Bus for other event types like sample processing and
 control limit updates.
 """
 
-import logging
+import structlog
 from typing import TYPE_CHECKING
 
 from openspc.core.alerts.manager import ViolationAcknowledged, ViolationCreated
@@ -22,7 +22,7 @@ from openspc.core.events import (
 if TYPE_CHECKING:
     from openspc.api.v1.websocket import ConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class WebSocketBroadcaster:
@@ -122,8 +122,9 @@ class WebSocketBroadcaster:
         }
 
         logger.debug(
-            f"Broadcasting sample {event.sample_id} for characteristic "
-            f"{event.characteristic_id} to subscribed clients"
+            "broadcasting_sample",
+            sample_id=event.sample_id,
+            characteristic_id=event.characteristic_id,
         )
 
         await self._manager.broadcast_to_characteristic(
@@ -157,8 +158,8 @@ class WebSocketBroadcaster:
         }
 
         logger.debug(
-            f"Broadcasting control limits update for characteristic "
-            f"{event.characteristic_id} to subscribed clients"
+            "broadcasting_limits_update",
+            characteristic_id=event.characteristic_id,
         )
 
         await self._manager.broadcast_to_characteristic(
@@ -204,8 +205,11 @@ class WebSocketBroadcaster:
         }
 
         logger.info(
-            f"Broadcasting violation {event.violation_id} (Rule {event.rule_id}: "
-            f"{event.rule_name}) for characteristic {event.characteristic_id}"
+            "broadcasting_violation",
+            violation_id=event.violation_id,
+            rule_id=event.rule_id,
+            rule_name=event.rule_name,
+            characteristic_id=event.characteristic_id,
         )
 
         await self._manager.broadcast_to_characteristic(
@@ -241,8 +245,9 @@ class WebSocketBroadcaster:
         }
 
         logger.info(
-            f"Broadcasting acknowledgment for violation {event.violation_id} "
-            f"by {event.user} to all connected clients"
+            "broadcasting_acknowledgment",
+            violation_id=event.violation_id,
+            user=event.user,
         )
 
         # Broadcast to all clients (acknowledgments are important for everyone)

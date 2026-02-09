@@ -6,13 +6,13 @@ automatic reconnection, topic subscription management, and graceful shutdown.
 
 import asyncio
 import contextlib
-import logging
+import structlog
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from aiomqtt import Client, MqttError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 MessageCallback = Callable[[str, bytes], Awaitable[None]]
 
@@ -100,7 +100,9 @@ class MQTTClient:
         the background via the message loop.
         """
         logger.info(
-            f"Connecting to MQTT broker at {self._config.host}:{self._config.port}"
+            "connecting_to_broker",
+            host=self._config.host,
+            port=self._config.port,
         )
         self._shutdown_event.clear()
 
@@ -111,8 +113,9 @@ class MQTTClient:
         else:
             # Start background reconnection so the app isn't blocked
             logger.warning(
-                f"Initial connection to {self._config.host}:{self._config.port} failed, "
-                "will retry in background"
+                "initial_connection_failed",
+                host=self._config.host,
+                port=self._config.port,
             )
             self._reconnect_task = asyncio.create_task(self._background_connect_loop())
 
@@ -144,7 +147,7 @@ class MQTTClient:
             try:
                 await self._client.__aexit__(None, None, None)
             except Exception as e:
-                logger.warning(f"Error closing MQTT client: {e}")
+                logger.warning("error_closing_client", error=str(e))
             finally:
                 self._client = None
 
@@ -173,15 +176,15 @@ class MQTTClient:
             >>>
             >>> await client.subscribe("sensors/+/temp", handle_temp)
         """
-        logger.info(f"Subscribing to topic: {topic}")
+        logger.info("subscribing_to_topic", topic=topic)
         self._subscriptions[topic] = callback
 
         if self._connected and self._client:
             try:
                 await self._client.subscribe(topic)
-                logger.info(f"Successfully subscribed to: {topic}")
+                logger.info("subscribed", topic=topic)
             except MqttError as e:
-                logger.error(f"Failed to subscribe to {topic}: {e}")
+                logger.error("subscribe_failed", topic=topic, error=str(e))
                 raise
 
     async def unsubscribe(self, topic: str) -> None:
@@ -196,7 +199,7 @@ class MQTTClient:
         Example:
             >>> await client.unsubscribe("sensors/+/temp")
         """
-        logger.info(f"Unsubscribing from topic: {topic}")
+        logger.info("unsubscribing_from_topic", topic=topic)
 
         if topic in self._subscriptions:
             del self._subscriptions[topic]
@@ -204,9 +207,9 @@ class MQTTClient:
             if self._connected and self._client:
                 try:
                     await self._client.unsubscribe(topic)
-                    logger.info(f"Successfully unsubscribed from: {topic}")
+                    logger.info("unsubscribed", topic=topic)
                 except MqttError as e:
-                    logger.error(f"Failed to unsubscribe from {topic}: {e}")
+                    logger.error("unsubscribe_failed", topic=topic, error=str(e))
                     raise
 
     async def publish(self, topic: str, payload: bytes, qos: int = 1) -> None:
@@ -229,12 +232,12 @@ class MQTTClient:
         if not self._connected or not self._client:
             raise RuntimeError("Cannot publish: MQTT client not connected")
 
-        logger.debug(f"Publishing to {topic}: {len(payload)} bytes")
+        logger.debug("publishing", topic=topic, payload_size=len(payload))
 
         try:
             await self._client.publish(topic, payload, qos=qos)
         except MqttError as e:
-            logger.error(f"Failed to publish to {topic}: {e}")
+            logger.error("publish_failed", topic=topic, error=str(e))
             raise
 
     async def _try_connect_once(self) -> bool:
@@ -262,20 +265,21 @@ class MQTTClient:
             # Restore subscriptions
             if self._subscriptions:
                 logger.info(
-                    f"Restoring {len(self._subscriptions)} subscriptions"
+                    "restoring_subscriptions",
+                    count=len(self._subscriptions),
                 )
                 for topic in self._subscriptions:
                     try:
                         await self._client.subscribe(topic)
-                        logger.debug(f"Restored subscription: {topic}")
+                        logger.debug("subscription_restored", topic=topic)
                     except MqttError as e:
-                        logger.error(f"Failed to restore subscription {topic}: {e}")
+                        logger.error("subscription_restore_failed", topic=topic, error=str(e))
 
             return True
 
         except (MqttError, OSError) as e:
             self._connected = False
-            logger.warning(f"Connection attempt failed: {e}")
+            logger.warning("connection_attempt_failed", error=str(e))
             # Clean up failed client
             if self._client:
                 try:
@@ -287,7 +291,7 @@ class MQTTClient:
 
         except Exception as e:
             self._connected = False
-            logger.error(f"Unexpected error during connection: {e}")
+            logger.error("unexpected_connection_error", error=str(e))
             if self._client:
                 try:
                     await self._client.__aexit__(None, None, None)
@@ -315,8 +319,10 @@ class MQTTClient:
 
             attempt += 1
             logger.info(
-                f"Background reconnection attempt {attempt} to "
-                f"{self._config.host}:{self._config.port}"
+                "background_reconnect_attempt",
+                attempt=attempt,
+                host=self._config.host,
+                port=self._config.port,
             )
 
             if await self._try_connect_once():
@@ -340,16 +346,19 @@ class MQTTClient:
         while not self._shutdown_event.is_set():
             attempt += 1
             logger.info(
-                f"Reconnection attempt {attempt} to "
-                f"{self._config.host}:{self._config.port}"
+                "reconnection_attempt",
+                attempt=attempt,
+                host=self._config.host,
+                port=self._config.port,
             )
 
             if await self._try_connect_once():
                 return
 
             logger.warning(
-                f"Reconnection attempt {attempt} failed. "
-                f"Retrying in {delay}s..."
+                "reconnection_failed",
+                attempt=attempt,
+                retry_delay=delay,
             )
             await asyncio.sleep(delay)
             delay = min(delay * 2, self._config.max_reconnect_delay)
@@ -376,7 +385,9 @@ class MQTTClient:
                     payload = message.payload
 
                     logger.debug(
-                        f"Received message on {topic}: {len(payload)} bytes"
+                        "message_received",
+                        topic=topic,
+                        payload_size=len(payload),
                     )
 
                     # Match topic to callbacks (handle wildcards)
@@ -386,13 +397,15 @@ class MQTTClient:
                                 await callback(topic, payload)
                             except Exception as e:
                                 logger.error(
-                                    f"Error in callback for {topic}: {e}",
+                                    "callback_error",
+                                    topic=topic,
+                                    error=str(e),
                                     exc_info=True,
                                 )
 
             except MqttError as e:
                 self._connected = False
-                logger.warning(f"Lost connection to MQTT broker: {e}")
+                logger.warning("connection_lost", error=str(e))
 
                 if not self._shutdown_event.is_set():
                     logger.info("Attempting to reconnect...")
@@ -403,7 +416,7 @@ class MQTTClient:
                 break
 
             except Exception as e:
-                logger.error(f"Unexpected error in message loop: {e}", exc_info=True)
+                logger.error("message_loop_error", error=str(e), exc_info=True)
                 if not self._shutdown_event.is_set():
                     await asyncio.sleep(1)
 

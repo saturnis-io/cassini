@@ -4,7 +4,7 @@ Provides functions for creating and verifying JWT access and refresh tokens
 using PyJWT with HS256 algorithm.
 """
 
-import logging
+import structlog
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,7 +14,7 @@ import jwt
 
 from openspc.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 JWT_ALGORITHM: str = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES: int = 15

@@ -6,7 +6,7 @@ into subgroups and triggering sample processing based on configured strategies.
 """
 
 import asyncio
-import logging
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -18,7 +18,7 @@ from openspc.mqtt.client import MQTTClient
 if TYPE_CHECKING:
     from openspc.db.repositories.characteristic import CharacteristicRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class TriggerStrategy(Enum):
@@ -197,7 +197,8 @@ class TagProvider(DataProvider):
         await self._load_tag_characteristics()
         self._timeout_task = asyncio.create_task(self._timeout_loop())
         logger.info(
-            f"TagProvider started with {len(self._configs)} characteristics subscribed"
+            "tag_provider_started",
+            characteristics_count=len(self._configs),
         )
 
     async def stop(self) -> None:
@@ -223,9 +224,9 @@ class TagProvider(DataProvider):
         for topic in list(self._topic_to_chars.keys()):
             try:
                 await self._mqtt.unsubscribe(topic)
-                logger.debug(f"Unsubscribed from topic: {topic}")
+                logger.debug("unsubscribed_from_topic", topic=topic)
             except Exception as e:
-                logger.error(f"Error unsubscribing from {topic}: {e}")
+                logger.error("error_unsubscribing", topic=topic, error=str(e))
 
         # Clear state
         self._configs.clear()
@@ -262,7 +263,9 @@ class TagProvider(DataProvider):
         for char in chars:
             if not char.mqtt_topic:
                 logger.warning(
-                    f"Characteristic {char.id} ({char.name}) has no mqtt_topic configured, skipping"
+                    "characteristic_no_mqtt_topic",
+                    characteristic_id=char.id,
+                    name=char.name,
                 )
                 continue
 
@@ -296,13 +299,17 @@ class TagProvider(DataProvider):
                     await self._mqtt.subscribe(char.mqtt_topic, self._on_message)
                     subscribed_topics.add(char.mqtt_topic)
                     logger.info(
-                        f"Subscribed to {char.mqtt_topic} for characteristic "
-                        f"{char.id} ({char.name})"
+                        "subscribed_to_topic",
+                        topic=char.mqtt_topic,
+                        characteristic_id=char.id,
+                        name=char.name,
                     )
                 except Exception as e:
                     logger.error(
-                        f"Failed to subscribe to {char.mqtt_topic} for "
-                        f"characteristic {char.id}: {e}"
+                        "subscribe_failed",
+                        topic=char.mqtt_topic,
+                        characteristic_id=char.id,
+                        error=str(e),
                     )
                     # Clean up partial state
                     del self._configs[char.id]
@@ -317,11 +324,11 @@ class TagProvider(DataProvider):
                 try:
                     await self._mqtt.subscribe(char.trigger_tag, self._on_trigger_message)
                     subscribed_triggers.add(char.trigger_tag)
-                    logger.info(f"Subscribed to trigger tag: {char.trigger_tag}")
+                    logger.info("subscribed_to_trigger_tag", trigger_tag=char.trigger_tag)
                 except Exception as e:
-                    logger.error(f"Failed to subscribe to trigger tag {char.trigger_tag}: {e}")
+                    logger.error("trigger_tag_subscribe_failed", trigger_tag=char.trigger_tag, error=str(e))
 
-        logger.info(f"Loaded {len(self._configs)} TAG-type characteristics")
+        logger.info("loaded_tag_characteristics", count=len(self._configs))
 
     async def _on_message(self, topic: str, payload: bytes) -> None:
         """Handle incoming MQTT message for a data tag.
@@ -337,7 +344,7 @@ class TagProvider(DataProvider):
             payload: Message payload as bytes
         """
         if topic not in self._topic_to_chars:
-            logger.warning(f"Received message on unmapped topic: {topic}")
+            logger.warning("unmapped_topic", topic=topic)
             return
 
         char_ids = self._topic_to_chars[topic]
@@ -356,7 +363,7 @@ class TagProvider(DataProvider):
         try:
             _ts, metrics, _seq = SparkplugDecoder.decode_payload(payload)
         except Exception as e:
-            logger.error(f"Failed to decode SparkplugB payload on {topic}: {e}")
+            logger.error("sparkplug_decode_failed", topic=topic, error=str(e))
             return
 
         # Build name -> value map from decoded metrics
@@ -366,7 +373,9 @@ class TagProvider(DataProvider):
                 metric_values[metric.name] = float(metric.value)
             except (TypeError, ValueError):
                 logger.debug(
-                    f"Skipping non-numeric metric {metric.name}={metric.value!r}"
+                    "skipping_non_numeric_metric",
+                    metric_name=metric.name,
+                    metric_value=repr(metric.value),
                 )
 
         # Dispatch to each characteristic by its configured metric_name
@@ -378,7 +387,9 @@ class TagProvider(DataProvider):
 
             if not config.metric_name:
                 logger.debug(
-                    f"Char {char_id} on SparkplugB topic {topic} has no metric_name, skipping"
+                    "no_metric_name_configured",
+                    characteristic_id=char_id,
+                    topic=topic,
                 )
                 continue
 
@@ -387,8 +398,11 @@ class TagProvider(DataProvider):
                 continue
 
             logger.debug(
-                f"Received SparkplugB metric {config.metric_name}={value} "
-                f"on {topic} for char {char_id}"
+                "received_sparkplug_metric",
+                metric_name=config.metric_name,
+                value=value,
+                topic=topic,
+                characteristic_id=char_id,
             )
             await self._dispatch_value(char_id, config, buffer, value)
 
@@ -400,7 +414,10 @@ class TagProvider(DataProvider):
             value = float(payload.decode().strip())
         except (ValueError, UnicodeDecodeError) as e:
             logger.error(
-                f"Failed to parse payload on {topic}: {payload!r} - {e}"
+                "payload_parse_failed",
+                topic=topic,
+                payload=repr(payload),
+                error=str(e),
             )
             return
 
@@ -410,7 +427,7 @@ class TagProvider(DataProvider):
             if not config or not buffer:
                 continue
 
-            logger.debug(f"Received value {value} on {topic} for char {char_id}")
+            logger.debug("received_value", value=value, topic=topic, characteristic_id=char_id)
             await self._dispatch_value(char_id, config, buffer, value)
 
     async def _dispatch_value(
@@ -420,19 +437,23 @@ class TagProvider(DataProvider):
         if config.trigger_strategy == TriggerStrategy.ON_CHANGE:
             is_full = buffer.add(value)
             if is_full:
-                logger.debug(f"Buffer full for char {char_id}, flushing")
+                logger.debug("buffer_full", characteristic_id=char_id)
                 await self._flush_buffer(char_id)
         elif config.trigger_strategy == TriggerStrategy.ON_TRIGGER:
             buffer.add(value)
             logger.debug(
-                f"Added value to buffer for char {char_id} "
-                f"({len(buffer.values)}/{config.subgroup_size}), waiting for trigger"
+                "value_buffered_waiting_trigger",
+                characteristic_id=char_id,
+                buffer_count=len(buffer.values),
+                subgroup_size=config.subgroup_size,
             )
         elif config.trigger_strategy == TriggerStrategy.ON_TIMER:
             buffer.add(value)
             logger.debug(
-                f"Added value to buffer for char {char_id} "
-                f"({len(buffer.values)}/{config.subgroup_size}), timer-based flush"
+                "value_buffered_timer_flush",
+                characteristic_id=char_id,
+                buffer_count=len(buffer.values),
+                subgroup_size=config.subgroup_size,
             )
 
     async def _on_trigger_message(self, topic: str, payload: bytes) -> None:
@@ -445,7 +466,7 @@ class TagProvider(DataProvider):
             topic: MQTT topic the message was received on
             payload: Message payload as bytes (not used)
         """
-        logger.debug(f"Trigger received on {topic}")
+        logger.debug("trigger_received", topic=topic)
 
         # Find all characteristics using this trigger tag
         for char_id, config in self._configs.items():
@@ -453,8 +474,10 @@ class TagProvider(DataProvider):
                 buffer = self._buffers.get(char_id)
                 if buffer and buffer.values:
                     logger.info(
-                        f"Flushing buffer for char {char_id} on trigger {topic} "
-                        f"({len(buffer.values)} values)"
+                        "flushing_buffer_on_trigger",
+                        characteristic_id=char_id,
+                        trigger_topic=topic,
+                        value_count=len(buffer.values),
                     )
                     await self._flush_buffer(char_id)
 
@@ -468,18 +491,20 @@ class TagProvider(DataProvider):
             char_id: ID of the characteristic whose buffer to flush
         """
         if char_id not in self._buffers:
-            logger.warning(f"No buffer found for characteristic {char_id}")
+            logger.warning("no_buffer_found", characteristic_id=char_id)
             return
 
         buffer = self._buffers[char_id]
         values = buffer.flush()
 
         if not values:
-            logger.debug(f"Buffer for char {char_id} is empty, nothing to flush")
+            logger.debug("buffer_empty", characteristic_id=char_id)
             return
 
         logger.info(
-            f"Flushing buffer for characteristic {char_id} with {len(values)} values"
+            "flushing_buffer",
+            characteristic_id=char_id,
+            value_count=len(values),
         )
 
         # Create sample event
@@ -493,16 +518,19 @@ class TagProvider(DataProvider):
         # Invoke callback
         if self._callback is None:
             logger.warning(
-                f"No callback set for TagProvider, discarding sample for char {char_id}"
+                "no_callback_set",
+                characteristic_id=char_id,
             )
             return
 
         try:
             await self._callback(event)
-            logger.info(f"Successfully processed sample for characteristic {char_id}")
+            logger.info("sample_processed", characteristic_id=char_id)
         except Exception as e:
             logger.error(
-                f"Error in callback for characteristic {char_id}: {e}",
+                "callback_error",
+                characteristic_id=char_id,
+                error=str(e),
                 exc_info=True,
             )
 
@@ -526,8 +554,10 @@ class TagProvider(DataProvider):
 
                     if buffer.values and buffer.is_timed_out(config.buffer_timeout_seconds):
                         logger.warning(
-                            f"Buffer timeout for char {char_id}: flushing "
-                            f"{len(buffer.values)} values (expected {config.subgroup_size})"
+                            "buffer_timeout",
+                            characteristic_id=char_id,
+                            buffer_count=len(buffer.values),
+                            expected=config.subgroup_size,
                         )
                         await self._flush_buffer(char_id)
 
@@ -535,6 +565,6 @@ class TagProvider(DataProvider):
                 logger.info("Buffer timeout loop cancelled")
                 break
             except Exception as e:
-                logger.error(f"Error in timeout loop: {e}", exc_info=True)
+                logger.error("timeout_loop_error", error=str(e), exc_info=True)
 
         logger.info("Buffer timeout monitoring loop stopped")

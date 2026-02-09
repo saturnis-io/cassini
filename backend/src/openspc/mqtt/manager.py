@@ -6,7 +6,7 @@ from the database and handling connection state per broker.
 """
 
 import asyncio
-import logging
+import structlog
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,7 +16,7 @@ from openspc.db.models.broker import MQTTBroker
 from openspc.db.repositories import BrokerRepository
 from openspc.mqtt.client import MQTTClient, MQTTConfig
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -240,7 +240,9 @@ class MQTTManager:
 
         connected = sum(1 for r in results if r is True)
         logger.info(
-            f"MQTT manager initialized: {connected}/{len(brokers)} brokers connected"
+            "mqtt_manager_initialized",
+            connected=connected,
+            total=len(brokers),
         )
 
         return connected > 0
@@ -255,13 +257,13 @@ class MQTTManager:
         Returns:
             True if connection was established, False otherwise
         """
-        logger.info(f"Connecting to broker ID: {broker_id}")
+        logger.info("connecting_to_broker", broker_id=broker_id)
 
         repo = BrokerRepository(session)
         broker = await repo.get_by_id(broker_id)
 
         if broker is None:
-            logger.error(f"Broker {broker_id} not found")
+            logger.error("broker_not_found", broker_id=broker_id)
             return False
 
         return await self._connect_to_broker(broker)
@@ -275,11 +277,11 @@ class MQTTManager:
         Returns:
             True if disconnected successfully, False if broker not found
         """
-        logger.info(f"Disconnecting broker ID: {broker_id}")
+        logger.info("disconnecting_broker", broker_id=broker_id)
 
         client = self._clients.get(broker_id)
         if client is None:
-            logger.warning(f"No client found for broker {broker_id}")
+            logger.warning("no_client_for_broker", broker_id=broker_id)
             return False
 
         # Stop discovery if active
@@ -288,7 +290,7 @@ class MQTTManager:
             try:
                 await discovery.stop_discovery(client)
             except Exception as e:
-                logger.warning(f"Error stopping discovery for broker {broker_id}: {e}")
+                logger.warning("discovery_stop_error", broker_id=broker_id, error=str(e))
 
         await client.disconnect()
         del self._clients[broker_id]
@@ -297,7 +299,7 @@ class MQTTManager:
             self._states[broker_id].is_connected = False
             self._states[broker_id].error_message = "Disconnected"
 
-        logger.info(f"Broker {broker_id} disconnected")
+        logger.info("broker_disconnected", broker_id=broker_id)
         return True
 
     async def _connect_to_broker(self, broker: MQTTBroker) -> bool:
@@ -309,7 +311,7 @@ class MQTTManager:
         Returns:
             True if connection was established, False otherwise
         """
-        logger.info(f"Connecting to broker: {broker.name} ({broker.host}:{broker.port})")
+        logger.info("connecting_to_broker_config", name=broker.name, host=broker.host, port=broker.port)
 
         # Disconnect existing client for this broker if any
         if broker.id in self._clients:
@@ -345,15 +347,15 @@ class MQTTManager:
             if client.is_connected:
                 self._states[broker.id].last_connected = datetime.now()
                 self._states[broker.id].error_message = None
-                logger.info(f"Successfully connected to broker: {broker.name}")
+                logger.info("broker_connected", name=broker.name)
             else:
                 self._states[broker.id].error_message = "Connecting in background"
-                logger.info(f"Broker {broker.name} will reconnect in background")
+                logger.info("broker_reconnecting_background", name=broker.name)
 
             return client.is_connected
 
         except Exception as e:
-            logger.error(f"Failed to initialize broker {broker.name}: {e}")
+            logger.error("broker_init_failed", name=broker.name, error=str(e))
             self._states[broker.id].is_connected = False
             self._states[broker.id].error_message = str(e)
             return False
@@ -390,13 +392,13 @@ class MQTTManager:
         Returns:
             True if switch was successful, False otherwise
         """
-        logger.info(f"Connecting broker ID: {broker_id}")
+        logger.info("switching_broker", broker_id=broker_id)
 
         repo = BrokerRepository(session)
         broker = await repo.get_by_id(broker_id)
 
         if broker is None:
-            logger.error(f"Broker {broker_id} not found")
+            logger.error("broker_not_found", broker_id=broker_id)
             return False
 
         return await self._connect_to_broker(broker)
@@ -415,16 +417,16 @@ class MQTTManager:
                 try:
                     await discovery.stop_discovery(client)
                 except Exception as e:
-                    logger.warning(f"Error stopping discovery for broker {broker_id}: {e}")
+                    logger.warning("discovery_stop_error", broker_id=broker_id, error=str(e))
         self._discovery_services.clear()
 
         # Disconnect all clients
         for broker_id, client in list(self._clients.items()):
             try:
                 await client.disconnect()
-                logger.debug(f"Disconnected broker {broker_id}")
+                logger.debug("broker_disconnected", broker_id=broker_id)
             except Exception as e:
-                logger.warning(f"Error disconnecting broker {broker_id}: {e}")
+                logger.warning("broker_disconnect_error", broker_id=broker_id, error=str(e))
 
         self._clients.clear()
 
@@ -460,7 +462,7 @@ class MQTTManager:
         """
         client = self._get_client_for_operation(broker_id)
         await client.subscribe(topic, callback)
-        logger.info(f"Subscribed to topic: {topic}")
+        logger.info("subscribed_to_topic", topic=topic)
 
     async def unsubscribe(
         self,
@@ -480,7 +482,7 @@ class MQTTManager:
 
         if client:
             await client.unsubscribe(topic)
-            logger.info(f"Unsubscribed from topic: {topic}")
+            logger.info("unsubscribed_from_topic", topic=topic)
 
     async def publish(
         self,

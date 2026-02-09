@@ -1,6 +1,6 @@
 """Plant REST API endpoints."""
 
-import logging
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +12,7 @@ from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.user import UserRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/plants", tags=["plants"])
 
@@ -71,7 +71,7 @@ async def create_plant(
                     admin_count += 1
                     break
         if admin_count > 0:
-            logger.info(f"Auto-assigned {admin_count} admin user(s) to new plant '{plant.name}'")
+            logger.info("auto_assigned_admins", count=admin_count, plant=plant.name)
 
         return PlantResponse.model_validate(plant)
     except IntegrityError:

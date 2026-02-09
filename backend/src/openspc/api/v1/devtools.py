@@ -6,8 +6,10 @@ and re-seed functionality for development and testing.
 
 import importlib.util
 import io
-import logging
+import logging  # stdlib logging needed for seed script log capture
 from pathlib import Path
+
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -15,7 +17,7 @@ from pydantic import BaseModel
 from openspc.api.deps import get_current_admin
 from openspc.db.database import get_database, reset_singleton
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/devtools", tags=["devtools"])
 
@@ -108,7 +110,7 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
     # Reset the singleton so the next request creates a fresh connection
     reset_singleton()
 
-    logger.info(f"Running seed: {body.script}")
+    logger.info("running_seed", script=body.script)
 
     # Load the seed module by file path and call its seed() function directly.
     # This avoids Windows asyncio subprocess limitations.

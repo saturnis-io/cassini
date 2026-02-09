@@ -3,11 +3,11 @@
 Implements ISA-95 equipment hierarchy management endpoints.
 """
 
-import logging
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession

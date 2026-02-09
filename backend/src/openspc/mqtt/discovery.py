@@ -5,7 +5,7 @@ wildcard patterns and building a browseable tree of available topics.
 Supports automatic detection and parsing of SparkplugB topic namespaces.
 """
 
-import logging
+import structlog
 import threading
 import time
 from dataclasses import dataclass, field
@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from openspc.mqtt.client import MQTTClient
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Default configuration for topic discovery
 DISCOVERY_MAX_TOPICS = 10000
@@ -138,7 +138,7 @@ class TopicDiscoveryService:
             client: Connected MQTT client
             subscribe_pattern: Wildcard pattern to subscribe to (default: "#")
         """
-        logger.info(f"Starting topic discovery with pattern: {subscribe_pattern}")
+        logger.info("starting_topic_discovery", pattern=subscribe_pattern)
         self._subscribe_pattern = subscribe_pattern
         self._is_active = True
         await client.subscribe(subscribe_pattern, self._on_discovery_message)
@@ -156,7 +156,7 @@ class TopicDiscoveryService:
             try:
                 await client.unsubscribe(self._subscribe_pattern)
             except Exception as e:
-                logger.warning(f"Error unsubscribing from discovery pattern: {e}")
+                logger.warning("discovery_unsubscribe_error", error=str(e))
             self._subscribe_pattern = None
         logger.info("Topic discovery stopped")
 
@@ -320,7 +320,7 @@ class TopicDiscoveryService:
                     result.append(SparkplugMetricInfo(name=m.name, data_type=m.data_type))
             return result
         except Exception as e:
-            logger.debug(f"Could not extract SparkplugB metrics: {e}")
+            logger.debug("sparkplug_metrics_extraction_failed", error=str(e))
             return []
 
     @staticmethod
@@ -375,4 +375,4 @@ class TopicDiscoveryService:
                 self._last_update.pop(topic, None)
 
             if stale:
-                logger.debug(f"Evicted {len(stale)} stale topics")
+                logger.debug("evicted_stale_topics", count=len(stale))

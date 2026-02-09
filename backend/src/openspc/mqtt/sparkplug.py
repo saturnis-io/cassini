@@ -13,14 +13,14 @@ References:
 """
 
 import json
-import logging
+import structlog
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 from openspc.mqtt.client import MQTTClient
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # SparkplugB DataType enum mapping (protobuf integer -> string name)
@@ -234,7 +234,8 @@ class SparkplugDecoder:
                 return SparkplugDecoder._decode_protobuf(payload)
             except Exception as e:
                 logger.warning(
-                    f"Protobuf decode failed, attempting JSON fallback: {e}"
+                    "protobuf_decode_failed_json_fallback",
+                    error=str(e),
                 )
                 try:
                     return SparkplugDecoder._decode_json(payload)
@@ -336,7 +337,7 @@ class SparkplugDecoder:
         metrics = []
         for metric_data in data["metrics"]:
             if "name" not in metric_data or "value" not in metric_data:
-                logger.warning(f"Skipping invalid metric: {metric_data}")
+                logger.warning("skipping_invalid_metric", metric_data=metric_data)
                 continue
 
             metric = SparkplugMetric(
@@ -530,8 +531,9 @@ class SparkplugEncoder:
                         m.bytes_value = str(metric.value).encode("utf-8")
             except (TypeError, ValueError) as e:
                 logger.warning(
-                    f"Failed to set value for metric '{metric.name}': {e}. "
-                    f"Using string fallback."
+                    "metric_value_encode_fallback",
+                    metric_name=metric.name,
+                    error=str(e),
                 )
                 m.string_value = str(metric.value)
                 m.datatype = DATA_TYPE_REVERSE_MAP.get("String", 12)
@@ -715,8 +717,10 @@ class SparkplugAdapter:
                     return float(metric.value)
                 except (TypeError, ValueError) as e:
                     logger.warning(
-                        f"Cannot convert metric '{metric_name}' value "
-                        f"{metric.value!r} to float: {e}"
+                        "metric_value_conversion_failed",
+                        metric_name=metric_name,
+                        value=repr(metric.value),
+                        error=str(e),
                     )
                     return None
         return None
@@ -785,9 +789,12 @@ class SparkplugAdapter:
         )
 
         logger.info(
-            f"Publishing SPC state for {characteristic_name} to {topic} "
-            f"(in_control={in_control}, active_rules={len(active_rules)}, "
-            f"format={self._payload_format})"
+            "publishing_spc_state",
+            characteristic=characteristic_name,
+            topic=topic,
+            in_control=in_control,
+            active_rule_count=len(active_rules),
+            format=self._payload_format,
         )
 
         await self._mqtt.publish(topic, payload, qos=1)
@@ -829,7 +836,7 @@ class SparkplugAdapter:
         )
         self._seq = 0  # Reset sequence on birth
 
-        logger.info(f"Publishing birth certificate to {topic}")
+        logger.info("publishing_birth_certificate", topic=topic)
         await self._mqtt.publish(topic, payload, qos=1)
 
     async def publish_death_certificate(self) -> None:
@@ -850,5 +857,5 @@ class SparkplugAdapter:
         # Death certificate has minimal payload
         payload = self._encoder.encode_metrics([], format=self._payload_format)
 
-        logger.info(f"Publishing death certificate to {topic}")
+        logger.info("publishing_death_certificate", topic=topic)
         await self._mqtt.publish(topic, payload, qos=1)

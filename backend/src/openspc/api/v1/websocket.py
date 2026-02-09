@@ -6,7 +6,7 @@ characteristics and receive updates about new samples, violations, and acknowled
 """
 
 import asyncio
-import logging
+import structlog
 import json
 import uuid
 from dataclasses import dataclass, field
@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["websocket"])
 

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     rate_limit_login: str = "5/minute"
     rate_limit_default: str = "60/minute"
 
+    # Logging
+    log_format: str = "console"  # "console" or "json"
+
     # Dev / sandbox
     sandbox: bool = False
     # Dev mode -- disables enterprise enforcement (forced password change, etc.)

@@ -5,10 +5,10 @@ retrieval, and management. Samples are processed through the SPC engine
 and evaluated against Nelson Rules.
 """
 
-import logging
+import structlog
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field

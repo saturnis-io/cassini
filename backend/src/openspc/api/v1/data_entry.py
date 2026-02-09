@@ -5,10 +5,10 @@ with API key authentication. External systems can submit samples via these
 endpoints without using the web UI.
 """
 
-import logging
+import structlog
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession

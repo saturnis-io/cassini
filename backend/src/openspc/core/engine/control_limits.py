@@ -10,7 +10,7 @@ Calculation methods:
 - n>10: S-bar / c4 method
 """
 
-import logging
+import structlog
 import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from openspc.db.repositories.characteristic import CharacteristicRepository
     from openspc.db.repositories.sample import SampleRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -273,8 +273,10 @@ class ControlLimitService:
         )
 
         logger.info(
-            f"Publishing ControlLimitsUpdatedEvent for characteristic "
-            f"{characteristic_id} (method={result.method}, samples={result.sample_count})"
+            "publishing_control_limits_updated",
+            characteristic_id=characteristic_id,
+            method=result.method,
+            sample_count=result.sample_count,
         )
 
         await self._event_bus.publish(event)
