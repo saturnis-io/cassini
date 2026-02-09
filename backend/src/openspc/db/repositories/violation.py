@@ -152,6 +152,7 @@ class ViolationRepository(BaseRepository[Violation]):
         characteristic_id: int | None = None,
         sample_id: int | None = None,
         acknowledged: bool | None = None,
+        requires_acknowledgement: bool | None = None,
         severity: str | None = None,
         rule_id: int | None = None,
         start_date: datetime | None = None,
@@ -165,6 +166,7 @@ class ViolationRepository(BaseRepository[Violation]):
             characteristic_id: Filter by characteristic ID
             sample_id: Filter by sample ID
             acknowledged: Filter by acknowledgment status
+            requires_acknowledgement: Filter by requires_acknowledgement flag
             severity: Filter by severity level
             rule_id: Filter by rule ID
             start_date: Filter by timestamp >= start_date
@@ -202,6 +204,8 @@ class ViolationRepository(BaseRepository[Violation]):
             filters.append(Violation.sample_id == sample_id)
         if acknowledged is not None:
             filters.append(Violation.acknowledged == acknowledged)
+        if requires_acknowledgement is not None:
+            filters.append(Violation.requires_acknowledgement == requires_acknowledgement)
         if severity is not None:
             filters.append(Violation.severity == severity)
         if rule_id is not None:

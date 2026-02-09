@@ -43,7 +43,7 @@ from openspc.db.repositories import (
     SampleRepository,
     ViolationRepository,
 )
-from openspc.utils.statistics import calculate_mean_range
+from openspc.utils.statistics import calculate_mean_range, calculate_zones, classify_zone, ZoneBoundaries
 
 router = APIRouter(prefix="/api/v1/samples", tags=["samples"])
 
@@ -465,7 +465,7 @@ async def toggle_exclude(
     except HTTPException:
         await session.rollback()
         raise
-    except Exception as e:
+    except Exception:
         await session.rollback()
         logger.exception("Failed to update sample exclusion status")
         raise HTTPException(
@@ -522,7 +522,7 @@ async def delete_sample(
     except HTTPException:
         await session.rollback()
         raise
-    except Exception as e:
+    except Exception:
         await session.rollback()
         logger.exception("Failed to delete sample")
         raise HTTPException(
@@ -642,8 +642,6 @@ async def update_sample(
         # Determine zone based on control limits using shared utility
         zone = "unknown"
         if characteristic.ucl is not None and characteristic.lcl is not None:
-            from openspc.utils.statistics import classify_zone, calculate_zones, ZoneBoundaries
-
             center = (characteristic.ucl + characteristic.lcl) / 2
             sigma = (characteristic.ucl - center) / 3
             if sigma > 0:
@@ -715,7 +713,7 @@ async def update_sample(
     except HTTPException:
         await session.rollback()
         raise
-    except Exception as e:
+    except Exception:
         await session.rollback()
         logger.exception("Failed to update sample measurements")
         raise HTTPException(

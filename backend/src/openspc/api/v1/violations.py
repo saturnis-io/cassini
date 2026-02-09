@@ -6,6 +6,7 @@ Implements violation management and acknowledgment endpoints for SPC monitoring.
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.api.deps import (
@@ -16,6 +17,7 @@ from openspc.api.deps import (
     get_violation_repo,
     resolve_plant_id_for_characteristic,
 )
+from openspc.db.models.sample import Sample
 from openspc.db.models.user import User
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.api.schemas.violation import (
@@ -58,6 +60,9 @@ async def list_violations(
     characteristic_id: int | None = None,
     sample_id: int | None = None,
     acknowledged: bool | None = None,
+    requires_acknowledgement: bool | None = Query(
+        None, description="Filter by requires_acknowledgement flag"
+    ),
     severity: str | None = None,
     rule_id: int | None = None,
     start_date: datetime | None = None,
@@ -118,6 +123,7 @@ async def list_violations(
         characteristic_id=characteristic_id,
         sample_id=sample_id,
         acknowledged=acknowledged,
+        requires_acknowledgement=requires_acknowledgement,
         severity=severity,
         rule_id=rule_id,
         start_date=start_date,
@@ -360,10 +366,12 @@ async def acknowledge_violation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Violation {violation_id} not found",
         )
-    if violation_obj.sample and violation_obj.sample.characteristic:
-        plant_id = await resolve_plant_id_for_characteristic(
-            violation_obj.sample.char_id, session
-        )
+    # Resolve plant via direct query (avoids async lazy-loading on relationships)
+    char_id = (await session.execute(
+        select(Sample.char_id).where(Sample.id == violation_obj.sample_id)
+    )).scalar_one_or_none()
+    if char_id is not None:
+        plant_id = await resolve_plant_id_for_characteristic(char_id, session)
         check_plant_role(_user, plant_id, "supervisor")
     else:
         # Fallback: require supervisor at any plant if we can't resolve
@@ -471,9 +479,13 @@ async def batch_acknowledge(
             violation_obj = await repo.get_by_id(violation_id)
             if violation_obj is None:
                 raise ValueError(f"Violation {violation_id} not found")
-            if violation_obj.sample and violation_obj.sample.characteristic:
+            # Resolve plant via direct query (avoids async lazy-loading)
+            char_id = (await session.execute(
+                select(Sample.char_id).where(Sample.id == violation_obj.sample_id)
+            )).scalar_one_or_none()
+            if char_id is not None:
                 plant_id = await resolve_plant_id_for_characteristic(
-                    violation_obj.sample.char_id, session
+                    char_id, session
                 )
                 check_plant_role(_user, plant_id, "supervisor")
 

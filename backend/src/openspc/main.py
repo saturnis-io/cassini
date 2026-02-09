@@ -1,11 +1,4 @@
-"""OpenSPC FastAPI Application.
-
-TODO: Adopt structured logging (e.g. structlog or python-json-logger) for
-machine-parseable log output in production deployments.
-
-TODO: Add Alembic migration version check at startup to warn when the
-database schema is out of date.
-"""
+"""OpenSPC FastAPI Application."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -60,6 +53,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await bootstrap_admin_user(session)
     except Exception as e:
         logger.warning(f"Failed to bootstrap admin user: {e}")
+
+    # Check if database schema is up to date with Alembic head
+    try:
+        from alembic.config import Config as AlembicConfig
+        from alembic.script import ScriptDirectory
+        from alembic.runtime.migration import MigrationContext
+
+        alembic_cfg = AlembicConfig()
+        alembic_cfg.set_main_option("script_location", "alembic")
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head_rev = script.get_current_head()
+
+        async with db.engine.connect() as conn:
+            def get_current_rev(sync_conn):
+                context = MigrationContext.configure(sync_conn)
+                return context.get_current_revision()
+            current_rev = await conn.run_sync(get_current_rev)
+
+        if current_rev != head_rev:
+            logger.warning(
+                "Database migration is behind: current=%s, head=%s. "
+                "Run 'alembic upgrade head' to update.",
+                current_rev, head_rev,
+            )
+        else:
+            logger.info("Database schema is up to date (revision: %s)", current_rev)
+    except Exception:
+        logger.debug("Could not check migration status (non-fatal)", exc_info=True)
 
     # Start WebSocket connection manager
     await ws_manager.start()
