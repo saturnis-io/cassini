@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.api.deps import get_current_user, get_db_session, get_user_repo
 from openspc.api.schemas.user import (
+    ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
     PlantRoleResponse,
@@ -95,10 +96,15 @@ async def login(
 
     user_response = _build_user_response(user)
 
+    # In dev mode, suppress forced password change for convenience
+    cfg = get_settings()
+    must_change = user.must_change_password if not cfg.dev_mode else False
+
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
         user=user_response,
+        must_change_password=must_change,
     )
 
 
@@ -180,3 +186,34 @@ async def get_me(
 ) -> UserWithRolesResponse:
     """Get the current authenticated user with all plant roles."""
     return _build_user_response(current_user)
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Change the current user's password.
+
+    Verifies the current password, then updates to the new password
+    and clears the must_change_password flag.
+    """
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    if data.current_password == data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    from openspc.core.auth.passwords import hash_password
+    current_user.hashed_password = hash_password(data.new_password)
+    current_user.must_change_password = False
+    await session.commit()
+
+    return {"message": "Password changed successfully"}

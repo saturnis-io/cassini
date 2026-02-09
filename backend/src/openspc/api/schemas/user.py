@@ -79,3 +79,11 @@ class LoginResponse(TokenResponse):
     """Schema for login response with user data."""
 
     user: UserWithRolesResponse
+    must_change_password: bool = False
+
+
+class ChangePasswordRequest(BaseModel):
+    """Schema for password change request."""
+
+    current_password: str
+    new_password: str = Field(..., min_length=8)

@@ -41,6 +41,8 @@ class Settings(BaseSettings):
 
     # Dev / sandbox
     sandbox: bool = False
+    # Dev mode -- disables enterprise enforcement (forced password change, etc.)
+    dev_mode: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -49,11 +49,12 @@ async def bootstrap_admin_user(session: AsyncSession) -> None:
     # Hash the password
     hashed = hash_password(password)
 
-    # Create the admin user
+    # Create the admin user (force password change on first login)
     admin_user = User(
         username=username,
         hashed_password=hashed,
         is_active=True,
+        must_change_password=True,
     )
     session.add(admin_user)
     await session.flush()
