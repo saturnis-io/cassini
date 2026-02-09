@@ -493,13 +493,40 @@ export function useAcknowledgeViolation() {
   return useMutation({
     mutationFn: ({ id, reason, user }: { id: number; reason: string; user: string }) =>
       violationApi.acknowledge(id, { reason, user }),
+    onMutate: async ({ id, reason, user }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.violations.all })
+      const previousLists = queryClient.getQueriesData({ queryKey: queryKeys.violations.all })
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.violations.all },
+        (old: unknown) => {
+          const data = old as { items?: Array<Record<string, unknown>> } | undefined
+          if (!data?.items) return old
+          return {
+            ...data,
+            items: data.items.map((v) =>
+              v.id === id
+                ? { ...v, acknowledged: true, ack_user: user, ack_reason: reason, ack_timestamp: new Date().toISOString() }
+                : v
+            ),
+          }
+        }
+      )
+      return { previousLists }
+    },
+    onError: (error: Error, _, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]: [unknown, unknown]) => {
+          queryClient.setQueryData(key as readonly unknown[], data)
+        })
+      }
+      toast.error(`Failed to acknowledge: ${error.message}`)
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
       toast.success('Violation acknowledged')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to acknowledge: ${error.message}`)
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
     },
   })
 }
@@ -528,16 +555,42 @@ export function useExcludeSample() {
   return useMutation({
     mutationFn: ({ id, excluded }: { id: number; excluded: boolean }) =>
       sampleApi.exclude(id, excluded),
+    onMutate: async ({ id, excluded }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.samples.all })
+      const previousLists = queryClient.getQueriesData({ queryKey: queryKeys.samples.all })
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.samples.all },
+        (old: unknown) => {
+          const data = old as { items?: Array<Record<string, unknown>> } | undefined
+          if (!data?.items) return old
+          return {
+            ...data,
+            items: data.items.map((s) =>
+              s.id === id ? { ...s, is_excluded: excluded } : s
+            ),
+          }
+        }
+      )
+      return { previousLists }
+    },
+    onError: (error: Error, _, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]: [unknown, unknown]) => {
+          queryClient.setQueryData(key as readonly unknown[], data)
+        })
+      }
+      toast.error(`Failed to update sample: ${error.message}`)
+    },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
-      // Use partial key match to invalidate all chart data variations
-      queryClient.invalidateQueries({
-        queryKey: ['characteristics', 'chartData', data.characteristic_id],
-      })
       toast.success(data.is_excluded ? 'Sample excluded' : 'Sample included')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update sample: ${error.message}`)
+    onSettled: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      if (data?.characteristic_id) {
+        queryClient.invalidateQueries({
+          queryKey: ['characteristics', 'chartData', data.characteristic_id],
+        })
+      }
     },
   })
 }
@@ -709,12 +762,36 @@ export function useCreateAnnotation() {
   return useMutation({
     mutationFn: ({ characteristicId, data }: { characteristicId: number; data: AnnotationCreate }) =>
       annotationApi.create(characteristicId, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+    onMutate: async ({ characteristicId, data }) => {
+      const queryKey = queryKeys.annotations.list(characteristicId)
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData(queryKey)
+      queryClient.setQueryData(queryKey, (old: unknown[]) => {
+        if (!old) return old
+        const optimistic = {
+          id: -Date.now(),
+          characteristic_id: characteristicId,
+          ...data,
+          created_by: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          history: [],
+        }
+        return [...old, optimistic]
+      })
+      return { previous, queryKey }
+    },
+    onError: (error: Error, _, context) => {
+      if (context) {
+        queryClient.setQueryData(context.queryKey, context.previous)
+      }
+      toast.error(`Failed to create annotation: ${error.message}`)
+    },
+    onSuccess: () => {
       toast.success('Annotation created')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create annotation: ${error.message}`)
+    onSettled: (_, __, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
     },
   })
 }
@@ -741,12 +818,27 @@ export function useDeleteAnnotation() {
   return useMutation({
     mutationFn: ({ characteristicId, annotationId }: { characteristicId: number; annotationId: number }) =>
       annotationApi.delete(characteristicId, annotationId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+    onMutate: async ({ characteristicId, annotationId }) => {
+      const queryKey = queryKeys.annotations.list(characteristicId)
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData(queryKey)
+      queryClient.setQueryData(queryKey, (old: unknown[]) => {
+        if (!old) return old
+        return old.filter((a: unknown) => (a as { id: number }).id !== annotationId)
+      })
+      return { previous, queryKey }
+    },
+    onError: (error: Error, _, context) => {
+      if (context) {
+        queryClient.setQueryData(context.queryKey, context.previous)
+      }
+      toast.error(`Failed to delete annotation: ${error.message}`)
+    },
+    onSuccess: () => {
       toast.success('Annotation deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete annotation: ${error.message}`)
+    onSettled: (_, __, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
     },
   })
 }
