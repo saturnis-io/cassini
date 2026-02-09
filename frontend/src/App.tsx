@@ -15,6 +15,7 @@ import { ReportsView } from '@/pages/ReportsView'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { LoginPage } from '@/pages/LoginPage'
+import { ChangePasswordPage } from '@/pages/ChangePasswordPage'
 import { KioskLayout } from '@/components/KioskLayout'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
@@ -78,7 +79,7 @@ class RouteErrorBoundary extends Component<
  * Shows nothing while auth is loading to prevent flash.
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, mustChangePassword } = useAuth()
 
   if (isLoading) {
     return (
@@ -93,6 +94,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (mustChangePassword) {
+    return <Navigate to="/change-password" replace />
   }
 
   return <>{children}</>
@@ -149,6 +154,9 @@ function App() {
             <Routes>
               {/* Login page - outside auth gate, no providers needed */}
               <Route path="/login" element={<LoginPage />} />
+
+              {/* Force password change - outside main layout, user has token but must change password */}
+              <Route path="/change-password" element={<ChangePasswordPage />} />
 
               {/* Main app with sidebar layout - requires auth */}
               <Route

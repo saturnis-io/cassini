@@ -18,6 +18,7 @@ export interface LoginResponse {
   access_token: string
   token_type: string
   user: AuthUser
+  must_change_password: boolean
 }
 
 export interface RefreshResponse {

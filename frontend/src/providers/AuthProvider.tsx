@@ -12,8 +12,10 @@ interface AuthContextValue {
   role: Role
   isAuthenticated: boolean
   isLoading: boolean
+  mustChangePassword: boolean
   login: (username: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => Promise<void>
+  clearMustChangePassword: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -31,6 +33,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [mustChangePassword, setMustChangePassword] = useState(false)
   const selectedPlantId = useUIStore((s) => s.selectedPlantId)
 
   // Restore session on mount via refresh token cookie
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const data = await authApi.login(username, password, rememberMe)
     setAccessToken(data.access_token)
     setUser(data.user)
+    setMustChangePassword(data.must_change_password ?? false)
   }, [])
 
   const logout = useCallback(async () => {
@@ -90,7 +94,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     setAccessToken(null)
     setUser(null)
+    setMustChangePassword(false)
   }, [])
+
+  const clearMustChangePassword = useCallback(() => setMustChangePassword(false), [])
 
   // Derive role from user's plant_roles and selected plant
   const role: Role = useMemo(() => {
@@ -134,8 +141,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         role,
         isAuthenticated: user !== null,
         isLoading,
+        mustChangePassword,
         login,
         logout,
+        clearMustChangePassword,
       }}
     >
       {children}

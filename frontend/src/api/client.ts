@@ -250,6 +250,12 @@ export const authApi = {
     }),
 
   me: () => fetchApi<AuthUser>('/auth/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetchApi<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
 }
 
 // Plant API
