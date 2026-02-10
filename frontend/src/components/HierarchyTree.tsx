@@ -178,7 +178,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
                 />
                 <span className="flex-1">{char.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {char.provider_type}
+                  {char.data_source ? char.data_source.type.toUpperCase() : 'MANUAL'}
                 </span>
                 <button
                   onClick={(e) => {

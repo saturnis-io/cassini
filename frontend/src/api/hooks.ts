@@ -1,8 +1,8 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, plantApi, sampleApi, userApi, violationApi } from './client'
-import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, PlantCreate, PlantUpdate } from '@/types'
+import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, opcuaApi, plantApi, sampleApi, userApi, violationApi } from './client'
+import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
@@ -57,6 +57,16 @@ export const queryKeys = {
     config: () => [...queryKeys.database.all, 'config'] as const,
     status: () => [...queryKeys.database.all, 'status'] as const,
     migrations: () => [...queryKeys.database.all, 'migrations'] as const,
+  },
+  opcuaServers: {
+    all: ['opcua-servers'] as const,
+    lists: () => [...queryKeys.opcuaServers.all, 'list'] as const,
+    list: (plantId?: number) => [...queryKeys.opcuaServers.lists(), { plantId }] as const,
+    details: () => [...queryKeys.opcuaServers.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.opcuaServers.details(), id] as const,
+    status: () => [...queryKeys.opcuaServers.all, 'status'] as const,
+    allStatus: (plantId?: number) => [...queryKeys.opcuaServers.status(), { plantId }] as const,
+    browse: (id: number, nodeId?: string) => [...queryKeys.opcuaServers.all, 'browse', id, nodeId] as const,
   },
 }
 
@@ -270,12 +280,10 @@ export function useCreateCharacteristic() {
     mutationFn: (data: {
       name: string
       hierarchy_id: number
-      provider_type: 'MANUAL' | 'TAG'
       subgroup_size: number
       target_value?: number | null
       usl?: number | null
       lsl?: number | null
-      mqtt_topic?: string | null
     }) => characteristicApi.create(data as Partial<Characteristic>),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
@@ -937,6 +945,132 @@ export function useDatabaseVacuum() {
     onError: (error: Error) => {
       toast.error(`Maintenance failed: ${error.message}`)
     },
+  })
+}
+
+// OPC-UA Server hooks
+export function useOPCUAServers(plantId?: number) {
+  return useQuery({
+    queryKey: queryKeys.opcuaServers.list(plantId),
+    queryFn: () => opcuaApi.list(plantId),
+  })
+}
+
+export function useOPCUAServer(id: number) {
+  return useQuery({
+    queryKey: queryKeys.opcuaServers.detail(id),
+    queryFn: () => opcuaApi.get(id),
+    enabled: id > 0,
+  })
+}
+
+export function useOPCUAAllStatus(plantId?: number) {
+  return useQuery({
+    queryKey: queryKeys.opcuaServers.allStatus(plantId),
+    queryFn: () => opcuaApi.getAllStatus(plantId),
+    refetchInterval: 5000,
+  })
+}
+
+export function useCreateOPCUAServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: OPCUAServerCreate) => opcuaApi.create(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
+      toast.success(`Created OPC-UA server "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create server: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateOPCUAServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: OPCUAServerUpdate }) =>
+      opcuaApi.update(id, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
+      toast.success(`Updated OPC-UA server "${data.name}"`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update server: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteOPCUAServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => opcuaApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
+      toast.success('OPC-UA server deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete server: ${error.message}`)
+    },
+  })
+}
+
+export function useConnectOPCUAServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => opcuaApi.connect(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.status() })
+      toast.success('Connecting to OPC-UA server...')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to connect: ${error.message}`)
+    },
+  })
+}
+
+export function useDisconnectOPCUAServer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => opcuaApi.disconnect(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.status() })
+      toast.success('Disconnected from OPC-UA server')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to disconnect: ${error.message}`)
+    },
+  })
+}
+
+export function useTestOPCUAConnection() {
+  return useMutation({
+    mutationFn: (data: OPCUAServerCreate) => opcuaApi.test(data),
+    onError: (error: Error) => {
+      toast.error(`Connection test failed: ${error.message}`)
+    },
+  })
+}
+
+export function useBrowseOPCUANodes(serverId: number, nodeId?: string) {
+  return useQuery({
+    queryKey: queryKeys.opcuaServers.browse(serverId, nodeId),
+    queryFn: () => opcuaApi.browse(serverId, nodeId),
+    enabled: serverId > 0,
+  })
+}
+
+export function useReadOPCUAValue(serverId: number, nodeId: string) {
+  return useQuery({
+    queryKey: ['opcua-read', serverId, nodeId] as const,
+    queryFn: () => opcuaApi.readValue(serverId, nodeId),
+    enabled: serverId > 0 && nodeId.length > 0,
+    refetchInterval: 2000,
   })
 }
 

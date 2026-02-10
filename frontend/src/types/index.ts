@@ -62,24 +62,31 @@ export interface HierarchyNode {
 }
 
 // Characteristic types
-export type ProviderType = 'MANUAL' | 'TAG'
 export type SubgroupMode = 'STANDARDIZED' | 'VARIABLE_LIMITS' | 'NOMINAL_TOLERANCE'
+
+// DataSource (polymorphic base)
+export interface DataSourceResponse {
+  id: number
+  type: string  // "mqtt" | "opcua"
+  characteristic_id: number
+  trigger_strategy: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
 
 export interface Characteristic {
   id: number
   name: string
   hierarchy_id: number
   description: string | null
-  provider_type: ProviderType
+  data_source: DataSourceResponse | null
   subgroup_size: number
   target_value: number | null
   usl: number | null
   lsl: number | null
   ucl: number | null
   lcl: number | null
-  mqtt_topic: string | null
-  trigger_tag: string | null
-  metric_name: string | null
   // Subgroup mode configuration
   subgroup_mode: SubgroupMode
   min_measurements: number
@@ -102,6 +109,7 @@ export interface Characteristic {
 export interface CharacteristicSummary extends Characteristic {
   // These fields will be computed client-side for now
   hierarchy_path?: string
+  data_source_type: string | null
   in_control?: boolean
   last_sample_at?: string | null
   unacknowledged_violations?: number
@@ -360,9 +368,11 @@ export interface TagMappingResponse {
   mqtt_topic: string
   trigger_strategy: string
   trigger_tag: string | null
-  broker_id: number
-  broker_name: string
+  broker_id: number | null
+  broker_name: string | null
   metric_name: string | null
+  data_source_id: number
+  is_active: boolean
 }
 
 export interface TagPreviewValue {
@@ -481,4 +491,86 @@ export interface MigrationInfo {
   head_revision: string | null
   pending_count: number
   is_up_to_date: boolean
+}
+
+// OPC-UA Server types
+export interface OPCUAServer {
+  id: number
+  plant_id: number | null
+  name: string
+  endpoint_url: string
+  auth_mode: 'anonymous' | 'username_password'
+  username: string | null
+  security_policy: string
+  security_mode: string
+  is_active: boolean
+  session_timeout: number
+  publishing_interval: number
+  sampling_interval: number
+  created_at: string
+  updated_at: string
+}
+
+export interface OPCUAServerCreate {
+  name: string
+  endpoint_url: string
+  auth_mode: 'anonymous' | 'username_password'
+  username?: string
+  password?: string
+  security_policy?: string
+  security_mode?: string
+  is_active?: boolean
+  session_timeout?: number
+  publishing_interval?: number
+  sampling_interval?: number
+  plant_id?: number
+}
+
+export interface OPCUAServerUpdate {
+  name?: string
+  endpoint_url?: string
+  auth_mode?: 'anonymous' | 'username_password'
+  username?: string
+  password?: string
+  security_policy?: string
+  security_mode?: string
+  is_active?: boolean
+  session_timeout?: number
+  publishing_interval?: number
+  sampling_interval?: number
+}
+
+export interface OPCUAServerStatus {
+  server_id: number
+  server_name: string
+  is_connected: boolean
+  error_message: string | null
+}
+
+/** Alias used by connectivity components */
+export type OPCUAServerConnectionStatus = OPCUAServerStatus
+
+export interface OPCUABrowsedNode {
+  node_id: string
+  browse_name: string
+  display_name: string
+  node_class: string
+  data_type: string | null
+  is_folder: boolean
+  children_count: number
+}
+
+export interface OPCUANodeValue {
+  node_id: string
+  value: unknown
+  data_type: string
+  source_timestamp: string | null
+  server_timestamp: string | null
+  status_code: string
+}
+
+export interface OPCUATestResult {
+  success: boolean
+  message: string
+  server_info: Record<string, unknown> | null
 }

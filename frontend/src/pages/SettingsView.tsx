@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { MQTTConfigPanel } from '@/components/MQTTConfigPanel'
 import { AppearanceSettings } from '@/components/AppearanceSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { NotificationsSettings } from '@/components/NotificationsSettings'
@@ -7,11 +6,11 @@ import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { ThemeCustomizer } from '@/components/ThemeCustomizer'
 import { PlantSettings } from '@/components/PlantSettings'
 import { cn } from '@/lib/utils'
-import { Wifi, Key, Bell, Database, Palette, Building2, Factory } from 'lucide-react'
+import { Key, Bell, Database, Palette, Building2, Factory } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 
-type SettingsTab = 'appearance' | 'branding' | 'plants' | 'mqtt' | 'api-keys' | 'notifications' | 'database'
+type SettingsTab = 'appearance' | 'branding' | 'plants' | 'api-keys' | 'notifications' | 'database'
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
@@ -25,7 +24,6 @@ export function SettingsView() {
     { id: 'appearance' as const, label: 'Appearance', icon: Palette, visible: true },
     { id: 'branding' as const, label: 'Branding', icon: Building2, visible: isAdmin },
     { id: 'plants' as const, label: 'Sites', icon: Factory, visible: isAdmin },
-    { id: 'mqtt' as const, label: 'Data Collection', icon: Wifi, visible: isEngineer },
     { id: 'api-keys' as const, label: 'API Keys', icon: Key, visible: isEngineer },
     { id: 'notifications' as const, label: 'Notifications', icon: Bell, visible: true },
     { id: 'database' as const, label: 'Database', icon: Database, visible: isEngineer },
@@ -76,8 +74,6 @@ export function SettingsView() {
         )}
 
         {activeTab === 'plants' && <PlantSettings />}
-
-        {activeTab === 'mqtt' && <MQTTConfigPanel />}
 
         {activeTab === 'api-keys' && <ApiKeysSettings />}
 

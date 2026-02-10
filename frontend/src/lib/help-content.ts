@@ -208,10 +208,10 @@ export const helpContent: Record<string, HelpContent> = {
       'Configure connection details for your MQTT broker (e.g., Mosquitto, HiveMQ, AWS IoT). You can have multiple brokers configured but only one can be active at a time.',
   },
   'tag_provider': {
-    title: 'TAG Provider',
-    description: 'Automated data collection from machine tags via MQTT.',
+    title: 'Data Providers',
+    description: 'Automated data collection from machine tags via MQTT or OPC-UA.',
     details:
-      'The TAG provider subscribes to MQTT topics for characteristics configured with provider_type="TAG". Measurements are buffered into subgroups and processed through the SPC engine automatically.',
+      'Data providers subscribe to topics or nodes for characteristics with a configured data source. Measurements are buffered into subgroups and processed through the SPC engine automatically. Configure data sources in the Connectivity Hub.',
   },
 
   // Chart Type explanations

@@ -7,7 +7,7 @@ import type { HierarchyNode, Characteristic } from '@/types'
 interface HierarchyCharacteristicSelectorProps {
   selectedCharId: number | null
   onSelect: (char: Characteristic) => void
-  filterProvider?: 'MANUAL' | 'TAG'
+  filterProvider?: 'manual' | 'connected'
   plantId?: number | null
 }
 
@@ -82,7 +82,7 @@ interface SelectorNodeProps {
   toggleExpanded: (nodeId: number) => void
   selectedCharId: number | null
   onSelect: (char: Characteristic) => void
-  filterProvider?: 'MANUAL' | 'TAG'
+  filterProvider?: 'manual' | 'connected'
 }
 
 function SelectorNode({
@@ -102,9 +102,11 @@ function SelectorNode({
     isExpanded ? node.id : 0
   )
 
-  // Filter characteristics by provider type if specified (only for display)
+  // Filter characteristics by data source type if specified (only for display)
   const filteredChars = filterProvider
-    ? characteristics?.filter(c => c.provider_type === filterProvider)
+    ? characteristics?.filter(c =>
+        filterProvider === 'manual' ? !c.data_source : !!c.data_source
+      )
     : characteristics
 
   // Always use node.characteristic_count for expansion logic

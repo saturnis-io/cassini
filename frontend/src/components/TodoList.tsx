@@ -155,7 +155,7 @@ function TodoCard({
         <div>{characteristic.hierarchy_path || characteristic.description || `ID: ${characteristic.hierarchy_id}`}</div>
         <div className="flex justify-between mt-1">
           <span>Last: {formatTimeSince(characteristic.last_sample_at ?? null)}</span>
-          {characteristic.provider_type === 'MANUAL' && (
+          {!characteristic.data_source && (
             <button
               className="text-primary hover:underline"
               onClick={(e) => {

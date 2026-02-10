@@ -1,12 +1,22 @@
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
-import { ChevronRight } from 'lucide-react'
-import type { Characteristic } from '@/types'
+import { ProtocolBadge } from '../connectivity/ProtocolBadge'
+import { ChevronRight, ExternalLink, PenLine } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import type { DataSourceResponse } from '@/types'
 
 interface FormData {
   name: string
   description: string
   decimal_precision: string
+}
+
+interface GeneralCharacteristic {
+  data_source: DataSourceResponse | null
+  hierarchy_id: number
+  created_at?: string
+  updated_at?: string
+  sample_count?: number
 }
 
 interface HierarchyBreadcrumb {
@@ -17,7 +27,7 @@ interface HierarchyBreadcrumb {
 
 interface GeneralTabProps {
   formData: FormData
-  characteristic: Characteristic
+  characteristic: GeneralCharacteristic
   hierarchyPath?: HierarchyBreadcrumb[]
   onChange: (field: string, value: string) => void
 }
@@ -59,71 +69,29 @@ export function GeneralTab({
             />
           </div>
 
-          {/* Provider & Location Row */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Provider Badge */}
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Provider</label>
-              <div className="mt-1.5">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-muted rounded-lg">
-                  {characteristic.provider_type === 'MANUAL' ? (
-                    <>
-                      <span className="text-base">📝</span>
-                      <span>Manual Entry</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-base">📡</span>
-                      <span>MQTT Tag</span>
-                    </>
-                  )}
+          {/* Hierarchy Location */}
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Location</label>
+            <div className="mt-1.5">
+              {hierarchyPath.length > 0 ? (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  {hierarchyPath.map((node, idx) => (
+                    <span key={node.id} className="flex items-center">
+                      {idx > 0 && <ChevronRight className="h-3 w-3 mx-0.5" />}
+                      <span className="hover:text-foreground cursor-pointer">{node.name}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  Hierarchy #{characteristic.hierarchy_id}
                 </span>
-              </div>
-            </div>
-
-            {/* Hierarchy Breadcrumb */}
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Location</label>
-              <div className="mt-1.5">
-                {hierarchyPath.length > 0 ? (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    {hierarchyPath.map((node, idx) => (
-                      <span key={node.id} className="flex items-center">
-                        {idx > 0 && <ChevronRight className="h-3 w-3 mx-0.5" />}
-                        <span className="hover:text-foreground cursor-pointer">{node.name}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-sm text-muted-foreground">
-                    Hierarchy #{characteristic.hierarchy_id}
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
 
-          {/* MQTT Tag Details (only for TAG provider) */}
-          {characteristic.provider_type === 'TAG' && characteristic.mqtt_topic && (
-            <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-              <div>
-                <span className="text-xs text-muted-foreground">Topic</span>
-                <p className="text-sm font-mono">{characteristic.mqtt_topic}</p>
-              </div>
-              {characteristic.metric_name && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Metric</span>
-                  <p className="text-sm font-mono">{characteristic.metric_name}</p>
-                </div>
-              )}
-              {characteristic.trigger_tag && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Trigger Tag</span>
-                  <p className="text-sm font-mono">{characteristic.trigger_tag}</p>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Data Source Summary Card */}
+          <DataSourceSummary dataSource={characteristic.data_source} />
         </div>
       </AccordionSection>
 
@@ -184,5 +152,75 @@ export function GeneralTab({
         </div>
       </AccordionSection>
     </Accordion>
+  )
+}
+
+/**
+ * DataSourceSummary — compact read-only card showing the data source status.
+ * If a data source is configured: shows protocol badge, trigger strategy, active status,
+ * and a link to Connectivity Hub for management.
+ * If null: shows "Manual entry" with a link to configure a data source.
+ */
+function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | null }) {
+  if (!dataSource) {
+    return (
+      <div className="rounded-lg border border-border bg-muted/30 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenLine className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium">Manual Entry</p>
+              <p className="text-xs text-muted-foreground">No data source configured</p>
+            </div>
+          </div>
+          <Link
+            to="/connectivity"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            Add Data Source
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ProtocolBadge protocol={dataSource.type} size="md" />
+          <span
+            className={`inline-flex items-center gap-1 text-xs font-medium ${
+              dataSource.is_active ? 'text-green-500' : 'text-muted-foreground'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                dataSource.is_active ? 'bg-green-500' : 'bg-muted-foreground'
+              }`}
+            />
+            {dataSource.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+        <Link
+          to="/connectivity"
+          className="flex items-center gap-1 text-xs text-primary hover:underline"
+        >
+          Manage in Connectivity
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <div>
+          <span className="text-muted-foreground">Trigger</span>
+          <p className="font-mono">{dataSource.trigger_strategy}</p>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Source ID</span>
+          <p className="font-mono">#{dataSource.id}</p>
+        </div>
+      </div>
+    </div>
   )
 }

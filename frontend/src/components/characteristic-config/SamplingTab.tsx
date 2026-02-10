@@ -13,7 +13,7 @@ interface FormData {
 
 interface Characteristic {
   subgroup_size: number
-  provider_type: string
+  is_manual: boolean
   stored_sigma: number | null
   stored_center_line: number | null
 }
@@ -61,7 +61,7 @@ export function SamplingTab({
   onModeChange,
   isModeChangePending = false,
 }: SamplingTabProps) {
-  const isManual = characteristic.provider_type === 'MANUAL'
+  const isManual = characteristic.is_manual
   const showStoredParams =
     formData.subgroup_mode === 'STANDARDIZED' || formData.subgroup_mode === 'VARIABLE_LIMITS'
 

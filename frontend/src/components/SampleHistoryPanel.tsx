@@ -297,7 +297,7 @@ export function SampleHistoryPanel() {
                   <div>
                     <div className="font-medium text-sm">{selectedChar.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {selectedChar.provider_type} · n={selectedChar.subgroup_size}
+                      {selectedChar.data_source ? selectedChar.data_source.type.toUpperCase() : 'Manual'} · n={selectedChar.subgroup_size}
                     </div>
                   </div>
                   <button

@@ -518,7 +518,7 @@ function TodoTreeNode({
                 {status === 'OK' && <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />}
                 <span className="flex-1 font-medium">{char.name}</span>
                 <StatusBadge status={status} />
-                {!isMultiSelectMode && char.provider_type === 'MANUAL' && (
+                {!isMultiSelectMode && !char.data_source && (
                   <button
                     className="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => {

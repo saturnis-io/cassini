@@ -10,6 +10,10 @@ import { SettingsView } from '@/pages/SettingsView'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
+import { MonitorTab } from '@/components/connectivity/MonitorTab'
+import { ServersTab } from '@/components/connectivity/ServersTab'
+import { BrowseTab } from '@/components/connectivity/BrowseTab'
+import { MappingTab } from '@/components/connectivity/MappingTab'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { KioskView } from '@/pages/KioskView'
@@ -190,7 +194,13 @@ function App() {
                       <ConnectivityPage />
                     </ProtectedRoute>
                   }
-                />
+                >
+                  <Route index element={<Navigate to="monitor" replace />} />
+                  <Route path="monitor" element={<MonitorTab />} />
+                  <Route path="servers" element={<ServersTab />} />
+                  <Route path="browse" element={<BrowseTab />} />
+                  <Route path="mapping" element={<MappingTab />} />
+                </Route>
                 <Route
                   path="configuration"
                   element={

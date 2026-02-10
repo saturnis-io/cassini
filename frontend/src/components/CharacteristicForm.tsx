@@ -173,8 +173,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       },
     })
 
-    // Save schedule config for MANUAL characteristics
-    if (characteristic.provider_type === 'MANUAL' && characteristicId) {
+    // Save schedule config for MANUAL characteristics (no data source = manual)
+    if (!characteristic.data_source && characteristicId) {
       const schedulePayload = scheduleConfig.type === 'NONE'
         ? { schedule_type: 'NONE' }
         : {
@@ -263,11 +263,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               decimal_precision: formData.decimal_precision,
             }}
             characteristic={{
-              provider_type: characteristic.provider_type,
+              data_source: characteristic.data_source,
               hierarchy_id: characteristic.hierarchy_id,
-              mqtt_topic: characteristic.mqtt_topic,
-              trigger_tag: characteristic.trigger_tag,
-              metric_name: characteristic.metric_name,
               created_at: characteristic.created_at,
               updated_at: characteristic.updated_at,
               sample_count: characteristic.sample_count,
@@ -309,7 +306,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             }}
             characteristic={{
               subgroup_size: characteristic.subgroup_size,
-              provider_type: characteristic.provider_type,
+              is_manual: !characteristic.data_source,
               stored_sigma: characteristic.stored_sigma,
               stored_center_line: characteristic.stored_center_line,
             }}
@@ -348,7 +345,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           <div>
             <h2 className="font-semibold">{characteristic.name}</h2>
             <p className="text-xs text-muted-foreground">
-              {characteristic.provider_type === 'MANUAL' ? 'Manual Entry' : 'MQTT Tag'} •
+              {!characteristic.data_source ? 'Manual Entry' : characteristic.data_source.type.toUpperCase()} •
               Subgroup size: {characteristic.subgroup_size}
             </p>
           </div>
