@@ -3,7 +3,14 @@
 from openspc.db.models.annotation import Annotation
 from openspc.db.models.api_key import APIKey
 from openspc.db.models.broker import MQTTBroker
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from openspc.db.models.characteristic import Characteristic, CharacteristicRule
+from openspc.db.models.data_source import (
+    DataSource,
+    DataSourceType,
+    MQTTDataSource,
+    OPCUADataSource,
+    TriggerStrategy,
+)
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.plant import Plant
 from openspc.db.models.sample import Measurement, Sample
@@ -17,6 +24,9 @@ __all__ = [
     "Annotation",
     "APIKey",
     "MQTTBroker",
+    "DataSource",
+    "MQTTDataSource",
+    "OPCUADataSource",
     "Plant",
     "User",
     "UserPlantRole",
@@ -27,8 +37,9 @@ __all__ = [
     "Measurement",
     "Violation",
     # Enums
+    "DataSourceType",
     "HierarchyType",
-    "ProviderType",
     "Severity",
+    "TriggerStrategy",
     "UserRole",
 ]

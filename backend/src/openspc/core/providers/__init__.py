@@ -8,7 +8,8 @@ from openspc.core.providers.protocol import (
     SampleContext,
     SampleEvent,
 )
-from openspc.core.providers.tag import TagProvider, TriggerStrategy
+from openspc.core.providers.tag import TagProvider
+from openspc.db.models.data_source import TriggerStrategy
 
 __all__ = [
     "DataProvider",

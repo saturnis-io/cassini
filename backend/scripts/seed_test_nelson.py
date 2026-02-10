@@ -369,7 +369,6 @@ async def seed() -> None:
                         target_value=c_def.get("target"),
                         ucl=c_def.get("ucl"),
                         lcl=c_def.get("lcl"),
-                        provider_type="MANUAL",
                     )
                     session.add(char)
                     await session.flush()

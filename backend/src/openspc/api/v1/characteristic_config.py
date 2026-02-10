@@ -88,25 +88,26 @@ async def update_characteristic_config(
         HTTPException 404: If characteristic not found
         HTTPException 400: If config_type doesn't match provider_type
     """
-    # Verify characteristic exists
-    char = await char_repo.get_by_id(char_id)
+    # Verify characteristic exists (with data_source loaded)
+    char = await char_repo.get_with_data_source(char_id)
     if char is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found",
         )
 
-    # Validate config type matches characteristic provider type
+    # Validate config type matches characteristic data source
     config = data.config
-    if char.provider_type == "MANUAL" and config.config_type != "MANUAL":
+    has_data_source = char.data_source is not None
+    if not has_data_source and config.config_type != "MANUAL":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="MANUAL characteristic requires ManualConfig",
+            detail="Manual characteristic requires ManualConfig",
         )
-    if char.provider_type == "TAG" and config.config_type != "TAG":
+    if has_data_source and config.config_type != "TAG":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="TAG characteristic requires TagConfig",
+            detail="Data source characteristic requires TagConfig",
         )
 
     db_config = await config_repo.upsert(char_id, config)

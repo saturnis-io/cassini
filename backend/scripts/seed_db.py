@@ -24,7 +24,7 @@ from openspc.db import (
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
-    ProviderType,
+    MQTTDataSource,
 )
 
 
@@ -84,9 +84,6 @@ async def seed_database() -> None:
             lsl=490.0,  # Lower Spec Limit
             ucl=507.0,  # Upper Control Limit
             lcl=493.0,  # Lower Control Limit
-            provider_type=ProviderType.MANUAL.value,
-            mqtt_topic=None,
-            trigger_tag=None,
         )
         session.add(char_fill_weight)
         await session.flush()
@@ -113,13 +110,22 @@ async def seed_database() -> None:
             lsl=495.0,
             ucl=503.0,
             lcl=497.0,
-            provider_type=ProviderType.TAG.value,
-            mqtt_topic="plant/raleigh/line_a/fill_volume",
-            trigger_tag="plant/raleigh/line_a/trigger",
         )
         session.add(char_fill_volume)
         await session.flush()
         print(f"Created Characteristic: {char_fill_volume.name} (ID: {char_fill_volume.id})")
+
+        # Create MQTT data source for Fill Volume
+        fill_volume_source = MQTTDataSource(
+            characteristic_id=char_fill_volume.id,
+            topic="plant/raleigh/line_a/fill_volume",
+            trigger_tag="plant/raleigh/line_a/trigger",
+            trigger_strategy="on_trigger",
+            is_active=True,
+        )
+        session.add(fill_volume_source)
+        await session.flush()
+        print(f"Created MQTTDataSource for {char_fill_volume.name}")
 
         # Enable Nelson Rules 1, 2, 5, 6 for Fill Volume
         for rule_id in [1, 2, 5, 6]:

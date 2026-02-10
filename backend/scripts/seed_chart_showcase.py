@@ -32,7 +32,6 @@ from openspc.db import (
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
-    ProviderType,
 )
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
@@ -367,7 +366,6 @@ async def seed() -> None:
                     lsl=c_def.get("lsl"),
                     ucl=c_def.get("ucl"),
                     lcl=c_def.get("lcl"),
-                    provider_type="MANUAL",
                 )
                 session.add(char)
                 await session.flush()

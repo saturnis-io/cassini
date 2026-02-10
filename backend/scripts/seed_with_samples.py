@@ -23,7 +23,6 @@ from openspc.db import (
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
-    ProviderType,
 )
 from openspc.db.models.sample import Sample, Measurement
 
@@ -86,9 +85,6 @@ async def seed_database_with_samples() -> None:
             lsl=490.0,
             ucl=507.0,
             lcl=493.0,
-            provider_type=ProviderType.MANUAL.value,
-            mqtt_topic=None,
-            trigger_tag=None,
         )
         session.add(char_fill_weight)
         await session.flush()
@@ -114,9 +110,6 @@ async def seed_database_with_samples() -> None:
             lsl=495.0,
             ucl=503.0,
             lcl=497.0,
-            provider_type=ProviderType.MANUAL.value,  # Changed to MANUAL for testing
-            mqtt_topic=None,
-            trigger_tag=None,
         )
         session.add(char_fill_volume)
         await session.flush()
@@ -142,9 +135,6 @@ async def seed_database_with_samples() -> None:
             lsl=25.0,
             ucl=33.0,
             lcl=27.0,
-            provider_type=ProviderType.MANUAL.value,
-            mqtt_topic=None,
-            trigger_tag=None,
         )
         session.add(char_pressure)
         await session.flush()

@@ -13,26 +13,13 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from openspc.core.providers.protocol import DataProvider, SampleCallback, SampleContext, SampleEvent
+from openspc.db.models.data_source import TriggerStrategy
 from openspc.mqtt.client import MQTTClient
 
 if TYPE_CHECKING:
-    from openspc.db.repositories.characteristic import CharacteristicRepository
+    from openspc.db.repositories.data_source import DataSourceRepository
 
 logger = structlog.get_logger(__name__)
-
-
-class TriggerStrategy(Enum):
-    """Strategy for triggering sample submission.
-
-    Attributes:
-        ON_CHANGE: Trigger on each message (default)
-        ON_TRIGGER: Wait for trigger tag before submitting
-        ON_TIMER: Time-based batching of readings
-    """
-
-    ON_CHANGE = "on_change"
-    ON_TRIGGER = "on_trigger"
-    ON_TIMER = "on_timer"
 
 
 @dataclass
@@ -51,7 +38,7 @@ class TagConfig:
     characteristic_id: int
     mqtt_topic: str
     subgroup_size: int
-    trigger_strategy: TriggerStrategy = TriggerStrategy.ON_CHANGE
+    trigger_strategy: str = "on_change"
     trigger_tag: str | None = None
     metric_name: str | None = None
     buffer_timeout_seconds: float = 60.0
@@ -163,16 +150,10 @@ class TagProvider(DataProvider):
     def __init__(
         self,
         mqtt_client: MQTTClient,
-        char_repo: "CharacteristicRepository",
+        ds_repo: "DataSourceRepository",
     ):
-        """Initialize the tag provider.
-
-        Args:
-            mqtt_client: MQTT client for topic subscriptions
-            char_repo: Repository for characteristic lookups
-        """
         self._mqtt = mqtt_client
-        self._char_repo = char_repo
+        self._ds_repo = ds_repo
         self._callback: SampleCallback | None = None
         self._configs: dict[int, TagConfig] = {}  # char_id -> config
         self._buffers: dict[int, SubgroupBuffer] = {}  # char_id -> buffer
@@ -247,88 +228,68 @@ class TagProvider(DataProvider):
         self._callback = callback
 
     async def _load_tag_characteristics(self) -> None:
-        """Load all TAG-type characteristics and subscribe to their topics.
-
-        This method queries the database for all characteristics with
-        provider_type="TAG", creates configurations and buffers for them,
-        and subscribes to their MQTT topics. Multiple characteristics can
-        map to the same topic (with different metric_name values).
-        """
-        logger.info("Loading TAG-type characteristics")
-        chars = await self._char_repo.get_by_provider_type("TAG")
+        """Load all active MQTT data sources and subscribe to their topics."""
+        logger.info("Loading MQTT data sources")
+        mqtt_sources = await self._ds_repo.get_active_mqtt_sources()
 
         subscribed_topics: set[str] = set()
         subscribed_triggers: set[str] = set()
 
-        for char in chars:
-            if not char.mqtt_topic:
-                logger.warning(
-                    "characteristic_no_mqtt_topic",
-                    characteristic_id=char.id,
-                    name=char.name,
-                )
+        for src in mqtt_sources:
+            char = src.characteristic
+            if char is None:
+                logger.warning("mqtt_source_no_characteristic", data_source_id=src.id)
                 continue
 
-            # Determine trigger strategy
-            trigger_strategy = TriggerStrategy.ON_CHANGE
-            if char.trigger_tag:
-                trigger_strategy = TriggerStrategy.ON_TRIGGER
-
-            # Create configuration
             config = TagConfig(
                 characteristic_id=char.id,
-                mqtt_topic=char.mqtt_topic,
+                mqtt_topic=src.topic,
                 subgroup_size=char.subgroup_size,
-                trigger_strategy=trigger_strategy,
-                trigger_tag=char.trigger_tag,
-                metric_name=char.metric_name,
+                trigger_strategy=src.trigger_strategy,
+                trigger_tag=src.trigger_tag,
+                metric_name=src.metric_name,
             )
 
-            # Store configuration and create buffer
             self._configs[char.id] = config
             self._buffers[char.id] = SubgroupBuffer(config)
 
-            # Append char_id to the list for this topic
-            if char.mqtt_topic not in self._topic_to_chars:
-                self._topic_to_chars[char.mqtt_topic] = []
-            self._topic_to_chars[char.mqtt_topic].append(char.id)
+            if src.topic not in self._topic_to_chars:
+                self._topic_to_chars[src.topic] = []
+            self._topic_to_chars[src.topic].append(char.id)
 
-            # Subscribe to topic only once per unique topic
-            if char.mqtt_topic not in subscribed_topics:
+            if src.topic not in subscribed_topics:
                 try:
-                    await self._mqtt.subscribe(char.mqtt_topic, self._on_message)
-                    subscribed_topics.add(char.mqtt_topic)
+                    await self._mqtt.subscribe(src.topic, self._on_message)
+                    subscribed_topics.add(src.topic)
                     logger.info(
                         "subscribed_to_topic",
-                        topic=char.mqtt_topic,
+                        topic=src.topic,
                         characteristic_id=char.id,
                         name=char.name,
                     )
                 except Exception as e:
                     logger.error(
                         "subscribe_failed",
-                        topic=char.mqtt_topic,
+                        topic=src.topic,
                         characteristic_id=char.id,
                         error=str(e),
                     )
-                    # Clean up partial state
                     del self._configs[char.id]
                     del self._buffers[char.id]
-                    self._topic_to_chars[char.mqtt_topic].remove(char.id)
-                    if not self._topic_to_chars[char.mqtt_topic]:
-                        del self._topic_to_chars[char.mqtt_topic]
+                    self._topic_to_chars[src.topic].remove(char.id)
+                    if not self._topic_to_chars[src.topic]:
+                        del self._topic_to_chars[src.topic]
                     continue
 
-            # Subscribe to trigger tag if configured
-            if char.trigger_tag and char.trigger_tag not in subscribed_triggers:
+            if src.trigger_tag and src.trigger_tag not in subscribed_triggers:
                 try:
-                    await self._mqtt.subscribe(char.trigger_tag, self._on_trigger_message)
-                    subscribed_triggers.add(char.trigger_tag)
-                    logger.info("subscribed_to_trigger_tag", trigger_tag=char.trigger_tag)
+                    await self._mqtt.subscribe(src.trigger_tag, self._on_trigger_message)
+                    subscribed_triggers.add(src.trigger_tag)
+                    logger.info("subscribed_to_trigger_tag", trigger_tag=src.trigger_tag)
                 except Exception as e:
-                    logger.error("trigger_tag_subscribe_failed", trigger_tag=char.trigger_tag, error=str(e))
+                    logger.error("trigger_tag_subscribe_failed", trigger_tag=src.trigger_tag, error=str(e))
 
-        logger.info("loaded_tag_characteristics", count=len(self._configs))
+        logger.info("loaded_mqtt_data_sources", count=len(self._configs))
 
     async def _on_message(self, topic: str, payload: bytes) -> None:
         """Handle incoming MQTT message for a data tag.
@@ -434,12 +395,12 @@ class TagProvider(DataProvider):
         self, char_id: int, config: TagConfig, buffer: SubgroupBuffer, value: float
     ) -> None:
         """Add a value to a buffer and flush if needed based on trigger strategy."""
-        if config.trigger_strategy == TriggerStrategy.ON_CHANGE:
+        if config.trigger_strategy == TriggerStrategy.ON_CHANGE.value:
             is_full = buffer.add(value)
             if is_full:
                 logger.debug("buffer_full", characteristic_id=char_id)
                 await self._flush_buffer(char_id)
-        elif config.trigger_strategy == TriggerStrategy.ON_TRIGGER:
+        elif config.trigger_strategy == TriggerStrategy.ON_TRIGGER.value:
             buffer.add(value)
             logger.debug(
                 "value_buffered_waiting_trigger",
@@ -447,7 +408,7 @@ class TagProvider(DataProvider):
                 buffer_count=len(buffer.values),
                 subgroup_size=config.subgroup_size,
             )
-        elif config.trigger_strategy == TriggerStrategy.ON_TIMER:
+        elif config.trigger_strategy == TriggerStrategy.ON_TIMER.value:
             buffer.add(value)
             logger.debug(
                 "value_buffered_timer_flush",
@@ -470,7 +431,7 @@ class TagProvider(DataProvider):
 
         # Find all characteristics using this trigger tag
         for char_id, config in self._configs.items():
-            if config.trigger_tag == topic and config.trigger_strategy == TriggerStrategy.ON_TRIGGER:
+            if config.trigger_tag == topic and config.trigger_strategy == TriggerStrategy.ON_TRIGGER.value:
                 buffer = self._buffers.get(char_id)
                 if buffer and buffer.values:
                     logger.info(

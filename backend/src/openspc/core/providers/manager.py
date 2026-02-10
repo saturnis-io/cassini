@@ -79,7 +79,7 @@ class TagProviderManager:
             Current TagProviderState
         """
         if self._provider:
-            self._state.subscribed_topics = list(self._provider._topic_to_char.keys())
+            self._state.subscribed_topics = list(self._provider._topic_to_chars.keys())
             self._state.characteristics_count = len(self._provider._configs)
         return self._state
 
@@ -152,8 +152,10 @@ class TagProviderManager:
             event_bus=event_bus,
         )
 
-        # Create TAG provider
-        self._provider = TagProvider(mqtt_client, char_repo)
+        # Create TAG provider with DataSourceRepository
+        from openspc.db.repositories import DataSourceRepository
+        ds_repo = DataSourceRepository(session)
+        self._provider = TagProvider(mqtt_client, ds_repo)
         self._provider.set_callback(self._on_sample)
 
         # Start the provider
@@ -250,9 +252,9 @@ class TagProviderManager:
         logger.info("TAG provider manager shutdown complete")
 
     async def refresh_subscriptions(self, session: AsyncSession) -> int:
-        """Refresh topic subscriptions based on current characteristics.
+        """Refresh topic subscriptions based on current data sources.
 
-        Useful when TAG characteristics are added or removed.
+        Useful when data source mappings are added or removed.
 
         Args:
             session: SQLAlchemy async session for database access
@@ -260,7 +262,7 @@ class TagProviderManager:
         Returns:
             Number of characteristics now subscribed
         """
-        from openspc.db.repositories import CharacteristicRepository
+        from openspc.db.repositories import DataSourceRepository
 
         if not self._provider:
             logger.warning("Cannot refresh subscriptions: Provider not initialized")
@@ -269,8 +271,8 @@ class TagProviderManager:
         # Stop current subscriptions
         await self._provider.stop()
 
-        # Update char_repo with new session
-        self._provider._char_repo = CharacteristicRepository(session)
+        # Update ds_repo with new session
+        self._provider._ds_repo = DataSourceRepository(session)
 
         # Restart to reload subscriptions
         await self._provider.start()

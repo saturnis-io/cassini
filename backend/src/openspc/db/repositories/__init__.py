@@ -16,6 +16,7 @@ Repositories:
 from openspc.db.repositories.base import BaseRepository
 from openspc.db.repositories.broker import BrokerRepository
 from openspc.db.repositories.characteristic import CharacteristicRepository
+from openspc.db.repositories.data_source import DataSourceRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.sample import SampleRepository
@@ -27,6 +28,7 @@ __all__ = [
     "BaseRepository",
     # Repositories
     "BrokerRepository",
+    "DataSourceRepository",
     "HierarchyRepository",
     "PlantRepository",
     "UserRepository",

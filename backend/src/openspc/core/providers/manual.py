@@ -117,16 +117,16 @@ class ManualProvider:
             ... )
             >>> print(f"Submitted sample for char {event.characteristic_id}")
         """
-        # Step 1: Validate characteristic exists
-        char = await self._char_repo.get_by_id(characteristic_id)
+        # Step 1: Validate characteristic exists (with data_source eager-loaded)
+        char = await self._char_repo.get_with_data_source(characteristic_id)
         if char is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
-        # Step 2: Validate provider type is MANUAL
-        if char.provider_type != "MANUAL":
+        # Step 2: Validate characteristic has no data source (manual entry only)
+        if char.data_source is not None:
             raise ValueError(
-                f"Characteristic {characteristic_id} has provider_type={char.provider_type}, "
-                "not MANUAL. Use the appropriate provider."
+                f"Characteristic {characteristic_id} has a data source "
+                f"(type={char.data_source.type}). Use the appropriate provider."
             )
 
         # Step 3: Validate measurement count matches subgroup_size

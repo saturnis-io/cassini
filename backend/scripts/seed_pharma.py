@@ -34,7 +34,7 @@ from openspc.db import (
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
-    ProviderType,
+    MQTTDataSource,
 )
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401 — registers model
@@ -898,14 +898,28 @@ async def seed(keep_existing: bool = False) -> None:
                         lsl=c_def.get("lsl"),
                         ucl=c_def.get("ucl"),
                         lcl=c_def.get("lcl"),
-                        provider_type=c_def.get("provider", "MANUAL"),
-                        mqtt_topic=c_def.get("topic"),
-                        metric_name=c_def.get("metric"),
                     )
                     session.add(char)
                     await session.flush()
                     stats["chars"] += 1
-                    print(f"{indent}  * {c_def['name']} (n={c_def['subgroup_size']}, provider={c_def.get('provider', 'MANUAL')})")
+
+                    provider = c_def.get("provider", "MANUAL")
+                    print(f"{indent}  * {c_def['name']} (n={c_def['subgroup_size']}, provider={provider})")
+
+                    # Create MQTT data source for TAG characteristics
+                    if provider == "TAG" and c_def.get("topic"):
+                        trigger_tag = c_def.get("trigger_tag")
+                        source = MQTTDataSource(
+                            characteristic_id=char.id,
+                            broker_id=broker.id,
+                            topic=c_def["topic"],
+                            metric_name=c_def.get("metric"),
+                            trigger_tag=trigger_tag,
+                            trigger_strategy="on_trigger" if trigger_tag else "on_change",
+                            is_active=True,
+                        )
+                        session.add(source)
+                        await session.flush()
 
                     # Nelson rules
                     for rule_id in c_def.get("rules", [1, 2]):

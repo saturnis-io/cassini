@@ -4,10 +4,11 @@ Schemas for SPC characteristic configuration and chart data.
 """
 
 from enum import Enum
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
+
+from openspc.api.schemas.data_source import DataSourceResponse
 
 
 class SubgroupModeEnum(str, Enum):
@@ -21,17 +22,7 @@ class SubgroupModeEnum(str, Enum):
 class CharacteristicCreate(BaseModel):
     """Schema for creating a new characteristic.
 
-    Attributes:
-        hierarchy_id: ID of the hierarchy node this belongs to
-        name: Display name of the characteristic
-        description: Optional detailed description
-        subgroup_size: Number of measurements per sample (1-25)
-        target_value: Target/nominal value for the process
-        usl: Upper Specification Limit
-        lsl: Lower Specification Limit
-        provider_type: Data source type (MANUAL or TAG)
-        mqtt_topic: MQTT topic for TAG provider (required if TAG)
-        trigger_tag: Optional MQTT tag that triggers sample collection
+    Data source (MQTT, OPC-UA) is configured separately via the tag mapping API.
     """
 
     hierarchy_id: int
@@ -41,9 +32,6 @@ class CharacteristicCreate(BaseModel):
     target_value: float | None = None
     usl: float | None = None
     lsl: float | None = None
-    provider_type: Literal["MANUAL", "TAG"]
-    mqtt_topic: str | None = None
-    trigger_tag: str | None = None
 
     # Subgroup mode configuration
     subgroup_mode: SubgroupModeEnum = Field(
@@ -59,13 +47,6 @@ class CharacteristicCreate(BaseModel):
     decimal_precision: int = Field(
         default=3, ge=0, le=10, description="Decimal places for display formatting"
     )
-
-    @model_validator(mode="after")
-    def validate_tag_config(self) -> Self:
-        """Validate that TAG provider has required mqtt_topic."""
-        if self.provider_type == "TAG" and not self.mqtt_topic:
-            raise ValueError("mqtt_topic is required when provider_type is TAG")
-        return self
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -113,28 +94,7 @@ class CharacteristicUpdate(BaseModel):
 
 
 class CharacteristicResponse(BaseModel):
-    """Schema for characteristic response.
-
-    Attributes:
-        id: Unique identifier
-        hierarchy_id: Parent hierarchy node ID
-        name: Display name
-        description: Detailed description
-        subgroup_size: Number of measurements per sample
-        target_value: Target/nominal value
-        usl: Upper Specification Limit
-        lsl: Lower Specification Limit
-        ucl: Upper Control Limit
-        lcl: Lower Control Limit
-        provider_type: Data source type
-        mqtt_topic: MQTT topic for TAG provider
-        trigger_tag: MQTT trigger tag
-        subgroup_mode: How to handle variable subgroup sizes
-        min_measurements: Minimum measurements required per sample
-        warn_below_count: Warn when sample has fewer than this many measurements
-        stored_sigma: Stored sigma for Mode A/B (set by recalculate-limits)
-        stored_center_line: Stored center line for Mode A/B (set by recalculate-limits)
-    """
+    """Schema for characteristic response."""
 
     id: int
     hierarchy_id: int
@@ -146,10 +106,7 @@ class CharacteristicResponse(BaseModel):
     lsl: float | None
     ucl: float | None
     lcl: float | None
-    provider_type: str
-    mqtt_topic: str | None
-    trigger_tag: str | None
-    metric_name: str | None = None
+    data_source: DataSourceResponse | None = None
     subgroup_mode: str
     min_measurements: int
     warn_below_count: int | None
@@ -161,23 +118,11 @@ class CharacteristicResponse(BaseModel):
 
 
 class CharacteristicSummary(BaseModel):
-    """Schema for characteristic summary in list views.
-
-    Lightweight version with status indicators and key configuration.
-
-    Attributes:
-        id: Unique identifier
-        name: Display name
-        provider_type: Data source type
-        subgroup_size: Number of measurements per sample
-        min_measurements: Minimum required measurements
-        in_control: Whether the process is currently in control
-        unacknowledged_violations: Count of unacknowledged violations
-    """
+    """Schema for characteristic summary in list views."""
 
     id: int
     name: str
-    provider_type: str
+    data_source_type: str | None = None
     subgroup_size: int = 1
     min_measurements: int = 1
     in_control: bool = True

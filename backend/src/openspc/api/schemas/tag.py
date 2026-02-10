@@ -25,26 +25,18 @@ class TagMappingCreate(BaseModel):
 
 
 class TagMappingResponse(BaseModel):
-    """Schema for tag mapping response.
+    """Schema for tag mapping response."""
 
-    Attributes:
-        characteristic_id: ID of the characteristic
-        characteristic_name: Name of the characteristic
-        mqtt_topic: Mapped MQTT topic
-        trigger_strategy: Trigger strategy
-        trigger_tag: Trigger tag topic (if any)
-        broker_id: ID of the broker
-        broker_name: Name of the broker
-    """
-
+    data_source_id: int
     characteristic_id: int
     characteristic_name: str
     mqtt_topic: str
     trigger_strategy: str
     trigger_tag: str | None = None
-    broker_id: int
-    broker_name: str
+    broker_id: int | None = None
+    broker_name: str | None = None
     metric_name: str | None = None
+    is_active: bool = True
 
 
 class TagPreviewValue(BaseModel):

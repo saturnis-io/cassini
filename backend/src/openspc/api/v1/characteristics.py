@@ -60,7 +60,7 @@ async def get_control_limit_service(
 @router.get("/", response_model=PaginatedResponse[CharacteristicResponse])
 async def list_characteristics(
     hierarchy_id: int | None = Query(None, description="Filter by hierarchy node ID"),
-    provider_type: str | None = Query(None, description="Filter by provider type (MANUAL, TAG)"),
+    provider_type: str | None = Query(None, description="Filter by provider type (MANUAL, MQTT, TAG)"),
     plant_id: int | None = Query(None, description="Filter by plant ID"),
     in_control: bool | None = Query(None, description="Filter by in-control status of latest sample"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
@@ -99,7 +99,17 @@ async def list_characteristics(
         stmt = stmt.where(Characteristic.hierarchy_id == hierarchy_id)
 
     if provider_type is not None:
-        stmt = stmt.where(Characteristic.provider_type == provider_type)
+        from openspc.db.models.data_source import DataSource
+        if provider_type.upper() == "MANUAL":
+            subq = select(DataSource.characteristic_id)
+            stmt = stmt.where(Characteristic.id.notin_(subq))
+        else:
+            ds_type = provider_type.lower()
+            if ds_type == "tag":
+                ds_type = "mqtt"
+            stmt = stmt.join(
+                DataSource, DataSource.characteristic_id == Characteristic.id
+            ).where(DataSource.type == ds_type)
 
     if in_control is not None:
         from openspc.db.models.sample import Sample
@@ -137,8 +147,11 @@ async def list_characteristics(
     total_result = await session.execute(count_stmt)
     total = total_result.scalar_one()
 
-    # Apply pagination and execute
-    stmt = stmt.offset(offset).limit(limit).order_by(Characteristic.id)
+    # Apply pagination and execute with data_source eager-loaded
+    stmt = (
+        stmt.offset(offset).limit(limit).order_by(Characteristic.id)
+        .options(selectinload(Characteristic.data_source))
+    )
     result = await session.execute(stmt)
     characteristics = list(result.scalars().all())
 
@@ -161,8 +174,7 @@ async def create_characteristic(
 ) -> CharacteristicResponse:
     """Create a new characteristic.
 
-    Validates that the hierarchy node exists and that mqtt_topic is provided
-    for TAG provider type.
+    Data source (MQTT, OPC-UA) is configured separately via the tag mapping API.
     """
     repo = CharacteristicRepository(session)
 
@@ -192,7 +204,9 @@ async def create_characteristic(
         session.add(rule)
 
     await session.commit()
-    await session.refresh(characteristic)
+
+    # Re-load with data_source relationship
+    characteristic = await repo.get_with_data_source(characteristic.id)
 
     return CharacteristicResponse.model_validate(characteristic)
 
@@ -204,7 +218,7 @@ async def get_characteristic(
     _user: User = Depends(get_current_user),
 ) -> CharacteristicResponse:
     """Get characteristic details by ID."""
-    characteristic = await repo.get_by_id(char_id)
+    characteristic = await repo.get_with_data_source(char_id)
     if characteristic is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -245,7 +259,9 @@ async def update_characteristic(
         setattr(characteristic, key, value)
 
     await session.commit()
-    await session.refresh(characteristic)
+
+    # Re-load with data_source relationship
+    characteristic = await repo.get_with_data_source(char_id)
 
     return CharacteristicResponse.model_validate(characteristic)
 
@@ -814,7 +830,9 @@ async def change_subgroup_mode(
 
     # Commit all changes atomically
     await session.commit()
-    await session.refresh(characteristic)
+
+    # Re-load with data_source relationship
+    characteristic = await repo.get_with_data_source(char_id)
 
     return ChangeModeResponse(
         previous_mode=previous_mode,

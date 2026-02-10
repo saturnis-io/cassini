@@ -44,13 +44,16 @@ def validate_imports() -> bool:
     # Test 2: Import enums
     print("\n2. Testing enum imports...")
     try:
-        from openspc.db.models import HierarchyType, ProviderType, Severity
+        from openspc.db.models import DataSourceType, HierarchyType, Severity, TriggerStrategy
 
         print("   ✓ HierarchyType imported")
         print(f"     Values: {[t.value for t in HierarchyType]}")
 
-        print("   ✓ ProviderType imported")
-        print(f"     Values: {[p.value for p in ProviderType]}")
+        print("   ✓ DataSourceType imported")
+        print(f"     Values: {[d.value for d in DataSourceType]}")
+
+        print("   ✓ TriggerStrategy imported")
+        print(f"     Values: {[t.value for t in TriggerStrategy]}")
 
         print("   ✓ Severity imported")
         print(f"     Values: {[s.value for s in Severity]}")
@@ -78,12 +81,16 @@ def validate_imports() -> bool:
             Characteristic,
             CharacteristicRule,
             DatabaseConfig,
+            DataSource,
+            DataSourceType,
             Hierarchy,
             HierarchyType,
             Measurement,
-            ProviderType,
+            MQTTDataSource,
+            OPCUADataSource,
             Sample,
             Severity,
+            TriggerStrategy,
             Violation,
             get_database,
             get_session,
@@ -122,21 +129,20 @@ def validate_imports() -> bool:
             "hierarchy",
             "characteristic",
             "characteristic_rules",
+            "data_source",
+            "mqtt_data_source",
+            "opcua_data_source",
             "sample",
             "measurement",
             "violation",
         }
-        if tables == expected_tables:
+        if expected_tables.issubset(set(tables)):
             print("   ✓ All expected tables present")
         else:
             missing = expected_tables - set(tables)
-            extra = set(tables) - expected_tables
             if missing:
                 errors.append(f"Missing tables: {missing}")
                 print(f"   ✗ Missing tables: {missing}")
-            if extra:
-                errors.append(f"Extra tables: {extra}")
-                print(f"   ✗ Extra tables: {extra}")
     except Exception as e:
         errors.append(f"Model metadata check failed: {e}")
         print(f"   ✗ Error: {e}")
@@ -159,6 +165,7 @@ def validate_imports() -> bool:
         assert "hierarchy" in char_attrs, "Characteristic missing 'hierarchy' relationship"
         assert "rules" in char_attrs, "Characteristic missing 'rules' relationship"
         assert "samples" in char_attrs, "Characteristic missing 'samples' relationship"
+        assert "data_source" in char_attrs, "Characteristic missing 'data_source' relationship"
         print("   ✓ Characteristic relationships defined")
 
         # Check Sample relationships

@@ -45,7 +45,11 @@ class CharacteristicRepository(BaseRepository[Characteristic]):
         """
         if not include_descendants:
             # Simple case: only direct children
-            stmt = select(Characteristic).where(Characteristic.hierarchy_id == hierarchy_id)
+            stmt = (
+                select(Characteristic)
+                .where(Characteristic.hierarchy_id == hierarchy_id)
+                .options(selectinload(Characteristic.data_source))
+            )
             result = await self.session.execute(stmt)
             return list(result.scalars().all())
 
@@ -59,29 +63,51 @@ class CharacteristicRepository(BaseRepository[Characteristic]):
         # Include the original hierarchy_id as well
         all_ids = [hierarchy_id] + descendant_ids
 
-        stmt = select(Characteristic).where(Characteristic.hierarchy_id.in_(all_ids))
+        stmt = (
+            select(Characteristic)
+            .where(Characteristic.hierarchy_id.in_(all_ids))
+            .options(selectinload(Characteristic.data_source))
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_by_provider_type(self, provider_type: str) -> list[Characteristic]:
         """Get characteristics by provider type.
 
-        Args:
-            provider_type: Provider type to filter by (MANUAL, TAG, etc.)
-
-        Returns:
-            List of characteristics with the specified provider type
-
-        Example:
-            # Get all manually-entered characteristics
-            manual_chars = await repo.get_by_provider_type("MANUAL")
-
-            # Get all tag-based characteristics
-            tag_chars = await repo.get_by_provider_type("TAG")
+        For 'MANUAL': returns chars with no DataSource.
+        For protocol types ('TAG', 'MQTT', 'OPCUA'): returns chars with matching DataSource.
+        'TAG' is treated as 'MQTT' for backward compatibility.
         """
-        stmt = select(Characteristic).where(Characteristic.provider_type == provider_type)
+        from openspc.db.models.data_source import DataSource
+
+        if provider_type.upper() == "MANUAL":
+            subq = select(DataSource.characteristic_id)
+            stmt = select(Characteristic).where(
+                Characteristic.id.notin_(subq)
+            )
+        else:
+            ds_type = provider_type.lower()
+            if ds_type == "tag":
+                ds_type = "mqtt"
+            stmt = (
+                select(Characteristic)
+                .join(DataSource, DataSource.characteristic_id == Characteristic.id)
+                .where(DataSource.type == ds_type)
+            )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_with_data_source(self, char_id: int) -> Characteristic | None:
+        """Get a characteristic with its data source eagerly loaded."""
+        from openspc.db.models.data_source import DataSource
+
+        stmt = (
+            select(Characteristic)
+            .where(Characteristic.id == char_id)
+            .options(selectinload(Characteristic.data_source))
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_with_rules(self, char_id: int) -> Characteristic | None:
         """Get a characteristic with rules eagerly loaded.

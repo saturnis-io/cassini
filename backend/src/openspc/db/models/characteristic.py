@@ -12,15 +12,9 @@ from openspc.db.models.hierarchy import Base
 
 if TYPE_CHECKING:
     from openspc.db.models.characteristic_config import CharacteristicConfig
+    from openspc.db.models.data_source import DataSource
     from openspc.db.models.hierarchy import Hierarchy
     from openspc.db.models.sample import Sample
-
-
-class ProviderType(str, Enum):
-    """Data provider types for characteristics."""
-
-    MANUAL = "MANUAL"
-    TAG = "TAG"
 
 
 class SubgroupMode(str, Enum):
@@ -58,11 +52,6 @@ class Characteristic(Base):
     lsl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Spec Limit
     ucl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Upper Control Limit
     lcl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Lower Control Limit
-    provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    mqtt_topic: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    trigger_tag: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    metric_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-
     # Subgroup mode configuration
     subgroup_mode: Mapped[str] = mapped_column(
         String(50), default="NOMINAL_TOLERANCE", nullable=False
@@ -87,6 +76,10 @@ class Characteristic(Base):
     )
     config: Mapped[Optional["CharacteristicConfig"]] = relationship(
         "CharacteristicConfig", back_populates="characteristic", uselist=False,
+        cascade="all, delete-orphan"
+    )
+    data_source: Mapped[Optional["DataSource"]] = relationship(
+        "DataSource", back_populates="characteristic", uselist=False,
         cascade="all, delete-orphan"
     )
 

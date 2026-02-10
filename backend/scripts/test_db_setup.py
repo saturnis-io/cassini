@@ -15,12 +15,13 @@ from openspc.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
+    DataSourceType,
     Hierarchy,
     HierarchyType,
     Measurement,
-    ProviderType,
     Sample,
     Severity,
+    TriggerStrategy,
     Violation,
 )
 
@@ -74,7 +75,6 @@ async def test_database_setup() -> None:
             lsl=90.0,
             ucl=107.0,
             lcl=93.0,
-            provider_type=ProviderType.MANUAL.value,
         )
         session.add(char)
         await session.flush()
@@ -160,7 +160,8 @@ async def test_database_setup() -> None:
 
     print("\n4. Testing enum types...")
     print(f"   ✓ HierarchyType values: {[h.value for h in HierarchyType]}")
-    print(f"   ✓ ProviderType values: {[p.value for p in ProviderType]}")
+    print(f"   ✓ DataSourceType values: {[d.value for d in DataSourceType]}")
+    print(f"   ✓ TriggerStrategy values: {[t.value for t in TriggerStrategy]}")
     print(f"   ✓ Severity values: {[s.value for s in Severity]}")
 
     await db_config.dispose()

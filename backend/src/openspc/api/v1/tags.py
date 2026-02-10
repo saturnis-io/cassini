@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 
 from openspc.api.deps import get_current_engineer, get_db_session
 from openspc.api.schemas.tag import (
@@ -23,7 +23,9 @@ from openspc.api.schemas.tag import (
 )
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic
+from openspc.db.models.data_source import DataSource, MQTTDataSource
 from openspc.db.models.user import User
+from openspc.db.repositories.data_source import DataSourceRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -37,67 +39,46 @@ async def list_mappings(
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> list[TagMappingResponse]:
-    """List all tag-to-characteristic mappings.
-
-    Returns characteristics that have an mqtt_topic configured, joined
-    with broker information.
-    """
-    # Get all characteristics with mqtt_topic set, join hierarchy for plant filtering
+    """List all MQTT tag-to-characteristic mappings."""
     from openspc.db.models.hierarchy import Hierarchy
 
-    stmt = select(Characteristic).where(Characteristic.mqtt_topic.isnot(None))
+    stmt = (
+        select(MQTTDataSource)
+        .join(DataSource, MQTTDataSource.id == DataSource.id)
+        .join(Characteristic, DataSource.characteristic_id == Characteristic.id)
+        .options(
+            selectinload(MQTTDataSource.broker),
+            selectinload(MQTTDataSource.characteristic),
+        )
+    )
 
     if plant_id is not None:
         stmt = stmt.join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id).where(
             Hierarchy.plant_id == plant_id
         )
 
+    if broker_id is not None:
+        stmt = stmt.where(MQTTDataSource.broker_id == broker_id)
+
     result = await session.execute(stmt)
-    chars = list(result.scalars().all())
+    sources = list(result.scalars().all())
 
     mappings = []
-    for char in chars:
-        if not char.mqtt_topic:
-            continue
-
-        # Determine trigger strategy
-        trigger_strategy = "on_change"
-        if char.trigger_tag:
-            trigger_strategy = "on_trigger"
-
-        # Look up broker by trying to match (simplified: use first active broker
-        # or the one specified by broker_id filter)
-        broker_name = "Unknown"
-        b_id = 0
-
-        if broker_id:
-            broker_result = await session.execute(
-                select(MQTTBroker).where(MQTTBroker.id == broker_id)
-            )
-            broker = broker_result.scalar_one_or_none()
-            if broker:
-                broker_name = broker.name
-                b_id = broker.id
-        else:
-            # Get first active broker
-            broker_result = await session.execute(
-                select(MQTTBroker).where(MQTTBroker.is_active == True).limit(1)
-            )
-            broker = broker_result.scalar_one_or_none()
-            if broker:
-                broker_name = broker.name
-                b_id = broker.id
-
+    for src in sources:
+        char = src.characteristic
+        broker = src.broker
         mappings.append(
             TagMappingResponse(
-                characteristic_id=char.id,
-                characteristic_name=char.name,
-                mqtt_topic=char.mqtt_topic,
-                trigger_strategy=trigger_strategy,
-                trigger_tag=char.trigger_tag,
-                broker_id=b_id,
-                broker_name=broker_name,
-                metric_name=char.metric_name,
+                data_source_id=src.id,
+                characteristic_id=char.id if char else 0,
+                characteristic_name=char.name if char else "Unknown",
+                mqtt_topic=src.topic,
+                trigger_strategy=src.trigger_strategy,
+                trigger_tag=src.trigger_tag,
+                broker_id=src.broker_id,
+                broker_name=broker.name if broker else None,
+                metric_name=src.metric_name,
+                is_active=src.is_active,
             )
         )
 
@@ -112,8 +93,8 @@ async def create_mapping(
 ) -> TagMappingResponse:
     """Create or update a tag-to-characteristic mapping.
 
-    Sets the mqtt_topic and trigger fields on the characteristic.
-    After mapping, refreshes the TagProvider subscriptions.
+    Creates a DataSource + MQTTDataSource for the characteristic.
+    If one already exists, it is replaced.
     """
     # Validate characteristic exists
     char_result = await session.execute(
@@ -137,14 +118,21 @@ async def create_mapping(
             detail=f"Broker {data.broker_id} not found"
         )
 
-    # Update the characteristic
-    char.mqtt_topic = data.mqtt_topic
-    char.trigger_tag = data.trigger_tag
-    char.metric_name = data.metric_name
-    char.provider_type = "TAG"
+    # Delete existing data source if present
+    ds_repo = DataSourceRepository(session)
+    await ds_repo.delete_for_characteristic(data.characteristic_id)
+
+    # Create new MQTT data source
+    source = await ds_repo.create_mqtt_source(
+        characteristic_id=data.characteristic_id,
+        topic=data.mqtt_topic,
+        broker_id=data.broker_id,
+        metric_name=data.metric_name,
+        trigger_tag=data.trigger_tag,
+        trigger_strategy=data.trigger_strategy,
+    )
 
     await session.commit()
-    await session.refresh(char)
 
     # Refresh TagProvider subscriptions
     try:
@@ -155,14 +143,16 @@ async def create_mapping(
         logger.warning("tag_subscription_refresh_failed", error=str(e))
 
     return TagMappingResponse(
+        data_source_id=source.id,
         characteristic_id=char.id,
         characteristic_name=char.name,
-        mqtt_topic=char.mqtt_topic,
-        trigger_strategy=data.trigger_strategy,
-        trigger_tag=char.trigger_tag,
+        mqtt_topic=source.topic,
+        trigger_strategy=source.trigger_strategy,
+        trigger_tag=source.trigger_tag,
         broker_id=broker.id,
         broker_name=broker.name,
-        metric_name=char.metric_name,
+        metric_name=source.metric_name,
+        is_active=source.is_active,
     )
 
 
@@ -174,21 +164,15 @@ async def delete_mapping(
 ) -> None:
     """Remove a tag mapping from a characteristic.
 
-    Clears the mqtt_topic and trigger_tag fields and refreshes subscriptions.
+    Deletes the DataSource row, which cascades to the MQTTDataSource.
     """
-    char_result = await session.execute(
-        select(Characteristic).where(Characteristic.id == characteristic_id)
-    )
-    char = char_result.scalar_one_or_none()
-    if char is None:
+    ds_repo = DataSourceRepository(session)
+    deleted = await ds_repo.delete_for_characteristic(characteristic_id)
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Characteristic {characteristic_id} not found"
+            detail=f"No data source mapping for characteristic {characteristic_id}"
         )
-
-    char.mqtt_topic = None
-    char.trigger_tag = None
-    char.metric_name = None
 
     await session.commit()
 
