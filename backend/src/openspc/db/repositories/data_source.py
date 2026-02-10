@@ -36,11 +36,12 @@ class DataSourceRepository(BaseRepository[DataSource]):
         """Get all active MQTT data sources with characteristic and broker loaded.
 
         This is the primary query for TagProvider initialization.
+        Note: MQTTDataSource inherits from DataSource via JTI, so SQLAlchemy
+        automatically joins the parent table. No explicit join needed.
         """
         stmt = (
             select(MQTTDataSource)
-            .join(DataSource, MQTTDataSource.id == DataSource.id)
-            .where(DataSource.is_active == True)  # noqa: E712
+            .where(MQTTDataSource.is_active == True)  # noqa: E712
             .options(
                 selectinload(MQTTDataSource.characteristic),
                 selectinload(MQTTDataSource.broker),
@@ -55,8 +56,7 @@ class DataSourceRepository(BaseRepository[DataSource]):
 
         stmt = (
             select(MQTTDataSource)
-            .join(DataSource, MQTTDataSource.id == DataSource.id)
-            .join(Characteristic, DataSource.characteristic_id == Characteristic.id)
+            .join(Characteristic, MQTTDataSource.characteristic_id == Characteristic.id)
             .join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id)
             .where(Hierarchy.plant_id == plant_id)
         )
@@ -91,11 +91,12 @@ class DataSourceRepository(BaseRepository[DataSource]):
         """Get all active OPC-UA data sources with characteristic and server loaded.
 
         This is the primary query for OPCUAProvider initialization.
+        Note: OPCUADataSource inherits from DataSource via JTI, so SQLAlchemy
+        automatically joins the parent table. No explicit join needed.
         """
         stmt = (
             select(OPCUADataSource)
-            .join(DataSource, OPCUADataSource.id == DataSource.id)
-            .where(DataSource.is_active == True)  # noqa: E712
+            .where(OPCUADataSource.is_active == True)  # noqa: E712
             .options(
                 selectinload(OPCUADataSource.characteristic),
                 selectinload(OPCUADataSource.server),
@@ -111,7 +112,6 @@ class DataSourceRepository(BaseRepository[DataSource]):
         """
         stmt = (
             select(OPCUADataSource)
-            .join(DataSource, OPCUADataSource.id == DataSource.id)
             .join(OPCUAServer, OPCUADataSource.server_id == OPCUAServer.id)
             .where(OPCUAServer.plant_id == plant_id)
         )
