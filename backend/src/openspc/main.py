@@ -32,7 +32,7 @@ from openspc.core.broadcast import WebSocketBroadcaster
 from openspc.core.config import get_settings
 from openspc.core.events import event_bus
 from openspc.core.rate_limit import limiter
-from openspc.core.providers import tag_provider_manager
+from openspc.core.providers import tag_provider_manager, opcua_provider_manager
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
 from openspc.opcua.manager import opcua_manager
@@ -124,6 +124,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             opcua_connected = await opcua_manager.initialize(session)
             if opcua_connected:
                 logger.info("OPC-UA manager connected successfully")
+
+                # Initialize OPC-UA provider if servers are connected
+                opcua_prov_ok = await opcua_provider_manager.initialize(session)
+                if opcua_prov_ok:
+                    logger.info("OPC-UA provider initialized successfully")
+                else:
+                    logger.info("OPC-UA provider initialization deferred")
             else:
                 logger.info(
                     "OPC-UA manager initialized — servers connecting in background "
@@ -136,6 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mqtt_manager = mqtt_manager
     app.state.tag_provider_manager = tag_provider_manager
     app.state.opcua_manager = opcua_manager
+    app.state.opcua_provider_manager = opcua_provider_manager
 
     logger.info("OpenSPC application startup complete")
 
@@ -143,6 +151,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down OpenSPC application")
+
+    # Shutdown OPC-UA provider (before OPC-UA manager)
+    await opcua_provider_manager.shutdown()
 
     # Shutdown OPC-UA manager
     await opcua_manager.shutdown()

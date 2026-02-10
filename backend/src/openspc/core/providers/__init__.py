@@ -1,7 +1,10 @@
-"""Data providers - Tag and Manual data sources."""
+"""Data providers - Tag, Manual, and OPC-UA data sources."""
 
+from openspc.core.providers.buffer import SubgroupBuffer, TagConfig
 from openspc.core.providers.manager import TagProviderManager, TagProviderState, tag_provider_manager
 from openspc.core.providers.manual import ManualProvider
+from openspc.core.providers.opcua_manager import OPCUAProviderManager, OPCUAProviderState, opcua_provider_manager
+from openspc.core.providers.opcua_provider import OPCUANodeConfig, OPCUAProvider
 from openspc.core.providers.protocol import (
     DataProvider,
     SampleCallback,
@@ -17,6 +20,13 @@ __all__ = [
     "SampleContext",
     "SampleEvent",
     "ManualProvider",
+    "OPCUANodeConfig",
+    "OPCUAProvider",
+    "OPCUAProviderManager",
+    "OPCUAProviderState",
+    "opcua_provider_manager",
+    "SubgroupBuffer",
+    "TagConfig",
     "TagProvider",
     "TagProviderManager",
     "TagProviderState",
