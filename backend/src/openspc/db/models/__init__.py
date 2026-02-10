@@ -4,6 +4,7 @@ from openspc.db.models.annotation import Annotation
 from openspc.db.models.api_key import APIKey
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule
+from openspc.db.models.characteristic_config import CharacteristicConfig
 from openspc.db.models.data_source import (
     DataSource,
     DataSourceType,
@@ -34,6 +35,7 @@ __all__ = [
     "UserPlantRole",
     "Hierarchy",
     "Characteristic",
+    "CharacteristicConfig",
     "CharacteristicRule",
     "Sample",
     "Measurement",

@@ -9,6 +9,7 @@ from openspc.db.database import (
 from openspc.db.models import (
     Base,
     Characteristic,
+    CharacteristicConfig,
     CharacteristicRule,
     DataSource,
     DataSourceType,
@@ -35,6 +36,7 @@ __all__ = [
     # Models
     "Hierarchy",
     "Characteristic",
+    "CharacteristicConfig",
     "CharacteristicRule",
     "DataSource",
     "MQTTDataSource",
