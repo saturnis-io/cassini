@@ -44,8 +44,7 @@ async def list_mappings(
 
     stmt = (
         select(MQTTDataSource)
-        .join(DataSource, MQTTDataSource.id == DataSource.id)
-        .join(Characteristic, DataSource.characteristic_id == Characteristic.id)
+        .join(Characteristic, MQTTDataSource.characteristic_id == Characteristic.id)
         .options(
             selectinload(MQTTDataSource.broker),
             selectinload(MQTTDataSource.characteristic),

@@ -31,10 +31,10 @@ export function MonitorTab() {
 
   const mqttStates = mqttStatus?.states ?? []
   const opcuaStates = opcuaStatusData ?? []
-  const isLoading = loadingMqtt || loadingOpcua
+  const isInitialLoading = (loadingMqtt && !mqttStatus) || (loadingOpcua && !opcuaStatusData)
   const hasServers = mqttStates.length > 0 || opcuaStates.length > 0
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
