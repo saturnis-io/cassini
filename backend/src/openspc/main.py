@@ -12,6 +12,7 @@ from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
 from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
+from openspc.api.v1.opcua_servers import router as opcua_servers_router
 from openspc.api.v1.database_admin import router as database_admin_router
 from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.characteristics import router as characteristics_router
@@ -34,6 +35,7 @@ from openspc.core.rate_limit import limiter
 from openspc.core.providers import tag_provider_manager
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
+from openspc.opcua.manager import opcua_manager
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
@@ -116,9 +118,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("mqtt_init_failed", error=str(e))
 
+    # Initialize OPC-UA manager with database session
+    try:
+        async with db.session() as session:
+            opcua_connected = await opcua_manager.initialize(session)
+            if opcua_connected:
+                logger.info("OPC-UA manager connected successfully")
+            else:
+                logger.info(
+                    "OPC-UA manager initialized — servers connecting in background "
+                    "or no active servers configured"
+                )
+    except Exception as e:
+        logger.warning("opcua_init_failed", error=str(e))
+
     # Store managers in app state
     app.state.mqtt_manager = mqtt_manager
     app.state.tag_provider_manager = tag_provider_manager
+    app.state.opcua_manager = opcua_manager
 
     logger.info("OpenSPC application startup complete")
 
@@ -126,6 +143,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down OpenSPC application")
+
+    # Shutdown OPC-UA manager
+    await opcua_manager.shutdown()
 
     # Shutdown TAG provider first (before MQTT)
     await tag_provider_manager.shutdown()
@@ -177,6 +197,7 @@ app.include_router(plant_hierarchy_router, prefix="/api/v1/plants/{plant_id}/hie
 app.include_router(plants_router)
 app.include_router(api_keys_router)
 app.include_router(brokers_router)
+app.include_router(opcua_servers_router)
 app.include_router(characteristics_router)
 app.include_router(config_router)
 app.include_router(database_admin_router)

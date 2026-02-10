@@ -17,6 +17,7 @@ from openspc.db.models.hierarchy import Base
 if TYPE_CHECKING:
     from openspc.db.models.broker import MQTTBroker
     from openspc.db.models.hierarchy import Hierarchy
+    from openspc.db.models.opcua_server import OPCUAServer
 
 
 class Plant(Base):
@@ -46,6 +47,9 @@ class Plant(Base):
     )
     brokers: Mapped[list["MQTTBroker"]] = relationship(
         "MQTTBroker", back_populates="plant", cascade="all, delete-orphan"
+    )
+    opcua_servers: Mapped[list["OPCUAServer"]] = relationship(
+        "OPCUAServer", back_populates="plant", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

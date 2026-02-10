@@ -12,6 +12,7 @@ from openspc.db.models.data_source import (
     TriggerStrategy,
 )
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
+from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.models.user import User, UserPlantRole, UserRole
@@ -24,6 +25,7 @@ __all__ = [
     "Annotation",
     "APIKey",
     "MQTTBroker",
+    "OPCUAServer",
     "DataSource",
     "MQTTDataSource",
     "OPCUADataSource",

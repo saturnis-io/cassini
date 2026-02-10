@@ -11,6 +11,7 @@ Repositories:
     - SampleRepository: Time-series queries and rolling windows
     - ViolationRepository: Acknowledgment tracking and filtering
     - BrokerRepository: MQTT broker configuration management
+    - OPCUAServerRepository: OPC-UA server configuration management
 """
 
 from openspc.db.repositories.base import BaseRepository
@@ -18,6 +19,7 @@ from openspc.db.repositories.broker import BrokerRepository
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.data_source import DataSourceRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
+from openspc.db.repositories.opcua_server import OPCUAServerRepository
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.sample import SampleRepository
 from openspc.db.repositories.user import UserRepository
@@ -30,6 +32,7 @@ __all__ = [
     "BrokerRepository",
     "DataSourceRepository",
     "HierarchyRepository",
+    "OPCUAServerRepository",
     "PlantRepository",
     "UserRepository",
     "CharacteristicRepository",

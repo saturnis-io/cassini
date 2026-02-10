@@ -14,6 +14,7 @@ from openspc.db.models.hierarchy import Base
 if TYPE_CHECKING:
     from openspc.db.models.broker import MQTTBroker
     from openspc.db.models.characteristic import Characteristic
+    from openspc.db.models.opcua_server import OPCUAServer
 
 
 class DataSourceType(str, Enum):
@@ -106,7 +107,9 @@ class MQTTDataSource(DataSource):
 class OPCUADataSource(DataSource):
     """OPC-UA data source configuration.
 
-    Created empty in migration 017, populated in WS-2 Phase 2.
+    Links a characteristic to an OPC-UA server node for real-time
+    data collection. Per-node subscription overrides are optional;
+    NULL values fall back to the server defaults.
     """
 
     __tablename__ = "opcua_data_source"
@@ -117,11 +120,20 @@ class OPCUADataSource(DataSource):
     )
     server_id: Mapped[int] = mapped_column(
         Integer,
+        ForeignKey("opcua_server.id", ondelete="CASCADE"),
         nullable=False,
     )
     node_id: Mapped[str] = mapped_column(
         String(500), nullable=False
     )
+    sampling_interval: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=None
+    )
+    publishing_interval: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=None
+    )
+
+    server: Mapped["OPCUAServer"] = relationship("OPCUAServer")
 
     __mapper_args__ = {
         "polymorphic_identity": "opcua",
