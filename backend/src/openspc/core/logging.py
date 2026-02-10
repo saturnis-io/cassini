@@ -63,3 +63,5 @@ def configure_logging(log_format: str = "console", log_level: str = "INFO") -> N
 
     # Reduce noise from noisy libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("asyncua").setLevel(logging.WARNING)
+    logging.getLogger("asyncua.client.ua_client.UASocketProtocol").setLevel(logging.ERROR)
