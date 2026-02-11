@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wrench, Play, AlertTriangle, Loader2, Database, FlaskConical, TestTubes, BarChart3 } from 'lucide-react'
+import { Wrench, Play, AlertTriangle, Loader2, Database, FlaskConical, TestTubes, BarChart3, Cog, Gauge, Beer } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useDevToolsStatus, useRunSeed } from '@/api/hooks'
@@ -9,6 +9,9 @@ const SCRIPT_ICONS: Record<string, React.ReactNode> = {
   pharma: <FlaskConical className="h-6 w-6" />,
   nelson_test: <TestTubes className="h-6 w-6" />,
   chart_showcase: <BarChart3 className="h-6 w-6" />,
+  discrete: <Cog className="h-6 w-6" />,
+  continuous: <Gauge className="h-6 w-6" />,
+  batch: <Beer className="h-6 w-6" />,
 }
 
 export function DevToolsPage() {

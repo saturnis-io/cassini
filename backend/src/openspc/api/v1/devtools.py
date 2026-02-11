@@ -43,6 +43,24 @@ AVAILABLE_SCRIPTS = {
         "estimated_samples": "~360",
         "script_file": "scripts/seed_chart_showcase.py",
     },
+    "discrete": {
+        "name": "Discrete Manufacturing",
+        "description": "Automotive parts plant with 4 production lines, 10 characteristics (bore diameter, shaft OD, hardness, torque, etc.) showing tool wear drift, material lot shifts, and thermal expansion.",
+        "estimated_samples": "~4,000",
+        "script_file": "scripts/seed_discrete.py",
+    },
+    "continuous": {
+        "name": "Continuous Process",
+        "description": "Oil refinery with 3 process units, 15 characteristics (temperatures, pressures, flow rates, pH, etc.) featuring autocorrelated data, day/night cycles, catalyst degradation, and process upsets.",
+        "estimated_samples": "~7,600",
+        "script_file": "scripts/seed_continuous.py",
+    },
+    "batch": {
+        "name": "Batch Production",
+        "description": "Craft brewery with 3 areas (brewhouse, fermentation, packaging), 11 characteristics featuring between-batch variation, within-batch drift, and raw material step changes.",
+        "estimated_samples": "~5,700",
+        "script_file": "scripts/seed_batch.py",
+    },
 }
 
 
