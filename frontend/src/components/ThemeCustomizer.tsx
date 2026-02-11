@@ -71,7 +71,7 @@ function PreviewPanel({
         {/* Logo/App name preview */}
         <div className="flex items-center gap-2">
           <img
-            src={logoUrl || '/openspc-isometric-light.png'}
+            src={logoUrl || '/header-logo.svg'}
             alt="Logo preview"
             className="h-6 w-6 object-contain"
           />
@@ -135,8 +135,8 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
   const handleReset = useCallback(() => {
     resetBrandConfig()
     setLocalConfig({
-      primaryColor: '#3b82f6',
-      accentColor: '#8b5cf6',
+      primaryColor: '#004A98',
+      accentColor: '#62CBC9',
       logoUrl: null,
       appName: 'OpenSPC',
     })
@@ -177,79 +177,85 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
   }
 
   return (
-    <div className={cn('space-y-6', className)}>
+    <div className={cn('space-y-5', className)}>
       {/* App Name */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium">App Name</label>
-        <input
-          type="text"
-          value={localConfig.appName}
-          onChange={(e) => updateLocalConfig({ appName: e.target.value })}
-          className="w-full max-w-xs px-3 py-2 rounded border border-border bg-background"
-          placeholder="OpenSPC"
-        />
+      <div className="bg-muted rounded-xl p-6">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">App Name</label>
+          <input
+            type="text"
+            value={localConfig.appName}
+            onChange={(e) => updateLocalConfig({ appName: e.target.value })}
+            className="w-full max-w-xs px-3 py-2 rounded border border-border bg-background"
+            placeholder="OpenSPC"
+          />
+        </div>
       </div>
 
       {/* Colors */}
-      <div className="space-y-3">
-        <label className="block text-sm font-medium">Brand Colors</label>
-        <ColorInput
-          label="Primary"
-          value={localConfig.primaryColor}
-          onChange={(color) => updateLocalConfig({ primaryColor: color })}
-        />
-        <ColorInput
-          label="Accent"
-          value={localConfig.accentColor}
-          onChange={(color) => updateLocalConfig({ accentColor: color })}
-        />
+      <div className="bg-muted rounded-xl p-6">
+        <div className="space-y-3">
+          <label className="block text-sm font-medium">Brand Colors</label>
+          <ColorInput
+            label="Primary"
+            value={localConfig.primaryColor}
+            onChange={(color) => updateLocalConfig({ primaryColor: color })}
+          />
+          <ColorInput
+            label="Accent"
+            value={localConfig.accentColor}
+            onChange={(color) => updateLocalConfig({ accentColor: color })}
+          />
+        </div>
       </div>
 
       {/* Logo */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium">Logo</label>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-3 py-2 rounded border border-border hover:bg-muted transition-colors"
-          >
-            <Upload className="h-4 w-4" />
-            Upload File
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <span className="text-muted-foreground">or</span>
-          <input
-            type="text"
-            value={localConfig.logoUrl ?? ''}
-            onChange={(e) => handleLogoUrlChange(e.target.value)}
-            className="flex-1 max-w-xs px-3 py-2 rounded border border-border bg-background text-sm"
-            placeholder="https://example.com/logo.png"
-          />
-        </div>
-        {localConfig.logoUrl && (
-          <div className="flex items-center gap-2 mt-2">
-            <img
-              src={localConfig.logoUrl}
-              alt="Logo preview"
-              className="h-10 w-10 object-contain border rounded"
-            />
+      <div className="bg-muted rounded-xl p-6">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Logo</label>
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => updateLocalConfig({ logoUrl: null })}
-              className="text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3 py-2 rounded border border-border hover:bg-muted transition-colors"
             >
-              Remove
+              <Upload className="h-4 w-4" />
+              Upload File
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <span className="text-muted-foreground">or</span>
+            <input
+              type="text"
+              value={localConfig.logoUrl ?? ''}
+              onChange={(e) => handleLogoUrlChange(e.target.value)}
+              className="flex-1 max-w-xs px-3 py-2 rounded border border-border bg-background text-sm"
+              placeholder="https://example.com/logo.png"
+            />
           </div>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Max size: 200KB. Recommended: 64x64px PNG or SVG.
-        </p>
+          {localConfig.logoUrl && (
+            <div className="flex items-center gap-2 mt-2">
+              <img
+                src={localConfig.logoUrl}
+                alt="Logo preview"
+                className="h-10 w-10 object-contain border rounded"
+              />
+              <button
+                onClick={() => updateLocalConfig({ logoUrl: null })}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Max size: 200KB. Recommended: 64x64px PNG or SVG.
+          </p>
+        </div>
       </div>
 
       {/* Preview */}

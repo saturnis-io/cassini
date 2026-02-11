@@ -194,7 +194,7 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
           <path
             d={sparkline}
             fill="none"
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--color-muted-foreground)"
             strokeWidth="1"
             strokeOpacity="0.45"
             vectorEffect="non-scaling-stroke"
@@ -229,7 +229,7 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
             <path
               d={sparkline}
               fill="none"
-              stroke="hsl(var(--primary))"
+              stroke="var(--color-primary)"
               strokeWidth="1.5"
               strokeOpacity="0.85"
               vectorEffect="non-scaling-stroke"

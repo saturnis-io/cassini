@@ -25,8 +25,8 @@ export function DatabaseMigrationStatus() {
           <div className="flex items-center gap-2">
             {migration.is_up_to_date ? (
               <>
-                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <span className="text-sm text-green-700 dark:text-green-300">Up to date</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm text-emerald-600 dark:text-emerald-400">Up to date</span>
               </>
             ) : (
               <>
@@ -40,11 +40,11 @@ export function DatabaseMigrationStatus() {
 
           {/* Revision Details */}
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-muted/50 rounded-lg p-2.5">
+            <div className="bg-card border border-border rounded-xl p-3">
               <div className="text-muted-foreground mb-0.5">Current Revision</div>
               <div className="font-mono font-medium">{migration.current_revision || 'None'}</div>
             </div>
-            <div className="bg-muted/50 rounded-lg p-2.5">
+            <div className="bg-card border border-border rounded-xl p-3">
               <div className="text-muted-foreground mb-0.5">Head Revision</div>
               <div className="font-mono font-medium">{migration.head_revision || 'None'}</div>
             </div>
@@ -52,7 +52,7 @@ export function DatabaseMigrationStatus() {
 
           {/* Instructions if behind */}
           {!migration.is_up_to_date && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 Run <code className="bg-amber-500/20 px-1 py-0.5 rounded font-mono">alembic upgrade head</code> to
                 apply pending migrations.

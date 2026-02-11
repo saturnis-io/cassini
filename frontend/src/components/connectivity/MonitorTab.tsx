@@ -30,7 +30,7 @@ export function MonitorTab() {
   })
 
   const mqttStates = mqttStatus?.states ?? []
-  const opcuaStates = opcuaStatusData ?? []
+  const opcuaStates = opcuaStatusData?.states ?? []
   const isInitialLoading = (loadingMqtt && !mqttStatus) || (loadingOpcua && !opcuaStatusData)
   const hasServers = mqttStates.length > 0 || opcuaStates.length > 0
 

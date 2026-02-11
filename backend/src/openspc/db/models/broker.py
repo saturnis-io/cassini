@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openspc.db.models.hierarchy import Base
@@ -22,17 +23,20 @@ class MQTTBroker(Base):
     """
 
     __tablename__ = "mqtt_broker"
+    __table_args__ = (
+        UniqueConstraint("plant_id", "name", name="uq_broker_plant_name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     plant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=True
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     host: Mapped[str] = mapped_column(String(255), nullable=False)
     port: Mapped[int] = mapped_column(Integer, default=1883, nullable=False)
     username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    client_id: Mapped[str] = mapped_column(String(100), default="openspc-client", nullable=False)
+    password: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    client_id: Mapped[str] = mapped_column(String(100), default=lambda: f"openspc-{uuid.uuid4().hex[:8]}", nullable=False)
     keepalive: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     max_reconnect_delay: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
     use_tls: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

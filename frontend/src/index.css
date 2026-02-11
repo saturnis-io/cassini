@@ -149,8 +149,8 @@ input:hover, select:hover, textarea:hover {
 
 input:focus, select:focus, textarea:focus {
   background: hsl(0 0% 100%);
-  border-color: hsl(212 100% 30%);
-  box-shadow: 0 0 0 3px hsl(212 100% 30% / 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
   outline: none;
 }
 
@@ -175,14 +175,14 @@ button:not(:disabled):active {
   transform: translateY(0) scale(0.98);
 }
 
-/* Primary button with glow - OpenSPC Blue */
+/* Primary button with glow - Uses brand primary color */
 .bg-primary {
-  background: linear-gradient(135deg, hsl(212 100% 35%) 0%, hsl(212 100% 28%) 100%);
-  box-shadow: var(--shadow-sm), 0 2px 8px hsl(212 100% 30% / 0.25);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary), white 10%) 0%, color-mix(in srgb, var(--color-primary), black 8%) 100%);
+  box-shadow: var(--shadow-sm), 0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .bg-primary:not(:disabled):hover {
-  box-shadow: var(--shadow-md), 0 4px 16px hsl(212 100% 30% / 0.35);
+  box-shadow: var(--shadow-md), 0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
 /* SPC Chart zone styles - Soft, modern fills */
@@ -263,16 +263,16 @@ button:not(:disabled):active {
   background: hsl(240 4% 55% / 0.6);
 }
 
-/* Selection styling - OpenSPC Blue */
+/* Selection styling - Uses brand primary */
 ::selection {
-  background: hsl(212 100% 30% / 0.15);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
   color: inherit;
 }
 
-/* Focus visible - Accessibility ring (OpenSPC Blue) */
+/* Focus visible - Accessibility ring (brand primary) */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px hsl(0 0% 100%), 0 0 0 4px hsl(212 100% 30% / 0.5);
+  box-shadow: 0 0 0 2px hsl(0 0% 100%), 0 0 0 4px color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 /* Smooth page transitions */
@@ -289,9 +289,9 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.025em;
 }
 
-/* Subtle gradient text for headings (OpenSPC Blue to Green) */
+/* Subtle gradient text for headings (brand primary to accent) */
 .gradient-text {
-  background: linear-gradient(135deg, hsl(212 100% 30%) 0%, hsl(104 55% 40%) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -420,8 +420,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .dark input:focus, .dark select:focus, .dark textarea:focus {
   background: hsl(220 10% 17%);
-  border-color: hsl(212 100% 50%);
-  box-shadow: 0 0 0 3px hsl(212 100% 50% / 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 /* Dark mode scrollbar */

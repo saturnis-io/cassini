@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Optional
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openspc.db.models.hierarchy import Base
@@ -31,10 +31,16 @@ class Annotation(Base):
     """
 
     __tablename__ = "annotation"
+    __table_args__ = (
+        CheckConstraint(
+            "annotation_type IN ('point', 'period')",
+            name="ck_annotation_type",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     characteristic_id: Mapped[int] = mapped_column(
-        ForeignKey("characteristic.id"), nullable=False, index=True
+        ForeignKey("characteristic.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Type: "point" or "period"
@@ -48,32 +54,32 @@ class Annotation(Base):
 
     # For point annotations: references a single sample
     sample_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("sample.id"), nullable=True
+        ForeignKey("sample.id", ondelete="SET NULL"), nullable=True
     )
 
     # For period annotations (legacy): references start and end samples
     start_sample_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("sample.id"), nullable=True
+        ForeignKey("sample.id", ondelete="SET NULL"), nullable=True
     )
     end_sample_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("sample.id"), nullable=True
+        ForeignKey("sample.id", ondelete="SET NULL"), nullable=True
     )
 
     # For period annotations: time-based range (not tied to specific samples)
     start_time: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )
     end_time: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )
 
     # Audit fields
     created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utc_now, nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utc_now, onupdate=_utc_now, nullable=False
+        DateTime(timezone=True), server_default=func.now(), onupdate=_utc_now, nullable=False
     )
 
     # Relationships
@@ -115,7 +121,7 @@ class AnnotationHistory(Base):
     previous_text: Mapped[str] = mapped_column(Text, nullable=False)
     changed_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utc_now, nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships

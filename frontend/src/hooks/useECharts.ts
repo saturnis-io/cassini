@@ -17,6 +17,11 @@ import type { EChartsType } from 'echarts/core'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type EChartsOptionInput = Record<string, any> | null
 
+export interface EChartsDataZoomEvent {
+  start: number
+  end: number
+}
+
 export interface UseEChartsOptions {
   /** ECharts option to render. When this changes, setOption is called. */
   option: EChartsOptionInput
@@ -26,6 +31,7 @@ export interface UseEChartsOptions {
   onMouseMove?: (params: EChartsMouseEvent) => void
   onMouseOut?: () => void
   onClick?: (params: EChartsMouseEvent) => void
+  onDataZoom?: (params: EChartsDataZoomEvent) => void
   /** Called once the chart instance is ready */
   onInit?: (chart: EChartsType) => void
 }
@@ -51,6 +57,7 @@ export function useECharts({
   onMouseMove,
   onMouseOut,
   onClick,
+  onDataZoom,
   onInit,
 }: UseEChartsOptions) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -64,6 +71,8 @@ export function useECharts({
   onMouseOutRef.current = onMouseOut
   const onClickRef = useRef(onClick)
   onClickRef.current = onClick
+  const onDataZoomRef = useRef(onDataZoom)
+  onDataZoomRef.current = onDataZoom
 
   // Initialize chart instance
   useEffect(() => {
@@ -82,6 +91,12 @@ export function useECharts({
     })
     chart.on('click', 'series', (params: unknown) => {
       onClickRef.current?.(params as EChartsMouseEvent)
+    })
+    chart.on('datazoom', (params: unknown) => {
+      const p = params as { start?: number; end?: number; batch?: Array<{ start: number; end: number }> }
+      const start = p.batch?.[0]?.start ?? p.start ?? 0
+      const end = p.batch?.[0]?.end ?? p.end ?? 100
+      onDataZoomRef.current?.({ start, end })
     })
 
     // Global mouseout for when cursor leaves chart area entirely

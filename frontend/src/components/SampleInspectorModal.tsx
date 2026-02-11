@@ -36,6 +36,7 @@ import {
   useDeleteAnnotation,
 } from '@/api/hooks'
 import type { Violation, Annotation, SampleEditHistory, Sample } from '@/types'
+import { formatDisplayKey } from '@/lib/display-key'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,15 +118,15 @@ export function SampleInspectorModal({
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: sample, isLoading: sampleLoading } = useSample(sampleId)
   const { data: characteristic } = useCharacteristic(characteristicId)
-  const { data: violationsData } = useViolations({ characteristic_id: characteristicId })
+  const { data: violationsData } = useViolations({ sample_id: sampleId })
   const { data: annotationsData } = useAnnotations(characteristicId)
   const { data: editHistory } = useSampleEditHistory(sampleId)
 
-  // Filter violations and annotations for this sample
+  // Violations are already filtered by sample_id on the backend
   const sampleViolations = useMemo(() => {
     if (!violationsData?.items) return []
-    return violationsData.items.filter((v) => v.sample_id === sampleId)
-  }, [violationsData, sampleId])
+    return violationsData.items
+  }, [violationsData])
 
   const sampleAnnotations = useMemo(() => {
     if (!annotationsData) return []
@@ -306,7 +307,7 @@ export function SampleInspectorModal({
               ) : (
                 <div className="w-3 h-3 bg-emerald-500 rounded-full" title="Normal" />
               )}
-              <h2 className="text-lg font-semibold">Sample #{sample.id}</h2>
+              <h2 className="text-lg font-semibold">Sample {sample.display_key ? formatDisplayKey(sample.display_key) : `#${sample.id}`}</h2>
             </div>
             {hasViolations && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-600 border border-red-500/30">
@@ -334,7 +335,7 @@ export function SampleInspectorModal({
           <div className="w-48 flex-shrink-0 border-r border-border bg-muted/20 flex flex-col">
             {/* Sample info */}
             <div className="px-4 py-3 border-b border-border">
-              <div className="text-sm font-medium">Sample #{sample.id}</div>
+              <div className="text-sm font-medium">Sample {sample.display_key ? formatDisplayKey(sample.display_key) : `#${sample.id}`}</div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 {new Date(sample.timestamp).toLocaleString()}
               </div>

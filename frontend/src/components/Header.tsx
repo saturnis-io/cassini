@@ -24,10 +24,10 @@ export function Header({
   className,
   plantSelector,
 }: HeaderProps) {
-  const { theme, setTheme, resolvedTheme, brandConfig } = useTheme()
+  const { theme, setTheme, brandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
-  const defaultLogo = resolvedTheme === 'dark' ? '/openspc-isometric-dark.png' : '/openspc-isometric-light.png'
+  const defaultLogo = '/header-logo.svg'
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 

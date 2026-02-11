@@ -11,6 +11,7 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from './LocalTimeRangeSelector'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
 import type { Sample, Characteristic } from '@/types'
+import { formatDisplayKey } from '@/lib/display-key'
 
 /** Samples shown per page in the history table */
 const SAMPLES_PER_PAGE = 20
@@ -210,9 +211,9 @@ export function SampleHistoryPanel() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Filter Bar */}
-      <div className="bg-card border border-border rounded-xl">
+      <div className="bg-muted rounded-xl">
         {/* Filter Header */}
         <div
           className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-xl"
@@ -364,12 +365,12 @@ export function SampleHistoryPanel() {
       )}
 
       {/* Sample Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-muted rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium">ID</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Sample</th>
                 <th
                   className="px-4 py-3 text-left text-sm font-medium cursor-pointer select-none hover:bg-muted/80 transition-colors"
                   onClick={() => handleSort('timestamp')}
@@ -459,7 +460,7 @@ export function SampleHistoryPanel() {
                     >
                       <td className="px-4 py-3 text-sm font-mono">
                         <div className="flex items-center gap-1.5">
-                          {sample.id}
+                          {sample.display_key ? formatDisplayKey(sample.display_key) : sample.id}
                           {isModified && (
                             <EditHistoryTooltip
                               sampleId={sample.id}

@@ -50,14 +50,7 @@ class ViolationRepository(BaseRepository[Violation]):
         )
 
         if char_id is not None:
-            # Join with Sample to filter by characteristic
-            from openspc.db.models.sample import Sample
-
-            stmt = (
-                stmt.join(Sample, Violation.sample_id == Sample.id).where(
-                    Sample.char_id == char_id
-                )
-            )
+            stmt = stmt.where(Violation.char_id == char_id)
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -187,19 +180,24 @@ class ViolationRepository(BaseRepository[Violation]):
         """
         from openspc.db.models.sample import Sample
 
+        # Determine if we need a Sample join (only for date filters)
+        need_sample_join = start_date is not None or end_date is not None
+
         # Build base query - load sample and its characteristic for context
         stmt = (
             select(Violation)
-            .join(Sample, Violation.sample_id == Sample.id)
             .options(
                 selectinload(Violation.sample).selectinload(Sample.characteristic)
             )
         )
 
+        if need_sample_join:
+            stmt = stmt.join(Sample, Violation.sample_id == Sample.id)
+
         # Apply filters
         filters = []
         if characteristic_id is not None:
-            filters.append(Sample.char_id == characteristic_id)
+            filters.append(Violation.char_id == characteristic_id)
         if sample_id is not None:
             filters.append(Violation.sample_id == sample_id)
         if acknowledged is not None:
@@ -219,7 +217,9 @@ class ViolationRepository(BaseRepository[Violation]):
             stmt = stmt.where(and_(*filters))
 
         # Count total
-        count_stmt = select(func.count()).select_from(Violation).join(Sample)
+        count_stmt = select(func.count()).select_from(Violation)
+        if need_sample_join:
+            count_stmt = count_stmt.join(Sample)
         if filters:
             count_stmt = count_stmt.where(and_(*filters))
         count_result = await self.session.execute(count_stmt)

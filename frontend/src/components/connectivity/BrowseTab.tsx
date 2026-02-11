@@ -41,7 +41,7 @@ export function BrowseTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Server selector bar */}
       <div className="flex items-center gap-3">
         <div className="flex-1 max-w-md">
@@ -63,10 +63,10 @@ export function BrowseTab() {
 
       {/* Empty state when no server selected */}
       {!selectedServer && (
-        <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-12 text-center">
-          <Search className="h-10 w-10 mx-auto mb-3 text-[#1e293b]" />
-          <h3 className="text-sm font-medium text-[#94a3b8] mb-1">Browse Data Sources</h3>
-          <p className="text-xs text-[#475569] max-w-sm mx-auto">
+        <div className="bg-muted rounded-xl p-12 text-center">
+          <Search className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+          <h3 className="text-sm font-medium text-muted-foreground mb-1">Browse Data Sources</h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
             Select a connected server above to browse its available data points.
             For MQTT brokers, you can discover topics. For OPC-UA servers, browse the address space.
           </p>
@@ -87,9 +87,9 @@ export function BrowseTab() {
       {selectedServer && selectedServer.isConnected && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Left panel: Browser (3 cols) */}
-          <div className="lg:col-span-3 bg-[#111827] border border-[#1e293b] rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1e293b] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#e2e8f0]">
+          <div className="lg:col-span-3 bg-muted rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-foreground">
                 {selectedServer.protocol === 'mqtt' ? 'Topic Browser' : 'Address Space'}
               </h3>
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider ${
@@ -117,9 +117,9 @@ export function BrowseTab() {
           </div>
 
           {/* Right panel: Preview + Quick Map (2 cols) */}
-          <div className="lg:col-span-2 bg-[#111827] border border-[#1e293b] rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1e293b]">
-              <h3 className="text-sm font-semibold text-[#e2e8f0]">Preview & Map</h3>
+          <div className="lg:col-span-2 bg-muted rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Preview & Map</h3>
             </div>
 
             <div className="p-4 space-y-4">

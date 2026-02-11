@@ -119,15 +119,15 @@ export function QuickMapForm({
       ]
 
   return (
-    <div className="border-t border-[#1e293b] pt-3 space-y-3">
-      <h4 className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wider">
+    <div className="border-t border-border pt-3 space-y-3">
+      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Quick Map
       </h4>
 
       {/* Source info (read-only) */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Source</label>
-        <p className="text-xs font-mono bg-[#0a0f1a] border border-[#1e293b] rounded px-2 py-1.5 mt-0.5 truncate text-[#94a3b8]">
+        <label className="text-[11px] text-muted-foreground">Source</label>
+        <p className="text-xs font-mono bg-background border border-border rounded px-2 py-1.5 mt-0.5 truncate text-muted-foreground">
           {server.protocol === 'mqtt' ? selectedTopic : selectedNode?.node_id}
         </p>
       </div>
@@ -136,13 +136,13 @@ export function QuickMapForm({
       {server.protocol === 'mqtt' && (
         <div>
           <div className="flex items-center justify-between">
-            <label className="text-[11px] text-[#64748b]">
+            <label className="text-[11px] text-muted-foreground">
               Metric {!metricName && !metricEditing && <span className="opacity-60">(optional, SparkplugB)</span>}
             </label>
             {!metricEditing && (
               <button
                 onClick={() => setMetricEditing(true)}
-                className="flex items-center gap-1 text-[11px] text-[#64748b] hover:text-[#94a3b8] transition-colors"
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 <Pencil className="h-2.5 w-2.5" />
                 Edit
@@ -156,11 +156,11 @@ export function QuickMapForm({
                 value={metricName ?? ''}
                 onChange={(e) => setMetricName(e.target.value || null)}
                 placeholder="e.g. Temperature"
-                className="flex-1 px-2 py-1 text-xs font-mono bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+                className="flex-1 px-2 py-1 text-xs font-mono bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
               />
               <button
                 onClick={() => setMetricEditing(false)}
-                className="text-[11px] text-[#64748b] hover:text-[#94a3b8] transition-colors"
+                className="text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 Done
               </button>
@@ -172,13 +172,13 @@ export function QuickMapForm({
               </p>
               <button
                 onClick={() => setMetricName(null)}
-                className="text-[11px] text-[#64748b] hover:text-[#94a3b8] transition-colors"
+                className="text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 Clear
               </button>
             </div>
           ) : (
-            <p className="text-[11px] text-[#475569] mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5">
               Click a metric in preview or use Edit to type manually
             </p>
           )}
@@ -187,11 +187,11 @@ export function QuickMapForm({
 
       {/* Characteristic selector */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Characteristic</label>
+        <label className="text-[11px] text-muted-foreground">Characteristic</label>
         <select
           value={characteristicId ?? ''}
           onChange={(e) => setCharacteristicId(e.target.value ? Number(e.target.value) : null)}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
         >
           <option value="">Select characteristic...</option>
           {characteristics.map((c) => (
@@ -204,11 +204,11 @@ export function QuickMapForm({
 
       {/* Trigger strategy */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Trigger Strategy</label>
+        <label className="text-[11px] text-muted-foreground">Trigger Strategy</label>
         <select
           value={triggerStrategy}
           onChange={(e) => setTriggerStrategy(e.target.value)}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
         >
           {strategies.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
@@ -219,13 +219,13 @@ export function QuickMapForm({
       {/* Trigger tag (MQTT on_trigger only) */}
       {server.protocol === 'mqtt' && triggerStrategy === 'on_trigger' && (
         <div>
-          <label className="text-[11px] text-[#64748b]">Trigger Tag</label>
+          <label className="text-[11px] text-muted-foreground">Trigger Tag</label>
           <input
             type="text"
             value={triggerTag}
             onChange={(e) => setTriggerTag(e.target.value)}
             placeholder="e.g. spBv1.0/plant/NCMD/trigger"
-            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
       )}

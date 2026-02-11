@@ -557,13 +557,13 @@ export function useBatchAcknowledgeViolation() {
       } else {
         toast.success(`${data.successful} violation${data.successful !== 1 ? 's' : ''} acknowledged`)
       }
+      // Invalidate in onSuccess (before mutate-level onSuccess closes the dialog)
+      // so the query cache is refreshed while the component is still mounted
+      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
     },
     onError: (error: Error) => {
       toast.error(`Bulk acknowledge failed: ${error.message}`)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
     },
   })
 }

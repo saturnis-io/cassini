@@ -36,13 +36,13 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
 
   // Fetch OPC-UA server statuses
   const { data: opcuaStatuses } = useQuery({
-    queryKey: ['opcua-servers-status', selectedPlantId],
+    queryKey: ['opcua-all-status', selectedPlantId],
     queryFn: () => opcuaApi.getAllStatus(selectedPlantId ?? undefined),
     refetchInterval: 10000,
   })
 
   const brokerStates = brokerData?.states ?? []
-  const opcuaStates = opcuaStatuses ?? []
+  const opcuaStates = opcuaStatuses?.states ?? []
 
   // Build unified server list
   const servers: SelectedServer[] = [
@@ -83,29 +83,29 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-[#111827] border border-[#1e293b] rounded-lg text-sm hover:border-indigo-500/50 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg text-sm hover:border-primary/50 transition-colors"
       >
         {value ? (
           <>
             <ProtocolIcon protocol={value.protocol} />
-            <span className="flex-1 text-left truncate text-[#e2e8f0]">
+            <span className="flex-1 text-left truncate text-foreground">
               {value.name}
             </span>
             <StatusDot connected={value.isConnected} />
           </>
         ) : (
-          <span className="flex-1 text-left text-[#64748b]">
+          <span className="flex-1 text-left text-muted-foreground">
             Select a server...
           </span>
         )}
-        <ChevronDown className={`h-4 w-4 text-[#64748b] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-[#111827] border border-[#1e293b] rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-xl overflow-hidden">
           {servers.length === 0 ? (
-            <div className="px-3 py-4 text-center text-sm text-[#64748b]">
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
               No servers configured. Add servers in the Servers tab.
             </div>
           ) : (
@@ -120,15 +120,15 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
                       isSelected
                         ? 'bg-indigo-500/10 text-indigo-300'
                         : server.isConnected
-                          ? 'text-[#e2e8f0] hover:bg-[#1e293b]'
-                          : 'text-[#475569] hover:bg-[#1e293b]/50'
+                          ? 'text-foreground hover:bg-muted'
+                          : 'text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
                     <ProtocolIcon protocol={server.protocol} />
                     <span className="flex-1 text-left truncate">{server.name}</span>
                     <StatusDot connected={server.isConnected} />
                     {!server.isConnected && (
-                      <span className="text-[10px] text-[#475569]">offline</span>
+                      <span className="text-[10px] text-muted-foreground">offline</span>
                     )}
                   </button>
                 )
@@ -162,7 +162,7 @@ function StatusDot({ connected }: { connected: boolean }) {
       className={`h-2 w-2 shrink-0 ${
         connected
           ? 'fill-emerald-400 text-emerald-400'
-          : 'fill-[#475569] text-[#475569]'
+          : 'fill-muted-foreground text-muted-foreground'
       }`}
     />
   )

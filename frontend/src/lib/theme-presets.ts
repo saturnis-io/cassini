@@ -34,6 +34,9 @@ export interface ChartColors {
   // Out of control region
   outOfControl: string
 
+  // Annotations
+  annotationColor: string
+
   // Secondary/comparison chart colors (for comparison mode)
   secondaryLineGradientStart: string
   secondaryLineGradientEnd: string
@@ -66,6 +69,7 @@ export const defaultChartColors: ChartColors = {
   undersizedPoint: 'hsl(32, 63%, 51%)',       // OpenSPC Orange
   excludedPoint: 'hsl(210, 8%, 46%)',         // Muted gray
   outOfControl: 'hsl(357, 80%, 52%)',         // OpenSPC Red
+  annotationColor: 'hsl(212, 100%, 30%)',       // OpenSPC Blue (brand primary)
 
   // Secondary/comparison chart - Purple to Teal gradient (OpenSPC brand)
   secondaryLineGradientStart: 'hsl(241, 33%, 60%)',  // OpenSPC Purple #7473C0
@@ -98,6 +102,7 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(45, 100%, 45%)',
       excludedPoint: 'hsl(0, 0%, 50%)',
       outOfControl: 'hsl(0, 100%, 50%)',
+      annotationColor: 'hsl(220, 100%, 50%)',
       secondaryLineGradientStart: 'hsl(280, 100%, 50%)',
       secondaryLineGradientEnd: 'hsl(280, 100%, 50%)',
       secondaryNormalPoint: 'hsl(280, 100%, 45%)',
@@ -121,6 +126,7 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(55, 90%, 45%)',
       excludedPoint: 'hsl(0, 0%, 60%)',
       outOfControl: 'hsl(30, 100%, 50%)',
+      annotationColor: 'hsl(220, 80%, 50%)',
       secondaryLineGradientStart: 'hsl(270, 60%, 55%)',
       secondaryLineGradientEnd: 'hsl(270, 60%, 45%)',
       secondaryNormalPoint: 'hsl(270, 60%, 50%)',
@@ -144,6 +150,7 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(0, 0%, 45%)',
       excludedPoint: 'hsl(0, 0%, 75%)',
       outOfControl: 'hsl(0, 0%, 30%)',
+      annotationColor: 'hsl(0, 0%, 25%)',
       secondaryLineGradientStart: 'hsl(0, 0%, 50%)',
       secondaryLineGradientEnd: 'hsl(0, 0%, 60%)',
       secondaryNormalPoint: 'hsl(0, 0%, 55%)',
@@ -167,6 +174,7 @@ export const chartPresets: ChartColorPreset[] = [
       undersizedPoint: 'hsl(45, 100%, 60%)',
       excludedPoint: 'hsl(0, 0%, 55%)',
       outOfControl: 'hsl(0, 90%, 60%)',
+      annotationColor: 'hsl(212, 100%, 55%)',
       secondaryLineGradientStart: 'hsl(241, 50%, 70%)',  // Brightened OpenSPC Purple
       secondaryLineGradientEnd: 'hsl(179, 60%, 65%)',    // Brightened OpenSPC Teal
       secondaryNormalPoint: 'hsl(241, 50%, 65%)',
@@ -223,4 +231,5 @@ export function applyChartColors(colors: ChartColors): void {
   root.style.setProperty('--chart-point-undersized', colors.undersizedPoint)
   root.style.setProperty('--chart-point-excluded', colors.excludedPoint)
   root.style.setProperty('--chart-ooc-color', colors.outOfControl)
+  root.style.setProperty('--chart-annotation-color', colors.annotationColor)
 }

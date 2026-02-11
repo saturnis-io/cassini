@@ -75,7 +75,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
           {/* Branding */}
           <div className="flex items-center gap-2">
             <img
-              src={brandConfig.logoUrl || '/openspc-isometric-dark.png'}
+              src={brandConfig.logoUrl || '/header-logo.svg'}
               alt={`${brandConfig.appName} logo`}
               className="h-5 w-5 object-contain"
             />

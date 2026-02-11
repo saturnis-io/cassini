@@ -109,8 +109,8 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
     async def get_descendants(self, node_id: int) -> list[Hierarchy]:
         """Get all descendants of a node recursively.
 
-        This method returns all children, grandchildren, etc. of the
-        specified node in a flat list.
+        Loads all nodes for the target node's plant in one query, then
+        builds the subtree in memory using BFS (avoids N+1 queries).
 
         Args:
             node_id: ID of the parent node
@@ -118,24 +118,40 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
         Returns:
             List of all descendant hierarchy nodes (not including the node itself)
         """
+        # Load the target node to get its plant_id
+        node = await self.get_by_id(node_id)
+        if node is None:
+            return []
+
+        # Load all nodes for this plant in one query
+        stmt = select(Hierarchy)
+        if node.plant_id is not None:
+            stmt = stmt.where(Hierarchy.plant_id == node.plant_id)
+        result = await self.session.execute(stmt)
+        all_nodes = list(result.scalars().all())
+
+        # Build parent→children map
+        children_map: dict[int, list[Hierarchy]] = {}
+        for n in all_nodes:
+            if n.parent_id is not None:
+                children_map.setdefault(n.parent_id, []).append(n)
+
+        # BFS from node_id
         descendants: list[Hierarchy] = []
-        nodes_to_process = [node_id]
-
-        while nodes_to_process:
-            current_id = nodes_to_process.pop(0)
-            children = await self.get_children(current_id)
-
-            for child in children:
+        queue = [node_id]
+        while queue:
+            current_id = queue.pop(0)
+            for child in children_map.get(current_id, []):
                 descendants.append(child)
-                nodes_to_process.append(child.id)
+                queue.append(child.id)
 
         return descendants
 
     async def get_ancestors(self, node_id: int) -> list[Hierarchy]:
         """Get all ancestors of a node up to the root.
 
-        This method returns the complete path from the specified node
-        to the root, ordered from the immediate parent to the root.
+        Loads all nodes for the target node's plant in one query, then
+        walks up the parent chain in memory (avoids N+1 queries).
 
         Args:
             node_id: ID of the child node
@@ -143,20 +159,30 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
         Returns:
             List of ancestor hierarchy nodes ordered from parent to root
         """
+        # Load the target node to get its plant_id
+        node = await self.get_by_id(node_id)
+        if node is None:
+            return []
+
+        # Load all nodes for this plant in one query
+        stmt = select(Hierarchy)
+        if node.plant_id is not None:
+            stmt = stmt.where(Hierarchy.plant_id == node.plant_id)
+        result = await self.session.execute(stmt)
+        all_nodes = list(result.scalars().all())
+
+        # Build id→node map
+        node_map: dict[int, Hierarchy] = {n.id: n for n in all_nodes}
+
+        # Walk up parent chain
         ancestors: list[Hierarchy] = []
-        current_id = node_id
-
-        while True:
-            node = await self.get_by_id(current_id)
-            if node is None or node.parent_id is None:
-                break
-
-            parent = await self.get_by_id(node.parent_id)
+        current = node_map.get(node_id)
+        while current and current.parent_id is not None:
+            parent = node_map.get(current.parent_id)
             if parent is None:
                 break
-
             ancestors.append(parent)
-            current_id = parent.id
+            current = parent
 
         return ancestors
 

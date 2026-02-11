@@ -211,6 +211,30 @@ async def list_samples(
     result = await sample_repo.session.execute(paginated_stmt)
     paginated_samples = list(result.scalars().all())
 
+    # Compute display keys (YYMMDD-NNN) for paginated samples
+    # For paginated results, compute sequence within day using a count query
+    from sqlalchemy import func as sa_func, and_
+    from openspc.db.models.sample import Sample as SampleModelForKey
+
+    _display_keys: dict[int, str] = {}
+    for sample in paginated_samples:
+        day_str = sample.timestamp.strftime('%y%m%d')
+        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        count_stmt = select(sa_func.count()).select_from(
+            select(SampleModelForKey.id).where(
+                and_(
+                    SampleModelForKey.char_id == sample.char_id,
+                    SampleModelForKey.timestamp >= day_start,
+                    SampleModelForKey.timestamp <= day_end,
+                    (SampleModelForKey.timestamp < sample.timestamp) |
+                    ((SampleModelForKey.timestamp == sample.timestamp) & (SampleModelForKey.id < sample.id))
+                )
+            ).subquery()
+        )
+        preceding = (await sample_repo.session.execute(count_stmt)).scalar_one()
+        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+
     # Convert to response models
     response_items = []
     for sample in paginated_samples:
@@ -246,6 +270,7 @@ async def list_samples(
                 z_score=sample.z_score,
                 is_modified=is_modified,
                 edit_count=edit_count,
+                display_key=_display_keys.get(sample.id, ""),
             )
         )
 
@@ -380,6 +405,27 @@ async def get_sample(
     measurements = [m.value for m in sample.measurements]
     mean, range_value = calculate_mean_range(measurements)
 
+    # Compute display key (YYMMDD-NNN)
+    from sqlalchemy import func as sa_func, and_, select
+    from openspc.db.models.sample import Sample as SampleModelForKey
+
+    day_str = sample.timestamp.strftime('%y%m%d')
+    day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+    count_stmt = select(sa_func.count()).select_from(
+        select(SampleModelForKey.id).where(
+            and_(
+                SampleModelForKey.char_id == sample.char_id,
+                SampleModelForKey.timestamp >= day_start,
+                SampleModelForKey.timestamp <= day_end,
+                (SampleModelForKey.timestamp < sample.timestamp) |
+                ((SampleModelForKey.timestamp == sample.timestamp) & (SampleModelForKey.id < sample.id))
+            )
+        ).subquery()
+    )
+    preceding = (await sample_repo.session.execute(count_stmt)).scalar_one()
+    display_key = f"{day_str}-{preceding + 1:03d}"
+
     return SampleResponse(
         id=sample.id,
         char_id=sample.char_id,
@@ -390,6 +436,7 @@ async def get_sample(
         measurements=measurements,
         mean=mean,
         range_value=range_value,
+        display_key=display_key,
     )
 
 

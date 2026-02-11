@@ -131,6 +131,7 @@ export interface Sample {
   // Audit trail fields
   is_modified?: boolean
   edit_count?: number
+  display_key?: string
 }
 
 export interface SampleEditHistory {
@@ -187,6 +188,8 @@ export interface ChartDataPoint {
   effective_lcl: number | null
   z_score: number | null
   display_value: number | null
+  display_key: string
+  unacknowledged_violation_ids: number[]
 }
 
 export interface ChartData {

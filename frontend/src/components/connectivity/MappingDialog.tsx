@@ -166,15 +166,15 @@ export function MappingDialog({
       />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-lg bg-[#111827] border border-[#1e293b] rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e293b]">
-          <h2 className="text-base font-semibold text-[#e2e8f0]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">
             {isEdit ? 'Edit Mapping' : 'New Mapping'}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 text-[#64748b] hover:text-[#e2e8f0] transition-colors rounded-md hover:bg-[#1e293b]"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
           >
             <X className="h-4 w-4" />
           </button>
@@ -184,7 +184,7 @@ export function MappingDialog({
         <div className="px-5 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* 1. Characteristic */}
           <div>
-            <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
               Characteristic
             </label>
             <CharacteristicPicker
@@ -197,7 +197,7 @@ export function MappingDialog({
           {/* 2. Protocol selector */}
           {!isEdit && (
             <div>
-              <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider block mb-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
                 Protocol
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -223,7 +223,7 @@ export function MappingDialog({
 
           {/* 3. Protocol-specific fields */}
           <div>
-            <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
               Source Configuration
             </label>
             <ProtocolSourceFields
@@ -236,7 +236,7 @@ export function MappingDialog({
 
           {/* 4. Trigger strategy */}
           <div>
-            <label className="text-xs font-medium text-[#94a3b8] uppercase tracking-wider block mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
               Trigger Strategy
             </label>
             <div className="flex gap-2">
@@ -247,7 +247,7 @@ export function MappingDialog({
                   className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
                     triggerStrategy === s.value
                       ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
-                      : 'border-[#1e293b] text-[#64748b] hover:border-[#334155] hover:text-[#94a3b8]'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-muted-foreground'
                   }`}
                 >
                   {s.label}
@@ -258,10 +258,10 @@ export function MappingDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#1e293b]">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-[#94a3b8] hover:text-[#e2e8f0] transition-colors"
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -312,17 +312,17 @@ function ProtocolCard({
       className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
         selected
           ? `${colorClasses.border} ${colorClasses.bg}`
-          : 'border-[#1e293b] hover:border-[#334155]'
+          : 'border-border hover:border-muted-foreground/50'
       }`}
     >
       <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${colorClasses.iconBg} ${colorClasses.text}`}>
         {icon}
       </span>
       <div className="text-left">
-        <div className={`text-sm font-medium ${selected ? colorClasses.text : 'text-[#e2e8f0]'}`}>
+        <div className={`text-sm font-medium ${selected ? colorClasses.text : 'text-foreground'}`}>
           {label}
         </div>
-        <div className="text-[11px] text-[#475569]">{description}</div>
+        <div className="text-[11px] text-muted-foreground">{description}</div>
       </div>
     </button>
   )

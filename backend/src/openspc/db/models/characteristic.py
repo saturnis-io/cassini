@@ -43,7 +43,7 @@ class Characteristic(Base):
     __tablename__ = "characteristic"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    hierarchy_id: Mapped[int] = mapped_column(ForeignKey("hierarchy.id"), nullable=False)
+    hierarchy_id: Mapped[int] = mapped_column(ForeignKey("hierarchy.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     subgroup_size: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
@@ -100,7 +100,7 @@ class CharacteristicRule(Base):
     __tablename__ = "characteristic_rules"
 
     char_id: Mapped[int] = mapped_column(
-        ForeignKey("characteristic.id"), primary_key=True, nullable=False
+        ForeignKey("characteristic.id", ondelete="CASCADE"), primary_key=True, nullable=False
     )
     rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

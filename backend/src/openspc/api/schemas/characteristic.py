@@ -113,6 +113,9 @@ class CharacteristicResponse(BaseModel):
     stored_sigma: float | None
     stored_center_line: float | None
     decimal_precision: int
+    # Computed status fields (populated by list/hierarchy endpoints)
+    sample_count: int | None = None
+    unacknowledged_violations: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -178,6 +181,7 @@ class ChartSample(BaseModel):
         std_dev: Sample standard deviation for S chart (ddof=1)
         excluded: Whether this sample is excluded from calculations
         violation_ids: List of violation IDs for this sample
+        unacknowledged_violation_ids: Subset of violation_ids that require acknowledgement and are not yet acknowledged
         violation_rules: List of Nelson rule numbers (1-8) that were violated
         zone: Which control zone the point falls in
         actual_n: Actual number of measurements in this sample
@@ -195,6 +199,7 @@ class ChartSample(BaseModel):
     std_dev: float | None = None
     excluded: bool = False
     violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
     violation_rules: list[int] = []
     zone: str
     actual_n: int = 1
@@ -203,6 +208,7 @@ class ChartSample(BaseModel):
     effective_lcl: float | None = None
     z_score: float | None = None
     display_value: float | None = None
+    display_key: str = ""
 
 
 class SpecLimits(BaseModel):

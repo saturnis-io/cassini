@@ -46,7 +46,7 @@ class Hierarchy(Base):
     __tablename__ = "hierarchy"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("hierarchy.id"), nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("hierarchy.id", ondelete="CASCADE"), nullable=True, index=True)
     plant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=True
     )

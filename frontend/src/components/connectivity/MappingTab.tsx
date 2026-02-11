@@ -121,12 +121,12 @@ export function MappingTab() {
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Header bar */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-[#e2e8f0]">Data Source Mappings</h3>
-          <p className="text-xs text-[#475569] mt-0.5">
+          <h3 className="text-sm font-semibold text-foreground">Data Source Mappings</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Link industrial data points to SPC characteristics
           </p>
         </div>
@@ -150,7 +150,7 @@ export function MappingTab() {
               className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
                 filter === opt.value
                   ? 'bg-indigo-500/15 text-indigo-300 font-medium'
-                  : 'text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]'
+                  : 'text-muted-foreground hover:text-muted-foreground hover:bg-muted'
               }`}
             >
               {opt.label}
@@ -163,29 +163,29 @@ export function MappingTab() {
 
         {/* Search */}
         <div className="relative flex-1 max-w-xs ml-auto">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#475569]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search characteristics..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded-md text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+            className="w-full pl-8 pr-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
       </div>
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-[#64748b]">
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
           <span className="text-sm">Loading mappings...</span>
         </div>
       ) : totalMappings === 0 && unmappedCount === 0 ? (
         /* Empty state -- no characteristics at all */
-        <div className="bg-[#111827] border border-[#1e293b] rounded-xl p-12 text-center">
-          <Link2 className="h-10 w-10 mx-auto mb-3 text-[#1e293b]" />
-          <h3 className="text-sm font-medium text-[#94a3b8] mb-1">No Data Source Mappings</h3>
-          <p className="text-xs text-[#475569] max-w-sm mx-auto mb-4">
+        <div className="bg-muted rounded-xl p-12 text-center">
+          <Link2 className="h-10 w-10 mx-auto mb-3 text-muted" />
+          <h3 className="text-sm font-medium text-muted-foreground mb-1">No Data Source Mappings</h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
             Link your industrial data points to SPC characteristics.
             Create characteristics in Configuration first, then map them to MQTT topics or OPC-UA nodes.
           </p>
@@ -211,7 +211,7 @@ export function MappingTab() {
           />
 
           {/* Summary */}
-          <div className="text-xs text-[#475569]">
+          <div className="text-xs text-muted-foreground">
             Showing {totalMappings} mapping{totalMappings !== 1 ? 's' : ''}
             {unmappedCount > 0 && (
               <span> ({unmappedCount} unmapped characteristic{unmappedCount !== 1 ? 's' : ''})</span>

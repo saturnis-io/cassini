@@ -96,11 +96,11 @@ export function MappingTable({
   const isEmpty = filteredMappings.length === 0 && filteredUnmapped.length === 0
 
   return (
-    <div className="bg-[#111827] border border-[#1e293b] rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#1e293b] bg-[#0a0f1a]/50">
+            <tr className="border-b border-border bg-background/50">
               <th className="text-left px-3 py-2.5">
                 <SortButton
                   label="Characteristic"
@@ -110,13 +110,13 @@ export function MappingTable({
                 />
               </th>
               <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Source</span>
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Source</span>
               </th>
               <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Server</span>
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Server</span>
               </th>
               <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Strategy</span>
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Strategy</span>
               </th>
               <th className="text-left px-3 py-2.5">
                 <SortButton
@@ -127,7 +127,7 @@ export function MappingTable({
                 />
               </th>
               <th className="text-left px-3 py-2.5 w-[120px]">
-                <span className="text-[11px] font-semibold text-[#64748b] uppercase tracking-wider">Actions</span>
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</span>
               </th>
             </tr>
           </thead>
@@ -157,7 +157,7 @@ export function MappingTable({
             {/* Empty state */}
             {isEmpty && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-[#475569] text-sm">
+                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground text-sm">
                   {searchQuery
                     ? 'No mappings match your search.'
                     : filter === 'unmapped'
@@ -192,11 +192,11 @@ function SortButton({
     <button
       onClick={onClick}
       className={`flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-        active ? 'text-indigo-400' : 'text-[#64748b] hover:text-[#94a3b8]'
+        active ? 'text-indigo-400' : 'text-muted-foreground hover:text-muted-foreground'
       }`}
     >
       {label}
-      <ArrowUpDown className={`h-3 w-3 ${active ? 'text-indigo-400' : 'text-[#475569]'}`} />
+      <ArrowUpDown className={`h-3 w-3 ${active ? 'text-indigo-400' : 'text-muted-foreground'}`} />
     </button>
   )
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openspc.db.models.hierarchy import Base
@@ -22,12 +22,15 @@ class OPCUAServer(Base):
     """
 
     __tablename__ = "opcua_server"
+    __table_args__ = (
+        UniqueConstraint("plant_id", "name", name="uq_opcua_server_plant_name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     plant_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=True
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     endpoint_url: Mapped[str] = mapped_column(String(500), nullable=False)
     auth_mode: Mapped[str] = mapped_column(
         String(50), default="anonymous", nullable=False

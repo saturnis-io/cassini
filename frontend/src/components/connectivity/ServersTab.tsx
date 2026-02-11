@@ -52,9 +52,9 @@ export function ServersTab() {
   })
 
   const brokers = brokersResponse?.items ?? []
-  const opcuaServers = opcuaServersData ?? []
+  const opcuaServers = opcuaServersData?.items ?? []
   const mqttStates = mqttStatus?.states ?? []
-  const opcuaStates = opcuaStatusData ?? []
+  const opcuaStates = opcuaStatusData?.states ?? []
 
   // Build unified server list
   type UnifiedServer = {

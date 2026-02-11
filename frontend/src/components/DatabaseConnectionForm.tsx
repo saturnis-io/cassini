@@ -93,7 +93,7 @@ export function DatabaseConnectionForm() {
   return (
     <div className="space-y-4">
       {/* Warning Banner */}
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
         <p className="text-sm text-amber-600 dark:text-amber-400">
           Changing the database configuration requires an application restart to take effect.
         </p>
@@ -108,7 +108,7 @@ export function DatabaseConnectionForm() {
               key={opt.value}
               onClick={() => handleDialectChange(opt.value)}
               className={cn(
-                'p-3 rounded-lg border text-left transition-colors',
+                'p-3 rounded-xl border text-left transition-colors',
                 dialect === opt.value
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-muted-foreground/30',
@@ -130,7 +130,7 @@ export function DatabaseConnectionForm() {
             value={database}
             onChange={(e) => { setSqliteDatabase(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
             placeholder="./openspc.db"
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
       )}
@@ -146,7 +146,7 @@ export function DatabaseConnectionForm() {
                 value={host}
                 onChange={(e) => { setHost(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
                 placeholder="localhost"
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
             <div>
@@ -156,7 +156,7 @@ export function DatabaseConnectionForm() {
                 value={port || ''}
                 onChange={(e) => { setPort(Number(e.target.value)); setTestResult(null); setHasTestedSuccessfully(false) }}
                 placeholder={String(DEFAULT_PORTS[dialect] || '')}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
           </div>
@@ -168,7 +168,7 @@ export function DatabaseConnectionForm() {
               value={serverDatabase}
               onChange={(e) => { setServerDatabase(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
               placeholder="openspc"
-              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
 
@@ -180,7 +180,7 @@ export function DatabaseConnectionForm() {
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
                 placeholder="openspc"
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
             <div>
@@ -190,13 +190,13 @@ export function DatabaseConnectionForm() {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
                 placeholder={currentConfig?.has_password ? '(unchanged)' : ''}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
           </div>
 
           {dialect === 'mssql' && (
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
               <p className="text-xs text-blue-600 dark:text-blue-400">
                 MSSQL requires the ODBC Driver for SQL Server to be installed on the server.
               </p>
@@ -209,19 +209,19 @@ export function DatabaseConnectionForm() {
       {testResult && (
         <div
           className={cn(
-            'flex items-center gap-2 p-3 rounded-lg border',
+            'flex items-center gap-2 p-3 rounded-xl border',
             testResult.success
-              ? 'bg-green-500/10 border-green-500/30'
-              : 'bg-red-500/10 border-red-500/30',
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-red-500/10 border-red-500/20',
           )}
         >
           {testResult.success ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           ) : (
             <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
           )}
           <div className="text-sm">
-            <span className={testResult.success ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}>
+            <span className={testResult.success ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-700 dark:text-red-300'}>
               {testResult.message}
             </span>
             {testResult.latency_ms != null && (

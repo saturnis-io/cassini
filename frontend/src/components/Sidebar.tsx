@@ -5,7 +5,7 @@ import {
   AlertTriangle,
   FileText,
   Settings,
-  Sliders,
+  ListTree,
   Network,
   Users,
   Wrench,
@@ -69,8 +69,8 @@ export function Sidebar({ className }: SidebarProps) {
 
   const secondaryNavItems: NavItem[] = [
     { path: '/connectivity', label: 'Connectivity', icon: <Network className="h-5 w-5" />, requiredRole: 'engineer' },
-    { path: '/configuration', label: 'Configuration', icon: <Settings className="h-5 w-5" />, requiredRole: 'engineer' },
-    { path: '/settings', label: 'Settings', icon: <Sliders className="h-5 w-5" />, requiredRole: 'engineer' },
+    { path: '/configuration', label: 'Configuration', icon: <ListTree className="h-5 w-5" />, requiredRole: 'engineer' },
+    { path: '/settings', label: 'Settings', icon: <Settings className="h-5 w-5" />, requiredRole: 'engineer' },
     { path: '/admin/users', label: 'Users', icon: <Users className="h-5 w-5" />, requiredRole: 'admin' },
   ]
 

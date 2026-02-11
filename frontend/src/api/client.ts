@@ -527,6 +527,7 @@ export const violationApi = {
     severity?: string
     rule_id?: number
     characteristic_id?: number
+    sample_id?: number
     start_date?: string
     end_date?: string
     page?: number
@@ -539,6 +540,7 @@ export const violationApi = {
     if (params?.severity) searchParams.set('severity', params.severity)
     if (params?.rule_id) searchParams.set('rule_id', String(params.rule_id))
     if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
+    if (params?.sample_id) searchParams.set('sample_id', String(params.sample_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     // Convert page/per_page to offset/limit for the backend

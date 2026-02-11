@@ -70,6 +70,7 @@ class SampleResponse(BaseModel):
     z_score: float | None = None
     is_modified: bool = False
     edit_count: int = 0
+    display_key: str = ""
 
     # Frontend-friendly alias fields
     characteristic_id: int | None = None

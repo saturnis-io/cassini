@@ -13,6 +13,8 @@ import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { AnnotationListPanel } from '@/components/AnnotationListPanel'
 import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
+import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
+import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { canPerformAction } from '@/lib/roles'
@@ -87,6 +89,10 @@ export function OperatorDashboard() {
   const [sampleInspectorSampleId, setSampleInspectorSampleId] = useState<number>(0)
   // Bulk acknowledge dialog state
   const [bulkAckDialogOpen, setBulkAckDialogOpen] = useState(false)
+  // Region selection state (from chart drag-select)
+  const [regionSelection, setRegionSelection] = useState<RegionSelection | null>(null)
+  const [regionAnnotateOpen, setRegionAnnotateOpen] = useState(false)
+  const [regionAckOpen, setRegionAckOpen] = useState(false)
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
@@ -202,7 +208,7 @@ export function OperatorDashboard() {
     const visible = !showBrush || !rangeWindow
       ? pts
       : pts.slice(rangeWindow[0], rangeWindow[1] + 1)
-    return visible.flatMap((p) => p.violation_ids)
+    return visible.flatMap((p) => p.unacknowledged_violation_ids ?? p.violation_ids)
   }, [chartDataForAnnotation, rangeWindow, showBrush])
 
   const { role } = useAuth()
@@ -376,24 +382,6 @@ export function OperatorDashboard() {
                 />
               )}
 
-              {/* ── Bulk Acknowledge Action Bar ── */}
-              {canBulkAck && (
-                <div className="flex items-center justify-between px-3 py-2 bg-destructive/5 border border-destructive/20 rounded-lg flex-shrink-0">
-                  <div className="flex items-center gap-2 text-sm">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="text-muted-foreground">
-                      <span className="font-semibold text-foreground">{visibleViolationIds.length}</span> unacknowledged violation{visibleViolationIds.length !== 1 ? 's' : ''} in view
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setBulkAckDialogOpen(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-                  >
-                    Bulk Acknowledge
-                  </button>
-                </div>
-              )}
-
               {/* ── Primary Chart ── */}
               <div className="flex-1 min-h-0">
                 {isBoxWhisker ? (
@@ -456,6 +444,7 @@ export function OperatorDashboard() {
                       setSampleInspectorSampleId(sampleId)
                       setSampleInspectorOpen(true)
                     }}
+                    onRegionSelect={setRegionSelection}
                   />
                 ) : (
                   <ChartPanel
@@ -468,6 +457,7 @@ export function OperatorDashboard() {
                       setSampleInspectorSampleId(sampleId)
                       setSampleInspectorOpen(true)
                     }}
+                    onRegionSelect={setRegionSelection}
                   />
                 )}
               </div>
@@ -561,6 +551,37 @@ export function OperatorDashboard() {
           violationIds={visibleViolationIds}
           onClose={() => setBulkAckDialogOpen(false)}
           contextLabel="in current chart view"
+        />
+      )}
+
+      {/* Region choice modal (from chart drag-select) */}
+      {regionSelection && !regionAnnotateOpen && !regionAckOpen && (
+        <RegionActionModal
+          selection={regionSelection}
+          canAcknowledge={canPerformAction(role, 'violations:acknowledge') && regionSelection.violationIds.length > 0}
+          onAnnotate={() => setRegionAnnotateOpen(true)}
+          onAcknowledge={() => setRegionAckOpen(true)}
+          onClose={() => setRegionSelection(null)}
+        />
+      )}
+
+      {/* Region annotation dialog */}
+      {regionAnnotateOpen && selectedId && regionSelection && (
+        <AnnotationDialog
+          characteristicId={selectedId}
+          onClose={() => { setRegionAnnotateOpen(false); setRegionSelection(null) }}
+          mode="period"
+          prefillStartTime={regionSelection.startTime}
+          prefillEndTime={regionSelection.endTime}
+        />
+      )}
+
+      {/* Region bulk ack dialog */}
+      {regionAckOpen && regionSelection && (
+        <BulkAcknowledgeDialog
+          violationIds={regionSelection.violationIds}
+          onClose={() => { setRegionAckOpen(false); setRegionSelection(null) }}
+          contextLabel={`in selected region (${formatDisplayKey(regionSelection.startDisplayKey)} \u2014 ${formatDisplayKey(regionSelection.endDisplayKey)})`}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { ControlChart } from './ControlChart'
 import { DistributionHistogram } from './DistributionHistogram'
 import { useChartData } from '@/api/hooks'
 import type { HistogramPosition } from '@/stores/dashboardStore'
+import type { RegionSelection } from '@/components/RegionActionModal'
 
 interface ChartPanelProps {
   characteristicId: number
@@ -22,6 +23,8 @@ interface ChartPanelProps {
   defaultHistogramHeight?: number
   /** Callback when a data point is clicked for point annotation creation */
   onPointAnnotation?: (sampleId: number) => void
+  /** Callback when a region is drag-selected on the chart */
+  onRegionSelect?: (info: RegionSelection) => void
 }
 
 /**
@@ -42,6 +45,7 @@ export function ChartPanel({
   defaultHistogramWidth = 280,
   defaultHistogramHeight = 192,
   onPointAnnotation,
+  onRegionSelect,
 }: ChartPanelProps) {
   const isRightPosition = histogramPosition === 'right'
   const isBelowPosition = histogramPosition === 'below'
@@ -183,6 +187,7 @@ export function ChartPanel({
           onHoverValue={showHistogram ? setHoveredValue : undefined}
           highlightedRange={hoveredBinRange}
           onPointAnnotation={onPointAnnotation}
+          onRegionSelect={onRegionSelect}
         />
       </div>
 

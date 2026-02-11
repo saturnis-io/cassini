@@ -16,6 +16,7 @@ import { useChartData } from '@/api/hooks'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import type { ChartTypeId } from '@/types/charts'
 import type { HistogramPosition } from '@/stores/dashboardStore'
+import type { RegionSelection } from '@/components/RegionActionModal'
 
 interface DualChartPanelProps {
   characteristicId: number
@@ -33,6 +34,8 @@ interface DualChartPanelProps {
   defaultPrimaryRatio?: number
   /** Callback when a data point is clicked for point annotation creation */
   onPointAnnotation?: (sampleId: number) => void
+  /** Callback when a region is drag-selected on the chart */
+  onRegionSelect?: (info: RegionSelection) => void
 }
 
 /**
@@ -61,6 +64,7 @@ export function DualChartPanel({
   className,
   defaultPrimaryRatio = 0.6,
   onPointAnnotation,
+  onRegionSelect,
 }: DualChartPanelProps) {
   const secondaryChartType = getSecondaryChartType(chartType)
   const isRightPosition = histogramPosition === 'right'
@@ -120,15 +124,15 @@ export function DualChartPanel({
     const allLimits = [minVal, maxVal]
     if (control_limits.ucl != null) allLimits.push(control_limits.ucl)
     if (control_limits.lcl != null) allLimits.push(control_limits.lcl)
-    if (spec_limits.usl != null) allLimits.push(spec_limits.usl)
-    if (spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
+    if (showSpecLimits && spec_limits.usl != null) allLimits.push(spec_limits.usl)
+    if (showSpecLimits && spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
 
     const domainMin = Math.min(...allLimits)
     const domainMax = Math.max(...allLimits)
     const padding = (domainMax - domainMin) * 0.1
 
     return [domainMin - padding, domainMax + padding]
-  }, [chartData])
+  }, [chartData, showSpecLimits])
 
   // Compute secondary chart summary stats (for the side panel)
   const secondaryStats = useMemo(() => {
@@ -262,6 +266,7 @@ export function DualChartPanel({
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
             onPointAnnotation={onPointAnnotation}
+            onRegionSelect={onRegionSelect}
           />
         </div>
         {showHistogram && (
@@ -318,6 +323,7 @@ export function DualChartPanel({
             onHoverValue={showHistogram ? setHoveredValue : undefined}
             highlightedRange={hoveredBinRange}
             onPointAnnotation={onPointAnnotation}
+            onRegionSelect={onRegionSelect}
           />
         </div>
 

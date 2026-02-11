@@ -3,6 +3,7 @@ import { useUpdateSample, useSampleEditHistory } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
 import type { Sample } from '@/types'
+import { formatDisplayKey } from '@/lib/display-key'
 
 interface SampleEditModalProps {
   isOpen: boolean
@@ -73,7 +74,7 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
       {/* Modal */}
       <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Edit Sample #{sample.id}</h3>
+          <h3 className="text-lg font-semibold">Edit Sample {sample.display_key ? formatDisplayKey(sample.display_key) : `#${sample.id}`}</h3>
           {editCount > 0 && (
             <div className="flex items-center gap-1.5 text-amber-500 text-sm">
               <EditHistoryTooltip sampleId={sample.id} editCount={editCount} />

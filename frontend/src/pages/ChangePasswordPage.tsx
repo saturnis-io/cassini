@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
-import { useTheme } from '@/providers/ThemeProvider'
 import { authApi } from '@/api/client'
 
 /**
@@ -13,9 +12,8 @@ import { authApi } from '@/api/client'
  */
 export function ChangePasswordPage() {
   const { isAuthenticated, mustChangePassword, clearMustChangePassword, logout } = useAuth()
-  const { resolvedTheme } = useTheme()
   const navigate = useNavigate()
-  const logoSrc = resolvedTheme === 'dark' ? '/openspc-isometric-dark.png' : '/openspc-isometric-light.png'
+  const logoSrc = '/header-logo.svg'
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')

@@ -89,11 +89,11 @@ function MQTTFields({
     <div className="space-y-3">
       {/* Broker selector */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Broker</label>
+        <label className="text-[11px] text-muted-foreground">Broker</label>
         <select
           value={values.broker_id ?? ''}
           onChange={(e) => update({ broker_id: e.target.value ? Number(e.target.value) : null })}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
         >
           <option value="">Select broker...</option>
           {brokerStates.map((b: BrokerConnectionStatus) => (
@@ -106,19 +106,19 @@ function MQTTFields({
 
       {/* Topic */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Topic</label>
+        <label className="text-[11px] text-muted-foreground">Topic</label>
         <input
           type="text"
           value={values.topic}
           onChange={(e) => update({ topic: e.target.value })}
           placeholder="e.g. spBv1.0/group/DDATA/node"
-          className="w-full mt-0.5 px-2 py-1.5 text-sm font-mono bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm font-mono bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
         />
       </div>
 
       {/* Metric name (optional for SparkplugB) */}
       <div>
-        <label className="text-[11px] text-[#64748b]">
+        <label className="text-[11px] text-muted-foreground">
           Metric Name <span className="opacity-60">(optional, SparkplugB)</span>
         </label>
         <input
@@ -126,20 +126,20 @@ function MQTTFields({
           value={values.metric_name}
           onChange={(e) => update({ metric_name: e.target.value })}
           placeholder="e.g. Temperature"
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
         />
       </div>
 
       {/* Trigger tag (only for on_trigger strategy) */}
       {triggerStrategy === 'on_trigger' && (
         <div>
-          <label className="text-[11px] text-[#64748b]">Trigger Tag</label>
+          <label className="text-[11px] text-muted-foreground">Trigger Tag</label>
           <input
             type="text"
             value={values.trigger_tag}
             onChange={(e) => update({ trigger_tag: e.target.value })}
             placeholder="e.g. spBv1.0/plant/NCMD/trigger"
-            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
       )}
@@ -162,10 +162,10 @@ function OPCUAFields({
 
   // Fetch OPC-UA server statuses
   const { data: opcuaStatuses } = useQuery({
-    queryKey: ['opcua-servers-status', selectedPlantId],
+    queryKey: ['opcua-all-status', selectedPlantId],
     queryFn: () => opcuaApi.getAllStatus(selectedPlantId ?? undefined),
   })
-  const serverStates = opcuaStatuses ?? []
+  const serverStates = opcuaStatuses?.states ?? []
 
   const update = (patch: Partial<OPCUAFieldValues>) => {
     onChange({ ...values, ...patch } as ProtocolFieldValues)
@@ -175,11 +175,11 @@ function OPCUAFields({
     <div className="space-y-3">
       {/* Server selector */}
       <div>
-        <label className="text-[11px] text-[#64748b]">OPC-UA Server</label>
+        <label className="text-[11px] text-muted-foreground">OPC-UA Server</label>
         <select
           value={values.server_id ?? ''}
           onChange={(e) => update({ server_id: e.target.value ? Number(e.target.value) : null })}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
         >
           <option value="">Select server...</option>
           {serverStates.map((s: OPCUAServerStatus) => (
@@ -192,20 +192,20 @@ function OPCUAFields({
 
       {/* Node ID */}
       <div>
-        <label className="text-[11px] text-[#64748b]">Node ID</label>
+        <label className="text-[11px] text-muted-foreground">Node ID</label>
         <input
           type="text"
           value={values.node_id}
           onChange={(e) => update({ node_id: e.target.value })}
           placeholder="e.g. ns=2;i=1234"
-          className="w-full mt-0.5 px-2 py-1.5 text-sm font-mono bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+          className="w-full mt-0.5 px-2 py-1.5 text-sm font-mono bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
         />
       </div>
 
       {/* Sampling interval */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[11px] text-[#64748b]">
+          <label className="text-[11px] text-muted-foreground">
             Sampling Interval <span className="opacity-60">(ms)</span>
           </label>
           <input
@@ -213,11 +213,11 @@ function OPCUAFields({
             value={values.sampling_interval}
             onChange={(e) => update({ sampling_interval: e.target.value })}
             placeholder="1000"
-            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
         <div>
-          <label className="text-[11px] text-[#64748b]">
+          <label className="text-[11px] text-muted-foreground">
             Publishing Interval <span className="opacity-60">(ms)</span>
           </label>
           <input
@@ -225,7 +225,7 @@ function OPCUAFields({
             value={values.publishing_interval}
             onChange={(e) => update({ publishing_interval: e.target.value })}
             placeholder="1000"
-            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-[#0a0f1a] border border-[#1e293b] rounded text-[#e2e8f0] placeholder-[#475569] focus:outline-none focus:border-indigo-500/50"
+            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
           />
         </div>
       </div>

@@ -6,9 +6,9 @@ type Theme = 'light' | 'dark' | 'system'
  * Brand customization configuration
  */
 export interface BrandConfig {
-  /** Primary color (hex format, e.g., '#3b82f6') */
+  /** Primary color (hex format, e.g., '#004A98') */
   primaryColor: string
-  /** Accent color (hex format, e.g., '#8b5cf6') */
+  /** Accent color (hex format, e.g., '#62CBC9') */
   accentColor: string
   /** Custom logo URL or data URI */
   logoUrl: string | null
@@ -37,8 +37,8 @@ const BRAND_STORAGE_KEY = 'openspc-brand'
  * Default brand configuration
  */
 const DEFAULT_BRAND_CONFIG: BrandConfig = {
-  primaryColor: '#3b82f6', // blue-500
-  accentColor: '#8b5cf6',  // violet-500
+  primaryColor: '#004A98', // OpenSPC Blue — matches @theme --color-primary
+  accentColor: '#62CBC9',  // OpenSPC Teal — matches @theme --color-accent
   logoUrl: null,
   appName: 'OpenSPC',
 }
@@ -123,11 +123,11 @@ function applyBrandColors(config: BrandConfig) {
   const root = document.documentElement
 
   if (isValidHexColor(config.primaryColor)) {
-    root.style.setProperty('--primary', hexToHsl(config.primaryColor))
+    root.style.setProperty('--color-primary', `hsl(${hexToHsl(config.primaryColor)})`)
   }
 
   if (isValidHexColor(config.accentColor)) {
-    root.style.setProperty('--accent', hexToHsl(config.accentColor))
+    root.style.setProperty('--color-accent', `hsl(${hexToHsl(config.accentColor)})`)
   }
 }
 
@@ -179,10 +179,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const resetBrandConfig = useCallback(() => {
     setBrandConfigState(DEFAULT_BRAND_CONFIG)
     localStorage.removeItem(BRAND_STORAGE_KEY)
-    // Reset CSS variables
+    // Reset CSS variables to theme defaults
     const root = document.documentElement
-    root.style.removeProperty('--primary')
-    root.style.removeProperty('--accent')
+    root.style.removeProperty('--color-primary')
+    root.style.removeProperty('--color-accent')
   }, [])
 
   // Apply theme to document - intentional DOM sync
@@ -203,14 +203,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     applyBrandColors(brandConfig)
   }, [brandConfig])
-
-  // Switch favicon based on resolved theme
-  useEffect(() => {
-    const favicon = document.getElementById('favicon') as HTMLLinkElement | null
-    if (favicon) {
-      favicon.href = resolvedTheme === 'dark' ? '/favicon-dark.ico' : '/favicon-light.ico'
-    }
-  }, [resolvedTheme])
 
   // Listen for system theme changes when in 'system' mode
   useEffect(() => {

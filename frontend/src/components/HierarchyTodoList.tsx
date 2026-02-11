@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useHierarchyTreeByPlant, useHierarchyCharacteristics, useCharacteristic } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useHierarchyCharacteristics, useCharacteristic, useCharacteristics } from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
 import { SelectionToolbar } from './SelectionToolbar'
@@ -31,8 +31,12 @@ function getCharacteristicStatus(char: Characteristic): CharacteristicStatus {
   if (char.in_control === false) {
     return 'OOC'
   }
-  // Default to DUE (needs attention)
-  return 'DUE'
+  // DUE = no sample data yet (needs first sample)
+  if (char.sample_count === 0) {
+    return 'DUE'
+  }
+  // Has data and no violations → in control
+  return 'OK'
 }
 
 /**
@@ -210,23 +214,19 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
     autoExpandedRef.current = false
   }, [selectedPlant?.id])
 
-  // Calculate status counts from hierarchy node characteristic counts
-  // Note: We can't get detailed status without loading all characteristics,
-  // so we show total count only until nodes are expanded
+  // Fetch all characteristics for the plant to compute accurate status counts
+  const { data: allPlantChars } = useCharacteristics(
+    selectedPlant?.id ? { plant_id: selectedPlant.id, per_page: 1000 } : undefined
+  )
+
   const statusCounts = useMemo(() => {
     const counts = { OOC: 0, DUE: 0, OK: 0, ALL: 0 }
-    // Count all characteristics from the hierarchy tree
-    const countCharacteristics = (nodeList: typeof nodes) => {
-      nodeList?.forEach((node) => {
-        counts.ALL += node.characteristic_count ?? 0
-        if (node.children) {
-          countCharacteristics(node.children)
-        }
-      })
-    }
-    countCharacteristics(nodes)
+    allPlantChars?.items?.forEach((char) => {
+      counts.ALL++
+      counts[getCharacteristicStatus(char)]++
+    })
     return counts
-  }, [nodes])
+  }, [allPlantChars])
 
   const toggleNodeExpanded = (id: number) => {
     setExpandedNodeIds((prev) => {

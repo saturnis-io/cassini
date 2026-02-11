@@ -88,7 +88,7 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
         <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
           <div className="flex items-center gap-3">
             <img
-              src={brandConfig.logoUrl || '/openspc-isometric-light.png'}
+              src={brandConfig.logoUrl || '/header-logo.svg'}
               alt={`${brandConfig.appName} logo`}
               className="h-12 w-12 object-contain"
             />

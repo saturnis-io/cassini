@@ -573,6 +573,7 @@ class SPCEngine:
             # Create violation record through repository
             violation_record = await self._violation_repo.create(
                 sample_id=sample_id,
+                char_id=characteristic_id,
                 rule_id=result.rule_id,
                 rule_name=result.rule_name,
                 severity=result.severity.value,

@@ -39,7 +39,7 @@ export function DatabaseMaintenancePanel() {
   return (
     <div className="space-y-3">
       {/* Backup */}
-      <div className="p-3 bg-muted/50 rounded-lg space-y-3">
+      <div className="p-4 bg-card border border-border rounded-xl space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium">Database Backup</div>
@@ -84,15 +84,15 @@ export function DatabaseMaintenancePanel() {
               value={backupDir}
               onChange={(e) => setBackupDir(e.target.value)}
               placeholder="e.g. /mnt/backups or \\\\server\\share\\backups"
-              className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
         )}
 
         {/* Backup result */}
         {lastBackup && (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 space-y-1.5">
-            <div className="text-sm text-green-700 dark:text-green-300 font-medium">
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-1.5">
+            <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
               {lastBackup.message}
             </div>
             {lastBackup.path && (
@@ -106,7 +106,7 @@ export function DatabaseMaintenancePanel() {
                   title="Copy path"
                 >
                   {copiedPath ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                   ) : (
                     <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
@@ -131,7 +131,7 @@ export function DatabaseMaintenancePanel() {
       </div>
 
       {/* Vacuum/Optimize */}
-      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+      <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl">
         <div>
           <div className="text-sm font-medium">Optimize Database</div>
           <div className="text-xs text-muted-foreground">

@@ -104,8 +104,8 @@ export function ManualEntryPanel() {
   const isValid = selectedChar && filledCount >= minRequired
 
   return (
-    <div className="space-y-6">
-      <div className="bg-card border border-border rounded-xl p-5">
+    <div className="space-y-5">
+      <div className="bg-muted rounded-xl p-6">
         <h3 className="font-semibold mb-4">Select Characteristic</h3>
         <HierarchyCharacteristicSelector
           selectedCharId={globalCharId}
@@ -127,7 +127,7 @@ export function ManualEntryPanel() {
       </div>
 
       {selectedChar && (
-        <div className="bg-card border border-border rounded-xl p-5">
+        <div className="bg-muted rounded-xl p-6">
           <h3 className="font-semibold mb-4">Submit Sample</h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -229,7 +229,7 @@ export function ManualEntryPanel() {
 
       {/* Quick Stats */}
       {selectedChar && (
-        <div className="bg-card border border-border rounded-xl p-5">
+        <div className="bg-muted rounded-xl p-6">
           <h3 className="font-semibold mb-4">Characteristic Info</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>

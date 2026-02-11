@@ -1,9 +1,10 @@
 """Base repository with generic CRUD operations."""
 
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Sequence, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import QueryableAttribute
 
 from openspc.db.models.hierarchy import Base
 
@@ -30,15 +31,22 @@ class BaseRepository(Generic[ModelT]):
         self.session = session
         self.model = model
 
-    async def get_by_id(self, id: int) -> ModelT | None:
+    async def get_by_id(
+        self, id: int, options: Sequence[Any] | None = None
+    ) -> ModelT | None:
         """Retrieve a single record by primary key.
 
         Args:
             id: Primary key of the record to retrieve
+            options: Optional loader options (e.g. selectinload) for eager loading
 
         Returns:
             The model instance if found, None otherwise
         """
+        if options:
+            stmt = select(self.model).where(self.model.id == id).options(*options)
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
         return await self.session.get(self.model, id)
 
     async def get_all(self, offset: int = 0, limit: int = 100) -> list[ModelT]:

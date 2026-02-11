@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openspc.db.models.hierarchy import Base
@@ -27,11 +27,14 @@ class Sample(Base):
     """
 
     __tablename__ = "sample"
+    __table_args__ = (
+        Index("ix_sample_char_id_timestamp", "char_id", "timestamp"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    char_id: Mapped[int] = mapped_column(ForeignKey("characteristic.id"), nullable=False)
+    char_id: Mapped[int] = mapped_column(ForeignKey("characteristic.id", ondelete="CASCADE"), nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=_utc_now, nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     batch_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     operator_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -80,7 +83,7 @@ class Measurement(Base):
     __tablename__ = "measurement"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), nullable=False)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Relationship
@@ -100,11 +103,11 @@ class SampleEditHistory(Base):
     __tablename__ = "sample_edit_history"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), nullable=False)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False)
 
     # When the edit was made
     edited_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_utc_now, nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Who made the edit (optional - could be operator_id or user identifier)
@@ -113,12 +116,11 @@ class SampleEditHistory(Base):
     # Required reason for the change
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Store previous values as JSON-formatted string for audit purposes
-    # Format: "[1.23, 4.56, 7.89]"
-    previous_values: Mapped[str] = mapped_column(Text, nullable=False)
+    # Store previous values as JSON for audit purposes
+    previous_values: Mapped[list] = mapped_column(JSON, nullable=False)
 
-    # Store new values as JSON-formatted string
-    new_values: Mapped[str] = mapped_column(Text, nullable=False)
+    # Store new values as JSON
+    new_values: Mapped[list] = mapped_column(JSON, nullable=False)
 
     # Previous calculated mean (for quick reference)
     previous_mean: Mapped[float] = mapped_column(Float, nullable=False)

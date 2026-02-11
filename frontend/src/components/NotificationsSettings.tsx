@@ -84,9 +84,9 @@ export function NotificationsSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Webhook Configuration */}
-      <div className="bg-card border border-border rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Globe className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold">Webhook Configuration</h3>
@@ -141,7 +141,7 @@ export function NotificationsSettings() {
       </div>
 
       {/* Notification Preferences */}
-      <div className="bg-card border border-border rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Bell className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold">Notification Events</h3>
@@ -216,7 +216,7 @@ export function NotificationsSettings() {
       </div>
 
       {/* Webhook Payload Example */}
-      <div className="bg-muted/50 border border-border rounded-xl p-4">
+      <div className="bg-muted rounded-xl p-6">
         <h4 className="font-medium mb-2">Webhook Payload Format</h4>
         <pre className="bg-background rounded-lg p-3 text-xs overflow-x-auto">
 {`{

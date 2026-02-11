@@ -6,7 +6,13 @@ import { Layout } from '@/components/Layout'
 import { OperatorDashboard } from '@/pages/OperatorDashboard'
 import { ConfigurationView } from '@/pages/ConfigurationView'
 import { DataEntryView } from '@/pages/DataEntryView'
-import { SettingsView } from '@/pages/SettingsView'
+import { SettingsPage } from '@/pages/SettingsView'
+import { AppearanceSettings } from '@/components/AppearanceSettings'
+import { NotificationsSettings } from '@/components/NotificationsSettings'
+import { ThemeCustomizer } from '@/components/ThemeCustomizer'
+import { PlantSettings } from '@/components/PlantSettings'
+import { ApiKeysSettings } from '@/components/ApiKeysSettings'
+import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
@@ -213,10 +219,32 @@ function App() {
                   path="settings"
                   element={
                     <ProtectedRoute requiredRole="engineer">
-                      <SettingsView />
+                      <SettingsPage />
                     </ProtectedRoute>
                   }
-                />
+                >
+                  <Route index element={<Navigate to="appearance" replace />} />
+                  <Route path="appearance" element={<AppearanceSettings />} />
+                  <Route path="notifications" element={<NotificationsSettings />} />
+                  <Route
+                    path="branding"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <ThemeCustomizer />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="sites"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <PlantSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="api-keys" element={<ApiKeysSettings />} />
+                  <Route path="database" element={<DatabaseSettings />} />
+                </Route>
                 <Route
                   path="admin/users"
                   element={

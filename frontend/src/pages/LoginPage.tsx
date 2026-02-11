@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
-import { useTheme } from '@/providers/ThemeProvider'
 
 /**
  * Login page with username/password form.
@@ -11,10 +10,9 @@ import { useTheme } from '@/providers/ThemeProvider'
  */
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth()
-  const { resolvedTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
-  const logoSrc = resolvedTheme === 'dark' ? '/openspc-isometric-dark.png' : '/openspc-isometric-light.png'
+  const logoSrc = '/header-logo.svg'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')

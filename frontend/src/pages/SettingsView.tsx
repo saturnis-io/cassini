@@ -1,85 +1,100 @@
-import { useState } from 'react'
-import { AppearanceSettings } from '@/components/AppearanceSettings'
-import { ApiKeysSettings } from '@/components/ApiKeysSettings'
-import { NotificationsSettings } from '@/components/NotificationsSettings'
-import { DatabaseSettings } from '@/components/DatabaseSettings'
-import { ThemeCustomizer } from '@/components/ThemeCustomizer'
-import { PlantSettings } from '@/components/PlantSettings'
-import { cn } from '@/lib/utils'
+import { NavLink, Outlet } from 'react-router-dom'
 import { Key, Bell, Database, Palette, Building2, Factory } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
-import { hasAccess } from '@/lib/roles'
+import { hasAccess, type Role } from '@/lib/roles'
+import type { LucideIcon } from 'lucide-react'
 
-type SettingsTab = 'appearance' | 'branding' | 'plants' | 'api-keys' | 'notifications' | 'database'
+interface TabDef {
+  to: string
+  label: string
+  icon: LucideIcon
+  minRole?: Role
+}
 
-export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
+const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
+  {
+    label: 'Personal',
+    tabs: [
+      { to: 'appearance', label: 'Appearance', icon: Palette },
+      { to: 'notifications', label: 'Notifications', icon: Bell },
+    ],
+  },
+  {
+    label: 'Administration',
+    tabs: [
+      { to: 'branding', label: 'Branding', icon: Building2, minRole: 'admin' },
+      { to: 'sites', label: 'Sites', icon: Factory, minRole: 'admin' },
+      { to: 'api-keys', label: 'API Keys', icon: Key, minRole: 'engineer' },
+      { to: 'database', label: 'Database', icon: Database, minRole: 'engineer' },
+    ],
+  },
+]
+
+/**
+ * Settings page — layout shell with sidebar navigation.
+ * Each tab renders via nested <Route> and <Outlet>.
+ */
+export function SettingsPage() {
   const { role } = useAuth()
 
-  // Check role-based access for tabs
-  const isAdmin = hasAccess(role, 'admin')
-  const isEngineer = hasAccess(role, 'engineer')
-
-  const tabs = [
-    { id: 'appearance' as const, label: 'Appearance', icon: Palette, visible: true },
-    { id: 'branding' as const, label: 'Branding', icon: Building2, visible: isAdmin },
-    { id: 'plants' as const, label: 'Sites', icon: Factory, visible: isAdmin },
-    { id: 'api-keys' as const, label: 'API Keys', icon: Key, visible: isEngineer },
-    { id: 'notifications' as const, label: 'Notifications', icon: Bell, visible: true },
-    { id: 'database' as const, label: 'Database', icon: Database, visible: isEngineer },
-  ].filter((tab) => tab.visible)
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Configure system settings and integrations</p>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 pt-5 pb-5">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Configure system settings and integrations
+        </p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="border-b border-border">
-        <nav className="flex gap-4">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-                activeTab === tab.id
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Sidebar + Content */}
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar Navigation */}
+        <nav
+          className="w-52 shrink-0 border-r border-border bg-card/50 overflow-y-auto py-4 px-3"
+          aria-label="Settings navigation"
+        >
+          {SIDEBAR_GROUPS.map((group) => {
+            const visibleTabs = group.tabs.filter(
+              (tab) => !tab.minRole || hasAccess(role, tab.minRole)
+            )
+            if (visibleTabs.length === 0) return null
+
+            return (
+              <div key={group.label} className="mb-5">
+                <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </div>
+                <div className="space-y-0.5">
+                  {visibleTabs.map((tab) => (
+                    <NavLink
+                      key={tab.to}
+                      to={tab.to}
+                      end={tab.to === 'appearance'}
+                      className={({ isActive }) =>
+                        cn(
+                          'w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        )
+                      }
+                    >
+                      <tab.icon className="h-4 w-4" />
+                      {tab.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </nav>
-      </div>
 
-      {/* Tab Content */}
-      <div>
-        {activeTab === 'appearance' && <AppearanceSettings />}
-
-        {activeTab === 'branding' && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Brand Customization</h2>
-              <p className="text-sm text-muted-foreground">
-                Customize the application appearance with your brand colors and logo.
-              </p>
-            </div>
-            <ThemeCustomizer />
-          </div>
-        )}
-
-        {activeTab === 'plants' && <PlantSettings />}
-
-        {activeTab === 'api-keys' && <ApiKeysSettings />}
-
-        {activeTab === 'notifications' && <NotificationsSettings />}
-
-        {activeTab === 'database' && <DatabaseSettings />}
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <Outlet />
+        </main>
       </div>
     </div>
   )

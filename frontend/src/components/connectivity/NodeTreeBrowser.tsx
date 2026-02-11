@@ -93,7 +93,7 @@ export function NodeTreeBrowser({ serverId, onNodeSelect }: NodeTreeBrowserProps
 
   if (rootLoading) {
     return (
-      <div className="flex items-center justify-center py-12 text-[#64748b]">
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
         <span className="text-sm">Browsing address space...</span>
       </div>
@@ -111,7 +111,7 @@ export function NodeTreeBrowser({ serverId, onNodeSelect }: NodeTreeBrowserProps
 
   if (!rootNodes || rootNodes.length === 0) {
     return (
-      <div className="flex flex-col items-center py-12 text-[#64748b]">
+      <div className="flex flex-col items-center py-12 text-muted-foreground">
         <Server className="h-8 w-8 mb-2 opacity-40" />
         <p className="text-sm">No nodes found in address space</p>
       </div>
@@ -167,7 +167,7 @@ function NodeItem({
         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-sm cursor-pointer transition-colors group ${
           isSelected
             ? 'bg-indigo-500/15 text-indigo-300'
-            : 'text-[#e2e8f0] hover:bg-[#1e293b]'
+            : 'text-foreground hover:bg-muted'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
@@ -178,11 +178,11 @@ function NodeItem({
         {/* Expand/collapse chevron */}
         {canExpand ? (
           expandState?.loading ? (
-            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#64748b]" />
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
           ) : isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#64748b]" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#64748b]" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         ) : (
           <span className="w-3.5 shrink-0" />
@@ -199,7 +199,7 @@ function NodeItem({
 
         {/* Data type for variables */}
         {node.data_type && (
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-[#1e293b] text-[#94a3b8] shrink-0">
+          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-muted text-muted-foreground shrink-0">
             {node.data_type}
           </span>
         )}
@@ -221,7 +221,7 @@ function NodeItem({
         <div>
           {expandState.children.length === 0 ? (
             <div
-              className="px-2 py-1 text-xs text-[#475569] italic"
+              className="px-2 py-1 text-xs text-muted-foreground italic"
               style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
             >
               No child nodes
@@ -263,7 +263,7 @@ function NodeIcon({ node, isExpanded }: { node: OPCUABrowsedNode; isExpanded: bo
   if (node.node_class === 'Object') {
     return <Box className="h-3.5 w-3.5 shrink-0 text-indigo-400/70" />
   }
-  return <Box className="h-3.5 w-3.5 shrink-0 text-[#64748b]" />
+  return <Box className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 }
 
 /* -----------------------------------------------------------------------
@@ -282,7 +282,7 @@ function NodeClassBadge({ nodeClass }: { nodeClass: string }) {
     View: 'bg-emerald-500/10 text-emerald-400',
   }
 
-  const style = badgeStyles[nodeClass] ?? 'bg-[#1e293b] text-[#64748b]'
+  const style = badgeStyles[nodeClass] ?? 'bg-muted text-muted-foreground'
 
   return (
     <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded shrink-0 ${style}`}>

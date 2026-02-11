@@ -50,7 +50,7 @@ class PlantRepository:
             settings=settings,
         )
         self.session.add(plant)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(plant)
         return plant
 
@@ -66,7 +66,7 @@ class PlantRepository:
                     value = value.upper()
                 setattr(plant, key, value)
 
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(plant)
         return plant
 
@@ -77,5 +77,5 @@ class PlantRepository:
             return False
 
         await self.session.delete(plant)
-        await self.session.commit()
+        await self.session.flush()
         return True

@@ -8,7 +8,7 @@ import uuid
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
-from sqlalchemy import Boolean, DateTime, Integer, String, JSON
+from sqlalchemy import Boolean, DateTime, Integer, String, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from openspc.db.models.hierarchy import Base
@@ -42,17 +42,17 @@ class APIKey(Base):
         String(16), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=_utc_now,
+        DateTime(timezone=True),
+        server_default=func.now(),
         nullable=False,
     )
     expires_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=True,
     )
     permissions: Mapped[dict] = mapped_column(
         JSON,
-        default={"characteristics": "all"},
+        default=lambda: {"characteristics": "all"},
         nullable=False,
     )
     rate_limit_per_minute: Mapped[int] = mapped_column(
@@ -66,7 +66,7 @@ class APIKey(Base):
         nullable=False,
     )
     last_used_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=True,
     )
 

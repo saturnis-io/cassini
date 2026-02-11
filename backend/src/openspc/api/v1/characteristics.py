@@ -155,8 +155,35 @@ async def list_characteristics(
     result = await session.execute(stmt)
     characteristics = list(result.scalars().all())
 
-    # Convert to response models
-    items = [CharacteristicResponse.model_validate(char) for char in characteristics]
+    # Compute sample_count and unacknowledged_violations per characteristic
+    if characteristics:
+        from openspc.db.models.sample import Sample as SampleModel
+        from openspc.db.models.violation import Violation as ViolationModel
+
+        char_ids = [c.id for c in characteristics]
+
+        sample_counts_result = await session.execute(
+            select(SampleModel.char_id, func.count(SampleModel.id))
+            .where(SampleModel.char_id.in_(char_ids))
+            .group_by(SampleModel.char_id)
+        )
+        sample_count_map = dict(sample_counts_result.all())
+
+        violation_counts_result = await session.execute(
+            select(ViolationModel.char_id, func.count(ViolationModel.id))
+            .where(ViolationModel.char_id.in_(char_ids), ViolationModel.acknowledged.is_(False))
+            .group_by(ViolationModel.char_id)
+        )
+        violation_count_map = dict(violation_counts_result.all())
+
+        items = []
+        for char in characteristics:
+            resp = CharacteristicResponse.model_validate(char)
+            resp.sample_count = sample_count_map.get(char.id, 0)
+            resp.unacknowledged_violations = violation_count_map.get(char.id, 0)
+            items.append(resp)
+    else:
+        items = []
 
     return PaginatedResponse(
         items=items,
@@ -410,6 +437,33 @@ async def get_chart_data(
     from openspc.utils.statistics import classify_zone, calculate_mean_range
     import numpy as np
 
+    # Compute display keys (YYMMDD-NNN) — count ALL preceding samples per day
+    # (including excluded) so keys match the single-sample endpoint exactly.
+    from openspc.db.models.sample import Sample as SampleModel
+    from sqlalchemy import and_
+
+    _display_keys: dict[int, str] = {}
+    for sample in samples:
+        day_str = sample.timestamp.strftime('%y%m%d')
+        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        count_stmt = select(func.count()).select_from(
+            select(SampleModel.id).where(
+                and_(
+                    SampleModel.char_id == sample.char_id,
+                    SampleModel.timestamp >= day_start,
+                    SampleModel.timestamp <= day_end,
+                    (SampleModel.timestamp < sample.timestamp)
+                    | (
+                        (SampleModel.timestamp == sample.timestamp)
+                        & (SampleModel.id < sample.id)
+                    ),
+                )
+            ).subquery()
+        )
+        preceding = (await session.execute(count_stmt)).scalar_one()
+        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+
     chart_samples = []
     for sample in samples:
         values = [m.value for m in sample.measurements]
@@ -424,6 +478,10 @@ async def get_chart_data(
         # Get violations for this sample from batch-loaded data
         sample_violations = violations_by_sample.get(sample.id, [])
         violation_ids = [v.id for v in sample_violations]
+        unacknowledged_violation_ids = [
+            v.id for v in sample_violations
+            if v.requires_acknowledgement and not v.acknowledged
+        ]
         violation_rules = list(set(v.rule_id for v in sample_violations))
 
         chart_samples.append(ChartSample(
@@ -434,6 +492,7 @@ async def get_chart_data(
             std_dev=std_dev_value,
             excluded=sample.is_excluded,
             violation_ids=violation_ids,
+            unacknowledged_violation_ids=unacknowledged_violation_ids,
             violation_rules=violation_rules,
             zone=zone,
             actual_n=sample.actual_n or len(values),
@@ -442,6 +501,7 @@ async def get_chart_data(
             effective_lcl=sample.effective_lcl,
             z_score=sample.z_score,
             display_value=sample.z_score if characteristic.subgroup_mode == "STANDARDIZED" else value,
+            display_key=_display_keys.get(sample.id, ""),
         ))
 
     control_limits = ControlLimits(

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Database, Download, Trash2, RefreshCw, HardDrive, Server, Settings, ChevronDown, ChevronRight, GitBranch, Wrench } from 'lucide-react'
+import { Database, Download, Trash2, RefreshCw, HardDrive, Server } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { characteristicApi, sampleApi, violationApi } from '@/api/client'
@@ -44,11 +44,20 @@ const DIALECT_LABELS: Record<string, string> = {
   mssql: 'MSSQL',
 }
 
+type DatabaseSubTab = 'status' | 'connection' | 'migrations' | 'maintenance'
+
+const SUB_TABS: { id: DatabaseSubTab; label: string; adminOnly?: boolean }[] = [
+  { id: 'status', label: 'Status' },
+  { id: 'connection', label: 'Connection', adminOnly: true },
+  { id: 'migrations', label: 'Migrations', adminOnly: true },
+  { id: 'maintenance', label: 'Maintenance' },
+]
+
 export function DatabaseSettings() {
+  const [subTab, setSubTab] = useState<DatabaseSubTab>('status')
   const [showClearDialog, setShowClearDialog] = useState(false)
   const [clearTarget, setClearTarget] = useState<'samples' | 'all' | null>(null)
   const [isExporting, setIsExporting] = useState(false)
-  const [showConnectionConfig, setShowConnectionConfig] = useState(false)
 
   const { role } = useAuth()
   const isAdmin = hasAccess(role, 'admin')
@@ -147,228 +156,118 @@ export function DatabaseSettings() {
     setClearTarget(null)
   }
 
-  const statCards = [
-    { label: 'Characteristics', value: stats?.characteristics_count ?? '-', icon: Database },
-    { label: 'Samples', value: stats?.samples_count ?? '-', icon: HardDrive },
-    { label: 'Violations', value: stats?.violations_count ?? '-', icon: Database },
-  ]
+  // Filter sub-tabs by role
+  const visibleSubTabs = SUB_TABS.filter((t) => !t.adminOnly || isAdmin)
+
+  // If active sub-tab becomes invisible (role change), reset
+  if (!visibleSubTabs.find((t) => t.id === subTab)) {
+    setSubTab('status')
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Database Status */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Database Status</h3>
-          </div>
+    <div className="space-y-5">
+      {/* Pill Sub-Navigation */}
+      <div className="flex gap-1.5">
+        {visibleSubTabs.map((tab) => (
           <button
-            onClick={() => refetchStatus()}
-            disabled={statusLoading}
-            className="p-2 hover:bg-muted rounded-lg"
-            title="Refresh status"
-          >
-            <RefreshCw className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
-          </button>
-        </div>
-
-        {dbStatus ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Engine</div>
-              <div className="font-medium text-sm">
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">
-                  {DIALECT_LABELS[dbStatus.dialect] || dbStatus.dialect}
-                </span>
-              </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Status</div>
-              <div className="flex items-center gap-1.5">
-                <div className={cn('h-2 w-2 rounded-full', dbStatus.is_connected ? 'bg-green-500' : 'bg-red-500')} />
-                <span className="text-sm font-medium">{dbStatus.is_connected ? 'Connected' : 'Disconnected'}</span>
-              </div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Tables</div>
-              <div className="text-sm font-medium">{dbStatus.table_count}</div>
-            </div>
-            <div className="bg-muted/50 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Size</div>
-              <div className="text-sm font-medium">
-                {dbStatus.database_size_mb != null ? `${dbStatus.database_size_mb} MB` : 'N/A'}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-muted-foreground">Loading status...</div>
-        )}
-
-        {dbStatus?.version && (
-          <div className="mt-3 text-xs text-muted-foreground truncate">
-            Version: {dbStatus.version}
-          </div>
-        )}
-      </div>
-
-      {/* Database Statistics */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Database Statistics</h3>
-          </div>
-          <button
-            onClick={() => refetchStats()}
-            disabled={statsLoading}
-            className="p-2 hover:bg-muted rounded-lg"
-            title="Refresh statistics"
-          >
-            <RefreshCw className={cn('h-4 w-4', statsLoading && 'animate-spin')} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          {statCards.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-muted/50 rounded-lg p-4 text-center"
-            >
-              <stat.icon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <div className="text-2xl font-bold">
-                {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
-              </div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Connection Configuration (Admin only) */}
-      {isAdmin && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <button
-            onClick={() => setShowConnectionConfig(!showConnectionConfig)}
-            className="flex items-center justify-between w-full"
-          >
-            <div className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Connection Configuration</h3>
-            </div>
-            {showConnectionConfig ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            key={tab.id}
+            onClick={() => setSubTab(tab.id)}
+            className={cn(
+              'px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors',
+              subTab === tab.id
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
+          >
+            {tab.label}
           </button>
+        ))}
+      </div>
 
-          {showConnectionConfig && (
-            <div className="mt-4">
-              <DatabaseConnectionForm />
-            </div>
-          )}
+      {/* Sub-Tab Content */}
+      {subTab === 'status' && (
+        <StatusContent
+          dbStatus={dbStatus}
+          statusLoading={statusLoading}
+          refetchStatus={refetchStatus}
+          stats={stats}
+          statsLoading={statsLoading}
+          refetchStats={refetchStats}
+        />
+      )}
+
+      {subTab === 'connection' && isAdmin && (
+        <div className="bg-muted rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Server className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Connection Configuration</h3>
+          </div>
+          <DatabaseConnectionForm />
         </div>
       )}
 
-      {/* Migration Status (Admin only) */}
-      {isAdmin && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <GitBranch className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Migration Status</h3>
-          </div>
+      {subTab === 'migrations' && isAdmin && (
+        <div className="bg-muted rounded-xl p-6">
+          <h3 className="font-semibold mb-4">Migration Status</h3>
           <DatabaseMigrationStatus />
         </div>
       )}
 
-      {/* Maintenance (Admin only) */}
-      {isAdmin && (
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Wrench className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Maintenance</h3>
-          </div>
-          <DatabaseMaintenancePanel />
-        </div>
+      {subTab === 'maintenance' && (
+        <MaintenanceContent
+          isExporting={isExporting}
+          onExport={handleExport}
+        />
       )}
 
-      {/* Export Data */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Download className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold">Export Data</h3>
-        </div>
-
-        <p className="text-sm text-muted-foreground mb-4">
-          Download all characteristics, samples, and violations data for backup or analysis.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => handleExport('json')}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" />
-            Export JSON
-          </button>
-          <button
-            onClick={() => handleExport('csv')}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted disabled:opacity-50"
-          >
-            <Download className="h-4 w-4" />
-            Export Samples CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Danger Zone */}
-      <div className="bg-card border border-destructive/50 rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Trash2 className="h-5 w-5 text-destructive" />
-          <h3 className="font-semibold text-destructive">Danger Zone</h3>
-        </div>
-
-        <p className="text-sm text-muted-foreground mb-4">
-          These actions are irreversible. Please be certain before proceeding.
-        </p>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-            <div>
-              <div className="font-medium">Clear Sample Data</div>
-              <div className="text-sm text-muted-foreground">
-                Delete all samples and violations while keeping characteristics
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setClearTarget('samples')
-                setShowClearDialog(true)
-              }}
-              className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/50 rounded-lg hover:bg-destructive/10"
-            >
-              Clear Samples
-            </button>
+      {/* Danger Zone — separated with extra spacing */}
+      <div className="pt-4">
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Trash2 className="h-5 w-5 text-destructive" />
+            <h3 className="font-semibold text-destructive">Danger Zone</h3>
           </div>
 
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-            <div>
-              <div className="font-medium">Reset Database</div>
-              <div className="text-sm text-muted-foreground">
-                Delete all data including hierarchy, characteristics, and samples
+          <p className="text-sm text-muted-foreground mb-4">
+            These actions are irreversible. Please be certain before proceeding.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-card border border-border rounded-lg">
+              <div>
+                <div className="font-medium text-sm">Clear Sample Data</div>
+                <div className="text-xs text-muted-foreground">
+                  Delete all samples and violations while keeping characteristics
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setClearTarget('samples')
+                  setShowClearDialog(true)
+                }}
+                className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10"
+              >
+                Clear Samples
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setClearTarget('all')
-                setShowClearDialog(true)
-              }}
-              className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/50 rounded-lg hover:bg-destructive/10"
-            >
-              Reset All
-            </button>
+
+            <div className="flex items-center justify-between p-3 bg-card border border-border rounded-lg">
+              <div>
+                <div className="font-medium text-sm">Reset Database</div>
+                <div className="text-xs text-muted-foreground">
+                  Delete all data including hierarchy, characteristics, and samples
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setClearTarget('all')
+                  setShowClearDialog(true)
+                }}
+                className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10"
+              >
+                Reset All
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -397,10 +296,7 @@ export function DatabaseSettings() {
               </button>
               <button
                 onClick={handleClearData}
-                className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
-                  'bg-destructive text-destructive-foreground'
-                )}
+                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-destructive text-destructive-foreground"
               >
                 {clearTarget === 'all' ? 'Reset Everything' : 'Clear Samples'}
               </button>
@@ -408,6 +304,178 @@ export function DatabaseSettings() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Status Sub-Tab
+ * ----------------------------------------------------------------------- */
+
+function StatusContent({
+  dbStatus,
+  statusLoading,
+  refetchStatus,
+  stats,
+  statsLoading,
+  refetchStats,
+}: {
+  dbStatus: ReturnType<typeof useDatabaseStatus>['data']
+  statusLoading: boolean
+  refetchStatus: () => void
+  stats: DatabaseStats | undefined
+  statsLoading: boolean
+  refetchStats: () => void
+}) {
+  const statCards = [
+    { label: 'Characteristics', value: stats?.characteristics_count ?? '-', icon: Database },
+    { label: 'Samples', value: stats?.samples_count ?? '-', icon: HardDrive },
+    { label: 'Violations', value: stats?.violations_count ?? '-', icon: Database },
+  ]
+
+  return (
+    <div className="space-y-5">
+      {/* Database Status */}
+      <div className="bg-muted rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Server className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Database Status</h3>
+          </div>
+          <button
+            onClick={() => refetchStatus()}
+            disabled={statusLoading}
+            className="p-2 hover:bg-card rounded-lg"
+            title="Refresh status"
+          >
+            <RefreshCw className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {dbStatus ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Engine</div>
+              <div className="font-medium text-sm">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">
+                  {DIALECT_LABELS[dbStatus.dialect] || dbStatus.dialect}
+                </span>
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Status</div>
+              <div className="flex items-center gap-1.5">
+                <div className={cn('h-2 w-2 rounded-full', dbStatus.is_connected ? 'bg-emerald-500' : 'bg-red-500')} />
+                <span className="text-sm font-medium">{dbStatus.is_connected ? 'Connected' : 'Disconnected'}</span>
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Tables</div>
+              <div className="text-sm font-medium">{dbStatus.table_count}</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-3">
+              <div className="text-xs text-muted-foreground mb-1">Size</div>
+              <div className="text-sm font-medium">
+                {dbStatus.database_size_mb != null ? `${dbStatus.database_size_mb} MB` : 'N/A'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">Loading status...</div>
+        )}
+
+        {dbStatus?.version && (
+          <div className="mt-3 text-xs text-muted-foreground truncate">
+            Version: {dbStatus.version}
+          </div>
+        )}
+      </div>
+
+      {/* Database Statistics */}
+      <div className="bg-muted rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">Statistics</h3>
+          </div>
+          <button
+            onClick={() => refetchStats()}
+            disabled={statsLoading}
+            className="p-2 hover:bg-card rounded-lg"
+            title="Refresh statistics"
+          >
+            <RefreshCw className={cn('h-4 w-4', statsLoading && 'animate-spin')} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {statCards.map((stat) => (
+            <div
+              key={stat.label}
+              className="bg-card border border-border rounded-lg p-4 text-center"
+            >
+              <stat.icon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <div className="text-2xl font-bold">
+                {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
+              </div>
+              <div className="text-sm text-muted-foreground">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Maintenance Sub-Tab
+ * ----------------------------------------------------------------------- */
+
+function MaintenanceContent({
+  isExporting,
+  onExport,
+}: {
+  isExporting: boolean
+  onExport: (format: 'json' | 'csv') => void
+}) {
+  return (
+    <div className="space-y-5">
+      {/* Maintenance Tools */}
+      <div className="bg-muted rounded-xl p-6">
+        <h3 className="font-semibold mb-4">Maintenance</h3>
+        <DatabaseMaintenancePanel />
+      </div>
+
+      {/* Export Data */}
+      <div className="bg-muted rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Download className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-semibold">Export Data</h3>
+        </div>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          Download all characteristics, samples, and violations data for backup or analysis.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => onExport('json')}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg bg-card hover:bg-card/80 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Export JSON
+          </button>
+          <button
+            onClick={() => onExport('csv')}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg bg-card hover:bg-card/80 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Export Samples CSV
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

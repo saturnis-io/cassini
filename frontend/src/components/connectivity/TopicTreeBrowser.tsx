@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ChevronRight,
   ChevronDown,
@@ -8,6 +8,9 @@ import {
   Radio,
   List,
   GitBranch,
+  Radar,
+  Square,
+  Loader2,
 } from 'lucide-react'
 import { brokerApi } from '@/api/client'
 import type { DiscoveredTopic, TopicTreeNode, SparkplugMetricInfo } from '@/types'
@@ -29,11 +32,13 @@ interface TopicTreeBrowserProps {
  * - Message count and last-seen display
  */
 export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserProps) {
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'tree' | 'search'>('tree')
+  const [discoveryActive, setDiscoveryActive] = useState(false)
 
   // Debounce search input
   const handleSearchChange = useCallback(
@@ -44,6 +49,22 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
     },
     []
   )
+
+  // Discovery mutations
+  const startDiscovery = useMutation({
+    mutationFn: () => brokerApi.startDiscovery(brokerId!),
+    onSuccess: () => {
+      setDiscoveryActive(true)
+      queryClient.invalidateQueries({ queryKey: ['broker-topics', brokerId] })
+    },
+  })
+
+  const stopDiscovery = useMutation({
+    mutationFn: () => brokerApi.stopDiscovery(brokerId!),
+    onSuccess: () => {
+      setDiscoveryActive(false)
+    },
+  })
 
   // Fetch topics in appropriate format (API uses 'flat'/'tree', UI uses 'search'/'tree')
   const apiFormat = viewMode === 'search' ? 'flat' : 'tree'
@@ -57,8 +78,8 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
         debouncedSearch || undefined
       )
     },
-    enabled: brokerId !== null,
-    refetchInterval: 10000,
+    enabled: brokerId !== null && discoveryActive,
+    refetchInterval: discoveryActive ? 5000 : false,
   })
 
   const handleSelect = (topic: string, metrics?: SparkplugMetricInfo[]) => {
@@ -85,6 +106,37 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
       <div className="bg-card border border-border rounded-xl p-6 text-center text-muted-foreground">
         <Radio className="h-8 w-8 mx-auto mb-2 opacity-50" />
         <p>Select a broker to browse topics</p>
+      </div>
+    )
+  }
+
+  // Show discovery prompt if not active
+  if (!discoveryActive) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 text-center">
+        <Radar className="h-8 w-8 mx-auto mb-3 text-muted-foreground/50" />
+        <h4 className="text-sm font-medium mb-1">Topic Discovery</h4>
+        <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
+          Start discovery to scan for MQTT topics published on this broker.
+          The broker subscribes to wildcard topics and builds a topic tree.
+        </p>
+        <button
+          onClick={() => startDiscovery.mutate()}
+          disabled={startDiscovery.isPending}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {startDiscovery.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Radar className="h-4 w-4" />
+          )}
+          Start Discovery
+        </button>
+        {startDiscovery.isError && (
+          <p className="text-xs text-red-400 mt-2">
+            {startDiscovery.error instanceof Error ? startDiscovery.error.message : 'Failed to start discovery'}
+          </p>
+        )}
       </div>
     )
   }
@@ -133,6 +185,27 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
             <List className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Stop discovery */}
+        <button
+          onClick={() => stopDiscovery.mutate()}
+          disabled={stopDiscovery.isPending}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
+          title="Stop discovering topics"
+        >
+          {stopDiscovery.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Square className="h-3 w-3" />
+          )}
+          Stop
+        </button>
+      </div>
+
+      {/* Scanning indicator */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 border-b border-border text-xs text-primary">
+        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        Scanning for topics...
       </div>
 
       {/* Content */}
@@ -203,7 +276,7 @@ function TreeView({
   if (!data || !data.children || Object.keys(data.children).length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
-        No topics discovered yet. Start discovery on a broker.
+        No topics discovered yet. Waiting for messages...
       </div>
     )
   }
@@ -358,7 +431,7 @@ function SearchView({
     return (
       <div className="text-center py-8 text-muted-foreground text-sm">
         {data === null
-          ? 'No topics discovered yet. Start discovery on a broker.'
+          ? 'No topics discovered yet. Waiting for messages...'
           : 'No topics match your search.'}
       </div>
     )

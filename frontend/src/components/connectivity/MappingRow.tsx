@@ -39,7 +39,7 @@ export function MappingRow({
     ? 'fill-red-400 text-red-400'
     : mapping.isActive
       ? 'fill-emerald-400 text-emerald-400'
-      : 'fill-[#475569] text-[#475569]'
+      : 'fill-muted-foreground text-muted-foreground'
 
   const statusLabel = mapping.hasError
     ? 'Error'
@@ -48,10 +48,10 @@ export function MappingRow({
       : 'Inactive'
 
   return (
-    <tr className="border-t border-[#1e293b] hover:bg-[#1e293b]/30 transition-colors group">
+    <tr className="border-t border-border hover:bg-muted/30 transition-colors group">
       {/* Characteristic */}
       <td className="px-3 py-2.5">
-        <span className="text-sm text-[#e2e8f0] font-medium">{mapping.characteristicName}</span>
+        <span className="text-sm text-foreground font-medium">{mapping.characteristicName}</span>
       </td>
 
       {/* Source */}
@@ -59,11 +59,11 @@ export function MappingRow({
         <div className="flex items-center gap-2">
           <ProtocolBadge protocol={mapping.protocol} />
           <div className="min-w-0">
-            <p className="text-xs font-mono text-[#94a3b8] truncate max-w-[200px]">
+            <p className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">
               {mapping.source}
             </p>
             {mapping.sourceDetail && (
-              <p className="text-[10px] text-[#475569] truncate max-w-[200px]">
+              <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">
                 {mapping.sourceDetail}
               </p>
             )}
@@ -73,7 +73,7 @@ export function MappingRow({
 
       {/* Server */}
       <td className="px-3 py-2.5">
-        <span className="text-xs text-[#94a3b8]">{mapping.serverName ?? '--'}</span>
+        <span className="text-xs text-muted-foreground">{mapping.serverName ?? '--'}</span>
       </td>
 
       {/* Strategy */}
@@ -85,7 +85,7 @@ export function MappingRow({
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <Circle className={`h-2 w-2 ${statusColor}`} />
-          <span className="text-xs text-[#94a3b8]">{statusLabel}</span>
+          <span className="text-xs text-muted-foreground">{statusLabel}</span>
         </div>
       </td>
 
@@ -95,7 +95,7 @@ export function MappingRow({
           {onToggleActive && (
             <button
               onClick={() => onToggleActive(mapping)}
-              className="p-1 text-[#64748b] hover:text-[#e2e8f0] transition-colors rounded"
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
               title={mapping.isActive ? 'Deactivate' : 'Activate'}
             >
               {mapping.isActive ? (
@@ -107,7 +107,7 @@ export function MappingRow({
           )}
           <button
             onClick={() => onEdit(mapping)}
-            className="p-1 text-[#64748b] hover:text-[#e2e8f0] transition-colors rounded"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
             title="Edit mapping"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -125,7 +125,7 @@ export function MappingRow({
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="px-1.5 py-0.5 text-[10px] rounded text-[#64748b] hover:text-[#94a3b8] transition-colors"
+                className="px-1.5 py-0.5 text-[10px] rounded text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 Cancel
               </button>
@@ -133,7 +133,7 @@ export function MappingRow({
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="p-1 text-[#64748b] hover:text-red-400 transition-colors rounded"
+              className="p-1 text-muted-foreground hover:text-red-400 transition-colors rounded"
               title="Delete mapping"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -157,17 +157,17 @@ export function UnmappedRow({
   onMap: () => void
 }) {
   return (
-    <tr className="border-t border-[#1e293b]/50 hover:bg-[#1e293b]/20 transition-colors">
+    <tr className="border-t border-border/50 hover:bg-muted/20 transition-colors">
       <td className="px-3 py-2.5">
-        <span className="text-sm text-[#64748b]">{characteristicName}</span>
+        <span className="text-sm text-muted-foreground">{characteristicName}</span>
       </td>
       <td className="px-3 py-2.5" colSpan={3}>
-        <span className="text-xs text-[#475569] italic">-- unmapped --</span>
+        <span className="text-xs text-muted-foreground italic">-- unmapped --</span>
       </td>
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-0.5 bg-[#475569] rounded-full" />
-          <span className="text-xs text-[#475569]">N/A</span>
+          <span className="w-1.5 h-0.5 bg-muted-foreground rounded-full" />
+          <span className="text-xs text-muted-foreground">N/A</span>
         </div>
       </td>
       <td className="px-3 py-2.5">
@@ -200,7 +200,7 @@ function StrategyBadge({ strategy }: { strategy: string }) {
   }
 
   return (
-    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[strategy] ?? 'bg-[#1e293b] text-[#64748b]'}`}>
+    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[strategy] ?? 'bg-muted text-muted-foreground'}`}>
       {labels[strategy] ?? strategy}
     </span>
   )

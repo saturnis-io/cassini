@@ -23,6 +23,7 @@ from openspc.api.schemas.broker import (
     TopicTreeNodeResponse,
 )
 from openspc.api.schemas.common import PaginatedResponse
+from openspc.db.dialects import encrypt_password, get_encryption_key
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.user import User
 from openspc.db.repositories import BrokerRepository
@@ -101,8 +102,16 @@ async def create_broker(
             detail=f"Broker with name '{data.name}' already exists"
         )
 
-    # Create broker
-    broker = await repo.create(**data.model_dump())
+    # Encrypt password if provided
+    create_data = data.model_dump()
+    if create_data.get("password"):
+        key = get_encryption_key()
+        create_data["password"] = encrypt_password(create_data["password"], key)
+    if create_data.get("username"):
+        key = get_encryption_key()
+        create_data["username"] = encrypt_password(create_data["username"], key)
+
+    broker = await repo.create(**create_data)
     await session.commit()
 
     return BrokerResponse.model_validate(broker)
@@ -314,8 +323,15 @@ async def update_broker(
                 detail=f"Broker with name '{data.name}' already exists"
             )
 
-    # Update fields
+    # Update fields — encrypt credentials if provided
     update_data = data.model_dump(exclude_unset=True)
+    if "password" in update_data and update_data["password"]:
+        enc_key = get_encryption_key()
+        update_data["password"] = encrypt_password(update_data["password"], enc_key)
+    if "username" in update_data and update_data["username"]:
+        enc_key = get_encryption_key()
+        update_data["username"] = encrypt_password(update_data["username"], enc_key)
+
     for key, value in update_data.items():
         setattr(broker, key, value)
 

@@ -72,7 +72,7 @@ class UserRepository:
             is_active=True,
         )
         self.session.add(user)
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(user)
         # Reload with relationships
         return await self.get_by_id(user.id)  # type: ignore[return-value]
@@ -87,7 +87,7 @@ class UserRepository:
             if hasattr(user, key) and value is not None:
                 setattr(user, key, value)
 
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(user)
         return await self.get_by_id(user.id)
 
@@ -98,7 +98,7 @@ class UserRepository:
             return None
 
         user.is_active = False
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(user)
         return user
 
@@ -115,7 +115,7 @@ class UserRepository:
             raise ValueError("Cannot delete an active user")
 
         await self.session.delete(user)
-        await self.session.commit()
+        await self.session.flush()
         return True
 
     async def count(self) -> int:
@@ -141,7 +141,7 @@ class UserRepository:
 
         if existing:
             existing.role = role
-            await self.session.commit()
+            await self.session.flush()
             await self.session.refresh(existing)
             return existing
         else:
@@ -151,7 +151,7 @@ class UserRepository:
                 role=role,
             )
             self.session.add(assignment)
-            await self.session.commit()
+            await self.session.flush()
             await self.session.refresh(assignment)
             return assignment
 
@@ -168,7 +168,7 @@ class UserRepository:
             return False
 
         await self.session.delete(assignment)
-        await self.session.commit()
+        await self.session.flush()
         return True
 
     async def get_user_role_for_plant(

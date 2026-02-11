@@ -401,8 +401,38 @@ async def get_node_characteristics(
         include_descendants=include_descendants,
     )
 
-    # Return full characteristic data using model_validate for ORM conversion
-    return [CharacteristicResponse.model_validate(char) for char in characteristics]
+    if not characteristics:
+        return []
+
+    # Compute sample_count and unacknowledged_violations per characteristic
+    from openspc.db.models.sample import Sample
+    from openspc.db.models.violation import Violation
+
+    char_ids = [c.id for c in characteristics]
+    session = char_repo.session
+
+    sample_counts_result = await session.execute(
+        select(Sample.char_id, func.count(Sample.id))
+        .where(Sample.char_id.in_(char_ids))
+        .group_by(Sample.char_id)
+    )
+    sample_count_map = dict(sample_counts_result.all())
+
+    violation_counts_result = await session.execute(
+        select(Violation.char_id, func.count(Violation.id))
+        .where(Violation.char_id.in_(char_ids), Violation.acknowledged.is_(False))
+        .group_by(Violation.char_id)
+    )
+    violation_count_map = dict(violation_counts_result.all())
+
+    results = []
+    for char in characteristics:
+        resp = CharacteristicResponse.model_validate(char)
+        resp.sample_count = sample_count_map.get(char.id, 0)
+        resp.unacknowledged_violations = violation_count_map.get(char.id, 0)
+        results.append(resp)
+
+    return results
 
 
 # ============================================================================

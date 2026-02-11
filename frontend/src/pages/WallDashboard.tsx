@@ -273,7 +273,7 @@ export function WallDashboard() {
       {/* Brand Badge */}
       <div className="absolute top-4 right-4 flex items-center gap-2 opacity-60 z-10">
         <img
-          src={brandConfig.logoUrl || '/openspc-isometric-dark.png'}
+          src={brandConfig.logoUrl || '/header-logo.svg'}
           alt=""
           className="h-6 w-6 object-contain"
         />

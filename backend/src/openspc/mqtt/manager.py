@@ -12,6 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from openspc.db.dialects import decrypt_password, get_encryption_key
 from openspc.db.models.broker import MQTTBroker
 from openspc.db.repositories import BrokerRepository
 from openspc.mqtt.client import MQTTClient, MQTTConfig
@@ -318,12 +319,31 @@ class MQTTManager:
             old_client = self._clients[broker.id]
             await old_client.disconnect()
 
+        # Decrypt credentials if stored encrypted
+        username = broker.username
+        password = broker.password
+        try:
+            key = get_encryption_key()
+            if username:
+                username = decrypt_password(username, key)
+            if password:
+                password = decrypt_password(password, key)
+        except (ValueError, Exception) as e:
+            # Legacy unencrypted passwords — use as-is
+            logger.warning(
+                "broker_credential_decrypt_fallback",
+                broker_id=broker.id,
+                error=str(e),
+            )
+            username = broker.username
+            password = broker.password
+
         # Create config from database model
         config = MQTTConfig(
             host=broker.host,
             port=broker.port,
-            username=broker.username,
-            password=broker.password,
+            username=username,
+            password=password,
             client_id=broker.client_id,
             keepalive=broker.keepalive,
             max_reconnect_delay=broker.max_reconnect_delay,

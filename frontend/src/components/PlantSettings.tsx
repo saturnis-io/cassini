@@ -133,16 +133,9 @@ export function PlantSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Site Management</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage site locations for data isolation. Each site has its own hierarchy, characteristics, and MQTT brokers.
-        </p>
-      </div>
-
+    <div className="space-y-5">
       {/* Plant List */}
-      <div className="border rounded-lg divide-y">
+      <div className="bg-muted rounded-xl divide-y divide-border">
         {plants?.map((plant) => (
           <div key={plant.id} className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
@@ -217,7 +210,7 @@ export function PlantSettings() {
       </div>
 
       {/* Add New Plant Form */}
-      <div className="border rounded-lg p-4 space-y-4">
+      <div className="bg-muted rounded-xl p-6 space-y-4">
         <h3 className="font-medium">Add New Site</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
