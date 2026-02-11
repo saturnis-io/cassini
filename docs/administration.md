@@ -13,11 +13,12 @@ This guide covers system administration tasks for OpenSPC, including initial set
 3. [Equipment Hierarchy](#3-equipment-hierarchy)
 4. [Characteristic Management](#4-characteristic-management)
 5. [User Management](#5-user-management)
-6. [Industrial Connectivity (MQTT/Sparkplug B)](#6-industrial-connectivity-mqttsparkplug-b)
-7. [API Keys](#7-api-keys)
-8. [System Settings](#8-system-settings)
-9. [Development Tools (Sandbox Mode)](#9-development-tools-sandbox-mode)
-10. [Maintenance](#10-maintenance)
+6. [Industrial Connectivity (MQTT & OPC-UA)](#6-industrial-connectivity-mqtt--opc-ua)
+7. [Database Administration](#7-database-administration)
+8. [API Keys](#8-api-keys)
+9. [System Settings](#9-system-settings)
+10. [Development Tools (Sandbox Mode)](#10-development-tools-sandbox-mode)
+11. [Maintenance](#11-maintenance)
 
 ---
 
@@ -78,7 +79,7 @@ A **plant** (also called a "site") represents a physical facility or logical gro
 
 - Equipment hierarchy
 - Characteristics and samples
-- MQTT broker connections
+- MQTT broker connections and OPC-UA server connections
 - User role assignments
 
 This multi-tenant design allows a single OpenSPC instance to serve multiple sites while keeping data cleanly separated.
@@ -212,10 +213,11 @@ flowchart LR
     A[Step 1: Basics] --> B{Provider Type?}
     B -->|Manual| D[Step 2: Limits]
     B -->|MQTT Tag| C[Step 2: Data Source]
+    B -->|OPC-UA Node| C
     C --> D
     D --> E[Create Characteristic]
-    E --> F{TAG provider?}
-    F -->|Yes| G[Create Tag Mapping]
+    E --> F{Automated provider?}
+    F -->|Yes| G[Create Data Source Mapping]
     G --> H[Refresh Subscriptions]
     F -->|No| I[Done]
     H --> I
@@ -223,16 +225,15 @@ flowchart LR
 
 **Step 1 -- Basics:**
 - **Name**: Descriptive name for the characteristic
-- **Provider Type**: `Manual Entry` (operator inputs data) or `MQTT Tag` (automated from industrial equipment)
+- **Provider Type**: `Manual Entry` (operator inputs data), `MQTT Tag` (automated via MQTT broker), or `OPC-UA Node` (automated via OPC-UA server)
 - **Subgroup Size**: Number of measurements per sample (1-25). This determines the chart type:
   - n=1: Individuals & Moving Range (I-MR)
   - n=2-10: X-bar & R chart
   - n>10: X-bar & S chart
 
-**Step 2 -- Data Source** (TAG provider type only):
-- Select a connected MQTT broker
-- Browse or manually enter the MQTT topic
-- For Sparkplug B payloads, select the specific metric
+**Step 2 -- Data Source** (MQTT Tag or OPC-UA Node provider types):
+- **MQTT**: Select a connected MQTT broker, browse or enter the topic, select a Sparkplug B metric (if applicable)
+- **OPC-UA**: Select a connected OPC-UA server, browse the address space, select a variable node
 - Choose a trigger strategy (On Change, On Trigger, On Timer)
 
 **Step 3 -- Limits:**
@@ -246,7 +247,7 @@ After creating a characteristic, select it in the Configuration page hierarchy t
 
 **General Tab:**
 - Name and description
-- Provider type (Manual or Tag)
+- Provider type (Manual, MQTT Tag, or OPC-UA Node)
 - Subgroup size
 - Decimal precision for display
 
@@ -365,38 +366,48 @@ Permanent deletion is a two-step process:
 
 ---
 
-## 6. Industrial Connectivity (MQTT/Sparkplug B)
+## 6. Industrial Connectivity (MQTT & OPC-UA)
 
 ### Overview
 
-OpenSPC can automatically ingest data from industrial equipment via MQTT brokers. This eliminates manual data entry by subscribing to equipment data topics and feeding measurements directly into the SPC engine.
+OpenSPC can automatically ingest data from industrial equipment via two protocols: **MQTT** (with Sparkplug B support) and **OPC-UA**. This eliminates manual data entry by subscribing to equipment data and feeding measurements directly into the SPC engine.
 
 ```mermaid
 flowchart LR
-    PLC[PLC / Edge Device] -->|Publish| MQTT[MQTT Broker]
-    MQTT -->|Subscribe| OSP[OpenSPC MQTT Manager]
-    OSP --> TAG[Tag Provider]
+    PLC1[PLC / Edge Device] -->|Publish| MQTT[MQTT Broker]
+    PLC2[PLC / DCS] -->|OPC-UA| OPCUA[OPC-UA Server]
+    MQTT -->|Subscribe| OSP_MQTT[MQTT Manager]
+    OPCUA -->|Monitor| OSP_OPCUA[OPC-UA Manager]
+    OSP_MQTT --> TAG[Tag Provider]
+    OSP_OPCUA --> OPCPROV[OPC-UA Provider]
     TAG -->|Mapped Topics| SPC[SPC Engine]
+    OPCPROV -->|Mapped Nodes| SPC
     SPC --> DB[(Database)]
     SPC --> WS[WebSocket]
     WS --> UI[Real-time UI Update]
 
-    style PLC fill:#f9f,stroke:#333
+    style PLC1 fill:#f9f,stroke:#333
+    style PLC2 fill:#f9f,stroke:#333
     style MQTT fill:#bbf,stroke:#333
-    style OSP fill:#bfb,stroke:#333
+    style OPCUA fill:#dbf,stroke:#333
+    style OSP_MQTT fill:#bfb,stroke:#333
+    style OSP_OPCUA fill:#bfb,stroke:#333
 ```
 
 **Supported protocols:**
-- Standard MQTT (JSON payloads)
-- Sparkplug B (protobuf-encoded industrial IoT payloads)
+- **MQTT** -- Standard MQTT with JSON payloads
+- **Sparkplug B** -- Protobuf-encoded industrial IoT payloads over MQTT
+- **OPC-UA** -- OPC Unified Architecture for direct PLC/DCS communication
+
+All connectivity management is done through the **Connectivity Hub** (`/connectivity`), a unified interface with four tabs: Monitor, Servers, Browse, and Mapping. See the [User Guide -- Connectivity Hub](user-guide.md#11-connectivity-hub) for a detailed walkthrough of the UI.
 
 ### Adding MQTT Broker Connections
 
-Brokers can be added through the Settings page or the Connectivity page:
+MQTT brokers are added via the Connectivity Hub Servers tab:
 
-**Via Settings > Data Collection:**
-1. Navigate to **Settings** and select the **Data Collection** tab.
-2. Configure the broker connection:
+1. Navigate to **Connectivity > Servers**.
+2. Click **Add Server** and select **MQTT**.
+3. Configure the broker connection:
    - **Name**: A descriptive name (e.g., "Factory Floor Broker")
    - **Host**: Broker hostname or IP address
    - **Port**: MQTT port (default: 1883)
@@ -404,77 +415,208 @@ Brokers can be added through the Settings page or the Connectivity page:
    - **Client ID**: Custom MQTT client identifier (optional)
    - **Payload Format**: `json` or `sparkplugb`
    - **TLS**: Enable for encrypted connections
-3. Save the configuration.
+4. Click **Test Connection** to verify connectivity.
+5. Click **Create Server**.
 
-**Via Connectivity Page:**
-1. Navigate to **Connectivity** (`/connectivity`).
-2. The page shows broker status cards, topic browser, and tag mapping in one view.
+### Adding OPC-UA Server Connections
 
-### Broker Status Monitoring
+OPC-UA servers are added via the same Servers tab:
 
-The Connectivity page provides real-time status for all configured brokers:
+1. Navigate to **Connectivity > Servers**.
+2. Click **Add Server** and select **OPC-UA**.
+3. Configure the server connection:
+   - **Name**: A descriptive name (e.g., "PLC Controller 1")
+   - **Endpoint URL**: The OPC-UA endpoint (must start with `opc.tcp://`, e.g., `opc.tcp://192.168.1.100:4840`)
+   - **Auth Mode**: Anonymous or Username/Password
+   - **Security Policy**: None or Basic256Sha256
+   - **Security Mode**: None, Sign, or Sign and Encrypt
+   - **Session Timeout**: Connection timeout in milliseconds (default: 30000)
+   - **Publish Interval**: How often the server sends data updates (default: 1000 ms)
+   - **Sampling Interval**: How often the server samples node values (default: 250 ms)
+4. Click **Test Connection** to verify the endpoint is reachable.
+5. Click **Create Server**.
 
-- **Connected** (green indicator, pulsing): Broker is online and receiving data
-- **Disconnected** (gray indicator): Broker is offline or not yet connected
-- **Error**: Connection failed with an error message displayed
+> **Note:** OPC-UA security settings (policy and mode) must match the server's configuration. If the server requires Basic256Sha256, set both the policy and mode accordingly. Anonymous authentication works for most development and testing scenarios.
 
-Each broker card shows:
-- Connection status
-- Number of subscribed topics
-- Last connected timestamp
-- Error message (if applicable)
+### Connection Status Monitoring
 
-### Connecting and Disconnecting
+The Connectivity Hub Monitor tab provides a real-time operational dashboard:
 
-- Click **Connect** on a disconnected broker card to establish the connection.
-- Click **Disconnect** to close the connection.
-- Only one broker can be active per plant at a time.
+- **Connectivity Metrics**: Summary cards showing total servers, connected count, mapped sources, activity status, and error count
+- **Data Flow Pipeline**: A three-stage visual diagram (Sources > Ingestion > SPC Engine) color-coded by health:
+  - Green: Healthy -- all connections active
+  - Amber: Degraded -- some errors but data still flowing
+  - Red: Down -- all connections failed
+  - Gray: Idle -- no servers configured
+- **Server Status Grid**: Individual cards for every server showing protocol, connection state, and key metrics
 
-### Topic Discovery and Browsing
+### Topic Discovery and Browsing (MQTT)
 
-Once a broker is connected, you can discover available topics:
+The Browse tab provides protocol-specific data exploration:
 
-1. Click **Discover** on a connected broker card.
-2. The system subscribes to all topics (`#` wildcard) and collects messages for a configurable period.
-3. Browse discovered topics in the **Topic Browser** panel:
+1. Select a connected MQTT broker from the server dropdown.
+2. Browse discovered topics in the **Topic Browser**:
    - **Tree view**: Topics organized by `/` separator hierarchy
    - **Flat view**: All topics listed alphabetically
    - **Search**: Filter topics by name
-4. For Sparkplug B topics, the browser shows decoded metric names and their current values.
+3. For Sparkplug B topics, the browser shows decoded metric names and their current values.
+4. Select a topic to see a live value preview in the right panel.
 
 > **Tip:** Topic discovery subscribes to all messages on the broker. On busy brokers, limit the discovery duration to avoid overwhelming the system.
 
-### Tag Mapping
+### Node Browsing (OPC-UA)
 
-Tag mapping links an MQTT topic to an OpenSPC characteristic, enabling automatic data flow:
+1. Select a connected OPC-UA server from the server dropdown in the Browse tab.
+2. The **Address Space** browser displays the OPC-UA namespace as an expandable tree.
+3. Expand folders to drill into the namespace and locate variable nodes.
+4. Select a node to see its live value, data type, and quality in the preview panel.
+5. Use the **Quick Map Form** in the right panel to map the selected node directly to a characteristic.
 
-1. Select a broker in the Broker Status Cards.
-2. Select a topic in the Topic Browser (or type one manually).
-3. In the **Tag Mapping** panel:
-   - View the **Live Value Preview** to verify the topic is delivering the expected data
-   - Select the target **Characteristic** from the dropdown
-   - For Sparkplug B, select the specific **Metric** from the preview
-   - Choose a **Trigger Strategy**:
-     - *On Change*: Create a sample whenever the value changes
-     - *On Trigger*: Create a sample when a specific trigger tag fires
-     - *On Timer*: Create samples at timed intervals
-4. Click **Map Tag**.
+### Data Source Mapping
 
-Existing mappings are shown in the right panel and can be deleted individually.
+The Mapping tab provides a unified view of all tag-to-characteristic mappings:
+
+1. Click **New Mapping** to open the mapping dialog.
+2. Select the protocol (MQTT or OPC-UA).
+3. Configure the data source:
+   - **MQTT**: Select broker, topic, and optionally a Sparkplug B metric
+   - **OPC-UA**: Select server and node
+4. Select the target characteristic.
+5. Choose a trigger strategy:
+   - **On Change**: Create a sample whenever the value changes
+   - **On Trigger**: Create a sample when a specific trigger tag fires
+   - **On Timer**: Create samples at timed intervals
+6. Click Save.
+
+Alternatively, use the **Quick Map Form** in the Browse tab to map data points as you discover them.
+
+The Mapping tab also shows unmapped characteristics, making it easy to identify which quality attributes still need automated data sources.
 
 ### Troubleshooting Connections
 
 | Symptom | Possible Cause | Resolution |
 |---------|---------------|------------|
-| Broker shows "Disconnected" | Wrong host/port, broker offline | Verify broker address and ensure the broker process is running |
-| Connection error on connect | Authentication failure | Check username/password credentials |
-| No topics discovered | Broker has no active publishers | Verify that PLCs/edge devices are publishing to the broker |
-| Topic values not updating | Subscription not refreshed | Go to Settings > Data Collection and click refresh, or restart the tag provider |
+| MQTT broker shows "Disconnected" | Wrong host/port, broker offline | Verify broker address and ensure the broker process is running |
+| MQTT connection error | Authentication failure | Check username/password credentials |
+| No MQTT topics discovered | Broker has no active publishers | Verify that PLCs/edge devices are publishing to the broker |
 | SparkplugB metrics not decoded | Wrong payload format | Ensure the broker is configured with `sparkplugb` payload format |
+| OPC-UA server unreachable | Wrong endpoint URL or firewall | Verify the `opc.tcp://` URL and check that port 4840 (or custom) is open |
+| OPC-UA authentication error | Mismatched credentials or security | Ensure auth mode, security policy, and security mode match the server configuration |
+| OPC-UA browse returns empty tree | Server has restricted namespaces | Check that the authenticated user has Browse permissions on the server |
+| Topic/node values not updating | Subscription not refreshed | Disconnect and reconnect the server, or check the publish/sampling intervals |
 
 ---
 
-## 7. API Keys
+## 7. Database Administration
+
+### Overview
+
+OpenSPC supports multiple database backends for production deployment flexibility. The database administration interface is available in **Settings > Database** and provides connection configuration, migration management, maintenance tools, and data export.
+
+### Supported Database Engines
+
+| Engine | Driver | Best For |
+|--------|--------|----------|
+| **SQLite** | aiosqlite | Development, small installations, single-server deployments |
+| **PostgreSQL** | asyncpg | Production, enterprise deployments, high concurrency |
+| **MySQL** | aiomysql | Production environments with existing MySQL infrastructure |
+| **MSSQL** | aioodbc | Enterprise environments with Microsoft SQL Server |
+
+SQLite is the default and requires no additional server setup. For production deployments with multiple users or high data volumes, PostgreSQL is recommended.
+
+### Database Configuration
+
+The database connection is configured through the **Settings > Database > Connection** sub-tab (admin only).
+
+**Changing the database engine:**
+
+1. Navigate to **Settings > Database** and click the **Connection** pill.
+2. Select a database engine from the four options (SQLite, PostgreSQL, MySQL, MSSQL).
+3. For SQLite, enter the database file path (default: `./openspc.db`).
+4. For server-based engines, fill in:
+   - **Host**: Database server hostname or IP
+   - **Port**: Server port (auto-populated with defaults: PostgreSQL 5432, MySQL 3306, MSSQL 1433)
+   - **Database Name**: The database to connect to
+   - **Username**: Database user
+   - **Password**: Database password
+5. Click **Test Connection** to verify connectivity. The test reports success/failure, latency, and server version.
+6. Only after a successful test, the **Save Configuration** button becomes active.
+7. Click **Save Configuration**.
+
+> **Warning:** Changing the database configuration requires an application restart to take effect. The old database is not migrated automatically -- you must handle data migration separately.
+
+> **Note:** MSSQL requires the ODBC Driver for SQL Server to be installed on the host machine.
+
+### Credential Security
+
+Database credentials are encrypted at rest using Fernet symmetric encryption:
+
+- Credentials are stored in `db_config.json` in the backend directory
+- The encryption key is stored in `.db_encryption_key` (auto-generated on first use)
+- The encryption key is **separate** from the JWT signing secret -- rotating JWT keys does not affect stored database credentials
+- Passwords are never returned by the API; the UI shows a placeholder when a password exists
+
+> **Warning:** Back up both `db_config.json` and `.db_encryption_key` together. The config file is unreadable without the encryption key.
+
+### Migration Management
+
+OpenSPC uses Alembic for database schema migrations. The **Settings > Database > Migrations** sub-tab (admin only) shows:
+
+- **Current Revision**: The migration revision currently applied to the database
+- **Head Revision**: The latest available migration
+- **Status**: "Up to date" (green) or "N pending migrations" (amber)
+
+If migrations are pending, the UI displays instructions to run:
+
+```bash
+alembic upgrade head
+```
+
+Migrations are applied automatically on application startup in most cases. The Migrations tab is useful for verifying the schema state after manual database operations.
+
+### Database Status
+
+The **Settings > Database > Status** sub-tab shows:
+
+- **Engine**: The active database dialect (SQLite, PostgreSQL, MySQL, MSSQL)
+- **Status**: Connected or Disconnected
+- **Tables**: Total table count in the database
+- **Size**: Database size in MB (when available)
+- **Version**: Database server version string
+- **Statistics**: Record counts for characteristics, samples, and violations
+
+### Maintenance Tools
+
+The **Settings > Database > Maintenance** sub-tab provides:
+
+**Backup:**
+- For SQLite: Creates a timestamped file copy of the database. Optionally specify a custom backup directory.
+- For server-based engines: Displays the appropriate CLI backup command (e.g., `pg_dump` for PostgreSQL).
+- After backup, the UI shows the backup file path (copyable) and file size.
+
+**Optimize (Vacuum/Analyze):**
+- Runs `VACUUM` and `ANALYZE` to reclaim disk space and update query planner statistics.
+- Requires confirmation before executing.
+- Particularly useful after bulk data deletions.
+
+**Data Export:**
+- Export all characteristics, samples, and violations as **JSON** or **CSV**.
+- JSON export includes all entities with timestamps.
+- CSV export contains sample data (ID, characteristic ID, timestamp, mean, range, excluded status).
+- Exports are limited to 10,000 records per entity; a warning is shown if data is truncated.
+
+### Danger Zone
+
+At the bottom of the Database settings, a "Danger Zone" section provides destructive operations:
+
+- **Clear Sample Data**: Deletes all samples and violations while preserving the hierarchy and characteristic configurations.
+- **Reset Database**: Deletes all data including hierarchy, characteristics, samples, and violations.
+
+Both operations require confirmation and are currently disabled for safety in the UI. Use database tools directly for destructive operations.
+
+---
+
+## 8. API Keys
 
 ### What Are API Keys For?
 
@@ -542,14 +684,18 @@ From the API Keys settings tab:
 
 ---
 
-## 8. System Settings
+## 9. System Settings
 
-The Settings page (`/settings`) provides system-wide configuration organized into tabs. Tab visibility depends on the user's role.
+The Settings page (`/settings`) provides system-wide configuration organized into tabs with a sidebar navigation. Tabs are grouped under **Personal** and **Administration**, and visibility depends on the user's role.
 
 ### Appearance (All Users)
 
 - **Chart color presets**: Choose from predefined color schemes or customize individual chart element colors (lines, zones, points, violations)
 - Changes apply immediately and are persisted to the browser's local storage
+
+### Notifications (All Users)
+
+Configure notification preferences for violation alerts and system events.
 
 ### Branding (Admin Only)
 
@@ -566,28 +712,17 @@ Brand settings are stored in local storage and applied via CSS custom properties
 
 Manage plants/sites as described in [Plant Management](#2-plant-management).
 
-### Data Collection (Engineer+)
-
-MQTT broker configuration for industrial data ingestion. See [Industrial Connectivity](#6-industrial-connectivity-mqttsparkplug-b).
-
 ### API Keys (Engineer+)
 
-API key management for programmatic access. See [API Keys](#7-api-keys).
-
-### Notifications (All Users)
-
-Configure notification preferences for violation alerts and system events.
+API key management for programmatic access. See [API Keys](#8-api-keys).
 
 ### Database (Engineer+)
 
-View database information and perform maintenance operations:
-
-- Database path and size
-- Connection status
+Multi-database configuration, migration management, maintenance tools, and data export. The Database tab has four sub-tabs: Status, Connection (admin only), Migrations (admin only), and Maintenance. See [Database Administration](#7-database-administration) for full details.
 
 ---
 
-## 9. Development Tools (Sandbox Mode)
+## 10. Development Tools (Sandbox Mode)
 
 ### What Is Sandbox Mode?
 
@@ -635,35 +770,64 @@ The Dev Tools page provides seed scripts that **wipe the entire database** and r
 
 ---
 
-## 10. Maintenance
+## 11. Maintenance
 
 ### Backup Strategies
 
-OpenSPC uses SQLite by default, which stores the entire database in a single file:
+OpenSPC supports multiple database backends, each with its own backup approach.
 
+**SQLite (default):**
+
+SQLite stores the entire database in a single file:
 - **Default location**: `./openspc.db` in the backend directory
-- **Configurable via**: `OPENSPC_DATABASE_URL` environment variable
+- **Configurable via**: the Settings UI or `OPENSPC_DATABASE_URL` environment variable
 
-**Backup approaches:**
-
-1. **File copy** (simplest): Stop the application, copy the `openspc.db` file, restart.
-2. **SQLite `.backup` command**: Perform a hot backup without stopping the application:
+Backup approaches:
+1. **UI Backup**: Navigate to Settings > Database > Maintenance and click **Backup**. This creates a timestamped copy in the backend directory (or a custom directory you specify).
+2. **File copy**: Stop the application, copy the `openspc.db` file, restart.
+3. **SQLite `.backup` command**: Perform a hot backup without stopping the application:
    ```bash
    sqlite3 openspc.db ".backup backup_$(date +%Y%m%d).db"
    ```
-3. **Scheduled backups**: Use cron or a task scheduler to automate backup file rotation.
 
-For production deployments, see the [Deployment Guide](deployment.md) for detailed backup strategies including PostgreSQL and automated backup solutions.
+**PostgreSQL:**
+
+```bash
+pg_dump -h localhost -U openspc -d openspc > backup_$(date +%Y%m%d).sql
+```
+
+**MySQL:**
+
+```bash
+mysqldump -h localhost -u openspc -p openspc > backup_$(date +%Y%m%d).sql
+```
+
+**MSSQL:**
+
+```bash
+sqlcmd -S localhost -U openspc -Q "BACKUP DATABASE openspc TO DISK='backup.bak'"
+```
+
+For server-based databases, the Settings > Database > Maintenance UI displays the appropriate CLI backup command rather than performing the backup directly.
+
+**Critical files to back up** (in addition to the database):
+- `.jwt_secret` -- JWT signing secret (loss invalidates all sessions)
+- `.db_encryption_key` -- Database credential encryption key (loss makes `db_config.json` unreadable)
+- `db_config.json` -- Encrypted database configuration
+
+> **Warning:** The `.db_encryption_key` and `db_config.json` must be backed up together. Without the encryption key, stored database credentials cannot be recovered.
 
 ### Monitoring
 
 Key metrics to monitor:
 
 - **Application health**: Backend API responsiveness (`GET /api/v1/auth/me` with valid token)
-- **MQTT connectivity**: Broker connection status via the Connectivity page or `GET /api/v1/brokers/all/status`
+- **MQTT connectivity**: Broker connection status via the Connectivity Hub or `GET /api/v1/brokers/all/status`
+- **OPC-UA connectivity**: Server connection status via the Connectivity Hub or `GET /api/v1/opcua/servers/status`
 - **Tag provider**: Samples processed count via `GET /api/v1/providers/status`
 - **Violation rates**: Unacknowledged violation counts via `GET /api/v1/violations/stats`
-- **Database size**: Monitor the SQLite file size for capacity planning
+- **Database size**: Check via Settings > Database > Status, or monitor file size (SQLite) / server metrics (PostgreSQL/MySQL/MSSQL)
+- **Migration status**: Verify schema is up to date via Settings > Database > Migrations
 
 For production monitoring setup, see the [Deployment Guide](deployment.md).
 
@@ -672,16 +836,27 @@ For production monitoring setup, see the [Deployment Guide](deployment.md).
 **JWT Secret:**
 The JWT signing secret is auto-generated on first startup and stored in a `.jwt_secret` file in the backend directory. If this file is lost, all active sessions are invalidated and users must re-authenticate. Include this file in your backup procedures.
 
+**Database Encryption Key:**
+Database credentials are encrypted using a Fernet key stored in `.db_encryption_key`. This key is auto-generated on first use and is **separate** from the JWT secret. Rotating the JWT secret does not affect stored database credentials, and vice versa.
+
 **Database URL:**
-The default SQLite database can be overridden for production deployments:
+The default SQLite database can be overridden via the Settings UI or environment variables:
 
 ```bash
 # SQLite (default)
 export OPENSPC_DATABASE_URL="sqlite+aiosqlite:///./openspc.db"
 
-# Custom path
-export OPENSPC_DATABASE_URL="sqlite+aiosqlite:////var/data/openspc/production.db"
+# PostgreSQL
+export OPENSPC_DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/openspc"
+
+# MySQL
+export OPENSPC_DATABASE_URL="mysql+aiomysql://user:pass@localhost:3306/openspc"
+
+# MSSQL
+export OPENSPC_DATABASE_URL="mssql+aioodbc://user:pass@localhost:1433/openspc?driver=ODBC+Driver+18+for+SQL+Server"
 ```
+
+> **Note:** When using the Settings UI to configure the database, credentials are encrypted and stored in `db_config.json`. The environment variable takes precedence if set.
 
 **Environment variables reference:**
 

@@ -23,7 +23,7 @@
 
 # OpenSPC
 
-**Free, open-source Statistical Process Control for any scale.** Monitor process stability, detect out-of-control conditions with Nelson rules, and drive continuous improvement -- from a single machine to a multi-site enterprise. No vendor lock-in, no license fees.
+An open-source Statistical Process Control platform. Monitor process stability, detect out-of-control conditions with Nelson rules, and manage quality data across one or many sites.
 
 ![OpenSPC Dashboard](docs/images/dashboard.png)
 
@@ -37,7 +37,11 @@
 
 **Real-Time Updates** -- WebSocket push for instant chart updates. No polling -- charts refresh the moment new data arrives, with automatic reconnection and heartbeat monitoring.
 
-**Industrial Connectivity** -- MQTT and Sparkplug B support with multi-broker management, topic discovery, tag-to-characteristic mapping, and live value preview.
+**Industrial Connectivity** -- MQTT / Sparkplug B and OPC-UA support with multi-broker and multi-server management, topic and node browsing, tag-to-characteristic mapping, live value preview, and a unified Connectivity Hub UI.
+
+**Multi-Database Support** -- SQLite (default), PostgreSQL, MySQL, and MSSQL with encrypted credential storage, one-click switching, and a database administration panel (backup, vacuum, migration status).
+
+**MQTT Outbound Publishing** -- Publish SPC events (violations, statistics, Nelson rule triggers) to configurable MQTT topics with rate control and per-event filtering.
 
 **Multi-Plant Management** -- ISA-95 equipment hierarchy, plant-scoped data isolation, and per-plant role-based access control across four tiers (Operator, Supervisor, Engineer, Admin).
 
@@ -78,8 +82,8 @@ Open **http://localhost:5173** and log in with `admin` / `password`.
 | **Frontend** | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4 |
 | **Charts** | ECharts 6 (canvas rendering) |
 | **State** | TanStack Query (server), Zustand (client) |
-| **Database** | SQLite (default), PostgreSQL, or any SQLAlchemy-compatible DB |
-| **Real-time** | WebSockets, MQTT / Sparkplug B |
+| **Database** | SQLite (default), PostgreSQL (asyncpg), MySQL (aiomysql), MSSQL (aioodbc) |
+| **Real-time** | WebSockets, MQTT / Sparkplug B, OPC-UA (asyncua) |
 | **Auth** | JWT + httpOnly refresh cookies, Argon2 password hashing |
 
 ---

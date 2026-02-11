@@ -16,10 +16,11 @@ This guide covers the daily use of OpenSPC for quality engineers, process engine
 8. [Annotations](#8-annotations)
 9. [Comparison Mode](#9-comparison-mode)
 10. [Reports and Export](#10-reports-and-export)
-11. [Kiosk Mode](#11-kiosk-mode)
-12. [Wall Dashboard](#12-wall-dashboard)
-13. [Violations View](#13-violations-view)
-14. [Roles and Permissions](#14-roles-and-permissions)
+11. [Connectivity Hub](#11-connectivity-hub)
+12. [Kiosk Mode](#12-kiosk-mode)
+13. [Wall Dashboard](#13-wall-dashboard)
+14. [Violations View](#14-violations-view)
+15. [Roles and Permissions](#15-roles-and-permissions)
 
 ---
 
@@ -277,7 +278,7 @@ The inspector has a **header**, a **sidebar navigation**, an **overview section*
 The overview displays at a glance:
 - **Mean value** in large text, color-coded by zone (green for Zone C, amber for Zone B, red for Zone A)
 - **Zone badge** showing which zone the value falls in
-- **Metadata**: Timestamp, source (Manual or Tag), measurement count, batch number, operator ID
+- **Metadata**: Timestamp, source (Manual, MQTT Tag, or OPC-UA Node), measurement count, batch number, operator ID
 - **Status chips**:
   - "In Control" (green) or "OUT OF CONTROL" (red)
   - "Modified 2x" (amber) if the sample has been edited
@@ -476,7 +477,144 @@ The Reports page has a three-column layout:
 
 ---
 
-## 11. Kiosk Mode
+## 11. Connectivity Hub
+
+The Connectivity Hub (`/connectivity`) is the centralized interface for managing all industrial data sources. It provides a unified view of MQTT brokers and OPC-UA servers, enabling engineers to configure, monitor, and map data from industrial equipment into the SPC engine.
+
+The Connectivity Hub is organized into four tabs accessible from a sidebar navigation, grouped under **Operations** (Monitor, Servers) and **Configuration** (Browse, Mapping).
+
+### Monitor Tab
+
+The Monitor tab is a read-only operational dashboard showing the health of all connectivity sources at a glance.
+
+**Connectivity Metrics** -- Five summary cards across the top:
+
+| Metric | Description |
+|--------|-------------|
+| Total Servers | Count of all configured MQTT brokers and OPC-UA servers |
+| Connected | Number of servers currently online |
+| Mapped Sources | Total subscribed topics and monitored nodes |
+| Activity | Whether any server is actively receiving data (Active or Idle) |
+| Errors | Count of servers in an error state |
+
+**Data Flow Pipeline** -- A three-stage visual diagram showing how data flows through the system:
+
+```
+Sources --> Ingestion --> SPC Engine
+```
+
+Each stage is color-coded by health status:
+- **Green (Healthy)**: All connections active, data flowing normally
+- **Amber (Degraded)**: Some connections have errors but data is still flowing
+- **Red (Down)**: All connections have errors, no data flowing
+- **Gray (Idle)**: No servers configured or connected
+
+The Sources stage shows a per-protocol breakdown (MQTT connected/total, OPC-UA connected/total). The Ingestion stage shows active mappings, subscribed topics, and monitored nodes. The SPC Engine stage shows processing status and data source count.
+
+**Server Status Grid** -- Individual status cards for every configured server, showing connection state, protocol type, and key metrics.
+
+If no servers are configured, the Monitor tab displays an empty state with a prompt to add a server.
+
+### Servers Tab
+
+The Servers tab is where you add, edit, and manage MQTT brokers and OPC-UA servers.
+
+**Server List** -- A unified list of all servers, regardless of protocol. Each server row shows:
+- Protocol badge (MQTT or OPC-UA)
+- Server name and connection string (host:port for MQTT, endpoint URL for OPC-UA)
+- Connection status indicator
+- Edit button
+
+**Filtering and Search:**
+- **Protocol filter chips**: All, MQTT, or OPC-UA (with count badges)
+- **Search bar**: Filter by server name or connection address
+
+**Adding a Server:**
+
+1. Click **Add Server**.
+2. Select the protocol: **MQTT** or **OPC-UA**.
+3. Fill in the protocol-specific form (see below).
+4. Optionally click **Test Connection** to verify connectivity.
+5. Click **Create Server**.
+
+**MQTT Broker Form Fields:**
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| Name | Descriptive name (e.g., "Factory Floor Broker") | Yes |
+| Host | Broker hostname or IP address | Yes |
+| Port | MQTT port (default: 1883) | Yes |
+| Username | MQTT authentication username | No |
+| Password | MQTT authentication password | No |
+| Client ID | Custom MQTT client identifier | No |
+| Payload Format | `json` or `sparkplugb` | Yes |
+| TLS | Enable encrypted connections | No |
+
+**OPC-UA Server Form Fields:**
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| Name | Descriptive name (e.g., "PLC Controller 1") | Yes |
+| Endpoint URL | OPC-UA endpoint (must start with `opc.tcp://`) | Yes |
+| Auth Mode | Anonymous or Username/Password | Yes |
+| Username / Password | Credentials (when using Username/Password auth) | Conditional |
+| Security Policy | None or Basic256Sha256 | Yes |
+| Security Mode | None, Sign, or Sign and Encrypt | Yes |
+| Session Timeout | Connection timeout in milliseconds (default: 30000) | Yes |
+| Publish Interval | Server publish interval in milliseconds (default: 1000) | Yes |
+| Sampling Interval | Node sampling interval in milliseconds (default: 250) | Yes |
+
+### Browse Tab
+
+The Browse tab provides a split-panel interface for discovering and exploring data points on connected servers.
+
+**Server Selector** -- A dropdown at the top for choosing which server to browse. Shows protocol type and connection status. Browsing requires the server to be connected; a warning appears if the selected server is disconnected.
+
+**Left Panel -- Protocol-Specific Browser:**
+
+- **MQTT brokers**: A topic tree browser that organizes discovered topics by their `/` separator hierarchy. Supports tree view, flat view, and search filtering. For Sparkplug B topics, decoded metric names and current values are shown.
+- **OPC-UA servers**: A node tree browser that navigates the OPC-UA address space. Expand folders to drill into the namespace and find variable nodes.
+
+**Right Panel -- Preview and Quick Map:**
+
+- **Data Point Preview**: Shows the live value of the selected topic or node, along with metadata (data type, timestamp, quality). For Sparkplug B topics, individual metrics can be selected from a list.
+- **Quick Map Form**: A streamlined form for mapping the selected data point directly to a characteristic. Select a target characteristic, configure the trigger strategy, and click Map.
+
+### Mapping Tab
+
+The Mapping tab provides a complete view of all data source mappings across both MQTT and OPC-UA protocols.
+
+**Mapping Table** -- Each row displays:
+- Characteristic name
+- Protocol badge (MQTT or OPC-UA)
+- Source identifier (topic path or node ID)
+- Source detail (metric name for Sparkplug B)
+- Server name
+- Trigger strategy
+- Active status
+- Edit and Delete actions
+
+**Filtering and Search:**
+- **Filter chips**: All, MQTT, OPC-UA, or Unmapped (characteristics without a data source)
+- **Search bar**: Filter by characteristic name
+
+**Creating a Mapping:**
+
+1. Click **New Mapping** to open the mapping dialog.
+2. Select the protocol (MQTT or OPC-UA).
+3. Configure the data source (broker/server, topic/node, metric).
+4. Select the target characteristic.
+5. Choose a trigger strategy:
+   - **On Change**: Create a sample whenever the value changes
+   - **On Trigger**: Create a sample when a trigger tag fires
+   - **On Timer**: Create samples at timed intervals
+6. Click Save.
+
+Existing mappings can be edited or deleted from the table row actions. The tab also shows a count of unmapped characteristics, making it easy to identify which characteristics still need data sources.
+
+---
+
+## 12. Kiosk Mode
 
 Kiosk mode provides a full-screen, chrome-free display designed for shop-floor monitors and factory TV screens.
 
@@ -520,7 +658,7 @@ If no `chars` parameter is provided, all characteristics are shown.
 
 ---
 
-## 12. Wall Dashboard
+## 13. Wall Dashboard
 
 The Wall Dashboard displays multiple control charts simultaneously in a configurable grid layout, designed for large monitors in control rooms.
 
@@ -556,7 +694,7 @@ The Wall Dashboard displays multiple control charts simultaneously in a configur
 
 ---
 
-## 13. Violations View
+## 14. Violations View
 
 The Violations view provides a centralized table for monitoring and managing all Nelson rule violations across your plant.
 
@@ -599,7 +737,7 @@ Click the **Acknowledge** button on any pending violation. The system records th
 
 ---
 
-## 14. Roles and Permissions
+## 15. Roles and Permissions
 
 OpenSPC uses a four-tier role hierarchy. Roles are assigned per plant, so a user can have different roles at different sites.
 

@@ -63,6 +63,16 @@ uvicorn openspc.main:app --reload --port 8000
 
 The backend starts at `http://localhost:8000`. API docs are available at `/docs` (Swagger UI) and `/redoc`.
 
+**Key backend dependencies** (installed automatically via `pip install -e .`):
+- `fastapi`, `uvicorn` -- Web framework and ASGI server
+- `sqlalchemy[asyncio]`, `aiosqlite` -- Async ORM + SQLite driver
+- `asyncpg`, `aiomysql`, `aioodbc` -- Optional drivers for PostgreSQL, MySQL, MSSQL
+- `aiomqtt` -- Async MQTT client
+- `asyncua` -- Async OPC-UA client
+- `cryptography` -- Fernet encryption for database credentials
+- `structlog` -- Structured logging
+- `slowapi` -- Rate limiting
+
 **Environment variables** (optional -- sensible defaults are provided):
 
 ```bash
@@ -72,6 +82,7 @@ OPENSPC_ADMIN_USERNAME=admin                              # default
 OPENSPC_ADMIN_PASSWORD=admin                              # default
 OPENSPC_CORS_ORIGINS=http://localhost:5173                # default
 OPENSPC_SANDBOX=true                                      # enables dev tools
+OPENSPC_LOG_FORMAT=console                                # default (or "json")
 ```
 
 ### Frontend Setup
@@ -129,24 +140,26 @@ backend/
   alembic.ini                     # Alembic migration config
   alembic/
     env.py                        # Async migration runner
-    versions/                     # Migration scripts (date-prefixed)
+    versions/                     # 20 migration scripts (date-prefixed)
   src/openspc/
     main.py                       # FastAPI app, lifespan, router registration
     api/
       deps.py                     # Dependency injection (auth, RBAC)
-      v1/
+      v1/                         # 19 router modules
         auth.py                   # Login, refresh, logout, /me
         users.py                  # User CRUD + role assignment
         plants.py                 # Plant/site CRUD
-        hierarchy.py              # ISA-95 hierarchy tree
+        hierarchy.py              # ISA-95 hierarchy tree (2 routers)
         characteristics.py        # SPC characteristic CRUD + chart data
         characteristic_config.py  # Polymorphic config (manual/tag)
         samples.py                # Sample submission + SPC engine
         violations.py             # Violation queries + acknowledgement
         annotations.py            # Point/period annotations
         brokers.py                # MQTT broker management
+        opcua_servers.py          # OPC-UA server CRUD, browsing, subscriptions
+        database_admin.py         # DB config, test, status, backup, vacuum, migrations
         tags.py                   # Tag-to-characteristic mapping
-        providers.py              # TAG provider status/control
+        providers.py              # TAG + OPC-UA provider status/control
         data_entry.py             # External data ingestion (JWT + API key)
         api_keys.py               # API key CRUD
         websocket.py              # Real-time sample/violation feed
@@ -154,6 +167,9 @@ backend/
     core/
       config.py                   # Settings via pydantic-settings (OPENSPC_ prefix)
       broadcast.py                # Event bus -> WebSocket bridge
+      publish.py                  # MQTT outbound publisher (violations, stats, Nelson events)
+      rate_limit.py               # Slowapi rate limiting configuration
+      logging.py                  # Structured logging via structlog (console/JSON)
       auth/
         jwt.py                    # JWT creation/validation (HS256)
         passwords.py              # Argon2id hashing
@@ -170,12 +186,23 @@ backend/
       alerts/
         manager.py                # Violation creation + acknowledgement
       providers/
-        manager.py                # MQTT -> SPC engine bridge
+        manager.py                # MQTT TAG -> SPC engine bridge
+        tag.py                    # Tag provider (MQTT tag subscriptions)
+        opcua_provider.py         # OPC-UA data subscription -> SPC engine
+        opcua_manager.py          # OPC-UA provider lifecycle management
+        buffer.py                 # SubgroupBuffer (shared by TAG + OPC-UA providers)
+        manual.py                 # Manual data entry provider
+        protocol.py               # Protocol abstraction base
     mqtt/
       manager.py                  # Multi-broker MQTT connections
+    opcua/
+      client.py                   # asyncua wrapper (connect, browse, subscribe)
+      manager.py                  # OPC-UA server lifecycle management
+      browsing.py                 # OPC-UA node tree browsing + discovery
     db/
       database.py                 # Async engine + session factory
-      models/                     # SQLAlchemy ORM models
+      dialects.py                 # Multi-dialect support (SQLite/PG/MySQL/MSSQL)
+      models/                     # 19 SQLAlchemy ORM models (12 model files)
 ```
 
 ### Frontend (`frontend/src/`)
@@ -185,8 +212,8 @@ frontend/src/
   App.tsx                         # Root: providers, routes, error boundary
   main.tsx                        # Entry point
   api/
-    client.ts                     # fetchApi + all API modules + token management
-    hooks.ts                      # 42 React Query hooks (queries + mutations)
+    client.ts                     # fetchApi + 15 API namespaces + token management
+    hooks.ts                      # 60+ React Query hooks (queries + mutations)
   providers/
     AuthProvider.tsx               # JWT auth, role derivation
     PlantProvider.tsx              # Plant list + selection context
@@ -198,17 +225,19 @@ frontend/src/
     uiStore.ts                    # Sidebar state, selected plant (persisted)
     dashboardStore.ts             # Chart selections, real-time cache (partially persisted)
     configStore.ts                # Configuration page UI state (transient)
-  pages/                          # 12 page components
-  components/                     # ~54 UI components
-    charts/                       # Chart-specific (DualChartPanel, RangeChart, etc.)
-    characteristic-config/        # Config tabs (General, Limits, Sampling, Rules)
-    connectivity/                 # MQTT broker/topic/tag components
-    users/                        # User table + form dialog
+  pages/                          # 13 page components
+  components/                     # ~93 UI components total
+    charts/                       # 4 chart-specific (DualChartPanel, RangeChart, etc.)
+    characteristic-config/        # 8 config tabs (General, Limits, Sampling, Rules, etc.)
+    connectivity/                 # 28 components (Monitor, Servers, Browse, Mapping tabs)
+    users/                        # 2 user table + form dialog
+    (root)                        # ~51 shared components
   hooks/
     useECharts.ts                 # ECharts instance lifecycle + events
   lib/
     echarts.ts                    # Tree-shaken ECharts registration
     chart-registry.ts             # 10 chart type definitions
+    protocols.ts                  # Protocol registry (MQTT + OPC-UA definitions)
     roles.ts                      # RBAC helpers (hasAccess, canPerformAction)
     theme-presets.ts              # Chart color presets
     utils.ts                      # cn() - Tailwind class merger
@@ -228,9 +257,13 @@ frontend/src/
 | `backend/src/openspc/main.py` | App creation, lifespan (startup/shutdown), router registration |
 | `backend/src/openspc/api/deps.py` | All authentication + authorization dependencies |
 | `backend/src/openspc/core/config.py` | All `OPENSPC_*` environment variables |
+| `backend/src/openspc/db/dialects.py` | Multi-dialect SQL abstraction (SQLite/PG/MySQL/MSSQL) |
+| `backend/src/openspc/opcua/client.py` | asyncua wrapper for OPC-UA communication |
+| `backend/src/openspc/core/publish.py` | MQTT outbound publisher for SPC events |
 | `frontend/src/App.tsx` | Provider hierarchy, route definitions, auth gates |
-| `frontend/src/api/client.ts` | Token management, 401 retry logic, all API modules |
+| `frontend/src/api/client.ts` | Token management, 401 retry logic, 15 API namespaces |
 | `frontend/src/api/hooks.ts` | All React Query hooks, query keys, polling intervals |
+| `frontend/src/lib/protocols.ts` | Protocol registry (MQTT + OPC-UA definitions for UI) |
 
 ---
 
@@ -671,9 +704,14 @@ alembic history --verbose
 
 2. **Import your models**: The `alembic/env.py` imports `from openspc.db.models import Base`. If you add a new model file, make sure it is imported (directly or transitively) so that `Base.metadata` includes its tables.
 
-3. **Don't edit applied migrations**: Once a migration has been applied (especially by other developers), create a new migration instead of editing the existing one.
+3. **Don't edit applied migrations**: Once a migration has been applied (especially by other developers), create a new migration instead of editing the existing one. Existing migrations are **immutable**.
 
 4. **Test both directions**: Always verify that both `upgrade()` and `downgrade()` work.
+
+5. **Multi-dialect safety**: OpenSPC supports SQLite, PostgreSQL, MySQL, and MSSQL. When writing migrations:
+   - Never use `lastrowid` -- it silently returns 0 on PostgreSQL. Instead, insert rows, SELECT them back by a unique column, then insert children.
+   - Use `op.batch_alter_table()` for SQLite compatibility (already configured in `env.py`).
+   - Test migrations against your target dialect before deploying.
 
 ---
 

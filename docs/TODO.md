@@ -1,7 +1,7 @@
 # OpenSPC: Feature Gaps and Roadmap
 
 > Living document tracking known gaps, planned features, and future work.
-> Last updated: 2026-02-08 | Current version: 0.3.0 (in development)
+> Last updated: 2026-02-10 | Current version: 0.4.0
 
 ---
 
@@ -11,11 +11,19 @@
 |-----------|--------|------------------|
 | v0.1.0 | Complete | Core SPC engine, control charts, Nelson rules, hierarchy, reports, kiosk mode, theming |
 | v0.2.0 | Complete | Plant model, plant-scoped data isolation, plant CRUD, plant selector |
-| v0.3.0 | In Progress | User management (done), Industrial Connectivity Phase 1 (done) |
+| v0.3.0 | Complete | User management, Industrial Connectivity Phase 1 (MQTT/SparkplugB), charting enhancements (annotations, time-axis, ECharts migration), reporting, UI polish |
+| v0.4.0 | Complete | Enterprise features (see below) |
 
-**Completed phases in v0.3.0:**
-- User Management -- JWT auth, user CRUD, per-plant RBAC, login page
-- Industrial Connectivity Phase 1 -- SparkplugB protobuf, multi-broker, topic discovery, connectivity page, tag mapping + live preview
+**Completed workstreams in v0.4.0:**
+
+- **WS-4: Architecture Review** -- Security hardening, code quality improvements, rate limiting enforcement, structured logging (structlog with console/JSON output)
+- **WS-1: Multi-Database** -- Dialect abstraction layer (SQLite/PostgreSQL/MySQL/MSSQL), encrypted database credentials (Fernet), Database Admin API + UI (config, test, status, backup, vacuum, migrations)
+- **WS-2: OPC-UA Integration** -- 4 phases completed:
+  - Phase 1: JTI data model (polymorphic DataSource with MQTTDataSource/OPCUADataSource)
+  - Phase 2: asyncua client, OPCUAServer model, manager, node browsing, 12 API endpoints
+  - Phase 3: OPCUAProvider, subscription-to-SPC engine bridge, P1 trigger validation
+  - Phase 4: Unified Connectivity Hub UI (28 components, 4 tabs: Monitor/Servers/Browse/Mapping), protocol registry
+- **WS-3: MQTT Outbound Publishing** -- Schema, publisher foundation, SPC event publishing (violations, stats, Nelson events), rate control, frontend outbound configuration UI
 
 ---
 
@@ -24,15 +32,15 @@
 ### Critical -- Production Blockers
 
 - [ ] **No automated test suite** -- No unit or integration tests exist in either backend or frontend. This blocks confident deployments and refactoring. See [Testing Gaps](#testing-gaps) below.
-- [ ] **MQTT broker passwords stored in plaintext** -- `MQTTBroker.password` is stored unencrypted in the database. Should be encrypted at rest.
+- [x] ~~**MQTT broker passwords stored in plaintext**~~ -- Fixed in WS-1: database credentials are now encrypted at rest using Fernet (`.db_encryption_key`).
 - [ ] **Default admin credentials are insecure** -- Bootstrap creates `admin`/`admin` if `OPENSPC_ADMIN_USERNAME` / `OPENSPC_ADMIN_PASSWORD` are not overridden. Needs a forced password change on first login or a setup wizard.
-- [ ] **No database migration version check at startup** -- Application runs against a stale schema silently. Referenced as TODO in `backend/src/openspc/main.py`.
-- [ ] **No structured logging** -- Logs are unstructured Python print/logging. Referenced as TODO in `backend/src/openspc/main.py`. Adopt `structlog` or `python-json-logger` for production observability.
+- [x] ~~**No database migration version check at startup**~~ -- Fixed in WS-4: application checks Alembic head revision at startup and logs a warning if behind.
+- [x] ~~**No structured logging**~~ -- Fixed in WS-4: structlog with console/JSON output formats (`OPENSPC_LOG_FORMAT`).
 
 ### High Priority -- Important Missing Features
 
-- [ ] **OPC-UA provider** -- Only MQTT/SparkplugB are implemented. OPC-UA is planned for `phase-industrial-connectivity-2`. See [Planned Features](#planned-features).
-- [ ] **Rate limiting enforcement** -- `APIKey.rate_limit_per_minute` field exists in the database but no middleware enforces it. External API consumers can send unlimited requests.
+- [x] ~~**OPC-UA provider**~~ -- Completed in WS-2: full OPC-UA integration with asyncua client, node browsing, data subscription, and Connectivity Hub UI.
+- [x] ~~**Rate limiting enforcement**~~ -- Fixed in WS-4: slowapi rate limiting with configurable limits (`OPENSPC_RATE_LIMIT_LOGIN`, `OPENSPC_RATE_LIMIT_DEFAULT`).
 - [ ] **Batch violation acknowledgement UI** -- Backend supports `POST /violations/batch-acknowledge` but the frontend only offers single-item acknowledge buttons. No checkbox multi-select in ViolationsView.
 - [ ] **Violation filtering on backend** -- `requires_acknowledgement` filtering is done client-side in ViolationsView. Needs a backend query parameter (noted as TODO in source).
 - [ ] **Attribute chart rendering** -- Chart type registry defines p, np, c, u chart types but the ControlChart component is focused on variable data. Attribute charts likely need dedicated rendering logic.
@@ -68,16 +76,6 @@
 
 ## Planned Features
 
-### Industrial Connectivity Phase 2: OPC-UA
-
-**Planning:** [`.planning/phase-industrial-connectivity-1/CONTEXT.md`](.planning/phase-industrial-connectivity-1/CONTEXT.md) (references phase 2 scope)
-
-- [ ] OPC-UA server connection support
-- [ ] OPC-UA node browsing and discovery
-- [ ] OPC-UA tag-to-characteristic mapping
-- [ ] OPC-UA data subscription and ingestion via SPC engine
-- [ ] Add `OPC_UA` to `ProviderType` enum
-
 ### Polymorphic Characteristic Configuration
 
 **Planning:** [`.planning/phase-4-polymorphic-config/CONTEXT.md`](.planning/phase-4-polymorphic-config/CONTEXT.md)
@@ -89,19 +87,23 @@ Already partially implemented (CharacteristicConfig model + API exists). Remaini
 - [ ] TagConfig trigger evaluation service
 - [ ] MQTT subscription management driven by TagConfig
 
-### Multi-Database Support
-
-- [ ] PostgreSQL support -- Currently SQLite only (`aiosqlite` driver). Production deployments may require PostgreSQL with `asyncpg`.
-- [ ] Database driver configuration via `OPENSPC_DATABASE_URL` (partially supported but untested with other drivers)
-
 ### Notification System Expansion
 
 Per phase-2 decisions, the notification system should support:
 
-- [ ] In-app notifications -- partially done via WebSocket push
+- [x] In-app notifications -- done via WebSocket push
+- [x] MQTT outbound publishing -- done in WS-3 (violations, stats, Nelson events)
 - [ ] Webhook callbacks -- architecture decided, not implemented
 - [ ] Email notifications -- not implemented
 - [ ] Configurable notification rules per characteristic/severity
+
+### Enterprise UI Overhaul
+
+- [ ] Settings page redesign (tabbed layout)
+- [ ] Help tooltips throughout the application
+- [ ] Nelson rules configuration UI improvements
+- [ ] Variable subgroup handling improvements
+- [ ] Attribute chart dedicated rendering
 
 ---
 
@@ -118,6 +120,9 @@ No automated test files have been found in either the backend or frontend source
 - [ ] Integration tests for WebSocket protocol (subscribe, unsubscribe, message broadcast)
 - [ ] Integration tests for MQTT manager (multi-broker lifecycle, topic discovery)
 - [ ] Integration tests for SparkplugB protobuf encode/decode
+- [ ] Integration tests for OPC-UA client (connection, browsing, subscriptions)
+- [ ] Integration tests for multi-dialect database operations
+- [ ] Integration tests for MQTT outbound publishing
 - [ ] Test fixtures and factories for database models
 
 ### Frontend
@@ -139,6 +144,7 @@ These are not bugs but areas that may need optimization at scale:
 - [ ] **Batch import sequential processing** -- Samples are processed one-at-a-time through the SPC engine. No bulk optimization path.
 - [ ] **Control limit recalculation** -- Loads last 100 samples from DB each time. No incremental update mechanism.
 - [ ] **Topic discovery wildcard subscription** -- Subscribes to `#` which receives all messages on the broker. May overwhelm on high-traffic brokers.
+- [ ] **OPC-UA subscription scaling** -- Many concurrent OPC-UA subscriptions may consume significant memory. Consider subscription pooling for large deployments.
 
 ---
 

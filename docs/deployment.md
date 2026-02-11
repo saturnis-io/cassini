@@ -80,9 +80,9 @@ pip install -e .
 
 > **Tip:** For reproducible builds, pin dependencies with `pip freeze > requirements.txt` on the build machine, then install with `pip install -r requirements.txt` in production.
 
-### 2.3 Generate a JWT Secret
+### 2.3 Generate Secrets
 
-The JWT secret signs all access and refresh tokens. It must be a strong, random value and must remain consistent across application restarts.
+**JWT Secret** -- signs all access and refresh tokens. Must be a strong, random value and remain consistent across restarts.
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(64))"
@@ -91,6 +91,12 @@ python -c "import secrets; print(secrets.token_urlsafe(64))"
 Save the output -- you will use it in the environment file.
 
 > **Warning:** If the JWT secret changes, all existing sessions are invalidated and every user will be forced to log in again.
+
+**Database Encryption Key** -- OpenSPC uses a Fernet encryption key (stored in `.db_encryption_key`) to encrypt sensitive database credentials configured through the Database Admin UI. This key is automatically generated on first use and is **separate** from the JWT secret. In production:
+
+- **Back up `.db_encryption_key`** alongside your `.env` file. If this key is lost, encrypted database credentials cannot be decrypted.
+- **Do not rotate the JWT secret expecting it to affect database credentials** -- they use independent keys.
+- Restrict file permissions: `chmod 600 /opt/openspc/.db_encryption_key`.
 
 ### 2.4 Create the Environment File
 
@@ -336,7 +342,9 @@ sudo chown openspc:openspc /opt/openspc/backups
 
 ## 4. Medium Deployment (Separate Services)
 
-Separate the database onto its own server or use a managed PostgreSQL service. Multiple uvicorn workers handle increased concurrency. Suitable for multiple plants with dozens of active users.
+Separate the database onto its own server or use a managed database service. Multiple uvicorn workers handle increased concurrency. Suitable for multiple plants with dozens of active users.
+
+OpenSPC supports **PostgreSQL** (recommended), **MySQL**, and **Microsoft SQL Server** as production database backends in addition to SQLite. Choose based on your organization's existing infrastructure. See [Database URL Examples](#database-url-examples) for connection string formats.
 
 ### Server Requirements
 
@@ -361,6 +369,7 @@ graph LR
 
     subgraph "OT Network (optional)"
         MQTT["MQTT Broker<br/>:1883"]
+        OPCUA["OPC-UA Server<br/>:4840"]
     end
 
     CLIENT["Browsers"] --> NGINX
@@ -368,6 +377,7 @@ graph LR
     NGINX --> STATIC
     UVICORN --> PG
     UVICORN -.->|"MQTT/SparkplugB"| MQTT
+    UVICORN -.->|"OPC-UA"| OPCUA
 ```
 
 ### PostgreSQL Setup
@@ -479,6 +489,19 @@ If connecting to plant-floor MQTT brokers for automated data ingestion:
 - Ensure the app server can reach the MQTT broker(s) on TCP port 1883 (or 8883 for TLS)
 - For brokers on isolated OT networks, place the OpenSPC server on a DMZ or configure firewall rules to allow outbound MQTT only
 
+**MQTT Outbound Publishing**: OpenSPC can also publish SPC events (violations, statistics, Nelson rule triggers) to MQTT brokers. Configure outbound topics and rate limits via the Connectivity page.
+
+### OPC-UA Server Integration
+
+If connecting to OPC-UA servers for automated data ingestion:
+
+- Configure OPC-UA server connections via the **Connectivity** page (Servers tab) or the [OPC-UA API](api-reference.md)
+- The backend uses `asyncua` for asynchronous OPC-UA communication
+- Node browsing and discovery are available via the Connectivity page (Browse tab)
+- Map OPC-UA nodes to characteristics via the Mapping tab
+- Ensure the app server can reach OPC-UA server(s) on TCP port 4840 (default) or the configured port
+- OPC-UA subscriptions deliver real-time data into the SPC engine for automatic control chart processing
+
 ---
 
 ## 5. Large Deployment (Containerized / HA)
@@ -531,13 +554,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for asyncpg and argon2
+# Install system dependencies for asyncpg, argon2, cryptography, and OPC-UA
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libffi-dev \
+    gcc libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/ .
-RUN pip install --no-cache-dir -e . asyncpg
+RUN pip install --no-cache-dir -e . asyncpg cryptography asyncua
+
+# For MySQL support, also install: aiomysql
+# For MSSQL support, also install: aioodbc (requires unixODBC-dev)
 
 # Run migrations on startup (optional -- can also run as an init container)
 # RUN alembic upgrade head
@@ -759,6 +785,7 @@ Key considerations for Kubernetes deployments:
 | **Database** | PostgreSQL streaming replication or a managed service with automated failover. |
 | **WebSocket fan-out** | Each backend instance pushes updates only to its own connected WebSocket clients. All instances read from the same database, so clients connected to any replica see consistent data. |
 | **MQTT ingestion** | Only **one** backend instance should connect to each MQTT broker to avoid duplicate sample ingestion. Use a leader-election pattern (e.g., Kubernetes lease) or designate a single "ingest" replica. Other replicas should not have active MQTT brokers configured. |
+| **OPC-UA ingestion** | Same leader pattern as MQTT -- only one backend instance should maintain active OPC-UA subscriptions to avoid duplicate data ingestion. |
 | **Session state** | JWT tokens are stateless (validated by signature, not session store). Any backend replica can validate any token as long as all replicas share the same `OPENSPC_JWT_SECRET`. |
 
 ---
@@ -774,6 +801,7 @@ Verify each item before going live.
 - [ ] `OPENSPC_COOKIE_SECURE=true` is set (requires HTTPS)
 - [ ] The `.env` file is not committed to version control
 - [ ] The `.env` file has restricted permissions (`chmod 600`)
+- [ ] The `.db_encryption_key` file is backed up and has restricted permissions (`chmod 600`)
 - [ ] Database credentials are not hardcoded in source code
 
 ### Network and Transport
@@ -784,6 +812,7 @@ Verify each item before going live.
 - [ ] `OPENSPC_CORS_ORIGINS` lists only your actual frontend domain(s)
 - [ ] Firewall rules restrict database access to the app server only
 - [ ] If using MQTT: broker connections use TLS where the network is untrusted
+- [ ] If using OPC-UA: server connections use encrypted endpoints where the network is untrusted
 
 ### Application Configuration
 
@@ -838,10 +867,11 @@ Integrate the health endpoint with your monitoring stack:
 | Database connection pool | PostgreSQL `pg_stat_activity` | > 80% of `max_connections` |
 | Disk usage | OS metrics | > 80% (especially important for SQLite) |
 | MQTT connection status | `/api/v1/brokers/all/status` | Disconnected for > 5 minutes |
+| OPC-UA connection status | `/api/v1/opcua/servers` | Disconnected for > 5 minutes |
 
 ### Log Collection
 
-OpenSPC logs to stdout via Python's standard `logging` module. In containerized deployments, logs are captured automatically by Docker or Kubernetes. For systemd deployments, logs are available via `journalctl`:
+OpenSPC uses **structlog** for structured logging. Set `OPENSPC_LOG_FORMAT=json` for machine-readable JSON output (recommended for production log aggregation), or `console` for human-readable output during development. In containerized deployments, logs are captured automatically by Docker or Kubernetes. For systemd deployments, logs are available via `journalctl`:
 
 ```bash
 # Follow live logs
@@ -855,7 +885,7 @@ For centralized log collection, configure a log shipper (Filebeat, Promtail, Flu
 
 - **Nginx access logs**: Request rate, latency, error codes
 - **Nginx error logs**: Upstream failures, proxy errors
-- **Application logs**: Startup/shutdown events, MQTT connection status, SPC engine processing
+- **Application logs**: Startup/shutdown events, MQTT/OPC-UA connection status, SPC engine processing
 - **PostgreSQL logs**: Slow queries, connection errors
 
 ### Alerting Recommendations
@@ -865,6 +895,7 @@ For centralized log collection, configure a log shipper (Filebeat, Promtail, Flu
 | Health check failure | `/health` returns "unhealthy" for 2+ consecutive checks | Critical |
 | High error rate | 5xx rate > 1% over 5 minutes | Critical |
 | MQTT disconnected | Broker status "disconnected" for > 5 minutes | Warning |
+| OPC-UA disconnected | Server status "disconnected" for > 5 minutes | Warning |
 | Disk space low | > 80% disk usage on database volume | Warning |
 | Disk space critical | > 95% disk usage on database volume | Critical |
 | Database connections exhausted | Active connections > 90% of max | Warning |
@@ -878,14 +909,18 @@ All environment variables use the `OPENSPC_` prefix. The backend reads them via 
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `OPENSPC_APP_VERSION` | string | `"0.3.0"` | Application version string (displayed in API root and docs) |
-| `OPENSPC_DATABASE_URL` | string | `"sqlite+aiosqlite:///./openspc.db"` | SQLAlchemy async database URL. Use `postgresql+asyncpg://...` for PostgreSQL. |
+| `OPENSPC_APP_VERSION` | string | `"0.4.0"` | Application version string (displayed in API root and docs) |
+| `OPENSPC_DATABASE_URL` | string | `"sqlite+aiosqlite:///./openspc.db"` | SQLAlchemy async database URL. Use `postgresql+asyncpg://...` for PostgreSQL, `mysql+aiomysql://...` for MySQL, or `mssql+aioodbc://...` for MSSQL. |
 | `OPENSPC_JWT_SECRET` | string | `""` (auto-generated) | Secret key for signing JWT tokens. If empty, a random secret is generated and persisted to a `.jwt_secret` file. **Always set this explicitly in production.** |
 | `OPENSPC_COOKIE_SECURE` | bool | `false` | Set the `Secure` flag on the refresh token cookie. Must be `true` in production (requires HTTPS). |
 | `OPENSPC_ADMIN_USERNAME` | string | `"admin"` | Username for the bootstrap admin account (created on first startup when no users exist). |
 | `OPENSPC_ADMIN_PASSWORD` | string | `""` | Password for the bootstrap admin account. **Must be set to a strong value in production.** |
 | `OPENSPC_CORS_ORIGINS` | string | `"http://localhost:5173,..."` | Comma-separated list of allowed CORS origins. In production, set this to your frontend domain(s) only. |
+| `OPENSPC_RATE_LIMIT_LOGIN` | string | `"5/minute"` | Rate limit for login attempts. |
+| `OPENSPC_RATE_LIMIT_DEFAULT` | string | `"60/minute"` | Default rate limit for API endpoints. |
+| `OPENSPC_LOG_FORMAT` | string | `"console"` | Log output format. Use `"console"` for human-readable or `"json"` for structured JSON logging (recommended for production log aggregation). |
 | `OPENSPC_SANDBOX` | bool | `false` | Enable sandbox mode. When `true`, registers the `/api/v1/devtools` router with database reset and seed endpoints. **Must be `false` in production.** |
+| `OPENSPC_DEV_MODE` | bool | `false` | Development mode. Disables enterprise enforcement features (e.g., forced password change). **Must be `false` in production.** |
 
 ### Database URL Examples
 
@@ -895,6 +930,8 @@ All environment variables use the `OPENSPC_` prefix. The backend reads them via 
 | SQLite (absolute path) | `sqlite+aiosqlite:////opt/openspc/data/openspc.db` |
 | PostgreSQL | `postgresql+asyncpg://user:password@host:5432/dbname` |
 | PostgreSQL (SSL) | `postgresql+asyncpg://user:password@host:5432/dbname?ssl=require` |
+| MySQL | `mysql+aiomysql://user:password@host:3306/dbname` |
+| MSSQL | `mssql+aioodbc://user:password@host:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server` |
 
 > **Tip:** The `.env` file supports standard `KEY=value` syntax. Values with special characters should be quoted: `OPENSPC_DATABASE_URL="postgresql+asyncpg://user:p@ss@host/db"`.
 

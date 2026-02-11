@@ -11,15 +11,18 @@ This document describes the architecture of OpenSPC -- an event-driven Statistic
 3. [Frontend Architecture](#3-frontend-architecture)
 4. [Authentication Flow](#4-authentication-flow)
 5. [Real-Time Data Pipeline](#5-real-time-data-pipeline)
-6. [SPC Calculation Pipeline](#6-spc-calculation-pipeline)
-7. [Database Schema](#7-database-schema)
-8. [Project Directory Structure](#8-project-directory-structure)
+6. [OPC-UA Data Pipeline](#6-opc-ua-data-pipeline)
+7. [MQTT Outbound Publishing](#7-mqtt-outbound-publishing)
+8. [SPC Calculation Pipeline](#8-spc-calculation-pipeline)
+9. [Multi-Database Support](#9-multi-database-support)
+10. [Database Schema](#10-database-schema)
+11. [Project Directory Structure](#11-project-directory-structure)
 
 ---
 
 ## 1. System Overview
 
-OpenSPC is a full-stack SPC platform that collects measurement data (manually or from industrial equipment), evaluates it against statistical control rules, and presents real-time results through interactive control charts.
+OpenSPC is a full-stack SPC platform that collects measurement data (manually or from industrial equipment via MQTT and OPC-UA), evaluates it against statistical control rules, and presents real-time results through interactive control charts. It can also publish SPC events outbound to MQTT brokers for integration with external systems.
 
 ```mermaid
 graph LR
@@ -33,11 +36,14 @@ graph LR
         Engine["SPC Engine"]
         EventBus["Event Bus"]
         MQTT["MQTT Manager"]
+        OPCUA["OPC-UA Manager"]
+        PUB["MQTT Publisher<br/>(outbound)"]
     end
 
     subgraph Data
-        DB["SQLite / PostgreSQL"]
+        DB["SQLite / PostgreSQL<br/>MySQL / MSSQL"]
         Broker["MQTT Broker<br/>(Sparkplug B)"]
+        OPCSrv["OPC-UA Server(s)"]
     end
 
     SPA -- "HTTP (JWT)" --> API
@@ -46,22 +52,28 @@ graph LR
     Engine --> DB
     Engine -- "events" --> EventBus
     EventBus --> WS
+    EventBus --> PUB
+    PUB -- "publish" --> Broker
     MQTT <-- "subscribe" --> Broker
     MQTT -- "samples" --> Engine
+    OPCUA <-- "subscribe" --> OPCSrv
+    OPCUA -- "samples" --> Engine
 ```
 
 **Key architectural decisions:**
 
 - **Layered backend**: API routes delegate to a dependency-injected service layer (repositories, SPC engine, alert manager). No business logic lives in route handlers.
-- **Event-driven real-time**: The SPC engine publishes domain events to an in-process async event bus. A WebSocket broadcaster subscribes to those events and pushes updates to connected clients. This keeps the engine decoupled from delivery concerns.
+- **Event-driven real-time**: The SPC engine publishes domain events to an in-process async event bus. A WebSocket broadcaster subscribes to those events and pushes updates to connected clients. An MQTT publisher subscribes to the same events and publishes them outbound to configured brokers. This keeps the engine decoupled from delivery concerns.
 - **Multi-tenancy via plants**: All data is scoped to a "plant" (manufacturing site). Users have per-plant roles, and queries are filtered by `plant_id` foreign keys.
-- **Dual data ingestion**: Measurements arrive either through the REST API (manual entry, external systems via API keys) or through MQTT (industrial equipment via Sparkplug B protocol). Both paths feed into the same SPC engine.
+- **Triple data ingestion**: Measurements arrive through the REST API (manual entry, external systems via API keys), through MQTT (industrial equipment via Sparkplug B protocol), or through OPC-UA (direct subscription to OPC-UA server nodes). All three paths feed into the same SPC engine.
+- **Multi-database support**: The system supports SQLite (development/small deployments), PostgreSQL (asyncpg), MySQL (aiomysql), and MSSQL (aioodbc). Database credentials are encrypted at rest using Fernet symmetric encryption with a separate key from JWT secrets.
+- **Protocol-agnostic data sources**: Data sources use a polymorphic Joined Table Inheritance model. The base `DataSource` table stores common fields, with protocol-specific sub-tables (`MQTTDataSource`, `OPCUADataSource`) for each protocol.
 
 ---
 
 ## 2. Backend Architecture
 
-The backend is a Python FastAPI application using async SQLAlchemy with an async SQLite driver (aiosqlite). It follows a layered architecture with clear separation of concerns.
+The backend is a Python FastAPI application using async SQLAlchemy with multi-dialect support (SQLite via aiosqlite, PostgreSQL via asyncpg, MySQL via aiomysql, MSSQL via aioodbc). It follows a layered architecture with clear separation of concerns.
 
 ### Application Lifecycle
 
@@ -70,37 +82,43 @@ The FastAPI app uses a `lifespan` context manager (`main.py`) to coordinate star
 ```mermaid
 graph TD
     subgraph Startup
-        S1["1. Initialize database connection"]
-        S2["2. Bootstrap admin user<br/>(if no users exist)"]
-        S3["3. Start WebSocket manager"]
-        S4["4. Wire WebSocket broadcaster<br/>to event bus"]
-        S5["5. Initialize MQTT manager<br/>(connect to active brokers)"]
-        S6["6. Initialize TAG provider<br/>(if MQTT connected)"]
-        S1 --> S2 --> S3 --> S4 --> S5 --> S6
+        S1["1. Configure structured logging"]
+        S2["2. Initialize database connection"]
+        S3["3. Bootstrap admin user<br/>(if no users exist)"]
+        S4["4. Check migration status<br/>(compare Alembic head)"]
+        S5["5. Start WebSocket manager"]
+        S6["6. Wire WebSocket broadcaster<br/>to event bus"]
+        S7["7. Initialize MQTT manager<br/>(connect to active brokers)"]
+        S8["8. Initialize TAG provider<br/>(if MQTT connected)"]
+        S9["9. Initialize OPC-UA manager<br/>(connect to active servers)"]
+        S10["10. Initialize OPC-UA provider<br/>(if servers connected)"]
+        S11["11. Initialize MQTT publisher<br/>(outbound event bridge)"]
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11
     end
 
     subgraph Shutdown
-        D1["1. Shutdown TAG provider"]
-        D2["2. Shutdown MQTT manager"]
-        D3["3. Drain event bus tasks"]
-        D4["4. Stop WebSocket manager"]
-        D5["5. Dispose database connection"]
-        D1 --> D2 --> D3 --> D4 --> D5
+        D1["1. Shutdown OPC-UA provider"]
+        D2["2. Shutdown OPC-UA manager"]
+        D3["3. Shutdown TAG provider"]
+        D4["4. Shutdown MQTT manager"]
+        D5["5. Drain event bus tasks"]
+        D6["6. Stop WebSocket manager"]
+        D7["7. Dispose database connection"]
+        D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7
     end
 
     Startup --> |"yield (app running)"| Shutdown
 ```
 
-**Why this order matters:** TAG provider depends on MQTT, so it starts after MQTT and shuts down before MQTT. The event bus is drained before the WebSocket manager stops so that in-flight notifications are delivered. The database connection is disposed last because other shutdown steps may need it.
+**Why this order matters:** The OPC-UA provider depends on the OPC-UA manager, so it starts after and shuts down before. The TAG provider depends on MQTT, so it follows the same pattern. The MQTT publisher is initialized last because it needs both the MQTT manager (for publishing) and the event bus (for subscriptions). The event bus is drained before the WebSocket manager stops so that in-flight notifications are delivered. The database connection is disposed last because other shutdown steps may need it.
 
 ### Middleware Pipeline
 
 Requests pass through a minimal middleware stack:
 
 1. **CORS** -- Configured via `OPENSPC_CORS_ORIGINS` environment variable. Allows credentials (cookies) for the refresh token flow.
-2. **FastAPI exception handlers** -- Standard HTTP exception and validation error responses.
-
-There is no rate-limiting middleware yet (the API key model has a `rate_limit_per_minute` field, but enforcement is not implemented).
+2. **Rate limiting** -- Via `slowapi` on admin-only endpoints (database admin, user management). Rate limit exceeded responses return HTTP 429.
+3. **FastAPI exception handlers** -- Standard HTTP exception and validation error responses.
 
 ### Dependency Injection
 
@@ -140,14 +158,17 @@ All API routers live under `api/v1/` and are registered in `main.py`:
 | `plants` | `/api/v1/plants` | Plant/site CRUD |
 | `hierarchy` | `/api/v1/hierarchy` | Equipment hierarchy tree (ISA-95) |
 | `characteristics` | `/api/v1/characteristics` | SPC characteristic CRUD, chart data, rules |
+| `characteristic_config` | `/api/v1/characteristics/{id}/config` | Polymorphic characteristic configuration |
 | `samples` | `/api/v1/samples` | Sample submission, batch import, editing |
 | `violations` | `/api/v1/violations` | Violation listing, acknowledgment |
 | `annotations` | `/api/v1/characteristics/{id}/annotations` | Point and period annotations |
 | `brokers` | `/api/v1/brokers` | MQTT broker CRUD, connection, discovery |
+| `opcua_servers` | `/api/v1/opcua-servers` | OPC-UA server CRUD, connection, node browsing |
 | `tags` | `/api/v1/tags` | Tag-to-characteristic mapping |
-| `providers` | `/api/v1/providers` | TAG provider status and control |
+| `providers` | `/api/v1/providers` | TAG and OPC-UA provider status and control |
 | `data_entry` | `/api/v1/data-entry` | External system data submission |
 | `api_keys` | `/api/v1/api-keys` | API key management |
+| `database_admin` | `/api/v1/database` | Database config, status, backup, migrations (admin-only) |
 | `websocket` | `/ws/samples` | Real-time WebSocket endpoint |
 | `devtools` | `/api/v1/devtools` | Database reset/seed (sandbox only) |
 
@@ -181,7 +202,7 @@ sequenceDiagram
 
 ## 3. Frontend Architecture
 
-The frontend is a React 18 single-page application written in TypeScript, built with Vite, and styled with Tailwind CSS. Charts are rendered using ECharts 6 (canvas-based).
+The frontend is a React 19 single-page application written in TypeScript 5.9, built with Vite 7, and styled with Tailwind CSS 4. Charts are rendered using ECharts 6 (canvas-based).
 
 ### Provider Hierarchy
 
@@ -222,7 +243,7 @@ OpenSPC uses three complementary state management approaches:
 ```mermaid
 graph LR
     subgraph "Server State (TanStack Query)"
-        SQ["Cached API responses<br/>- Hierarchy trees<br/>- Chart data<br/>- Violation lists<br/>- User lists"]
+        SQ["Cached API responses<br/>- Hierarchy trees<br/>- Chart data<br/>- Violation lists<br/>- User lists<br/>- OPC-UA server states<br/>- Data source mappings"]
     end
 
     subgraph "Client State (Zustand)"
@@ -254,6 +275,7 @@ The UI follows a hierarchy: Layout > Pages > Feature Components > Shared Compone
 graph TD
     App["App.tsx"]
     App --> Login["LoginPage"]
+    App --> ChangePw["ChangePasswordPage"]
     App --> Layout["Layout<br/>(Header + Sidebar + Outlet)"]
     App --> Kiosk["KioskLayout<br/>(chrome-free display)"]
 
@@ -265,6 +287,7 @@ graph TD
     Layout --> Connectivity["ConnectivityPage"]
     Layout --> Settings["SettingsView"]
     Layout --> Users["UserManagementPage"]
+    Layout --> DevTools["DevToolsPage"]
 
     Dashboard --> HTree["HierarchyTodoList"]
     Dashboard --> ChartPanel["ChartPanel"]
@@ -274,9 +297,37 @@ graph TD
     ChartPanel --> ControlChart["ControlChart<br/>(ECharts canvas)"]
     ChartPanel --> Histogram["DistributionHistogram"]
 
+    Connectivity --> MonitorTab["MonitorTab<br/>(status + metrics)"]
+    Connectivity --> ServersTab["ServersTab<br/>(MQTT + OPC-UA)"]
+    Connectivity --> BrowseTab["BrowseTab<br/>(topic/node trees)"]
+    Connectivity --> MappingTab["MappingTab<br/>(data source mapping)"]
+
+    Settings --> DBSettings["DatabaseSettings"]
+    Settings --> PlantSettings["PlantSettings"]
+    Settings --> AppearanceSettings["AppearanceSettings"]
+    Settings --> ApiKeysSettings["ApiKeysSettings"]
+
     Kiosk --> KioskView["KioskView"]
     Kiosk --> WallDash["WallDashboard"]
 ```
+
+The application currently contains approximately:
+- **13 pages** (OperatorDashboard, DataEntryView, ViolationsView, ReportsView, ConfigurationView, ConnectivityPage, SettingsView, UserManagementPage, KioskView, WallDashboard, LoginPage, ChangePasswordPage, DevToolsPage)
+- **90+ reusable components** across subdirectories
+- **28 connectivity components** in `components/connectivity/` (Monitor, Servers, Browse, and Mapping tabs with supporting components)
+
+### Connectivity Hub
+
+The Connectivity Hub (`ConnectivityPage`) is a unified interface for managing all industrial protocols. It uses a 4-tab layout with nested routing:
+
+| Tab | Route | Components | Purpose |
+|---|---|---|---|
+| Monitor | `/connectivity/monitor` | `MonitorTab`, `ConnectivityMetrics`, `DataFlowPipeline`, `ConnectionMetrics`, `BrokerStatusCards`, `ServerStatusGrid` | Real-time connection status, data flow metrics |
+| Servers | `/connectivity/servers` | `ServersTab`, `MQTTServerForm`, `OPCUAServerForm`, `ServerListItem`, `ServerStatusCard`, `ConnectionTestButton` | MQTT broker and OPC-UA server CRUD, connection management |
+| Browse | `/connectivity/browse` | `BrowseTab`, `TopicTreeBrowser`, `NodeTreeBrowser`, `LiveValuePreview`, `ServerSelector`, `ProtocolSelector` | MQTT topic discovery and OPC-UA address space browsing |
+| Mapping | `/connectivity/mapping` | `MappingTab`, `MappingTable`, `MappingRow`, `MappingDialog`, `QuickMapForm`, `CharacteristicPicker`, `ProtocolSourceFields`, `DataPointPreview` | Map topics/nodes to SPC characteristics with data source configuration |
+
+The `ProtocolBadge` component and `protocols.ts` registry provide extensible protocol definitions (MQTT, OPC-UA) with consistent styling across the hub.
 
 ### ECharts Integration
 
@@ -349,7 +400,7 @@ The client also performs **proactive refresh**: before sending a request, it che
 
 ## 5. Real-Time Data Pipeline
 
-When industrial equipment produces measurements, data flows through several systems before reaching the user's browser:
+When industrial equipment produces measurements via MQTT, data flows through several systems before reaching the user's browser:
 
 ```mermaid
 sequenceDiagram
@@ -357,21 +408,26 @@ sequenceDiagram
     participant Broker as MQTT Broker
     participant MQTT as MQTT Manager
     participant TAG as TAG Provider
+    participant Buffer as SubgroupBuffer
     participant Engine as SPC Engine
     participant DB as Database
     participant Bus as Event Bus
     participant WS as WebSocket Broadcaster
+    participant PUB as MQTT Publisher
     participant Browser
 
     PLC->>Broker: Publish measurement<br/>(Sparkplug B / JSON)
     Broker->>MQTT: Message on subscribed topic
     MQTT->>TAG: Decoded payload + metric values
+    TAG->>Buffer: Add value to subgroup buffer
+    Buffer-->>TAG: Buffer full (subgroup complete)
     TAG->>Engine: process_sample(char_id, measurements)
     Engine->>DB: Persist Sample + Measurements
     Engine->>Engine: Calculate zones, evaluate Nelson rules
     Engine->>DB: Persist Violations (if any)
     Engine->>Bus: publish(SampleProcessedEvent)
     Bus->>WS: Handler: notify_sample()
+    Bus->>PUB: Handler: publish to outbound brokers
     WS->>Browser: WS message: {type: "sample", ...}
     Browser->>Browser: Invalidate React Query cache<br/>Update chart display
 ```
@@ -389,10 +445,14 @@ Events published by the system:
 
 | Event | Publisher | Subscribers |
 |---|---|---|
-| `SampleProcessedEvent` | SPC Engine | WebSocket broadcaster |
-| `ViolationCreatedEvent` | Alert Manager | WebSocket broadcaster |
-| `ViolationAcknowledgedEvent` | Violations API | WebSocket broadcaster |
-| `ControlLimitsUpdatedEvent` | Control Limit Service | WebSocket broadcaster, rolling window cache |
+| `SampleProcessedEvent` | SPC Engine | WebSocket broadcaster, MQTT publisher |
+| `ViolationCreatedEvent` | Alert Manager | WebSocket broadcaster, MQTT publisher |
+| `ViolationAcknowledgedEvent` | Violations API | WebSocket broadcaster, MQTT publisher |
+| `ControlLimitsUpdatedEvent` | Control Limit Service | WebSocket broadcaster, MQTT publisher, rolling window cache |
+| `CharacteristicCreatedEvent` | Characteristics API | (extensible) |
+| `CharacteristicUpdatedEvent` | Characteristics API | (extensible) |
+| `CharacteristicDeletedEvent` | Characteristics API | (extensible) |
+| `AlertThresholdExceededEvent` | Alert Manager | (extensible) |
 
 ### WebSocket Protocol
 
@@ -413,7 +473,137 @@ On the frontend, the `WebSocketProvider` disables React Query polling when a Web
 
 ---
 
-## 6. SPC Calculation Pipeline
+## 6. OPC-UA Data Pipeline
+
+OpenSPC supports direct subscription to OPC-UA server nodes for real-time data collection, parallel to the MQTT pipeline. The OPC-UA pipeline uses the `asyncua` library for client communication.
+
+```mermaid
+sequenceDiagram
+    participant PLC as OPC-UA Server
+    participant Client as OPCUAClient<br/>(asyncua)
+    participant Manager as OPCUAManager
+    participant Provider as OPCUAProvider
+    participant Buffer as SubgroupBuffer
+    participant Engine as SPC Engine
+    participant DB as Database
+    participant Bus as Event Bus
+
+    Note over Manager: Startup: load active servers from DB
+    Manager->>Client: connect(endpoint_url, credentials)
+    Client->>PLC: Open secure channel + session
+
+    Note over Provider: Startup: load active OPC-UA data sources
+    Provider->>Client: subscribe_data_change(node_id, callback)
+    Client->>PLC: CreateMonitoredItem(node_id)
+
+    PLC->>Client: DataChangeNotification(node_id, value)
+    Client->>Provider: _on_data_change(node_id, DataValue)
+    Provider->>Provider: Extract numeric value,<br/>resolve source timestamp
+    Provider->>Buffer: Add value to subgroup buffer
+    Buffer-->>Provider: Buffer full (subgroup complete)
+    Provider->>Engine: process_sample(char_id, measurements)
+    Engine->>DB: Persist Sample + Measurements
+    Engine->>Engine: Calculate zones, evaluate Nelson rules
+    Engine->>Bus: publish(SampleProcessedEvent)
+```
+
+### Architecture Components
+
+| Component | Location | Responsibility |
+|---|---|---|
+| `OPCUAClient` | `opcua/client.py` | Low-level asyncua wrapper: connect, disconnect, subscribe, read, browse |
+| `OPCUAManager` | `opcua/manager.py` | Multi-server lifecycle: load from DB, connect/disconnect, state tracking |
+| `NodeBrowsingService` | `opcua/browsing.py` | Address space navigation: browse children, read attributes, search nodes |
+| `OPCUAProvider` | `core/providers/opcua_provider.py` | Data collection: subscribe to nodes, buffer readings, trigger SPC engine |
+| `OPCUAProviderManager` | `core/providers/opcua_manager.py` | Provider lifecycle: initialize, shutdown, refresh subscriptions |
+
+### Key Differences from MQTT Pipeline
+
+| Aspect | MQTT (TAG Provider) | OPC-UA Provider |
+|---|---|---|
+| Protocol library | `aiomqtt` | `asyncua` |
+| Data format | Sparkplug B protobuf or JSON | Native OPC-UA `DataValue` |
+| Mapping model | 1 topic can fan out to multiple metrics | 1 node = 1 characteristic |
+| Server management | `MQTTManager` (multi-broker) | `OPCUAManager` (multi-server) |
+| Trigger strategies | `on_change`, `on_trigger`, `on_timer` | `on_change`, `on_timer` only |
+| Subscription params | Per-topic via broker config | Per-node override or server defaults |
+| Value extraction | Decode Sparkplug B or JSON payload | Direct `DataValue.Value.Value` cast |
+| Shared buffer | `SubgroupBuffer` | `SubgroupBuffer` (same class) |
+
+### Node Browsing
+
+The OPC-UA address space can be browsed from the frontend via REST API endpoints. The `NodeBrowsingService` provides:
+
+- **Browse children**: Navigate the server's node hierarchy (Objects, Variables, etc.)
+- **Read attributes**: Get display name, data type, access level for any node
+- **Read value**: Read the current value of a Variable node
+- **Search**: Find nodes by display name or NodeId pattern
+
+These are exposed through the `/api/v1/opcua-servers/{id}/browse`, `/api/v1/opcua-servers/{id}/nodes/{node_id}`, and `/api/v1/opcua-servers/{id}/nodes/{node_id}/value` endpoints.
+
+---
+
+## 7. MQTT Outbound Publishing
+
+OpenSPC can publish SPC events (samples, violations, acknowledgments, limit updates) outbound to MQTT brokers for integration with external systems, dashboards, or historian databases.
+
+```mermaid
+sequenceDiagram
+    participant Engine as SPC Engine
+    participant Bus as Event Bus
+    participant Publisher as MQTTPublisher
+    participant DB as Database
+    participant MQTT as MQTT Manager
+    participant Broker as MQTT Broker
+    participant External as External System
+
+    Engine->>Bus: publish(SampleProcessedEvent)
+    Bus->>Publisher: _on_sample_processed(event)
+    Publisher->>DB: Resolve hierarchy path<br/>(cached per characteristic)
+    Publisher->>DB: Get outbound-enabled brokers
+    Publisher->>Publisher: Check per-characteristic rate limit
+    Publisher->>Publisher: Build UNS topic:<br/>openspc/{plant}/{path}/{char}/sample
+    Publisher->>Publisher: Build payload (JSON or SparkplugB)
+    Publisher->>MQTT: publish(topic, payload, qos=1)
+    MQTT->>Broker: PUBLISH
+    Broker->>External: Deliver to subscribers
+```
+
+### Topic Structure
+
+Outbound topics follow a UNS (Unified Namespace) compatible structure:
+
+```
+{prefix}/{plant}/{hierarchy...}/{characteristic}/{event_type}
+```
+
+Example: `openspc/plant_a/area1/line2/cell3/diameter/sample`
+
+Each segment is sanitized (lowercased, spaces replaced with underscores, MQTT special characters removed).
+
+### Event Types Published
+
+| Event Type | Topic Suffix | Trigger | Payload Fields |
+|---|---|---|---|
+| Sample processed | `/sample` | Every sample through SPC engine | `sample_id`, `mean`, `range`, `zone`, `in_control` |
+| Violation created | `/violation` | Nelson rule violation detected | `violation_id`, `rule_id`, `rule_name`, `severity` |
+| Violation acknowledged | `/ack` | User acknowledges violation | `violation_id`, `user`, `reason` |
+| Limits updated | `/limits` | Control limits recalculated | `center_line`, `ucl`, `lcl`, `method`, `sample_count` |
+
+### Rate Control
+
+Per-characteristic rate limiting prevents publish storms when high-frequency data sources produce many samples rapidly. Each broker has a configurable `outbound_rate_limit` (minimum seconds between publishes per characteristic). The publisher tracks last-publish timestamps and skips throttled events.
+
+### Payload Formats
+
+Two formats are supported per broker:
+
+- **JSON** (default): Human-readable, includes event type and UTC timestamp
+- **SparkplugB**: Protobuf-encoded metrics for industrial integration (uses the same `SparkplugEncoder` as inbound)
+
+---
+
+## 8. SPC Calculation Pipeline
 
 The SPC engine (`core/engine/spc_engine.py`) processes each sample through an 8-step pipeline:
 
@@ -499,9 +689,81 @@ Modes A and B require `stored_sigma` and `stored_center_line` to be calculated f
 
 ---
 
-## 7. Database Schema
+## 9. Multi-Database Support
 
-OpenSPC uses SQLAlchemy ORM models with async sessions. The default database is SQLite (via aiosqlite), but the schema is compatible with PostgreSQL.
+OpenSPC supports four database backends through SQLAlchemy's async dialect system. The dialect abstraction layer (`db/dialects.py`) handles connection URL construction, credential encryption, and configuration file management.
+
+### Supported Databases
+
+| Dialect | Async Driver | Default Port | Use Case |
+|---|---|---|---|
+| SQLite | `aiosqlite` | N/A (file) | Development, small single-server deployments |
+| PostgreSQL | `asyncpg` | 5432 | Production, multi-user, full-featured |
+| MySQL | `aiomysql` | 3306 | Enterprise environments with MySQL infrastructure |
+| MSSQL | `aioodbc` | 1433 | Enterprise environments with SQL Server infrastructure |
+
+### Credential Encryption
+
+Database passwords are encrypted at rest using Fernet symmetric encryption:
+
+```mermaid
+graph TD
+    subgraph "Key Resolution (priority order)"
+        ENV["1. OPENSPC_DB_ENCRYPTION_KEY<br/>environment variable"]
+        FILE["2. .db_encryption_key file<br/>(auto-generated on first use)"]
+        ENV --> |"not set"| FILE
+    end
+
+    subgraph "Config Storage"
+        CONFIG["db_config.json<br/>(atomic write, 0o600 perms)"]
+        ENC["encrypted_password field<br/>(Fernet-encrypted)"]
+        CONFIG --> ENC
+    end
+
+    FILE -- "key" --> DECRYPT["decrypt_password()"]
+    ENC -- "ciphertext" --> DECRYPT
+    DECRYPT --> URL["SQLAlchemy connection URL"]
+```
+
+**Important**: The encryption key is separate from the JWT secret (`.db_encryption_key` vs `.jwt_secret`). Rotating the JWT secret does not affect encrypted database credentials.
+
+### Configuration Flow
+
+1. Admin configures database via UI (Settings > Database) or API (`/api/v1/database/config`)
+2. Password is encrypted with `encrypt_password()` using the Fernet key
+3. Config is saved atomically to `db_config.json` (temp file + `os.replace()`)
+4. Connection can be tested before saving via `/api/v1/database/test`
+5. On next startup, `db_config.json` is loaded and the URL is constructed via `build_database_url()`
+
+### Admin API
+
+The database admin API (`/api/v1/database/*`) provides 7 endpoints, all requiring admin role:
+
+| Endpoint | Method | Rate Limit | Purpose |
+|---|---|---|---|
+| `/database/config` | GET | No | Read current database configuration (password redacted) |
+| `/database/config` | PUT | 5/min | Update database configuration |
+| `/database/test` | POST | 10/min | Test a connection without saving |
+| `/database/status` | GET | No | Current connection status (dialect, version, table count) |
+| `/database/backup` | POST | 2/min | Create SQLite backup (SQLite only) |
+| `/database/vacuum` | POST | 1/min | Run VACUUM on SQLite database |
+| `/database/migrations` | GET | No | Migration status (current vs head revision) |
+
+All mutation endpoints are rate-limited via `slowapi` and audit-logged with structured logging.
+
+### Security Measures
+
+- **SSRF protection**: Only known database ports (5432, 3306, 1433) are allowed for server dialects
+- **Hostname validation**: Regex pattern blocks special characters and path traversal
+- **Options whitelist**: Only safe connection options (`pool_size`, `pool_timeout`, `pool_recycle`, `pool_pre_ping`) are permitted
+- **Atomic writes**: Config file writes use temp-file + rename to prevent corruption
+- **Restrictive permissions**: Config and key files are created with 0o600 permissions
+
+---
+
+## 10. Database Schema
+
+OpenSPC uses SQLAlchemy ORM models with async sessions. The system supports SQLite, PostgreSQL, MySQL, and MSSQL via dialect abstraction. Schema migrations are managed by Alembic (20 migrations as of v0.4.0).
 
 ```mermaid
 erDiagram
@@ -509,12 +771,18 @@ erDiagram
     Plant ||--o{ UserPlantRole : "assigns roles"
     Plant ||--o{ Hierarchy : "contains"
     Plant ||--o{ MQTTBroker : "configures"
+    Plant ||--o{ OPCUAServer : "configures"
     Hierarchy ||--o{ Hierarchy : "parent-child"
     Hierarchy ||--o{ Characteristic : "monitors"
     Characteristic ||--o{ Sample : "collects"
     Characteristic ||--|| CharacteristicConfig : "configured by"
     Characteristic ||--o{ CharacteristicRule : "has rules"
     Characteristic ||--o{ Annotation : "annotated with"
+    Characteristic ||--o| DataSource : "data source"
+    DataSource ||--o| MQTTDataSource : "MQTT config"
+    DataSource ||--o| OPCUADataSource : "OPC-UA config"
+    MQTTDataSource }o--|| MQTTBroker : "belongs to"
+    OPCUADataSource }o--|| OPCUAServer : "belongs to"
     Sample ||--o{ Measurement : "contains"
     Sample ||--o{ Violation : "triggers"
     Sample ||--o{ SampleEditHistory : "edited via"
@@ -526,6 +794,7 @@ erDiagram
         string email
         string hashed_password
         bool is_active
+        bool must_change_password
         datetime created_at
     }
 
@@ -562,7 +831,6 @@ erDiagram
         float lsl
         float ucl
         float lcl
-        enum provider_type "MANUAL|TAG"
         enum subgroup_mode "NOMINAL_TOLERANCE|STANDARDIZED|VARIABLE_LIMITS"
         float stored_sigma
         float stored_center_line
@@ -580,6 +848,32 @@ erDiagram
         int characteristic_id FK_UK
         text config_json
         bool is_active
+    }
+
+    DataSource {
+        int id PK
+        string type "mqtt|opcua"
+        int characteristic_id FK_UK
+        string trigger_strategy
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    MQTTDataSource {
+        int id PK_FK
+        int broker_id FK
+        string topic
+        string metric_name
+        string trigger_tag
+    }
+
+    OPCUADataSource {
+        int id PK_FK
+        int server_id FK
+        string node_id
+        int sampling_interval
+        int publishing_interval
     }
 
     Sample {
@@ -647,6 +941,24 @@ erDiagram
         int port
         bool is_active
         string payload_format
+        bool outbound_enabled
+        string outbound_topic_prefix
+        string outbound_format
+        float outbound_rate_limit
+    }
+
+    OPCUAServer {
+        int id PK
+        int plant_id FK
+        string name UK
+        string endpoint_url
+        string auth_mode
+        string security_policy
+        string security_mode
+        bool is_active
+        int session_timeout
+        int publishing_interval
+        int sampling_interval
     }
 
     APIKey {
@@ -666,7 +978,10 @@ erDiagram
 - **Plant to Hierarchy**: One-to-many. The hierarchy follows ISA-95 equipment model levels (Enterprise > Site > Area > Line > Cell > Equipment > Tag).
 - **Hierarchy**: Self-referential tree (adjacency list via `parent_id`). Leaf deletion only -- cannot delete a node that has children.
 - **Characteristic to Sample**: One-to-many. Each sample contains one or more measurements (subgroup). Creating a characteristic auto-initializes all 8 Nelson rule configurations.
+- **Characteristic to DataSource**: Optional one-to-one. If `data_source` is NULL, the characteristic uses manual entry. If present, the `type` column indicates the protocol (`mqtt` or `opcua`), and the corresponding sub-table holds protocol-specific config.
+- **DataSource (JTI)**: Joined Table Inheritance with `type` as polymorphic discriminator. Base table `data_source` with sub-tables `mqtt_data_source` and `opcua_data_source`. No `polymorphic_identity` on the base class.
 - **Sample to Violation**: One-to-many. A single sample can trigger multiple Nelson rule violations simultaneously.
+- **Plant to OPCUAServer / MQTTBroker**: One-to-many. Each server or broker is scoped to a plant.
 
 ### Audit Trail
 
@@ -674,10 +989,11 @@ Several entities maintain edit history:
 - `SampleEditHistory` records before/after measurement values with editor and reason.
 - `AnnotationHistory` records previous text on annotation edits.
 - `Violation` records who acknowledged it, when, and why.
+- Database admin operations are audit-logged via structured logging.
 
 ---
 
-## 8. Project Directory Structure
+## 11. Project Directory Structure
 
 ```
 SPC-client/
@@ -687,6 +1003,7 @@ SPC-client/
 |   |       |-- main.py                 # FastAPI app, lifespan, router registration
 |   |       |-- api/
 |   |       |   |-- deps.py             # Dependency injection (auth, repos, services)
+|   |       |   |-- schemas/            # Pydantic request/response schemas
 |   |       |   |-- v1/                 # All API route modules
 |   |       |       |-- auth.py         # Login, refresh, logout
 |   |       |       |-- users.py        # User CRUD, role assignment
@@ -698,15 +1015,20 @@ SPC-client/
 |   |       |       |-- violations.py   # Violation listing, acknowledgment
 |   |       |       |-- annotations.py  # Point and period annotations
 |   |       |       |-- brokers.py      # MQTT broker management
+|   |       |       |-- opcua_servers.py  # OPC-UA server CRUD, browsing, connection
 |   |       |       |-- tags.py         # Tag-to-characteristic mapping
-|   |       |       |-- providers.py    # TAG provider control
+|   |       |       |-- providers.py    # TAG + OPC-UA provider control
 |   |       |       |-- data_entry.py   # External system ingestion (JWT + API key)
 |   |       |       |-- api_keys.py     # API key CRUD
+|   |       |       |-- database_admin.py  # DB config, backup, migrations (admin)
 |   |       |       |-- websocket.py    # Real-time WebSocket endpoint
 |   |       |       |-- devtools.py     # Sandbox mode: reset and seed
 |   |       |-- core/
 |   |       |   |-- config.py           # pydantic-settings (OPENSPC_* env vars)
 |   |       |   |-- broadcast.py        # WebSocket broadcaster (event bus subscriber)
+|   |       |   |-- publish.py          # MQTT outbound publisher (event bus subscriber)
+|   |       |   |-- rate_limit.py       # slowapi rate limiter configuration
+|   |       |   |-- logging.py          # Structured logging (structlog) configuration
 |   |       |   |-- auth/
 |   |       |   |   |-- jwt.py          # JWT create/verify (HS256, 15min/7d)
 |   |       |   |   |-- passwords.py    # Argon2id hashing
@@ -719,34 +1041,52 @@ SPC-client/
 |   |       |   |   |-- rolling_window.py  # Per-characteristic sliding window
 |   |       |   |-- events/
 |   |       |   |   |-- bus.py          # Async pub/sub event bus
-|   |       |   |   |-- events.py       # Domain event definitions
+|   |       |   |   |-- events.py       # Domain event definitions (8 event types)
 |   |       |   |-- alerts/
 |   |       |   |   |-- manager.py      # Violation creation, acknowledgment
 |   |       |   |-- providers/
-|   |       |       |-- manager.py      # TAG provider (MQTT -> SPC engine bridge)
+|   |       |       |-- protocol.py     # DataProvider protocol + SampleEvent types
+|   |       |       |-- buffer.py       # SubgroupBuffer (shared by TAG + OPC-UA)
+|   |       |       |-- manager.py      # TAG ProviderManager (MQTT -> SPC bridge)
+|   |       |       |-- tag.py          # TAG provider (MQTT topic subscriptions)
+|   |       |       |-- manual.py       # Manual provider (REST API submissions)
+|   |       |       |-- opcua_provider.py  # OPC-UA provider (node subscriptions)
+|   |       |       |-- opcua_manager.py   # OPC-UA ProviderManager lifecycle
 |   |       |-- db/
 |   |       |   |-- database.py         # Async engine + session factory
-|   |       |   |-- models/             # SQLAlchemy ORM models
+|   |       |   |-- dialects.py         # Multi-dialect support, encryption, config
+|   |       |   |-- models/             # SQLAlchemy ORM models (19 model classes)
 |   |       |   |   |-- user.py, plant.py, hierarchy.py, characteristic.py,
 |   |       |   |   |-- sample.py, violation.py, annotation.py, broker.py,
-|   |       |   |   |-- api_key.py, characteristic_config.py
-|   |       |   |-- repositories/       # Data access layer
+|   |       |   |   |-- api_key.py, characteristic_config.py,
+|   |       |   |   |-- data_source.py  # DataSource, MQTTDataSource, OPCUADataSource (JTI)
+|   |       |   |   |-- opcua_server.py # OPCUAServer model
+|   |       |   |-- repositories/       # Data access layer (12 repos)
+|   |       |       |-- base.py, user.py, plant.py, hierarchy.py,
+|   |       |       |-- characteristic.py, characteristic_config.py,
+|   |       |       |-- sample.py, violation.py, broker.py,
+|   |       |       |-- opcua_server.py, data_source.py
 |   |       |-- mqtt/
 |   |       |   |-- manager.py          # Multi-broker MQTT client manager
+|   |       |   |-- sparkplug.py        # Sparkplug B encoder/decoder
+|   |       |-- opcua/
+|   |       |   |-- client.py           # asyncua client wrapper (connect, subscribe, browse)
+|   |       |   |-- manager.py          # Multi-server OPC-UA manager (lifecycle, state)
+|   |       |   |-- browsing.py         # Node browsing service (address space navigation)
 |   |       |-- utils/
 |   |           |-- constants.py        # SPC constants (d2, D3, D4, A2, c4, etc.)
 |   |           |-- statistics.py       # Sigma estimation, limit calculation helpers
-|   |-- alembic/                        # Database migration scripts
+|   |-- alembic/                        # Database migration scripts (20 migrations)
 |
 |-- frontend/
 |   |-- src/
 |       |-- main.tsx                    # React entry point
-|       |-- App.tsx                     # Provider hierarchy, routing
+|       |-- App.tsx                     # Provider hierarchy, routing (13 pages)
 |       |-- api/
-|       |   |-- client.ts              # fetchApi, token management, all API modules
-|       |   |-- hooks.ts               # React Query hooks (42 hooks)
+|       |   |-- client.ts              # fetchApi, token management, 15 API namespaces
+|       |   |-- hooks.ts               # React Query hooks (60+ hooks)
 |       |-- providers/
-|       |   |-- AuthProvider.tsx        # JWT auth, role derivation
+|       |   |-- AuthProvider.tsx        # JWT auth, role derivation, force password change
 |       |   |-- PlantProvider.tsx       # Plant list, selection, query invalidation
 |       |   |-- WebSocketProvider.tsx   # Persistent WS connection, reconnection
 |       |   |-- ThemeProvider.tsx       # Light/dark/system theme, brand colors
@@ -756,33 +1096,47 @@ SPC-client/
 |       |   |-- uiStore.ts             # Sidebar state (persisted)
 |       |   |-- dashboardStore.ts      # Dashboard state (partially persisted)
 |       |   |-- configStore.ts         # Configuration page state (transient)
-|       |-- pages/                      # 12 page-level components
+|       |-- pages/                      # 13 page-level components
 |       |   |-- OperatorDashboard.tsx   # Main SPC dashboard
 |       |   |-- DataEntryView.tsx       # Manual entry + sample history
 |       |   |-- ViolationsView.tsx      # Violation management
 |       |   |-- ReportsView.tsx         # Report generation + export
 |       |   |-- ConfigurationView.tsx   # Hierarchy + characteristic config
-|       |   |-- ConnectivityPage.tsx    # MQTT broker + tag mapping
-|       |   |-- SettingsView.tsx        # App settings (tabbed)
+|       |   |-- ConnectivityPage.tsx    # 4-tab connectivity hub (tabbed routing)
+|       |   |-- SettingsView.tsx        # App settings (database, appearance, plants, keys)
 |       |   |-- UserManagementPage.tsx  # User CRUD + role assignment
 |       |   |-- KioskView.tsx           # Auto-rotating chart display
 |       |   |-- WallDashboard.tsx       # Multi-chart grid display
-|       |   |-- LoginPage.tsx, DevToolsPage.tsx
-|       |-- components/                 # ~54 reusable UI components
+|       |   |-- LoginPage.tsx, ChangePasswordPage.tsx, DevToolsPage.tsx
+|       |-- components/                 # ~90 reusable UI components
 |       |   |-- Layout.tsx, Header.tsx, Sidebar.tsx
 |       |   |-- ControlChart.tsx        # Core ECharts control chart
 |       |   |-- ChartPanel.tsx          # Chart + histogram combo
 |       |   |-- DistributionHistogram.tsx
 |       |   |-- SampleInspectorModal.tsx
+|       |   |-- DatabaseSettings.tsx    # Database configuration UI
+|       |   |-- DatabaseConnectionForm.tsx  # Multi-dialect connection form
+|       |   |-- DatabaseMaintenancePanel.tsx  # Backup, vacuum, migration status
+|       |   |-- DatabaseMigrationStatus.tsx
 |       |   |-- charts/                 # DualChartPanel, RangeChart, BoxWhisker
 |       |   |-- characteristic-config/  # Config tabs (General, Limits, Sampling, Rules)
-|       |   |-- connectivity/           # Broker, topic, tag mapping components
+|       |   |-- connectivity/           # 28 components (4 tabs + supporting)
+|       |   |   |-- MonitorTab, ServersTab, BrowseTab, MappingTab
+|       |   |   |-- MQTTServerForm, OPCUAServerForm
+|       |   |   |-- TopicTreeBrowser, NodeTreeBrowser
+|       |   |   |-- MappingDialog, MappingTable, MappingRow, QuickMapForm
+|       |   |   |-- ServerStatusCard, ServerStatusGrid, ServerSelector
+|       |   |   |-- ProtocolBadge, ProtocolSelector, ProtocolSourceFields
+|       |   |   |-- CharacteristicPicker, DataPointPreview, LiveValuePreview
+|       |   |   |-- ConnectionMetrics, ConnectivityMetrics, DataFlowPipeline
+|       |   |   |-- BrokerStatusCards, ConnectionTestButton, ServerListItem
 |       |   |-- users/                  # UserTable, UserFormDialog
 |       |-- hooks/
 |       |   |-- useECharts.ts           # ECharts lifecycle + ResizeObserver
 |       |-- lib/
 |       |   |-- echarts.ts             # Tree-shaken ECharts registration
 |       |   |-- roles.ts              # RBAC: role hierarchy, view/action permissions
+|       |   |-- protocols.ts          # Protocol registry (MQTT, OPC-UA definitions)
 |       |   |-- chart-registry.ts     # Chart type definitions + auto-recommendation
 |       |   |-- nelson-rules.ts       # Rule metadata, descriptions, causes
 |       |   |-- theme-presets.ts      # Chart color presets
