@@ -749,6 +749,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
       grid: { top: 10, right: 20, left: 40, bottom: 30 },
       xAxis: {
         type: 'category' as const,
+        boundaryGap: false,
         data: trendData.map((d) => d.date),
         axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)) },
       },

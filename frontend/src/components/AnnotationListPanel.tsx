@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { MessageSquare, ChevronDown, ChevronUp, Pencil, Trash2, MapPin, CalendarRange, History } from 'lucide-react'
+import { MessageSquare, ChevronDown, ChevronUp, Pencil, Trash2, MapPin, CalendarRange, History, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAnnotations, useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
@@ -17,6 +17,8 @@ interface AnnotationListPanelProps {
   visibleSampleIds?: Set<number> | null
   visibleTimeRange?: [string, string] | null
   className?: string
+  /** Callback to open annotation creation dialog */
+  onAddAnnotation?: () => void
 }
 
 function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
@@ -68,7 +70,7 @@ function formatTimeRangeShort(startIso: string, endIso: string): string {
   return `${start.toLocaleDateString(undefined, dateFmt)} – ${end.toLocaleDateString(undefined, dateFmt)}`
 }
 
-export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibleTimeRange, className }: AnnotationListPanelProps) {
+export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibleTimeRange, className, onAddAnnotation }: AnnotationListPanelProps) {
   const { data: annotations, isLoading } = useAnnotations(characteristicId, true)
   const { hoveredSampleIds } = useChartHoverSync(characteristicId)
   const [expanded, setExpanded] = useState(true)
@@ -135,7 +137,19 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
             </span>
           )}
         </div>
-        {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        <div className="flex items-center gap-1">
+          {onAddAnnotation && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddAnnotation() }}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              title="Add period annotation"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add</span>
+            </button>
+          )}
+          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </div>
       </button>
 
       {/* List */}
@@ -145,7 +159,7 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               {totalCount > 0
                 ? 'No annotations in the current viewport. Adjust the range slider to see more.'
-                : 'No annotations yet. Click a data point or use the Annotate button to add one.'}
+                : 'No annotations yet. Click a data point to annotate it, or use Add above for a period annotation.'}
             </div>
           ) : (
             <div className="max-h-48 overflow-y-auto divide-y divide-border">

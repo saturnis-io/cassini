@@ -1,4 +1,4 @@
-import { Columns2, Eye, EyeOff, ArrowLeftRight, CalendarClock, SlidersHorizontal, MessageSquareText, StickyNote } from 'lucide-react'
+import { Columns2, Eye, EyeOff, ArrowLeftRight, CalendarClock, SlidersHorizontal, MessageSquareText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
@@ -14,8 +14,6 @@ interface ChartToolbarProps {
   subgroupSize?: number
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
-  /** Callback to open the annotation creation dialog */
-  onAddAnnotation?: () => void
 }
 
 /**
@@ -53,7 +51,6 @@ export function ChartToolbar({
   subgroupSize = 5,
   onComparisonToggle,
   onChangeSecondary,
-  onAddAnnotation,
 }: ChartToolbarProps) {
   const {
     comparisonMode,
@@ -127,21 +124,11 @@ export function ChartToolbar({
         <ToolbarBtn
           active={showAnnotations}
           onClick={() => setShowAnnotations(!showAnnotations)}
-          title={showAnnotations ? 'Hide annotations' : 'Show annotations'}
+          title={showAnnotations ? 'Hide annotation list' : 'Show annotation list'}
         >
           <MessageSquareText className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Notes</span>
+          <span className="hidden sm:inline">Annotations</span>
         </ToolbarBtn>
-
-        {showAnnotations && onAddAnnotation && (
-          <ToolbarBtn
-            onClick={onAddAnnotation}
-            title="Add annotation"
-          >
-            <StickyNote className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Annotate</span>
-          </ToolbarBtn>
-        )}
 
         <ToolbarBtn
           active={showSpecLimits}

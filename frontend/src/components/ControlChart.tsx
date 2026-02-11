@@ -93,10 +93,9 @@ export function ControlChart({
   const chartColors = useChartColors()
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
-  const showAnnotations = useDashboardStore((state) => state.showAnnotations)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
-  const { data: annotations } = useAnnotations(characteristicId, showAnnotations)
+  const { data: annotations } = useAnnotations(characteristicId)
 
   // Annotation detail popover state
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
@@ -271,7 +270,7 @@ export function ControlChart({
     // Each entry: [xVal, annotationId, annotationIndex] for the custom annotation marker series
     const annotationMarkerData: [number, number, number][] = []
 
-    if (showAnnotations && annotations) {
+    if (annotations && annotations.length > 0) {
       // Map sample_id → { catIndex (0-based position in visibleData), timestampMs }
       // For category axis, xAxis must be the 0-based index into the category array (NOT point.index)
       const sampleMap = new Map<number, { catIndex: number; timestampMs: number }>()
@@ -493,18 +492,13 @@ export function ControlChart({
         }
       : {
           type: 'category' as const,
+          boundaryGap: false,
           data: xCategoryData,
           axisLabel: { fontSize: 12 },
           splitLine: { show: false },
-          axisTick: { alignWithLabel: true },
         }
 
     const gridTop = hasAnnotationMarkers ? 32 : 20
-
-    console.debug('[ControlChart] grid alignment:', {
-      top: gridTop, right: 60, left: 60, bottom: bottomMargin,
-      hasAnnotationMarkers, xAxisMode,
-    })
 
     const option = {
       animation: false,
@@ -635,6 +629,7 @@ export function ControlChart({
           },
           coordinateSystem: 'cartesian2d',
           encode: { x: 0, y: 1 },
+          clip: false,
           z: 15,
           silent: false,
         }] : []),
@@ -644,7 +639,7 @@ export function ControlChart({
     return option
   }, [
     chartData, visibleData, data, xAxisMode, chartColors, lineColors, isModeA,
-    externalDomain, showSpecLimits, showAnnotations, annotations,
+    externalDomain, showSpecLimits, annotations,
     highlightedRange, hoveredSampleIds,
   ])
 

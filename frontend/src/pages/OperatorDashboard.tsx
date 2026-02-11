@@ -347,12 +347,6 @@ export function OperatorDashboard() {
                 characteristicId={selectedId}
                 subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
                 onChangeSecondary={() => setShowComparisonSelector(true)}
-                onAddAnnotation={() => {
-                  setAnnotationMode('period')
-                  setAnnotationSampleId(undefined)
-                  setAnnotationSampleLabel(undefined)
-                  setAnnotationDialogOpen(true)
-                }}
               />
 
               {/* ── Range Slider ── */}
@@ -485,6 +479,12 @@ export function OperatorDashboard() {
                   characteristicId={selectedId}
                   visibleSampleIds={visibleSampleIds}
                   visibleTimeRange={visibleTimeRange}
+                  onAddAnnotation={() => {
+                    setAnnotationMode('period')
+                    setAnnotationSampleId(undefined)
+                    setAnnotationSampleLabel(undefined)
+                    setAnnotationDialogOpen(true)
+                  }}
                 />
               )}
             </>
