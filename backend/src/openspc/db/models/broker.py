@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openspc.db.models.hierarchy import Base
@@ -39,6 +39,18 @@ class MQTTBroker(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     payload_format: Mapped[str] = mapped_column(
         String(20), default="json", nullable=False, server_default="json"
+    )
+    outbound_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0"
+    )
+    outbound_topic_prefix: Mapped[str] = mapped_column(
+        String(200), default="openspc", nullable=False, server_default="openspc"
+    )
+    outbound_format: Mapped[str] = mapped_column(
+        String(20), default="json", nullable=False, server_default="json"
+    )
+    outbound_rate_limit: Mapped[float] = mapped_column(
+        Float, default=1.0, nullable=False, server_default="1.0"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

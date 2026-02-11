@@ -32,6 +32,10 @@ class BrokerCreate(BaseModel):
     use_tls: bool = False
     is_active: bool = True
     plant_id: int | None = Field(None, description="Plant/site this broker belongs to")
+    outbound_enabled: bool = False
+    outbound_topic_prefix: str = Field(default="openspc", max_length=200)
+    outbound_format: str = Field(default="json", pattern="^(json|sparkplug)$")
+    outbound_rate_limit: float = Field(default=1.0, ge=0.1, le=60.0)
 
 
 class BrokerUpdate(BaseModel):
@@ -50,6 +54,10 @@ class BrokerUpdate(BaseModel):
     max_reconnect_delay: int | None = Field(None, ge=10, le=3600)
     use_tls: bool | None = None
     is_active: bool | None = None
+    outbound_enabled: bool | None = None
+    outbound_topic_prefix: str | None = Field(None, max_length=200)
+    outbound_format: str | None = Field(None, pattern="^(json|sparkplug)$")
+    outbound_rate_limit: float | None = Field(None, ge=0.1, le=60.0)
 
 
 class BrokerResponse(BaseModel):
@@ -69,6 +77,10 @@ class BrokerResponse(BaseModel):
     use_tls: bool
     is_active: bool
     plant_id: int | None = None
+    outbound_enabled: bool
+    outbound_topic_prefix: str
+    outbound_format: str
+    outbound_rate_limit: float
     created_at: datetime
     updated_at: datetime
 
