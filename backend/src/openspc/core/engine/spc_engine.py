@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from openspc.core.engine.rolling_window import WindowSample, ZoneBoundaries
-from openspc.core.events import EventBus, SampleProcessedEvent
+from openspc.core.events import EventBus, SampleProcessedEvent, ViolationCreatedEvent
 from openspc.core.providers.protocol import SampleContext
 from openspc.db.models.characteristic import SubgroupMode
 from openspc.utils.statistics import calculate_zones
@@ -438,7 +438,9 @@ class SPCEngine:
         rule_results = self._rule_library.check_all(window, enabled_rules)
 
         # Step 6: Create violations for triggered rules
-        violations = await self._create_violations(sample.id, rule_results, rule_require_ack)
+        violations = await self._create_violations(
+            sample.id, rule_results, rule_require_ack, characteristic_id
+        )
 
         # Step 7: Build and return result
         end_time = time.perf_counter()
@@ -544,6 +546,7 @@ class SPCEngine:
         sample_id: int,
         rule_results: list["RuleResult"],
         rule_require_ack: dict[int, bool] | None = None,
+        characteristic_id: int | None = None,
     ) -> list[ViolationInfo]:
         """Create violation records for triggered rules.
 
@@ -551,6 +554,7 @@ class SPCEngine:
             sample_id: ID of the sample that triggered violations
             rule_results: List of rule results from Nelson Rules evaluation
             rule_require_ack: Mapping of rule_id to require_acknowledgement setting
+            characteristic_id: ID of the characteristic (for event publishing)
 
         Returns:
             List of ViolationInfo objects
@@ -567,7 +571,7 @@ class SPCEngine:
             requires_ack = rule_require_ack.get(result.rule_id, True)
 
             # Create violation record through repository
-            await self._violation_repo.create(
+            violation_record = await self._violation_repo.create(
                 sample_id=sample_id,
                 rule_id=result.rule_id,
                 rule_name=result.rule_name,
@@ -575,6 +579,17 @@ class SPCEngine:
                 acknowledged=False,
                 requires_acknowledgement=requires_ack,
             )
+
+            # Publish ViolationCreatedEvent to Event Bus
+            if characteristic_id is not None:
+                await self._event_bus.publish(ViolationCreatedEvent(
+                    violation_id=violation_record.id,
+                    sample_id=sample_id,
+                    characteristic_id=characteristic_id,
+                    rule_id=result.rule_id,
+                    rule_name=result.rule_name,
+                    severity=result.severity.value,
+                ))
 
             # Create ViolationInfo for result
             violations.append(

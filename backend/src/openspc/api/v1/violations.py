@@ -394,6 +394,16 @@ async def acknowledge_violation(
             reason=data.reason,
             exclude_sample=data.exclude_sample,
         )
+
+        # Publish ViolationAcknowledgedEvent to EventBus for MQTT outbound
+        from openspc.core.events import event_bus, ViolationAcknowledgedEvent
+
+        await event_bus.publish(ViolationAcknowledgedEvent(
+            violation_id=violation_id,
+            user=data.user,
+            reason=data.reason,
+        ))
+
         return ViolationResponse.model_validate(violation)
     except ValueError as e:
         error_msg = str(e)

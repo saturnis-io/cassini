@@ -29,6 +29,7 @@ from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
 from openspc.core.auth.bootstrap import bootstrap_admin_user
 from openspc.core.broadcast import WebSocketBroadcaster
+from openspc.core.publish import MQTTPublisher
 from openspc.core.config import get_settings
 from openspc.core.events import event_bus
 from openspc.core.rate_limit import limiter
@@ -138,6 +139,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 )
     except Exception as e:
         logger.warning("opcua_init_failed", error=str(e))
+
+    # Initialize MQTT outbound publisher (after MQTT manager so brokers are connected)
+    mqtt_publisher = MQTTPublisher(mqtt_manager, event_bus, db.session)
+    app.state.mqtt_publisher = mqtt_publisher
+    logger.info("MQTT outbound publisher initialized")
 
     # Store managers in app state
     app.state.mqtt_manager = mqtt_manager
