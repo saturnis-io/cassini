@@ -202,8 +202,18 @@ const presets: TimeRangeOption[] = [
   { label: 'Last 7 days', type: 'duration', value: 168 },
 ]
 
-export function TimeRangeSelector() {
-  const { timeRange, setTimeRange } = useDashboardStore()
+interface TimeRangeSelectorProps {
+  value?: TimeRangeState
+  onChange?: (range: TimeRangeState) => void
+  /** Show an "All time" option that clears all filters. */
+  showAllTime?: boolean
+}
+
+export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSelectorProps = {}) {
+  const storeRange = useDashboardStore((s) => s.timeRange)
+  const storeSetRange = useDashboardStore((s) => s.setTimeRange)
+  const timeRange = value ?? storeRange
+  const setTimeRange = onChange ?? storeSetRange
   const [isOpen, setIsOpen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
 
@@ -219,7 +229,7 @@ export function TimeRangeSelector() {
       const preset = presets.find(p => p.type === 'duration' && p.value === timeRange.hoursBack)
       return preset?.label ?? `Last ${timeRange.hoursBack}h`
     }
-    return 'Last 50'
+    return timeRange.pointsLimit ? `Last ${timeRange.pointsLimit}` : 'All time'
   }
 
   const handlePresetSelect = (preset: TimeRangeOption) => {
@@ -265,8 +275,31 @@ export function TimeRangeSelector() {
           <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-lg min-w-[180px]">
             {!showCustom ? (
               <>
-                <div className="p-1">
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Points</div>
+                {showAllTime && (
+                  <div className="p-1">
+                    <button
+                      onClick={() => {
+                        setTimeRange({
+                          type: 'points',
+                          pointsLimit: null,
+                          hoursBack: null,
+                          startDate: null,
+                          endDate: null,
+                        })
+                        setIsOpen(false)
+                      }}
+                      className={cn(
+                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
+                        timeRange.type === 'points' && !timeRange.pointsLimit && 'bg-primary/10 text-primary'
+                      )}
+                    >
+                      All time
+                    </button>
+                  </div>
+                )}
+
+                <div className={cn('p-1', showAllTime && 'border-t border-border')}>
+                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Recent</div>
                   {presets.filter(p => p.type === 'points').map((preset) => (
                     <button
                       key={preset.label}

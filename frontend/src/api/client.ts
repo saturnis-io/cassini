@@ -561,11 +561,13 @@ export const violationApi = {
       body: JSON.stringify(data),
     }),
 
-  batchAcknowledge: (data: { violation_ids: number[]; reason: string; user: string }) =>
-    fetchApi<{ acknowledged: number[]; errors: Record<number, string> }>('/violations/batch-acknowledge', {
+  batchAcknowledge: (data: { violation_ids: number[]; reason: string; user: string; exclude_sample?: boolean }) =>
+    fetchApi<{ total: number; successful: number; failed: number; acknowledged: number[]; errors: Record<number, string> }>('/violations/batch-acknowledge', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getReasonCodes: () => fetchApi<string[]>('/violations/reason-codes'),
 }
 
 // MQTT Broker API

@@ -545,6 +545,37 @@ export function useAcknowledgeViolation() {
   })
 }
 
+export function useBatchAcknowledgeViolation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: { violation_ids: number[]; reason: string; user: string; exclude_sample?: boolean }) =>
+      violationApi.batchAcknowledge(data),
+    onSuccess: (data) => {
+      if (data.failed > 0) {
+        toast.warning(`${data.successful} acknowledged, ${data.failed} failed`)
+      } else {
+        toast.success(`${data.successful} violation${data.successful !== 1 ? 's' : ''} acknowledged`)
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(`Bulk acknowledge failed: ${error.message}`)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+    },
+  })
+}
+
+export function useReasonCodes() {
+  return useQuery({
+    queryKey: ['violations', 'reason-codes'] as const,
+    queryFn: () => violationApi.getReasonCodes(),
+    staleTime: Infinity,
+  })
+}
+
 // Sample hooks
 export function useSample(id: number) {
   return useQuery({

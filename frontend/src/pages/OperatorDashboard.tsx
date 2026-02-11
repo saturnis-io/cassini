@@ -12,7 +12,10 @@ import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { AnnotationListPanel } from '@/components/AnnotationListPanel'
 import { SampleInspectorModal } from '@/components/SampleInspectorModal'
+import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
+import { useAuth } from '@/providers/AuthProvider'
+import { canPerformAction } from '@/lib/roles'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
@@ -82,6 +85,8 @@ export function OperatorDashboard() {
   // Sample Inspector modal state
   const [sampleInspectorOpen, setSampleInspectorOpen] = useState(false)
   const [sampleInspectorSampleId, setSampleInspectorSampleId] = useState<number>(0)
+  // Bulk acknowledge dialog state
+  const [bulkAckDialogOpen, setBulkAckDialogOpen] = useState(false)
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
@@ -189,6 +194,19 @@ export function OperatorDashboard() {
     if (slice.length === 0) return null
     return [slice[0].timestamp, slice[slice.length - 1].timestamp]
   }, [chartDataForAnnotation, rangeWindow, showBrush])
+
+  // Compute visible unacknowledged violation IDs for bulk acknowledge
+  const visibleViolationIds = useMemo(() => {
+    if (!chartDataForAnnotation?.data_points?.length) return []
+    const pts = chartDataForAnnotation.data_points
+    const visible = !showBrush || !rangeWindow
+      ? pts
+      : pts.slice(rangeWindow[0], rangeWindow[1] + 1)
+    return visible.flatMap((p) => p.violation_ids)
+  }, [chartDataForAnnotation, rangeWindow, showBrush])
+
+  const { role } = useAuth()
+  const canBulkAck = canPerformAction(role, 'violations:acknowledge') && visibleViolationIds.length > 0
 
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
@@ -358,6 +376,24 @@ export function OperatorDashboard() {
                 />
               )}
 
+              {/* ── Bulk Acknowledge Action Bar ── */}
+              {canBulkAck && (
+                <div className="flex items-center justify-between px-3 py-2 bg-destructive/5 border border-destructive/20 rounded-lg flex-shrink-0">
+                  <div className="flex items-center gap-2 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="text-muted-foreground">
+                      <span className="font-semibold text-foreground">{visibleViolationIds.length}</span> unacknowledged violation{visibleViolationIds.length !== 1 ? 's' : ''} in view
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setBulkAckDialogOpen(true)}
+                    className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                  >
+                    Bulk Acknowledge
+                  </button>
+                </div>
+              )}
+
               {/* ── Primary Chart ── */}
               <div className="flex-1 min-h-0">
                 {isBoxWhisker ? (
@@ -516,6 +552,15 @@ export function OperatorDashboard() {
           sampleId={sampleInspectorSampleId}
           characteristicId={selectedId}
           onClose={() => setSampleInspectorOpen(false)}
+        />
+      )}
+
+      {/* Bulk Acknowledge Dialog */}
+      {bulkAckDialogOpen && visibleViolationIds.length > 0 && (
+        <BulkAcknowledgeDialog
+          violationIds={visibleViolationIds}
+          onClose={() => setBulkAckDialogOpen(false)}
+          contextLabel="in current chart view"
         />
       )}
     </div>
