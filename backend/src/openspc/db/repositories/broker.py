@@ -102,6 +102,19 @@ class BrokerRepository(BaseRepository[MQTTBroker]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def get_outbound_enabled(self) -> list[MQTTBroker]:
+        """Get all active brokers with outbound publishing enabled.
+
+        Returns:
+            List of active brokers where outbound_enabled is True
+        """
+        stmt = select(MQTTBroker).where(
+            MQTTBroker.is_active == True,  # noqa: E712
+            MQTTBroker.outbound_enabled == True,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_by_plant(
         self,
         plant_id: int,

@@ -305,6 +305,10 @@ export interface MQTTBroker {
   use_tls: boolean
   is_active: boolean
   plant_id: number | null
+  outbound_enabled: boolean
+  outbound_topic_prefix: string
+  outbound_format: 'json' | 'sparkplug'
+  outbound_rate_limit: number
   created_at: string
   updated_at: string
 }
@@ -543,8 +547,11 @@ export interface OPCUAServerUpdate {
 export interface OPCUAServerStatus {
   server_id: number
   server_name: string
+  endpoint_url: string
   is_connected: boolean
+  last_connected: string | null
   error_message: string | null
+  monitored_nodes: string[]
 }
 
 /** Alias used by connectivity components */

@@ -17,6 +17,10 @@ interface BrokerFormData {
   client_id: string
   keepalive: number
   use_tls: boolean
+  outbound_enabled: boolean
+  outbound_topic_prefix: string
+  outbound_format: 'json' | 'sparkplug'
+  outbound_rate_limit: number
 }
 
 const defaultFormData: BrokerFormData = {
@@ -28,6 +32,10 @@ const defaultFormData: BrokerFormData = {
   client_id: 'openspc-client',
   keepalive: 60,
   use_tls: false,
+  outbound_enabled: false,
+  outbound_topic_prefix: 'openspc',
+  outbound_format: 'json',
+  outbound_rate_limit: 1.0,
 }
 
 interface MQTTServerFormProps {
@@ -56,6 +64,10 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
           client_id: broker.client_id,
           keepalive: broker.keepalive,
           use_tls: broker.use_tls,
+          outbound_enabled: broker.outbound_enabled,
+          outbound_topic_prefix: broker.outbound_topic_prefix,
+          outbound_format: broker.outbound_format,
+          outbound_rate_limit: broker.outbound_rate_limit,
         }
       : defaultFormData
   )
@@ -246,6 +258,75 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               Use TLS encryption
             </label>
           </div>
+        </div>
+
+        {/* Outbound Publishing Section */}
+        <div className="border-t border-border pt-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="text-sm font-semibold">Outbound Publishing</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Publish SPC events (samples, violations, limits) to this broker
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.outbound_enabled}
+                onChange={(e) => setFormData({ ...formData, outbound_enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-background after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+            </label>
+          </div>
+
+          {formData.outbound_enabled && (
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              {/* Topic Prefix */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Topic Prefix</label>
+                <input
+                  type="text"
+                  value={formData.outbound_topic_prefix}
+                  onChange={(e) => setFormData({ ...formData, outbound_topic_prefix: e.target.value })}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  placeholder="openspc"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Topic format: {formData.outbound_topic_prefix || 'openspc'}/{'<plant>/<path>/<char>/<event>'}
+                </p>
+              </div>
+
+              {/* Payload Format */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Payload Format</label>
+                <select
+                  value={formData.outbound_format}
+                  onChange={(e) => setFormData({ ...formData, outbound_format: e.target.value as 'json' | 'sparkplug' })}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                >
+                  <option value="json">JSON</option>
+                  <option value="sparkplug">SparkplugB</option>
+                </select>
+              </div>
+
+              {/* Rate Limit */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Rate Limit (seconds)</label>
+                <NumberInput
+                  value={String(formData.outbound_rate_limit)}
+                  onChange={(v) => setFormData({ ...formData, outbound_rate_limit: parseFloat(v) || 1.0 })}
+                  min={0.1}
+                  max={60}
+                  step={0.1}
+                  showButtons={false}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Min interval between publishes per characteristic
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}

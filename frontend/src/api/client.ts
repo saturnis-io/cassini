@@ -591,6 +591,10 @@ export const brokerApi = {
     use_tls?: boolean
     is_active?: boolean
     plant_id?: number | null
+    outbound_enabled?: boolean
+    outbound_topic_prefix?: string
+    outbound_format?: string
+    outbound_rate_limit?: number
   }) =>
     fetchApi<MQTTBroker>('/brokers/', {
       method: 'POST',
@@ -667,48 +671,48 @@ export const providerApi = {
 // OPC-UA Server API
 export const opcuaApi = {
   list: (plantId?: number) =>
-    fetchApi<OPCUAServer[]>(`/opcua/servers${plantId ? `?plant_id=${plantId}` : ''}`),
+    fetchApi<PaginatedResponse<OPCUAServer>>(`/opcua-servers/${plantId ? `?plant_id=${plantId}` : ''}`),
 
-  get: (id: number) => fetchApi<OPCUAServer>(`/opcua/servers/${id}`),
+  get: (id: number) => fetchApi<OPCUAServer>(`/opcua-servers/${id}`),
 
   create: (data: OPCUAServerCreate) =>
-    fetchApi<OPCUAServer>('/opcua/servers', {
+    fetchApi<OPCUAServer>('/opcua-servers/', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   update: (id: number, data: OPCUAServerUpdate) =>
-    fetchApi<OPCUAServer>(`/opcua/servers/${id}`, {
+    fetchApi<OPCUAServer>(`/opcua-servers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   delete: (id: number) =>
-    fetchApi<void>(`/opcua/servers/${id}`, { method: 'DELETE' }),
+    fetchApi<void>(`/opcua-servers/${id}`, { method: 'DELETE' }),
 
   connect: (id: number) =>
-    fetchApi<{ status: string }>(`/opcua/servers/${id}/connect`, { method: 'POST' }),
+    fetchApi<{ status: string }>(`/opcua-servers/${id}/connect`, { method: 'POST' }),
 
   disconnect: (id: number) =>
-    fetchApi<{ status: string }>(`/opcua/servers/${id}/disconnect`, { method: 'POST' }),
+    fetchApi<{ status: string }>(`/opcua-servers/${id}/disconnect`, { method: 'POST' }),
 
   test: (data: OPCUAServerCreate) =>
-    fetchApi<OPCUATestResult>('/opcua/servers/test', {
+    fetchApi<OPCUATestResult>('/opcua-servers/test', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getStatus: (id: number) =>
-    fetchApi<OPCUAServerStatus>(`/opcua/servers/${id}/status`),
+    fetchApi<OPCUAServerStatus>(`/opcua-servers/${id}/status`),
 
   getAllStatus: (plantId?: number) =>
-    fetchApi<OPCUAServerStatus[]>(`/opcua/servers/status${plantId ? `?plant_id=${plantId}` : ''}`),
+    fetchApi<{ states: OPCUAServerStatus[] }>(`/opcua-servers/all/status${plantId ? `?plant_id=${plantId}` : ''}`),
 
   browse: (id: number, nodeId?: string) =>
-    fetchApi<OPCUABrowsedNode[]>(`/opcua/servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`),
+    fetchApi<OPCUABrowsedNode[]>(`/opcua-servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`),
 
   readValue: (id: number, nodeId: string) =>
-    fetchApi<OPCUANodeValue>(`/opcua/servers/${id}/read?node_id=${encodeURIComponent(nodeId)}`),
+    fetchApi<OPCUANodeValue>(`/opcua-servers/${id}/read?node_id=${encodeURIComponent(nodeId)}`),
 }
 
 // API Key types
