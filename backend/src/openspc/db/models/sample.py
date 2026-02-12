@@ -34,7 +34,7 @@ class Sample(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     char_id: Mapped[int] = mapped_column(ForeignKey("characteristic.id", ondelete="CASCADE"), nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
     batch_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     operator_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -107,7 +107,7 @@ class SampleEditHistory(Base):
 
     # When the edit was made
     edited_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
 
     # Who made the edit (optional - could be operator_id or user identifier)
