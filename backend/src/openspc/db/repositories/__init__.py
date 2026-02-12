@@ -21,6 +21,8 @@ from openspc.db.repositories.data_source import DataSourceRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
 from openspc.db.repositories.opcua_server import OPCUAServerRepository
 from openspc.db.repositories.plant import PlantRepository
+from openspc.db.repositories.purge_history import PurgeHistoryRepository
+from openspc.db.repositories.retention import RetentionRepository
 from openspc.db.repositories.sample import SampleRepository
 from openspc.db.repositories.user import UserRepository
 from openspc.db.repositories.violation import ViolationRepository
@@ -34,6 +36,8 @@ __all__ = [
     "HierarchyRepository",
     "OPCUAServerRepository",
     "PlantRepository",
+    "PurgeHistoryRepository",
+    "RetentionRepository",
     "UserRepository",
     "CharacteristicRepository",
     "SampleRepository",

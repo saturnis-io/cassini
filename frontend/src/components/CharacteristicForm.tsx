@@ -269,6 +269,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               updated_at: characteristic.updated_at,
               sample_count: characteristic.sample_count,
             }}
+            characteristicId={characteristicId!}
             hierarchyPath={hierarchyPath}
             onChange={handleChange}
           />

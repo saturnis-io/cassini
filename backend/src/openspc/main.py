@@ -21,6 +21,7 @@ from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
+from openspc.api.v1.retention import router as retention_router
 from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.users import router as users_router
 from openspc.api.v1.tags import router as tags_router
@@ -34,6 +35,7 @@ from openspc.core.config import get_settings
 from openspc.core.events import event_bus
 from openspc.core.rate_limit import limiter
 from openspc.core.providers import tag_provider_manager, opcua_provider_manager
+from openspc.core.purge_engine import PurgeEngine
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
 from openspc.opcua.manager import opcua_manager
@@ -145,6 +147,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mqtt_publisher = mqtt_publisher
     logger.info("MQTT outbound publisher initialized")
 
+    # Start retention purge engine (background, 24h interval)
+    purge_engine = PurgeEngine()
+    await purge_engine.start()
+    app.state.purge_engine = purge_engine
+
     # Store managers in app state
     app.state.mqtt_manager = mqtt_manager
     app.state.tag_provider_manager = tag_provider_manager
@@ -157,6 +164,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down OpenSPC application")
+
+    # Shutdown purge engine
+    await app.state.purge_engine.stop()
 
     # Shutdown OPC-UA provider (before OPC-UA manager)
     await opcua_provider_manager.shutdown()
@@ -220,6 +230,7 @@ app.include_router(config_router)
 app.include_router(database_admin_router)
 app.include_router(data_entry_router)
 app.include_router(providers_router)
+app.include_router(retention_router)
 app.include_router(samples_router)
 app.include_router(tags_router)
 app.include_router(violations_router)

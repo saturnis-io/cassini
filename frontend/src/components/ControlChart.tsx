@@ -804,20 +804,19 @@ export function ControlChart({
   // Drag-to-select region overlay — callback is called directly by the hook (no intermediate state)
   const isTimestamp = xAxisMode === 'timestamp'
   const handleDragSelect = useCallback((sel: DragSelection) => {
-    if (!onRegionSelect || !chartData?.data_points) return
-    const pts = chartData.data_points
-    const slice = pts.slice(sel.startIndex, sel.endIndex + 1)
+    if (!onRegionSelect || !data.length) return
+    const slice = data.slice(sel.startIndex, sel.endIndex + 1)
     if (!slice.length) return
 
     onRegionSelect({
-      startTime: slice[0].timestamp,
-      endTime: slice[slice.length - 1].timestamp,
-      startDisplayKey: slice[0].display_key || `#${sel.startIndex + 1}`,
-      endDisplayKey: slice[slice.length - 1].display_key || `#${sel.endIndex + 1}`,
+      startTime: new Date(slice[0].timestampMs).toISOString(),
+      endTime: new Date(slice[slice.length - 1].timestampMs).toISOString(),
+      startDisplayKey: slice[0].displayKey,
+      endDisplayKey: slice[slice.length - 1].displayKey,
       sampleCount: slice.length,
-      violationIds: slice.flatMap(p => p.unacknowledged_violation_ids ?? []),
+      violationIds: slice.flatMap(p => p.unacknowledgedViolationIds),
     })
-  }, [onRegionSelect, chartData?.data_points])
+  }, [onRegionSelect, data])
 
   const { dragRect } = useChartDragSelect(chartRef, chartWrapperRef, data, isTimestamp, handleDragSelect)
 

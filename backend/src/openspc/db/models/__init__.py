@@ -15,6 +15,8 @@ from openspc.db.models.data_source import (
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
+from openspc.db.models.purge_history import PurgeHistory
+from openspc.db.models.retention_policy import RetentionPolicy
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.models.violation import Severity, Violation
@@ -31,6 +33,8 @@ __all__ = [
     "MQTTDataSource",
     "OPCUADataSource",
     "Plant",
+    "PurgeHistory",
+    "RetentionPolicy",
     "User",
     "UserPlantRole",
     "Hierarchy",

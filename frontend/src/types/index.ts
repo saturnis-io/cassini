@@ -584,3 +584,63 @@ export interface OPCUATestResult {
   message: string
   server_info: Record<string, unknown> | null
 }
+
+// Retention policy types
+export interface RetentionPolicy {
+  id: number
+  plant_id: number
+  scope: string
+  hierarchy_id: number | null
+  characteristic_id: number | null
+  retention_type: 'forever' | 'sample_count' | 'time_delta'
+  retention_value: number | null
+  retention_unit: 'days' | 'weeks' | 'months' | 'years' | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RetentionPolicySet {
+  retention_type: 'forever' | 'sample_count' | 'time_delta'
+  retention_value?: number | null
+  retention_unit?: 'days' | 'weeks' | 'months' | 'years' | null
+}
+
+export interface EffectiveRetention {
+  retention_type: string
+  retention_value: number | null
+  retention_unit: string | null
+  source: 'characteristic' | 'hierarchy' | 'global' | 'default'
+  source_id: number | null
+  source_name: string | null
+}
+
+export interface RetentionOverride {
+  id: number
+  scope: string
+  hierarchy_id: number | null
+  characteristic_id: number | null
+  hierarchy_name: string | null
+  characteristic_name: string | null
+  retention_type: string
+  retention_value: number | null
+  retention_unit: string | null
+  updated_at: string
+}
+
+export interface PurgeHistory {
+  id: number
+  plant_id: number
+  started_at: string
+  completed_at: string | null
+  status: 'running' | 'completed' | 'failed'
+  samples_deleted: number
+  violations_deleted: number
+  characteristics_processed: number
+  error_message: string | null
+}
+
+export interface NextPurgeInfo {
+  next_run_at: string | null
+  interval_hours: number
+  last_run: PurgeHistory | null
+}

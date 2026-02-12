@@ -13,10 +13,12 @@ import type {
   DatabaseDialect,
   DatabaseStatus,
   DiscoveredTopic,
+  EffectiveRetention,
   HierarchyNode,
   LoginResponse,
   MigrationInfo,
   MQTTBroker,
+  NextPurgeInfo,
   OPCUABrowsedNode,
   OPCUANodeValue,
   OPCUAServer,
@@ -29,7 +31,11 @@ import type {
   PlantCreate,
   PlantUpdate,
   ProviderStatus,
+  PurgeHistory,
   RefreshResponse,
+  RetentionOverride,
+  RetentionPolicy,
+  RetentionPolicySet,
   Sample,
   SampleEditHistory,
   SampleProcessingResult,
@@ -911,6 +917,57 @@ export const userApi = {
 
   removeRole: (userId: number, plantId: number) =>
     fetchApi<void>(`/users/${userId}/roles/${plantId}`, { method: 'DELETE' }),
+}
+
+// Retention Policy API
+export const retentionApi = {
+  getDefault: (plantId: number) =>
+    fetchApi<RetentionPolicy | null>(`/retention/default?plant_id=${plantId}`),
+
+  setDefault: (plantId: number, policy: RetentionPolicySet) =>
+    fetchApi<RetentionPolicy>(`/retention/default?plant_id=${plantId}`, {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    }),
+
+  getHierarchyPolicy: (hierarchyId: number) =>
+    fetchApi<RetentionPolicy | null>(`/retention/hierarchy/${hierarchyId}`),
+
+  setHierarchyPolicy: (hierarchyId: number, policy: RetentionPolicySet) =>
+    fetchApi<RetentionPolicy>(`/retention/hierarchy/${hierarchyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    }),
+
+  deleteHierarchyPolicy: (hierarchyId: number) =>
+    fetchApi<void>(`/retention/hierarchy/${hierarchyId}`, { method: 'DELETE' }),
+
+  getCharacteristicPolicy: (charId: number) =>
+    fetchApi<RetentionPolicy | null>(`/retention/characteristic/${charId}`),
+
+  setCharacteristicPolicy: (charId: number, policy: RetentionPolicySet) =>
+    fetchApi<RetentionPolicy>(`/retention/characteristic/${charId}`, {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    }),
+
+  deleteCharacteristicPolicy: (charId: number) =>
+    fetchApi<void>(`/retention/characteristic/${charId}`, { method: 'DELETE' }),
+
+  getEffectivePolicy: (charId: number) =>
+    fetchApi<EffectiveRetention>(`/retention/characteristic/${charId}/effective`),
+
+  listOverrides: (plantId: number) =>
+    fetchApi<RetentionOverride[]>(`/retention/overrides?plant_id=${plantId}`),
+
+  getActivity: (plantId: number) =>
+    fetchApi<PurgeHistory[]>(`/retention/activity?plant_id=${plantId}`),
+
+  getNextPurge: (plantId: number) =>
+    fetchApi<NextPurgeInfo>(`/retention/next-purge?plant_id=${plantId}`),
+
+  triggerPurge: (plantId: number) =>
+    fetchApi<PurgeHistory>(`/retention/purge?plant_id=${plantId}`, { method: 'POST' }),
 }
 
 // Dev Tools API (sandbox mode only)

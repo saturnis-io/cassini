@@ -1,8 +1,8 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, opcuaApi, plantApi, sampleApi, userApi, violationApi } from './client'
-import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate } from '@/types'
+import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
+import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate, RetentionPolicySet } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
@@ -1102,6 +1102,142 @@ export function useReadOPCUAValue(serverId: number, nodeId: string) {
     queryFn: () => opcuaApi.readValue(serverId, nodeId),
     enabled: serverId > 0 && nodeId.length > 0,
     refetchInterval: 2000,
+  })
+}
+
+// Retention hooks
+export const retentionKeys = {
+  all: ['retention'] as const,
+  default: (plantId: number) => ['retention', 'default', plantId] as const,
+  overrides: (plantId: number) => ['retention', 'overrides', plantId] as const,
+  activity: (plantId: number) => ['retention', 'activity', plantId] as const,
+  nextPurge: (plantId: number) => ['retention', 'nextPurge', plantId] as const,
+}
+
+export function useRetentionDefault(plantId: number) {
+  return useQuery({
+    queryKey: retentionKeys.default(plantId),
+    queryFn: () => retentionApi.getDefault(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useRetentionOverrides(plantId: number) {
+  return useQuery({
+    queryKey: retentionKeys.overrides(plantId),
+    queryFn: () => retentionApi.listOverrides(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useSetRetentionDefault() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ plantId, policy }: { plantId: number; policy: RetentionPolicySet }) =>
+      retentionApi.setDefault(plantId, policy),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Default retention policy updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update default policy: ${error.message}`)
+    },
+  })
+}
+
+export function useSetHierarchyRetention() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ hierarchyId, policy }: { hierarchyId: number; policy: RetentionPolicySet }) =>
+      retentionApi.setHierarchyPolicy(hierarchyId, policy),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Hierarchy retention override saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save override: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteHierarchyRetention() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (hierarchyId: number) =>
+      retentionApi.deleteHierarchyPolicy(hierarchyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Hierarchy retention override removed')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to remove override: ${error.message}`)
+    },
+  })
+}
+
+export function useSetCharacteristicRetention() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ charId, policy }: { charId: number; policy: RetentionPolicySet }) =>
+      retentionApi.setCharacteristicPolicy(charId, policy),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Characteristic retention override saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save override: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteCharacteristicRetention() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (charId: number) =>
+      retentionApi.deleteCharacteristicPolicy(charId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Characteristic retention override removed')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to remove override: ${error.message}`)
+    },
+  })
+}
+
+export function useRetentionActivity(plantId: number) {
+  return useQuery({
+    queryKey: retentionKeys.activity(plantId),
+    queryFn: () => retentionApi.getActivity(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useNextPurge(plantId: number) {
+  return useQuery({
+    queryKey: retentionKeys.nextPurge(plantId),
+    queryFn: () => retentionApi.getNextPurge(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useTriggerPurge() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (plantId: number) => retentionApi.triggerPurge(plantId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: retentionKeys.all })
+      toast.success('Purge completed successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(`Purge failed: ${error.message}`)
+    },
   })
 }
 

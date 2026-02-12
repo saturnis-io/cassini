@@ -13,6 +13,7 @@ import { ThemeCustomizer } from '@/components/ThemeCustomizer'
 import { PlantSettings } from '@/components/PlantSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
+import { RetentionSettings } from '@/components/RetentionSettings'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
@@ -243,6 +244,7 @@ function App() {
                     }
                   />
                   <Route path="api-keys" element={<ApiKeysSettings />} />
+                  <Route path="retention" element={<RetentionSettings />} />
                   <Route path="database" element={<DatabaseSettings />} />
                 </Route>
                 <Route
