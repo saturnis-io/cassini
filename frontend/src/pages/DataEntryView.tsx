@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { PenTool, History, Clock } from 'lucide-react'
+import { PenTool, History, Clock, FileSpreadsheet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ManualEntryPanel } from '@/components/ManualEntryPanel'
 import { SampleHistoryPanel } from '@/components/SampleHistoryPanel'
+import { ImportWizard } from '@/components/ImportWizard'
 import type { LucideIcon } from 'lucide-react'
 
 type DataEntryTab = 'manual-entry' | 'sample-history' | 'scheduling'
@@ -32,15 +33,25 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
 
 export function DataEntryView() {
   const [activeTab, setActiveTab] = useState<DataEntryTab>('manual-entry')
+  const [showImport, setShowImport] = useState(false)
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 pt-5 pb-5">
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Data Entry</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Submit samples and manage measurement history
-        </p>
+      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 pt-5 pb-5 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Data Entry</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Submit samples and manage measurement history
+          </p>
+        </div>
+        <button
+          onClick={() => setShowImport(true)}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          Import CSV/Excel
+        </button>
       </div>
 
       {/* Sidebar + Content */}
@@ -99,6 +110,9 @@ export function DataEntryView() {
           )}
         </main>
       </div>
+
+      {/* Import Wizard Modal */}
+      {showImport && <ImportWizard onClose={() => setShowImport(false)} />}
     </div>
   )
 }

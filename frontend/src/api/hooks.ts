@@ -1,7 +1,7 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, databaseApi, devtoolsApi, hierarchyApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
+import { annotationApi, characteristicApi, dataEntryApi, databaseApi, devtoolsApi, hierarchyApi, importApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
 import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate, RetentionPolicySet } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
@@ -346,6 +346,33 @@ export function useSubmitSample() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit sample: ${error.message}`)
+    },
+  })
+}
+
+export function useSubmitAttributeData() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: {
+      characteristic_id: number
+      defect_count: number
+      sample_size?: number
+      units_inspected?: number
+      batch_number?: string
+      operator_id?: string
+    }) => dataEntryApi.submitAttribute(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...queryKeys.characteristics.all, 'chartData', variables.characteristic_id],
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.characteristic_id) })
+      toast.success('Attribute data submitted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Submit failed: ${error.message}`)
     },
   })
 }
@@ -1256,6 +1283,46 @@ export function useRunSeed() {
     mutationFn: (data: { script: string }) => devtoolsApi.runSeed(data),
     onError: (error: Error) => {
       toast.error(`Seed failed: ${error.message}`)
+    },
+  })
+}
+
+// Import hooks
+export function useUploadFile() {
+  return useMutation({
+    mutationFn: (file: File) => importApi.upload(file),
+    onError: (error: Error) => {
+      toast.error(`Upload failed: ${error.message}`)
+    },
+  })
+}
+
+export function useValidateMapping() {
+  return useMutation({
+    mutationFn: ({ file, characteristicId, columnMapping }: {
+      file: File
+      characteristicId: number
+      columnMapping: Record<string, number | null>
+    }) => importApi.validate(file, characteristicId, columnMapping),
+  })
+}
+
+export function useConfirmImport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ file, characteristicId, columnMapping }: {
+      file: File
+      characteristicId: number
+      columnMapping: Record<string, number | null>
+    }) => importApi.confirm(file, characteristicId, columnMapping),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      toast.success(`Imported ${data.imported} samples`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Import failed: ${error.message}`)
     },
   })
 }

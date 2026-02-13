@@ -172,8 +172,9 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     const h: Record<string, string> = {
       ...(options?.headers as Record<string, string> || {}),
     }
-    // Only set Content-Type for requests that have a body
-    if (options?.body) {
+    // Only set Content-Type for requests that have a body.
+    // Skip for FormData — browser must set multipart boundary automatically.
+    if (options?.body && !(options.body instanceof FormData)) {
       h['Content-Type'] = h['Content-Type'] || 'application/json'
     }
     if (accessToken) {
@@ -523,6 +524,34 @@ export const sampleApi = {
 
   getEditHistory: (id: number) =>
     fetchApi<SampleEditHistory[]>(`/samples/${id}/history`),
+}
+
+// Data Entry API — attribute chart data submission
+export const dataEntryApi = {
+  submitAttribute: (data: {
+    characteristic_id: number
+    defect_count: number
+    sample_size?: number
+    units_inspected?: number
+    batch_number?: string
+    operator_id?: string
+  }) =>
+    fetchApi<{
+      sample_id: number
+      characteristic_id: number
+      timestamp: string
+      plotted_value: number
+      defect_count: number
+      sample_size: number | null
+      in_control: boolean
+      center_line: number
+      ucl: number
+      lcl: number
+      violations: { violation_id: number; rule_id: number; rule_name: string; severity: string }[]
+    }>('/data-entry/submit-attribute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 // Violation API
@@ -983,4 +1012,66 @@ export const devtoolsApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+}
+
+// Import API — CSV/Excel file import
+export interface ImportColumn {
+  name: string
+  index: number
+  sample_values: string[]
+  detected_type: string
+}
+
+export interface ImportUploadResponse {
+  columns: ImportColumn[]
+  row_count: number
+  preview_rows: string[][]
+}
+
+export interface ImportValidateResponse {
+  valid_rows: { measurements: number[]; timestamp?: string; batch_number?: string; operator_id?: string }[]
+  warnings: string[]
+  error_rows: { row: number; error: string }[]
+  total_rows: number
+  valid_count: number
+}
+
+export interface ImportConfirmResponse {
+  imported: number
+  errors: number
+  error_details: { row: number; error: string }[]
+  total_rows: number
+}
+
+export const importApi = {
+  upload: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return fetchApi<ImportUploadResponse>('/import/upload', {
+      method: 'POST',
+      body: formData,
+    })
+  },
+
+  validate: (file: File, characteristicId: number, columnMapping: Record<string, number | null>) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('characteristic_id', String(characteristicId))
+    formData.append('column_mapping', JSON.stringify(columnMapping))
+    return fetchApi<ImportValidateResponse>('/import/validate', {
+      method: 'POST',
+      body: formData,
+    })
+  },
+
+  confirm: (file: File, characteristicId: number, columnMapping: Record<string, number | null>) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('characteristic_id', String(characteristicId))
+    formData.append('column_mapping', JSON.stringify(columnMapping))
+    return fetchApi<ImportConfirmResponse>('/import/confirm', {
+      method: 'POST',
+      body: formData,
+    })
+  },
 }
