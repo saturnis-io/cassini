@@ -78,6 +78,28 @@ export async function apiPatch(
 }
 
 /**
+ * Make an authenticated PUT request to the backend API.
+ */
+export async function apiPut(
+  request: APIRequestContext,
+  endpoint: string,
+  token: string,
+  data?: object,
+) {
+  const res = await request.put(`${API_BASE}${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    data: data ?? {},
+  })
+  if (!res.ok()) {
+    throw new Error(`PUT ${endpoint} failed: ${res.status()} ${await res.text()}`)
+  }
+  return res.json()
+}
+
+/**
  * Make an authenticated DELETE request to the backend API.
  */
 export async function apiDelete(

@@ -76,10 +76,10 @@ class Annotation(Base):
     # Audit fields
     created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=_utc_now, nullable=False
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), onupdate=_utc_now, nullable=False
     )
 
     # Relationships
@@ -121,7 +121,7 @@ class AnnotationHistory(Base):
     previous_text: Mapped[str] = mapped_column(Text, nullable=False)
     changed_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
 
     # Relationships

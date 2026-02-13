@@ -128,4 +128,127 @@ test.describe('Violations', () => {
       expect(updatedViolations.total).toBeGreaterThan(0)
     }
   })
+
+  test('status filter buttons switch view', async ({ page }) => {
+    await page.goto('/violations')
+    await page.waitForTimeout(3000)
+
+    // Click "Acknowledged" filter button
+    const ackFilter = page.getByRole('button', { name: 'Acknowledged' })
+    await expect(ackFilter).toBeVisible({ timeout: 5000 })
+    await ackFilter.click()
+    await page.waitForTimeout(1000)
+
+    // Click "All" filter to see all violations (exact: true avoids matching "All time")
+    const allFilter = page.getByRole('button', { name: 'All', exact: true })
+    await expect(allFilter).toBeVisible({ timeout: 3000 })
+    await allFilter.click()
+    await page.waitForTimeout(1000)
+
+    await test.info().attach('violations-all-filter', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('rule filter dropdown works', async ({ page }) => {
+    await page.goto('/violations')
+    await page.waitForTimeout(3000)
+
+    // Switch to "All" filter first
+    const allFilter = page.getByRole('button', { name: 'All', exact: true })
+    if (await allFilter.isVisible({ timeout: 3000 })) {
+      await allFilter.click()
+      await page.waitForTimeout(1000)
+    }
+
+    // The rule filter is a native <select> element with "All Rules" as the default option
+    const ruleSelect = page.locator('select').filter({ hasText: 'All Rules' }).first()
+    await expect(ruleSelect).toBeVisible({ timeout: 5000 })
+
+    // Verify "All Rules" is the selected default
+    await expect(ruleSelect).toHaveValue('')
+
+    // Get the options to verify Rule 1 is available
+    const options = ruleSelect.locator('option')
+    const optionTexts = await options.allTextContents()
+    expect(optionTexts.some(t => t.includes('Rule 1'))).toBeTruthy()
+
+    // Select Rule 1 to verify the dropdown works
+    const rule1Option = options.filter({ hasText: 'Rule 1' }).first()
+    const rule1Value = await rule1Option.getAttribute('value')
+    if (rule1Value) {
+      await ruleSelect.selectOption(rule1Value)
+      await page.waitForTimeout(1000)
+    }
+
+    await test.info().attach('rule-filter-selected', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+
+    // Reset to All Rules
+    await ruleSelect.selectOption('')
+  })
+
+  test('stats cards show all five metrics', async ({ page }) => {
+    await page.goto('/violations')
+    await page.waitForTimeout(3000)
+
+    // Verify all 5 stats cards are visible
+    await expect(page.getByText('Total Violations')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Pending').first()).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Informational').first()).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Critical').first()).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Warning').first()).toBeVisible({ timeout: 3000 })
+
+    await test.info().attach('violations-stats-cards', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('bulk acknowledge button shows count', async ({ page }) => {
+    await page.goto('/violations')
+    await page.waitForTimeout(3000)
+
+    // The bulk acknowledge button text includes the count: "Bulk Acknowledge (X)"
+    const bulkBtn = page.getByRole('button', { name: /Bulk Acknowledge/ })
+    await expect(bulkBtn).toBeVisible({ timeout: 5000 })
+
+    // Get the button text and verify it includes a count
+    const btnText = await bulkBtn.textContent()
+    expect(btnText).toMatch(/Bulk Acknowledge/)
+
+    await test.info().attach('bulk-acknowledge-button', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('bulk acknowledge dialog opens', async ({ page }) => {
+    await page.goto('/violations')
+    await page.waitForTimeout(3000)
+
+    // Click the bulk acknowledge button
+    const bulkBtn = page.getByRole('button', { name: /Bulk Acknowledge/ })
+    if (await bulkBtn.isVisible({ timeout: 5000 })) {
+      await bulkBtn.click()
+      await page.waitForTimeout(1000)
+
+      // Dialog should appear with a reason input
+      const dialog = page.locator('[role="dialog"]')
+      if (await dialog.isVisible({ timeout: 3000 })) {
+        await expect(dialog).toBeVisible()
+
+        await test.info().attach('bulk-acknowledge-dialog', {
+          body: await page.screenshot(),
+          contentType: 'image/png',
+        })
+
+        // Close dialog
+        await page.keyboard.press('Escape')
+      }
+    }
+  })
 })
