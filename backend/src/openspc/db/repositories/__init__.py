@@ -16,6 +16,7 @@ Repositories:
 
 from openspc.db.repositories.base import BaseRepository
 from openspc.db.repositories.broker import BrokerRepository
+from openspc.db.repositories.capability import CapabilityHistoryRepository
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.data_source import DataSourceRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
@@ -32,6 +33,7 @@ __all__ = [
     "BaseRepository",
     # Repositories
     "BrokerRepository",
+    "CapabilityHistoryRepository",
     "DataSourceRepository",
     "HierarchyRepository",
     "OPCUAServerRepository",
