@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { ControlChart } from './ControlChart'
+import { AttributeChart } from './AttributeChart'
 import { DistributionHistogram } from './DistributionHistogram'
 import { useChartData } from '@/api/hooks'
 import type { HistogramPosition } from '@/stores/dashboardStore'
@@ -173,22 +174,29 @@ export function ChartPanel({
         className
       )}
     >
-      {/* Control Chart */}
+      {/* Control Chart or Attribute Chart */}
       <div className={cn(
         isRightPosition ? 'flex-1 min-w-0' : 'flex-1 min-h-0',
       )}>
-        <ControlChart
-          characteristicId={characteristicId}
-          chartOptions={chartOptions}
-          label={label}
-          showSpecLimits={showSpecLimits}
-          colorScheme={colorScheme}
-          yAxisDomain={showHistogram ? yAxisDomain : undefined}
-          onHoverValue={showHistogram ? setHoveredValue : undefined}
-          highlightedRange={hoveredBinRange}
-          onPointAnnotation={onPointAnnotation}
-          onRegionSelect={onRegionSelect}
-        />
+        {chartData?.data_type === 'attribute' ? (
+          <AttributeChart
+            characteristicId={characteristicId}
+            chartOptions={chartOptions}
+          />
+        ) : (
+          <ControlChart
+            characteristicId={characteristicId}
+            chartOptions={chartOptions}
+            label={label}
+            showSpecLimits={showSpecLimits}
+            colorScheme={colorScheme}
+            yAxisDomain={showHistogram ? yAxisDomain : undefined}
+            onHoverValue={showHistogram ? setHoveredValue : undefined}
+            highlightedRange={hoveredBinRange}
+            onPointAnnotation={onPointAnnotation}
+            onRegionSelect={onRegionSelect}
+          />
+        )}
       </div>
 
       {/* Histogram */}

@@ -94,6 +94,10 @@ export interface Characteristic {
   stored_sigma: number | null
   stored_center_line: number | null
   decimal_precision: number
+  // Attribute chart fields
+  data_type: 'variable' | 'attribute'
+  attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
+  default_sample_size?: number | null
   // Optional metadata fields
   unit?: string
   active?: boolean
@@ -192,6 +196,22 @@ export interface ChartDataPoint {
   unacknowledged_violation_ids: number[]
 }
 
+export interface AttributeChartSample {
+  sample_id: number
+  timestamp: string
+  plotted_value: number
+  defect_count: number
+  sample_size?: number | null
+  units_inspected?: number | null
+  effective_ucl?: number | null
+  effective_lcl?: number | null
+  excluded: boolean
+  violation_ids: number[]
+  unacknowledged_violation_ids: number[]
+  violation_rules: number[]
+  display_key: string
+}
+
 export interface ChartData {
   characteristic_id: number
   characteristic_name: string
@@ -219,6 +239,10 @@ export interface ChartData {
   nominal_subgroup_size: number
   decimal_precision: number
   stored_sigma: number | null
+  // Attribute chart data (present when data_type is 'attribute')
+  data_type?: 'variable' | 'attribute'
+  attribute_chart_type?: string | null
+  attribute_data_points?: AttributeChartSample[]
 }
 
 // Violation types
