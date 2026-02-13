@@ -17,6 +17,8 @@ from openspc.core.rate_limit import limiter
 
 from openspc.api.deps import get_current_user_or_api_key, get_db_session
 from openspc.api.schemas.data_entry import (
+    AttributeDataEntryRequest,
+    AttributeDataEntryResponse,
     BatchEntryRequest,
     BatchEntryResponse,
     DataEntryRequest,
@@ -155,6 +157,87 @@ async def submit_sample(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process sample",
+        )
+
+
+@router.post(
+    "/submit-attribute",
+    response_model=AttributeDataEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit attribute sample",
+    description="Submit a single attribute sample (p/np/c/u chart). Requires API key or user authentication.",
+)
+@limiter.limit("30/minute")
+async def submit_attribute_sample(
+    request: Request,
+    data: AttributeDataEntryRequest,
+    auth: object = Depends(get_current_user_or_api_key),
+    session: AsyncSession = Depends(get_db_session),
+) -> AttributeDataEntryResponse:
+    """Submit a single attribute sample from external system.
+
+    Processes an attribute sample through the attribute SPC engine,
+    evaluates Nelson Rules 1-4, and returns the result.
+    """
+    # Check permission for this characteristic (API key only)
+    if isinstance(auth, APIKey):
+        if not auth.can_access_characteristic(data.characteristic_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key does not have permission for characteristic {data.characteristic_id}",
+            )
+
+    sample_repo = SampleRepository(session)
+    char_repo = CharacteristicRepository(session)
+    violation_repo = ViolationRepository(session)
+
+    try:
+        from openspc.core.engine.attribute_engine import process_attribute_sample
+
+        result = await process_attribute_sample(
+            char_id=data.characteristic_id,
+            defect_count=data.defect_count,
+            sample_size=data.sample_size,
+            units_inspected=data.units_inspected,
+            batch_number=data.batch_number,
+            operator_id=data.operator_id,
+            sample_repo=sample_repo,
+            char_repo=char_repo,
+            violation_repo=violation_repo,
+        )
+
+        await session.commit()
+
+        return AttributeDataEntryResponse(
+            sample_id=result.sample_id,
+            characteristic_id=result.characteristic_id,
+            timestamp=result.timestamp,
+            plotted_value=result.plotted_value,
+            defect_count=result.defect_count,
+            sample_size=result.sample_size,
+            in_control=result.in_control,
+            center_line=result.center_line,
+            ucl=result.ucl,
+            lcl=result.lcl,
+            violations=[
+                {
+                    "rule_id": v.rule_id,
+                    "rule_name": v.rule_name,
+                    "severity": v.severity,
+                }
+                for v in result.violations
+            ],
+        )
+
+    except ValueError as e:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        logger.exception("Failed to process attribute data entry sample")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process attribute sample",
         )
 
 

@@ -33,6 +33,15 @@ class CharacteristicCreate(BaseModel):
     usl: float | None = None
     lsl: float | None = None
 
+    # Attribute chart configuration
+    data_type: str = Field(default="variable", pattern="^(variable|attribute)$")
+    attribute_chart_type: str | None = Field(
+        None, pattern="^(p|np|c|u)$", description="Chart type for attribute data"
+    )
+    default_sample_size: int | None = Field(
+        None, ge=1, description="Default sample size for attribute charts"
+    )
+
     # Subgroup mode configuration
     subgroup_mode: SubgroupModeEnum = Field(
         default=SubgroupModeEnum.NOMINAL_TOLERANCE,
@@ -87,6 +96,9 @@ class CharacteristicUpdate(BaseModel):
     lsl: float | None = None
     ucl: float | None = None
     lcl: float | None = None
+    data_type: str | None = Field(None, pattern="^(variable|attribute)$")
+    attribute_chart_type: str | None = Field(None, pattern="^(p|np|c|u)$")
+    default_sample_size: int | None = Field(None, ge=1)
     subgroup_mode: SubgroupModeEnum | None = None
     min_measurements: int | None = Field(None, ge=1)
     warn_below_count: int | None = None
@@ -107,6 +119,9 @@ class CharacteristicResponse(BaseModel):
     ucl: float | None
     lcl: float | None
     data_source: DataSourceResponse | None = None
+    data_type: str = "variable"
+    attribute_chart_type: str | None = None
+    default_sample_size: int | None = None
     subgroup_mode: str
     min_measurements: int
     warn_below_count: int | None
@@ -211,6 +226,39 @@ class ChartSample(BaseModel):
     display_key: str = ""
 
 
+class AttributeChartSample(BaseModel):
+    """Schema for a single sample point on an attribute control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        plotted_value: Computed statistic (p, np, c, or u value)
+        defect_count: Raw defect/defective count
+        sample_size: Items inspected (p/np charts)
+        units_inspected: Inspection units (u chart)
+        effective_ucl: Per-point UCL (varies for p/u with variable n)
+        effective_lcl: Per-point LCL (varies for p/u with variable n)
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+    """
+
+    sample_id: int
+    timestamp: str
+    plotted_value: float
+    defect_count: int
+    sample_size: int | None = None
+    units_inspected: int | None = None
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
 class SpecLimits(BaseModel):
     """Schema for specification limits (Voice of Customer).
 
@@ -244,7 +292,7 @@ class ChartDataResponse(BaseModel):
 
     characteristic_id: int
     characteristic_name: str
-    data_points: list[ChartSample]
+    data_points: list[ChartSample] = []
     control_limits: ControlLimits
     spec_limits: SpecLimits
     zone_boundaries: ZoneBoundaries
@@ -252,6 +300,9 @@ class ChartDataResponse(BaseModel):
     nominal_subgroup_size: int = 1
     decimal_precision: int = 3
     stored_sigma: float | None = None
+    data_type: str = "variable"
+    attribute_chart_type: str | None = None
+    attribute_data_points: list[AttributeChartSample] = []
 
 
 class NelsonRuleConfig(BaseModel):

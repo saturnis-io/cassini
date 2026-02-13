@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from openspc.api.schemas.characteristic import (
+    AttributeChartSample,
     ChangeModeRequest,
     ChangeModeResponse,
     CharacteristicCreate,
@@ -333,6 +334,213 @@ async def delete_characteristic(
     await session.commit()
 
 
+async def _recalculate_attribute_limits(
+    char_id: int,
+    characteristic,
+    before: dict,
+    min_samples: int,
+    sample_repo: SampleRepository,
+    session: AsyncSession,
+) -> dict:
+    """Recalculate control limits for an attribute characteristic."""
+    from openspc.core.engine.attribute_engine import calculate_attribute_limits
+
+    chart_type = characteristic.attribute_chart_type
+    if not chart_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Characteristic has no attribute_chart_type configured",
+        )
+
+    # Get attribute samples
+    window_data = await sample_repo.get_attribute_rolling_window(
+        char_id=char_id,
+        window_size=1000,
+        exclude_excluded=True,
+    )
+
+    if len(window_data) < min_samples:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient samples for calculation: {len(window_data)} < {min_samples}",
+        )
+
+    try:
+        limits = calculate_attribute_limits(chart_type, window_data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Persist to characteristic
+    characteristic.ucl = limits.ucl
+    characteristic.lcl = limits.lcl
+    characteristic.stored_center_line = limits.center_line
+
+    await session.commit()
+
+    return {
+        "before": before,
+        "after": {
+            "ucl": limits.ucl,
+            "lcl": limits.lcl,
+            "center_line": limits.center_line,
+        },
+        "calculation": {
+            "method": f"attribute_{chart_type}",
+            "sigma": None,
+            "sample_count": limits.sample_count,
+            "excluded_count": 0,
+            "calculated_at": limits.calculated_at.isoformat(),
+            "start_date": None,
+            "end_date": None,
+            "last_n": None,
+        },
+    }
+
+
+async def _get_attribute_chart_data(
+    char_id: int,
+    characteristic,
+    limit: int,
+    sample_repo: SampleRepository,
+    session: AsyncSession,
+) -> ChartDataResponse:
+    """Build chart data response for attribute characteristics."""
+    from openspc.core.engine.attribute_engine import (
+        calculate_attribute_limits,
+        get_per_point_limits,
+        get_plotted_value,
+    )
+    from openspc.db.repositories import ViolationRepository
+    from openspc.db.models.sample import Sample as SampleModel
+    from sqlalchemy import and_
+
+    chart_type = characteristic.attribute_chart_type
+    center_line = characteristic.stored_center_line
+    char_ucl = characteristic.ucl
+    char_lcl = characteristic.lcl
+
+    # Get attribute samples as dicts
+    window_data = await sample_repo.get_attribute_rolling_window(
+        char_id=char_id,
+        window_size=limit,
+        exclude_excluded=True,
+    )
+
+    # Calculate limits from data if not stored
+    if center_line is None and len(window_data) >= 2 and chart_type:
+        try:
+            limits = calculate_attribute_limits(chart_type, window_data)
+            center_line = limits.center_line
+            char_ucl = limits.ucl
+            char_lcl = limits.lcl
+        except ValueError:
+            pass
+
+    # Batch-load violations
+    violation_repo = ViolationRepository(session)
+    sample_ids = [wd["sample_id"] for wd in window_data]
+    violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
+
+    # Compute display keys
+    # Fetch raw samples for timestamp-based display keys
+    samples_for_keys = await sample_repo.get_rolling_window(
+        char_id=char_id, window_size=limit, exclude_excluded=True,
+    )
+    _display_keys: dict[int, str] = {}
+    for sample in samples_for_keys:
+        day_str = sample.timestamp.strftime('%y%m%d')
+        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        count_stmt = select(func.count()).select_from(
+            select(SampleModel.id).where(
+                and_(
+                    SampleModel.char_id == sample.char_id,
+                    SampleModel.timestamp >= day_start,
+                    SampleModel.timestamp <= day_end,
+                    (SampleModel.timestamp < sample.timestamp)
+                    | (
+                        (SampleModel.timestamp == sample.timestamp)
+                        & (SampleModel.id < sample.id)
+                    ),
+                )
+            ).subquery()
+        )
+        preceding = (await session.execute(count_stmt)).scalar_one()
+        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+
+    # Build attribute chart samples
+    attr_samples = []
+    for wd in window_data:
+        defect_count = wd["defect_count"]
+        s_size = wd.get("sample_size")
+        u_inspected = wd.get("units_inspected")
+
+        # Compute plotted value
+        try:
+            pv = get_plotted_value(chart_type, defect_count, s_size, u_inspected)
+        except ValueError:
+            pv = 0.0
+
+        # Per-point limits
+        pt_ucl = char_ucl
+        pt_lcl = char_lcl
+        if center_line is not None and chart_type:
+            try:
+                pt_ucl, pt_lcl = get_per_point_limits(
+                    chart_type, center_line, s_size, u_inspected,
+                )
+            except ValueError:
+                pass
+
+        # Violations
+        sv = violations_by_sample.get(wd["sample_id"], [])
+        violation_ids = [v.id for v in sv]
+        unack_ids = [v.id for v in sv if v.requires_acknowledgement and not v.acknowledged]
+        v_rules = list(set(v.rule_id for v in sv))
+
+        attr_samples.append(AttributeChartSample(
+            sample_id=wd["sample_id"],
+            timestamp=wd["timestamp"].isoformat() if hasattr(wd["timestamp"], "isoformat") else str(wd["timestamp"]),
+            plotted_value=pv,
+            defect_count=defect_count,
+            sample_size=s_size,
+            units_inspected=u_inspected,
+            effective_ucl=pt_ucl,
+            effective_lcl=pt_lcl,
+            excluded=False,
+            violation_ids=violation_ids,
+            unacknowledged_violation_ids=unack_ids,
+            violation_rules=v_rules,
+            display_key=_display_keys.get(wd["sample_id"], ""),
+        ))
+
+    return ChartDataResponse(
+        characteristic_id=char_id,
+        characteristic_name=characteristic.name,
+        data_points=[],
+        attribute_data_points=attr_samples,
+        control_limits=ControlLimits(
+            center_line=center_line,
+            ucl=char_ucl,
+            lcl=char_lcl,
+        ),
+        spec_limits=SpecLimits(
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+        ),
+        zone_boundaries=ZoneBoundaries(),
+        subgroup_mode=characteristic.subgroup_mode,
+        nominal_subgroup_size=characteristic.subgroup_size,
+        decimal_precision=characteristic.decimal_precision,
+        data_type="attribute",
+        attribute_chart_type=chart_type,
+    )
+
+
 @router.get("/{char_id}/chart-data", response_model=ChartDataResponse)
 async def get_chart_data(
     char_id: int,
@@ -355,6 +563,12 @@ async def get_chart_data(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
+        )
+
+    # --- Attribute chart branch ---
+    if characteristic.data_type == "attribute":
+        return await _get_attribute_chart_data(
+            char_id, characteristic, limit, sample_repo, session,
         )
 
     # If control limits are not defined, return empty chart data
@@ -380,6 +594,7 @@ async def get_chart_data(
             subgroup_mode=characteristic.subgroup_mode,
             nominal_subgroup_size=characteristic.subgroup_size,
             decimal_precision=characteristic.decimal_precision,
+            data_type=characteristic.data_type,
         )
 
     # Get samples
@@ -527,6 +742,7 @@ async def get_chart_data(
         nominal_subgroup_size=characteristic.subgroup_size,
         decimal_precision=characteristic.decimal_precision,
         stored_sigma=characteristic.stored_sigma,
+        data_type=characteristic.data_type,
     )
 
 
@@ -569,6 +785,13 @@ async def recalculate_limits(
         "lcl": characteristic.lcl,
         "center_line": (characteristic.ucl + characteristic.lcl) / 2 if characteristic.ucl and characteristic.lcl else None,
     }
+
+    # --- Attribute chart branch ---
+    if characteristic.data_type == "attribute":
+        return await _recalculate_attribute_limits(
+            char_id, characteristic, before, min_samples,
+            SampleRepository(session), session,
+        )
 
     # Recalculate limits
     try:

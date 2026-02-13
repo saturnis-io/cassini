@@ -237,3 +237,90 @@ class SampleRepository(BaseRepository[Sample]):
         set_committed_value(sample, "measurements", measurements)
 
         return sample
+
+    async def create_attribute_sample(
+        self,
+        char_id: int,
+        defect_count: int,
+        sample_size: int | None = None,
+        units_inspected: int | None = None,
+        batch_number: str | None = None,
+        operator_id: str | None = None,
+    ) -> Sample:
+        """Create a sample for attribute charts (no individual measurements).
+
+        Attribute samples store defect/defective counts directly on the sample
+        row rather than creating individual Measurement records.
+
+        Args:
+            char_id: Characteristic ID
+            defect_count: Number of defects or defectives
+            sample_size: Items inspected (p/np charts)
+            units_inspected: Inspection units (u chart)
+            batch_number: Optional batch identifier
+            operator_id: Optional operator identifier
+
+        Returns:
+            The created Sample with attribute columns populated
+        """
+        sample = Sample(
+            char_id=char_id,
+            defect_count=defect_count,
+            sample_size=sample_size,
+            units_inspected=units_inspected,
+            batch_number=batch_number,
+            operator_id=operator_id,
+            actual_n=sample_size or units_inspected or 1,
+        )
+        self.session.add(sample)
+        await self.session.flush()
+
+        # Set empty measurements list to avoid lazy load
+        from sqlalchemy.orm.attributes import set_committed_value
+        set_committed_value(sample, "measurements", [])
+
+        return sample
+
+    async def get_attribute_rolling_window(
+        self,
+        char_id: int,
+        window_size: int = 100,
+        exclude_excluded: bool = True,
+    ) -> list[dict]:
+        """Get recent attribute samples as plain dicts for limit/rule evaluation.
+
+        Returns dicts with defect_count, sample_size, units_inspected to avoid
+        lazy loading issues in async context.
+
+        Args:
+            char_id: Characteristic ID
+            window_size: Number of recent samples
+            exclude_excluded: Skip excluded samples
+
+        Returns:
+            List of dicts in chronological order (oldest first)
+        """
+        stmt = (
+            select(Sample)
+            .where(Sample.char_id == char_id)
+            .order_by(Sample.timestamp.desc())
+            .limit(window_size)
+        )
+
+        if exclude_excluded:
+            stmt = stmt.where(Sample.is_excluded == False)
+
+        result = await self.session.execute(stmt)
+        samples = list(result.scalars().all())
+
+        data = []
+        for sample in reversed(samples):  # Chronological order
+            data.append({
+                "sample_id": sample.id,
+                "timestamp": sample.timestamp,
+                "defect_count": sample.defect_count or 0,
+                "sample_size": sample.sample_size,
+                "units_inspected": sample.units_inspected,
+            })
+
+        return data

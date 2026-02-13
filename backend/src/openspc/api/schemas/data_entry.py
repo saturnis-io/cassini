@@ -88,6 +88,56 @@ class BatchEntryResponse(BaseModel):
     errors: list[str]
 
 
+class AttributeDataEntryRequest(BaseModel):
+    """Request schema for submitting an attribute sample.
+
+    Attributes:
+        characteristic_id: ID of the attribute characteristic.
+        defect_count: Number of defects or defectives found.
+        sample_size: Number of items inspected (required for p/np charts).
+        units_inspected: Number of inspection units (required for u charts).
+        batch_number: Optional batch/lot identifier.
+        operator_id: Optional operator identifier.
+    """
+
+    characteristic_id: int = Field(..., description="ID of the attribute characteristic")
+    defect_count: int = Field(..., ge=0, description="Number of defects or defectives")
+    sample_size: Optional[int] = Field(None, ge=1, description="Items inspected (p/np charts)")
+    units_inspected: Optional[int] = Field(None, ge=1, description="Inspection units (u chart)")
+    batch_number: Optional[str] = Field(None, description="Batch identifier")
+    operator_id: Optional[str] = Field(None, description="Operator identifier")
+
+
+class AttributeDataEntryResponse(BaseModel):
+    """Response schema for successful attribute sample submission.
+
+    Attributes:
+        sample_id: Database ID of the created sample.
+        characteristic_id: ID of the characteristic.
+        timestamp: When the sample was recorded.
+        plotted_value: Computed statistic plotted on the chart.
+        defect_count: Raw defect count from input.
+        sample_size: Sample size used.
+        in_control: True if no violations were triggered.
+        center_line: Process center line.
+        ucl: Upper control limit for this point.
+        lcl: Lower control limit for this point.
+        violations: List of triggered violations.
+    """
+
+    sample_id: int
+    characteristic_id: int
+    timestamp: datetime
+    plotted_value: float
+    defect_count: int
+    sample_size: Optional[int]
+    in_control: bool
+    center_line: float
+    ucl: float
+    lcl: float
+    violations: list[dict] = Field(default_factory=list)
+
+
 class SchemaResponse(BaseModel):
     """Response schema for API documentation endpoint.
 
