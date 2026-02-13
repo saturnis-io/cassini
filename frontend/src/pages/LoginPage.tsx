@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/providers/AuthProvider'
 import { useOIDCProviders } from '@/api/hooks'
 import { oidcApi } from '@/api/client'
@@ -12,6 +13,8 @@ import { setAccessToken } from '@/api/client'
  * On successful login, redirects to the previously attempted URL or /dashboard.
  */
 export function LoginPage() {
+  const { t } = useTranslation('auth')
+  const { t: tCommon } = useTranslation('common')
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -48,11 +51,11 @@ export function LoginPage() {
           window.location.href = from
         })
         .catch((err) => {
-          setError((err as Error).message || 'SSO login failed')
+          setError((err as Error).message || t('errors.ssoFailed'))
           setSsoLoading(null)
         })
     }
-  }, [searchParams, isAuthenticated, from])
+  }, [searchParams, isAuthenticated, from, t])
 
   // If already authenticated, redirect via effect (not during render)
   useEffect(() => {
@@ -70,7 +73,7 @@ export function LoginPage() {
       await login(username, password, rememberMe)
       navigate(from, { replace: true })
     } catch (err) {
-      setError((err as Error).message || 'Login failed')
+      setError((err as Error).message || t('errors.loginFailed'))
     } finally {
       setIsSubmitting(false)
     }
@@ -87,7 +90,7 @@ export function LoginPage() {
       // Redirect to the OIDC provider
       window.location.href = result.authorization_url
     } catch (err) {
-      setError((err as Error).message || 'Failed to start SSO login')
+      setError((err as Error).message || t('errors.ssoFailed'))
       setSsoLoading(null)
     }
   }
@@ -101,12 +104,12 @@ export function LoginPage() {
         <div className="mb-8 text-center">
           <img src={logoSrc} alt="OpenSPC logo" className="mx-auto mb-3 h-16 w-16 object-contain" />
           <h1 className="text-foreground text-3xl font-bold tracking-tight">OpenSPC</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Statistical Process Control</p>
+          <p className="text-muted-foreground mt-1 text-sm">{tCommon('statisticalProcessControl')}</p>
         </div>
 
         {/* Login Card */}
         <div className="bg-card rounded-lg border p-6 shadow-sm">
-          <h2 className="text-foreground mb-4 text-lg font-semibold">Sign In</h2>
+          <h2 className="text-foreground mb-4 text-lg font-semibold">{t('signIn')}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error message */}
@@ -119,7 +122,7 @@ export function LoginPage() {
             {/* Username */}
             <div className="space-y-1.5">
               <label htmlFor="username" className="text-foreground block text-sm font-medium">
-                Username
+                {t('username')}
               </label>
               <input
                 id="username"
@@ -130,14 +133,14 @@ export function LoginPage() {
                 autoComplete="username"
                 autoFocus
                 className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                placeholder="Enter your username"
+                placeholder={t('enterUsername')}
               />
             </div>
 
             {/* Password */}
             <div className="space-y-1.5">
               <label htmlFor="password" className="text-foreground block text-sm font-medium">
-                Password
+                {t('password')}
               </label>
               <input
                 id="password"
@@ -147,7 +150,7 @@ export function LoginPage() {
                 required
                 autoComplete="current-password"
                 className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                placeholder="Enter your password"
+                placeholder={t('enterPassword')}
               />
             </div>
 
@@ -161,7 +164,7 @@ export function LoginPage() {
                 className="border-border text-primary focus:ring-ring h-4 w-4 rounded"
               />
               <label htmlFor="remember-me" className="text-muted-foreground text-sm">
-                Remember me
+                {t('rememberMe')}
               </label>
             </div>
 
@@ -171,7 +174,7 @@ export function LoginPage() {
               disabled={isSubmitting || !username || !password}
               className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? 'Signing in...' : 'Sign In'}
+              {isSubmitting ? t('signingIn') : t('signIn')}
             </button>
           </form>
 
@@ -181,7 +184,7 @@ export function LoginPage() {
               {/* Divider */}
               <div className="my-5 flex items-center gap-3">
                 <div className="bg-border h-px flex-1" />
-                <span className="text-muted-foreground text-xs font-medium uppercase">or</span>
+                <span className="text-muted-foreground text-xs font-medium uppercase">{tCommon('or')}</span>
                 <div className="bg-border h-px flex-1" />
               </div>
 
@@ -196,8 +199,8 @@ export function LoginPage() {
                     className="border-border text-foreground hover:bg-muted w-full rounded-md border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {ssoLoading === provider.id
-                      ? 'Redirecting...'
-                      : `Sign in with ${provider.name}`}
+                      ? t('redirecting')
+                      : t('signInWithProvider', { provider: provider.name })}
                   </button>
                 ))}
               </div>
@@ -208,7 +211,7 @@ export function LoginPage() {
           {ssoLoading === -1 && (
             <div className="mt-4 text-center">
               <div className="border-primary mx-auto h-6 w-6 animate-spin rounded-full border-4 border-t-transparent" />
-              <p className="text-muted-foreground mt-2 text-sm">Completing SSO login...</p>
+              <p className="text-muted-foreground mt-2 text-sm">{t('completingSso')}</p>
             </div>
           )}
         </div>

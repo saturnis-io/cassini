@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCharacteristics, useCharacteristic, useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
@@ -57,6 +58,8 @@ function StatPill({
 }
 
 export function OperatorDashboard() {
+  const { t } = useTranslation('dashboard')
+  const { t: tCommon } = useTranslation('common')
   const { data: characteristicsData, isLoading } = useCharacteristics()
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const inputModalOpen = useDashboardStore((state) => state.inputModalOpen)
@@ -264,7 +267,7 @@ export function OperatorDashboard() {
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-muted-foreground">Loading characteristics...</div>
+        <div className="text-muted-foreground">{t('loadingCharacteristics')}</div>
       </div>
     )
   }
@@ -291,29 +294,29 @@ export function OperatorDashboard() {
           <div className="bg-border/60 hidden h-4 w-px flex-shrink-0 md:block" />
 
           {/* Stats pills */}
-          <StatPill icon={Activity} label="Last" value={quickStats.lastMean.toFixed(precision)} />
+          <StatPill icon={Activity} label={t('stats.last')} value={quickStats.lastMean.toFixed(precision)} />
           {quickStats.centerLine != null && (
-            <StatPill icon={Target} label="CL" value={quickStats.centerLine.toFixed(precision)} />
+            <StatPill icon={Target} label={t('stats.centerLine')} value={quickStats.centerLine.toFixed(precision)} />
           )}
           <span className="hidden md:contents">
             {quickStats.ucl != null && (
-              <StatPill icon={TrendingUp} label="UCL" value={quickStats.ucl.toFixed(precision)} />
+              <StatPill icon={TrendingUp} label={t('stats.ucl')} value={quickStats.ucl.toFixed(precision)} />
             )}
             {quickStats.lcl != null && (
-              <StatPill icon={TrendingUp} label="LCL" value={quickStats.lcl.toFixed(precision)} />
+              <StatPill icon={TrendingUp} label={t('stats.lcl')} value={quickStats.lcl.toFixed(precision)} />
             )}
           </span>
-          <StatPill icon={Hash} label="n" value={quickStats.totalSamples} />
+          <StatPill icon={Hash} label={t('stats.sampleCount')} value={quickStats.totalSamples} />
           <StatPill
             icon={AlertTriangle}
-            label="OOC"
+            label={t('stats.outOfControl')}
             value={quickStats.violationCount}
             variant={quickStats.violationCount > 0 ? 'danger' : 'success'}
           />
           {quickStats.cpk != null && (
             <StatPill
               icon={Gauge}
-              label="Cpk"
+              label={t('stats.cpk')}
               value={quickStats.cpk.toFixed(2)}
               variant={
                 quickStats.cpk >= 1.33 ? 'success' : quickStats.cpk >= 1.0 ? 'warning' : 'danger'
@@ -405,7 +408,7 @@ export function OperatorDashboard() {
                     characteristicId={selectedId}
                     chartType={currentChartType}
                     chartOptions={chartOptions}
-                    label={comparisonMode ? 'Primary' : undefined}
+                    label={comparisonMode ? (t('comparison.primary') as 'Primary') : undefined}
                     histogramPosition={histogramPosition}
                     showSpecLimits={showSpecLimits}
                     onPointAnnotation={(sampleId) => {
@@ -418,7 +421,7 @@ export function OperatorDashboard() {
                   <ChartPanel
                     characteristicId={selectedId}
                     chartOptions={chartOptions}
-                    label={comparisonMode ? 'Primary' : undefined}
+                    label={comparisonMode ? (t('comparison.primary') as 'Primary') : undefined}
                     histogramPosition={histogramPosition}
                     showSpecLimits={showSpecLimits}
                     onPointAnnotation={(sampleId) => {
@@ -437,18 +440,18 @@ export function OperatorDashboard() {
                     <ChartPanel
                       characteristicId={secondaryCharacteristicId}
                       chartOptions={chartOptions}
-                      label="Secondary"
+                      label={t('comparison.secondary') as 'Secondary'}
                       histogramPosition={histogramPosition}
                       showSpecLimits={showSpecLimits}
                     />
                   ) : (
                     <div className="bg-card border-border text-muted-foreground flex h-full flex-col items-center justify-center rounded-lg border border-dashed">
-                      <p className="mb-3 text-sm">Select a characteristic to compare</p>
+                      <p className="mb-3 text-sm">{t('selectCharacteristicToCompare')}</p>
                       <button
                         onClick={() => setShowComparisonSelector(true)}
                         className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                       >
-                        Browse Hierarchy
+                        {tCommon('buttons.browseHierarchy')}
                       </button>
                     </div>
                   )}
@@ -493,7 +496,7 @@ export function OperatorDashboard() {
             </>
           ) : (
             <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-              Select a characteristic from the list to view its control chart
+              {t('selectCharacteristic')}
             </div>
           )}
         </div>

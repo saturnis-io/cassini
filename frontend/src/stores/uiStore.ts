@@ -27,6 +27,10 @@ interface UIState {
   // Plant context (ID only, provider manages full plant object)
   selectedPlantId: number | null
   setSelectedPlantId: (id: number | null) => void
+
+  // Language / i18n
+  language: string
+  setLanguage: (lang: string) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -56,12 +60,17 @@ export const useUIStore = create<UIState>()(
         const numericId = typeof id === 'string' ? parseInt(id, 10) : id
         set({ selectedPlantId: isNaN(numericId as number) ? null : numericId })
       },
+
+      // Language / i18n
+      language: 'en',
+      setLanguage: (lang) => set({ language: lang }),
     }),
     {
       name: 'openspc-ui',
       partialize: (state) => ({
         sidebarState: state.sidebarState,
         selectedPlantId: state.selectedPlantId,
+        language: state.language,
       }),
     },
   ),

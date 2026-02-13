@@ -1,3 +1,4 @@
+import i18n from 'i18next'
 import type {
   Annotation,
   AnnotationCreate,
@@ -11,6 +12,7 @@ import type {
   Characteristic,
   ChartData,
   ConnectionTestResult,
+  CreateReportSchedule,
   DatabaseConfig,
   DatabaseDialect,
   DatabaseStatus,
@@ -35,6 +37,8 @@ import type {
   ProviderStatus,
   PurgeHistory,
   RefreshResponse,
+  ReportRun,
+  ReportSchedule,
   RetentionOverride,
   RetentionPolicy,
   RetentionPolicySet,
@@ -46,6 +50,7 @@ import type {
   TagPreviewResponse,
   TagProviderStatus,
   TopicTreeNode,
+  UpdateReportSchedule,
   CapabilityResult,
   CapabilityHistoryItem,
   CapabilitySnapshotResponse,
@@ -185,6 +190,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     if (accessToken) {
       h['Authorization'] = `Bearer ${accessToken}`
     }
+    h['Accept-Language'] = i18n.language || 'en'
     return h
   }
 
@@ -1444,4 +1450,32 @@ export const capabilityApi = {
       { method: 'POST' },
     )
   },
+}
+
+// Report Schedule API
+export const reportScheduleApi = {
+  list: (plantId: number) =>
+    fetchApi<ReportSchedule[]>(`/reports/schedules/?plant_id=${plantId}`),
+
+  get: (id: number) => fetchApi<ReportSchedule>(`/reports/schedules/${id}`),
+
+  create: (data: CreateReportSchedule) =>
+    fetchApi<ReportSchedule>('/reports/schedules/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: UpdateReportSchedule) =>
+    fetchApi<ReportSchedule>(`/reports/schedules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    fetchApi<void>(`/reports/schedules/${id}`, { method: 'DELETE' }),
+
+  trigger: (id: number) =>
+    fetchApi<ReportRun>(`/reports/schedules/${id}/trigger`, { method: 'POST' }),
+
+  runs: (id: number) => fetchApi<ReportRun[]>(`/reports/schedules/${id}/runs`),
 }

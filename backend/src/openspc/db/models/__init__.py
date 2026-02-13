@@ -20,6 +20,7 @@ from openspc.db.models.oidc_config import OIDCConfig
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
 from openspc.db.models.purge_history import PurgeHistory
+from openspc.db.models.report_schedule import ReportRun, ReportSchedule
 from openspc.db.models.retention_policy import RetentionPolicy
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.models.user import User, UserPlantRole, UserRole
@@ -42,6 +43,8 @@ __all__ = [
     "OPCUADataSource",
     "Plant",
     "PurgeHistory",
+    "ReportRun",
+    "ReportSchedule",
     "RetentionPolicy",
     "SmtpConfig",
     "User",

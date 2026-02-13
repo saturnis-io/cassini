@@ -98,6 +98,13 @@ export interface Characteristic {
   data_type: 'variable' | 'attribute'
   attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
   default_sample_size?: number | null
+  // Advanced chart type (CUSUM/EWMA)
+  chart_type?: 'cusum' | 'ewma' | null
+  cusum_target?: number | null
+  cusum_k?: number | null
+  cusum_h?: number | null
+  ewma_lambda?: number | null
+  ewma_l?: number | null
   // Optional metadata fields
   unit?: string
   active?: boolean
@@ -212,6 +219,31 @@ export interface AttributeChartSample {
   display_key: string
 }
 
+export interface CUSUMChartSample {
+  sample_id: number
+  timestamp: string
+  measurement: number
+  cusum_high: number
+  cusum_low: number
+  excluded: boolean
+  violation_ids: number[]
+  unacknowledged_violation_ids: number[]
+  violation_rules: number[]
+  display_key: string
+}
+
+export interface EWMAChartSample {
+  sample_id: number
+  timestamp: string
+  measurement: number
+  ewma_value: number
+  excluded: boolean
+  violation_ids: number[]
+  unacknowledged_violation_ids: number[]
+  violation_rules: number[]
+  display_key: string
+}
+
 export interface ChartData {
   characteristic_id: number
   characteristic_name: string
@@ -243,6 +275,13 @@ export interface ChartData {
   data_type?: 'variable' | 'attribute'
   attribute_chart_type?: string | null
   attribute_data_points?: AttributeChartSample[]
+  // Advanced chart data (CUSUM/EWMA)
+  chart_type?: 'cusum' | 'ewma' | null
+  cusum_data_points?: CUSUMChartSample[]
+  cusum_h?: number | null
+  cusum_target?: number | null
+  ewma_data_points?: EWMAChartSample[]
+  ewma_target?: number | null
 }
 
 // Violation types
@@ -731,4 +770,65 @@ export interface CapabilityHistoryItem {
 export interface CapabilitySnapshotResponse {
   id: number
   capability: CapabilityResult
+}
+
+// Scheduled Report types
+export interface ReportSchedule {
+  id: number
+  plant_id: number
+  name: string
+  template_id: string
+  scope_type: 'plant' | 'hierarchy' | 'characteristic'
+  scope_id: number | null
+  frequency: 'daily' | 'weekly' | 'monthly'
+  hour: number
+  day_of_week: number | null
+  day_of_month: number | null
+  recipients: string[]
+  window_days: number
+  is_active: boolean
+  last_run_at: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ReportRun {
+  id: number
+  schedule_id: number
+  started_at: string
+  completed_at: string | null
+  status: 'running' | 'success' | 'failed'
+  error_message: string | null
+  recipients_count: number
+  pdf_size_bytes: number | null
+}
+
+export interface CreateReportSchedule {
+  name: string
+  template_id: string
+  scope_type: 'plant' | 'hierarchy' | 'characteristic'
+  scope_id?: number | null
+  frequency: 'daily' | 'weekly' | 'monthly'
+  hour?: number
+  day_of_week?: number | null
+  day_of_month?: number | null
+  recipients: string[]
+  window_days?: number
+  is_active?: boolean
+  plant_id: number
+}
+
+export interface UpdateReportSchedule {
+  name?: string
+  template_id?: string
+  scope_type?: 'plant' | 'hierarchy' | 'characteristic'
+  scope_id?: number | null
+  frequency?: 'daily' | 'weekly' | 'monthly'
+  hour?: number
+  day_of_week?: number | null
+  day_of_month?: number | null
+  recipients?: string[]
+  window_days?: number
+  is_active?: boolean
 }

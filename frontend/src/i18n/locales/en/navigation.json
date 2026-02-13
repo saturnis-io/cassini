@@ -1,0 +1,20 @@
+{
+  "dashboard": "Dashboard",
+  "dataEntry": "Data Entry",
+  "violations": "Violations",
+  "reports": "Reports",
+  "connectivity": "Connectivity",
+  "configuration": "Configuration",
+  "settings": "Settings",
+  "users": "Users",
+  "devTools": "Dev Tools",
+  "navigation": "Navigation",
+  "closeNavigation": "Close navigation",
+  "expandSidebar": "Expand sidebar",
+  "collapseSidebar": "Collapse sidebar",
+  "toggleNavigationMenu": "Toggle navigation menu",
+  "connected": "Connected",
+  "disconnected": "Disconnected",
+  "pending": "Pending:",
+  "info": "Info:"
+}

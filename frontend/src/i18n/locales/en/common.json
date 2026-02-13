@@ -1,0 +1,63 @@
+{
+  "buttons": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "refresh": "Refresh",
+    "acknowledge": "Acknowledge",
+    "browseHierarchy": "Browse Hierarchy"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "online": "Online",
+    "offline": "Offline",
+    "loading": "Loading",
+    "pending": "Pending",
+    "acknowledged": "Acknowledged",
+    "informational": "Informational"
+  },
+  "phrases": {
+    "noDataAvailable": "No data available",
+    "areYouSure": "Are you sure?",
+    "loading": "Loading...",
+    "errorOccurred": "Error occurred",
+    "somethingWentWrong": "Something went wrong",
+    "returnToDashboard": "Return to Dashboard",
+    "unexpectedError": "An unexpected error occurred"
+  },
+  "time": {
+    "seconds": "seconds",
+    "minutes": "minutes",
+    "hours": "hours",
+    "days": "days"
+  },
+  "pagination": {
+    "showingRange": "Showing {{from}}\u2013{{to}} of {{total}}",
+    "page": "Page",
+    "of": "of",
+    "perPage": "per page",
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page"
+  },
+  "roles": {
+    "operator": "Operator",
+    "supervisor": "Supervisor",
+    "engineer": "Engineer",
+    "admin": "Administrator"
+  },
+  "offlineBanner": "You are offline. Some features may be unavailable.",
+  "statisticalProcessControl": "Statistical Process Control",
+  "or": "or",
+  "unknown": "Unknown"
+}

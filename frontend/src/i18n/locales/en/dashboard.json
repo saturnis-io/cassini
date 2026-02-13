@@ -1,0 +1,18 @@
+{
+  "loadingCharacteristics": "Loading characteristics...",
+  "selectCharacteristic": "Select a characteristic from the list to view its control chart",
+  "selectCharacteristicToCompare": "Select a characteristic to compare",
+  "stats": {
+    "last": "Last",
+    "centerLine": "CL",
+    "ucl": "UCL",
+    "lcl": "LCL",
+    "sampleCount": "n",
+    "outOfControl": "OOC",
+    "cpk": "Cpk"
+  },
+  "comparison": {
+    "primary": "Primary",
+    "secondary": "Secondary"
+  }
+}

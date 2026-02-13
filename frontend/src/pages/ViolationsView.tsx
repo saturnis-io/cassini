@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   Check,
@@ -41,6 +42,7 @@ function Pager({
   perPage: number
   onPageChange: (page: number) => void
 }) {
+  const { t } = useTranslation('common')
   const showingFrom = totalItems > 0 ? (page - 1) * perPage + 1 : 0
   const showingTo = Math.min(page * perPage, totalItems)
 
@@ -54,14 +56,14 @@ function Pager({
   return (
     <div className="flex items-center justify-between px-4 py-2">
       <span className="text-muted-foreground text-sm">
-        Showing {showingFrom}–{showingTo} of {totalItems}
+        {t('pagination.showingRange', { from: showingFrom, to: showingTo, total: totalItems })}
       </span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(1)}
           disabled={page <= 1}
           className="border-border hover:bg-muted rounded border px-1.5 py-1 font-mono text-xs font-bold transition-colors disabled:opacity-40"
-          title="First page"
+          title={t('pagination.firstPage')}
         >
           <ChevronsLeft className="h-4 w-4" />
         </button>
@@ -69,7 +71,7 @@ function Pager({
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1}
           className="border-border hover:bg-muted rounded border p-1 transition-colors disabled:opacity-40"
-          title="Previous page"
+          title={t('pagination.previousPage')}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -91,7 +93,7 @@ function Pager({
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
           className="border-border hover:bg-muted rounded border p-1 transition-colors disabled:opacity-40"
-          title="Next page"
+          title={t('pagination.nextPage')}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -99,7 +101,7 @@ function Pager({
           onClick={() => onPageChange(totalPages)}
           disabled={page >= totalPages}
           className="border-border hover:bg-muted rounded border px-1.5 py-1 font-mono text-xs font-bold transition-colors disabled:opacity-40"
-          title="Last page"
+          title={t('pagination.lastPage')}
         >
           <ChevronsRight className="h-4 w-4" />
         </button>
@@ -109,6 +111,8 @@ function Pager({
 }
 
 export function ViolationsView() {
+  const { t } = useTranslation('violations')
+  const { t: tCommon } = useTranslation('common')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('required')
   const [selectedRule, setSelectedRule] = useState<number | null>(null)
   const [page, setPage] = useState(1)
@@ -271,9 +275,9 @@ export function ViolationsView() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold md:text-2xl">Violations</h1>
+          <h1 className="text-xl font-bold md:text-2xl">{t('title')}</h1>
           <p className="text-muted-foreground text-sm">
-            Monitor and acknowledge Nelson rule violations
+            {t('subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -288,7 +292,7 @@ export function ViolationsView() {
               ) : (
                 <AlertTriangle className="h-4 w-4" />
               )}
-              {fetchingBulkIds ? 'Loading...' : `Bulk Acknowledge (${bulkPendingCount})`}
+              {fetchingBulkIds ? tCommon('phrases.loading') : t('bulkAcknowledge', { count: bulkPendingCount })}
             </button>
           )}
           <button
@@ -299,7 +303,7 @@ export function ViolationsView() {
             className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            {tCommon('buttons.refresh')}
           </button>
         </div>
       </div>
@@ -307,29 +311,29 @@ export function ViolationsView() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         <div className="bg-card border-border rounded-lg border p-4">
-          <div className="text-muted-foreground text-sm">Total Violations</div>
+          <div className="text-muted-foreground text-sm">{t('stats.totalViolations')}</div>
           <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
         </div>
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="text-muted-foreground flex items-center gap-1 text-sm">
             <AlertTriangle className="text-destructive h-3.5 w-3.5" />
-            Pending (Required)
+            {t('stats.pendingRequired')}
           </div>
           <div className="text-destructive text-2xl font-bold">{stats?.unacknowledged ?? 0}</div>
         </div>
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="text-muted-foreground flex items-center gap-1 text-sm">
             <Info className="text-primary h-3.5 w-3.5" />
-            Informational
+            {t('stats.informational')}
           </div>
           <div className="text-primary text-2xl font-bold">{stats?.informational ?? 0}</div>
         </div>
         <div className="bg-card border-border rounded-lg border p-4">
-          <div className="text-muted-foreground text-sm">Critical</div>
+          <div className="text-muted-foreground text-sm">{t('stats.critical')}</div>
           <div className="text-2xl font-bold">{stats?.by_severity?.CRITICAL ?? 0}</div>
         </div>
         <div className="bg-card border-border rounded-lg border p-4">
-          <div className="text-muted-foreground text-sm">Warning</div>
+          <div className="text-muted-foreground text-sm">{t('stats.warning')}</div>
           <div className="text-2xl font-bold">{stats?.by_severity?.WARNING ?? 0}</div>
         </div>
       </div>
@@ -338,7 +342,7 @@ export function ViolationsView() {
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
           <Filter className="text-muted-foreground h-4 w-4" />
-          <span className="text-muted-foreground text-sm">Status:</span>
+          <span className="text-muted-foreground text-sm">{t('filters.status')}</span>
           <div className="border-border flex overflow-hidden rounded-lg border">
             {(['required', 'informational', 'acknowledged', 'all'] as FilterStatus[]).map(
               (status) => (
@@ -352,9 +356,7 @@ export function ViolationsView() {
                       : 'hover:bg-muted',
                   )}
                 >
-                  {status === 'required'
-                    ? 'Pending'
-                    : status.charAt(0).toUpperCase() + status.slice(1)}
+                  {t(`filters.${status === 'required' ? 'pending' : status}`)}
                 </button>
               ),
             )}
@@ -362,13 +364,13 @@ export function ViolationsView() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">Rule:</span>
+          <span className="text-muted-foreground text-sm">{t('filters.rule')}</span>
           <select
             value={selectedRule ?? ''}
             onChange={(e) => setSelectedRule(e.target.value ? Number(e.target.value) : null)}
             className="border-border bg-background rounded-lg border px-3 py-1.5 text-sm"
           >
-            <option value="">All Rules</option>
+            <option value="">{t('filters.allRules')}</option>
             {Object.entries(NELSON_RULES).map(([id, rule]) => (
               <option key={id} value={id}>
                 Rule {id}: {rule.name}
@@ -378,7 +380,7 @@ export function ViolationsView() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">Time:</span>
+          <span className="text-muted-foreground text-sm">{t('filters.time')}</span>
           <TimeRangeSelector value={dateRange} onChange={setDateRange} showAllTime />
         </div>
       </div>
@@ -403,22 +405,22 @@ export function ViolationsView() {
             <thead className="bg-muted/50 border-border border-b">
               <tr>
                 <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                  Time
+                  {t('table.time')}
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                  Characteristic
+                  {t('table.characteristic')}
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                  Rule
+                  {t('table.rule')}
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                  Severity
+                  {t('table.severity')}
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                  Status
+                  {t('table.status')}
                 </th>
                 <th className="text-muted-foreground px-4 py-3 text-right text-sm font-medium">
-                  Actions
+                  {t('table.actions')}
                 </th>
               </tr>
             </thead>
@@ -426,13 +428,13 @@ export function ViolationsView() {
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
-                    Loading violations...
+                    {t('loadingViolations')}
                   </td>
                 </tr>
               ) : !violations?.items || violations?.items.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
-                    No violations found
+                    {t('noViolationsFound')}
                   </td>
                 </tr>
               ) : (
@@ -501,17 +503,17 @@ export function ViolationsView() {
                         {violation.acknowledged ? (
                           <div className="text-success flex items-center gap-1 text-sm">
                             <Check className="h-4 w-4" />
-                            <span>Acknowledged</span>
+                            <span>{tCommon('status.acknowledged')}</span>
                           </div>
                         ) : isInformational ? (
                           <div className="text-primary flex items-center gap-1 text-sm">
                             <Info className="h-4 w-4" />
-                            <span>Informational</span>
+                            <span>{tCommon('status.informational')}</span>
                           </div>
                         ) : (
                           <div className="text-destructive flex items-center gap-1 text-sm">
                             <Clock className="h-4 w-4" />
-                            <span>Pending</span>
+                            <span>{tCommon('status.pending')}</span>
                           </div>
                         )}
                       </td>
@@ -522,7 +524,7 @@ export function ViolationsView() {
                             disabled={acknowledgeMutation.isPending}
                             className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                           >
-                            Acknowledge
+                            {tCommon('buttons.acknowledge')}
                           </button>
                         )}
                       </td>

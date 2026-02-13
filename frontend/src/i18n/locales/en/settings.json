@@ -1,0 +1,20 @@
+{
+  "title": "Settings",
+  "subtitle": "Configure system settings and integrations",
+  "groups": {
+    "personal": "Personal",
+    "administration": "Administration"
+  },
+  "tabs": {
+    "appearance": "Appearance",
+    "notifications": "Notifications",
+    "branding": "Branding",
+    "sites": "Sites",
+    "apiKeys": "API Keys",
+    "retention": "Retention",
+    "reports": "Reports",
+    "sso": "SSO",
+    "auditLog": "Audit Log",
+    "database": "Database"
+  }
+}

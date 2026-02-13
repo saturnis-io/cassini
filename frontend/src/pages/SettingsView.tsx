@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Key,
   Bell,
@@ -9,6 +10,7 @@ import {
   Archive,
   Shield,
   Fingerprint,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -17,29 +19,35 @@ import type { LucideIcon } from 'lucide-react'
 
 interface TabDef {
   to: string
-  label: string
+  labelKey: string
   icon: LucideIcon
   minRole?: Role
 }
 
-const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
+interface SidebarGroupDef {
+  labelKey: string
+  tabs: TabDef[]
+}
+
+const SIDEBAR_GROUPS: SidebarGroupDef[] = [
   {
-    label: 'Personal',
+    labelKey: 'groups.personal',
     tabs: [
-      { to: 'appearance', label: 'Appearance', icon: Palette },
-      { to: 'notifications', label: 'Notifications', icon: Bell },
+      { to: 'appearance', labelKey: 'tabs.appearance', icon: Palette },
+      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell },
     ],
   },
   {
-    label: 'Administration',
+    labelKey: 'groups.administration',
     tabs: [
-      { to: 'branding', label: 'Branding', icon: Building2, minRole: 'admin' },
-      { to: 'sites', label: 'Sites', icon: Factory, minRole: 'admin' },
-      { to: 'api-keys', label: 'API Keys', icon: Key, minRole: 'engineer' },
-      { to: 'retention', label: 'Retention', icon: Archive, minRole: 'engineer' },
-      { to: 'sso', label: 'SSO', icon: Fingerprint, minRole: 'admin' },
-      { to: 'audit-log', label: 'Audit Log', icon: Shield, minRole: 'admin' },
-      { to: 'database', label: 'Database', icon: Database, minRole: 'engineer' },
+      { to: 'branding', labelKey: 'tabs.branding', icon: Building2, minRole: 'admin' },
+      { to: 'sites', labelKey: 'tabs.sites', icon: Factory, minRole: 'admin' },
+      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer' },
+      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer' },
+      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer' },
+      { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin' },
+      { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin' },
+      { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer' },
     ],
   },
 ]
@@ -49,15 +57,16 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
  * Each tab renders via nested <Route> and <Outlet>.
  */
 export function SettingsPage() {
+  const { t } = useTranslation('settings')
   const { role } = useAuth()
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-border bg-background/80 shrink-0 border-b px-6 pt-5 pb-5 backdrop-blur-sm">
-        <h1 className="text-foreground text-xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-foreground text-xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
-          Configure system settings and integrations
+          {t('subtitle')}
         </p>
       </div>
 
@@ -75,9 +84,9 @@ export function SettingsPage() {
             if (visibleTabs.length === 0) return null
 
             return (
-              <div key={group.label} className="mb-5">
+              <div key={group.labelKey} className="mb-5">
                 <div className="text-muted-foreground mb-1.5 px-3 text-[10px] font-semibold tracking-wider uppercase">
-                  {group.label}
+                  {t(group.labelKey)}
                 </div>
                 <div className="space-y-0.5">
                   {visibleTabs.map((tab) => (
@@ -95,7 +104,7 @@ export function SettingsPage() {
                       }
                     >
                       <tab.icon className="h-4 w-4" />
-                      {tab.label}
+                      {t(tab.labelKey)}
                     </NavLink>
                   ))}
                 </div>

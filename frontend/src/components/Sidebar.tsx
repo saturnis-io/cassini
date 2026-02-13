@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
   ClipboardList,
@@ -22,7 +23,7 @@ import { canAccessView, type Role } from '@/lib/roles'
 
 interface NavItem {
   path: string
-  label: string
+  labelKey: string
   icon: React.ReactNode
   badge?: number
   requiredRole?: Role
@@ -44,6 +45,7 @@ interface SidebarProps {
  * - Role-based navigation item filtering
  */
 export function Sidebar({ className }: SidebarProps) {
+  const { t } = useTranslation('navigation')
   const { sidebarState, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
   const { data: stats } = useViolationStats()
   const { data: devToolsStatus } = useDevToolsStatus()
@@ -62,26 +64,26 @@ export function Sidebar({ className }: SidebarProps) {
   const mainNavItems: NavItem[] = [
     {
       path: '/dashboard',
-      label: 'Dashboard',
+      labelKey: 'dashboard',
       icon: <LayoutDashboard className="h-5 w-5" />,
       requiredRole: 'operator',
     },
     {
       path: '/data-entry',
-      label: 'Data Entry',
+      labelKey: 'dataEntry',
       icon: <ClipboardList className="h-5 w-5" />,
       requiredRole: 'operator',
     },
     {
       path: '/violations',
-      label: 'Violations',
+      labelKey: 'violations',
       icon: <AlertTriangle className="h-5 w-5" />,
       badge: stats?.unacknowledged,
       requiredRole: 'operator',
     },
     {
       path: '/reports',
-      label: 'Reports',
+      labelKey: 'reports',
       icon: <FileText className="h-5 w-5" />,
       requiredRole: 'supervisor',
     },
@@ -90,25 +92,25 @@ export function Sidebar({ className }: SidebarProps) {
   const secondaryNavItems: NavItem[] = [
     {
       path: '/connectivity',
-      label: 'Connectivity',
+      labelKey: 'connectivity',
       icon: <Network className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
       path: '/configuration',
-      label: 'Configuration',
+      labelKey: 'configuration',
       icon: <ListTree className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
       path: '/settings',
-      label: 'Settings',
+      labelKey: 'settings',
       icon: <Settings className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
       path: '/admin/users',
-      label: 'Users',
+      labelKey: 'users',
       icon: <Users className="h-5 w-5" />,
       requiredRole: 'admin',
     },
@@ -125,38 +127,41 @@ export function Sidebar({ className }: SidebarProps) {
     (item) => !item.requiredRole || canAccessView(role, item.path),
   )
 
-  const renderNavItem = (item: NavItem, forMobile = false) => (
-    <NavLink
-      key={item.path}
-      to={item.path}
-      onClick={forMobile ? () => setMobileSidebarOpen(false) : undefined}
-      className={({ isActive }) =>
-        cn(
-          'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-          'hover:bg-accent hover:text-accent-foreground',
-          isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground',
-          !forMobile && isCollapsed && 'justify-center px-2',
-          forMobile && 'min-h-[44px]',
-        )
-      }
-      title={!forMobile && isCollapsed ? item.label : undefined}
-    >
-      {item.icon}
-      {(forMobile || !isCollapsed) && (
-        <>
-          <span className="flex-1">{item.label}</span>
-          {item.badge ? (
-            <span className="bg-destructive text-destructive-foreground min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-xs">
-              {item.badge}
-            </span>
-          ) : null}
-        </>
-      )}
-      {!forMobile && isCollapsed && item.badge ? (
-        <span className="bg-destructive absolute -top-1 -right-1 h-2 w-2 rounded-full" />
-      ) : null}
-    </NavLink>
-  )
+  const renderNavItem = (item: NavItem, forMobile = false) => {
+    const label = t(item.labelKey)
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        onClick={forMobile ? () => setMobileSidebarOpen(false) : undefined}
+        className={({ isActive }) =>
+          cn(
+            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+            'hover:bg-accent hover:text-accent-foreground',
+            isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground',
+            !forMobile && isCollapsed && 'justify-center px-2',
+            forMobile && 'min-h-[44px]',
+          )
+        }
+        title={!forMobile && isCollapsed ? label : undefined}
+      >
+        {item.icon}
+        {(forMobile || !isCollapsed) && (
+          <>
+            <span className="flex-1">{label}</span>
+            {item.badge ? (
+              <span className="bg-destructive text-destructive-foreground min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-xs">
+                {item.badge}
+              </span>
+            ) : null}
+          </>
+        )}
+        {!forMobile && isCollapsed && item.badge ? (
+          <span className="bg-destructive absolute -top-1 -right-1 h-2 w-2 rounded-full" />
+        ) : null}
+      </NavLink>
+    )
+  }
 
   const navContent = (forMobile = false) => (
     <>
@@ -174,7 +179,7 @@ export function Sidebar({ className }: SidebarProps) {
           {renderNavItem(
             {
               path: '/dev-tools',
-              label: 'Dev Tools',
+              labelKey: 'devTools',
               icon: <Wrench className="text-warning h-5 w-5" />,
             },
             forMobile,
@@ -199,11 +204,11 @@ export function Sidebar({ className }: SidebarProps) {
           <aside className="bg-card absolute inset-y-0 left-0 flex w-[280px] flex-col shadow-lg">
             {/* Close button header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-semibold">Navigation</span>
+              <span className="text-sm font-semibold">{t('navigation')}</span>
               <button
                 onClick={() => setMobileSidebarOpen(false)}
                 className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-9 w-9 items-center justify-center rounded-md transition-colors"
-                aria-label="Close navigation"
+                aria-label={t('closeNavigation')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -236,7 +241,7 @@ export function Sidebar({ className }: SidebarProps) {
               'bg-card border-border border border-l-0 shadow-sm',
               'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
             )}
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
           >
             {isCollapsed ? (
               <ChevronsRight className="h-4 w-4" />

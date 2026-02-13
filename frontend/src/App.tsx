@@ -1,3 +1,4 @@
+import './i18n/config'
 import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -14,6 +15,7 @@ import { PlantSettings } from '@/components/PlantSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { RetentionSettings } from '@/components/RetentionSettings'
+import { ScheduledReports } from '@/components/settings/ScheduledReports'
 import { AuditLogViewer } from '@/components/AuditLogViewer'
 import { SSOSettings } from '@/components/SSOSettings'
 import { UserManagementPage } from '@/pages/UserManagementPage'
@@ -243,6 +245,7 @@ function App() {
                   />
                   <Route path="api-keys" element={<ApiKeysSettings />} />
                   <Route path="retention" element={<RetentionSettings />} />
+                  <Route path="reports" element={<ScheduledReports />} />
                   <Route
                     path="sso"
                     element={

@@ -1,0 +1,32 @@
+{
+  "title": "Violations",
+  "subtitle": "Monitor and acknowledge Nelson rule violations",
+  "bulkAcknowledge": "Bulk Acknowledge ({{count}})",
+  "stats": {
+    "totalViolations": "Total Violations",
+    "pendingRequired": "Pending (Required)",
+    "informational": "Informational",
+    "critical": "Critical",
+    "warning": "Warning"
+  },
+  "filters": {
+    "status": "Status:",
+    "rule": "Rule:",
+    "time": "Time:",
+    "allRules": "All Rules",
+    "pending": "Pending",
+    "informational": "Informational",
+    "acknowledged": "Acknowledged",
+    "all": "All"
+  },
+  "table": {
+    "time": "Time",
+    "characteristic": "Characteristic",
+    "rule": "Rule",
+    "severity": "Severity",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "loadingViolations": "Loading violations...",
+  "noViolationsFound": "No violations found"
+}

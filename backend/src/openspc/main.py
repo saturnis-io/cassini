@@ -28,6 +28,7 @@ from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.retention import router as retention_router
+from openspc.api.v1.scheduled_reports import router as scheduled_reports_router
 from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.users import router as users_router
 from openspc.api.v1.tags import router as tags_router
@@ -44,6 +45,7 @@ from openspc.core.events import event_bus
 from openspc.core.rate_limit import limiter
 from openspc.core.providers import tag_provider_manager, opcua_provider_manager
 from openspc.core.purge_engine import PurgeEngine
+from openspc.core.report_scheduler import ReportScheduler
 from openspc.db.database import get_database
 from openspc.mqtt import mqtt_manager
 from openspc.opcua.manager import opcua_manager
@@ -213,6 +215,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await purge_engine.start()
     app.state.purge_engine = purge_engine
 
+    # Start report scheduler (background, checks every 15 minutes)
+    report_scheduler = ReportScheduler()
+    await report_scheduler.start()
+    app.state.report_scheduler = report_scheduler
+
     # Store managers in app state
     app.state.mqtt_manager = mqtt_manager
     app.state.tag_provider_manager = tag_provider_manager
@@ -225,6 +232,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down OpenSPC application")
+
+    # Shutdown report scheduler
+    await app.state.report_scheduler.stop()
 
     # Shutdown purge engine
     await app.state.purge_engine.stop()
@@ -300,6 +310,7 @@ app.include_router(notifications_router)
 app.include_router(oidc_router)
 app.include_router(providers_router)
 app.include_router(retention_router)
+app.include_router(scheduled_reports_router)
 app.include_router(samples_router)
 app.include_router(tags_router)
 app.include_router(violations_router)

@@ -15,6 +15,7 @@ import {
   oidcApi,
   opcuaApi,
   plantApi,
+  reportScheduleApi,
   retentionApi,
   sampleApi,
   userApi,
@@ -33,6 +34,7 @@ import type {
   AnnotationCreate,
   AnnotationUpdate,
   Characteristic,
+  CreateReportSchedule,
   DatabaseDialect,
   HierarchyNode,
   OPCUAServerCreate,
@@ -40,6 +42,7 @@ import type {
   PlantCreate,
   PlantUpdate,
   RetentionPolicySet,
+  UpdateReportSchedule,
 } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
@@ -1729,6 +1732,103 @@ export function useDeleteOIDCConfig() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete SSO provider: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Report Schedule hooks
+// -----------------------------------------------------------------------
+
+export const reportScheduleKeys = {
+  all: ['report-schedules'] as const,
+  list: (plantId: number) => ['report-schedules', 'list', plantId] as const,
+  detail: (id: number) => ['report-schedules', 'detail', id] as const,
+  runs: (scheduleId: number) => ['report-schedules', 'runs', scheduleId] as const,
+}
+
+export function useReportSchedules(plantId: number) {
+  return useQuery({
+    queryKey: reportScheduleKeys.list(plantId),
+    queryFn: () => reportScheduleApi.list(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useReportSchedule(id: number) {
+  return useQuery({
+    queryKey: reportScheduleKeys.detail(id),
+    queryFn: () => reportScheduleApi.get(id),
+    enabled: id > 0,
+  })
+}
+
+export function useReportRuns(scheduleId: number) {
+  return useQuery({
+    queryKey: reportScheduleKeys.runs(scheduleId),
+    queryFn: () => reportScheduleApi.runs(scheduleId),
+    enabled: scheduleId > 0,
+  })
+}
+
+export function useCreateReportSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: CreateReportSchedule) => reportScheduleApi.create(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
+      toast.success(`Report schedule "${data.name}" created`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create schedule: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateReportSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateReportSchedule }) =>
+      reportScheduleApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
+      toast.success('Report schedule updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update schedule: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteReportSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => reportScheduleApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
+      toast.success('Report schedule deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete schedule: ${error.message}`)
+    },
+  })
+}
+
+export function useTriggerReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => reportScheduleApi.trigger(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: reportScheduleKeys.runs(id) })
+      queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
+      toast.success('Report triggered successfully')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to trigger report: ${error.message}`)
     },
   })
 }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Wifi, WifiOff, AlertTriangle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
@@ -26,6 +27,8 @@ import { PlantSelector } from '@/components/PlantSelector'
  * Mobile: Sidebar becomes an overlay (hamburger menu).
  */
 export function Layout() {
+  const { t } = useTranslation('common')
+  const { t: tNav } = useTranslation('navigation')
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { data: stats } = useViolationStats()
   const { isOffline, setIsOffline } = useUIStore()
@@ -48,7 +51,7 @@ export function Layout() {
       {isOffline && (
         <div className="bg-warning text-warning-foreground flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium">
           <WifiOff className="h-4 w-4" />
-          You are offline. Some features may be unavailable.
+          {t('offlineBanner')}
         </div>
       )}
 
@@ -73,12 +76,12 @@ export function Layout() {
             {wsConnected ? (
               <>
                 <Wifi className="text-success h-4 w-4" />
-                <span className="text-muted-foreground hidden sm:inline">Connected</span>
+                <span className="text-muted-foreground hidden sm:inline">{tNav('connected')}</span>
               </>
             ) : (
               <>
                 <WifiOff className="text-destructive h-4 w-4" />
-                <span className="text-destructive hidden sm:inline">Disconnected</span>
+                <span className="text-destructive hidden sm:inline">{tNav('disconnected')}</span>
               </>
             )}
           </div>
@@ -93,7 +96,7 @@ export function Layout() {
               )}
             >
               <AlertTriangle className="h-4 w-4" />
-              <span className="hidden sm:inline">Pending:</span>{' '}
+              <span className="hidden sm:inline">{tNav('pending')}</span>{' '}
               <span className="font-medium">{stats?.unacknowledged ?? 0}</span>
             </Link>
             {(stats?.informational ?? 0) > 0 && (
@@ -102,7 +105,7 @@ export function Layout() {
                 className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors hover:underline"
               >
                 <Info className="h-4 w-4" />
-                <span className="hidden sm:inline">Info:</span>{' '}
+                <span className="hidden sm:inline">{tNav('info')}</span>{' '}
                 <span className="font-medium">{stats?.informational ?? 0}</span>
               </Link>
             )}

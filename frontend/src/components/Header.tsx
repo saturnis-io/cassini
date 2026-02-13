@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
@@ -22,6 +23,8 @@ interface HeaderProps {
  * - User menu with logout
  */
 export function Header({ className, plantSelector }: HeaderProps) {
+  const { t } = useTranslation('auth')
+  const { t: tNav } = useTranslation('navigation')
   const { theme, setTheme, brandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
@@ -44,9 +47,9 @@ export function Header({ className, plantSelector }: HeaderProps) {
   }
 
   const getThemeLabel = () => {
-    if (theme === 'system') return 'System'
-    if (theme === 'dark') return 'Dark'
-    return 'Light'
+    if (theme === 'system') return t('theme.system')
+    if (theme === 'dark') return t('theme.dark')
+    return t('theme.light')
   }
 
   // Close dropdown when clicking outside
@@ -75,7 +78,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
         <button
           onClick={toggleMobileSidebar}
           className="text-muted-foreground hover:text-foreground hover:bg-accent mr-1 flex h-9 w-9 items-center justify-center rounded-md transition-colors md:hidden"
-          aria-label="Toggle navigation menu"
+          aria-label={tNav('toggleNavigationMenu')}
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -104,7 +107,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
         <button
           onClick={cycleTheme}
           className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
-          title={`Theme: ${getThemeLabel()}`}
+          title={t('theme.label', { theme: getThemeLabel() })}
         >
           {getThemeIcon()}
           <span className="hidden sm:inline">{getThemeLabel()}</span>
@@ -116,7 +119,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
             <button
               onClick={() => setUserMenuOpen((o) => !o)}
               className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
-              title="User menu"
+              title={t('userMenu')}
             >
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">{user.username}</span>
@@ -137,7 +140,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
                     className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors"
                   >
                     <LogOut className="h-4 w-4" />
-                    <span>Sign Out</span>
+                    <span>{t('signOut')}</span>
                   </button>
                 </div>
               </div>
