@@ -22,9 +22,12 @@ const TYPE_OPTIONS: { value: RetentionType; label: string; icon: typeof Infinity
 
 function unitToDays(value: number, unit: TimeUnit): number {
   switch (unit) {
-    case 'days': return value
-    case 'months': return value * 30
-    case 'years': return value * 365
+    case 'days':
+      return value
+    case 'months':
+      return value * 30
+    case 'years':
+      return value * 365
   }
 }
 
@@ -42,24 +45,28 @@ export function RetentionPolicyForm({
 }: RetentionPolicyFormProps) {
   const [type, setType] = useState<RetentionType>(initialPolicy?.retention_type ?? 'forever')
   const [count, setCount] = useState<number>(
-    initialPolicy?.retention_type === 'sample_count' ? (initialPolicy.retention_value ?? 1000) : 1000
+    initialPolicy?.retention_type === 'sample_count'
+      ? (initialPolicy.retention_value ?? 1000)
+      : 1000,
   )
   const [ageValue, setAgeValue] = useState<number>(
-    initialPolicy?.retention_type === 'time_delta' ? (initialPolicy.retention_value ?? 90) : 90
+    initialPolicy?.retention_type === 'time_delta' ? (initialPolicy.retention_value ?? 90) : 90,
   )
   const [ageUnit, setAgeUnit] = useState<TimeUnit>(
     initialPolicy?.retention_type === 'time_delta'
       ? parseInitialUnit(initialPolicy.retention_unit)
-      : 'days'
+      : 'days',
   )
 
-  const countError = type === 'sample_count' && (count < 10 || count > 1_000_000)
-    ? 'Must be between 10 and 1,000,000'
-    : null
+  const countError =
+    type === 'sample_count' && (count < 10 || count > 1_000_000)
+      ? 'Must be between 10 and 1,000,000'
+      : null
   const ageDaysTotal = unitToDays(ageValue, ageUnit)
-  const ageError = type === 'time_delta' && (ageDaysTotal < 1 || ageDaysTotal > 3650)
-    ? 'Must be between 1 day and 10 years'
-    : null
+  const ageError =
+    type === 'time_delta' && (ageDaysTotal < 1 || ageDaysTotal > 3650)
+      ? 'Must be between 1 day and 10 years'
+      : null
   const hasError = countError !== null || ageError !== null
 
   const handleSubmit = () => {
@@ -76,7 +83,9 @@ export function RetentionPolicyForm({
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block">Retention Type</label>
+        <label className="text-muted-foreground mb-2 block text-sm font-medium">
+          Retention Type
+        </label>
         <div className="grid grid-cols-3 gap-3">
           {TYPE_OPTIONS.map((opt) => (
             <button
@@ -84,15 +93,15 @@ export function RetentionPolicyForm({
               type="button"
               onClick={() => setType(opt.value)}
               className={cn(
-                'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
+                'flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all',
                 type === opt.value
                   ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50'
+                  : 'border-border hover:border-primary/50',
               )}
             >
               <opt.icon className="h-6 w-6" />
               <span className="text-sm font-medium">{opt.label}</span>
-              {type === opt.value && <Check className="h-4 w-4 text-primary" />}
+              {type === opt.value && <Check className="text-primary h-4 w-4" />}
             </button>
           ))}
         </div>
@@ -108,47 +117,44 @@ export function RetentionPolicyForm({
               max={1_000_000}
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-28 px-3 py-2 text-sm bg-background border border-input rounded-lg
-                         focus:outline-none focus:ring-2 focus:ring-ring"
+              className="bg-background border-input focus:ring-ring w-28 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
-            <span className="text-sm text-muted-foreground">samples per characteristic</span>
+            <span className="text-muted-foreground text-sm">samples per characteristic</span>
           </div>
-          {countError && <p className="text-xs text-destructive mt-1">{countError}</p>}
+          {countError && <p className="text-destructive mt-1 text-xs">{countError}</p>}
         </div>
       )}
 
       {type === 'time_delta' && (
         <div>
-          <label className="text-sm font-medium mb-1 block">Keep records from the last</label>
+          <label className="mb-1 block text-sm font-medium">Keep records from the last</label>
           <div className="flex items-center gap-2">
             <input
               type="number"
               min={1}
               value={ageValue}
               onChange={(e) => setAgeValue(Number(e.target.value))}
-              className="w-24 px-3 py-2 text-sm bg-background border border-input rounded-lg
-                         focus:outline-none focus:ring-2 focus:ring-ring"
+              className="bg-background border-input focus:ring-ring w-24 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
             <select
               value={ageUnit}
               onChange={(e) => setAgeUnit(e.target.value as TimeUnit)}
-              className="px-3 py-2 text-sm bg-background border border-input rounded-lg
-                         focus:outline-none focus:ring-2 focus:ring-ring"
+              className="bg-background border-input focus:ring-ring rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             >
               <option value="days">days</option>
               <option value="months">months</option>
               <option value="years">years</option>
             </select>
           </div>
-          {ageError && <p className="text-xs text-destructive mt-1">{ageError}</p>}
+          {ageError && <p className="text-destructive mt-1 text-xs">{ageError}</p>}
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-2 border-t border-border">
+      <div className="border-border flex justify-end gap-3 border-t pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80"
+          className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium"
         >
           Cancel
         </button>
@@ -157,10 +163,10 @@ export function RetentionPolicyForm({
           onClick={handleSubmit}
           disabled={hasError || isSubmitting}
           className={cn(
-            'px-5 py-2.5 text-sm font-medium rounded-xl',
+            'rounded-xl px-5 py-2.5 text-sm font-medium',
             hasError || isSubmitting
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              : 'bg-primary text-primary-foreground hover:bg-primary/90',
           )}
         >
           {isSubmitting ? 'Saving...' : submitLabel}

@@ -87,12 +87,8 @@ export function UserManagementPage() {
         await updateUser.mutateAsync({ id: editingUser.id, data: updateData })
 
         // Sync plant roles
-        const currentRoles = new Map(
-          editingUser.plant_roles.map((pr) => [pr.plant_id, pr.role])
-        )
-        const newRoles = new Map(
-          data.plant_roles.map((pr) => [pr.plant_id, pr.role])
-        )
+        const currentRoles = new Map(editingUser.plant_roles.map((pr) => [pr.plant_id, pr.role]))
+        const newRoles = new Map(data.plant_roles.map((pr) => [pr.plant_id, pr.role]))
 
         // Remove roles no longer present
         for (const [plantId] of currentRoles) {
@@ -144,13 +140,13 @@ export function UserManagementPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Manage users and their plant role assignments.
           </p>
         </div>
         <button
           onClick={handleCreate}
-          className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition-colors"
         >
           Create User
         </button>
@@ -160,7 +156,7 @@ export function UserManagementPage() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />
+            <div key={i} className="bg-muted h-12 animate-pulse rounded-md" />
           ))}
         </div>
       ) : (
@@ -186,23 +182,23 @@ export function UserManagementPage() {
       {confirmDeactivate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDeactivate(null)} />
-          <div className="relative z-50 w-full max-w-sm bg-card border rounded-lg shadow-lg p-6 mx-4">
-            <h3 className="text-lg font-semibold text-foreground">Deactivate User</h3>
-            <p className="text-sm text-muted-foreground mt-2">
+          <div className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
+            <h3 className="text-foreground text-lg font-semibold">Deactivate User</h3>
+            <p className="text-muted-foreground mt-2 text-sm">
               Are you sure you want to deactivate <strong>{confirmDeactivate.username}</strong>?
               They will no longer be able to log in.
             </p>
-            <div className="flex items-center justify-end gap-3 mt-4">
+            <div className="mt-4 flex items-center justify-end gap-3">
               <button
                 onClick={() => setConfirmDeactivate(null)}
-                className="px-4 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+                className="hover:bg-accent rounded-md border px-4 py-2 text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDeactivateUser}
                 disabled={deactivateUser.isPending}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {deactivateUser.isPending ? 'Deactivating...' : 'Deactivate'}
               </button>
@@ -215,23 +211,23 @@ export function UserManagementPage() {
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
-          <div className="relative z-50 w-full max-w-sm bg-card border rounded-lg shadow-lg p-6 mx-4">
-            <h3 className="text-lg font-semibold text-destructive">Permanently Delete User</h3>
-            <p className="text-sm text-muted-foreground mt-2">
+          <div className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
+            <h3 className="text-destructive text-lg font-semibold">Permanently Delete User</h3>
+            <p className="text-muted-foreground mt-2 text-sm">
               Are you sure you want to permanently delete <strong>{confirmDelete.username}</strong>?
               This cannot be undone. The username will become available for reuse.
             </p>
-            <div className="flex items-center justify-end gap-3 mt-4">
+            <div className="mt-4 flex items-center justify-end gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+                className="hover:bg-accent rounded-md border px-4 py-2 text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDeleteUser}
                 disabled={deleteUserPermanent.isPending}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {deleteUserPermanent.isPending ? 'Deleting...' : 'Delete Permanently'}
               </button>

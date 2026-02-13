@@ -17,7 +17,7 @@ function cssColorToRgb(cssColor: string): string | null {
 
     ctx.clearRect(0, 0, 1, 1)
     ctx.fillStyle = '#000000' // reset
-    ctx.fillStyle = cssColor   // set target color — ignored if invalid
+    ctx.fillStyle = cssColor // set target color — ignored if invalid
     ctx.fillRect(0, 0, 1, 1)
 
     const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
@@ -125,7 +125,7 @@ function sanitizeStylesheets(doc: Document) {
 export async function exportToPdf(
   element: HTMLElement,
   filename: string,
-  options?: { orientation?: 'portrait' | 'landscape' }
+  options?: { orientation?: 'portrait' | 'landscape' },
 ) {
   const canvas = await html2canvas(element, {
     scale: 2,
@@ -177,7 +177,7 @@ export async function exportToPdf(
 export function exportToExcel(
   data: Record<string, unknown>[],
   filename: string,
-  sheetName = 'Data'
+  sheetName = 'Data',
 ) {
   const ws = XLSX.utils.json_to_sheet(data)
   const wb = XLSX.utils.book_new()
@@ -188,10 +188,7 @@ export function exportToExcel(
 /**
  * Export data to CSV
  */
-export function exportToCsv(
-  data: Record<string, unknown>[],
-  filename: string
-) {
+export function exportToCsv(data: Record<string, unknown>[], filename: string) {
   const ws = XLSX.utils.json_to_sheet(data)
   const csv = XLSX.utils.sheet_to_csv(ws)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -220,26 +217,29 @@ export function prepareChartDataForExport(chartData: {
     Timestamp: new Date(point.timestamp).toLocaleString(),
     Mean: point.mean,
     Zone: point.zone.replace(/_/g, ' '),
-    Violations: point.violation_rules.length > 0
-      ? point.violation_rules.map((r) => `Rule ${r}`).join(', ')
-      : 'None',
+    Violations:
+      point.violation_rules.length > 0
+        ? point.violation_rules.map((r) => `Rule ${r}`).join(', ')
+        : 'None',
   }))
 }
 
 /**
  * Prepare violation data for export
  */
-export function prepareViolationsForExport(violations: Array<{
-  id: number
-  created_at: string | null
-  characteristic_name: string | null
-  rule_id: number
-  rule_name: string
-  severity: string
-  acknowledged: boolean
-  ack_user: string | null
-  ack_reason: string | null
-}>) {
+export function prepareViolationsForExport(
+  violations: Array<{
+    id: number
+    created_at: string | null
+    characteristic_name: string | null
+    rule_id: number
+    rule_name: string
+    severity: string
+    acknowledged: boolean
+    ack_user: string | null
+    ack_reason: string | null
+  }>,
+) {
   return violations.map((v) => ({
     ID: v.id,
     Date: v.created_at ? new Date(v.created_at).toLocaleString() : '-',

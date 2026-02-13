@@ -17,7 +17,15 @@
  *    - Use hoveredSampleIds.has(sampleId) to check if a point should be highlighted
  */
 
-import { createContext, useContext, useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react'
 
 export interface HoveredSamples {
   characteristicId: number
@@ -52,10 +60,7 @@ export function ChartHoverProvider({ children }: ChartHoverProviderProps) {
   const [hoveredSamples, setHoveredSamples] = useState<HoveredSamples | null>(null)
   const rafRef = useRef<number | null>(null)
 
-  const broadcastHover = useCallback((
-    characteristicId: number,
-    sampleIds: number[] | null
-  ) => {
+  const broadcastHover = useCallback((characteristicId: number, sampleIds: number[] | null) => {
     // Throttle hover updates to one per animation frame to prevent
     // cascading re-renders at 60fps mouse events
     if (rafRef.current != null) {
@@ -71,24 +76,26 @@ export function ChartHoverProvider({ children }: ChartHoverProviderProps) {
     })
   }, [])
 
-  const getHoveredSampleIds = useCallback((characteristicId: number): Set<number> | null => {
-    if (hoveredSamples?.characteristicId === characteristicId) {
-      return hoveredSamples.sampleIds
-    }
-    return null
-  }, [hoveredSamples])
-
-  const value = useMemo(() => ({
-    hoveredSamples,
-    broadcastHover,
-    getHoveredSampleIds,
-  }), [hoveredSamples, broadcastHover, getHoveredSampleIds])
-
-  return (
-    <ChartHoverContext.Provider value={value}>
-      {children}
-    </ChartHoverContext.Provider>
+  const getHoveredSampleIds = useCallback(
+    (characteristicId: number): Set<number> | null => {
+      if (hoveredSamples?.characteristicId === characteristicId) {
+        return hoveredSamples.sampleIds
+      }
+      return null
+    },
+    [hoveredSamples],
   )
+
+  const value = useMemo(
+    () => ({
+      hoveredSamples,
+      broadcastHover,
+      getHoveredSampleIds,
+    }),
+    [hoveredSamples, broadcastHover, getHoveredSampleIds],
+  )
+
+  return <ChartHoverContext.Provider value={value}>{children}</ChartHoverContext.Provider>
 }
 
 /**
@@ -118,10 +125,13 @@ export function useChartHoverSync(characteristicId: number) {
 
   const hoveredSampleIds = getHoveredSampleIds(characteristicId)
 
-  const onHoverSample = useCallback((sampleIds: number | number[]) => {
-    const ids = Array.isArray(sampleIds) ? sampleIds : [sampleIds]
-    broadcastHover(characteristicId, ids)
-  }, [broadcastHover, characteristicId])
+  const onHoverSample = useCallback(
+    (sampleIds: number | number[]) => {
+      const ids = Array.isArray(sampleIds) ? sampleIds : [sampleIds]
+      broadcastHover(characteristicId, ids)
+    },
+    [broadcastHover, characteristicId],
+  )
 
   const onLeaveSample = useCallback(() => {
     broadcastHover(characteristicId, null)

@@ -33,7 +33,8 @@ export function MappingTab() {
   // Fetch all characteristics (to determine unmapped ones)
   const { data: charData, isLoading: charLoading } = useQuery({
     queryKey: ['characteristics-for-mapping', selectedPlantId],
-    queryFn: () => characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
+    queryFn: () =>
+      characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
   })
 
   const characteristics = charData?.items ?? []
@@ -82,10 +83,11 @@ export function MappingTab() {
   }, [mqttMappings, characteristics])
 
   const unmappedCharacteristics = useMemo(
-    () => characteristics
-      .filter((c) => !mappedCharIds.has(c.id))
-      .map((c) => ({ id: c.id, name: c.name })),
-    [characteristics, mappedCharIds]
+    () =>
+      characteristics
+        .filter((c) => !mappedCharIds.has(c.id))
+        .map((c) => ({ id: c.id, name: c.name })),
+    [characteristics, mappedCharIds],
   )
 
   const isLoading = mqttLoading || charLoading
@@ -115,8 +117,16 @@ export function MappingTab() {
 
   const filterOptions: { value: FilterOption; label: string; count?: number }[] = [
     { value: 'all', label: 'All', count: totalMappings },
-    { value: 'mqtt', label: 'MQTT', count: mappingRows.filter((m) => m.protocol === 'mqtt').length },
-    { value: 'opcua', label: 'OPC-UA', count: mappingRows.filter((m) => m.protocol === 'opcua').length },
+    {
+      value: 'mqtt',
+      label: 'MQTT',
+      count: mappingRows.filter((m) => m.protocol === 'mqtt').length,
+    },
+    {
+      value: 'opcua',
+      label: 'OPC-UA',
+      count: mappingRows.filter((m) => m.protocol === 'opcua').length,
+    },
     { value: 'unmapped', label: 'Unmapped', count: unmappedCount },
   ]
 
@@ -125,14 +135,14 @@ export function MappingTab() {
       {/* Header bar */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Data Source Mappings</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h3 className="text-foreground text-sm font-semibold">Data Source Mappings</h3>
+          <p className="text-muted-foreground mt-0.5 text-xs">
             Link industrial data points to SPC characteristics
           </p>
         </div>
         <button
           onClick={handleNewMapping}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shrink-0"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500"
         >
           <Plus className="h-4 w-4" />
           New Mapping
@@ -140,16 +150,16 @@ export function MappingTab() {
       </div>
 
       {/* Filter chips + search */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         {/* Filter chips */}
         <div className="flex items-center gap-1">
           {filterOptions.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setFilter(opt.value)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                 filter === opt.value
-                  ? 'bg-indigo-500/15 text-indigo-300 font-medium'
+                  ? 'bg-indigo-500/15 font-medium text-indigo-300'
                   : 'text-muted-foreground hover:text-muted-foreground hover:bg-muted'
               }`}
             >
@@ -162,36 +172,38 @@ export function MappingTab() {
         </div>
 
         {/* Search */}
-        <div className="relative flex-1 max-w-xs ml-auto">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="relative ml-auto max-w-xs flex-1">
+          <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search characteristics..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
+            className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 w-full rounded-md border py-1.5 pr-3 pl-8 text-sm focus:outline-none"
           />
         </div>
       </div>
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        <div className="text-muted-foreground flex items-center justify-center py-12">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           <span className="text-sm">Loading mappings...</span>
         </div>
       ) : totalMappings === 0 && unmappedCount === 0 ? (
         /* Empty state -- no characteristics at all */
         <div className="bg-muted rounded-xl p-12 text-center">
-          <Link2 className="h-10 w-10 mx-auto mb-3 text-muted" />
-          <h3 className="text-sm font-medium text-muted-foreground mb-1">No Data Source Mappings</h3>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
-            Link your industrial data points to SPC characteristics.
-            Create characteristics in Configuration first, then map them to MQTT topics or OPC-UA nodes.
+          <Link2 className="text-muted mx-auto mb-3 h-10 w-10" />
+          <h3 className="text-muted-foreground mb-1 text-sm font-medium">
+            No Data Source Mappings
+          </h3>
+          <p className="text-muted-foreground mx-auto mb-4 max-w-sm text-xs">
+            Link your industrial data points to SPC characteristics. Create characteristics in
+            Configuration first, then map them to MQTT topics or OPC-UA nodes.
           </p>
           <button
             onClick={handleNewMapping}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500"
           >
             <Plus className="h-4 w-4" />
             New Mapping
@@ -211,10 +223,13 @@ export function MappingTab() {
           />
 
           {/* Summary */}
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             Showing {totalMappings} mapping{totalMappings !== 1 ? 's' : ''}
             {unmappedCount > 0 && (
-              <span> ({unmappedCount} unmapped characteristic{unmappedCount !== 1 ? 's' : ''})</span>
+              <span>
+                {' '}
+                ({unmappedCount} unmapped characteristic{unmappedCount !== 1 ? 's' : ''})
+              </span>
             )}
           </div>
         </>
@@ -227,15 +242,19 @@ export function MappingTab() {
           setDialogOpen(false)
           setEditMapping(null)
         }}
-        editData={editMapping ? {
-          dataSourceId: editMapping.id,
-          characteristicId: editMapping.characteristicId,
-          protocol: editMapping.protocol,
-          triggerStrategy: editMapping.triggerStrategy,
-          topic: editMapping.protocol === 'mqtt' ? editMapping.source : undefined,
-          brokerId: undefined,
-          metricName: editMapping.sourceDetail?.replace('metric: ', '') ?? undefined,
-        } : null}
+        editData={
+          editMapping
+            ? {
+                dataSourceId: editMapping.id,
+                characteristicId: editMapping.characteristicId,
+                protocol: editMapping.protocol,
+                triggerStrategy: editMapping.triggerStrategy,
+                topic: editMapping.protocol === 'mqtt' ? editMapping.source : undefined,
+                brokerId: undefined,
+                metricName: editMapping.sourceDetail?.replace('metric: ', '') ?? undefined,
+              }
+            : null
+        }
         mappedCharacteristicIds={mappedCharIds}
       />
     </div>

@@ -105,9 +105,7 @@ export function DualChartPanel({
 
     if (isModeA) {
       // Dynamic domain for Z-scores: fit actual data + ±3 control limits
-      const zValues = data_points
-        .filter((p) => p.z_score != null)
-        .map((p) => p.z_score!)
+      const zValues = data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
       if (zValues.length === 0) return [-4, 4]
 
       const allZLimits = [...zValues, 3, -3]
@@ -189,28 +187,37 @@ export function DualChartPanel({
   }, [chartData, secondaryChartType])
 
   // Handle vertical divider drag (between primary and secondary charts)
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
-    isDraggingDivider.current = true
-    startY.current = e.clientY
-    startRatio.current = primaryRatio
-    e.preventDefault()
-  }, [primaryRatio])
+  const handleDividerMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      isDraggingDivider.current = true
+      startY.current = e.clientY
+      startRatio.current = primaryRatio
+      e.preventDefault()
+    },
+    [primaryRatio],
+  )
 
   // Handle horizontal histogram resize (width)
-  const handleHistogramMouseDownX = useCallback((e: React.MouseEvent) => {
-    isDraggingHistogramX.current = true
-    startX.current = e.clientX
-    startWidth.current = histogramWidth
-    e.preventDefault()
-  }, [histogramWidth])
+  const handleHistogramMouseDownX = useCallback(
+    (e: React.MouseEvent) => {
+      isDraggingHistogramX.current = true
+      startX.current = e.clientX
+      startWidth.current = histogramWidth
+      e.preventDefault()
+    },
+    [histogramWidth],
+  )
 
   // Handle vertical histogram resize (height for below position)
-  const handleHistogramMouseDownY = useCallback((e: React.MouseEvent) => {
-    isDraggingHistogramY.current = true
-    startY.current = e.clientY
-    startHeight.current = histogramHeight
-    e.preventDefault()
-  }, [histogramHeight])
+  const handleHistogramMouseDownY = useCallback(
+    (e: React.MouseEvent) => {
+      isDraggingHistogramY.current = true
+      startY.current = e.clientY
+      startHeight.current = histogramHeight
+      e.preventDefault()
+    },
+    [histogramHeight],
+  )
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -254,8 +261,10 @@ export function DualChartPanel({
   // If no secondary chart, fall back to single chart layout
   if (!secondaryChartType) {
     return (
-      <div className={cn('h-full flex', isRightPosition ? 'flex-row gap-2' : 'flex-col', className)}>
-        <div className={cn(isRightPosition ? 'flex-1 min-w-0' : 'flex-1 min-h-0')}>
+      <div
+        className={cn('flex h-full', isRightPosition ? 'flex-row gap-2' : 'flex-col', className)}
+      >
+        <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
           <ControlChart
             characteristicId={characteristicId}
             chartOptions={chartOptions}
@@ -271,16 +280,16 @@ export function DualChartPanel({
         </div>
         {showHistogram && (
           <div
-            className={cn('flex-shrink-0 relative', isRightPosition ? 'h-full' : 'w-full')}
+            className={cn('relative flex-shrink-0', isRightPosition ? 'h-full' : 'w-full')}
             style={isRightPosition ? { width: histogramWidth } : { height: 192 }}
           >
             {isRightPosition && (
               <div
                 onMouseDown={handleHistogramMouseDownX}
-                className="absolute -left-1 top-0 bottom-0 w-2 cursor-ew-resize z-10 group"
+                className="group absolute top-0 bottom-0 -left-1 z-10 w-2 cursor-ew-resize"
                 title="Drag to resize"
               >
-                <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+                <div className="bg-border group-hover:bg-primary/50 absolute top-1/2 left-0.5 h-16 w-0.5 -translate-y-1/2 rounded-full transition-colors" />
               </div>
             )}
             <DistributionHistogram
@@ -302,17 +311,11 @@ export function DualChartPanel({
 
   // Dual chart layout - histogram aligns ONLY with primary chart
   return (
-    <div
-      ref={containerRef}
-      className={cn('h-full flex flex-col', className)}
-    >
+    <div ref={containerRef} className={cn('flex h-full flex-col', className)}>
       {/* Primary Chart Row: X-bar + Histogram (aligned) */}
-      <div
-        className="flex gap-2"
-        style={{ height: `calc(${primaryRatio * 100}% - 6px)` }}
-      >
+      <div className="flex gap-2" style={{ height: `calc(${primaryRatio * 100}% - 6px)` }}>
         {/* Primary Chart (X-bar or Individuals) */}
-        <div className="flex-1 min-w-0 h-full">
+        <div className="h-full min-w-0 flex-1">
           <ControlChart
             characteristicId={characteristicId}
             chartOptions={chartOptions}
@@ -329,17 +332,14 @@ export function DualChartPanel({
 
         {/* Vertical Histogram - aligned with primary chart only */}
         {isRightPosition && showHistogram && (
-          <div
-            className="flex-shrink-0 relative h-full"
-            style={{ width: histogramWidth }}
-          >
+          <div className="relative h-full flex-shrink-0" style={{ width: histogramWidth }}>
             {/* Resize handle */}
             <div
               onMouseDown={handleHistogramMouseDownX}
-              className="absolute -left-1 top-0 bottom-0 w-2 cursor-ew-resize z-10 group"
+              className="group absolute top-0 bottom-0 -left-1 z-10 w-2 cursor-ew-resize"
               title="Drag to resize"
             >
-              <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+              <div className="bg-border group-hover:bg-primary/50 absolute top-1/2 left-0.5 h-16 w-0.5 -translate-y-1/2 rounded-full transition-colors" />
             </div>
             <DistributionHistogram
               characteristicId={characteristicId}
@@ -359,18 +359,18 @@ export function DualChartPanel({
       {/* Resizable divider between primary and secondary */}
       <div
         onMouseDown={handleDividerMouseDown}
-        className="h-3 flex items-center justify-center cursor-ns-resize group flex-shrink-0"
+        className="group flex h-3 flex-shrink-0 cursor-ns-resize items-center justify-center"
         title="Drag to resize charts"
       >
-        <div className="w-16 h-1 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+        <div className="bg-border group-hover:bg-primary/50 h-1 w-16 rounded-full transition-colors" />
       </div>
 
       {/* Secondary Chart Row: Range/S/MR + stats panel (aligned with histogram) */}
       <div
-        className="flex-1 min-h-0 flex gap-2"
+        className="flex min-h-0 flex-1 gap-2"
         style={{ height: `calc(${(1 - primaryRatio) * 100}% - 6px)` }}
       >
-        <div className="flex-1 min-w-0 h-full">
+        <div className="h-full min-w-0 flex-1">
           <RangeChart
             characteristicId={characteristicId}
             chartOptions={chartOptions}
@@ -383,20 +383,19 @@ export function DualChartPanel({
 
         {/* Stats panel — matches histogram width for alignment */}
         {isRightPosition && showHistogram && (
-          <div
-            className="flex-shrink-0 h-full"
-            style={{ width: histogramWidth }}
-          >
+          <div className="h-full flex-shrink-0" style={{ width: histogramWidth }}>
             {secondaryStats && (
-              <div className="h-full border border-border rounded-2xl bg-card flex flex-col justify-center px-4 py-3 overflow-hidden">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3 truncate">
+              <div className="border-border bg-card flex h-full flex-col justify-center overflow-hidden rounded-2xl border px-4 py-3">
+                <div className="text-muted-foreground mb-3 truncate text-[10px] tracking-wider uppercase">
                   {secondaryStats.label} Summary
                 </div>
 
                 {/* Center line — hero value */}
-                <div className="text-center mb-3">
-                  <div className="text-[10px] text-muted-foreground mb-0.5">{secondaryStats.symbol}</div>
-                  <div className="text-lg font-semibold font-mono tabular-nums text-foreground">
+                <div className="mb-3 text-center">
+                  <div className="text-muted-foreground mb-0.5 text-[10px]">
+                    {secondaryStats.symbol}
+                  </div>
+                  <div className="text-foreground font-mono text-lg font-semibold tabular-nums">
                     {secondaryStats.mean.toFixed(3)}
                   </div>
                 </div>
@@ -404,22 +403,26 @@ export function DualChartPanel({
                 {/* Control limits */}
                 <div className="space-y-1.5 text-xs tabular-nums">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <span className="w-3 border-t-2 border-dashed border-red-500/60" />
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <span className="border-destructive/60 w-3 border-t-2 border-dashed" />
                       UCL
                     </span>
-                    <span className="font-mono text-red-500/80">{secondaryStats.ucl?.toFixed(3) ?? '—'}</span>
+                    <span className="text-destructive/80 font-mono">
+                      {secondaryStats.ucl?.toFixed(3) ?? '—'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <span className="w-3 border-t-2 border-dashed border-red-500/60" />
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <span className="border-destructive/60 w-3 border-t-2 border-dashed" />
                       LCL
                     </span>
-                    <span className="font-mono text-red-500/80">{secondaryStats.lcl?.toFixed(3) ?? '—'}</span>
+                    <span className="text-destructive/80 font-mono">
+                      {secondaryStats.lcl?.toFixed(3) ?? '—'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="my-2.5 border-t border-border" />
+                <div className="border-border my-2.5 border-t" />
 
                 {/* Observed range */}
                 <div className="space-y-1.5 text-xs tabular-nums">
@@ -444,17 +447,14 @@ export function DualChartPanel({
 
       {/* Horizontal Histogram - below both charts */}
       {isBelowPosition && showHistogram && (
-        <div
-          className="flex-shrink-0 relative w-full"
-          style={{ height: histogramHeight }}
-        >
+        <div className="relative w-full flex-shrink-0" style={{ height: histogramHeight }}>
           {/* Resize handle */}
           <div
             onMouseDown={handleHistogramMouseDownY}
-            className="absolute -top-1 left-0 right-0 h-2 cursor-ns-resize z-10 group"
+            className="group absolute -top-1 right-0 left-0 z-10 h-2 cursor-ns-resize"
             title="Drag to resize"
           >
-            <div className="absolute top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+            <div className="bg-border group-hover:bg-primary/50 absolute top-0.5 left-1/2 h-0.5 w-16 -translate-x-1/2 rounded-full transition-colors" />
           </div>
           <DistributionHistogram
             characteristicId={characteristicId}

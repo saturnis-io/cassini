@@ -33,21 +33,24 @@ const SUBGROUP_MODES = [
     value: 'NOMINAL_TOLERANCE' as SubgroupMode,
     label: 'Nominal with Tolerance',
     badge: 'Recommended',
-    description: 'Uses nominal subgroup size for control limits with minimum threshold enforcement.',
+    description:
+      'Uses nominal subgroup size for control limits with minimum threshold enforcement.',
     helpKey: 'subgroup-mode-nominal',
   },
   {
     value: 'VARIABLE_LIMITS' as SubgroupMode,
     label: 'Variable Control Limits',
     badge: null,
-    description: 'Recalculates control limits per point based on actual sample size (funnel effect).',
+    description:
+      'Recalculates control limits per point based on actual sample size (funnel effect).',
     helpKey: 'subgroup-mode-variable',
   },
   {
     value: 'STANDARDIZED' as SubgroupMode,
     label: 'Standardized (Z-Score)',
     badge: null,
-    description: 'Plots Z-scores with fixed ±3 control limits, normalizing for sample size variation.',
+    description:
+      'Plots Z-scores with fixed ±3 control limits, normalizing for sample size variation.',
     helpKey: 'subgroup-mode-standardized',
   },
 ]
@@ -76,12 +79,12 @@ export function SamplingTab({
         <div className="space-y-5">
           {/* Subgroup Size (read-only) */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Subgroup Size</label>
-            <div className="flex items-center gap-3 mt-1.5">
-              <div className="px-4 py-2 bg-muted rounded-lg font-mono text-lg font-semibold">
+            <label className="text-muted-foreground text-sm font-medium">Subgroup Size</label>
+            <div className="mt-1.5 flex items-center gap-3">
+              <div className="bg-muted rounded-lg px-4 py-2 font-mono text-lg font-semibold">
                 {characteristic.subgroup_size}
               </div>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-muted-foreground text-sm">
                 measurements per sample (fixed at creation)
               </span>
             </div>
@@ -91,11 +94,14 @@ export function SamplingTab({
 
           {/* Handling Mode */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="mb-3 flex items-center gap-2">
               <label className="text-sm font-medium">Handling Mode</label>
-              <HelpTooltip helpKey={
-                SUBGROUP_MODES.find(m => m.value === formData.subgroup_mode)?.helpKey ?? 'subgroup-mode-nominal'
-              } />
+              <HelpTooltip
+                helpKey={
+                  SUBGROUP_MODES.find((m) => m.value === formData.subgroup_mode)?.helpKey ??
+                  'subgroup-mode-nominal'
+                }
+              />
             </div>
 
             <div className="space-y-2">
@@ -103,11 +109,11 @@ export function SamplingTab({
                 <label
                   key={mode.value}
                   className={cn(
-                    'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                    'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
                     formData.subgroup_mode === mode.value
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:bg-muted/50',
-                    isModeChangePending && 'opacity-50 pointer-events-none'
+                    isModeChangePending && 'pointer-events-none opacity-50',
                   )}
                 >
                   <input
@@ -121,14 +127,14 @@ export function SamplingTab({
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{mode.label}</span>
+                      <span className="text-sm font-medium">{mode.label}</span>
                       {mode.badge && (
-                        <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                        <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
                           {mode.badge}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">{mode.description}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{mode.description}</p>
                   </div>
                 </label>
               ))}
@@ -146,9 +152,9 @@ export function SamplingTab({
                 max={characteristic.subgroup_size}
                 value={formData.min_measurements}
                 onChange={(value) => onChange('min_measurements', value)}
-                className="w-full mt-1.5"
+                className="mt-1.5 w-full"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-xs">
                 Samples below this will be rejected (1-{characteristic.subgroup_size})
               </p>
             </div>
@@ -159,10 +165,10 @@ export function SamplingTab({
                 max={characteristic.subgroup_size}
                 value={formData.warn_below_count}
                 onChange={(value) => onChange('warn_below_count', value)}
-                className="w-full mt-1.5"
+                className="mt-1.5 w-full"
                 placeholder="Optional"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-xs">
                 Samples below this will be flagged as undersized
               </p>
             </div>
@@ -177,39 +183,44 @@ export function SamplingTab({
           title={
             <div className="flex items-center gap-2">
               <span>Stored Parameters</span>
-              {formData.subgroup_mode === 'STANDARDIZED' && <HelpTooltip helpKey="z-score" triggerAs="span" />}
+              {formData.subgroup_mode === 'STANDARDIZED' && (
+                <HelpTooltip helpKey="z-score" triggerAs="span" />
+              )}
             </div>
           }
         >
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               These values are calculated during limit recalculation and used for{' '}
-              {formData.subgroup_mode === 'STANDARDIZED' ? 'Z-score normalization' : 'variable limit calculation'}.
+              {formData.subgroup_mode === 'STANDARDIZED'
+                ? 'Z-score normalization'
+                : 'variable limit calculation'}
+              .
             </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Sigma (σ)</label>
-                <div className="mt-1.5 px-3 py-2 bg-muted rounded-lg font-mono text-sm">
+                <label className="text-muted-foreground text-sm font-medium">Sigma (σ)</label>
+                <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
                   {characteristic.stored_sigma?.toFixed(4) ?? 'Not calculated'}
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Center Line (X̄)</label>
-                <div className="mt-1.5 px-3 py-2 bg-muted rounded-lg font-mono text-sm">
+                <label className="text-muted-foreground text-sm font-medium">Center Line (X̄)</label>
+                <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
                   {characteristic.stored_center_line?.toFixed(4) ?? 'Not calculated'}
                 </div>
               </div>
             </div>
 
             {formData.subgroup_mode === 'STANDARDIZED' && characteristic.stored_sigma && (
-              <div className="p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+              <div className="bg-muted/50 text-muted-foreground rounded-lg p-3 text-xs">
                 <strong>Z-score formula:</strong> (Sample Mean - Center Line) / (Sigma / √n)
               </div>
             )}
 
             {!characteristic.stored_sigma && (
-              <p className="text-sm text-amber-600">
+              <p className="text-warning text-sm">
                 Note: Recalculate limits after adding samples for this mode to work correctly.
               </p>
             )}
@@ -229,8 +240,9 @@ export function SamplingTab({
           }
         >
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Configure when manual measurements are due. This determines the schedule for operator data entry tasks.
+            <p className="text-muted-foreground text-sm">
+              Configure when manual measurements are due. This determines the schedule for operator
+              data entry tasks.
             </p>
             <ScheduleConfigSection value={scheduleConfig} onChange={onScheduleChange} />
           </div>

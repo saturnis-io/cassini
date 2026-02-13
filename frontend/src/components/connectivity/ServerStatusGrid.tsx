@@ -19,21 +19,13 @@ export function ServerStatusGrid({ mqttStates, opcuaStates }: ServerStatusGridPr
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted-foreground mb-3">Server Status</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <h3 className="text-muted-foreground mb-3 text-sm font-semibold">Server Status</h3>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {mqttStates.map((s) => (
-          <ServerStatusCard
-            key={`mqtt-${s.broker_id}`}
-            protocol="mqtt"
-            status={s}
-          />
+          <ServerStatusCard key={`mqtt-${s.broker_id}`} protocol="mqtt" status={s} />
         ))}
         {opcuaStates.map((s) => (
-          <ServerStatusCard
-            key={`opcua-${s.server_id}`}
-            protocol="opcua"
-            status={s}
-          />
+          <ServerStatusCard key={`opcua-${s.server_id}`} protocol="opcua" status={s} />
         ))}
       </div>
     </div>

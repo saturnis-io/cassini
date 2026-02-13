@@ -69,20 +69,26 @@ export function ChartPanel({
   const startHeight = useRef(0)
 
   // Handle mouse events for horizontal drag-to-resize (vertical histogram width)
-  const handleMouseDownX = useCallback((e: React.MouseEvent) => {
-    isDraggingX.current = true
-    startX.current = e.clientX
-    startWidth.current = histogramWidth
-    e.preventDefault()
-  }, [histogramWidth])
+  const handleMouseDownX = useCallback(
+    (e: React.MouseEvent) => {
+      isDraggingX.current = true
+      startX.current = e.clientX
+      startWidth.current = histogramWidth
+      e.preventDefault()
+    },
+    [histogramWidth],
+  )
 
   // Handle mouse events for vertical drag-to-resize (horizontal histogram height)
-  const handleMouseDownY = useCallback((e: React.MouseEvent) => {
-    isDraggingY.current = true
-    startY.current = e.clientY
-    startHeight.current = histogramHeight
-    e.preventDefault()
-  }, [histogramHeight])
+  const handleMouseDownY = useCallback(
+    (e: React.MouseEvent) => {
+      isDraggingY.current = true
+      startY.current = e.clientY
+      startHeight.current = histogramHeight
+      e.preventDefault()
+    },
+    [histogramHeight],
+  )
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -130,9 +136,7 @@ export function ChartPanel({
 
     if (isModeA) {
       // Dynamic domain for Z-scores: fit actual data + ±3 control limits
-      const zValues = data_points
-        .filter((p) => p.z_score != null)
-        .map((p) => p.z_score!)
+      const zValues = data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
       if (zValues.length === 0) return [-4, 4]
 
       const allZLimits = [...zValues, 3, -3] // include ±3σ control limits
@@ -170,19 +174,14 @@ export function ChartPanel({
     <div
       className={cn(
         'h-full',
-        isRightPosition ? 'flex flex-row gap-2' : 'flex flex-col gap-3 h-full',
-        className
+        isRightPosition ? 'flex flex-row gap-2' : 'flex h-full flex-col gap-3',
+        className,
       )}
     >
       {/* Control Chart or Attribute Chart */}
-      <div className={cn(
-        isRightPosition ? 'flex-1 min-w-0' : 'flex-1 min-h-0',
-      )}>
+      <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
         {chartData?.data_type === 'attribute' ? (
-          <AttributeChart
-            characteristicId={characteristicId}
-            chartOptions={chartOptions}
-          />
+          <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
         ) : (
           <ControlChart
             characteristicId={characteristicId}
@@ -202,32 +201,29 @@ export function ChartPanel({
       {/* Histogram */}
       {showHistogram && (
         <div
-          className={cn(
-            'flex-shrink-0 relative',
-            isRightPosition ? 'h-full' : 'w-full'
-          )}
+          className={cn('relative flex-shrink-0', isRightPosition ? 'h-full' : 'w-full')}
           style={isRightPosition ? { width: histogramWidth } : { height: histogramHeight }}
         >
           {/* Drag handle for resizing vertical histogram (left edge) */}
           {isRightPosition && (
             <div
               onMouseDown={handleMouseDownX}
-              className="absolute -left-1 top-0 bottom-0 w-2 cursor-ew-resize z-10 group"
+              className="group absolute top-0 bottom-0 -left-1 z-10 w-2 cursor-ew-resize"
               title="Drag to resize"
             >
               {/* Visual indicator line */}
-              <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+              <div className="bg-border group-hover:bg-primary/50 absolute top-1/2 left-0.5 h-16 w-0.5 -translate-y-1/2 rounded-full transition-colors" />
             </div>
           )}
           {/* Drag handle for resizing horizontal histogram (top edge) */}
           {isBelowPosition && (
             <div
               onMouseDown={handleMouseDownY}
-              className="absolute -top-1 left-0 right-0 h-2 cursor-ns-resize z-10 group"
+              className="group absolute -top-1 right-0 left-0 z-10 h-2 cursor-ns-resize"
               title="Drag to resize"
             >
               {/* Visual indicator line */}
-              <div className="absolute top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-16 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
+              <div className="bg-border group-hover:bg-primary/50 absolute top-0.5 left-1/2 h-0.5 w-16 -translate-x-1/2 rounded-full transition-colors" />
             </div>
           )}
           <DistributionHistogram

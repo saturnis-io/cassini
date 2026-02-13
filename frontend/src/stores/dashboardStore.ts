@@ -10,7 +10,7 @@ export type XAxisMode = 'index' | 'timestamp'
 export interface TimeRangeOption {
   label: string
   type: TimeRangeType
-  value: number | null  // points count or hours
+  value: number | null // points count or hours
 }
 
 export interface TimeRangeState {
@@ -113,134 +113,134 @@ const defaultTimeRange: TimeRangeState = {
 export const useDashboardStore = create<DashboardState>()(
   persist(
     (set, get) => ({
-  // Selected characteristic
-  selectedCharacteristicId: null,
-  setSelectedCharacteristicId: (id) => set({ selectedCharacteristicId: id }),
+      // Selected characteristic
+      selectedCharacteristicId: null,
+      setSelectedCharacteristicId: (id) => set({ selectedCharacteristicId: id }),
 
-  // Multi-select for reporting
-  selectedCharacteristicIds: new Set<number>(),
-  isMultiSelectMode: false,
-  toggleCharacteristicSelection: (id) =>
-    set((state) => {
-      const next = new Set(state.selectedCharacteristicIds)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return { selectedCharacteristicIds: next }
-    }),
-  selectAllCharacteristics: (ids) =>
-    set((state) => {
-      const next = new Set(state.selectedCharacteristicIds)
-      ids.forEach((id) => next.add(id))
-      return { selectedCharacteristicIds: next }
-    }),
-  deselectAllCharacteristics: (ids) =>
-    set((state) => {
-      const next = new Set(state.selectedCharacteristicIds)
-      ids.forEach((id) => next.delete(id))
-      return { selectedCharacteristicIds: next }
-    }),
-  clearSelection: () => set({ selectedCharacteristicIds: new Set() }),
-  setMultiSelectMode: (enabled) => set({
-    isMultiSelectMode: enabled,
-    selectedCharacteristicIds: enabled ? new Set() : new Set()
-  }),
-  // Reset all dashboard state when switching plants
-  resetForPlantChange: () => set({
-    selectedCharacteristicId: null,
-    selectedCharacteristicIds: new Set(),
-    isMultiSelectMode: false,
-  }),
+      // Multi-select for reporting
+      selectedCharacteristicIds: new Set<number>(),
+      isMultiSelectMode: false,
+      toggleCharacteristicSelection: (id) =>
+        set((state) => {
+          const next = new Set(state.selectedCharacteristicIds)
+          if (next.has(id)) {
+            next.delete(id)
+          } else {
+            next.add(id)
+          }
+          return { selectedCharacteristicIds: next }
+        }),
+      selectAllCharacteristics: (ids) =>
+        set((state) => {
+          const next = new Set(state.selectedCharacteristicIds)
+          ids.forEach((id) => next.add(id))
+          return { selectedCharacteristicIds: next }
+        }),
+      deselectAllCharacteristics: (ids) =>
+        set((state) => {
+          const next = new Set(state.selectedCharacteristicIds)
+          ids.forEach((id) => next.delete(id))
+          return { selectedCharacteristicIds: next }
+        }),
+      clearSelection: () => set({ selectedCharacteristicIds: new Set() }),
+      setMultiSelectMode: (enabled) =>
+        set({
+          isMultiSelectMode: enabled,
+          selectedCharacteristicIds: enabled ? new Set() : new Set(),
+        }),
+      // Reset all dashboard state when switching plants
+      resetForPlantChange: () =>
+        set({
+          selectedCharacteristicId: null,
+          selectedCharacteristicIds: new Set(),
+          isMultiSelectMode: false,
+        }),
 
-  // Time range
-  timeRange: defaultTimeRange,
-  setTimeRange: (range) => set({ timeRange: range }),
+      // Time range
+      timeRange: defaultTimeRange,
+      setTimeRange: (range) => set({ timeRange: range }),
 
-  // Input modal
-  inputModalOpen: false,
-  inputModalCharacteristicId: null,
-  openInputModal: (characteristicId) =>
-    set({ inputModalOpen: true, inputModalCharacteristicId: characteristicId }),
-  closeInputModal: () =>
-    set({ inputModalOpen: false, inputModalCharacteristicId: null }),
+      // Input modal
+      inputModalOpen: false,
+      inputModalCharacteristicId: null,
+      openInputModal: (characteristicId) =>
+        set({ inputModalOpen: true, inputModalCharacteristicId: characteristicId }),
+      closeInputModal: () => set({ inputModalOpen: false, inputModalCharacteristicId: null }),
 
-  // Ack dialog
-  ackDialogOpen: false,
-  ackDialogViolation: null,
-  openAckDialog: (violation) =>
-    set({ ackDialogOpen: true, ackDialogViolation: violation }),
-  closeAckDialog: () =>
-    set({ ackDialogOpen: false, ackDialogViolation: null }),
+      // Ack dialog
+      ackDialogOpen: false,
+      ackDialogViolation: null,
+      openAckDialog: (violation) => set({ ackDialogOpen: true, ackDialogViolation: violation }),
+      closeAckDialog: () => set({ ackDialogOpen: false, ackDialogViolation: null }),
 
-  // Pending violations
-  pendingViolations: [],
-  addPendingViolation: (violation) =>
-    set((state) => ({
-      pendingViolations: [...state.pendingViolations, violation],
-    })),
-  removePendingViolation: (id) =>
-    set((state) => ({
-      pendingViolations: state.pendingViolations.filter((v) => v.id !== id),
-    })),
-  clearPendingViolations: () => set({ pendingViolations: [] }),
+      // Pending violations
+      pendingViolations: [],
+      addPendingViolation: (violation) =>
+        set((state) => ({
+          pendingViolations: [...state.pendingViolations, violation],
+        })),
+      removePendingViolation: (id) =>
+        set((state) => ({
+          pendingViolations: state.pendingViolations.filter((v) => v.id !== id),
+        })),
+      clearPendingViolations: () => set({ pendingViolations: [] }),
 
-  // Latest samples cache
-  latestSamples: new Map(),
-  updateLatestSample: (characteristicId, mean, timestamp) =>
-    set((state) => {
-      const newMap = new Map(state.latestSamples)
-      newMap.set(characteristicId, { mean, timestamp })
-      return { latestSamples: newMap }
-    }),
+      // Latest samples cache
+      latestSamples: new Map(),
+      updateLatestSample: (characteristicId, mean, timestamp) =>
+        set((state) => {
+          const newMap = new Map(state.latestSamples)
+          newMap.set(characteristicId, { mean, timestamp })
+          return { latestSamples: newMap }
+        }),
 
-  // Connection status
-  wsConnected: false,
-  setWsConnected: (connected) => set({ wsConnected: connected }),
+      // Connection status
+      wsConnected: false,
+      setWsConnected: (connected) => set({ wsConnected: connected }),
 
-  // Histogram position
-  histogramPosition: 'hidden',
-  setHistogramPosition: (position) => set({ histogramPosition: position }),
+      // Histogram position
+      histogramPosition: 'hidden',
+      setHistogramPosition: (position) => set({ histogramPosition: position }),
 
-  // Spec limits visibility
-  showSpecLimits: true,
-  setShowSpecLimits: (show) => set({ showSpecLimits: show }),
+      // Spec limits visibility
+      showSpecLimits: true,
+      setShowSpecLimits: (show) => set({ showSpecLimits: show }),
 
-  // Comparison mode
-  comparisonMode: false,
-  secondaryCharacteristicId: null,
-  setComparisonMode: (enabled) => set({
-    comparisonMode: enabled,
-    secondaryCharacteristicId: enabled ? null : null
-  }),
-  setSecondaryCharacteristicId: (id) => set({ secondaryCharacteristicId: id }),
+      // Comparison mode
+      comparisonMode: false,
+      secondaryCharacteristicId: null,
+      setComparisonMode: (enabled) =>
+        set({
+          comparisonMode: enabled,
+          secondaryCharacteristicId: enabled ? null : null,
+        }),
+      setSecondaryCharacteristicId: (id) => set({ secondaryCharacteristicId: id }),
 
-  // Chart type selection (per characteristic)
-  chartTypes: new Map<number, ChartTypeId>(),
-  setChartType: (characteristicId, chartType) =>
-    set((state) => {
-      const newMap = new Map(state.chartTypes)
-      newMap.set(characteristicId, chartType)
-      return { chartTypes: newMap }
-    }),
-  getChartType: (characteristicId: number) => {
-    return get().chartTypes.get(characteristicId) ?? ('xbar' as ChartTypeId)
-  },
+      // Chart type selection (per characteristic)
+      chartTypes: new Map<number, ChartTypeId>(),
+      setChartType: (characteristicId, chartType) =>
+        set((state) => {
+          const newMap = new Map(state.chartTypes)
+          newMap.set(characteristicId, chartType)
+          return { chartTypes: newMap }
+        }),
+      getChartType: (characteristicId: number) => {
+        return get().chartTypes.get(characteristicId) ?? ('xbar' as ChartTypeId)
+      },
 
-  // X-axis display mode
-  xAxisMode: 'index' as XAxisMode,
-  setXAxisMode: (mode) => set({ xAxisMode: mode }),
+      // X-axis display mode
+      xAxisMode: 'index' as XAxisMode,
+      setXAxisMode: (mode) => set({ xAxisMode: mode }),
 
-  // Range slider (Brush)
-  showBrush: false,
-  setShowBrush: (show) => set({ showBrush: show, rangeWindow: show ? null : null }),
-  rangeWindow: null,
-  setRangeWindow: (window) => set({ rangeWindow: window }),
+      // Range slider (Brush)
+      showBrush: false,
+      setShowBrush: (show) => set({ showBrush: show, rangeWindow: show ? null : null }),
+      rangeWindow: null,
+      setRangeWindow: (window) => set({ rangeWindow: window }),
 
-  // Annotation visibility
-  showAnnotations: true,
-  setShowAnnotations: (show) => set({ showAnnotations: show }),
+      // Annotation visibility
+      showAnnotations: true,
+      setShowAnnotations: (show) => set({ showAnnotations: show }),
     }),
     {
       name: 'openspc-dashboard',
@@ -258,6 +258,6 @@ export const useDashboardStore = create<DashboardState>()(
         showBrush: state.showBrush,
         showAnnotations: state.showAnnotations,
       }),
-    }
-  )
+    },
+  ),
 )

@@ -41,14 +41,11 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
   const [discoveryActive, setDiscoveryActive] = useState(false)
 
   // Debounce search input
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setSearchQuery(value)
-      const timer = setTimeout(() => setDebouncedSearch(value), 300)
-      return () => clearTimeout(timer)
-    },
-    []
-  )
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value)
+    const timer = setTimeout(() => setDebouncedSearch(value), 300)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Discovery mutations
   const startDiscovery = useMutation({
@@ -72,11 +69,7 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
     queryKey: ['broker-topics', brokerId, viewMode, debouncedSearch],
     queryFn: () => {
       if (!brokerId) return null
-      return brokerApi.getTopics(
-        brokerId,
-        apiFormat,
-        debouncedSearch || undefined
-      )
+      return brokerApi.getTopics(brokerId, apiFormat, debouncedSearch || undefined)
     },
     enabled: brokerId !== null && discoveryActive,
     refetchInterval: discoveryActive ? 5000 : false,
@@ -103,8 +96,8 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
   // No broker selected
   if (brokerId === null) {
     return (
-      <div className="bg-card border border-border rounded-xl p-6 text-center text-muted-foreground">
-        <Radio className="h-8 w-8 mx-auto mb-2 opacity-50" />
+      <div className="bg-card border-border text-muted-foreground rounded-xl border p-6 text-center">
+        <Radio className="mx-auto mb-2 h-8 w-8 opacity-50" />
         <p>Select a broker to browse topics</p>
       </div>
     )
@@ -113,17 +106,17 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
   // Show discovery prompt if not active
   if (!discoveryActive) {
     return (
-      <div className="bg-card border border-border rounded-xl p-6 text-center">
-        <Radar className="h-8 w-8 mx-auto mb-3 text-muted-foreground/50" />
-        <h4 className="text-sm font-medium mb-1">Topic Discovery</h4>
-        <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-          Start discovery to scan for MQTT topics published on this broker.
-          The broker subscribes to wildcard topics and builds a topic tree.
+      <div className="bg-card border-border rounded-xl border p-6 text-center">
+        <Radar className="text-muted-foreground/50 mx-auto mb-3 h-8 w-8" />
+        <h4 className="mb-1 text-sm font-medium">Topic Discovery</h4>
+        <p className="text-muted-foreground mx-auto mb-4 max-w-xs text-xs">
+          Start discovery to scan for MQTT topics published on this broker. The broker subscribes to
+          wildcard topics and builds a topic tree.
         </p>
         <button
           onClick={() => startDiscovery.mutate()}
           disabled={startDiscovery.isPending}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {startDiscovery.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -133,8 +126,10 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
           Start Discovery
         </button>
         {startDiscovery.isError && (
-          <p className="text-xs text-red-400 mt-2">
-            {startDiscovery.error instanceof Error ? startDiscovery.error.message : 'Failed to start discovery'}
+          <p className="text-destructive mt-2 text-xs">
+            {startDiscovery.error instanceof Error
+              ? startDiscovery.error.message
+              : 'Failed to start discovery'}
           </p>
         )}
       </div>
@@ -142,18 +137,18 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 p-3 border-b border-border">
+      <div className="border-border flex items-center gap-2 border-b p-3">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search topics..."
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-8 pr-8 py-1.5 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+            className="bg-background border-border focus:ring-primary w-full rounded-md border py-1.5 pr-8 pl-8 text-sm focus:ring-1 focus:outline-none"
           />
           {searchQuery && (
             <button
@@ -161,7 +156,7 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
                 setSearchQuery('')
                 setDebouncedSearch('')
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
             >
               <X className="h-4 w-4" />
             </button>
@@ -169,7 +164,7 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
         </div>
 
         {/* View mode toggle */}
-        <div className="flex border border-border rounded-md">
+        <div className="border-border flex rounded-md border">
           <button
             onClick={() => setViewMode('tree')}
             className={`p-1.5 ${viewMode === 'tree' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'} rounded-l-md transition-colors`}
@@ -190,7 +185,7 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
         <button
           onClick={() => stopDiscovery.mutate()}
           disabled={stopDiscovery.isPending}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
+          className="border-border text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
           title="Stop discovering topics"
         >
           {stopDiscovery.isPending ? (
@@ -203,17 +198,15 @@ export function TopicTreeBrowser({ brokerId, onSelectTopic }: TopicTreeBrowserPr
       </div>
 
       {/* Scanning indicator */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 border-b border-border text-xs text-primary">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+      <div className="bg-primary/5 border-border text-primary flex items-center gap-2 border-b px-3 py-1.5 text-xs">
+        <span className="bg-primary h-1.5 w-1.5 animate-pulse rounded-full" />
         Scanning for topics...
       </div>
 
       {/* Content */}
       <div className="max-h-[400px] overflow-y-auto p-2">
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            Loading topics...
-          </div>
+          <div className="text-muted-foreground py-8 text-center text-sm">Loading topics...</div>
         ) : viewMode === 'tree' ? (
           <TreeView
             data={topicsData as TopicTreeNode | null}
@@ -242,14 +235,14 @@ function MetricsPills({ metrics }: { metrics: SparkplugMetricInfo[] }) {
   if (!metrics || metrics.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-1 mt-1">
+    <div className="mt-1 flex flex-wrap gap-1">
       {metrics.map((m) => (
         <span
           key={m.name}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border"
+          className="bg-muted border-border inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]"
         >
           <span className="font-semibold">{m.name}</span>
-          <span className="italic text-muted-foreground">({m.data_type})</span>
+          <span className="text-muted-foreground italic">({m.data_type})</span>
         </span>
       ))}
     </div>
@@ -275,16 +268,14 @@ function TreeView({
 }) {
   if (!data || !data.children || Object.keys(data.children).length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground text-sm">
+      <div className="text-muted-foreground py-8 text-center text-sm">
         No topics discovered yet. Waiting for messages...
       </div>
     )
   }
 
   // data.children is an array from the API (TopicTreeNodeResponse)
-  const children = Array.isArray(data.children)
-    ? data.children
-    : Object.values(data.children)
+  const children = Array.isArray(data.children) ? data.children : Object.values(data.children)
 
   return (
     <div className="space-y-0.5">
@@ -323,23 +314,21 @@ function TreeNodeItem({
 }) {
   const hasChildren =
     node.children &&
-    (Array.isArray(node.children) ? node.children.length > 0 : Object.keys(node.children).length > 0)
+    (Array.isArray(node.children)
+      ? node.children.length > 0
+      : Object.keys(node.children).length > 0)
   const isExpanded = expandedNodes.has(path)
   const isLeaf = node.full_topic !== null
   const isSelected = isLeaf && selectedTopic === node.full_topic
   const hasMetrics = node.sparkplug_metrics && node.sparkplug_metrics.length > 0
 
-  const children = Array.isArray(node.children)
-    ? node.children
-    : Object.values(node.children || {})
+  const children = Array.isArray(node.children) ? node.children : Object.values(node.children || {})
 
   return (
     <div>
       <div
-        className={`flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer transition-colors ${
-          isSelected
-            ? 'bg-primary text-primary-foreground'
-            : 'hover:bg-accent'
+        className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors ${
+          isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
@@ -363,21 +352,21 @@ function TreeNodeItem({
 
         {/* SparkplugB badge */}
         {node.is_sparkplug && (
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
+          <span className="bg-primary/10 text-primary ml-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
             SpB
           </span>
         )}
 
         {/* Metric count badge for leaves */}
         {isLeaf && hasMetrics && (
-          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
+          <span className="bg-success/10 text-success ml-1 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
             {node.sparkplug_metrics.length} metrics
           </span>
         )}
 
         {/* Message count for leaves */}
         {isLeaf && node.message_count > 0 && (
-          <span className="ml-auto text-xs text-muted-foreground shrink-0">
+          <span className="text-muted-foreground ml-auto shrink-0 text-xs">
             {node.message_count} msgs
           </span>
         )}
@@ -385,10 +374,7 @@ function TreeNodeItem({
 
       {/* Metrics for selected leaf */}
       {isLeaf && isSelected && hasMetrics && (
-        <div
-          style={{ paddingLeft: `${depth * 16 + 28}px` }}
-          className="pb-1"
-        >
+        <div style={{ paddingLeft: `${depth * 16 + 28}px` }} className="pb-1">
           <MetricsPills metrics={node.sparkplug_metrics} />
         </div>
       )}
@@ -429,7 +415,7 @@ function SearchView({
 }) {
   if (!data || data.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground text-sm">
+      <div className="text-muted-foreground py-8 text-center text-sm">
         {data === null
           ? 'No topics discovered yet. Waiting for messages...'
           : 'No topics match your search.'}
@@ -446,33 +432,29 @@ function SearchView({
           <div key={topic.topic}>
             <div
               onClick={() => onSelect(topic.topic, topic.sparkplug_metrics)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer transition-colors ${
-                isSelected
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent'
+              className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+                isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
               }`}
             >
-              <span className="truncate flex-1 font-mono text-xs">
-                {topic.topic}
-              </span>
+              <span className="flex-1 truncate font-mono text-xs">{topic.topic}</span>
 
               {topic.is_sparkplug && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
+                <span className="bg-primary/10 text-primary shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
                   SpB
                 </span>
               )}
 
               {hasMetrics && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 shrink-0">
+                <span className="bg-success/10 text-success shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
                   {topic.sparkplug_metrics.length} metrics
                 </span>
               )}
 
-              <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+              <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
                 {topic.message_count} msgs
               </span>
 
-              <span className="text-xs text-muted-foreground shrink-0">
+              <span className="text-muted-foreground shrink-0 text-xs">
                 {formatRelativeTime(topic.last_seen)}
               </span>
             </div>

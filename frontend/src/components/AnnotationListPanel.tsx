@@ -6,7 +6,17 @@
  */
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { MessageSquare, ChevronDown, ChevronUp, Pencil, Trash2, MapPin, CalendarRange, History, Plus } from 'lucide-react'
+import {
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Trash2,
+  MapPin,
+  CalendarRange,
+  History,
+  Plus,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAnnotations, useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
@@ -37,7 +47,12 @@ function isAnnotationVisible(
   if (ann.annotation_type === 'period') {
     if (ann.start_time && ann.end_time) {
       if (!visibleTimeRange) return true
-      return timeRangesOverlap(ann.start_time, ann.end_time, visibleTimeRange[0], visibleTimeRange[1])
+      return timeRangesOverlap(
+        ann.start_time,
+        ann.end_time,
+        visibleTimeRange[0],
+        visibleTimeRange[1],
+      )
     }
     if (ann.start_sample_id != null && ann.end_sample_id != null) {
       if (!visibleIds) return true
@@ -70,7 +85,13 @@ function formatTimeRangeShort(startIso: string, endIso: string): string {
   return `${start.toLocaleDateString(undefined, dateFmt)} – ${end.toLocaleDateString(undefined, dateFmt)}`
 }
 
-export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibleTimeRange, className, onAddAnnotation }: AnnotationListPanelProps) {
+export function AnnotationListPanel({
+  characteristicId,
+  visibleSampleIds,
+  visibleTimeRange,
+  className,
+  onAddAnnotation,
+}: AnnotationListPanelProps) {
   const { data: annotations, isLoading } = useAnnotations(characteristicId, true)
   const { hoveredSampleIds } = useChartHoverSync(characteristicId)
   const [expanded, setExpanded] = useState(true)
@@ -122,17 +143,22 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
   if (isLoading) return null
 
   return (
-    <div className={cn('bg-card border border-border rounded-lg overflow-hidden flex-shrink-0', className)}>
+    <div
+      className={cn(
+        'bg-card border-border flex-shrink-0 overflow-hidden rounded-lg border',
+        className,
+      )}
+    >
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-muted/50 transition-colors"
+        className="hover:bg-muted/50 flex w-full items-center justify-between px-3 py-1.5 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-amber-500" />
+          <MessageSquare className="text-warning h-4 w-4" />
           <span className="text-sm font-semibold">Annotations</span>
           {totalCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 font-medium">
+            <span className="bg-warning/10 text-warning rounded-full px-1.5 py-0.5 text-xs font-medium">
               {visibleCount < totalCount ? `${visibleCount}/${totalCount}` : totalCount}
             </span>
           )}
@@ -140,29 +166,36 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
         <div className="flex items-center gap-1">
           {onAddAnnotation && (
             <button
-              onClick={(e) => { e.stopPropagation(); onAddAnnotation() }}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAddAnnotation()
+              }}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors"
               title="Add period annotation"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add</span>
             </button>
           )}
-          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          {expanded ? (
+            <ChevronUp className="text-muted-foreground h-4 w-4" />
+          ) : (
+            <ChevronDown className="text-muted-foreground h-4 w-4" />
+          )}
         </div>
       </button>
 
       {/* List */}
       {expanded && (
-        <div className="border-t border-border">
+        <div className="border-border border-t">
           {visibleCount === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
               {totalCount > 0
                 ? 'No annotations in the current viewport. Adjust the range slider to see more.'
                 : 'No annotations yet. Click a data point to annotate it, or use Add above for a period annotation.'}
             </div>
           ) : (
-            <div className="max-h-48 overflow-y-auto divide-y divide-border">
+            <div className="divide-border max-h-48 divide-y overflow-y-auto">
               {filteredAnnotations.map((ann) => {
                 const highlighted = isAnnotationHighlighted(ann, hoveredSampleIds)
                 const isEditing = editingId === ann.id
@@ -176,27 +209,36 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
                       'px-4 transition-colors',
                       isEditing ? 'py-3' : 'py-2',
                       highlighted
-                        ? 'bg-amber-500/10 border-l-2 border-l-amber-500'
+                        ? 'border-l-warning bg-warning/10 border-l-2'
                         : 'border-l-2 border-l-transparent',
-                      !isEditing && 'hover:bg-muted/30'
+                      !isEditing && 'hover:bg-muted/30',
                     )}
                   >
                     {isEditing ? (
                       /* ── Expanded edit view ── */
                       <div className="space-y-2">
                         {/* Context: what type + when */}
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <div className="text-muted-foreground flex items-center gap-2 text-[10px]">
                           {ann.annotation_type === 'point' ? (
-                            <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Point</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> Point
+                            </span>
                           ) : (
                             <span className="flex items-center gap-1">
                               <CalendarRange className="h-3 w-3" />
-                              {ann.start_time && ann.end_time ? formatTimeRangeShort(ann.start_time, ann.end_time) : 'Period'}
+                              {ann.start_time && ann.end_time
+                                ? formatTimeRangeShort(ann.start_time, ann.end_time)
+                                : 'Period'}
                             </span>
                           )}
                           <span className="ml-auto">
                             {ann.created_by && <span>{ann.created_by} · </span>}
-                            {new Date(ann.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(ann.created_at).toLocaleString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
                         </div>
 
@@ -205,20 +247,20 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
                           onChange={(e) => setEditText(e.target.value)}
                           rows={2}
                           maxLength={500}
-                          className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          className="bg-background border-border focus:ring-primary/50 w-full resize-none rounded-lg border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
                           autoFocus
                         />
-                        <div className="flex gap-1.5 justify-end">
+                        <div className="flex justify-end gap-1.5">
                           <button
                             onClick={() => setEditingId(null)}
-                            className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded-md"
+                            className="text-muted-foreground hover:text-foreground border-border rounded-md border px-2.5 py-1 text-xs"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleSave(ann)}
                             disabled={!editText.trim() || updateAnnotation.isPending}
-                            className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-2.5 py-1 text-xs disabled:opacity-50"
                           >
                             Save
                           </button>
@@ -226,20 +268,34 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
 
                         {/* Change history — only visible here in edit mode */}
                         {ann.history && ann.history.length > 0 && (
-                          <div className="pt-1 border-t border-border/50">
-                            <div className="flex items-center gap-1 mb-1">
-                              <History className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Previous values</span>
+                          <div className="border-border/50 border-t pt-1">
+                            <div className="mb-1 flex items-center gap-1">
+                              <History className="text-muted-foreground h-3 w-3" />
+                              <span className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+                                Previous values
+                              </span>
                             </div>
-                            <div className="max-h-24 overflow-y-auto space-y-1">
+                            <div className="max-h-24 space-y-1 overflow-y-auto">
                               {ann.history.map((entry) => (
-                                <div key={entry.id} className="flex items-start gap-2 text-[11px] text-muted-foreground">
-                                  <span className="flex-shrink-0 text-[10px] mt-0.5">
-                                    {new Date(entry.changed_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                <div
+                                  key={entry.id}
+                                  className="text-muted-foreground flex items-start gap-2 text-[11px]"
+                                >
+                                  <span className="mt-0.5 flex-shrink-0 text-[10px]">
+                                    {new Date(entry.changed_at).toLocaleString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
                                   </span>
-                                  <span className="italic break-words min-w-0">&ldquo;{entry.previous_text}&rdquo;</span>
+                                  <span className="min-w-0 break-words italic">
+                                    &ldquo;{entry.previous_text}&rdquo;
+                                  </span>
                                   {entry.changed_by && (
-                                    <span className="flex-shrink-0 text-[10px] mt-0.5">&mdash; {entry.changed_by}</span>
+                                    <span className="mt-0.5 flex-shrink-0 text-[10px]">
+                                      &mdash; {entry.changed_by}
+                                    </span>
                                   )}
                                 </div>
                               ))}
@@ -251,23 +307,27 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
                       /* ── Compact read-only row: just the text + action icons ── */
                       <div className="flex items-center gap-2">
                         {ann.annotation_type === 'point' ? (
-                          <MapPin className="h-3 w-3 flex-shrink-0 text-muted-foreground/50" />
+                          <MapPin className="text-muted-foreground/50 h-3 w-3 flex-shrink-0" />
                         ) : (
-                          <CalendarRange className="h-3 w-3 flex-shrink-0 text-muted-foreground/50" />
+                          <CalendarRange className="text-muted-foreground/50 h-3 w-3 flex-shrink-0" />
                         )}
-                        <span className={cn(
-                          'text-sm truncate flex-1 min-w-0',
-                          highlighted && 'font-medium'
-                        )}>
+                        <span
+                          className={cn(
+                            'min-w-0 flex-1 truncate text-sm',
+                            highlighted && 'font-medium',
+                          )}
+                        >
                           {ann.text}
                         </span>
                         {ann.history && ann.history.length > 0 && (
-                          <span className="text-[9px] text-muted-foreground/50 italic flex-shrink-0">edited</span>
+                          <span className="text-muted-foreground/50 flex-shrink-0 text-[9px] italic">
+                            edited
+                          </span>
                         )}
-                        <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+                        <div className="ml-auto flex flex-shrink-0 items-center gap-0.5">
                           <button
                             onClick={() => handleStartEdit(ann)}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
                             title="Edit"
                           >
                             <Pencil className="h-3 w-3" />
@@ -277,13 +337,13 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
                               <button
                                 onClick={() => handleDelete(ann)}
                                 disabled={deleteAnnotation.isPending}
-                                className="px-2 py-0.5 text-[10px] font-medium bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50"
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded px-2 py-0.5 text-[10px] font-medium disabled:opacity-50"
                               >
                                 Delete
                               </button>
                               <button
                                 onClick={() => setDeletingId(null)}
-                                className="px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 text-[10px]"
                               >
                                 No
                               </button>
@@ -291,7 +351,7 @@ export function AnnotationListPanel({ characteristicId, visibleSampleIds, visibl
                           ) : (
                             <button
                               onClick={() => setDeletingId(ann.id)}
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              className="hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
                               title="Delete"
                             >
                               <Trash2 className="h-3 w-3" />

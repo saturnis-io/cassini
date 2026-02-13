@@ -53,16 +53,18 @@ export const PROTOCOLS: Record<string, ProtocolDefinition> = {
  */
 export function getProtocol(type: string): ProtocolDefinition {
   const key = type.toLowerCase()
-  return PROTOCOLS[key] ?? {
-    id: key,
-    label: type.toUpperCase(),
-    icon: Server,
-    color: 'gray',
-    textColor: 'text-muted-foreground',
-    bgColor: 'bg-muted',
-    borderColor: 'border-border',
-    description: type,
-  }
+  return (
+    PROTOCOLS[key] ?? {
+      id: key,
+      label: type.toUpperCase(),
+      icon: Server,
+      color: 'gray',
+      textColor: 'text-muted-foreground',
+      bgColor: 'bg-muted',
+      borderColor: 'border-border',
+      description: type,
+    }
+  )
 }
 
 /** Alias for getProtocol */

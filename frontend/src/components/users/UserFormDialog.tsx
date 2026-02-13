@@ -59,7 +59,7 @@ export function UserFormDialog({
           user.plant_roles.map((pr) => ({
             plant_id: pr.plant_id,
             role: pr.role,
-          }))
+          })),
         )
       } else {
         setUsername('')
@@ -143,15 +143,15 @@ export function UserFormDialog({
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative z-50 w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border rounded-lg shadow-lg p-6 mx-4">
-        <h2 className="text-lg font-semibold text-foreground mb-4">
+      <div className="bg-card relative z-50 mx-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border p-6 shadow-lg">
+        <h2 className="text-foreground mb-4 text-lg font-semibold">
           {mode === 'create' ? 'Create User' : `Edit User: ${user?.username}`}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Errors */}
           {errors.length > 0 && (
-            <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm space-y-1">
+            <div className="bg-destructive/10 text-destructive space-y-1 rounded-md p-3 text-sm">
               {errors.map((err, i) => (
                 <p key={i}>{err}</p>
               ))}
@@ -160,33 +160,33 @@ export function UserFormDialog({
 
           {/* Username */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-foreground">Username</label>
+            <label className="text-foreground block text-sm font-medium">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required={mode === 'create'}
               readOnly={mode === 'edit'}
-              className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring read-only:opacity-60"
+              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm read-only:opacity-60 focus:ring-2 focus:outline-none"
               placeholder="Enter username"
             />
           </div>
 
           {/* Email */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-foreground">Email (optional)</label>
+            <label className="text-foreground block text-sm font-medium">Email (optional)</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               placeholder="user@example.com"
             />
           </div>
 
           {/* Password */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-foreground">
+            <label className="text-foreground block text-sm font-medium">
               Password {mode === 'edit' && '(leave blank to keep current)'}
             </label>
             <input
@@ -195,20 +195,22 @@ export function UserFormDialog({
               onChange={(e) => setPassword(e.target.value)}
               required={mode === 'create'}
               minLength={8}
-              className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder={mode === 'create' ? 'Minimum 8 characters' : 'Leave blank to keep current'}
+              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              placeholder={
+                mode === 'create' ? 'Minimum 8 characters' : 'Leave blank to keep current'
+              }
             />
           </div>
 
           {/* Confirm Password */}
           {password && (
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-foreground">Confirm Password</label>
+              <label className="text-foreground block text-sm font-medium">Confirm Password</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 placeholder="Confirm password"
               />
             </div>
@@ -222,27 +224,29 @@ export function UserFormDialog({
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-border"
+                className="border-border h-4 w-4 rounded"
               />
-              <label htmlFor="is-active" className="text-sm text-foreground">Active</label>
+              <label htmlFor="is-active" className="text-foreground text-sm">
+                Active
+              </label>
             </div>
           )}
 
           {/* Plant Role Assignments */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-foreground">Site Roles</label>
+              <label className="text-foreground block text-sm font-medium">Site Roles</label>
               <button
                 type="button"
                 onClick={addPlantRole}
-                className="text-xs px-2 py-1 rounded-md border hover:bg-accent transition-colors"
+                className="hover:bg-accent rounded-md border px-2 py-1 text-xs transition-colors"
               >
                 + Add Assignment
               </button>
             </div>
 
             {plantRoles.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No site assignments</p>
+              <p className="text-muted-foreground text-xs italic">No site assignments</p>
             ) : (
               <div className="space-y-2">
                 {plantRoles.map((pr, idx) => (
@@ -250,7 +254,7 @@ export function UserFormDialog({
                     <select
                       value={pr.plant_id}
                       onChange={(e) => updatePlantRole(idx, 'plant_id', parseInt(e.target.value))}
-                      className="flex-1 px-2 py-1.5 text-sm rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="bg-background focus:ring-ring flex-1 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
                     >
                       {plants?.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -261,7 +265,7 @@ export function UserFormDialog({
                     <select
                       value={pr.role}
                       onChange={(e) => updatePlantRole(idx, 'role', e.target.value)}
-                      className="w-36 px-2 py-1.5 text-sm rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="bg-background focus:ring-ring w-36 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
                     >
                       {roles.map((r) => (
                         <option key={r} value={r}>
@@ -272,7 +276,7 @@ export function UserFormDialog({
                     <button
                       type="button"
                       onClick={() => removePlantRole(idx)}
-                      className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                      className="text-muted-foreground hover:text-destructive p-1.5 transition-colors"
                       title="Remove assignment"
                     >
                       &times;
@@ -288,14 +292,14 @@ export function UserFormDialog({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+              className="hover:bg-accent rounded-md border px-4 py-2 text-sm font-medium transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               {isSubmitting ? 'Saving...' : mode === 'create' ? 'Create User' : 'Save Changes'}
             </button>

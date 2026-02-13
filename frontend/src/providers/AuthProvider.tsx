@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { useUIStore } from '@/stores/uiStore'
 import { authApi, setAccessToken } from '@/api/client'
 import type { AuthUser } from '@/types'
@@ -105,7 +113,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (user) {
         console.warn(
           `[AuthProvider] User "${user.username}" has no plant_roles — defaulting to 'operator'. ` +
-          'An admin should assign this user a role via the user management page.'
+            'An admin should assign this user a role via the user management page.',
         )
       }
       return 'operator'

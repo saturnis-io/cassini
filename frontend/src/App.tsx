@@ -63,9 +63,9 @@ class RouteErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-8">
-          <div className="text-center max-w-md">
-            <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+        <div className="bg-background flex min-h-screen items-center justify-center p-8">
+          <div className="max-w-md text-center">
+            <h2 className="mb-2 text-xl font-semibold">Something went wrong</h2>
             <p className="text-muted-foreground mb-4 text-sm">
               {this.state.error?.message || 'An unexpected error occurred'}
             </p>
@@ -74,7 +74,7 @@ class RouteErrorBoundary extends Component<
                 this.setState({ hasError: false, error: null })
                 window.location.href = '/dashboard'
               }}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2"
             >
               Return to Dashboard
             </button>
@@ -95,10 +95,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground mt-3">Loading...</p>
+          <div className="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
+          <p className="text-muted-foreground mt-3 text-sm">Loading...</p>
         </div>
       </div>
     )
@@ -123,9 +123,7 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   return (
     <PlantProvider>
       <ChartHoverProvider>
-        <WebSocketProvider>
-          {children}
-        </WebSocketProvider>
+        <WebSocketProvider>{children}</WebSocketProvider>
       </ChartHoverProvider>
     </PlantProvider>
   )
@@ -138,9 +136,7 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
 function AuthenticatedDisplayMode({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
-      <AuthenticatedProviders>
-        {children}
-      </AuthenticatedProviders>
+      <AuthenticatedProviders>{children}</AuthenticatedProviders>
     </RequireAuth>
   )
 }
@@ -155,7 +151,7 @@ function App() {
             retry: 1,
           },
         },
-      })
+      }),
   )
 
   return (

@@ -9,7 +9,11 @@ interface BulkAcknowledgeDialogProps {
   contextLabel?: string
 }
 
-export function BulkAcknowledgeDialog({ violationIds, onClose, contextLabel }: BulkAcknowledgeDialogProps) {
+export function BulkAcknowledgeDialog({
+  violationIds,
+  onClose,
+  contextLabel,
+}: BulkAcknowledgeDialogProps) {
   const [selectedReason, setSelectedReason] = useState('')
   const [notes, setNotes] = useState('')
   const [excludeSample, setExcludeSample] = useState(false)
@@ -19,12 +23,11 @@ export function BulkAcknowledgeDialog({ violationIds, onClose, contextLabel }: B
   const batchMutation = useBatchAcknowledgeViolation()
 
   const isOther = selectedReason === 'Other'
-  const canSubmit = selectedReason && (!isOther || notes.trim().length > 0) && !batchMutation.isPending
+  const canSubmit =
+    selectedReason && (!isOther || notes.trim().length > 0) && !batchMutation.isPending
 
   const handleSubmit = () => {
-    const reason = notes.trim()
-      ? `${selectedReason}: ${notes.trim()}`
-      : selectedReason
+    const reason = notes.trim() ? `${selectedReason}: ${notes.trim()}` : selectedReason
 
     batchMutation.mutate(
       {
@@ -43,22 +46,24 @@ export function BulkAcknowledgeDialog({ violationIds, onClose, contextLabel }: B
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4">
+      <div className="bg-card border-border relative mx-4 w-full max-w-md rounded-2xl border shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="border-border flex items-center justify-between border-b px-5 py-4">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <AlertTriangle className="text-destructive h-5 w-5" />
             <h2 className="text-lg font-semibold">Bulk Acknowledge Violations</h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted transition-colors">
+          <button onClick={onClose} className="hover:bg-muted rounded p-1 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Acknowledging <span className="font-semibold text-foreground">{violationIds.length}</span> violation{violationIds.length !== 1 ? 's' : ''}
+        <div className="space-y-4 px-5 py-4">
+          <p className="text-muted-foreground text-sm">
+            Acknowledging{' '}
+            <span className="text-foreground font-semibold">{violationIds.length}</span> violation
+            {violationIds.length !== 1 ? 's' : ''}
             {contextLabel && <span> {contextLabel}</span>}
           </p>
 
@@ -71,11 +76,13 @@ export function BulkAcknowledgeDialog({ violationIds, onClose, contextLabel }: B
               value={selectedReason}
               onChange={(e) => setSelectedReason(e.target.value)}
               disabled={loadingCodes}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="border-border bg-background focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             >
               <option value="">Select a reason...</option>
               {reasonCodes?.map((code) => (
-                <option key={code} value={code}>{code}</option>
+                <option key={code} value={code}>
+                  {code}
+                </option>
               ))}
             </select>
           </div>
@@ -90,37 +97,37 @@ export function BulkAcknowledgeDialog({ violationIds, onClose, contextLabel }: B
               onChange={(e) => setNotes(e.target.value.slice(0, 500))}
               placeholder={isOther ? 'Please describe the reason...' : 'Optional notes...'}
               rows={3}
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="border-border bg-background focus:ring-primary/50 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
-            <div className="text-xs text-muted-foreground text-right">{notes.length}/500</div>
+            <div className="text-muted-foreground text-right text-xs">{notes.length}/500</div>
           </div>
 
           {/* Exclude Sample */}
-          <label className="flex items-start gap-2 cursor-pointer">
+          <label className="flex cursor-pointer items-start gap-2">
             <input
               type="checkbox"
               checked={excludeSample}
               onChange={(e) => setExcludeSample(e.target.checked)}
-              className="mt-0.5 rounded border-border"
+              className="border-border mt-0.5 rounded"
             />
-            <span className="text-sm text-muted-foreground">
+            <span className="text-muted-foreground text-sm">
               Exclude affected samples from control limit calculations
             </span>
           </label>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border">
+        <div className="border-border flex items-center justify-end gap-3 border-t px-5 py-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+            className="border-border hover:bg-muted rounded-lg border px-4 py-2 text-sm transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             {batchMutation.isPending ? 'Acknowledging...' : `Acknowledge ${violationIds.length}`}
           </button>

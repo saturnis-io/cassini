@@ -49,7 +49,7 @@ function pointsToPath(points: number[]): string {
 // Control limit lines (dashed) and center line
 function ControlLines({ showCenter = true }: { showCenter?: boolean }) {
   const uclY = valueToY(100) // UCL at top
-  const lclY = valueToY(0)   // LCL at bottom
+  const lclY = valueToY(0) // LCL at bottom
   const centerY = valueToY(50)
 
   return (
@@ -63,7 +63,7 @@ function ControlLines({ showCenter = true }: { showCenter?: boolean }) {
         stroke="currentColor"
         strokeWidth="0.5"
         strokeDasharray="2,2"
-        className="text-red-400"
+        className="text-destructive"
       />
       {/* LCL */}
       <line
@@ -74,7 +74,7 @@ function ControlLines({ showCenter = true }: { showCenter?: boolean }) {
         stroke="currentColor"
         strokeWidth="0.5"
         strokeDasharray="2,2"
-        className="text-red-400"
+        className="text-destructive"
       />
       {/* Center */}
       {showCenter && (
@@ -110,9 +110,20 @@ export function Rule1Sparkline({ className }: SparklineProps) {
       aria-label="Rule 1: Point beyond 3 sigma"
     >
       <ControlLines />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-primary" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-primary"
+      />
       {/* Highlight the outlier point */}
-      <circle cx={PADDING + 5 * ((WIDTH - PADDING * 2) / 7)} cy={valueToY(110)} r="2" className="fill-red-500" />
+      <circle
+        cx={PADDING + 5 * ((WIDTH - PADDING * 2) / 7)}
+        cy={valueToY(110)}
+        r="2"
+        className="fill-destructive"
+      />
     </svg>
   )
 }
@@ -140,9 +151,15 @@ export function Rule2Sparkline({ className }: SparklineProps) {
         y={valueToY(100)}
         width={WIDTH - PADDING * 2}
         height={valueToY(50) - valueToY(100)}
-        className="fill-amber-200/20"
+        className="fill-warning/20"
       />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }
@@ -164,7 +181,13 @@ export function Rule3Sparkline({ className }: SparklineProps) {
       aria-label="Rule 3: 6 points trending"
     >
       <ControlLines />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }
@@ -186,7 +209,13 @@ export function Rule4Sparkline({ className }: SparklineProps) {
       aria-label="Rule 4: 14 points alternating"
     >
       <ControlLines />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }
@@ -220,7 +249,7 @@ export function Rule5Sparkline({ className }: SparklineProps) {
         y={zoneATop}
         width={WIDTH - PADDING * 2}
         height={zoneAUpperBound - zoneATop}
-        className="fill-amber-200/30"
+        className="fill-warning/30"
       />
       {/* Zone A shading (lower) */}
       <rect
@@ -228,9 +257,15 @@ export function Rule5Sparkline({ className }: SparklineProps) {
         y={zoneALowerBound}
         width={WIDTH - PADDING * 2}
         height={zoneABottom - zoneALowerBound}
-        className="fill-amber-200/30"
+        className="fill-warning/30"
       />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }
@@ -264,7 +299,7 @@ export function Rule6Sparkline({ className }: SparklineProps) {
         y={zoneBUpperTop}
         width={WIDTH - PADDING * 2}
         height={zoneBUpperBottom - zoneBUpperTop}
-        className="fill-blue-200/30"
+        className="fill-primary/30"
       />
       {/* Zone B shading (lower) */}
       <rect
@@ -272,9 +307,15 @@ export function Rule6Sparkline({ className }: SparklineProps) {
         y={zoneBLowerTop}
         width={WIDTH - PADDING * 2}
         height={zoneBLowerBottom - zoneBLowerTop}
-        className="fill-blue-200/30"
+        className="fill-primary/30"
       />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }
@@ -307,9 +348,15 @@ export function Rule7Sparkline({ className }: SparklineProps) {
         y={zoneCTop}
         width={WIDTH - PADDING * 2}
         height={zoneCBottom - zoneCTop}
-        className="fill-blue-200/30"
+        className="fill-primary/30"
       />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-blue-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-primary"
+      />
     </svg>
   )
 }
@@ -344,7 +391,13 @@ export function Rule8Sparkline({ className }: SparklineProps) {
         height={zoneCBottom - zoneCTop}
         className="fill-muted/20"
       />
-      <path d={pointsToPath(points)} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-500" />
+      <path
+        d={pointsToPath(points)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-warning"
+      />
     </svg>
   )
 }

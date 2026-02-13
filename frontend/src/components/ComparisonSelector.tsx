@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, Loader2, X } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronDown,
+  Factory,
+  Cog,
+  Box,
+  Cpu,
+  Settings,
+  Loader2,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
 import { usePlantContext } from '@/providers/PlantProvider'
@@ -44,14 +54,14 @@ export function ComparisonSelector({ excludeId, onSelect, onCancel }: Comparison
   }
 
   return (
-    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+    <div className="bg-background/80 absolute inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-card border-border flex max-h-[80vh] w-full max-w-md flex-col rounded-xl border shadow-xl">
         {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="border-border flex items-center justify-between border-b p-4">
           <h3 className="font-semibold">Select Comparison Characteristic</h3>
           <button
             onClick={onCancel}
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-1"
           >
             <X className="h-4 w-4" />
           </button>
@@ -60,7 +70,7 @@ export function ComparisonSelector({ excludeId, onSelect, onCancel }: Comparison
         {/* Hierarchy Tree */}
         <div className="flex-1 overflow-auto p-2">
           {isLoading ? (
-            <div className="flex items-center justify-center gap-2 p-8 text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 p-8">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Loading hierarchy...</span>
             </div>
@@ -109,7 +119,7 @@ function SelectorNode({
 
   // Load characteristics when expanded
   const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0
+    isExpanded ? node.id : 0,
   )
 
   const canExpand = hasChildren || (node.characteristic_count ?? 0) > 0
@@ -117,9 +127,7 @@ function SelectorNode({
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 px-2 py-1.5 hover:bg-muted cursor-pointer rounded'
-        )}
+        className={cn('hover:bg-muted flex cursor-pointer items-center gap-1 rounded px-2 py-1.5')}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => canExpand && toggleExpanded(node.id)}
       >
@@ -137,7 +145,7 @@ function SelectorNode({
         {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         <span className="flex-1 text-sm font-medium">{node.name}</span>
         {(node.characteristic_count ?? 0) > 0 && (
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs">
             {node.characteristic_count}
           </span>
         )}
@@ -161,7 +169,7 @@ function SelectorNode({
           {/* Loading indicator */}
           {isLoadingChars && (
             <div
-              className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground"
+              className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-sm"
               style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
             >
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -170,35 +178,34 @@ function SelectorNode({
           )}
 
           {/* Characteristics */}
-          {!isLoadingChars && characteristics?.map((char) => {
-            const isExcluded = char.id === excludeId
-            return (
-              <button
-                key={char.id}
-                disabled={isExcluded}
-                onClick={() => !isExcluded && onSelect(char.id)}
-                className={cn(
-                  'w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded',
-                  'transition-colors',
-                  isExcluded
-                    ? 'opacity-40 cursor-not-allowed'
-                    : 'hover:bg-primary/10 hover:text-primary cursor-pointer'
-                )}
-                style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
-              >
-                <div
+          {!isLoadingChars &&
+            characteristics?.map((char) => {
+              const isExcluded = char.id === excludeId
+              return (
+                <button
+                  key={char.id}
+                  disabled={isExcluded}
+                  onClick={() => !isExcluded && onSelect(char.id)}
                   className={cn(
-                    'w-2 h-2 rounded-full flex-shrink-0',
-                    char.in_control !== false ? 'bg-green-500' : 'bg-destructive'
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm',
+                    'transition-colors',
+                    isExcluded
+                      ? 'cursor-not-allowed opacity-40'
+                      : 'hover:bg-primary/10 hover:text-primary cursor-pointer',
                   )}
-                />
-                <span className="flex-1 truncate">{char.name}</span>
-                {isExcluded && (
-                  <span className="text-xs text-muted-foreground">(primary)</span>
-                )}
-              </button>
-            )
-          })}
+                  style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+                >
+                  <div
+                    className={cn(
+                      'h-2 w-2 flex-shrink-0 rounded-full',
+                      char.in_control !== false ? 'bg-success' : 'bg-destructive',
+                    )}
+                  />
+                  <span className="flex-1 truncate">{char.name}</span>
+                  {isExcluded && <span className="text-muted-foreground text-xs">(primary)</span>}
+                </button>
+              )
+            })}
         </div>
       )}
     </div>

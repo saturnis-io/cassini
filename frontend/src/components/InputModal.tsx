@@ -73,22 +73,19 @@ export function InputModal() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border rounded-lg shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-card mx-4 w-full max-w-md rounded-lg border shadow-xl">
+        <div className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">Enter Measurement</h2>
-          <button
-            onClick={closeModal}
-            className="p-1 hover:bg-muted rounded"
-          >
+          <button onClick={closeModal} className="hover:bg-muted rounded p-1">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           <div>
             <div className="font-medium">{characteristic.name}</div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground text-sm">
               {target !== null && `Target: ${target}`}
               {usl !== null && lsl !== null && ` | Spec: ${lsl} - ${usl}`}
             </div>
@@ -109,16 +106,16 @@ export function InputModal() {
                     placeholder="Enter value..."
                     size="lg"
                     className={cn(
-                      'w-full mt-1',
-                      status === 'ok' && 'border-green-500 bg-green-50 dark:bg-green-950',
-                      status === 'warning' && 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950',
-                      status === 'error' && 'border-destructive bg-destructive/10'
+                      'mt-1 w-full',
+                      status === 'ok' && 'border-success bg-success/10',
+                      status === 'warning' && 'border-warning bg-warning/10',
+                      status === 'error' && 'border-destructive bg-destructive/10',
                     )}
                     inputClassName={cn(
                       'text-lg font-mono',
-                      status === 'ok' && 'text-green-900 dark:text-green-100',
-                      status === 'warning' && 'text-yellow-900 dark:text-yellow-100',
-                      status === 'error' && 'text-destructive'
+                      status === 'ok' && 'text-success',
+                      status === 'warning' && 'text-warning',
+                      status === 'error' && 'text-destructive',
                     )}
                   />
                 </div>
@@ -127,32 +124,33 @@ export function InputModal() {
           </div>
 
           {/* Spec position indicator */}
-          {usl !== null && lsl !== null && measurements[0] && !isNaN(parseFloat(measurements[0])) && (
-            <div className="relative h-4 bg-muted rounded-full overflow-hidden">
-              <div
-                className="absolute h-full bg-primary rounded-full"
-                style={{
-                  left: `${Math.max(0, Math.min(100, ((parseFloat(measurements[0]) - lsl) / (usl - lsl)) * 100))}%`,
-                  width: '4px',
-                  transform: 'translateX(-50%)',
-                }}
-              />
-              <div className="absolute inset-0 flex justify-between px-2 text-xs text-muted-foreground">
-                <span>{lsl}</span>
-                <span>{usl}</span>
+          {usl !== null &&
+            lsl !== null &&
+            measurements[0] &&
+            !isNaN(parseFloat(measurements[0])) && (
+              <div className="bg-muted relative h-4 overflow-hidden rounded-full">
+                <div
+                  className="bg-primary absolute h-full rounded-full"
+                  style={{
+                    left: `${Math.max(0, Math.min(100, ((parseFloat(measurements[0]) - lsl) / (usl - lsl)) * 100))}%`,
+                    width: '4px',
+                    transform: 'translateX(-50%)',
+                  }}
+                />
+                <div className="text-muted-foreground absolute inset-0 flex justify-between px-2 text-xs">
+                  <span>{lsl}</span>
+                  <span>{usl}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {error && (
-            <div className="text-sm text-destructive">{error}</div>
-          )}
+          {error && <div className="text-destructive text-sm">{error}</div>}
         </div>
 
-        <div className="flex justify-end gap-2 p-4 border-t">
+        <div className="flex justify-end gap-2 border-t p-4">
           <button
             onClick={closeModal}
-            className="px-4 py-2 text-sm border rounded-md hover:bg-muted"
+            className="hover:bg-muted rounded-md border px-4 py-2 text-sm"
           >
             Cancel
           </button>
@@ -160,10 +158,10 @@ export function InputModal() {
             onClick={handleSubmit}
             disabled={!canSubmit || submitSample.isPending}
             className={cn(
-              'px-4 py-2 text-sm rounded-md',
+              'rounded-md px-4 py-2 text-sm',
               'bg-primary text-primary-foreground',
               'hover:bg-primary/90',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {submitSample.isPending ? 'Submitting...' : 'Submit'}

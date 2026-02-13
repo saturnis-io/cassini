@@ -28,7 +28,10 @@ export function ReportsView() {
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
-      const ids = characteristicsParam.split(',').map(Number).filter((n) => !isNaN(n))
+      const ids = characteristicsParam
+        .split(',')
+        .map(Number)
+        .filter((n) => !isNaN(n))
       if (ids.length > 0) {
         setSelectedCharId(ids[0])
         // Auto-select first template if not already selected
@@ -62,7 +65,13 @@ export function ReportsView() {
     }
     // Default fallback
     return { limit: 50 }
-  }, [timeRange.type, timeRange.pointsLimit, timeRange.hoursBack, timeRange.startDate, timeRange.endDate])
+  }, [
+    timeRange.type,
+    timeRange.pointsLimit,
+    timeRange.hoursBack,
+    timeRange.startDate,
+    timeRange.endDate,
+  ])
 
   // Fetch data for export functionality
   const { data: chartData } = useChartData(selectedCharId || 0, chartOptions)
@@ -72,25 +81,28 @@ export function ReportsView() {
   })
 
   // Build export data
-  const exportData = useMemo(() => ({
-    chartData: chartData ?? undefined,
-    violations: violations?.items ?? [],
-  }), [chartData, violations])
+  const exportData = useMemo(
+    () => ({
+      chartData: chartData ?? undefined,
+      violations: violations?.items ?? [],
+    }),
+    [chartData, violations],
+  )
 
   return (
     <div className="h-[calc(100vh-10rem)]">
-      <div className="grid grid-cols-12 gap-6 h-full">
+      <div className="grid h-full grid-cols-12 gap-6">
         {/* Left Panel - Template & Characteristic Selection */}
-        <div className="col-span-3 flex flex-col gap-4 h-full">
+        <div className="col-span-3 flex h-full flex-col gap-4">
           {/* Report Templates */}
-          <div className="border border-border rounded-xl bg-card overflow-hidden flex-shrink-0">
-            <div className="p-4 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2">
+          <div className="border-border bg-card flex-shrink-0 overflow-hidden rounded-xl border">
+            <div className="border-border border-b p-4">
+              <h2 className="flex items-center gap-2 font-semibold">
                 <FileText className="h-4 w-4" />
                 Report Templates
               </h2>
             </div>
-            <div className="p-2 max-h-48 overflow-auto">
+            <div className="max-h-48 overflow-auto p-2">
               <div className="space-y-2">
                 {REPORT_TEMPLATES.map((template) => {
                   const Icon = template.icon
@@ -100,20 +112,23 @@ export function ReportsView() {
                       key={template.id}
                       onClick={() => setSelectedTemplate(template)}
                       className={cn(
-                        'w-full text-left p-3 rounded-lg transition-colors',
+                        'w-full rounded-lg p-3 text-left transition-colors',
                         'border border-transparent',
-                        isSelected
-                          ? 'bg-primary/10 border-primary/30'
-                          : 'hover:bg-muted'
+                        isSelected ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted',
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <Icon className={cn('h-4 w-4', isSelected ? 'text-primary' : 'text-muted-foreground')} />
-                        <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
+                        <Icon
+                          className={cn(
+                            'h-4 w-4',
+                            isSelected ? 'text-primary' : 'text-muted-foreground',
+                          )}
+                        />
+                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
                           {template.name}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
                         {template.description}
                       </p>
                     </button>
@@ -124,21 +139,21 @@ export function ReportsView() {
           </div>
 
           {/* Time Range Selection - z-index ensures dropdown appears above other panels */}
-          <div className="border border-border rounded-xl bg-card p-4 flex-shrink-0 relative z-20">
+          <div className="border-border bg-card relative z-20 flex-shrink-0 rounded-xl border p-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Data Range</h3>
+              <h3 className="text-sm font-semibold">Data Range</h3>
               <TimeRangeSelector />
             </div>
           </div>
 
           {/* Characteristic Selection - Hierarchy Navigation */}
-          <div className="border border-border rounded-xl bg-card overflow-hidden flex-1 flex flex-col min-h-0">
-            <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-              <h3 className="font-semibold text-sm">Characteristic</h3>
+          <div className="border-border bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
+            <div className="border-border flex flex-shrink-0 items-center justify-between border-b p-4">
+              <h3 className="text-sm font-semibold">Characteristic</h3>
               {selectedCharId && (
                 <button
                   onClick={() => setSelectedCharId(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground text-xs"
                 >
                   Clear
                 </button>
@@ -153,12 +168,12 @@ export function ReportsView() {
         </div>
 
         {/* Right Panel - Preview */}
-        <div className="col-span-9 flex flex-col h-full overflow-hidden">
+        <div className="col-span-9 flex h-full flex-col overflow-hidden">
           {selectedTemplate ? (
             <>
               {/* Preview Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
                   <span>Templates</span>
                   <ChevronRight className="h-4 w-4" />
                   <span className="text-foreground font-medium">{selectedTemplate.name}</span>
@@ -181,9 +196,9 @@ export function ReportsView() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-30" />
+            <div className="flex flex-1 items-center justify-center">
+              <div className="text-muted-foreground text-center">
+                <FileText className="mx-auto mb-4 h-12 w-12 opacity-30" />
                 <p>Select a report template to get started</p>
               </div>
             </div>

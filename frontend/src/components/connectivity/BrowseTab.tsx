@@ -44,18 +44,17 @@ export function BrowseTab() {
     <div className="space-y-5">
       {/* Server selector bar */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 max-w-md">
-          <ServerSelector
-            value={selectedServer}
-            onChange={handleServerChange}
-          />
+        <div className="max-w-md flex-1">
+          <ServerSelector value={selectedServer} onChange={handleServerChange} />
         </div>
         {selectedServer && (
-          <span className={`text-xs px-2 py-1 rounded ${
-            selectedServer.isConnected
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : 'bg-red-500/10 text-red-400'
-          }`}>
+          <span
+            className={`rounded px-2 py-1 text-xs ${
+              selectedServer.isConnected
+                ? 'bg-success/10 text-success'
+                : 'bg-destructive/10 text-destructive'
+            }`}
+          >
             {selectedServer.isConnected ? 'Connected' : 'Disconnected'}
           </span>
         )}
@@ -64,65 +63,62 @@ export function BrowseTab() {
       {/* Empty state when no server selected */}
       {!selectedServer && (
         <div className="bg-muted rounded-xl p-12 text-center">
-          <Search className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-          <h3 className="text-sm font-medium text-muted-foreground mb-1">Browse Data Sources</h3>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Select a connected server above to browse its available data points.
-            For MQTT brokers, you can discover topics. For OPC-UA servers, browse the address space.
+          <Search className="text-muted-foreground mx-auto mb-3 h-10 w-10" />
+          <h3 className="text-muted-foreground mb-1 text-sm font-medium">Browse Data Sources</h3>
+          <p className="text-muted-foreground mx-auto max-w-sm text-xs">
+            Select a connected server above to browse its available data points. For MQTT brokers,
+            you can discover topics. For OPC-UA servers, browse the address space.
           </p>
         </div>
       )}
 
       {/* Disconnected server warning */}
       {selectedServer && !selectedServer.isConnected && (
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3 flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-300">
-            This server is currently disconnected. Connect it from the Servers tab to browse data points.
+        <div className="border-warning/20 bg-warning/5 flex items-center gap-2 rounded-lg border px-4 py-3">
+          <RefreshCw className="text-warning h-4 w-4 shrink-0" />
+          <p className="text-warning text-sm">
+            This server is currently disconnected. Connect it from the Servers tab to browse data
+            points.
           </p>
         </div>
       )}
 
       {/* Split-panel layout */}
       {selectedServer && selectedServer.isConnected && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           {/* Left panel: Browser (3 cols) */}
-          <div className="lg:col-span-3 bg-muted rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">
+          <div className="bg-muted overflow-hidden rounded-xl lg:col-span-3">
+            <div className="border-border flex items-center justify-between border-b px-4 py-3">
+              <h3 className="text-foreground text-sm font-semibold">
                 {selectedServer.protocol === 'mqtt' ? 'Topic Browser' : 'Address Space'}
               </h3>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider ${
-                selectedServer.protocol === 'mqtt'
-                  ? 'bg-teal-500/15 text-teal-400'
-                  : 'bg-purple-500/15 text-purple-400'
-              }`}>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wider uppercase ${
+                  selectedServer.protocol === 'mqtt'
+                    ? 'bg-teal-500/15 text-teal-400'
+                    : 'bg-purple-500/15 text-purple-400'
+                }`}
+              >
                 {selectedServer.protocol === 'mqtt' ? 'MQTT' : 'OPC-UA'}
               </span>
             </div>
 
             <div className="max-h-[560px] overflow-y-auto">
               {selectedServer.protocol === 'mqtt' ? (
-                <TopicTreeBrowser
-                  brokerId={selectedServer.id}
-                  onSelectTopic={handleTopicSelect}
-                />
+                <TopicTreeBrowser brokerId={selectedServer.id} onSelectTopic={handleTopicSelect} />
               ) : (
-                <NodeTreeBrowser
-                  serverId={selectedServer.id}
-                  onNodeSelect={handleNodeSelect}
-                />
+                <NodeTreeBrowser serverId={selectedServer.id} onNodeSelect={handleNodeSelect} />
               )}
             </div>
           </div>
 
           {/* Right panel: Preview + Quick Map (2 cols) */}
-          <div className="lg:col-span-2 bg-muted rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Preview & Map</h3>
+          <div className="bg-muted overflow-hidden rounded-xl lg:col-span-2">
+            <div className="border-border border-b px-4 py-3">
+              <h3 className="text-foreground text-sm font-semibold">Preview & Map</h3>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
               {/* Data point preview */}
               <DataPointPreview
                 server={selectedServer}

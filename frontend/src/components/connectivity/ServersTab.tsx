@@ -8,7 +8,12 @@ import { ServerListItem } from './ServerListItem'
 import { ProtocolSelector, type ProtocolId } from './ProtocolSelector'
 import { MQTTServerForm } from './MQTTServerForm'
 import { OPCUAServerForm } from './OPCUAServerForm'
-import type { MQTTBroker, OPCUAServer, BrokerConnectionStatus, OPCUAServerConnectionStatus } from '@/types'
+import type {
+  MQTTBroker,
+  OPCUAServer,
+  BrokerConnectionStatus,
+  OPCUAServerConnectionStatus,
+} from '@/types'
 
 type FilterProtocol = 'all' | 'mqtt' | 'opcua'
 type ViewMode = 'list' | 'add-select' | 'add-mqtt' | 'add-opcua' | 'edit-mqtt' | 'edit-opcua'
@@ -91,9 +96,10 @@ export function ServersTab() {
       const q = search.toLowerCase()
       result = result.filter((s) => {
         const name = s.server.name.toLowerCase()
-        const connStr = s.protocol === 'mqtt'
-          ? `${(s.server as MQTTBroker).host}:${(s.server as MQTTBroker).port}`
-          : (s.server as OPCUAServer).endpoint_url
+        const connStr =
+          s.protocol === 'mqtt'
+            ? `${(s.server as MQTTBroker).host}:${(s.server as MQTTBroker).port}`
+            : (s.server as OPCUAServer).endpoint_url
         return name.includes(q) || connStr.toLowerCase().includes(q)
       })
     }
@@ -139,11 +145,11 @@ export function ServersTab() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Add Server</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Select a protocol to configure</p>
+            <p className="text-muted-foreground mt-0.5 text-sm">Select a protocol to configure</p>
           </div>
           <button
             onClick={handleCloseForm}
-            className="px-3 py-1.5 text-sm rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="border-border text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg border px-3 py-1.5 text-sm transition-colors"
           >
             Back to list
           </button>
@@ -154,21 +160,11 @@ export function ServersTab() {
   }
 
   if (viewMode === 'add-mqtt' || viewMode === 'edit-mqtt') {
-    return (
-      <MQTTServerForm
-        broker={editingBroker ?? undefined}
-        onClose={handleCloseForm}
-      />
-    )
+    return <MQTTServerForm broker={editingBroker ?? undefined} onClose={handleCloseForm} />
   }
 
   if (viewMode === 'add-opcua' || viewMode === 'edit-opcua') {
-    return (
-      <OPCUAServerForm
-        server={editingOpcua ?? undefined}
-        onClose={handleCloseForm}
-      />
-    )
+    return <OPCUAServerForm server={editingOpcua ?? undefined} onClose={handleCloseForm} />
   }
 
   // List view
@@ -177,17 +173,17 @@ export function ServersTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <LayoutList className="h-5 w-5 text-muted-foreground" />
+          <LayoutList className="text-muted-foreground h-5 w-5" />
           <div>
             <h2 className="text-lg font-semibold">Servers</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {allServers.length} server{allServers.length !== 1 ? 's' : ''} configured
             </p>
           </div>
         </div>
         <button
           onClick={handleAddServer}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
         >
           <Plus className="h-4 w-4" />
           Add Server
@@ -198,29 +194,33 @@ export function ServersTab() {
       <div className="flex items-center gap-3">
         {/* Protocol chips */}
         <div className="flex items-center gap-1.5">
-          {([
-            { id: 'all', label: 'All', count: allServers.length, icon: null },
-            { id: 'mqtt', label: 'MQTT', count: mqttCount, icon: Wifi },
-            { id: 'opcua', label: 'OPC-UA', count: opcuaCount, icon: Server },
-          ] as const).map((chip) => (
+          {(
+            [
+              { id: 'all', label: 'All', count: allServers.length, icon: null },
+              { id: 'mqtt', label: 'MQTT', count: mqttCount, icon: Wifi },
+              { id: 'opcua', label: 'OPC-UA', count: opcuaCount, icon: Server },
+            ] as const
+          ).map((chip) => (
             <button
               key={chip.id}
               onClick={() => setFilter(chip.id)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                 filter === chip.id
-                  ? 'bg-primary/10 text-primary border border-primary/20'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent'
+                  ? 'bg-primary/10 text-primary border-primary/20 border'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent',
               )}
             >
               {chip.icon && <chip.icon className="h-3 w-3" />}
               {chip.label}
-              <span className={cn(
-                'ml-0.5 px-1.5 py-0.5 text-[10px] rounded-full',
-                filter === chip.id
-                  ? 'bg-primary/20 text-primary'
-                  : 'bg-muted text-muted-foreground'
-              )}>
+              <span
+                className={cn(
+                  'ml-0.5 rounded-full px-1.5 py-0.5 text-[10px]',
+                  filter === chip.id
+                    ? 'bg-primary/20 text-primary'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
                 {chip.count}
               </span>
             </button>
@@ -228,37 +228,33 @@ export function ServersTab() {
         </div>
 
         {/* Search */}
-        <div className="flex-1 max-w-xs ml-auto relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="relative ml-auto max-w-xs flex-1">
+          <Search className="text-muted-foreground absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search servers..."
-            className="w-full pl-9 pr-3 py-1.5 text-sm bg-background border border-input rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+            className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border py-1.5 pr-3 pl-9 text-sm transition-colors focus:ring-2"
           />
         </div>
       </div>
 
       {/* Server list */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">
-          Loading servers...
-        </div>
+        <div className="text-muted-foreground py-12 text-center">Loading servers...</div>
       ) : filteredServers.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border rounded-xl">
+        <div className="border-border rounded-xl border border-dashed py-16 text-center">
           {allServers.length === 0 ? (
             <>
-              <Server className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                No servers configured yet
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 mb-4">
+              <Server className="text-muted-foreground/50 mx-auto mb-3 h-10 w-10" />
+              <p className="text-muted-foreground text-sm">No servers configured yet</p>
+              <p className="text-muted-foreground mt-1 mb-4 text-xs">
                 Connect to MQTT brokers and OPC-UA servers to start collecting data
               </p>
               <button
                 onClick={handleAddServer}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 Add Server
@@ -266,10 +262,8 @@ export function ServersTab() {
             </>
           ) : (
             <>
-              <Search className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No servers match your filters
-              </p>
+              <Search className="text-muted-foreground/50 mx-auto mb-2 h-8 w-8" />
+              <p className="text-muted-foreground text-sm">No servers match your filters</p>
             </>
           )}
         </div>

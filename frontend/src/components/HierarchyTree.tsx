@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConfigStore } from '@/stores/configStore'
-import { useHierarchyCharacteristics, useDeleteHierarchyNode, useDeleteCharacteristic } from '@/api/hooks'
+import {
+  useHierarchyCharacteristics,
+  useDeleteHierarchyNode,
+  useDeleteCharacteristic,
+} from '@/api/hooks'
 import type { HierarchyNode } from '@/types'
 
 interface HierarchyTreeProps {
@@ -55,9 +59,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
   const hasChildren = node.children && node.children.length > 0
 
   // Load characteristics for this node
-  const { data: characteristics } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0
-  )
+  const { data: characteristics } = useHierarchyCharacteristics(isExpanded ? node.id : 0)
 
   const handleToggle = () => {
     if (hasChildren || node.characteristic_count) {
@@ -100,9 +102,9 @@ function TreeNode({ node, level }: TreeNodeProps) {
     <div>
       <div
         className={cn(
-          'group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer',
+          'group flex cursor-pointer items-center gap-1 rounded px-2 py-1.5',
           'hover:bg-muted',
-          isSelected && 'bg-primary/10 text-primary'
+          isSelected && 'bg-primary/10 text-primary',
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={handleSelect}
@@ -112,9 +114,9 @@ function TreeNode({ node, level }: TreeNodeProps) {
             e.stopPropagation()
             handleToggle()
           }}
-          className="p-0.5 hover:bg-muted-foreground/20 rounded cursor-pointer"
+          className="hover:bg-muted-foreground/20 cursor-pointer rounded p-0.5"
         >
-          {(hasChildren || node.characteristic_count) ? (
+          {hasChildren || node.characteristic_count ? (
             isExpanded ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
@@ -127,7 +129,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
         {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         <span className="flex-1 text-sm">{node.name}</span>
         {node.characteristic_count !== undefined && node.characteristic_count > 0 && (
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs">
             {node.characteristic_count}
           </span>
         )}
@@ -137,7 +139,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
               e.stopPropagation()
               setShowDeleteNodeDialog(true)
             }}
-            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-opacity cursor-pointer"
+            className="hover:bg-destructive/10 hover:text-destructive cursor-pointer rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
             title="Delete node"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -159,9 +161,9 @@ function TreeNode({ node, level }: TreeNodeProps) {
               <div
                 key={char.id}
                 className={cn(
-                  'group flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',
+                  'group flex cursor-pointer items-center gap-2 rounded px-2 py-1.5',
                   'hover:bg-muted text-sm',
-                  isCharSelected && 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                  isCharSelected && 'bg-primary/10 text-primary ring-primary/20 ring-1',
                 )}
                 style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
                 onClick={() => {
@@ -172,12 +174,12 @@ function TreeNode({ node, level }: TreeNodeProps) {
                 <span className="w-4" />
                 <div
                   className={cn(
-                    'w-2 h-2 rounded-full',
-                    char.in_control ? 'bg-green-500' : 'bg-destructive'
+                    'h-2 w-2 rounded-full',
+                    char.in_control ? 'bg-success' : 'bg-destructive',
                   )}
                 />
                 <span className="flex-1">{char.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {char.data_source ? char.data_source.type.toUpperCase() : 'MANUAL'}
                 </span>
                 <button
@@ -185,7 +187,7 @@ function TreeNode({ node, level }: TreeNodeProps) {
                     e.stopPropagation()
                     setCharToDelete({ id: char.id, name: char.name })
                   }}
-                  className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-opacity cursor-pointer"
+                  className="hover:bg-destructive/10 hover:text-destructive cursor-pointer rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
                   title="Delete characteristic"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -198,18 +200,24 @@ function TreeNode({ node, level }: TreeNodeProps) {
 
       {/* Delete Node Confirmation Dialog */}
       {showDeleteNodeDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowDeleteNodeDialog(false)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Delete Node?</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setShowDeleteNodeDialog(false)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-lg font-semibold">Delete Node?</h3>
             <p className="text-muted-foreground mb-4">
-              Are you sure you want to delete <strong>{node.name}</strong>?
-              This action cannot be undone.
+              Are you sure you want to delete <strong>{node.name}</strong>? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteNodeDialog(false)}
                 disabled={deleteNode.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -217,9 +225,9 @@ function TreeNode({ node, level }: TreeNodeProps) {
                 onClick={handleDeleteNode}
                 disabled={deleteNode.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-destructive text-destructive-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {deleteNode.isPending ? 'Deleting...' : 'Delete'}
@@ -231,18 +239,24 @@ function TreeNode({ node, level }: TreeNodeProps) {
 
       {/* Delete Characteristic Confirmation Dialog */}
       {charToDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setCharToDelete(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Delete Characteristic?</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setCharToDelete(null)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-lg font-semibold">Delete Characteristic?</h3>
             <p className="text-muted-foreground mb-4">
-              Are you sure you want to delete <strong>{charToDelete.name}</strong>?
-              This action cannot be undone.
+              Are you sure you want to delete <strong>{charToDelete.name}</strong>? This action
+              cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setCharToDelete(null)}
                 disabled={deleteCharacteristic.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -250,9 +264,9 @@ function TreeNode({ node, level }: TreeNodeProps) {
                 onClick={handleDeleteCharacteristic}
                 disabled={deleteCharacteristic.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-destructive text-destructive-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {deleteCharacteristic.isPending ? 'Deleting...' : 'Delete'}

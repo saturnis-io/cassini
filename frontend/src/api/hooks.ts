@@ -1,9 +1,43 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, auditApi, capabilityApi, characteristicApi, dataEntryApi, databaseApi, devtoolsApi, hierarchyApi, importApi, notificationApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
-import type { AuditLogParams, SmtpConfigUpdate, WebhookConfigCreate, WebhookConfigUpdate, NotificationPreferenceItem } from './client'
-import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate, RetentionPolicySet } from '@/types'
+import {
+  annotationApi,
+  auditApi,
+  capabilityApi,
+  characteristicApi,
+  dataEntryApi,
+  databaseApi,
+  devtoolsApi,
+  hierarchyApi,
+  importApi,
+  notificationApi,
+  opcuaApi,
+  plantApi,
+  retentionApi,
+  sampleApi,
+  userApi,
+  violationApi,
+} from './client'
+import type {
+  AuditLogParams,
+  SmtpConfigUpdate,
+  WebhookConfigCreate,
+  WebhookConfigUpdate,
+  NotificationPreferenceItem,
+} from './client'
+import type {
+  AnnotationCreate,
+  AnnotationUpdate,
+  Characteristic,
+  DatabaseDialect,
+  HierarchyNode,
+  OPCUAServerCreate,
+  OPCUAServerUpdate,
+  PlantCreate,
+  PlantUpdate,
+  RetentionPolicySet,
+} from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
 const CHART_DATA_REFETCH_MS = 30_000
@@ -24,7 +58,8 @@ export const queryKeys = {
   hierarchy: {
     all: ['hierarchy'] as const,
     tree: () => [...queryKeys.hierarchy.all, 'tree'] as const,
-    treeByPlant: (plantId: number) => [...queryKeys.hierarchy.all, 'tree', 'plant', plantId] as const,
+    treeByPlant: (plantId: number) =>
+      [...queryKeys.hierarchy.all, 'tree', 'plant', plantId] as const,
     node: (id: number) => [...queryKeys.hierarchy.all, 'node', id] as const,
     characteristics: (id: number) => [...queryKeys.hierarchy.all, 'characteristics', id] as const,
   },
@@ -51,7 +86,8 @@ export const queryKeys = {
   },
   annotations: {
     all: ['annotations'] as const,
-    list: (characteristicId: number) => [...queryKeys.annotations.all, 'list', characteristicId] as const,
+    list: (characteristicId: number) =>
+      [...queryKeys.annotations.all, 'list', characteristicId] as const,
   },
   database: {
     all: ['database'] as const,
@@ -67,7 +103,8 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.opcuaServers.details(), id] as const,
     status: () => [...queryKeys.opcuaServers.all, 'status'] as const,
     allStatus: (plantId?: number) => [...queryKeys.opcuaServers.status(), { plantId }] as const,
-    browse: (id: number, nodeId?: string) => [...queryKeys.opcuaServers.all, 'browse', id, nodeId] as const,
+    browse: (id: number, nodeId?: string) =>
+      [...queryKeys.opcuaServers.all, 'browse', id, nodeId] as const,
   },
   notifications: {
     all: ['notifications'] as const,
@@ -122,8 +159,7 @@ export function useUpdatePlant() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: PlantUpdate }) =>
-      plantApi.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: PlantUpdate }) => plantApi.update(id, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
       toast.success(`Updated site "${data.name}"`)
@@ -169,8 +205,13 @@ export function useCreateHierarchyNodeInPlant() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ plantId, data }: { plantId: number; data: { name: string; type: string; parent_id: number | null } }) =>
-      hierarchyApi.createNodeInPlant(plantId, data),
+    mutationFn: ({
+      plantId,
+      data,
+    }: {
+      plantId: number
+      data: { name: string; type: string; parent_id: number | null }
+    }) => hierarchyApi.createNodeInPlant(plantId, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
@@ -301,6 +342,9 @@ export function useCreateCharacteristic() {
       target_value?: number | null
       usl?: number | null
       lsl?: number | null
+      data_type?: 'variable' | 'attribute'
+      attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
+      default_sample_size?: number | null
     }) => characteristicApi.create(data as Partial<Characteristic>),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
@@ -313,16 +357,25 @@ export function useCreateCharacteristic() {
   })
 }
 
-export function useChartData(id: number, options?: {
-  limit?: number
-  startDate?: string
-  endDate?: string
-}, config?: {
-  /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
-  refetchInterval?: number | false
-}) {
+export function useChartData(
+  id: number,
+  options?: {
+    limit?: number
+    startDate?: string
+    endDate?: string
+  },
+  config?: {
+    /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
+    refetchInterval?: number | false
+  },
+) {
   return useQuery({
-    queryKey: queryKeys.characteristics.chartData(id, options?.limit, options?.startDate, options?.endDate),
+    queryKey: queryKeys.characteristics.chartData(
+      id,
+      options?.limit,
+      options?.startDate,
+      options?.endDate,
+    ),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,
     refetchInterval: config?.refetchInterval ?? CHART_DATA_REFETCH_MS,
@@ -358,7 +411,9 @@ export function useSubmitSample() {
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.characteristic_id) })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characteristics.detail(variables.characteristic_id),
+      })
       toast.success(`Sample recorded (ID: ${data.sample_id})`)
     },
     onError: (error: Error) => {
@@ -385,7 +440,9 @@ export function useSubmitAttributeData() {
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.characteristic_id) })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characteristics.detail(variables.characteristic_id),
+      })
       toast.success('Attribute data submitted')
     },
     onError: (error: Error) => {
@@ -398,14 +455,19 @@ export function useRecalculateLimits() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, excludeOoc, startDate, endDate, lastN }: {
+    mutationFn: ({
+      id,
+      excludeOoc,
+      startDate,
+      endDate,
+      lastN,
+    }: {
       id: number
       excludeOoc?: boolean
       startDate?: string
       endDate?: string
       lastN?: number
-    }) =>
-      characteristicApi.recalculateLimits(id, { excludeOoc, startDate, endDate, lastN }),
+    }) => characteristicApi.recalculateLimits(id, { excludeOoc, startDate, endDate, lastN }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({
@@ -423,11 +485,13 @@ export function useSetManualLimits() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: {
+    mutationFn: ({
+      id,
+      data,
+    }: {
       id: number
       data: { ucl: number; lcl: number; center_line: number; sigma: number }
-    }) =>
-      characteristicApi.setManualLimits(id, data),
+    }) => characteristicApi.setManualLimits(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({
@@ -445,8 +509,13 @@ export function useUpdateCharacteristic() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof characteristicApi.update>[1] }) =>
-      characteristicApi.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number
+      data: Parameters<typeof characteristicApi.update>[1]
+    }) => characteristicApi.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
@@ -492,8 +561,13 @@ export function useUpdateNelsonRules() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, ruleConfigs }: { id: number; ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[] }) =>
-      characteristicApi.updateRules(id, ruleConfigs),
+    mutationFn: ({
+      id,
+      ruleConfigs,
+    }: {
+      id: number
+      ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]
+    }) => characteristicApi.updateRules(id, ruleConfigs),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
       toast.success('Nelson rules updated')
@@ -554,21 +628,24 @@ export function useAcknowledgeViolation() {
     onMutate: async ({ id, reason, user }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.violations.all })
       const previousLists = queryClient.getQueriesData({ queryKey: queryKeys.violations.all })
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.violations.all },
-        (old: unknown) => {
-          const data = old as { items?: Array<Record<string, unknown>> } | undefined
-          if (!data?.items) return old
-          return {
-            ...data,
-            items: data.items.map((v) =>
-              v.id === id
-                ? { ...v, acknowledged: true, ack_user: user, ack_reason: reason, ack_timestamp: new Date().toISOString() }
-                : v
-            ),
-          }
+      queryClient.setQueriesData({ queryKey: queryKeys.violations.all }, (old: unknown) => {
+        const data = old as { items?: Array<Record<string, unknown>> } | undefined
+        if (!data?.items) return old
+        return {
+          ...data,
+          items: data.items.map((v) =>
+            v.id === id
+              ? {
+                  ...v,
+                  acknowledged: true,
+                  ack_user: user,
+                  ack_reason: reason,
+                  ack_timestamp: new Date().toISOString(),
+                }
+              : v,
+          ),
         }
-      )
+      })
       return { previousLists }
     },
     onError: (error: Error, _, context) => {
@@ -593,13 +670,19 @@ export function useBatchAcknowledgeViolation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: { violation_ids: number[]; reason: string; user: string; exclude_sample?: boolean }) =>
-      violationApi.batchAcknowledge(data),
+    mutationFn: (data: {
+      violation_ids: number[]
+      reason: string
+      user: string
+      exclude_sample?: boolean
+    }) => violationApi.batchAcknowledge(data),
     onSuccess: (data) => {
       if (data.failed > 0) {
         toast.warning(`${data.successful} acknowledged, ${data.failed} failed`)
       } else {
-        toast.success(`${data.successful} violation${data.successful !== 1 ? 's' : ''} acknowledged`)
+        toast.success(
+          `${data.successful} violation${data.successful !== 1 ? 's' : ''} acknowledged`,
+        )
       }
       // Invalidate in onSuccess (before mutate-level onSuccess closes the dialog)
       // so the query cache is refreshed while the component is still mounted
@@ -647,19 +730,14 @@ export function useExcludeSample() {
     onMutate: async ({ id, excluded }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.samples.all })
       const previousLists = queryClient.getQueriesData({ queryKey: queryKeys.samples.all })
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.samples.all },
-        (old: unknown) => {
-          const data = old as { items?: Array<Record<string, unknown>> } | undefined
-          if (!data?.items) return old
-          return {
-            ...data,
-            items: data.items.map((s) =>
-              s.id === id ? { ...s, is_excluded: excluded } : s
-            ),
-          }
+      queryClient.setQueriesData({ queryKey: queryKeys.samples.all }, (old: unknown) => {
+        const data = old as { items?: Array<Record<string, unknown>> } | undefined
+        if (!data?.items) return old
+        return {
+          ...data,
+          items: data.items.map((s) => (s.id === id ? { ...s, is_excluded: excluded } : s)),
         }
-      )
+      })
       return { previousLists }
     },
     onError: (error: Error, _, context) => {
@@ -704,8 +782,17 @@ export function useUpdateSample() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, measurements, reason, edited_by }: { id: number; measurements: number[]; reason: string; edited_by?: string }) =>
-      sampleApi.update(id, { measurements, reason, edited_by }),
+    mutationFn: ({
+      id,
+      measurements,
+      reason,
+      edited_by,
+    }: {
+      id: number
+      measurements: number[]
+      reason: string
+      edited_by?: string
+    }) => sampleApi.update(id, { measurements, reason, edited_by }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.editHistory(variables.id) })
@@ -762,8 +849,13 @@ export function useUpdateUser() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { username?: string; email?: string; password?: string; is_active?: boolean } }) =>
-      userApi.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number
+      data: { username?: string; email?: string; password?: string; is_active?: boolean }
+    }) => userApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('User updated')
@@ -849,8 +941,13 @@ export function useCreateAnnotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ characteristicId, data }: { characteristicId: number; data: AnnotationCreate }) =>
-      annotationApi.create(characteristicId, data),
+    mutationFn: ({
+      characteristicId,
+      data,
+    }: {
+      characteristicId: number
+      data: AnnotationCreate
+    }) => annotationApi.create(characteristicId, data),
     onMutate: async ({ characteristicId, data }) => {
       const queryKey = queryKeys.annotations.list(characteristicId)
       await queryClient.cancelQueries({ queryKey })
@@ -880,7 +977,9 @@ export function useCreateAnnotation() {
       toast.success('Annotation created')
     },
     onSettled: (_, __, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.annotations.list(variables.characteristicId),
+      })
     },
   })
 }
@@ -889,10 +988,19 @@ export function useUpdateAnnotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ characteristicId, annotationId, data }: { characteristicId: number; annotationId: number; data: AnnotationUpdate }) =>
-      annotationApi.update(characteristicId, annotationId, data),
+    mutationFn: ({
+      characteristicId,
+      annotationId,
+      data,
+    }: {
+      characteristicId: number
+      annotationId: number
+      data: AnnotationUpdate
+    }) => annotationApi.update(characteristicId, annotationId, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.annotations.list(variables.characteristicId),
+      })
       toast.success('Annotation updated')
     },
     onError: (error: Error) => {
@@ -905,8 +1013,13 @@ export function useDeleteAnnotation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ characteristicId, annotationId }: { characteristicId: number; annotationId: number }) =>
-      annotationApi.delete(characteristicId, annotationId),
+    mutationFn: ({
+      characteristicId,
+      annotationId,
+    }: {
+      characteristicId: number
+      annotationId: number
+    }) => annotationApi.delete(characteristicId, annotationId),
     onMutate: async ({ characteristicId, annotationId }) => {
       const queryKey = queryKeys.annotations.list(characteristicId)
       await queryClient.cancelQueries({ queryKey })
@@ -927,7 +1040,9 @@ export function useDeleteAnnotation() {
       toast.success('Annotation deleted')
     },
     onSettled: (_, __, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.annotations.list(variables.characteristicId) })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.annotations.list(variables.characteristicId),
+      })
     },
   })
 }
@@ -1210,8 +1325,7 @@ export function useDeleteHierarchyRetention() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (hierarchyId: number) =>
-      retentionApi.deleteHierarchyPolicy(hierarchyId),
+    mutationFn: (hierarchyId: number) => retentionApi.deleteHierarchyPolicy(hierarchyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Hierarchy retention override removed')
@@ -1242,8 +1356,7 @@ export function useDeleteCharacteristicRetention() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (charId: number) =>
-      retentionApi.deleteCharacteristicPolicy(charId),
+    mutationFn: (charId: number) => retentionApi.deleteCharacteristicPolicy(charId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Characteristic retention override removed')
@@ -1316,7 +1429,11 @@ export function useUploadFile() {
 
 export function useValidateMapping() {
   return useMutation({
-    mutationFn: ({ file, characteristicId, columnMapping }: {
+    mutationFn: ({
+      file,
+      characteristicId,
+      columnMapping,
+    }: {
       file: File
       characteristicId: number
       columnMapping: Record<string, number | null>
@@ -1328,7 +1445,11 @@ export function useConfirmImport() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ file, characteristicId, columnMapping }: {
+    mutationFn: ({
+      file,
+      characteristicId,
+      columnMapping,
+    }: {
       file: File
       characteristicId: number
       columnMapping: Record<string, number | null>

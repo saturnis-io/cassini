@@ -12,17 +12,17 @@ export function HistogramPositionSelector() {
   const { histogramPosition, setHistogramPosition } = useDashboardStore()
 
   return (
-    <div className="flex items-center border border-border rounded-lg overflow-hidden">
+    <div className="border-border flex items-center overflow-hidden rounded-lg border">
       {positions.map(({ value, icon: Icon, label }) => (
         <button
           key={value}
           onClick={() => setHistogramPosition(value)}
           title={label}
           className={cn(
-            'p-2 transition-colors border-r border-border last:border-r-0',
+            'border-border border-r p-2 transition-colors last:border-r-0',
             histogramPosition === value
               ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
           )}
         >
           <Icon className="h-4 w-4" />

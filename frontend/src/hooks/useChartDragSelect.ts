@@ -18,8 +18,8 @@ interface DragRect {
 }
 
 export interface DragSelection {
-  startIndex: number  // 0-based in data array
-  endIndex: number    // 0-based in data array
+  startIndex: number // 0-based in data array
+  endIndex: number // 0-based in data array
 }
 
 /**
@@ -111,11 +111,17 @@ export function useChartDragSelect(
         if (isTimestampRef.current) {
           startIndex = 0
           for (let i = 0; i < currentData.length; i++) {
-            if (currentData[i].timestampMs >= leftX) { startIndex = i; break }
+            if (currentData[i].timestampMs >= leftX) {
+              startIndex = i
+              break
+            }
           }
           endIndex = currentData.length - 1
           for (let i = currentData.length - 1; i >= 0; i--) {
-            if (currentData[i].timestampMs <= rightX) { endIndex = i; break }
+            if (currentData[i].timestampMs <= rightX) {
+              endIndex = i
+              break
+            }
           }
         } else {
           startIndex = Math.max(0, Math.round(leftX))

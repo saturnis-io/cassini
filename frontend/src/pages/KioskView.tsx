@@ -10,14 +10,12 @@ import { ControlChart } from '@/components/ControlChart'
  */
 function StatusIndicator({ status }: { status: 'ok' | 'warning' | 'violation' }) {
   const colors = {
-    ok: 'bg-green-500',
-    warning: 'bg-yellow-500',
-    violation: 'bg-red-500 animate-pulse',
+    ok: 'bg-success',
+    warning: 'bg-warning',
+    violation: 'bg-destructive animate-pulse',
   }
 
-  return (
-    <div className={cn('w-4 h-4 rounded-full', colors[status])} />
-  )
+  return <div className={cn('h-4 w-4 rounded-full', colors[status])} />
 }
 
 /**
@@ -33,16 +31,16 @@ function PaginationDots({
   onSelect: (index: number) => void
 }) {
   return (
-    <div className="flex gap-2 justify-center">
+    <div className="flex justify-center gap-2">
       {Array.from({ length: count }).map((_, i) => (
         <button
           key={i}
           onClick={() => onSelect(i)}
           className={cn(
-            'w-3 h-3 rounded-full transition-all',
+            'h-3 w-3 rounded-full transition-all',
             i === current
-              ? 'bg-zinc-100 scale-125'
-              : 'bg-zinc-600 hover:bg-zinc-500'
+              ? 'bg-foreground scale-125'
+              : 'bg-muted-foreground hover:bg-muted-foreground/80',
           )}
           aria-label={`Go to characteristic ${i + 1}`}
         />
@@ -73,7 +71,10 @@ export function KioskView() {
   const charIds = useMemo(() => {
     const chars = searchParams.get('chars')
     if (chars) {
-      return chars.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id))
+      return chars
+        .split(',')
+        .map((id) => parseInt(id.trim(), 10))
+        .filter((id) => !isNaN(id))
     }
     return []
   }, [searchParams])
@@ -133,8 +134,8 @@ export function KioskView() {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'ArrowLeft':
-          setCurrentIndex((prev) =>
-            (prev - 1 + displayCharacteristics.length) % displayCharacteristics.length
+          setCurrentIndex(
+            (prev) => (prev - 1 + displayCharacteristics.length) % displayCharacteristics.length,
           )
           break
         case 'ArrowRight':
@@ -153,8 +154,8 @@ export function KioskView() {
 
   // Navigation handlers
   const goToPrev = useCallback(() => {
-    setCurrentIndex((prev) =>
-      (prev - 1 + displayCharacteristics.length) % displayCharacteristics.length
+    setCurrentIndex(
+      (prev) => (prev - 1 + displayCharacteristics.length) % displayCharacteristics.length,
     )
   }, [displayCharacteristics.length])
 
@@ -165,10 +166,10 @@ export function KioskView() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="text-2xl font-semibold text-zinc-300">Loading...</div>
-          <div className="text-zinc-500 mt-2">Fetching characteristics</div>
+          <div className="text-muted-foreground text-2xl font-semibold">Loading...</div>
+          <div className="text-muted-foreground mt-2">Fetching characteristics</div>
         </div>
       </div>
     )
@@ -177,15 +178,15 @@ export function KioskView() {
   // No characteristics available
   if (!displayCharacteristics.length) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="text-2xl font-semibold text-zinc-300">No Characteristics</div>
-          <div className="text-zinc-500 mt-2">
+          <div className="text-muted-foreground text-2xl font-semibold">No Characteristics</div>
+          <div className="text-muted-foreground mt-2">
             {charIds.length > 0
               ? 'The specified characteristic IDs were not found'
               : 'No characteristics have been configured yet'}
           </div>
-          <div className="text-zinc-600 mt-4 text-sm">
+          <div className="text-muted-foreground mt-4 text-sm">
             Configure characteristics in Settings, or specify IDs via ?chars=1,2,3
           </div>
         </div>
@@ -198,20 +199,18 @@ export function KioskView() {
     : null
 
   return (
-    <div className="h-screen flex flex-col p-6 overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+      <div className="mb-4 flex flex-shrink-0 items-center justify-between">
         <div className="flex items-center gap-4">
           <StatusIndicator status={status} />
-          <h1 className="text-2xl font-bold text-zinc-100">
-            {currentChar?.name ?? 'Unknown'}
-          </h1>
+          <h1 className="text-foreground text-2xl font-bold">{currentChar?.name ?? 'Unknown'}</h1>
         </div>
 
         {/* Pause/Play control */}
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+          className="bg-muted hover:bg-muted/80 flex items-center gap-2 rounded-lg px-4 py-2 transition-colors"
         >
           {isPaused ? (
             <>
@@ -228,12 +227,9 @@ export function KioskView() {
       </div>
 
       {/* Chart area - use calc for explicit height that ResponsiveContainer needs */}
-      <div className="bg-zinc-900 rounded-lg p-4 relative" style={{ height: 'calc(100vh - 220px)' }}>
+      <div className="bg-card relative rounded-lg p-4" style={{ height: 'calc(100vh - 220px)' }}>
         {currentChar && (
-          <ControlChart
-            characteristicId={currentChar.id}
-            chartOptions={{ limit: 50 }}
-          />
+          <ControlChart characteristicId={currentChar.id} chartOptions={{ limit: 50 }} />
         )}
 
         {/* Navigation arrows */}
@@ -241,14 +237,14 @@ export function KioskView() {
           <>
             <button
               onClick={goToPrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-zinc-800/80 hover:bg-zinc-700 transition-colors"
+              className="bg-muted/80 hover:bg-muted absolute top-1/2 left-2 -translate-y-1/2 rounded-full p-2 transition-colors"
               aria-label="Previous characteristic"
             >
               <ChevronLeft className="h-8 w-8" />
             </button>
             <button
               onClick={goToNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-zinc-800/80 hover:bg-zinc-700 transition-colors"
+              className="bg-muted/80 hover:bg-muted absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-2 transition-colors"
               aria-label="Next characteristic"
             >
               <ChevronRight className="h-8 w-8" />
@@ -258,25 +254,23 @@ export function KioskView() {
       </div>
 
       {/* Stats bar */}
-      <div className="mt-4 flex items-center justify-between text-lg flex-shrink-0">
+      <div className="mt-4 flex flex-shrink-0 items-center justify-between text-lg">
         <div className="flex gap-8">
           <div>
-            <span className="text-zinc-500">Current: </span>
-            <span className="font-bold text-zinc-100">
-              {latestValue?.toFixed(3) ?? '-'}
-            </span>
+            <span className="text-muted-foreground">Current: </span>
+            <span className="text-foreground font-bold">{latestValue?.toFixed(3) ?? '-'}</span>
           </div>
           {chartData?.control_limits && (
             <>
               <div>
-                <span className="text-zinc-500">UCL: </span>
-                <span className="font-medium text-zinc-300">
+                <span className="text-muted-foreground">UCL: </span>
+                <span className="text-foreground font-medium">
                   {chartData.control_limits.ucl?.toFixed(3) ?? '-'}
                 </span>
               </div>
               <div>
-                <span className="text-zinc-500">LCL: </span>
-                <span className="font-medium text-zinc-300">
+                <span className="text-muted-foreground">LCL: </span>
+                <span className="text-foreground font-medium">
                   {chartData.control_limits.lcl?.toFixed(3) ?? '-'}
                 </span>
               </div>
@@ -286,8 +280,8 @@ export function KioskView() {
 
         {/* Unit display */}
         {currentChar?.unit && (
-          <div className="text-zinc-500">
-            Unit: <span className="text-zinc-300">{currentChar.unit}</span>
+          <div className="text-muted-foreground">
+            Unit: <span className="text-foreground">{currentChar.unit}</span>
           </div>
         )}
       </div>

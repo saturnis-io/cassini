@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { useHierarchyTreeByPlant, useCreateHierarchyNode, useCreateHierarchyNodeInPlant } from '@/api/hooks'
+import {
+  useHierarchyTreeByPlant,
+  useCreateHierarchyNode,
+  useCreateHierarchyNodeInPlant,
+} from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { usePlant } from '@/providers/PlantProvider'
 import { HierarchyTree } from '@/components/HierarchyTree'
@@ -10,7 +14,7 @@ import { cn } from '@/lib/utils'
 
 // UNS-compatible generic hierarchy types
 const NODE_TYPES = [
-  { value: 'Folder', label: 'Folder', icon: Box },           // Organizational grouping
+  { value: 'Folder', label: 'Folder', icon: Box }, // Organizational grouping
   { value: 'Enterprise', label: 'Enterprise', icon: Factory },
   { value: 'Site', label: 'Site', icon: Factory },
   { value: 'Area', label: 'Area', icon: Box },
@@ -24,9 +28,11 @@ export function ConfigurationView() {
   const { selectedPlant, isLoading: plantLoading, error: plantError } = usePlant()
 
   // Only use plant-scoped hierarchy - no global fallback
-  const { data: hierarchy, isLoading: hierarchyLoading, error: hierarchyError } = useHierarchyTreeByPlant(
-    selectedPlant?.id ?? 0
-  )
+  const {
+    data: hierarchy,
+    isLoading: hierarchyLoading,
+    error: hierarchyError,
+  } = useHierarchyTreeByPlant(selectedPlant?.id ?? 0)
 
   const isLoading = plantLoading || hierarchyLoading
 
@@ -73,8 +79,8 @@ export function ConfigurationView() {
   // Show error if plant loading failed
   if (plantError) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <AlertCircle className="h-8 w-8 text-destructive" />
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
+        <AlertCircle className="text-destructive h-8 w-8" />
         <div className="text-destructive">Failed to load plant data</div>
       </div>
     )
@@ -83,8 +89,8 @@ export function ConfigurationView() {
   // Show error if hierarchy loading failed
   if (hierarchyError) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <AlertCircle className="h-8 w-8 text-destructive" />
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
+        <AlertCircle className="text-destructive h-8 w-8" />
         <div className="text-destructive">Failed to load hierarchy: {hierarchyError.message}</div>
       </div>
     )
@@ -93,8 +99,8 @@ export function ConfigurationView() {
   // Show message if no plant is selected
   if (!selectedPlant && !plantLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <Factory className="h-8 w-8 text-muted-foreground" />
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
+        <Factory className="text-muted-foreground h-8 w-8" />
         <div className="text-muted-foreground">Select a site to view and manage hierarchy</div>
       </div>
     )
@@ -102,21 +108,21 @@ export function ConfigurationView() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-muted-foreground">Loading hierarchy...</div>
       </div>
     )
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-10rem)]">
+    <div className="flex h-[calc(100vh-10rem)] gap-6">
       {/* Left panel - Hierarchy tree */}
-      <div className="w-80 flex-shrink-0 border rounded-lg bg-card overflow-auto">
-        <div className="p-4 border-b flex items-center justify-between">
+      <div className="bg-card w-80 flex-shrink-0 overflow-auto rounded-lg border">
+        <div className="flex items-center justify-between border-b p-4">
           <h2 className="font-semibold">Hierarchy</h2>
           <button
             onClick={() => setShowAddNodeModal(true)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            className="hover:bg-muted rounded-lg p-1.5 transition-colors"
             title="Add hierarchy node"
           >
             <Plus className="h-4 w-4" />
@@ -128,12 +134,12 @@ export function ConfigurationView() {
 
         {/* Add Characteristic button when node selected */}
         {selectedNodeId && (
-          <div className="p-3 border-t">
+          <div className="border-t p-3">
             <button
               onClick={() => setShowWizard(true)}
               className={cn(
-                'w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg',
-                'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
+                'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium',
+                'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors',
               )}
             >
               <Plus className="h-4 w-4" />
@@ -144,18 +150,18 @@ export function ConfigurationView() {
       </div>
 
       {/* Right panel - Characteristic form */}
-      <div className="flex-1 border rounded-lg bg-card overflow-auto">
+      <div className="bg-card flex-1 overflow-auto rounded-lg border">
         {editingId || isCreatingNew ? (
           <CharacteristicForm characteristicId={editingId} />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
+          <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-4">
             <p>Select a characteristic from the hierarchy to edit</p>
             {selectedNodeId && (
               <button
                 onClick={() => setShowWizard(true)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg',
-                  'bg-primary text-primary-foreground hover:bg-primary/90'
+                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium',
+                  'bg-primary text-primary-foreground hover:bg-primary/90',
                 )}
               >
                 <Plus className="h-4 w-4" />
@@ -168,13 +174,13 @@ export function ConfigurationView() {
 
       {/* Add Node Modal */}
       {showAddNodeModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Add Hierarchy Node</h3>
               <button
                 onClick={() => setShowAddNodeModal(false)}
-                className="p-1 rounded hover:bg-muted"
+                className="hover:bg-muted rounded p-1"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -186,7 +192,7 @@ export function ConfigurationView() {
                 <select
                   value={nodeType}
                   onChange={(e) => setNodeType(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg bg-background"
+                  className="bg-background mt-1 w-full rounded-lg border px-3 py-2"
                 >
                   {NODE_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
@@ -203,22 +209,22 @@ export function ConfigurationView() {
                   value={nodeName}
                   onChange={(e) => setNodeName(e.target.value)}
                   placeholder="Enter node name"
-                  className="w-full mt-1 px-3 py-2 border rounded-lg"
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
                   autoFocus
                 />
               </div>
 
               {selectedNodeId && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Will be created under the selected node
                 </p>
               )}
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowAddNodeModal(false)}
-                className="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted"
+                className="hover:bg-muted rounded-lg border px-4 py-2 text-sm font-medium"
               >
                 Cancel
               </button>
@@ -226,12 +232,14 @@ export function ConfigurationView() {
                 onClick={handleCreateNode}
                 disabled={!nodeName.trim() || createNode.isPending || createNodeInPlant.isPending}
                 className={cn(
-                  'px-4 py-2 text-sm font-medium rounded-lg',
+                  'rounded-lg px-4 py-2 text-sm font-medium',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                  'disabled:cursor-not-allowed disabled:opacity-50',
                 )}
               >
-                {(createNode.isPending || createNodeInPlant.isPending) ? 'Creating...' : 'Create Node'}
+                {createNode.isPending || createNodeInPlant.isPending
+                  ? 'Creating...'
+                  : 'Create Node'}
               </button>
             </div>
           </div>

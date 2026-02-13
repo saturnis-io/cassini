@@ -19,10 +19,10 @@ export type SeparatorOption = '-' | '.' | '/' | '#'
 export type NumberPlacement = 'after' | 'before'
 
 export interface DisplayKeyFormat {
-  datePattern: string        // free-text token pattern, e.g. "YYMMDD"
+  datePattern: string // free-text token pattern, e.g. "YYMMDD"
   separator: SeparatorOption // between date and number parts
   numberPlacement: NumberPlacement
-  numberDigits: number       // zero-padding for sequence number
+  numberDigits: number // zero-padding for sequence number
 }
 
 export const DEFAULT_FORMAT: DisplayKeyFormat = {
@@ -52,7 +52,20 @@ export const SEPARATOR_OPTIONS: { value: SeparatorOption; label: string }[] = [
 export const NUMBER_DIGITS_OPTIONS = [2, 3, 4] as const
 
 const STORAGE_KEY = 'openspc-display-key-format'
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 /** Recognized tokens (order matters — longest first to avoid partial matches) */
 const DATE_TOKENS = ['YYYY', 'MMM', 'YY', 'MM', 'DD'] as const
@@ -69,7 +82,9 @@ export function getDisplayKeyFormat(): DisplayKeyFormat {
       }
       return { ...DEFAULT_FORMAT, ...parsed }
     }
-  } catch { /* fallback */ }
+  } catch {
+    /* fallback */
+  }
   return DEFAULT_FORMAT
 }
 
@@ -86,7 +101,7 @@ function applyDatePattern(yy: string, mm: string, dd: string, pattern: string): 
   const yyyy = `20${yy}`
   const monthIdx = parseInt(mm) - 1
   const monthName = MONTH_NAMES[monthIdx] ?? mm
-  const dayNum = String(parseInt(dd))  // strip leading zero for "MMM DD" style
+  const dayNum = String(parseInt(dd)) // strip leading zero for "MMM DD" style
 
   let result = pattern
   // Replace longest tokens first to avoid partial matches

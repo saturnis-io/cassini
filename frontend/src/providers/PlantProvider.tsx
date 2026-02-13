@@ -47,7 +47,7 @@ export function PlantProvider({ children }: PlantProviderProps) {
 
   // Derive selected plant from store's selectedPlantId
   const selectedPlant = selectedPlantId
-    ? plants.find((p) => p.id === selectedPlantId) ?? null
+    ? (plants.find((p) => p.id === selectedPlantId) ?? null)
     : null
 
   // Initialize with first plant if none selected, or if selected plant no longer exists
@@ -80,13 +80,15 @@ export function PlantProvider({ children }: PlantProviderProps) {
   }
 
   return (
-    <PlantContext.Provider value={{
-      plants,
-      selectedPlant,
-      setSelectedPlant,
-      isLoading,
-      error: error?.message ?? null,
-    }}>
+    <PlantContext.Provider
+      value={{
+        plants,
+        selectedPlant,
+        setSelectedPlant,
+        isLoading,
+        error: error?.message ?? null,
+      }}
+    >
       {children}
     </PlantContext.Provider>
   )

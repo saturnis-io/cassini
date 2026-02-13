@@ -1,7 +1,11 @@
 import { useState, useMemo } from 'react'
 import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useDashboardStore, type TimeRangeState, type TimeRangeOption } from '@/stores/dashboardStore'
+import {
+  useDashboardStore,
+  type TimeRangeState,
+  type TimeRangeOption,
+} from '@/stores/dashboardStore'
 import { TimePicker } from './TimePicker'
 
 /**
@@ -64,7 +68,11 @@ function CustomDateRangePicker({
 
   const isSameDay = (d1: Date | null, d2: Date) => {
     if (!d1) return false
-    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()
+    return (
+      d1.getDate() === d2.getDate() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getFullYear() === d2.getFullYear()
+    )
   }
 
   const isInRange = (date: Date | null) => {
@@ -72,11 +80,24 @@ function CustomDateRangePicker({
     return date >= startDate && date <= endDate
   }
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
   return (
-    <div className="p-3 space-y-3 min-w-[280px]">
+    <div className="min-w-[280px] space-y-3 p-3">
       <div className="text-sm font-medium">Custom Date Range</div>
 
       {/* Start/End Toggle */}
@@ -84,8 +105,10 @@ function CustomDateRangePicker({
         <button
           onClick={() => setActiveField('start')}
           className={cn(
-            'flex-1 text-left p-2 rounded border text-xs transition-colors',
-            activeField === 'start' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+            'flex-1 rounded border p-2 text-left text-xs transition-colors',
+            activeField === 'start'
+              ? 'border-primary bg-primary/10'
+              : 'border-border hover:border-primary/50',
           )}
         >
           <div className="text-muted-foreground">Start</div>
@@ -95,8 +118,10 @@ function CustomDateRangePicker({
         <button
           onClick={() => setActiveField('end')}
           className={cn(
-            'flex-1 text-left p-2 rounded border text-xs transition-colors',
-            activeField === 'end' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+            'flex-1 rounded border p-2 text-left text-xs transition-colors',
+            activeField === 'end'
+              ? 'border-primary bg-primary/10'
+              : 'border-border hover:border-primary/50',
           )}
         >
           <div className="text-muted-foreground">End</div>
@@ -106,8 +131,8 @@ function CustomDateRangePicker({
       </div>
 
       {/* Calendar */}
-      <div className="border border-border rounded p-2">
-        <div className="flex items-center justify-between mb-2">
+      <div className="border-border rounded border p-2">
+        <div className="mb-2 flex items-center justify-between">
           <button
             onClick={() => {
               if (viewMonth === 0) {
@@ -117,11 +142,13 @@ function CustomDateRangePicker({
                 setViewMonth(viewMonth - 1)
               }
             }}
-            className="p-1 hover:bg-muted rounded"
+            className="hover:bg-muted rounded p-1"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-medium">{monthNames[viewMonth]} {viewYear}</span>
+          <span className="text-sm font-medium">
+            {monthNames[viewMonth]} {viewYear}
+          </span>
           <button
             onClick={() => {
               if (viewMonth === 11) {
@@ -131,14 +158,16 @@ function CustomDateRangePicker({
                 setViewMonth(viewMonth + 1)
               }
             }}
-            className="p-1 hover:bg-muted rounded"
+            className="hover:bg-muted rounded p-1"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
         <div className="grid grid-cols-7 gap-1 text-center text-xs">
           {dayNames.map((day) => (
-            <div key={day} className="text-muted-foreground py-1">{day}</div>
+            <div key={day} className="text-muted-foreground py-1">
+              {day}
+            </div>
           ))}
           {calendarDays.map((date, i) => (
             <button
@@ -146,11 +175,11 @@ function CustomDateRangePicker({
               disabled={!date}
               onClick={() => date && handleDateSelect(date)}
               className={cn(
-                'py-1 rounded text-xs transition-colors',
+                'rounded py-1 text-xs transition-colors',
                 !date && 'invisible',
                 date && isSameDay(date, activeDate) && 'bg-primary text-primary-foreground',
                 date && !isSameDay(date, activeDate) && isInRange(date) && 'bg-primary/20',
-                date && !isSameDay(date, activeDate) && !isInRange(date) && 'hover:bg-muted'
+                date && !isSameDay(date, activeDate) && !isInRange(date) && 'hover:bg-muted',
               )}
             >
               {date?.getDate()}
@@ -160,8 +189,8 @@ function CustomDateRangePicker({
       </div>
 
       {/* Time Selection - using improved TimePicker */}
-      <div className="border border-border rounded p-3">
-        <div className="text-xs text-muted-foreground mb-2 text-center">
+      <div className="border-border rounded border p-3">
+        <div className="text-muted-foreground mb-2 text-center text-xs">
           Time for {activeField === 'start' ? 'Start' : 'End'}
         </div>
         <TimePicker
@@ -176,14 +205,14 @@ function CustomDateRangePicker({
       <div className="flex gap-2">
         <button
           onClick={onBack}
-          className="flex-1 px-3 py-1.5 text-sm border border-border rounded hover:bg-muted transition-colors"
+          className="border-border hover:bg-muted flex-1 rounded border px-3 py-1.5 text-sm transition-colors"
         >
           Back
         </button>
         <button
           onClick={() => onApply(startDate.toISOString(), endDate.toISOString())}
           disabled={startDate >= endDate}
-          className="flex-1 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded px-3 py-1.5 text-sm transition-colors disabled:opacity-50"
         >
           Apply
         </button>
@@ -222,11 +251,11 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
       return 'Custom range'
     }
     if (timeRange.type === 'points' && timeRange.pointsLimit) {
-      const preset = presets.find(p => p.type === 'points' && p.value === timeRange.pointsLimit)
+      const preset = presets.find((p) => p.type === 'points' && p.value === timeRange.pointsLimit)
       return preset?.label ?? `Last ${timeRange.pointsLimit}`
     }
     if (timeRange.type === 'duration' && timeRange.hoursBack) {
-      const preset = presets.find(p => p.type === 'duration' && p.value === timeRange.hoursBack)
+      const preset = presets.find((p) => p.type === 'duration' && p.value === timeRange.hoursBack)
       return preset?.label ?? `Last ${timeRange.hoursBack}h`
     }
     return timeRange.pointsLimit ? `Last ${timeRange.pointsLimit}` : 'All time'
@@ -250,14 +279,19 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors',
+          'flex items-center gap-1.5 rounded border px-2 py-1 text-xs transition-colors',
           'bg-card border-border hover:border-primary/50',
-          isOpen && 'border-primary'
+          isOpen && 'border-primary',
         )}
       >
-        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+        <Clock className="text-muted-foreground h-3.5 w-3.5" />
         <span>{getCurrentLabel()}</span>
-        <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+        <ChevronDown
+          className={cn(
+            'text-muted-foreground h-3 w-3 transition-transform',
+            isOpen && 'rotate-180',
+          )}
+        />
       </button>
 
       {isOpen && (
@@ -272,7 +306,7 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
           />
 
           {/* Dropdown */}
-          <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-lg min-w-[180px]">
+          <div className="bg-card border-border absolute top-full left-0 z-50 mt-1 min-w-[180px] rounded-lg border shadow-lg">
             {!showCustom ? (
               <>
                 {showAllTime && (
@@ -289,8 +323,10 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
                         setIsOpen(false)
                       }}
                       className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                        timeRange.type === 'points' && !timeRange.pointsLimit && 'bg-primary/10 text-primary'
+                        'hover:bg-muted w-full rounded px-3 py-1.5 text-left text-sm transition-colors',
+                        timeRange.type === 'points' &&
+                          !timeRange.pointsLimit &&
+                          'bg-primary/10 text-primary',
                       )}
                     >
                       All time
@@ -298,44 +334,52 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
                   </div>
                 )}
 
-                <div className={cn('p-1', showAllTime && 'border-t border-border')}>
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Recent</div>
-                  {presets.filter(p => p.type === 'points').map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                        timeRange.type === 'points' && timeRange.pointsLimit === preset.value && 'bg-primary/10 text-primary'
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+                <div className={cn('p-1', showAllTime && 'border-border border-t')}>
+                  <div className="text-muted-foreground px-2 py-1 text-xs font-medium">Recent</div>
+                  {presets
+                    .filter((p) => p.type === 'points')
+                    .map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={cn(
+                          'hover:bg-muted w-full rounded px-3 py-1.5 text-left text-sm transition-colors',
+                          timeRange.type === 'points' &&
+                            timeRange.pointsLimit === preset.value &&
+                            'bg-primary/10 text-primary',
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
                 </div>
 
-                <div className="border-t border-border p-1">
-                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Time</div>
-                  {presets.filter(p => p.type === 'duration').map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                        timeRange.type === 'duration' && timeRange.hoursBack === preset.value && 'bg-primary/10 text-primary'
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+                <div className="border-border border-t p-1">
+                  <div className="text-muted-foreground px-2 py-1 text-xs font-medium">Time</div>
+                  {presets
+                    .filter((p) => p.type === 'duration')
+                    .map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => handlePresetSelect(preset)}
+                        className={cn(
+                          'hover:bg-muted w-full rounded px-3 py-1.5 text-left text-sm transition-colors',
+                          timeRange.type === 'duration' &&
+                            timeRange.hoursBack === preset.value &&
+                            'bg-primary/10 text-primary',
+                        )}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
                 </div>
 
-                <div className="border-t border-border p-1">
+                <div className="border-border border-t p-1">
                   <button
                     onClick={() => setShowCustom(true)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded hover:bg-muted transition-colors',
-                      timeRange.type === 'custom' && 'bg-primary/10 text-primary'
+                      'hover:bg-muted flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors',
+                      timeRange.type === 'custom' && 'bg-primary/10 text-primary',
                     )}
                   >
                     <Calendar className="h-4 w-4" />

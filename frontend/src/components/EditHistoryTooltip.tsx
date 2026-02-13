@@ -19,7 +19,7 @@ export function EditHistoryTooltip({ sampleId, editCount }: EditHistoryTooltipPr
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         onClick={() => setIsOpen(!isOpen)}
-        className="text-amber-500 hover:text-amber-400 transition-colors"
+        className="text-warning hover:text-warning/80 transition-colors"
         title={`Modified ${editCount} time(s)`}
       >
         <History className="h-3.5 w-3.5" />
@@ -28,62 +28,60 @@ export function EditHistoryTooltip({ sampleId, editCount }: EditHistoryTooltipPr
       {isOpen && (
         <div
           className={cn(
-            'absolute z-50 left-0 top-full mt-1',
-            'bg-popover border border-border rounded-lg shadow-lg',
-            'min-w-[280px] max-w-[360px]',
-            'animate-in fade-in-0 zoom-in-95 duration-100'
+            'absolute top-full left-0 z-50 mt-1',
+            'bg-popover border-border rounded-lg border shadow-lg',
+            'max-w-[360px] min-w-[280px]',
+            'animate-in fade-in-0 zoom-in-95 duration-100',
           )}
           onMouseEnter={() => setIsOpen(true)}
           onMouseLeave={() => setIsOpen(false)}
         >
-          <div className="px-3 py-2 border-b border-border bg-muted/50 rounded-t-lg">
+          <div className="border-border bg-muted/50 rounded-t-lg border-b px-3 py-2">
             <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-amber-500" />
+              <History className="text-warning h-4 w-4" />
               <span className="text-sm font-medium">Edit History</span>
-              <span className="text-xs text-muted-foreground">({editCount} edit{editCount !== 1 ? 's' : ''})</span>
+              <span className="text-muted-foreground text-xs">
+                ({editCount} edit{editCount !== 1 ? 's' : ''})
+              </span>
             </div>
           </div>
 
           <div className="max-h-[300px] overflow-y-auto">
             {isLoading ? (
-              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              <div className="text-muted-foreground px-3 py-4 text-center text-sm">
                 Loading history...
               </div>
             ) : !history || history.length === 0 ? (
-              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              <div className="text-muted-foreground px-3 py-4 text-center text-sm">
                 No edit history found
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-border divide-y">
                 {history.map((entry, idx) => (
                   <div key={entry.id} className="px-3 py-2.5 text-sm">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-muted-foreground">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-muted-foreground text-xs">
                         {new Date(entry.edited_at).toLocaleString()}
                       </span>
                       {idx === 0 && (
-                        <span className="text-xs bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded">
+                        <span className="bg-warning/10 text-warning rounded px-1.5 py-0.5 text-xs">
                           Latest
                         </span>
                       )}
                     </div>
                     {entry.edited_by && (
-                      <div className="text-xs text-muted-foreground mb-1">
-                        by {entry.edited_by}
-                      </div>
+                      <div className="text-muted-foreground mb-1 text-xs">by {entry.edited_by}</div>
                     )}
-                    <div className="text-xs mb-1.5">
+                    <div className="mb-1.5 text-xs">
                       <span className="text-muted-foreground">Reason: </span>
                       <span className="italic">{entry.reason}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs font-mono">
-                      <span className="text-red-500/70 line-through">
+                    <div className="flex items-center gap-2 font-mono text-xs">
+                      <span className="text-destructive/70 line-through">
                         {entry.previous_mean.toFixed(4)}
                       </span>
                       <span className="text-muted-foreground">→</span>
-                      <span className="text-green-600">
-                        {entry.new_mean.toFixed(4)}
-                      </span>
+                      <span className="text-success">{entry.new_mean.toFixed(4)}</span>
                     </div>
                   </div>
                 ))}

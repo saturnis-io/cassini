@@ -47,7 +47,12 @@ function formatSliderTimestamp(isoString: string, spanMs: number): string {
   })
 }
 
-export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: ChartRangeSliderProps) {
+export function ChartRangeSlider({
+  totalPoints,
+  values,
+  labels,
+  timestamps,
+}: ChartRangeSliderProps) {
   const { rangeWindow, setRangeWindow } = useDashboardStore()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -76,43 +81,64 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
   }, [values])
 
   // Convert pixel position to data index
-  const pxToIndex = useCallback((px: number): number => {
-    if (!trackRef.current) return 0
-    const rect = trackRef.current.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (px - rect.left) / rect.width))
-    return Math.round(ratio * (totalPoints - 1))
-  }, [totalPoints])
+  const pxToIndex = useCallback(
+    (px: number): number => {
+      if (!trackRef.current) return 0
+      const rect = trackRef.current.getBoundingClientRect()
+      const ratio = Math.max(0, Math.min(1, (px - rect.left) / rect.width))
+      return Math.round(ratio * (totalPoints - 1))
+    },
+    [totalPoints],
+  )
 
   // Mouse/pointer handlers
-  const handlePointerDown = useCallback((e: React.PointerEvent, type: 'left' | 'right' | 'window') => {
-    e.preventDefault()
-    e.stopPropagation()
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setDragging(type)
-    dragStart.current = { x: e.clientX, startVal: start, endVal: end }
-  }, [start, end])
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent, type: 'left' | 'right' | 'window') => {
+      e.preventDefault()
+      e.stopPropagation()
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      setDragging(type)
+      dragStart.current = { x: e.clientX, startVal: start, endVal: end }
+    },
+    [start, end],
+  )
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging || !trackRef.current) return
-    const rect = trackRef.current.getBoundingClientRect()
-    const pxDelta = e.clientX - dragStart.current.x
-    const indexDelta = Math.round((pxDelta / rect.width) * (totalPoints - 1))
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging || !trackRef.current) return
+      const rect = trackRef.current.getBoundingClientRect()
+      const pxDelta = e.clientX - dragStart.current.x
+      const indexDelta = Math.round((pxDelta / rect.width) * (totalPoints - 1))
 
-    if (dragging === 'left') {
-      const newStart = Math.max(0, Math.min(dragStart.current.startVal + indexDelta, dragStart.current.endVal - 1))
-      setRangeWindow([newStart, dragStart.current.endVal])
-    } else if (dragging === 'right') {
-      const newEnd = Math.min(totalPoints - 1, Math.max(dragStart.current.endVal + indexDelta, dragStart.current.startVal + 1))
-      setRangeWindow([dragStart.current.startVal, newEnd])
-    } else if (dragging === 'window') {
-      const span = dragStart.current.endVal - dragStart.current.startVal
-      let newStart = dragStart.current.startVal + indexDelta
-      let newEnd = newStart + span
-      if (newStart < 0) { newStart = 0; newEnd = span }
-      if (newEnd > totalPoints - 1) { newEnd = totalPoints - 1; newStart = newEnd - span }
-      setRangeWindow([newStart, newEnd])
-    }
-  }, [dragging, totalPoints, setRangeWindow])
+      if (dragging === 'left') {
+        const newStart = Math.max(
+          0,
+          Math.min(dragStart.current.startVal + indexDelta, dragStart.current.endVal - 1),
+        )
+        setRangeWindow([newStart, dragStart.current.endVal])
+      } else if (dragging === 'right') {
+        const newEnd = Math.min(
+          totalPoints - 1,
+          Math.max(dragStart.current.endVal + indexDelta, dragStart.current.startVal + 1),
+        )
+        setRangeWindow([dragStart.current.startVal, newEnd])
+      } else if (dragging === 'window') {
+        const span = dragStart.current.endVal - dragStart.current.startVal
+        let newStart = dragStart.current.startVal + indexDelta
+        let newEnd = newStart + span
+        if (newStart < 0) {
+          newStart = 0
+          newEnd = span
+        }
+        if (newEnd > totalPoints - 1) {
+          newEnd = totalPoints - 1
+          newStart = newEnd - span
+        }
+        setRangeWindow([newStart, newEnd])
+      }
+    },
+    [dragging, totalPoints, setRangeWindow],
+  )
 
   const handlePointerUp = useCallback(() => {
     if (dragging) wasDraggingRef.current = true
@@ -120,21 +146,30 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
   }, [dragging])
 
   // Click on track to reposition window
-  const handleTrackClick = useCallback((e: React.MouseEvent) => {
-    if (dragging) return
-    // Suppress click that fires after a drag release (click event bubbles after pointerup)
-    if (wasDraggingRef.current) {
-      wasDraggingRef.current = false
-      return
-    }
-    const clickIndex = pxToIndex(e.clientX)
-    const halfWindow = Math.floor(windowSize / 2)
-    let newStart = clickIndex - halfWindow
-    let newEnd = newStart + windowSize - 1
-    if (newStart < 0) { newStart = 0; newEnd = windowSize - 1 }
-    if (newEnd > totalPoints - 1) { newEnd = totalPoints - 1; newStart = Math.max(0, newEnd - windowSize + 1) }
-    setRangeWindow([newStart, newEnd])
-  }, [dragging, pxToIndex, windowSize, totalPoints, setRangeWindow])
+  const handleTrackClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (dragging) return
+      // Suppress click that fires after a drag release (click event bubbles after pointerup)
+      if (wasDraggingRef.current) {
+        wasDraggingRef.current = false
+        return
+      }
+      const clickIndex = pxToIndex(e.clientX)
+      const halfWindow = Math.floor(windowSize / 2)
+      let newStart = clickIndex - halfWindow
+      let newEnd = newStart + windowSize - 1
+      if (newStart < 0) {
+        newStart = 0
+        newEnd = windowSize - 1
+      }
+      if (newEnd > totalPoints - 1) {
+        newEnd = totalPoints - 1
+        newStart = Math.max(0, newEnd - windowSize + 1)
+      }
+      setRangeWindow([newStart, newEnd])
+    },
+    [dragging, pxToIndex, windowSize, totalPoints, setRangeWindow],
+  )
 
   // Reset when total points change
   useEffect(() => {
@@ -171,23 +206,25 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
   return (
     <div className="w-full select-none">
       {/* Info row */}
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1 px-1">
+      <div className="text-muted-foreground mb-1 flex items-center justify-between px-1 text-[10px]">
         <span>{startLabel}</span>
-        <span className="font-medium text-foreground/70">{windowSize} of {totalPoints} samples</span>
+        <span className="text-foreground/70 font-medium">
+          {windowSize} of {totalPoints} samples
+        </span>
         <span>{endLabel}</span>
       </div>
 
       {/* Track */}
       <div
         ref={trackRef}
-        className="relative h-8 rounded-md bg-muted/50 border border-border cursor-pointer overflow-hidden"
+        className="bg-muted/50 border-border relative h-8 cursor-pointer overflow-hidden rounded-md border"
         onClick={handleTrackClick}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
         {/* Full sparkline in gray (background for unselected regions) */}
         <svg
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 h-full w-full"
           viewBox={`0 0 100 28`}
           preserveAspectRatio="none"
         >
@@ -203,26 +240,26 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
 
         {/* Dimmed regions outside selection */}
         <div
-          className="absolute inset-y-0 left-0 bg-background/40"
+          className="bg-background/40 absolute inset-y-0 left-0"
           style={{ width: `${leftPct}%` }}
         />
         <div
-          className="absolute inset-y-0 right-0 bg-background/40"
+          className="bg-background/40 absolute inset-y-0 right-0"
           style={{ width: `${100 - rightPct}%` }}
         />
 
         {/* Selected window */}
         <div
           className={cn(
-            'absolute inset-y-0 border-x-2 border-primary bg-primary/15',
-            dragging === 'window' ? 'cursor-grabbing' : 'cursor-grab'
+            'border-primary bg-primary/15 absolute inset-y-0 border-x-2',
+            dragging === 'window' ? 'cursor-grabbing' : 'cursor-grab',
           )}
           style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 0.5)}%` }}
           onPointerDown={(e) => handlePointerDown(e, 'window')}
         >
           {/* Sparkline highlight in selected region - accent color */}
           <svg
-            className="absolute inset-0 w-full h-full"
+            className="absolute inset-0 h-full w-full"
             viewBox={`${leftPct} 0 ${Math.max(widthPct, 0.5)} 28`}
             preserveAspectRatio="none"
           >
@@ -240,29 +277,33 @@ export function ChartRangeSlider({ totalPoints, values, labels, timestamps }: Ch
         {/* Left handle */}
         <div
           className={cn(
-            'absolute inset-y-0 w-3 -ml-1.5 cursor-ew-resize z-10 group flex items-center justify-center',
+            'group absolute inset-y-0 z-10 -ml-1.5 flex w-3 cursor-ew-resize items-center justify-center',
           )}
           style={{ left: `${leftPct}%` }}
           onPointerDown={(e) => handlePointerDown(e, 'left')}
         >
-          <div className={cn(
-            'w-1.5 h-4 rounded-full transition-colors',
-            dragging === 'left' ? 'bg-primary' : 'bg-primary/70 group-hover:bg-primary'
-          )} />
+          <div
+            className={cn(
+              'h-4 w-1.5 rounded-full transition-colors',
+              dragging === 'left' ? 'bg-primary' : 'bg-primary/70 group-hover:bg-primary',
+            )}
+          />
         </div>
 
         {/* Right handle */}
         <div
           className={cn(
-            'absolute inset-y-0 w-3 -ml-1.5 cursor-ew-resize z-10 group flex items-center justify-center',
+            'group absolute inset-y-0 z-10 -ml-1.5 flex w-3 cursor-ew-resize items-center justify-center',
           )}
           style={{ left: `${rightPct}%` }}
           onPointerDown={(e) => handlePointerDown(e, 'right')}
         >
-          <div className={cn(
-            'w-1.5 h-4 rounded-full transition-colors',
-            dragging === 'right' ? 'bg-primary' : 'bg-primary/70 group-hover:bg-primary'
-          )} />
+          <div
+            className={cn(
+              'h-4 w-1.5 rounded-full transition-colors',
+              dragging === 'right' ? 'bg-primary' : 'bg-primary/70 group-hover:bg-primary',
+            )}
+          />
         </div>
       </div>
     </div>

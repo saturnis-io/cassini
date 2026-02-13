@@ -39,11 +39,11 @@ export function DatabaseMaintenancePanel() {
   return (
     <div className="space-y-3">
       {/* Backup */}
-      <div className="p-4 bg-card border border-border rounded-xl space-y-3">
+      <div className="bg-card border-border space-y-3 rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-medium">Database Backup</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               SQLite: creates a file copy. Others: shows CLI command.
             </div>
           </div>
@@ -51,7 +51,7 @@ export function DatabaseMaintenancePanel() {
             <button
               onClick={() => setShowBackupDir(!showBackupDir)}
               className={cn(
-                'p-1.5 rounded-md border border-border hover:bg-muted transition-colors',
+                'border-border hover:bg-muted rounded-md border p-1.5 transition-colors',
                 showBackupDir && 'bg-muted border-primary/50',
               )}
               title="Custom backup directory"
@@ -61,7 +61,7 @@ export function DatabaseMaintenancePanel() {
             <button
               onClick={handleBackup}
               disabled={backupMutation.isPending}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-border rounded-lg hover:bg-muted disabled:opacity-50"
+              className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             >
               {backupMutation.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -76,7 +76,7 @@ export function DatabaseMaintenancePanel() {
         {/* Optional backup directory input */}
         {showBackupDir && (
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label className="text-muted-foreground mb-1 block text-xs font-medium">
               Backup Directory (leave empty for default)
             </label>
             <input
@@ -84,44 +84,40 @@ export function DatabaseMaintenancePanel() {
               value={backupDir}
               onChange={(e) => setBackupDir(e.target.value)}
               placeholder="e.g. /mnt/backups or \\\\server\\share\\backups"
-              className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-1.5 text-sm focus:ring-2"
             />
           </div>
         )}
 
         {/* Backup result */}
         {lastBackup && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 space-y-1.5">
-            <div className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-              {lastBackup.message}
-            </div>
+          <div className="border-success/20 bg-success/10 space-y-1.5 rounded-xl border p-3">
+            <div className="text-success text-sm font-medium">{lastBackup.message}</div>
             {lastBackup.path && (
               <div className="flex items-center gap-2">
-                <code className="text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded flex-1 truncate">
+                <code className="text-muted-foreground bg-background/50 flex-1 truncate rounded px-2 py-1 text-xs">
                   {lastBackup.path}
                 </code>
                 <button
                   onClick={() => copyPath(lastBackup.path!)}
-                  className="p-1 hover:bg-muted rounded shrink-0"
+                  className="hover:bg-muted shrink-0 rounded p-1"
                   title="Copy path"
                 >
                   {copiedPath ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <CheckCircle2 className="text-success h-3.5 w-3.5" />
                   ) : (
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Copy className="text-muted-foreground h-3.5 w-3.5" />
                   )}
                 </button>
               </div>
             )}
             {lastBackup.size_mb != null && (
-              <div className="text-xs text-muted-foreground">
-                Size: {lastBackup.size_mb} MB
-              </div>
+              <div className="text-muted-foreground text-xs">Size: {lastBackup.size_mb} MB</div>
             )}
             {lastBackup.command && (
               <div className="mt-2">
-                <div className="text-xs text-muted-foreground mb-1">CLI command:</div>
-                <code className="text-xs bg-background/50 px-2 py-1 rounded block">
+                <div className="text-muted-foreground mb-1 text-xs">CLI command:</div>
+                <code className="bg-background/50 block rounded px-2 py-1 text-xs">
                   {lastBackup.command}
                 </code>
               </div>
@@ -131,10 +127,10 @@ export function DatabaseMaintenancePanel() {
       </div>
 
       {/* Vacuum/Optimize */}
-      <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl">
+      <div className="bg-card border-border flex items-center justify-between rounded-xl border p-4">
         <div>
           <div className="text-sm font-medium">Optimize Database</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             Reclaims space and updates statistics (VACUUM/ANALYZE).
           </div>
         </div>
@@ -142,7 +138,7 @@ export function DatabaseMaintenancePanel() {
           <button
             onClick={() => setShowVacuumConfirm(true)}
             disabled={vacuumMutation.isPending}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border border-border rounded-lg hover:bg-muted disabled:opacity-50"
+            className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
             {vacuumMutation.isPending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -155,7 +151,7 @@ export function DatabaseMaintenancePanel() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowVacuumConfirm(false)}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted"
+              className="border-border hover:bg-muted rounded-lg border px-3 py-1.5 text-sm"
             >
               Cancel
             </button>
@@ -164,7 +160,7 @@ export function DatabaseMaintenancePanel() {
                 vacuumMutation.mutate()
                 setShowVacuumConfirm(false)
               }}
-              className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-3 py-1.5 text-sm font-medium"
             >
               Confirm
             </button>

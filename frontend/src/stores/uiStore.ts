@@ -45,6 +45,6 @@ export const useUIStore = create<UIState>()(
         sidebarState: state.sidebarState,
         selectedPlantId: state.selectedPlantId,
       }),
-    }
-  )
+    },
+  ),
 )

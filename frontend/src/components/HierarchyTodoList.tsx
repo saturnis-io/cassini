@@ -1,8 +1,26 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, AlertCircle, Clock, CheckCircle, ListChecks, Loader2 } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronDown,
+  Factory,
+  Cog,
+  Box,
+  Cpu,
+  Settings,
+  AlertCircle,
+  Clock,
+  CheckCircle,
+  ListChecks,
+  Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useHierarchyTreeByPlant, useHierarchyCharacteristics, useCharacteristic, useCharacteristics } from '@/api/hooks'
+import {
+  useHierarchyTreeByPlant,
+  useHierarchyCharacteristics,
+  useCharacteristic,
+  useCharacteristics,
+} from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
 import { SelectionToolbar } from './SelectionToolbar'
@@ -66,7 +84,7 @@ function IndeterminateCheckbox({
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       onClick={(e) => e.stopPropagation()}
-      className="h-4 w-4 rounded border-border cursor-pointer"
+      className="border-border h-4 w-4 cursor-pointer rounded"
     />
   )
 }
@@ -77,11 +95,11 @@ function IndeterminateCheckbox({
 function StatusBadge({ status }: { status: CharacteristicStatus }) {
   const styles = {
     OOC: 'bg-destructive text-destructive-foreground',
-    DUE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200',
-    OK: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200',
+    DUE: 'bg-warning/10 text-warning',
+    OK: 'bg-success/10 text-success',
   }
   return (
-    <span className={cn('px-1.5 py-0.5 text-[10px] font-bold rounded-full', styles[status])}>
+    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-bold', styles[status])}>
       {status}
     </span>
   )
@@ -93,48 +111,53 @@ function StatusBadge({ status }: { status: CharacteristicStatus }) {
 function StatusFilterTabs({
   value,
   onChange,
-  counts
+  counts,
 }: {
   value: StatusFilter
   onChange: (v: StatusFilter) => void
   counts: { OOC: number; DUE: number; OK: number; ALL: number }
 }) {
-  const tabs: { status: StatusFilter; label: string; activeClass: string; inactiveClass: string }[] = [
+  const tabs: {
+    status: StatusFilter
+    label: string
+    activeClass: string
+    inactiveClass: string
+  }[] = [
     {
       status: 'ALL',
       label: 'All',
       activeClass: 'bg-primary text-primary-foreground',
-      inactiveClass: 'hover:bg-muted text-foreground'
+      inactiveClass: 'hover:bg-muted text-foreground',
     },
     {
       status: 'OOC',
       label: 'OOC',
       activeClass: 'bg-destructive text-destructive-foreground',
-      inactiveClass: 'hover:bg-destructive/10 text-destructive'
+      inactiveClass: 'hover:bg-destructive/10 text-destructive',
     },
     {
       status: 'DUE',
       label: 'Due',
-      activeClass: 'bg-yellow-500 text-yellow-950 dark:text-yellow-50',
-      inactiveClass: 'hover:bg-yellow-100 text-yellow-700 dark:hover:bg-yellow-900/30 dark:text-yellow-400'
+      activeClass: 'bg-warning text-warning-foreground',
+      inactiveClass: 'hover:bg-warning/10 text-warning',
     },
     {
       status: 'OK',
       label: 'OK',
-      activeClass: 'bg-green-600 text-white',
-      inactiveClass: 'hover:bg-green-100 text-green-700 dark:hover:bg-green-900/30 dark:text-green-400'
+      activeClass: 'bg-success text-success-foreground',
+      inactiveClass: 'hover:bg-success/10 text-success',
     },
   ]
 
   return (
-    <div className="flex border border-border rounded overflow-hidden">
+    <div className="border-border flex overflow-hidden rounded border">
       {tabs.map((tab) => (
         <button
           key={tab.status}
           onClick={() => onChange(tab.status)}
           className={cn(
-            'px-2 py-1 text-xs transition-colors flex items-center gap-1 font-medium',
-            value === tab.status ? tab.activeClass : tab.inactiveClass
+            'flex items-center gap-1 px-2 py-1 text-xs font-medium transition-colors',
+            value === tab.status ? tab.activeClass : tab.inactiveClass,
           )}
         >
           {tab.label}
@@ -154,10 +177,10 @@ function FolderStatusSummary({ oocCount, dueCount }: { oocCount: number; dueCoun
   return (
     <span className="flex items-center gap-1 text-xs font-medium">
       {oocCount > 0 && (
-        <span className="px-1.5 py-0.5 rounded bg-destructive/20 text-destructive">{oocCount}</span>
+        <span className="bg-destructive/20 text-destructive rounded px-1.5 py-0.5">{oocCount}</span>
       )}
       {dueCount > 0 && (
-        <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">{dueCount}</span>
+        <span className="bg-warning/10 text-warning rounded px-1.5 py-0.5">{dueCount}</span>
       )}
     </span>
   )
@@ -184,7 +207,9 @@ function findPathToNode(tree: HierarchyNode[], targetNodeId: number): number[] {
 
 export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   const { selectedPlant, isLoading: plantLoading } = usePlant()
-  const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(selectedPlant?.id ?? 0)
+  const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(
+    selectedPlant?.id ?? 0,
+  )
   const isLoading = plantLoading || hierarchyLoading
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
@@ -216,7 +241,7 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
 
   // Fetch all characteristics for the plant to compute accurate status counts
   const { data: allPlantChars } = useCharacteristics(
-    selectedPlant?.id ? { plant_id: selectedPlant.id, per_page: 1000 } : undefined
+    selectedPlant?.id ? { plant_id: selectedPlant.id, per_page: 1000 } : undefined,
   )
 
   const statusCounts = useMemo(() => {
@@ -243,11 +268,13 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   // Show message if no plant is selected
   if (!selectedPlant && !plantLoading) {
     return (
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
-        <div className="px-3 py-2 border-b">
-          <h2 className="font-semibold text-sm">Characteristics</h2>
+      <div
+        className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
+      >
+        <div className="border-b px-3 py-2">
+          <h2 className="text-sm font-semibold">Characteristics</h2>
         </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
           <span>Select a plant to view characteristics</span>
         </div>
       </div>
@@ -256,11 +283,13 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
 
   if (isLoading) {
     return (
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
-        <div className="px-3 py-2 border-b">
-          <h2 className="font-semibold text-sm">Characteristics</h2>
+      <div
+        className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
+      >
+        <div className="border-b px-3 py-2">
+          <h2 className="text-sm font-semibold">Characteristics</h2>
         </div>
-        <div className="flex-1 flex items-center justify-center text-muted-foreground gap-2 text-sm">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Loading hierarchy...</span>
         </div>
@@ -270,17 +299,19 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
 
   return (
     <>
-      <div className={cn('border rounded-lg bg-card h-full flex flex-col overflow-hidden', className)}>
-        <div className="px-3 py-2 border-b space-y-2">
+      <div
+        className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
+      >
+        <div className="space-y-2 border-b px-3 py-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-sm">Characteristics</h2>
+            <h2 className="text-sm font-semibold">Characteristics</h2>
             <button
               onClick={() => setMultiSelectMode(!isMultiSelectMode)}
               className={cn(
-                'flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg transition-colors',
+                'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors',
                 isMultiSelectMode
                   ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted text-muted-foreground'
+                  : 'hover:bg-muted text-muted-foreground',
               )}
               title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
             >
@@ -288,11 +319,7 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
               {isMultiSelectMode ? 'Done' : 'Select'}
             </button>
           </div>
-          <StatusFilterTabs
-            value={statusFilter}
-            onChange={setStatusFilter}
-            counts={statusCounts}
-          />
+          <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
         </div>
         <div className="flex-1 overflow-auto p-2">
           <div className="space-y-1">
@@ -329,14 +356,16 @@ function TodoTreeNode({
   level,
   statusFilter,
   expandedNodeIds,
-  toggleNodeExpanded
+  toggleNodeExpanded,
 }: TodoTreeNodeProps) {
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const openInputModal = useDashboardStore((state) => state.openInputModal)
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const selectedCharacteristicIds = useDashboardStore((state) => state.selectedCharacteristicIds)
-  const toggleCharacteristicSelection = useDashboardStore((state) => state.toggleCharacteristicSelection)
+  const toggleCharacteristicSelection = useDashboardStore(
+    (state) => state.toggleCharacteristicSelection,
+  )
   const selectAllCharacteristics = useDashboardStore((state) => state.selectAllCharacteristics)
   const deselectAllCharacteristics = useDashboardStore((state) => state.deselectAllCharacteristics)
 
@@ -345,7 +374,7 @@ function TodoTreeNode({
 
   // Load characteristics for this node when expanded
   const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0
+    isExpanded ? node.id : 0,
   )
 
   // Calculate status counts for this folder
@@ -398,10 +427,7 @@ function TodoTreeNode({
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded cursor-pointer',
-          'hover:bg-muted'
-        )}
+        className={cn('flex cursor-pointer items-center gap-1 rounded px-2 py-1', 'hover:bg-muted')}
         style={{ paddingLeft: `${level * 14 + 6}px` }}
         onClick={handleToggle}
       >
@@ -417,9 +443,9 @@ function TodoTreeNode({
             e.stopPropagation()
             handleToggle()
           }}
-          className="p-0.5 hover:bg-muted-foreground/20 rounded cursor-pointer"
+          className="hover:bg-muted-foreground/20 cursor-pointer rounded p-0.5"
         >
-          {(hasChildren || node.characteristic_count) ? (
+          {hasChildren || node.characteristic_count ? (
             isExpanded ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
@@ -434,11 +460,13 @@ function TodoTreeNode({
         {isExpanded && (
           <FolderStatusSummary oocCount={statusCounts.OOC} dueCount={statusCounts.DUE} />
         )}
-        {!isExpanded && node.characteristic_count !== undefined && node.characteristic_count > 0 && (
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-            {node.characteristic_count}
-          </span>
-        )}
+        {!isExpanded &&
+          node.characteristic_count !== undefined &&
+          node.characteristic_count > 0 && (
+            <span className="bg-muted rounded px-1.5 py-0.5 text-xs">
+              {node.characteristic_count}
+            </span>
+          )}
       </div>
 
       {isExpanded && (
@@ -458,7 +486,7 @@ function TodoTreeNode({
           {/* Loading indicator for characteristics */}
           {isLoadingChars && (
             <div
-              className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"
+              className="text-muted-foreground flex items-center gap-2 px-2 py-1 text-xs"
               style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
             >
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -467,71 +495,75 @@ function TodoTreeNode({
           )}
 
           {/* No matching characteristics message */}
-          {!isLoadingChars && characteristics && characteristics.length > 0 && filteredCharacteristics?.length === 0 && (
-            <div
-              className="px-2 py-1 text-xs text-muted-foreground italic"
-              style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
-            >
-              No {statusFilter.toLowerCase()} characteristics
-            </div>
-          )}
+          {!isLoadingChars &&
+            characteristics &&
+            characteristics.length > 0 &&
+            filteredCharacteristics?.length === 0 && (
+              <div
+                className="text-muted-foreground px-2 py-1 text-xs italic"
+                style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
+              >
+                No {statusFilter.toLowerCase()} characteristics
+              </div>
+            )}
 
           {/* Characteristics under this node */}
-          {!isLoadingChars && filteredCharacteristics?.map((char) => {
-            const status = getCharacteristicStatus(char)
-            const isSelected = selectedId === char.id
-            const isChecked = selectedCharacteristicIds.has(char.id)
+          {!isLoadingChars &&
+            filteredCharacteristics?.map((char) => {
+              const status = getCharacteristicStatus(char)
+              const isSelected = selectedId === char.id
+              const isChecked = selectedCharacteristicIds.has(char.id)
 
-            return (
-              <div
-                key={char.id}
-                className={cn(
-                  'group flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer',
-                  'hover:bg-muted text-xs transition-colors',
-                  isSelected && !isMultiSelectMode && 'bg-primary/10 ring-1 ring-primary/30',
-                  isChecked && isMultiSelectMode && 'bg-primary/10',
-                  status === 'OOC' && !isChecked && 'bg-destructive/5',
-                  status === 'DUE' && !isChecked && 'bg-yellow-500/5'
-                )}
-                style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
-                onClick={() => {
-                  if (isMultiSelectMode) {
-                    toggleCharacteristicSelection(char.id)
-                  } else {
-                    setSelectedId(char.id)
-                  }
-                }}
-              >
-                {isMultiSelectMode ? (
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggleCharacteristicSelection(char.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-4 w-4 rounded border-border cursor-pointer"
-                  />
-                ) : (
-                  <span className="w-4" />
-                )}
-                {status === 'OOC' && <AlertCircle className="h-4 w-4 text-destructive" />}
-                {status === 'DUE' && <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />}
-                {status === 'OK' && <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />}
-                <span className="flex-1 font-medium">{char.name}</span>
-                <StatusBadge status={status} />
-                {!isMultiSelectMode && !char.data_source && (
-                  <button
-                    className="text-xs text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openInputModal(char.id)
-                    }}
-                  >
-                    Enter
-                  </button>
-                )}
-              </div>
-            )
-          })}
+              return (
+                <div
+                  key={char.id}
+                  className={cn(
+                    'group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1',
+                    'hover:bg-muted text-xs transition-colors',
+                    isSelected && !isMultiSelectMode && 'bg-primary/10 ring-primary/30 ring-1',
+                    isChecked && isMultiSelectMode && 'bg-primary/10',
+                    status === 'OOC' && !isChecked && 'bg-destructive/5',
+                    status === 'DUE' && !isChecked && 'bg-warning/5',
+                  )}
+                  style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
+                  onClick={() => {
+                    if (isMultiSelectMode) {
+                      toggleCharacteristicSelection(char.id)
+                    } else {
+                      setSelectedId(char.id)
+                    }
+                  }}
+                >
+                  {isMultiSelectMode ? (
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleCharacteristicSelection(char.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="border-border h-4 w-4 cursor-pointer rounded"
+                    />
+                  ) : (
+                    <span className="w-4" />
+                  )}
+                  {status === 'OOC' && <AlertCircle className="text-destructive h-4 w-4" />}
+                  {status === 'DUE' && <Clock className="text-warning h-4 w-4" />}
+                  {status === 'OK' && <CheckCircle className="text-success h-4 w-4" />}
+                  <span className="flex-1 font-medium">{char.name}</span>
+                  <StatusBadge status={status} />
+                  {!isMultiSelectMode && !char.data_source && (
+                    <button
+                      className="text-primary text-xs opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openInputModal(char.id)
+                      }}
+                    >
+                      Enter
+                    </button>
+                  )}
+                </div>
+              )
+            })}
         </div>
       )}
     </div>

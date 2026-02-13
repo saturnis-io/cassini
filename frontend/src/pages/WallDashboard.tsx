@@ -48,14 +48,14 @@ function GridSizeSelector({
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors"
+        className="bg-muted hover:bg-muted/80 flex items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors"
       >
         <Grid2x2 className="h-4 w-4" />
         <span>{value}</span>
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 bg-zinc-800 rounded shadow-lg border border-zinc-700 z-10">
+        <div className="border-border bg-muted absolute top-full right-0 z-10 mt-1 rounded border shadow-lg">
           {sizes.map((size) => (
             <button
               key={size}
@@ -64,8 +64,8 @@ function GridSizeSelector({
                 setIsOpen(false)
               }}
               className={cn(
-                'block w-full px-4 py-2 text-left text-sm hover:bg-zinc-700 transition-colors',
-                value === size && 'bg-zinc-700'
+                'hover:bg-muted-foreground/20 block w-full px-4 py-2 text-left text-sm transition-colors',
+                value === size && 'bg-muted-foreground/20',
               )}
             >
               {size}
@@ -102,54 +102,55 @@ function ExpandedChartModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-8"
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 rounded-lg w-full max-w-6xl h-[80vh] flex flex-col"
+        className="bg-card flex h-[80vh] w-full max-w-6xl flex-col rounded-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-xl font-semibold text-zinc-100">
-            {characteristicName}
-          </h2>
+        <div className="border-border flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-foreground text-xl font-semibold">{characteristicName}</h2>
           <button
             onClick={onClose}
-            className="p-2 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-2 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Chart area */}
-        <div className="flex-1 p-6 min-h-0">
-          <ControlChart
-            characteristicId={characteristicId}
-            chartOptions={{ limit: 100 }}
-          />
+        <div className="min-h-0 flex-1 p-6">
+          <ControlChart characteristicId={characteristicId} chartOptions={{ limit: 100 }} />
         </div>
 
         {/* Stats footer */}
         {chartData && (
-          <div className="px-6 py-4 border-t border-zinc-800 flex items-center gap-8 text-sm">
+          <div className="border-border flex items-center gap-8 border-t px-6 py-4 text-sm">
             <div>
-              <span className="text-zinc-500">Points: </span>
-              <span className="text-zinc-100">{chartData.data_points?.length ?? 0}</span>
+              <span className="text-muted-foreground">Points: </span>
+              <span className="text-foreground">{chartData.data_points?.length ?? 0}</span>
             </div>
             {chartData.control_limits && (
               <>
                 <div>
-                  <span className="text-zinc-500">UCL: </span>
-                  <span className="text-zinc-100">{chartData.control_limits.ucl?.toFixed(4) ?? '-'}</span>
+                  <span className="text-muted-foreground">UCL: </span>
+                  <span className="text-foreground">
+                    {chartData.control_limits.ucl?.toFixed(4) ?? '-'}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-zinc-500">CL: </span>
-                  <span className="text-zinc-100">{chartData.control_limits.center_line?.toFixed(4) ?? '-'}</span>
+                  <span className="text-muted-foreground">CL: </span>
+                  <span className="text-foreground">
+                    {chartData.control_limits.center_line?.toFixed(4) ?? '-'}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-zinc-500">LCL: </span>
-                  <span className="text-zinc-100">{chartData.control_limits.lcl?.toFixed(4) ?? '-'}</span>
+                  <span className="text-muted-foreground">LCL: </span>
+                  <span className="text-foreground">
+                    {chartData.control_limits.lcl?.toFixed(4) ?? '-'}
+                  </span>
                 </div>
               </>
             )}
@@ -179,7 +180,7 @@ export function WallDashboard() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [gridSize, setGridSize] = useState<GridSize>(() => {
     const param = searchParams.get('grid')
-    return (param && param in GRID_CONFIGS) ? param as GridSize : '2x2'
+    return param && param in GRID_CONFIGS ? (param as GridSize) : '2x2'
   })
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
@@ -187,7 +188,10 @@ export function WallDashboard() {
   const charIds = useMemo(() => {
     const chars = searchParams.get('chars')
     if (chars) {
-      return chars.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id))
+      return chars
+        .split(',')
+        .map((id) => parseInt(id.trim(), 10))
+        .filter((id) => !isNaN(id))
     }
     return []
   }, [searchParams])
@@ -208,20 +212,21 @@ export function WallDashboard() {
   }, [allCharacteristics, charIds, gridSize])
 
   // Get expanded characteristic name
-  const expandedChar = expandedId
-    ? displayCharacteristics.find((c) => c.id === expandedId)
-    : null
+  const expandedChar = expandedId ? displayCharacteristics.find((c) => c.id === expandedId) : null
 
   // Grid configuration
   const gridConfig = GRID_CONFIGS[gridSize]
 
   // Update URL when grid size changes
-  const handleGridSizeChange = useCallback((size: GridSize) => {
-    setGridSize(size)
-    const newParams = new URLSearchParams(searchParams)
-    newParams.set('grid', size)
-    setSearchParams(newParams)
-  }, [searchParams, setSearchParams])
+  const handleGridSizeChange = useCallback(
+    (size: GridSize) => {
+      setGridSize(size)
+      const newParams = new URLSearchParams(searchParams)
+      newParams.set('grid', size)
+      setSearchParams(newParams)
+    },
+    [searchParams, setSearchParams],
+  )
 
   // Save preset
   const handleSavePreset = useCallback(() => {
@@ -234,9 +239,7 @@ export function WallDashboard() {
       characteristicIds: displayCharacteristics.map((c) => c.id),
     }
 
-    const presets: DashboardPreset[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? '[]'
-    )
+    const presets: DashboardPreset[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     presets.push(preset)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(presets))
     alert('Preset saved!')
@@ -244,15 +247,15 @@ export function WallDashboard() {
 
   // Load preset
   const handleLoadPreset = useCallback(() => {
-    const presets: DashboardPreset[] = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? '[]'
-    )
+    const presets: DashboardPreset[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
     if (!presets.length) {
       alert('No saved presets')
       return
     }
 
-    const name = prompt(`Available presets:\n${presets.map((p) => p.name).join('\n')}\n\nEnter preset name:`)
+    const name = prompt(
+      `Available presets:\n${presets.map((p) => p.name).join('\n')}\n\nEnter preset name:`,
+    )
     const preset = presets.find((p) => p.name === name)
     if (!preset) {
       alert('Preset not found')
@@ -269,29 +272,27 @@ export function WallDashboard() {
   }, [setSearchParams])
 
   return (
-    <div className="h-full flex flex-col p-4 bg-zinc-950 relative">
+    <div className="bg-background relative flex h-full flex-col p-4">
       {/* Brand Badge */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-60 z-10">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 opacity-60">
         <img
           src={brandConfig.logoUrl || '/header-logo.svg'}
           alt=""
           className="h-6 w-6 object-contain"
         />
-        <span className="text-sm font-medium text-muted-foreground">
-          {brandConfig.appName}
-        </span>
+        <span className="text-muted-foreground text-sm font-medium">{brandConfig.appName}</span>
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-zinc-100">Wall Dashboard</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-foreground text-xl font-semibold">Wall Dashboard</h1>
 
         <div className="flex items-center gap-3">
           <GridSizeSelector value={gridSize} onChange={handleGridSizeChange} />
 
           <button
             onClick={handleSavePreset}
-            className="flex items-center gap-2 px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors"
+            className="bg-muted hover:bg-muted/80 flex items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors"
             title="Save preset"
           >
             <Save className="h-4 w-4" />
@@ -300,7 +301,7 @@ export function WallDashboard() {
 
           <button
             onClick={handleLoadPreset}
-            className="flex items-center gap-2 px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors"
+            className="bg-muted hover:bg-muted/80 flex items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors"
             title="Load preset"
           >
             <FolderOpen className="h-4 w-4" />
@@ -311,27 +312,25 @@ export function WallDashboard() {
 
       {/* Chart grid */}
       <div
-        className="flex-1 grid gap-4 min-h-0"
+        className="grid min-h-0 flex-1 gap-4"
         style={{
           gridTemplateColumns: `repeat(${gridConfig.cols}, 1fr)`,
           gridTemplateRows: `repeat(${gridConfig.rows}, 1fr)`,
         }}
       >
         {displayCharacteristics.map((char) => (
-          <WallChartCard
-            key={char.id}
-            characteristicId={char.id}
-            onExpand={setExpandedId}
-          />
+          <WallChartCard key={char.id} characteristicId={char.id} onExpand={setExpandedId} />
         ))}
 
         {/* Empty slots */}
-        {Array.from({ length: Math.max(0, gridConfig.cols * gridConfig.rows - displayCharacteristics.length) }).map((_, i) => (
+        {Array.from({
+          length: Math.max(0, gridConfig.cols * gridConfig.rows - displayCharacteristics.length),
+        }).map((_, i) => (
           <div
             key={`empty-${i}`}
-            className="bg-zinc-900/50 rounded-lg border border-zinc-800 border-dashed flex items-center justify-center"
+            className="border-border bg-card/50 flex items-center justify-center rounded-lg border border-dashed"
           >
-            <span className="text-zinc-600 text-sm">No data</span>
+            <span className="text-muted-foreground text-sm">No data</span>
           </div>
         ))}
       </div>

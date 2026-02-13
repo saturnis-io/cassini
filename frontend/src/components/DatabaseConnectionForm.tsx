@@ -93,29 +93,29 @@ export function DatabaseConnectionForm() {
   return (
     <div className="space-y-4">
       {/* Warning Banner */}
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-        <p className="text-sm text-amber-600 dark:text-amber-400">
+      <div className="border-warning/20 bg-warning/10 rounded-xl border p-3">
+        <p className="text-warning text-sm">
           Changing the database configuration requires an application restart to take effect.
         </p>
       </div>
 
       {/* Dialect Selection */}
       <div>
-        <label className="block text-sm font-medium mb-1.5">Database Engine</label>
+        <label className="mb-1.5 block text-sm font-medium">Database Engine</label>
         <div className="grid grid-cols-2 gap-2">
           {DIALECT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => handleDialectChange(opt.value)}
               className={cn(
-                'p-3 rounded-xl border text-left transition-colors',
+                'rounded-xl border p-3 text-left transition-colors',
                 dialect === opt.value
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-muted-foreground/30',
               )}
             >
-              <div className="font-medium text-sm">{opt.label}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{opt.description}</div>
+              <div className="text-sm font-medium">{opt.label}</div>
+              <div className="text-muted-foreground mt-0.5 text-xs">{opt.description}</div>
             </button>
           ))}
         </div>
@@ -124,13 +124,17 @@ export function DatabaseConnectionForm() {
       {/* SQLite: file path only */}
       {!isServerDialect && (
         <div>
-          <label className="block text-sm font-medium mb-1.5">Database File Path</label>
+          <label className="mb-1.5 block text-sm font-medium">Database File Path</label>
           <input
             type="text"
             value={database}
-            onChange={(e) => { setSqliteDatabase(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
+            onChange={(e) => {
+              setSqliteDatabase(e.target.value)
+              setTestResult(null)
+              setHasTestedSuccessfully(false)
+            }}
             placeholder="./openspc.db"
-            className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
           />
         </div>
       )}
@@ -140,64 +144,84 @@ export function DatabaseConnectionForm() {
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1.5">Host</label>
+              <label className="mb-1.5 block text-sm font-medium">Host</label>
               <input
                 type="text"
                 value={host}
-                onChange={(e) => { setHost(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
+                onChange={(e) => {
+                  setHost(e.target.value)
+                  setTestResult(null)
+                  setHasTestedSuccessfully(false)
+                }}
                 placeholder="localhost"
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Port</label>
+              <label className="mb-1.5 block text-sm font-medium">Port</label>
               <input
                 type="number"
                 value={port || ''}
-                onChange={(e) => { setPort(Number(e.target.value)); setTestResult(null); setHasTestedSuccessfully(false) }}
+                onChange={(e) => {
+                  setPort(Number(e.target.value))
+                  setTestResult(null)
+                  setHasTestedSuccessfully(false)
+                }}
                 placeholder={String(DEFAULT_PORTS[dialect] || '')}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5">Database Name</label>
+            <label className="mb-1.5 block text-sm font-medium">Database Name</label>
             <input
               type="text"
               value={serverDatabase}
-              onChange={(e) => { setServerDatabase(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
+              onChange={(e) => {
+                setServerDatabase(e.target.value)
+                setTestResult(null)
+                setHasTestedSuccessfully(false)
+              }}
               placeholder="openspc"
-              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Username</label>
+              <label className="mb-1.5 block text-sm font-medium">Username</label>
               <input
                 type="text"
                 value={username}
-                onChange={(e) => { setUsername(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
+                onChange={(e) => {
+                  setUsername(e.target.value)
+                  setTestResult(null)
+                  setHasTestedSuccessfully(false)
+                }}
                 placeholder="openspc"
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Password</label>
+              <label className="mb-1.5 block text-sm font-medium">Password</label>
               <input
                 type="password"
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); setTestResult(null); setHasTestedSuccessfully(false) }}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setTestResult(null)
+                  setHasTestedSuccessfully(false)
+                }}
                 placeholder={currentConfig?.has_password ? '(unchanged)' : ''}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
               />
             </div>
           </div>
 
           {dialect === 'mssql' && (
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-              <p className="text-xs text-blue-600 dark:text-blue-400">
+            <div className="border-primary/20 bg-primary/10 rounded-xl border p-3">
+              <p className="text-primary text-xs">
                 MSSQL requires the ODBC Driver for SQL Server to be installed on the server.
               </p>
             </div>
@@ -209,26 +233,28 @@ export function DatabaseConnectionForm() {
       {testResult && (
         <div
           className={cn(
-            'flex items-center gap-2 p-3 rounded-xl border',
+            'flex items-center gap-2 rounded-xl border p-3',
             testResult.success
-              ? 'bg-emerald-500/10 border-emerald-500/20'
-              : 'bg-red-500/10 border-red-500/20',
+              ? 'border-success/20 bg-success/10'
+              : 'border-destructive/20 bg-destructive/10',
           )}
         >
           {testResult.success ? (
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <CheckCircle2 className="text-success h-4 w-4 shrink-0" />
           ) : (
-            <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+            <XCircle className="text-destructive h-4 w-4 shrink-0" />
           )}
           <div className="text-sm">
-            <span className={testResult.success ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-700 dark:text-red-300'}>
+            <span className={testResult.success ? 'text-success' : 'text-destructive'}>
               {testResult.message}
             </span>
             {testResult.latency_ms != null && (
               <span className="text-muted-foreground ml-2">({testResult.latency_ms}ms)</span>
             )}
             {testResult.server_version && (
-              <div className="text-xs text-muted-foreground mt-1 truncate">{testResult.server_version}</div>
+              <div className="text-muted-foreground mt-1 truncate text-xs">
+                {testResult.server_version}
+              </div>
             )}
           </div>
         </div>
@@ -239,7 +265,7 @@ export function DatabaseConnectionForm() {
         <button
           onClick={handleTest}
           disabled={testMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted disabled:opacity-50"
+          className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {testMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -252,7 +278,7 @@ export function DatabaseConnectionForm() {
           onClick={handleSave}
           disabled={!hasTestedSuccessfully || saveMutation.isPending}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50',
+            'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50',
             hasTestedSuccessfully
               ? 'bg-primary text-primary-foreground hover:bg-primary/90'
               : 'bg-muted text-muted-foreground cursor-not-allowed',

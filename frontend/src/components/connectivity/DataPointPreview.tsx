@@ -39,10 +39,7 @@ export function DataPointPreview({
     }
     return (
       <div className="space-y-3">
-        <PreviewHeader
-          label={selectedTopic}
-          protocol="mqtt"
-        />
+        <PreviewHeader label={selectedTopic} protocol="mqtt" />
         <LiveValuePreview
           brokerId={server.id}
           topic={selectedTopic}
@@ -58,26 +55,19 @@ export function DataPointPreview({
     return <EmptyState message="Select a variable node from the tree to preview its value" />
   }
 
-  return (
-    <OPCUAValuePreview
-      serverId={server.id}
-      node={selectedNode}
-    />
-  )
+  return <OPCUAValuePreview serverId={server.id} node={selectedNode} />
 }
 
 /* -----------------------------------------------------------------------
  * OPC-UA Value Preview (polls readValue every 2s)
  * ----------------------------------------------------------------------- */
 
-function OPCUAValuePreview({
-  serverId,
-  node,
-}: {
-  serverId: number
-  node: OPCUABrowsedNode
-}) {
-  const { data: nodeValue, isLoading, error } = useQuery({
+function OPCUAValuePreview({ serverId, node }: { serverId: number; node: OPCUABrowsedNode }) {
+  const {
+    data: nodeValue,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['opcua-read-value', serverId, node.node_id],
     queryFn: () => opcuaApi.readValue(serverId, node.node_id),
     refetchInterval: 2000,
@@ -86,38 +76,36 @@ function OPCUAValuePreview({
 
   return (
     <div className="space-y-3">
-      <PreviewHeader
-        label={node.display_name}
-        sublabel={node.node_id}
-        protocol="opcua"
-      />
+      <PreviewHeader label={node.display_name} sublabel={node.node_id} protocol="opcua" />
 
       {isLoading && !nodeValue && (
-        <div className="flex items-center justify-center py-6 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        <div className="text-muted-foreground flex items-center justify-center py-6">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           <span className="text-sm">Reading value...</span>
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+        <div className="border-destructive/20 bg-destructive/10 text-destructive flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error instanceof Error ? error.message : 'Failed to read value'}</span>
         </div>
       )}
 
       {nodeValue && (
-        <div className="bg-background border border-border rounded-lg overflow-hidden">
+        <div className="bg-background border-border overflow-hidden rounded-lg border">
           {/* Value display — large, prominent */}
-          <div className="px-4 py-4 border-b border-border">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Current Value</div>
-            <div className="text-2xl font-mono font-bold text-foreground tabular-nums">
+          <div className="border-border border-b px-4 py-4">
+            <div className="text-muted-foreground mb-1 text-[10px] tracking-wider uppercase">
+              Current Value
+            </div>
+            <div className="text-foreground font-mono text-2xl font-bold tabular-nums">
               {formatOPCUAValue(nodeValue.value)}
             </div>
           </div>
 
           {/* Metadata grid */}
-          <div className="grid grid-cols-2 gap-px bg-muted">
+          <div className="bg-muted grid grid-cols-2 gap-px">
             <MetadataCell
               icon={<Tag className="h-3 w-3" />}
               label="Data Type"
@@ -127,27 +115,31 @@ function OPCUAValuePreview({
               icon={<Activity className="h-3 w-3" />}
               label="Status"
               value={nodeValue.status_code}
-              valueClass={nodeValue.status_code === 'Good' ? 'text-emerald-400' : 'text-amber-400'}
+              valueClass={nodeValue.status_code === 'Good' ? 'text-success' : 'text-warning'}
             />
             <MetadataCell
               icon={<Clock className="h-3 w-3" />}
               label="Source Time"
-              value={nodeValue.source_timestamp
-                ? new Date(nodeValue.source_timestamp).toLocaleTimeString()
-                : '--'}
+              value={
+                nodeValue.source_timestamp
+                  ? new Date(nodeValue.source_timestamp).toLocaleTimeString()
+                  : '--'
+              }
             />
             <MetadataCell
               icon={<Clock className="h-3 w-3" />}
               label="Server Time"
-              value={nodeValue.server_timestamp
-                ? new Date(nodeValue.server_timestamp).toLocaleTimeString()
-                : '--'}
+              value={
+                nodeValue.server_timestamp
+                  ? new Date(nodeValue.server_timestamp).toLocaleTimeString()
+                  : '--'
+              }
             />
           </div>
 
           {/* Polling indicator */}
-          <div className="px-3 py-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="text-muted-foreground flex items-center gap-1.5 px-3 py-1.5 text-[10px]">
+            <span className="bg-success h-1.5 w-1.5 animate-pulse rounded-full" />
             Polling every 2s
           </div>
         </div>
@@ -171,17 +163,17 @@ function PreviewHeader({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <span className={`mt-0.5 px-1.5 py-0.5 text-[10px] font-semibold rounded shrink-0 ${
-        protocol === 'mqtt'
-          ? 'bg-teal-500/15 text-teal-400'
-          : 'bg-purple-500/15 text-purple-400'
-      }`}>
+      <span
+        className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+          protocol === 'mqtt' ? 'bg-teal-500/15 text-teal-400' : 'bg-purple-500/15 text-purple-400'
+        }`}
+      >
         {protocol === 'mqtt' ? 'MQTT' : 'OPC-UA'}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{label}</p>
+        <p className="text-foreground truncate text-sm font-medium">{label}</p>
         {sublabel && (
-          <p className="text-[11px] font-mono text-muted-foreground truncate">{sublabel}</p>
+          <p className="text-muted-foreground truncate font-mono text-[11px]">{sublabel}</p>
         )}
       </div>
     </div>
@@ -201,20 +193,20 @@ function MetadataCell({
 }) {
   return (
     <div className="bg-background px-3 py-2">
-      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
+      <div className="text-muted-foreground mb-0.5 flex items-center gap-1 text-[10px]">
         {icon}
         {label}
       </div>
-      <div className={`text-xs font-mono ${valueClass}`}>{value}</div>
+      <div className={`font-mono text-xs ${valueClass}`}>{value}</div>
     </div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-      <Activity className="h-8 w-8 mb-2 opacity-30" />
-      <p className="text-sm text-center">{message}</p>
+    <div className="text-muted-foreground flex flex-col items-center justify-center py-10">
+      <Activity className="mb-2 h-8 w-8 opacity-30" />
+      <p className="text-center text-sm">{message}</p>
     </div>
   )
 }

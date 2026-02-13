@@ -20,28 +20,25 @@ export function DeleteConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onCancel}
-      />
+      <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
 
       {/* Dialog */}
-      <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-lg">
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+      <div className="bg-card border-border relative w-full max-w-md rounded-xl border p-6 shadow-lg">
+        <h3 className="mb-2 text-lg font-semibold">{title}</h3>
         <p className="text-muted-foreground mb-6">{message}</p>
 
         <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}
             disabled={isPending}
-            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 disabled:opacity-50"
+            className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-4 py-2 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isPending}
-            className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 disabled:opacity-50"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg px-4 py-2 disabled:opacity-50"
           >
             {isPending ? 'Deleting...' : 'Delete'}
           </button>

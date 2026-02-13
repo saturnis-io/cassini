@@ -145,7 +145,5 @@ export function canPerformAction(userRole: Role, action: string): boolean {
  */
 export function getAccessibleRoles(userRole: Role): Role[] {
   const userLevel = ROLE_HIERARCHY[userRole]
-  return (Object.keys(ROLE_HIERARCHY) as Role[]).filter(
-    (role) => ROLE_HIERARCHY[role] <= userLevel
-  )
+  return (Object.keys(ROLE_HIERARCHY) as Role[]).filter((role) => ROLE_HIERARCHY[role] <= userLevel)
 }

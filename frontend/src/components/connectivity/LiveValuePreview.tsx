@@ -41,7 +41,7 @@ export function LiveValuePreview({
 
   if (!topic) {
     return (
-      <div className="text-center py-4 text-muted-foreground text-sm">
+      <div className="text-muted-foreground py-4 text-center text-sm">
         Select a topic to preview live values
       </div>
     )
@@ -50,13 +50,11 @@ export function LiveValuePreview({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-mono text-muted-foreground truncate flex-1">
-          {topic}
-        </p>
+        <p className="text-muted-foreground flex-1 truncate font-mono text-xs">{topic}</p>
         <button
           onClick={() => previewMutation.mutate()}
           disabled={previewMutation.isPending}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors"
         >
           {previewMutation.isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -68,19 +66,17 @@ export function LiveValuePreview({
       </div>
 
       {previewMutation.isError && (
-        <p className="text-xs text-destructive">
-          Preview failed: {previewMutation.error.message}
-        </p>
+        <p className="text-destructive text-xs">Preview failed: {previewMutation.error.message}</p>
       )}
 
       {previewData && (
-        <div className="border border-border rounded-md max-h-[200px] overflow-y-auto">
+        <div className="border-border max-h-[200px] overflow-y-auto rounded-md border">
           <table className="w-full text-xs">
             <thead className="bg-muted/50 sticky top-0">
               <tr>
-                <th className="text-left px-2 py-1 font-medium">Source</th>
-                <th className="text-left px-2 py-1 font-medium">Value</th>
-                <th className="text-right px-2 py-1 font-medium">Timestamp</th>
+                <th className="px-2 py-1 text-left font-medium">Source</th>
+                <th className="px-2 py-1 text-left font-medium">Value</th>
+                <th className="px-2 py-1 text-right font-medium">Timestamp</th>
               </tr>
             </thead>
             <tbody>
@@ -97,10 +93,8 @@ export function LiveValuePreview({
                   <tr
                     key={i}
                     className={[
-                      'border-t border-border',
-                      isSparkplug
-                        ? 'cursor-pointer hover:bg-accent/50'
-                        : '',
+                      'border-border border-t',
+                      isSparkplug ? 'hover:bg-accent/50 cursor-pointer' : '',
                       isSelected ? 'bg-accent' : '',
                     ].join(' ')}
                     onClick={
@@ -109,19 +103,18 @@ export function LiveValuePreview({
                         : undefined
                     }
                   >
-                    <td className="px-2 py-1 truncate max-w-[160px]">
+                    <td className="max-w-[160px] truncate px-2 py-1">
                       {dataTypeMatch ? (
                         <>
-                          <span className="font-semibold">{dataTypeMatch[1]}</span>
-                          {' '}
-                          <span className="italic text-muted-foreground">({dataTypeMatch[2]})</span>
+                          <span className="font-semibold">{dataTypeMatch[1]}</span>{' '}
+                          <span className="text-muted-foreground italic">({dataTypeMatch[2]})</span>
                         </>
                       ) : (
                         <span className="text-muted-foreground">{v.raw_payload}</span>
                       )}
                     </td>
                     <td className="px-2 py-1 font-mono">{String(v.value)}</td>
-                    <td className="px-2 py-1 text-right text-muted-foreground">
+                    <td className="text-muted-foreground px-2 py-1 text-right">
                       {new Date(v.timestamp).toLocaleTimeString()}
                     </td>
                   </tr>
@@ -129,14 +122,14 @@ export function LiveValuePreview({
               })}
               {previewData.values.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-2 py-3 text-center text-muted-foreground">
+                  <td colSpan={3} className="text-muted-foreground px-2 py-3 text-center">
                     No values received during sample period
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          <div className="px-2 py-1 border-t border-border text-muted-foreground text-xs">
+          <div className="border-border text-muted-foreground border-t px-2 py-1 text-xs">
             {previewData.sample_count} values in {previewData.duration_seconds.toFixed(1)}s
           </div>
         </div>

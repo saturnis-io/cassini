@@ -61,7 +61,7 @@ export function MappingTable({
         (m) =>
           m.characteristicName.toLowerCase().includes(q) ||
           m.source.toLowerCase().includes(q) ||
-          (m.serverName ?? '').toLowerCase().includes(q)
+          (m.serverName ?? '').toLowerCase().includes(q),
       )
     }
 
@@ -72,8 +72,7 @@ export function MappingTable({
         return a.characteristicName.localeCompare(b.characteristicName) * dir
       }
       // status: active first, then inactive, then error
-      const statusOrder = (m: MappingRowData) =>
-        m.hasError ? 2 : m.isActive ? 0 : 1
+      const statusOrder = (m: MappingRowData) => (m.hasError ? 2 : m.isActive ? 0 : 1)
       return (statusOrder(a) - statusOrder(b)) * dir
     })
 
@@ -96,12 +95,12 @@ export function MappingTable({
   const isEmpty = filteredMappings.length === 0 && filteredUnmapped.length === 0
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-background/50">
-              <th className="text-left px-3 py-2.5">
+            <tr className="border-border bg-background/50 border-b">
+              <th className="px-3 py-2.5 text-left">
                 <SortButton
                   label="Characteristic"
                   active={sortField === 'characteristic'}
@@ -109,16 +108,22 @@ export function MappingTable({
                   onClick={() => toggleSort('characteristic')}
                 />
               </th>
-              <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Source</span>
+              <th className="px-3 py-2.5 text-left">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  Source
+                </span>
               </th>
-              <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Server</span>
+              <th className="px-3 py-2.5 text-left">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  Server
+                </span>
               </th>
-              <th className="text-left px-3 py-2.5">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Strategy</span>
+              <th className="px-3 py-2.5 text-left">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  Strategy
+                </span>
               </th>
-              <th className="text-left px-3 py-2.5">
+              <th className="px-3 py-2.5 text-left">
                 <SortButton
                   label="Status"
                   active={sortField === 'status'}
@@ -126,8 +131,10 @@ export function MappingTable({
                   onClick={() => toggleSort('status')}
                 />
               </th>
-              <th className="text-left px-3 py-2.5 w-[120px]">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Actions</span>
+              <th className="w-[120px] px-3 py-2.5 text-left">
+                <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+                  Actions
+                </span>
               </th>
             </tr>
           </thead>
@@ -157,7 +164,7 @@ export function MappingTable({
             {/* Empty state */}
             {isEmpty && (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground text-sm">
+                <td colSpan={6} className="text-muted-foreground px-3 py-8 text-center text-sm">
                   {searchQuery
                     ? 'No mappings match your search.'
                     : filter === 'unmapped'
@@ -191,7 +198,7 @@ function SortButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+      className={`flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase transition-colors ${
         active ? 'text-indigo-400' : 'text-muted-foreground hover:text-muted-foreground'
       }`}
     >

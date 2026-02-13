@@ -46,7 +46,11 @@ interface ViolationLegendProps {
   className?: string
 }
 
-export function ViolationLegend({ violatedRules, compact = false, className }: ViolationLegendProps) {
+export function ViolationLegend({
+  violatedRules,
+  compact = false,
+  className,
+}: ViolationLegendProps) {
   // Get unique, sorted rules
   const uniqueRules = [...new Set(violatedRules)].sort((a, b) => a - b)
 
@@ -56,13 +60,13 @@ export function ViolationLegend({ violatedRules, compact = false, className }: V
 
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2 flex-wrap', className)}>
-        <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-        <span className="text-xs text-muted-foreground">Rules:</span>
+      <div className={cn('flex flex-wrap items-center gap-2', className)}>
+        <AlertTriangle className="text-destructive h-3.5 w-3.5" />
+        <span className="text-muted-foreground text-xs">Rules:</span>
         {uniqueRules.map((ruleId) => (
           <span
             key={ruleId}
-            className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-destructive/10 text-destructive"
+            className="bg-destructive/10 text-destructive inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold"
             title={NELSON_RULES[ruleId]?.description || `Rule ${ruleId}`}
           >
             {ruleId}
@@ -73,9 +77,9 @@ export function ViolationLegend({ violatedRules, compact = false, className }: V
   }
 
   return (
-    <div className={cn('bg-card border border-border rounded-lg p-3', className)}>
-      <div className="flex items-center gap-2 mb-2">
-        <AlertTriangle className="h-4 w-4 text-destructive" />
+    <div className={cn('bg-card border-border rounded-lg border p-3', className)}>
+      <div className="mb-2 flex items-center gap-2">
+        <AlertTriangle className="text-destructive h-4 w-4" />
         <span className="text-sm font-medium">Violations Detected</span>
       </div>
       <div className="space-y-1.5">
@@ -83,14 +87,14 @@ export function ViolationLegend({ violatedRules, compact = false, className }: V
           const rule = NELSON_RULES[ruleId]
           return (
             <div key={ruleId} className="flex items-start gap-2 text-xs">
-              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-destructive/10 text-destructive flex-shrink-0">
+              <span className="bg-destructive/10 text-destructive inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                 {ruleId}
               </span>
               <div className="text-muted-foreground">
-                <span className="font-medium text-foreground">{rule?.name || `Rule ${ruleId}`}</span>
-                {rule?.description && (
-                  <span className="block mt-0.5">{rule.description}</span>
-                )}
+                <span className="text-foreground font-medium">
+                  {rule?.name || `Rule ${ruleId}`}
+                </span>
+                {rule?.description && <span className="mt-0.5 block">{rule.description}</span>}
               </div>
             </div>
           )

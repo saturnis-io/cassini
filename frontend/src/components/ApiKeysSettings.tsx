@@ -80,7 +80,7 @@ export function ApiKeysSettings() {
 
   if (isLoading) {
     return (
-      <div className="bg-card border border-border rounded-xl p-8 text-center">
+      <div className="bg-card border-border rounded-xl border p-8 text-center">
         <div className="text-muted-foreground">Loading API keys...</div>
       </div>
     )
@@ -90,28 +90,28 @@ export function ApiKeysSettings() {
     <div className="space-y-5">
       {/* Newly Created Key Alert */}
       {newlyCreatedKey && (
-        <div className="bg-warning/10 border border-warning rounded-xl p-4">
+        <div className="bg-warning/10 border-warning rounded-xl border p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+            <AlertCircle className="text-warning mt-0.5 h-5 w-5 flex-shrink-0" />
             <div className="flex-1">
-              <h4 className="font-semibold text-warning">Save Your API Key</h4>
-              <p className="text-sm text-muted-foreground mb-3">
+              <h4 className="text-warning font-semibold">Save Your API Key</h4>
+              <p className="text-muted-foreground mb-3 text-sm">
                 This key will only be shown once. Copy and store it securely.
               </p>
-              <div className="flex items-center gap-2 bg-background rounded-lg p-2">
-                <code className="flex-1 text-sm font-mono break-all">
+              <div className="bg-background flex items-center gap-2 rounded-lg p-2">
+                <code className="flex-1 font-mono text-sm break-all">
                   {showKey ? newlyCreatedKey.key : '•'.repeat(40)}
                 </code>
                 <button
                   onClick={() => setShowKey(!showKey)}
-                  className="p-2 hover:bg-muted rounded"
+                  className="hover:bg-muted rounded p-2"
                   title={showKey ? 'Hide key' : 'Show key'}
                 >
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
                 <button
                   onClick={() => handleCopyKey(newlyCreatedKey.key)}
-                  className="p-2 hover:bg-muted rounded"
+                  className="hover:bg-muted rounded p-2"
                   title="Copy to clipboard"
                 >
                   <Copy className="h-4 w-4" />
@@ -122,7 +122,7 @@ export function ApiKeysSettings() {
                   setNewlyCreatedKey(null)
                   setShowKey(false)
                 }}
-                className="mt-3 text-sm text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground mt-3 text-sm"
               >
                 Dismiss
               </button>
@@ -135,7 +135,7 @@ export function ApiKeysSettings() {
       <div className="flex justify-end">
         <button
           onClick={() => setShowCreateForm(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
         >
           <Plus className="h-4 w-4" />
           Create Key
@@ -145,20 +145,20 @@ export function ApiKeysSettings() {
       {/* Create Form */}
       {showCreateForm && (
         <div className="bg-muted rounded-xl p-6">
-          <h4 className="font-medium mb-3">Create New API Key</h4>
+          <h4 className="mb-3 font-medium">Create New API Key</h4>
           <div className="flex gap-3">
             <input
               type="text"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               placeholder="Key name (e.g., Production Line 1)"
-              className="flex-1 px-3 py-2 border rounded-lg"
+              className="flex-1 rounded-lg border px-3 py-2"
               autoFocus
             />
             <button
               onClick={handleCreate}
               disabled={!newKeyName.trim() || createMutation.isPending}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {createMutation.isPending ? 'Creating...' : 'Create'}
             </button>
@@ -167,7 +167,7 @@ export function ApiKeysSettings() {
                 setShowCreateForm(false)
                 setNewKeyName('')
               }}
-              className="px-4 py-2 text-sm font-medium rounded-lg border hover:bg-muted"
+              className="hover:bg-muted rounded-lg border px-4 py-2 text-sm font-medium"
             >
               Cancel
             </button>
@@ -176,43 +176,43 @@ export function ApiKeysSettings() {
       )}
 
       {/* API Keys List */}
-      <div className="bg-muted rounded-xl overflow-hidden">
+      <div className="bg-muted overflow-hidden rounded-xl">
         {apiKeys && apiKeys.length > 0 ? (
           <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
+            <thead className="bg-muted/50 border-border border-b">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium">Name</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Created</th>
-                <th className="text-left px-4 py-3 text-sm font-medium">Last Used</th>
-                <th className="text-right px-4 py-3 text-sm font-medium">Actions</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Created</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Last Used</th>
+                <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-border divide-y">
               {apiKeys.map((key) => (
                 <tr key={key.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-muted-foreground" />
+                      <Key className="text-muted-foreground h-4 w-4" />
                       <span className="font-medium">{key.name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
                         key.is_active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          ? 'bg-success/10 text-success'
+                          : 'bg-destructive/10 text-destructive',
                       )}
                     >
                       {key.is_active ? 'Active' : 'Revoked'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                  <td className="text-muted-foreground px-4 py-3 text-sm">
                     {formatDate(key.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                  <td className="text-muted-foreground px-4 py-3 text-sm">
                     {formatDate(key.last_used_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -221,14 +221,14 @@ export function ApiKeysSettings() {
                         <button
                           onClick={() => revokeMutation.mutate(key.id)}
                           disabled={revokeMutation.isPending}
-                          className="text-sm text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground text-sm"
                         >
                           Revoke
                         </button>
                       )}
                       <button
                         onClick={() => setKeyToDelete(key)}
-                        className="p-1 text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive p-1"
                         title="Delete key"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -241,14 +241,14 @@ export function ApiKeysSettings() {
           </table>
         ) : (
           <div className="p-8 text-center">
-            <Key className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h4 className="font-medium mb-2">No API Keys</h4>
-            <p className="text-sm text-muted-foreground mb-4">
+            <Key className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
+            <h4 className="mb-2 font-medium">No API Keys</h4>
+            <p className="text-muted-foreground mb-4 text-sm">
               Create an API key to enable external data entry integrations.
             </p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium"
             >
               Create Your First Key
             </button>
@@ -258,12 +258,13 @@ export function ApiKeysSettings() {
 
       {/* Usage Instructions */}
       <div className="bg-muted rounded-xl p-6">
-        <h4 className="font-medium mb-2">Using API Keys</h4>
-        <p className="text-sm text-muted-foreground mb-3">
-          Include your API key in the <code className="bg-muted px-1 rounded">X-API-Key</code> header:
+        <h4 className="mb-2 font-medium">Using API Keys</h4>
+        <p className="text-muted-foreground mb-3 text-sm">
+          Include your API key in the <code className="bg-muted rounded px-1">X-API-Key</code>{' '}
+          header:
         </p>
-        <pre className="bg-background rounded-lg p-3 text-xs overflow-x-auto">
-{`curl -X POST /api/v1/data-entry/submit \\
+        <pre className="bg-background overflow-x-auto rounded-lg p-3 text-xs">
+          {`curl -X POST /api/v1/data-entry/submit \\
   -H "X-API-Key: openspc_your_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{"characteristic_id": 1, "measurements": [10.5, 10.3, 10.4]}'`}
@@ -272,18 +273,24 @@ export function ApiKeysSettings() {
 
       {/* Delete Confirmation Dialog */}
       {keyToDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setKeyToDelete(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Delete API Key?</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setKeyToDelete(null)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-lg font-semibold">Delete API Key?</h3>
             <p className="text-muted-foreground mb-4">
-              Are you sure you want to permanently delete <strong>{keyToDelete.name}</strong>?
-              Any integrations using this key will stop working.
+              Are you sure you want to permanently delete <strong>{keyToDelete.name}</strong>? Any
+              integrations using this key will stop working.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setKeyToDelete(null)}
                 disabled={deleteMutation.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium"
               >
                 Cancel
               </button>
@@ -291,9 +298,9 @@ export function ApiKeysSettings() {
                 onClick={() => deleteMutation.mutate(keyToDelete.id)}
                 disabled={deleteMutation.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-destructive text-destructive-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {deleteMutation.isPending ? 'Deleting...' : 'Delete'}

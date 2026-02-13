@@ -42,10 +42,13 @@ interface HistogramBin {
   sampleIds: number[]
 }
 
-function calculateHistogramBins(dataPoints: DataPointWithId[], binCount: number = 20): HistogramBin[] {
+function calculateHistogramBins(
+  dataPoints: DataPointWithId[],
+  binCount: number = 20,
+): HistogramBin[] {
   if (dataPoints.length === 0) return []
 
-  const values = dataPoints.map(p => p.value)
+  const values = dataPoints.map((p) => p.value)
   const min = Math.min(...values)
   const max = Math.max(...values)
   let range = max - min
@@ -70,7 +73,7 @@ function calculateHistogramBins(dataPoints: DataPointWithId[], binCount: number 
   dataPoints.forEach((point) => {
     const binIndex = Math.min(
       Math.max(0, Math.floor((point.value - extendedMin) / extendedBinWidth)),
-      binCount - 1
+      binCount - 1,
     )
     bins[binIndex].count++
     bins[binIndex].sampleIds.push(point.sample_id)
@@ -102,7 +105,7 @@ function addNormalCurve(
   mean: number,
   stdDev: number,
   totalCount: number,
-  binWidth: number
+  binWidth: number,
 ): HistogramBin[] {
   if (stdDev === 0 || bins.length === 0) return bins
 
@@ -175,7 +178,10 @@ export function DistributionHistogram({
   showSpecLimits = true,
   gridBottom,
 }: DistributionHistogramProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 100 })
+  const { data: chartData, isLoading } = useChartData(
+    characteristicId,
+    chartOptions ?? { limit: 100 },
+  )
   const chartColors = useChartColors()
   const colors = colorSchemes[colorScheme]
   const isVertical = orientation === 'vertical'
@@ -191,7 +197,11 @@ export function DistributionHistogram({
   // Memoize all heavy histogram calculations, applying rangeWindow to slice data
   const { values, stats, bins } = useMemo(() => {
     if (!chartData?.data_points?.length) {
-      return { values: [] as number[], stats: { mean: 0, stdDev: 0, n: 0 }, bins: [] as HistogramBin[] }
+      return {
+        values: [] as number[],
+        stats: { mean: 0, stdDev: 0, n: 0 },
+        bins: [] as HistogramBin[],
+      }
     }
 
     // Apply range window to slice data points before computing histogram
@@ -209,7 +219,7 @@ export function DistributionHistogram({
         sample_id: p.sample_id,
       }))
 
-    const vals = dp.map(p => p.value)
+    const vals = dp.map((p) => p.value)
     const s = calculateStatistics(vals)
 
     let b = calculateHistogramBins(dp)
@@ -222,14 +232,12 @@ export function DistributionHistogram({
   // Memoize highlighted bin index
   const highlightedBinIndex = useMemo(() => {
     if (hoveredSampleIds && hoveredSampleIds.size > 0) {
-      const index = bins.findIndex(bin =>
-        bin.sampleIds.some(id => hoveredSampleIds.has(id))
-      )
+      const index = bins.findIndex((bin) => bin.sampleIds.some((id) => hoveredSampleIds.has(id)))
       if (index !== -1) return index
     }
     if (highlightedValue != null) {
-      return bins.findIndex(bin =>
-        highlightedValue >= bin.binStart && highlightedValue < bin.binEnd
+      return bins.findIndex(
+        (bin) => highlightedValue >= bin.binStart && highlightedValue < bin.binEnd,
       )
     }
     return -1
@@ -276,15 +284,16 @@ export function DistributionHistogram({
     const barData = bins.map((bin, i) => ({
       value: isVertical ? [bin.count, bin.binCenter] : [bin.binCenter, bin.count],
       itemStyle: {
-        color: i === highlightedBinIndex
-          ? new graphic.LinearGradient(0, 0, isVertical ? 1 : 0, isVertical ? 0 : 1, [
-              { offset: 0, color: 'hsl(45, 100%, 55%)' },
-              { offset: 1, color: 'hsl(35, 100%, 50%)' },
-            ])
-          : new graphic.LinearGradient(0, 0, isVertical ? 1 : 0, isVertical ? 0 : 1, [
-              { offset: 0, color: colors.barColor },
-              { offset: 1, color: colors.barColor },
-            ]),
+        color:
+          i === highlightedBinIndex
+            ? new graphic.LinearGradient(0, 0, isVertical ? 1 : 0, isVertical ? 0 : 1, [
+                { offset: 0, color: 'hsl(45, 100%, 55%)' },
+                { offset: 1, color: 'hsl(35, 100%, 50%)' },
+              ])
+            : new graphic.LinearGradient(0, 0, isVertical ? 1 : 0, isVertical ? 0 : 1, [
+                { offset: 0, color: colors.barColor },
+                { offset: 1, color: colors.barColor },
+              ]),
         opacity: i === highlightedBinIndex ? 1 : 0.7,
         borderColor: i === highlightedBinIndex ? 'hsl(35, 100%, 45%)' : colors.barStroke,
         borderWidth: i === highlightedBinIndex ? 2 : 0.5,
@@ -293,7 +302,7 @@ export function DistributionHistogram({
 
     // Normal curve data
     const normalData = bins.map((bin) =>
-      isVertical ? [bin.normalY, bin.binCenter] : [bin.binCenter, bin.normalY]
+      isVertical ? [bin.normalY, bin.binCenter] : [bin.binCenter, bin.normalY],
     )
 
     // Build markLine for reference lines
@@ -301,47 +310,128 @@ export function DistributionHistogram({
 
     // Mean line
     if (isVertical) {
-      markLineData.push({ yAxis: stats.mean, lineStyle: { color: colors.meanColor, type: 'dashed', width: 1.5 }, label: { show: false } })
+      markLineData.push({
+        yAxis: stats.mean,
+        lineStyle: { color: colors.meanColor, type: 'dashed', width: 1.5 },
+        label: { show: false },
+      })
     } else {
-      markLineData.push({ xAxis: stats.mean, lineStyle: { color: colors.meanColor, type: 'dashed', width: 2 }, label: { formatter: `x\u0304 = ${stats.mean.toFixed(3)}`, position: 'start', color: colors.meanTextColor, fontSize: 11, fontWeight: 600 } })
+      markLineData.push({
+        xAxis: stats.mean,
+        lineStyle: { color: colors.meanColor, type: 'dashed', width: 2 },
+        label: {
+          formatter: `x\u0304 = ${stats.mean.toFixed(3)}`,
+          position: 'start',
+          color: colors.meanTextColor,
+          fontSize: 11,
+          fontWeight: 600,
+        },
+      })
     }
 
     // Spec limits (respect showSpecLimits toggle)
     if (showSpecLimits && lsl !== null) {
       if (isVertical) {
-        markLineData.push({ yAxis: lsl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 }, label: { formatter: 'LSL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' } })
+        markLineData.push({
+          yAxis: lsl,
+          lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 },
+          label: { formatter: 'LSL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
+        })
       } else {
-        markLineData.push({ xAxis: lsl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 2 }, label: { formatter: 'LSL', position: 'insideStartTop', fontSize: 10, fontWeight: 600, color: 'hsl(357, 80%, 45%)' } })
+        markLineData.push({
+          xAxis: lsl,
+          lineStyle: { color: 'hsl(357, 80%, 52%)', width: 2 },
+          label: {
+            formatter: 'LSL',
+            position: 'insideStartTop',
+            fontSize: 10,
+            fontWeight: 600,
+            color: 'hsl(357, 80%, 45%)',
+          },
+        })
       }
     }
     if (showSpecLimits && usl !== null) {
       if (isVertical) {
-        markLineData.push({ yAxis: usl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 }, label: { formatter: 'USL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' } })
+        markLineData.push({
+          yAxis: usl,
+          lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 },
+          label: { formatter: 'USL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
+        })
       } else {
-        markLineData.push({ xAxis: usl, lineStyle: { color: 'hsl(357, 80%, 52%)', width: 2 }, label: { formatter: 'USL', position: 'insideEndTop', fontSize: 10, fontWeight: 600, color: 'hsl(357, 80%, 45%)' } })
+        markLineData.push({
+          xAxis: usl,
+          lineStyle: { color: 'hsl(357, 80%, 52%)', width: 2 },
+          label: {
+            formatter: 'USL',
+            position: 'insideEndTop',
+            fontSize: 10,
+            fontWeight: 600,
+            color: 'hsl(357, 80%, 45%)',
+          },
+        })
       }
     }
 
     // Control limits
     if (lcl !== null) {
       if (isVertical) {
-        markLineData.push({ yAxis: lcl, lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 }, label: { formatter: 'LCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' } })
+        markLineData.push({
+          yAxis: lcl,
+          lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 },
+          label: { formatter: 'LCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' },
+        })
       } else {
-        markLineData.push({ xAxis: lcl, lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 }, label: { formatter: 'LCL', position: 'insideStartBottom', fontSize: 9, color: 'hsl(179, 50%, 50%)' } })
+        markLineData.push({
+          xAxis: lcl,
+          lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 },
+          label: {
+            formatter: 'LCL',
+            position: 'insideStartBottom',
+            fontSize: 9,
+            color: 'hsl(179, 50%, 50%)',
+          },
+        })
       }
     }
     if (ucl !== null) {
       if (isVertical) {
-        markLineData.push({ yAxis: ucl, lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 }, label: { formatter: 'UCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' } })
+        markLineData.push({
+          yAxis: ucl,
+          lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 },
+          label: { formatter: 'UCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' },
+        })
       } else {
-        markLineData.push({ xAxis: ucl, lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 }, label: { formatter: 'UCL', position: 'insideEndBottom', fontSize: 9, color: 'hsl(179, 50%, 50%)' } })
+        markLineData.push({
+          xAxis: ucl,
+          lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 },
+          label: {
+            formatter: 'UCL',
+            position: 'insideEndBottom',
+            fontSize: 9,
+            color: 'hsl(179, 50%, 50%)',
+          },
+        })
       }
     }
     if (centerLine !== null) {
       if (isVertical) {
-        markLineData.push({ yAxis: centerLine, lineStyle: { color: 'hsl(104, 55%, 40%)', type: 'dashed', width: 1 }, label: { formatter: 'CL', position: 'end', fontSize: 8, color: 'hsl(104, 55%, 35%)' } })
+        markLineData.push({
+          yAxis: centerLine,
+          lineStyle: { color: 'hsl(104, 55%, 40%)', type: 'dashed', width: 1 },
+          label: { formatter: 'CL', position: 'end', fontSize: 8, color: 'hsl(104, 55%, 35%)' },
+        })
       } else {
-        markLineData.push({ xAxis: centerLine, lineStyle: { color: 'hsl(104, 55%, 40%)', type: 'dashed', width: 1.5 }, label: { formatter: 'CL', position: 'insideBottom', fontSize: 9, color: 'hsl(104, 55%, 35%)' } })
+        markLineData.push({
+          xAxis: centerLine,
+          lineStyle: { color: 'hsl(104, 55%, 40%)', type: 'dashed', width: 1.5 },
+          label: {
+            formatter: 'CL',
+            position: 'insideBottom',
+            fontSize: 9,
+            color: 'hsl(104, 55%, 35%)',
+          },
+        })
       }
     }
 
@@ -360,7 +450,9 @@ export function DistributionHistogram({
       const matchedGridBottom = isTimestamp ? 60 : 30
 
       console.debug('[DistributionHistogram] vertical grid alignment:', {
-        top: matchedGridTop, bottom: matchedGridBottom, xAxisMode,
+        top: matchedGridTop,
+        bottom: matchedGridBottom,
+        xAxisMode,
       })
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -398,7 +490,13 @@ export function DistributionHistogram({
 
       return {
         animation: false,
-        grid: { top: matchedGridTop, right: 30, left: 40, bottom: gridBottom ?? matchedGridBottom, containLabel: false },
+        grid: {
+          top: matchedGridTop,
+          right: 30,
+          left: 40,
+          bottom: gridBottom ?? matchedGridBottom,
+          containLabel: false,
+        },
         xAxis: {
           type: 'value' as const,
           max: maxCount * 1.1,
@@ -421,9 +519,11 @@ export function DistributionHistogram({
             if (p.seriesType !== 'custom') return ''
             const bin = localBins[p.dataIndex]
             if (!bin) return ''
-            return `<div style="font-weight:500">Range</div>` +
+            return (
+              `<div style="font-weight:500">Range</div>` +
               `<div style="opacity:0.7">${bin.binStart.toFixed(dp)} - ${bin.binEnd.toFixed(dp)}</div>` +
               `<div style="margin-top:4px"><b>Count:</b> ${bin.count}</div>`
+            )
           },
         },
         series: [
@@ -489,9 +589,11 @@ export function DistributionHistogram({
           if (p.seriesType !== 'bar') return ''
           const bin = bins[p.dataIndex]
           if (!bin) return ''
-          return `<div style="font-weight:500">Value Range</div>` +
+          return (
+            `<div style="font-weight:500">Value Range</div>` +
             `<div style="opacity:0.7">${bin.binStart.toFixed(dp)} - ${bin.binEnd.toFixed(dp)}</div>` +
             `<div style="margin-top:6px"><b>Count:</b> ${bin.count}</div>`
+          )
         },
       },
       series: [
@@ -522,17 +624,33 @@ export function DistributionHistogram({
         },
       ],
     }
-  }, [chartData, bins, values, stats, isModeA, yAxisDomain, isVertical, colors, highlightedBinIndex, showSpecLimits, xAxisMode, gridBottom])
+  }, [
+    chartData,
+    bins,
+    values,
+    stats,
+    isModeA,
+    yAxisDomain,
+    isVertical,
+    colors,
+    highlightedBinIndex,
+    showSpecLimits,
+    xAxisMode,
+    gridBottom,
+  ])
 
   // Mouse event handlers
-  const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
-    const binIndex = params.dataIndex
-    const bin = binsRef.current[binIndex]
-    if (bin && bin.sampleIds.length > 0) {
-      onHoverSample(bin.sampleIds)
-      onHoverBin?.([bin.binStart, bin.binEnd])
-    }
-  }, [onHoverSample, onHoverBin])
+  const handleMouseMove = useCallback(
+    (params: EChartsMouseEvent) => {
+      const binIndex = params.dataIndex
+      const bin = binsRef.current[binIndex]
+      if (bin && bin.sampleIds.length > 0) {
+        onHoverSample(bin.sampleIds)
+        onHoverBin?.([bin.binStart, bin.binEnd])
+      }
+    },
+    [onHoverSample, onHoverBin],
+  )
 
   const handleMouseOut = useCallback(() => {
     onLeaveSample()
@@ -582,35 +700,46 @@ export function DistributionHistogram({
 
   if (isVertical) {
     return (
-      <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+      <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
         {hasData && (
-          <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-            <h3 className="font-semibold text-sm truncate leading-5">
+          <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+            <h3 className="truncate text-sm leading-5 font-semibold">
               {label && <span className="text-muted-foreground mr-1">{label}:</span>}
               Capability
             </h3>
             <div className="flex items-center gap-2 text-sm leading-5">
               {cpk > 0 && (
-                <span className={cn(
-                  'font-medium',
-                  cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive'
-                )}>
+                <span
+                  className={cn(
+                    'font-medium',
+                    cpk >= 1.33 ? 'text-success' : cpk >= 1.0 ? 'text-warning' : 'text-destructive',
+                  )}
+                >
                   Cpk: {cpk.toFixed(2)}
                 </span>
               )}
               <span className="text-muted-foreground">n={stats.n}</span>
-              <div className="relative group">
-                <button className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors">
+              <div className="group relative">
+                <button className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors">
                   <Info className="h-3.5 w-3.5" />
                 </button>
-                <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover:block">
-                  <div className="bg-popover border border-border rounded-lg shadow-lg p-3 text-xs min-w-[140px]">
-                    <div className="font-medium text-foreground mb-2">Process Statistics</div>
-                    <div className="space-y-1 text-muted-foreground">
+                <div className="absolute top-full right-0 z-50 mt-1 hidden group-hover:block">
+                  <div className="bg-popover border-border min-w-[140px] rounded-lg border p-3 text-xs shadow-lg">
+                    <div className="text-foreground mb-2 font-medium">Process Statistics</div>
+                    <div className="text-muted-foreground space-y-1">
                       {cp > 0 && (
                         <div className="flex justify-between">
                           <span>Cp:</span>
-                          <span className={cn('font-medium', cp >= 1.33 ? 'text-green-600' : cp >= 1.0 ? 'text-yellow-600' : 'text-destructive')}>
+                          <span
+                            className={cn(
+                              'font-medium',
+                              cp >= 1.33
+                                ? 'text-success'
+                                : cp >= 1.0
+                                  ? 'text-warning'
+                                  : 'text-destructive',
+                            )}
+                          >
                             {cp.toFixed(3)}
                           </span>
                         </div>
@@ -618,7 +747,16 @@ export function DistributionHistogram({
                       {cpk > 0 && (
                         <div className="flex justify-between">
                           <span>Cpk:</span>
-                          <span className={cn('font-medium', cpk >= 1.33 ? 'text-green-600' : cpk >= 1.0 ? 'text-yellow-600' : 'text-destructive')}>
+                          <span
+                            className={cn(
+                              'font-medium',
+                              cpk >= 1.33
+                                ? 'text-success'
+                                : cpk >= 1.0
+                                  ? 'text-warning'
+                                  : 'text-destructive',
+                            )}
+                          >
                             {cpk.toFixed(3)}
                           </span>
                         </div>
@@ -626,16 +764,18 @@ export function DistributionHistogram({
                       {ppk > 0 && (
                         <div className="flex justify-between">
                           <span>Ppk:</span>
-                          <span className="font-medium text-foreground">{ppk.toFixed(3)}</span>
+                          <span className="text-foreground font-medium">{ppk.toFixed(3)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between border-t border-border pt-1 mt-1">
+                      <div className="border-border mt-1 flex justify-between border-t pt-1">
                         <span>sigma:</span>
-                        <span className="font-medium text-foreground">{stats.stdDev.toFixed(4)}</span>
+                        <span className="text-foreground font-medium">
+                          {stats.stdDev.toFixed(4)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Mean:</span>
-                        <span className="font-medium text-foreground">{stats.mean.toFixed(4)}</span>
+                        <span className="text-foreground font-medium">{stats.mean.toFixed(4)}</span>
                       </div>
                     </div>
                   </div>
@@ -645,8 +785,12 @@ export function DistributionHistogram({
           </div>
         )}
         {/* Chart container — ALWAYS rendered so useECharts can init */}
-        <div className="flex-1 min-h-0 relative">
-          <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={containerRef}
+            className="absolute inset-0"
+            style={{ visibility: hasData ? 'visible' : 'hidden' }}
+          />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-muted-foreground text-sm">Loading...</div>
@@ -664,39 +808,33 @@ export function DistributionHistogram({
 
   // Horizontal orientation
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5">
+    <div className="bg-card border-border h-full rounded-2xl border p-5">
       {hasData && (
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="font-semibold text-sm tracking-tight">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold tracking-tight">
             {label && <span className="text-muted-foreground mr-1">{label}:</span>}
             Process Capability
           </h3>
-          <div className="flex gap-2 items-center">
-            {cp > 0 && (
-              <span className={getCapabilityStyle(cp)}>
-                Cp {cp.toFixed(2)}
-              </span>
-            )}
-            {cpk > 0 && (
-              <span className={getCapabilityStyle(cpk)}>
-                Cpk {cpk.toFixed(2)}
-              </span>
-            )}
+          <div className="flex items-center gap-2">
+            {cp > 0 && <span className={getCapabilityStyle(cp)}>Cp {cp.toFixed(2)}</span>}
+            {cpk > 0 && <span className={getCapabilityStyle(cpk)}>Cpk {cpk.toFixed(2)}</span>}
             {ppk > 0 && (
               <span className="stat-badge bg-muted text-muted-foreground">
                 Ppk {ppk.toFixed(2)}
               </span>
             )}
-            <span className="text-xs text-muted-foreground ml-2">
-              n={stats.n}
-            </span>
+            <span className="text-muted-foreground ml-2 text-xs">n={stats.n}</span>
           </div>
         </div>
       )}
 
       {/* Chart container — ALWAYS rendered so useECharts can init */}
       <div className={cn(hasData ? 'h-[85%]' : 'h-full', 'relative')}>
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: hasData ? 'visible' : 'hidden' }}
+        />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-muted-foreground text-sm">Loading...</div>

@@ -29,7 +29,8 @@ export function CharacteristicPicker({
   // Fetch characteristics
   const { data: charData } = useQuery({
     queryKey: ['characteristics-for-mapping', selectedPlantId],
-    queryFn: () => characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
+    queryFn: () =>
+      characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
   })
   const characteristics = charData?.items ?? []
 
@@ -81,26 +82,26 @@ export function CharacteristicPicker({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm bg-background border border-border rounded text-left hover:border-primary/50 transition-colors focus:outline-none focus:border-primary/50"
+        className="bg-background border-border hover:border-primary/50 focus:border-primary/50 flex w-full items-center gap-2 rounded border px-2.5 py-1.5 text-left text-sm transition-colors focus:outline-none"
       >
         {selectedChar ? (
           <>
-            <Tag className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-            <span className="flex-1 truncate text-foreground">{selectedChar.name}</span>
+            <Tag className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+            <span className="text-foreground flex-1 truncate">{selectedChar.name}</span>
             {value && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onChange(null)
                 }}
-                className="p-0.5 text-muted-foreground hover:text-muted-foreground"
+                className="text-muted-foreground hover:text-muted-foreground p-0.5"
               >
                 <X className="h-3 w-3" />
               </button>
             )}
           </>
         ) : (
-          <span className="flex-1 text-muted-foreground">Select characteristic...</span>
+          <span className="text-muted-foreground flex-1">Select characteristic...</span>
         )}
       </button>
 
@@ -110,18 +111,18 @@ export function CharacteristicPicker({
           {/* Backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
-          <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+          <div className="bg-card border-border absolute z-50 mt-1 w-full overflow-hidden rounded-lg border shadow-xl">
             {/* Search input */}
-            <div className="p-2 border-b border-border">
+            <div className="border-border border-b p-2">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search characteristics..."
                   autoFocus
-                  className="w-full pl-7 pr-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
+                  className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 w-full rounded border py-1.5 pr-2 pl-7 text-sm focus:outline-none"
                 />
               </div>
             </div>
@@ -129,7 +130,7 @@ export function CharacteristicPicker({
             {/* Characteristic list */}
             <div className="max-h-[240px] overflow-y-auto">
               {filtered.length === 0 ? (
-                <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                <div className="text-muted-foreground px-3 py-4 text-center text-sm">
                   {search ? 'No characteristics match your search' : 'No characteristics found'}
                 </div>
               ) : (
@@ -145,24 +146,24 @@ export function CharacteristicPicker({
                         setIsOpen(false)
                         setSearch('')
                       }}
-                      className={`w-full text-left px-3 py-2 flex items-start gap-2 text-sm transition-colors ${
+                      className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm transition-colors ${
                         isSelected
                           ? 'bg-indigo-500/10 text-indigo-300'
                           : 'text-foreground hover:bg-muted'
                       }`}
                     >
-                      <Tag className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-                      <div className="flex-1 min-w-0">
+                      <Tag className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate font-medium">{c.name}</span>
                           {isMapped && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-amber-500/10 text-amber-400 shrink-0">
+                            <span className="bg-warning/10 text-warning shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold">
                               MAPPED
                             </span>
                           )}
                         </div>
                         {path && (
-                          <p className="text-[11px] text-muted-foreground truncate">{path}</p>
+                          <p className="text-muted-foreground truncate text-[11px]">{path}</p>
                         )}
                       </div>
                     </button>

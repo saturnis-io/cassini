@@ -40,10 +40,10 @@ export function RetentionTreeBrowser({
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
 
   const overrideHierarchyIds = new Set(
-    overrides.filter((o) => o.hierarchy_id != null).map((o) => o.hierarchy_id!)
+    overrides.filter((o) => o.hierarchy_id != null).map((o) => o.hierarchy_id!),
   )
   const overrideCharIds = new Set(
-    overrides.filter((o) => o.characteristic_id != null).map((o) => o.characteristic_id!)
+    overrides.filter((o) => o.characteristic_id != null).map((o) => o.characteristic_id!),
   )
 
   const toggleExpanded = useCallback((id: number) => {
@@ -57,7 +57,7 @@ export function RetentionTreeBrowser({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 text-xs">
+      <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-xs">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading hierarchy...
       </div>
@@ -66,14 +66,14 @@ export function RetentionTreeBrowser({
 
   if (!nodes || nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center py-8 text-muted-foreground text-xs">
+      <div className="text-muted-foreground flex items-center justify-center py-8 text-xs">
         No hierarchy nodes found.
       </div>
     )
   }
 
   return (
-    <div className="p-2 space-y-0.5">
+    <div className="space-y-0.5 p-2">
       {nodes.map((node) => (
         <TreeNode
           key={node.id}
@@ -113,7 +113,9 @@ function TreeNode({
   onSelectNode,
 }: TreeNodeProps) {
   const isExpanded = expandedNodeIds.has(node.id)
-  const hasChildren = (node.children && node.children.length > 0) || (node.characteristic_count && node.characteristic_count > 0)
+  const hasChildren =
+    (node.children && node.children.length > 0) ||
+    (node.characteristic_count && node.characteristic_count > 0)
   const hasOverride = overrideHierarchyIds.has(node.id)
   const isSelected = selectedNode?.type === 'hierarchy' && selectedNode.id === node.id
 
@@ -128,9 +130,9 @@ function TreeNode({
     <div>
       <div
         className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded cursor-pointer text-xs',
+          'flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs',
           'hover:bg-muted transition-colors',
-          isSelected && 'bg-primary/10 ring-1 ring-primary/30'
+          isSelected && 'bg-primary/10 ring-primary/30 ring-1',
         )}
         style={{ paddingLeft: `${level * 14 + 6}px` }}
         onClick={handleClick}
@@ -140,10 +142,14 @@ function TreeNode({
             e.stopPropagation()
             if (hasChildren) toggleExpanded(node.id)
           }}
-          className="p-0.5 hover:bg-muted-foreground/20 rounded"
+          className="hover:bg-muted-foreground/20 rounded p-0.5"
         >
           {hasChildren ? (
-            isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />
+            isExpanded ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )
           ) : (
             <span className="w-3.5" />
           )}
@@ -152,7 +158,7 @@ function TreeNode({
         <span className={cn('flex-1 font-medium', !hasOverride && 'text-muted-foreground')}>
           {node.name}
         </span>
-        {hasOverride && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+        {hasOverride && <span className="bg-primary h-2 w-2 shrink-0 rounded-full" />}
       </div>
 
       {isExpanded && (
@@ -204,7 +210,7 @@ function CharacteristicsLeaves({
   if (isLoading) {
     return (
       <div
-        className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground"
+        className="text-muted-foreground flex items-center gap-2 px-2 py-1 text-xs"
         style={{ paddingLeft: `${level * 14 + 6}px` }}
       >
         <Loader2 className="h-3 w-3 animate-spin" />
@@ -225,24 +231,26 @@ function CharacteristicsLeaves({
           <div
             key={char.id}
             className={cn(
-              'flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer text-xs',
+              'flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs',
               'hover:bg-muted transition-colors',
-              isSelected && 'bg-primary/10 ring-1 ring-primary/30'
+              isSelected && 'bg-primary/10 ring-primary/30 ring-1',
             )}
             style={{ paddingLeft: `${level * 14 + 6}px` }}
-            onClick={() => onSelectNode({
-              type: 'characteristic',
-              id: char.id,
-              name: char.name,
-              hierarchyId,
-            })}
+            onClick={() =>
+              onSelectNode({
+                type: 'characteristic',
+                id: char.id,
+                name: char.name,
+                hierarchyId,
+              })
+            }
           >
             <span className="w-3.5" />
             <span className="w-3.5" />
             <span className={cn('flex-1 font-medium', !hasOverride && 'text-muted-foreground')}>
               {char.name}
             </span>
-            {hasOverride && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
+            {hasOverride && <span className="bg-primary h-2 w-2 shrink-0 rounded-full" />}
           </div>
         )
       })}

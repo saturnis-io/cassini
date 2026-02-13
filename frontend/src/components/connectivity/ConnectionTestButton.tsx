@@ -49,13 +49,13 @@ export function ConnectionTestButton({ onTest, disabled, className }: Connection
         type="button"
         onClick={handleTest}
         disabled={disabled || testing}
-        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border bg-card text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="border-border bg-card text-foreground hover:bg-accent flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {testing ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <span className="h-4 w-4 flex items-center justify-center">
-            <span className="w-2 h-2 rounded-full bg-current" />
+          <span className="flex h-4 w-4 items-center justify-center">
+            <span className="h-2 w-2 rounded-full bg-current" />
           </span>
         )}
         {testing ? 'Testing...' : 'Test Connection'}
@@ -64,18 +64,12 @@ export function ConnectionTestButton({ onTest, disabled, className }: Connection
       {result && (
         <span
           className={cn(
-            'flex items-center gap-1.5 text-sm font-medium animate-in fade-in-0 slide-in-from-left-2 duration-200',
-            result.success
-              ? 'text-emerald-500'
-              : 'text-red-500'
+            'animate-in fade-in-0 slide-in-from-left-2 flex items-center gap-1.5 text-sm font-medium duration-200',
+            result.success ? 'text-success' : 'text-destructive',
           )}
         >
-          {result.success ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <XCircle className="h-4 w-4" />
-          )}
-          <span className="truncate max-w-[240px]">{result.message}</span>
+          {result.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          <span className="max-w-[240px] truncate">{result.message}</span>
         </span>
       )}
     </div>

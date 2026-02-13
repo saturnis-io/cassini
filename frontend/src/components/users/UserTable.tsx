@@ -22,8 +22,7 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
     if (search) {
       const term = search.toLowerCase()
       return (
-        u.username.toLowerCase().includes(term) ||
-        (u.email && u.email.toLowerCase().includes(term))
+        u.username.toLowerCase().includes(term) || (u.email && u.email.toLowerCase().includes(term))
       )
     }
     return true
@@ -38,56 +37,56 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
           placeholder="Search by username or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring max-w-sm flex-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
         />
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <label className="text-muted-foreground flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
-            className="h-4 w-4 rounded border-border"
+            className="border-border h-4 w-4 rounded"
           />
           Show inactive
         </label>
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-lg border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Username</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-muted-foreground">Site Roles</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
+            <tr className="bg-muted/50 border-b">
+              <th className="text-muted-foreground px-4 py-3 text-left font-medium">Username</th>
+              <th className="text-muted-foreground px-4 py-3 text-left font-medium">Email</th>
+              <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
+              <th className="text-muted-foreground px-4 py-3 text-left font-medium">Site Roles</th>
+              <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-muted-foreground">
+                <td colSpan={5} className="text-muted-foreground py-8 text-center">
                   {search ? 'No users match your search.' : 'No users found.'}
                 </td>
               </tr>
             ) : (
               filteredUsers.map((user) => (
-                <tr key={user.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                <tr key={user.id} className="hover:bg-muted/30 border-b last:border-b-0">
                   <td className="px-4 py-3 font-medium">{user.username}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.email || '-'}</td>
+                  <td className="text-muted-foreground px-4 py-3">{user.email || '-'}</td>
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
                         user.is_active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          ? 'bg-success/15 text-success'
+                          : 'bg-destructive/15 text-destructive',
                       )}
                     >
                       {user.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="text-muted-foreground px-4 py-3">
                     {user.plant_roles.length === 0 ? (
                       <span className="text-xs italic">No assignments</span>
                     ) : (
@@ -95,7 +94,7 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
                         {user.plant_roles.map((pr) => (
                           <span
                             key={`${pr.plant_id}`}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted"
+                            className="bg-muted inline-flex items-center rounded px-2 py-0.5 text-xs"
                           >
                             {pr.plant_name}: {ROLE_LABELS[pr.role as Role] || pr.role}
                           </span>
@@ -107,21 +106,21 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => onEdit(user)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border hover:bg-accent transition-colors"
+                        className="hover:bg-accent rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
                       >
                         Edit
                       </button>
                       {user.is_active ? (
                         <button
                           onClick={() => onDeactivate(user)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md border border-destructive/50 text-destructive hover:bg-destructive/10 transition-colors"
+                          className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
                         >
                           Deactivate
                         </button>
                       ) : (
                         <button
                           onClick={() => onDelete(user)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
                         >
                           Delete
                         </button>

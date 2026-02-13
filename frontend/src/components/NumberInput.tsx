@@ -85,12 +85,15 @@ export function NumberInput({
   }
 
   // Clamp value within min/max bounds
-  const clamp = useCallback((val: number): number => {
-    let result = val
-    if (min !== undefined && result < min) result = min
-    if (max !== undefined && result > max) result = max
-    return result
-  }, [min, max])
+  const clamp = useCallback(
+    (val: number): number => {
+      let result = val
+      if (min !== undefined && result < min) result = min
+      if (max !== undefined && result > max) result = max
+      return result
+    },
+    [min, max],
+  )
 
   // Handle increment
   const increment = useCallback(() => {
@@ -156,12 +159,12 @@ export function NumberInput({
     <div
       className={cn(
         'relative flex items-center',
-        'bg-background border border-input rounded-lg',
-        'focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary',
+        'bg-background border-input rounded-lg border',
+        'focus-within:ring-primary/20 focus-within:border-primary focus-within:ring-2',
         'transition-colors',
-        disabled && 'opacity-50 cursor-not-allowed',
+        disabled && 'cursor-not-allowed opacity-50',
         sizeClasses[size],
-        className
+        className,
       )}
     >
       {/* Input field */}
@@ -186,23 +189,20 @@ export function NumberInput({
           appearance: 'none',
         }}
         className={cn(
-          'flex-1 min-w-0 h-full px-3 bg-transparent',
-          'focus:outline-none',
+          'h-full min-w-0 flex-1 border-0 bg-transparent px-3',
+          'focus:shadow-none focus:outline-none',
           // Hide native spinners via CSS as well
-          '[&::-webkit-outer-spin-button]:hidden [&::-webkit-outer-spin-button]:m-0',
-          '[&::-webkit-inner-spin-button]:hidden [&::-webkit-inner-spin-button]:m-0',
+          '[&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:hidden',
+          '[&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:hidden',
           '[&::-moz-appearance]:textfield',
           showButtons && 'pr-1',
-          inputClassName
+          inputClassName,
         )}
       />
 
       {/* Increment/Decrement buttons */}
       {showButtons && !readOnly && (
-        <div className={cn(
-          'flex flex-col h-full border-l border-input',
-          buttonSizeClasses[size]
-        )}>
+        <div className={cn('border-input flex h-full flex-col border-l', buttonSizeClasses[size])}>
           {/* Increment button */}
           <button
             type="button"
@@ -214,11 +214,11 @@ export function NumberInput({
             onTouchStart={() => startHolding(increment)}
             onTouchEnd={stopHolding}
             className={cn(
-              'flex-1 flex items-center justify-center',
+              'flex flex-1 items-center justify-center',
               'hover:bg-muted/50 active:bg-muted',
-              'transition-colors rounded-tr-lg',
+              'rounded-tr-lg transition-colors',
               'text-muted-foreground hover:text-foreground',
-              'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
+              'disabled:hover:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent',
             )}
             aria-label="Increment"
           >
@@ -226,7 +226,7 @@ export function NumberInput({
           </button>
 
           {/* Divider */}
-          <div className="h-px bg-input" />
+          <div className="bg-input h-px" />
 
           {/* Decrement button */}
           <button
@@ -239,11 +239,11 @@ export function NumberInput({
             onTouchStart={() => startHolding(decrement)}
             onTouchEnd={stopHolding}
             className={cn(
-              'flex-1 flex items-center justify-center',
+              'flex flex-1 items-center justify-center',
               'hover:bg-muted/50 active:bg-muted',
-              'transition-colors rounded-br-lg',
+              'rounded-br-lg transition-colors',
               'text-muted-foreground hover:text-foreground',
-              'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
+              'disabled:hover:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent',
             )}
             aria-label="Decrement"
           >

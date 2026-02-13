@@ -38,8 +38,8 @@ export function MonitorTab() {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Loading connectivity status...</p>
+          <div className="border-primary mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+          <p className="text-muted-foreground text-sm">Loading connectivity status...</p>
         </div>
       </div>
     )
@@ -48,18 +48,18 @@ export function MonitorTab() {
   if (!hasServers) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-center max-w-md">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-muted mx-auto mb-4">
-            <Server className="h-8 w-8 text-muted-foreground/50" />
+        <div className="max-w-md text-center">
+          <div className="bg-muted mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
+            <Server className="text-muted-foreground/50 h-8 w-8" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">No data sources configured</h3>
-          <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-            Add your first server to start collecting industrial data.
-            OpenSPC supports MQTT brokers and OPC-UA servers.
+          <h3 className="mb-2 text-lg font-semibold">No data sources configured</h3>
+          <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
+            Add your first server to start collecting industrial data. OpenSPC supports MQTT brokers
+            and OPC-UA servers.
           </p>
           <button
             onClick={() => navigate('/connectivity/servers')}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors"
           >
             <Plus className="h-4 w-4" />
             Add Server
@@ -72,22 +72,13 @@ export function MonitorTab() {
   return (
     <div className="space-y-5">
       {/* Summary Metrics */}
-      <ConnectivityMetrics
-        mqttStates={mqttStates}
-        opcuaStates={opcuaStates}
-      />
+      <ConnectivityMetrics mqttStates={mqttStates} opcuaStates={opcuaStates} />
 
       {/* Data Flow Pipeline */}
-      <DataFlowPipeline
-        mqttStates={mqttStates}
-        opcuaStates={opcuaStates}
-      />
+      <DataFlowPipeline mqttStates={mqttStates} opcuaStates={opcuaStates} />
 
       {/* Server Status Grid */}
-      <ServerStatusGrid
-        mqttStates={mqttStates}
-        opcuaStates={opcuaStates}
-      />
+      <ServerStatusGrid mqttStates={mqttStates} opcuaStates={opcuaStates} />
     </div>
   )
 }

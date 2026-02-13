@@ -98,7 +98,10 @@ export function ControlChart({
   onPointAnnotation,
   onRegionSelect,
 }: ControlChartProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+  const { data: chartData, isLoading } = useChartData(
+    characteristicId,
+    chartOptions ?? { limit: 50 },
+  )
   const chartColors = useChartColors()
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
@@ -108,7 +111,10 @@ export function ControlChart({
 
   // Annotation detail popover state
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
-  const [annotationPopoverPos, setAnnotationPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [annotationPopoverPos, setAnnotationPopoverPos] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  })
   const chartWrapperRef = useRef<HTMLDivElement>(null)
 
   // Store annotations in a ref for ECharts event handlers
@@ -135,10 +141,16 @@ export function ControlChart({
   }, [dataPoints])
 
   // Color scheme overrides
-  const lineColors = useMemo(() => colorScheme === 'secondary'
-    ? { start: chartColors.secondaryLineGradientStart, end: chartColors.secondaryLineGradientEnd }
-    : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd },
-  [colorScheme, chartColors])
+  const lineColors = useMemo(
+    () =>
+      colorScheme === 'secondary'
+        ? {
+            start: chartColors.secondaryLineGradientStart,
+            end: chartColors.secondaryLineGradientEnd,
+          }
+        : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd },
+    [colorScheme, chartColors],
+  )
 
   // ALL hooks must be called before early returns (Rules of Hooks)
   const isModeA = chartData?.subgroup_mode === 'STANDARDIZED'
@@ -157,14 +169,18 @@ export function ControlChart({
       displayValue: point.display_value ?? point.mean,
       displayKey: point.display_key || `#${index + 1}`,
       hasViolation: point.violation_ids.length > 0,
-      allAcknowledged: point.violation_ids.length > 0 && (point.unacknowledged_violation_ids ?? []).length === 0,
+      allAcknowledged:
+        point.violation_ids.length > 0 && (point.unacknowledged_violation_ids ?? []).length === 0,
       violationRules: point.violation_rules ?? [],
       unacknowledgedViolationIds: point.unacknowledged_violation_ids ?? [],
       excluded: point.excluded,
       timestamp: new Date(point.timestamp).toLocaleTimeString(),
       timestampMs: new Date(point.timestamp).getTime(),
       timestampLabel: new Date(point.timestamp).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       }),
       actual_n: point.actual_n ?? nominalN,
       is_undersized: point.is_undersized ?? false,
@@ -187,14 +203,18 @@ export function ControlChart({
     if (data.length === 0) return null
 
     // Compute dataZoom range from rangeWindow (for scroll-to-zoom on chart)
-    const dataZoomStart = (showBrush && rangeWindow)
-      ? (rangeWindow[0] / Math.max(data.length - 1, 1)) * 100
-      : 0
-    const dataZoomEnd = (showBrush && rangeWindow)
-      ? (rangeWindow[1] / Math.max(data.length - 1, 1)) * 100
-      : 100
+    const dataZoomStart =
+      showBrush && rangeWindow ? (rangeWindow[0] / Math.max(data.length - 1, 1)) * 100 : 0
+    const dataZoomEnd =
+      showBrush && rangeWindow ? (rangeWindow[1] / Math.max(data.length - 1, 1)) * 100 : 100
 
-    const { control_limits, spec_limits, zone_boundaries, subgroup_mode, decimal_precision = 3 } = chartData
+    const {
+      control_limits,
+      spec_limits,
+      zone_boundaries,
+      subgroup_mode,
+      decimal_precision = 3,
+    } = chartData
     const localIsModeB = subgroup_mode === 'VARIABLE_LIMITS'
 
     const formatVal = (value: number | null | undefined) => {
@@ -250,30 +270,72 @@ export function ControlChart({
         [{ yAxis: -2, itemStyle: { color: chartColors.zoneB, opacity: 0.1 } }, { yAxis: -1 }],
         [{ yAxis: 2, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: 3 }],
         [{ yAxis: -3, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: -2 }],
-        [{ yAxis: 3, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } }, { yAxis: yMax }],
-        [{ yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } }, { yAxis: -3 }],
+        [
+          { yAxis: 3, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
+          { yAxis: yMax },
+        ],
+        [
+          { yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
+          { yAxis: -3 },
+        ],
       )
     } else {
       if (zone_boundaries.minus_1_sigma != null && zone_boundaries.plus_1_sigma != null) {
-        markAreaData.push([{ yAxis: zone_boundaries.minus_1_sigma, itemStyle: { color: chartColors.zoneC, opacity: 0.08 } }, { yAxis: zone_boundaries.plus_1_sigma }])
+        markAreaData.push([
+          {
+            yAxis: zone_boundaries.minus_1_sigma,
+            itemStyle: { color: chartColors.zoneC, opacity: 0.08 },
+          },
+          { yAxis: zone_boundaries.plus_1_sigma },
+        ])
       }
       if (zone_boundaries.plus_1_sigma != null && zone_boundaries.plus_2_sigma != null) {
-        markAreaData.push([{ yAxis: zone_boundaries.plus_1_sigma, itemStyle: { color: chartColors.zoneB, opacity: 0.1 } }, { yAxis: zone_boundaries.plus_2_sigma }])
+        markAreaData.push([
+          {
+            yAxis: zone_boundaries.plus_1_sigma,
+            itemStyle: { color: chartColors.zoneB, opacity: 0.1 },
+          },
+          { yAxis: zone_boundaries.plus_2_sigma },
+        ])
       }
       if (zone_boundaries.minus_2_sigma != null && zone_boundaries.minus_1_sigma != null) {
-        markAreaData.push([{ yAxis: zone_boundaries.minus_2_sigma, itemStyle: { color: chartColors.zoneB, opacity: 0.1 } }, { yAxis: zone_boundaries.minus_1_sigma }])
+        markAreaData.push([
+          {
+            yAxis: zone_boundaries.minus_2_sigma,
+            itemStyle: { color: chartColors.zoneB, opacity: 0.1 },
+          },
+          { yAxis: zone_boundaries.minus_1_sigma },
+        ])
       }
       if (zone_boundaries.plus_2_sigma != null && control_limits.ucl != null) {
-        markAreaData.push([{ yAxis: zone_boundaries.plus_2_sigma, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: control_limits.ucl }])
+        markAreaData.push([
+          {
+            yAxis: zone_boundaries.plus_2_sigma,
+            itemStyle: { color: chartColors.zoneA, opacity: 0.12 },
+          },
+          { yAxis: control_limits.ucl },
+        ])
       }
       if (control_limits.lcl != null && zone_boundaries.minus_2_sigma != null) {
-        markAreaData.push([{ yAxis: control_limits.lcl, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: zone_boundaries.minus_2_sigma }])
+        markAreaData.push([
+          { yAxis: control_limits.lcl, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } },
+          { yAxis: zone_boundaries.minus_2_sigma },
+        ])
       }
       if (control_limits.ucl != null) {
-        markAreaData.push([{ yAxis: control_limits.ucl, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } }, { yAxis: yMax }])
+        markAreaData.push([
+          {
+            yAxis: control_limits.ucl,
+            itemStyle: { color: chartColors.outOfControl, opacity: 0.15 },
+          },
+          { yAxis: yMax },
+        ])
       }
       if (control_limits.lcl != null) {
-        markAreaData.push([{ yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } }, { yAxis: control_limits.lcl }])
+        markAreaData.push([
+          { yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
+          { yAxis: control_limits.lcl },
+        ])
       }
     }
 
@@ -327,10 +389,16 @@ export function ControlChart({
               let bestStartIdx = 0
               let bestEndIdx = data.length - 1
               for (let i = 0; i < data.length; i++) {
-                if (data[i].timestampMs >= startMs) { bestStartIdx = i; break }
+                if (data[i].timestampMs >= startMs) {
+                  bestStartIdx = i
+                  break
+                }
               }
               for (let i = data.length - 1; i >= 0; i--) {
-                if (data[i].timestampMs <= endMs) { bestEndIdx = i; break }
+                if (data[i].timestampMs <= endMs) {
+                  bestEndIdx = i
+                  break
+                }
               }
               if (bestStartIdx <= bestEndIdx) {
                 x1 = bestStartIdx
@@ -349,7 +417,17 @@ export function ControlChart({
 
           if (x1 != null && x2 != null) {
             annotationMarkAreas.push([
-              { xAxis: x1, itemStyle: { color, opacity: 0.18, borderColor: color, borderWidth: 1, borderType: 'dashed' as const }, label: { show: false } },
+              {
+                xAxis: x1,
+                itemStyle: {
+                  color,
+                  opacity: 0.18,
+                  borderColor: color,
+                  borderWidth: 1,
+                  borderType: 'dashed' as const,
+                },
+                label: { show: false },
+              },
               { xAxis: x2 },
             ])
             annotationMarkerData.push([x1, ann.id, annIdx, x2])
@@ -368,21 +446,104 @@ export function ControlChart({
 
     if (isModeA) {
       markLineData.push(
-        { yAxis: 3, lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 }, label: { formatter: 'UCL: +3.0', position: 'end', color: chartColors.uclLine, fontSize: 11, fontWeight: 500 } },
-        { yAxis: 0, lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 }, label: { formatter: 'CL: 0.0', position: 'end', color: chartColors.centerLine, fontSize: 11, fontWeight: 600 } },
-        { yAxis: -3, lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 }, label: { formatter: 'LCL: -3.0', position: 'end', color: chartColors.lclLine, fontSize: 11, fontWeight: 500 } },
+        {
+          yAxis: 3,
+          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
+          label: {
+            formatter: 'UCL: +3.0',
+            position: 'end',
+            color: chartColors.uclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        },
+        {
+          yAxis: 0,
+          lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 },
+          label: {
+            formatter: 'CL: 0.0',
+            position: 'end',
+            color: chartColors.centerLine,
+            fontSize: 11,
+            fontWeight: 600,
+          },
+        },
+        {
+          yAxis: -3,
+          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
+          label: {
+            formatter: 'LCL: -3.0',
+            position: 'end',
+            color: chartColors.lclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        },
       )
     } else {
-      if (control_limits.ucl != null) markLineData.push({ yAxis: control_limits.ucl, lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 }, label: { formatter: `UCL: ${formatVal(control_limits.ucl)}`, position: 'end', color: chartColors.uclLine, fontSize: 11, fontWeight: 500 } })
-      if (control_limits.center_line != null) markLineData.push({ yAxis: control_limits.center_line, lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 }, label: { formatter: `CL: ${formatVal(control_limits.center_line)}`, position: 'end', color: chartColors.centerLine, fontSize: 11, fontWeight: 600 } })
-      if (control_limits.lcl != null) markLineData.push({ yAxis: control_limits.lcl, lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 }, label: { formatter: `LCL: ${formatVal(control_limits.lcl)}`, position: 'end', color: chartColors.lclLine, fontSize: 11, fontWeight: 500 } })
+      if (control_limits.ucl != null)
+        markLineData.push({
+          yAxis: control_limits.ucl,
+          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
+          label: {
+            formatter: `UCL: ${formatVal(control_limits.ucl)}`,
+            position: 'end',
+            color: chartColors.uclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        })
+      if (control_limits.center_line != null)
+        markLineData.push({
+          yAxis: control_limits.center_line,
+          lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 },
+          label: {
+            formatter: `CL: ${formatVal(control_limits.center_line)}`,
+            position: 'end',
+            color: chartColors.centerLine,
+            fontSize: 11,
+            fontWeight: 600,
+          },
+        })
+      if (control_limits.lcl != null)
+        markLineData.push({
+          yAxis: control_limits.lcl,
+          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
+          label: {
+            formatter: `LCL: ${formatVal(control_limits.lcl)}`,
+            position: 'end',
+            color: chartColors.lclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        })
     }
 
     if (showSpecLimits && spec_limits.usl != null) {
-      markLineData.push({ yAxis: spec_limits.usl, lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 }, label: { formatter: `USL: ${formatVal(spec_limits.usl)}`, position: 'end', color: 'hsl(357, 80%, 45%)', fontSize: 10, fontWeight: 500 } })
+      markLineData.push({
+        yAxis: spec_limits.usl,
+        lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
+        label: {
+          formatter: `USL: ${formatVal(spec_limits.usl)}`,
+          position: 'end',
+          color: 'hsl(357, 80%, 45%)',
+          fontSize: 10,
+          fontWeight: 500,
+        },
+      })
     }
     if (showSpecLimits && spec_limits.lsl != null) {
-      markLineData.push({ yAxis: spec_limits.lsl, lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 }, label: { formatter: `LSL: ${formatVal(spec_limits.lsl)}`, position: 'end', color: 'hsl(357, 80%, 45%)', fontSize: 10, fontWeight: 500 } })
+      markLineData.push({
+        yAxis: spec_limits.lsl,
+        lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
+        label: {
+          formatter: `LSL: ${formatVal(spec_limits.lsl)}`,
+          position: 'end',
+          color: 'hsl(357, 80%, 45%)',
+          fontSize: 10,
+          fontWeight: 500,
+        },
+      })
     }
 
     markLineData.push(...annotationMarkLines)
@@ -398,7 +559,8 @@ export function ControlChart({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: any, api: any) => {
       const arrIndex = api.value(2) as number
-      if (arrIndex < 0 || arrIndex >= localData.length) return { type: 'group', children: [] } as unknown
+      if (arrIndex < 0 || arrIndex >= localData.length)
+        return { type: 'group', children: [] } as unknown
       const point = localData[arrIndex]
 
       // Use dimensions 0,1 (x,y) directly for pixel mapping — guarantees dots align with line
@@ -414,8 +576,10 @@ export function ControlChart({
       const primaryRule = getPrimaryViolationRule(violationRules)
 
       const pointValue = point.displayValue ?? point.mean
-      const isHighlightedFromHistogram = localHighlightedRange != null &&
-        pointValue >= localHighlightedRange[0] && pointValue < localHighlightedRange[1]
+      const isHighlightedFromHistogram =
+        localHighlightedRange != null &&
+        pointValue >= localHighlightedRange[0] &&
+        pointValue < localHighlightedRange[1]
       const isHighlightedFromCrossChart = localHoveredSampleIds?.has(point.sample_id) ?? false
       const isHighlighted = isHighlightedFromHistogram || isHighlightedFromCrossChart
 
@@ -424,11 +588,15 @@ export function ControlChart({
 
       const fillColor = isHighlighted
         ? 'hsl(45, 100%, 50%)'
-        : isExcluded ? localChartColors.excludedPoint
-        : isViolation && isAcked ? ackedColor
-        : isViolation ? localChartColors.violationPoint
-        : isUndersized ? localChartColors.undersizedPoint
-        : localChartColors.normalPoint
+        : isExcluded
+          ? localChartColors.excludedPoint
+          : isViolation && isAcked
+            ? ackedColor
+            : isViolation
+              ? localChartColors.violationPoint
+              : isUndersized
+                ? localChartColors.undersizedPoint
+                : localChartColors.normalPoint
 
       const baseRadius = isHighlighted ? 7 : isViolation ? 6 : isUndersized ? 5 : 4
       const children: Record<string, unknown>[] = []
@@ -447,28 +615,56 @@ export function ControlChart({
           // Acknowledged: outline-only diamond, no glow
           children.push({
             type: 'polygon',
-            shape: { points: [[cx, cy - baseRadius], [cx + baseRadius, cy], [cx, cy + baseRadius], [cx - baseRadius, cy]] },
+            shape: {
+              points: [
+                [cx, cy - baseRadius],
+                [cx + baseRadius, cy],
+                [cx, cy + baseRadius],
+                [cx - baseRadius, cy],
+              ],
+            },
             style: { fill: 'none', stroke: fillColor, lineWidth: 2 },
           })
         } else {
           // Unacknowledged: solid filled diamond with glow
           children.push({
             type: 'polygon',
-            shape: { points: [[cx, cy - baseRadius], [cx + baseRadius, cy], [cx, cy + baseRadius], [cx - baseRadius, cy]] },
+            shape: {
+              points: [
+                [cx, cy - baseRadius],
+                [cx + baseRadius, cy],
+                [cx, cy + baseRadius],
+                [cx - baseRadius, cy],
+              ],
+            },
             style: { fill: fillColor, shadowBlur: 4, shadowColor: fillColor },
           })
         }
       } else if (isUndersized) {
         children.push({
           type: 'polygon',
-          shape: { points: [[cx, cy - baseRadius], [cx + baseRadius, cy + baseRadius * 0.7], [cx - baseRadius, cy + baseRadius * 0.7]] },
-          style: { fill: fillColor, stroke: isHighlighted ? 'hsl(35, 100%, 45%)' : localChartColors.undersizedPoint, lineWidth: 1.5 },
+          shape: {
+            points: [
+              [cx, cy - baseRadius],
+              [cx + baseRadius, cy + baseRadius * 0.7],
+              [cx - baseRadius, cy + baseRadius * 0.7],
+            ],
+          },
+          style: {
+            fill: fillColor,
+            stroke: isHighlighted ? 'hsl(35, 100%, 45%)' : localChartColors.undersizedPoint,
+            lineWidth: 1.5,
+          },
         })
       } else {
         children.push({
           type: 'circle',
           shape: { cx, cy, r: baseRadius },
-          style: { fill: fillColor, stroke: isHighlighted ? 'hsl(35, 100%, 45%)' : undefined, lineWidth: isHighlighted ? 2 : 0 },
+          style: {
+            fill: fillColor,
+            stroke: isHighlighted ? 'hsl(35, 100%, 45%)' : undefined,
+            lineWidth: isHighlighted ? 2 : 0,
+          },
         })
       }
 
@@ -477,11 +673,37 @@ export function ControlChart({
         const badgeFill = isAcked ? 'hsl(357, 25%, 48%)' : 'hsl(357, 80%, 52%)'
         const badgeTextFill = isAcked ? 'hsl(0, 0%, 80%)' : '#fff'
         children.push(
-          { type: 'circle', shape: { cx, cy: cy - baseRadius - 8, r: 7 }, style: { fill: badgeFill, stroke: isAcked ? 'hsl(0, 0%, 50%)' : '#fff', lineWidth: 1 } },
-          { type: 'text', style: { x: cx, y: cy - baseRadius - 8, text: String(primaryRule), fill: badgeTextFill, fontSize: 9, fontWeight: 700, textAlign: 'center', textVerticalAlign: 'middle' } },
+          {
+            type: 'circle',
+            shape: { cx, cy: cy - baseRadius - 8, r: 7 },
+            style: { fill: badgeFill, stroke: isAcked ? 'hsl(0, 0%, 50%)' : '#fff', lineWidth: 1 },
+          },
+          {
+            type: 'text',
+            style: {
+              x: cx,
+              y: cy - baseRadius - 8,
+              text: String(primaryRule),
+              fill: badgeTextFill,
+              fontSize: 9,
+              fontWeight: 700,
+              textAlign: 'center',
+              textVerticalAlign: 'middle',
+            },
+          },
         )
         if (violationRules.length > 1) {
-          children.push({ type: 'text', style: { x: cx + 7, y: cy - baseRadius - 12, text: `+${violationRules.length - 1}`, fill: isAcked ? 'hsl(357, 20%, 48%)' : 'hsl(357, 80%, 45%)', fontSize: 8, fontWeight: 600 } })
+          children.push({
+            type: 'text',
+            style: {
+              x: cx + 7,
+              y: cy - baseRadius - 12,
+              text: `+${violationRules.length - 1}`,
+              fill: isAcked ? 'hsl(357, 20%, 48%)' : 'hsl(357, 80%, 45%)',
+              fontSize: 8,
+              fontWeight: 600,
+            },
+          })
         }
       }
 
@@ -490,7 +712,12 @@ export function ControlChart({
         children.push({
           type: 'circle',
           shape: { cx, cy, r: baseRadius + 3 },
-          style: { fill: 'none', stroke: localChartColors.undersizedPoint, lineWidth: 1.5, lineDash: [2, 2] },
+          style: {
+            fill: 'none',
+            stroke: localChartColors.undersizedPoint,
+            lineWidth: 1.5,
+            lineDash: [2, 2],
+          },
         })
       }
 
@@ -498,9 +725,8 @@ export function ControlChart({
     }
 
     // Time range for adaptive tick formatting (use full data for stable range)
-    const dataTimeRangeMs = data.length > 1
-      ? data[data.length - 1].timestampMs - data[0].timestampMs
-      : 0
+    const dataTimeRangeMs =
+      data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
 
     const bottomMargin = isTimestamp ? 60 : 30
     const xCategoryData = data.map((p) => String(p.index))
@@ -584,7 +810,8 @@ export function ControlChart({
           }
 
           html += `<div style="opacity:0.7">${point.timestamp}</div>`
-          if (point.is_undersized) html += `<div style="color:hsl(32,63%,51%);font-weight:500">Undersized sample</div>`
+          if (point.is_undersized)
+            html += `<div style="color:hsl(32,63%,51%);font-weight:500">Undersized sample</div>`
 
           if (point.hasViolation && point.violationRules.length > 0) {
             html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
@@ -599,16 +826,18 @@ export function ControlChart({
           return html
         },
       },
-      dataZoom: [{
-        type: 'inside' as const,
-        start: dataZoomStart,
-        end: dataZoomEnd,
-        minSpan: Math.max(2 / data.length * 100, 0.5),
-        zoomOnMouseWheel: true,
-        moveOnMouseWheel: 'shift' as const,
-        moveOnMouseMove: false,
-        preventDefaultMouseMove: true,
-      }],
+      dataZoom: [
+        {
+          type: 'inside' as const,
+          start: dataZoomStart,
+          end: dataZoomEnd,
+          minSpan: Math.max((2 / data.length) * 100, 0.5),
+          zoomOnMouseWheel: true,
+          moveOnMouseWheel: 'shift' as const,
+          moveOnMouseMove: false,
+          preventDefaultMouseMove: true,
+        },
+      ],
       series: [
         // Line series for the data path + markLine/markArea decorations
         {
@@ -642,148 +871,186 @@ export function ControlChart({
           silent: false,
         },
         // Annotation marker series — * for points, horizontal brackets for periods
-        ...(hasAnnotationMarkers ? [{
-          type: 'custom' as const,
-          // data: [x1, yMax, annIdx, x2OrNaN]
-          data: annotationMarkerData.map((entry) => [entry[0], yMax, entry[2], entry[3]]),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          renderItem: (_params: any, api: any) => {
-            const annColor = localChartColors.annotationColor
-            const x1Coord = api.coord([api.value(0), api.value(1)])
-            const x1Px = x1Coord[0]
-            const cy = gridTop - 2
-            const x2Raw = api.value(3) as number
-            const isPeriod = x2Raw != null && !isNaN(x2Raw)
+        ...(hasAnnotationMarkers
+          ? [
+              {
+                type: 'custom' as const,
+                // data: [x1, yMax, annIdx, x2OrNaN]
+                data: annotationMarkerData.map((entry) => [entry[0], yMax, entry[2], entry[3]]),
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                renderItem: (_params: any, api: any) => {
+                  const annColor = localChartColors.annotationColor
+                  const x1Coord = api.coord([api.value(0), api.value(1)])
+                  const x1Px = x1Coord[0]
+                  const cy = gridTop - 2
+                  const x2Raw = api.value(3) as number
+                  const isPeriod = x2Raw != null && !isNaN(x2Raw)
 
-            if (isPeriod) {
-              // Period annotation: horizontal bracket spanning x1 → x2
-              // Bracket hangs down from a top bar, ticks reach toward the chart area
-              const x2Coord = api.coord([x2Raw, api.value(1)])
-              const x2Px = x2Coord[0]
-              const bracketBottom = cy           // ticks reach down to near the chart grid edge
-              const bracketH = 8
-              const bracketTop = cy - bracketH   // horizontal bar sits above
-              const midX = (x1Px + x2Px) / 2
-              return {
-                type: 'group',
-                children: [
-                  // Left tick
-                  { type: 'line', shape: { x1: x1Px, y1: bracketBottom, x2: x1Px, y2: bracketTop }, style: { stroke: annColor, lineWidth: 2 } },
-                  // Horizontal bar
-                  { type: 'line', shape: { x1: x1Px, y1: bracketTop, x2: x2Px, y2: bracketTop }, style: { stroke: annColor, lineWidth: 2 } },
-                  // Right tick
-                  { type: 'line', shape: { x1: x2Px, y1: bracketBottom, x2: x2Px, y2: bracketTop }, style: { stroke: annColor, lineWidth: 2 } },
-                  // Center dot for click target
-                  { type: 'circle', shape: { cx: midX, cy: bracketTop, r: 4 }, style: { fill: annColor } },
-                ],
-              } as unknown
-            }
+                  if (isPeriod) {
+                    // Period annotation: horizontal bracket spanning x1 → x2
+                    // Bracket hangs down from a top bar, ticks reach toward the chart area
+                    const x2Coord = api.coord([x2Raw, api.value(1)])
+                    const x2Px = x2Coord[0]
+                    const bracketBottom = cy // ticks reach down to near the chart grid edge
+                    const bracketH = 8
+                    const bracketTop = cy - bracketH // horizontal bar sits above
+                    const midX = (x1Px + x2Px) / 2
+                    return {
+                      type: 'group',
+                      children: [
+                        // Left tick
+                        {
+                          type: 'line',
+                          shape: { x1: x1Px, y1: bracketBottom, x2: x1Px, y2: bracketTop },
+                          style: { stroke: annColor, lineWidth: 2 },
+                        },
+                        // Horizontal bar
+                        {
+                          type: 'line',
+                          shape: { x1: x1Px, y1: bracketTop, x2: x2Px, y2: bracketTop },
+                          style: { stroke: annColor, lineWidth: 2 },
+                        },
+                        // Right tick
+                        {
+                          type: 'line',
+                          shape: { x1: x2Px, y1: bracketBottom, x2: x2Px, y2: bracketTop },
+                          style: { stroke: annColor, lineWidth: 2 },
+                        },
+                        // Center dot for click target
+                        {
+                          type: 'circle',
+                          shape: { cx: midX, cy: bracketTop, r: 4 },
+                          style: { fill: annColor },
+                        },
+                      ],
+                    } as unknown
+                  }
 
-            // Point annotation: * marker
-            return {
-              type: 'text',
-              style: {
-                x: x1Px,
-                y: cy,
-                text: '*',
-                fill: annColor,
-                fontSize: 22,
-                fontWeight: 900,
-                textAlign: 'center',
-                textVerticalAlign: 'bottom',
-              },
-              emphasis: {
-                style: {
-                  fill: annColor,
-                  fontSize: 24,
+                  // Point annotation: * marker
+                  return {
+                    type: 'text',
+                    style: {
+                      x: x1Px,
+                      y: cy,
+                      text: '*',
+                      fill: annColor,
+                      fontSize: 22,
+                      fontWeight: 900,
+                      textAlign: 'center',
+                      textVerticalAlign: 'bottom',
+                    },
+                    emphasis: {
+                      style: {
+                        fill: annColor,
+                        fontSize: 24,
+                      },
+                    },
+                  } as unknown
                 },
+                coordinateSystem: 'cartesian2d',
+                encode: { x: 0, y: 1 },
+                clip: false,
+                z: 15,
+                silent: false,
               },
-            } as unknown
-          },
-          coordinateSystem: 'cartesian2d',
-          encode: { x: 0, y: 1 },
-          clip: false,
-          z: 15,
-          silent: false,
-        }] : []),
+            ]
+          : []),
       ],
     }
 
     return option
   }, [
-    chartData, data, xAxisMode, chartColors, lineColors, isModeA,
-    externalDomain, showSpecLimits, annotations,
-    highlightedRange, hoveredSampleIds,
-    rangeWindow, showBrush,
+    chartData,
+    data,
+    xAxisMode,
+    chartColors,
+    lineColors,
+    isModeA,
+    externalDomain,
+    showSpecLimits,
+    annotations,
+    highlightedRange,
+    hoveredSampleIds,
+    rangeWindow,
+    showBrush,
   ])
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
-  const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
-    // Only trigger hover for data point series (0 = line, 1 = custom markers)
-    // Ignore annotation marker series (seriesIndex 2) to prevent random highlights
-    if (params.seriesIndex != null && params.seriesIndex >= 2) return
-    const idx = params.dataIndex
-    const point = dataRef.current[idx]
-    if (point) {
-      onHoverSample(point.sample_id)
-      onHoverValue?.(point.displayValue ?? point.mean)
-    }
-  }, [onHoverSample, onHoverValue])
+  const handleMouseMove = useCallback(
+    (params: EChartsMouseEvent) => {
+      // Only trigger hover for data point series (0 = line, 1 = custom markers)
+      // Ignore annotation marker series (seriesIndex 2) to prevent random highlights
+      if (params.seriesIndex != null && params.seriesIndex >= 2) return
+      const idx = params.dataIndex
+      const point = dataRef.current[idx]
+      if (point) {
+        onHoverSample(point.sample_id)
+        onHoverValue?.(point.displayValue ?? point.mean)
+      }
+    },
+    [onHoverSample, onHoverValue],
+  )
 
   const handleMouseOut = useCallback(() => {
     onLeaveSample()
     onHoverValue?.(null)
   }, [onLeaveSample, onHoverValue])
 
-  const handleClick = useCallback((params: EChartsMouseEvent) => {
-    // Annotation marker click (seriesIndex 2 = annotation marker series)
-    if (params.seriesIndex === 2 && annotationsRef.current) {
-      const annId = annotationMarkerIdsRef.current[params.dataIndex]
-      if (annId != null) {
-        const ann = (annotationsRef.current as Annotation[]).find((a) => a.id === annId)
-        if (ann && chartWrapperRef.current) {
-          const rect = chartWrapperRef.current.getBoundingClientRect()
-          setAnnotationPopoverPos({
-            x: rect.left + (params.event?.offsetX ?? 0),
-            y: rect.top + (params.event?.offsetY ?? 0),
-          })
-          setActiveAnnotation(ann)
-          return
+  const handleClick = useCallback(
+    (params: EChartsMouseEvent) => {
+      // Annotation marker click (seriesIndex 2 = annotation marker series)
+      if (params.seriesIndex === 2 && annotationsRef.current) {
+        const annId = annotationMarkerIdsRef.current[params.dataIndex]
+        if (annId != null) {
+          const ann = (annotationsRef.current as Annotation[]).find((a) => a.id === annId)
+          if (ann && chartWrapperRef.current) {
+            const rect = chartWrapperRef.current.getBoundingClientRect()
+            setAnnotationPopoverPos({
+              x: rect.left + (params.event?.offsetX ?? 0),
+              y: rect.top + (params.event?.offsetY ?? 0),
+            })
+            setActiveAnnotation(ann)
+            return
+          }
         }
       }
-    }
-    // Data point click — read sample_id from the series data directly
-    // to guarantee consistency with the rendered chart (prevents stale
-    // dataRef from opening the wrong sample after a data refresh)
-    const pointData = params.data as unknown as number[]
-    const sampleId = pointData?.[3]
-    if (sampleId && onPointAnnotation) {
-      onPointAnnotation(sampleId)
-    }
-  }, [onPointAnnotation])
+      // Data point click — read sample_id from the series data directly
+      // to guarantee consistency with the rendered chart (prevents stale
+      // dataRef from opening the wrong sample after a data refresh)
+      const pointData = params.data as unknown as number[]
+      const sampleId = pointData?.[3]
+      if (sampleId && onPointAnnotation) {
+        onPointAnnotation(sampleId)
+      }
+    },
+    [onPointAnnotation],
+  )
 
   // DataZoom handler: maps zoom percentages back to rangeWindow indices
-  const handleDataZoom = useCallback((params: EChartsDataZoomEvent) => {
-    const totalPoints = dataRef.current.length
-    if (totalPoints <= 1) return
+  const handleDataZoom = useCallback(
+    (params: EChartsDataZoomEvent) => {
+      const totalPoints = dataRef.current.length
+      if (totalPoints <= 1) return
 
-    const newStart = Math.round(params.start / 100 * (totalPoints - 1))
-    const newEnd = Math.round(params.end / 100 * (totalPoints - 1))
+      const newStart = Math.round((params.start / 100) * (totalPoints - 1))
+      const newEnd = Math.round((params.end / 100) * (totalPoints - 1))
 
-    // Zoomed all the way out → clear range
-    if (newStart <= 0 && newEnd >= totalPoints - 1) {
-      setRangeWindow(null)
-      return
-    }
+      // Zoomed all the way out → clear range
+      if (newStart <= 0 && newEnd >= totalPoints - 1) {
+        setRangeWindow(null)
+        return
+      }
 
-    // Auto-enable showBrush + set range atomically
-    const store = useDashboardStore.getState()
-    if (!store.showBrush) {
-      useDashboardStore.setState({ showBrush: true, rangeWindow: [newStart, newEnd] })
-    } else {
-      setRangeWindow([newStart, newEnd])
-    }
-  }, [setRangeWindow])
+      // Auto-enable showBrush + set range atomically
+      const store = useDashboardStore.getState()
+      if (!store.showBrush) {
+        useDashboardStore.setState({ showBrush: true, rangeWindow: [newStart, newEnd] })
+      } else {
+        setRangeWindow([newStart, newEnd])
+      }
+    },
+    [setRangeWindow],
+  )
 
   const { containerRef, chartRef, refresh } = useECharts({
     option: echartsOption,
@@ -803,22 +1070,31 @@ export function ControlChart({
 
   // Drag-to-select region overlay — callback is called directly by the hook (no intermediate state)
   const isTimestamp = xAxisMode === 'timestamp'
-  const handleDragSelect = useCallback((sel: DragSelection) => {
-    if (!onRegionSelect || !data.length) return
-    const slice = data.slice(sel.startIndex, sel.endIndex + 1)
-    if (!slice.length) return
+  const handleDragSelect = useCallback(
+    (sel: DragSelection) => {
+      if (!onRegionSelect || !data.length) return
+      const slice = data.slice(sel.startIndex, sel.endIndex + 1)
+      if (!slice.length) return
 
-    onRegionSelect({
-      startTime: new Date(slice[0].timestampMs).toISOString(),
-      endTime: new Date(slice[slice.length - 1].timestampMs).toISOString(),
-      startDisplayKey: slice[0].displayKey,
-      endDisplayKey: slice[slice.length - 1].displayKey,
-      sampleCount: slice.length,
-      violationIds: slice.flatMap(p => p.unacknowledgedViolationIds),
-    })
-  }, [onRegionSelect, data])
+      onRegionSelect({
+        startTime: new Date(slice[0].timestampMs).toISOString(),
+        endTime: new Date(slice[slice.length - 1].timestampMs).toISOString(),
+        startDisplayKey: slice[0].displayKey,
+        endDisplayKey: slice[slice.length - 1].displayKey,
+        sampleCount: slice.length,
+        violationIds: slice.flatMap((p) => p.unacknowledgedViolationIds),
+      })
+    },
+    [onRegionSelect, data],
+  )
 
-  const { dragRect } = useChartDragSelect(chartRef, chartWrapperRef, data, isTimestamp, handleDragSelect)
+  const { dragRect } = useChartDragSelect(
+    chartRef,
+    chartWrapperRef,
+    data,
+    isTimestamp,
+    handleDragSelect,
+  )
 
   // Refresh on theme color changes
   useEffect(() => {
@@ -829,27 +1105,40 @@ export function ControlChart({
   const hasData = !!chartData && !!chartData.data_points && chartData.data_points.length > 0
 
   const isModeB = chartData?.subgroup_mode === 'VARIABLE_LIMITS'
-  const chartTypeLabel = isModeA ? 'Z-Score Chart' : isModeB ? 'Variable Limits Chart' : nominalN === 1 ? 'Individuals Chart' : 'X-Bar Chart'
+  const chartTypeLabel = isModeA
+    ? 'Z-Score Chart'
+    : isModeB
+      ? 'Variable Limits Chart'
+      : nominalN === 1
+        ? 'Individuals Chart'
+        : 'X-Bar Chart'
 
   const hierarchyNames = hierarchyPath.map((h) => h.name)
-  const breadcrumb = hierarchyNames.length > 0
-    ? [...hierarchyNames, chartData?.characteristic_name].filter(Boolean).join(' / ')
-    : chartData?.characteristic_name ?? ''
+  const breadcrumb =
+    hierarchyNames.length > 0
+      ? [...hierarchyNames, chartData?.characteristic_name].filter(Boolean).join(' / ')
+      : (chartData?.characteristic_name ?? '')
 
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+    <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
       {hasData && (
-        <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               {label && (
-                <span className="text-xs font-medium px-1.5 py-0.5 bg-primary/10 text-primary rounded flex-shrink-0">
+                <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
                   {label}
                 </span>
               )}
-              <h3 className="font-semibold text-sm leading-5 truncate text-foreground" title={breadcrumb}>
-                <span className="text-muted-foreground">{hierarchyNames.join(' / ')}{hierarchyNames.length > 0 && ' / '}</span>
+              <h3
+                className="text-foreground truncate text-sm leading-5 font-semibold"
+                title={breadcrumb}
+              >
+                <span className="text-muted-foreground">
+                  {hierarchyNames.join(' / ')}
+                  {hierarchyNames.length > 0 && ' / '}
+                </span>
                 <span>{chartData?.characteristic_name}</span>
                 <span className="text-muted-foreground font-normal"> - {chartTypeLabel}</span>
               </h3>
@@ -862,14 +1151,18 @@ export function ControlChart({
       )}
 
       {/* Chart container — ALWAYS rendered so useECharts can init */}
-      <div ref={chartWrapperRef} className="flex-1 min-h-0 relative">
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+      <div ref={chartWrapperRef} className="relative min-h-0 flex-1">
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: hasData ? 'visible' : 'hidden' }}
+        />
 
         {/* Drag-to-select region overlay */}
         {dragRect && (
           <div className="absolute inset-0 z-20 cursor-col-resize">
             <div
-              className="absolute top-0 bottom-0 bg-primary/15 border-x-2 border-primary/50"
+              className="bg-primary/15 border-primary/50 absolute top-0 bottom-0 border-x-2"
               style={{ left: dragRect.left, width: dragRect.width }}
             />
           </div>

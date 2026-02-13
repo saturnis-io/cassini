@@ -1,5 +1,15 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, Factory, Cog, Box, Cpu, Settings, Check, Loader2 } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronDown,
+  Factory,
+  Cog,
+  Box,
+  Cpu,
+  Settings,
+  Check,
+  Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHierarchyTree, useHierarchyCharacteristics } from '@/api/hooks'
 import type { HierarchyNode } from '@/types'
@@ -48,7 +58,7 @@ function IndeterminateCheckbox({
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       onClick={(e) => e.stopPropagation()}
-      className="h-4 w-4 rounded border-border cursor-pointer"
+      className="border-border h-4 w-4 cursor-pointer rounded"
     />
   )
 }
@@ -92,7 +102,12 @@ export function HierarchyMultiSelector({
 
   if (isLoading) {
     return (
-      <div className={cn('flex items-center justify-center gap-2 p-4 text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'text-muted-foreground flex items-center justify-center gap-2 p-4',
+          className,
+        )}
+      >
         <Loader2 className="h-4 w-4 animate-spin" />
         <span>Loading hierarchy...</span>
       </div>
@@ -152,7 +167,7 @@ function SelectorNode({
 
   // Load characteristics when expanded
   const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0
+    isExpanded ? node.id : 0,
   )
 
   const canExpand = hasChildren || (node.characteristic_count ?? 0) > 0
@@ -182,9 +197,7 @@ function SelectorNode({
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 px-2 py-1.5 hover:bg-muted cursor-pointer'
-        )}
+        className={cn('hover:bg-muted flex cursor-pointer items-center gap-1 px-2 py-1.5')}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => canExpand && toggleExpanded(node.id)}
       >
@@ -213,7 +226,7 @@ function SelectorNode({
         {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         <span className="flex-1 text-sm font-medium">{node.name}</span>
         {(node.characteristic_count ?? 0) > 0 && (
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs">
             {node.characteristic_count}
           </span>
         )}
@@ -239,7 +252,7 @@ function SelectorNode({
           {/* Loading indicator */}
           {isLoadingChars && (
             <div
-              className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground"
+              className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-sm"
               style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
             >
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,37 +261,38 @@ function SelectorNode({
           )}
 
           {/* Characteristics */}
-          {!isLoadingChars && characteristics?.map((char) => {
-            const isSelected = selectedIds.includes(char.id)
-            return (
-              <div
-                key={char.id}
-                className={cn(
-                  'flex items-center gap-2 px-2 py-1.5 cursor-pointer text-sm',
-                  'hover:bg-muted transition-colors',
-                  isSelected && 'bg-primary/10'
-                )}
-                style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
-                onClick={() => toggleSelection(char.id)}
-              >
+          {!isLoadingChars &&
+            characteristics?.map((char) => {
+              const isSelected = selectedIds.includes(char.id)
+              return (
                 <div
+                  key={char.id}
                   className={cn(
-                    'w-4 h-4 rounded border flex items-center justify-center flex-shrink-0',
-                    isSelected ? 'bg-primary border-primary' : 'border-border'
+                    'flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm',
+                    'hover:bg-muted transition-colors',
+                    isSelected && 'bg-primary/10',
                   )}
+                  style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
+                  onClick={() => toggleSelection(char.id)}
                 >
-                  {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                  <div
+                    className={cn(
+                      'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border',
+                      isSelected ? 'bg-primary border-primary' : 'border-border',
+                    )}
+                  >
+                    {isSelected && <Check className="text-primary-foreground h-3 w-3" />}
+                  </div>
+                  <div
+                    className={cn(
+                      'h-2 w-2 flex-shrink-0 rounded-full',
+                      char.in_control !== false ? 'bg-success' : 'bg-destructive',
+                    )}
+                  />
+                  <span className="flex-1 truncate">{char.name}</span>
                 </div>
-                <div
-                  className={cn(
-                    'w-2 h-2 rounded-full flex-shrink-0',
-                    char.in_control !== false ? 'bg-green-500' : 'bg-destructive'
-                  )}
-                />
-                <span className="flex-1 truncate">{char.name}</span>
-              </div>
-            )
-          })}
+              )
+            })}
         </div>
       )}
     </div>

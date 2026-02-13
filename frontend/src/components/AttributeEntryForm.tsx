@@ -20,9 +20,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
   const needsUnitsInspected = chartType === 'u'
 
   const [defectCount, setDefectCount] = useState('')
-  const [sampleSize, setSampleSize] = useState(
-    characteristic.default_sample_size?.toString() ?? ''
-  )
+  const [sampleSize, setSampleSize] = useState(characteristic.default_sample_size?.toString() ?? '')
   const [unitsInspected, setUnitsInspected] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
   const [operatorId, setOperatorId] = useState('')
@@ -34,7 +32,8 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
   const unitsInspectedVal = unitsInspected !== '' ? parseInt(unitsInspected, 10) : NaN
 
   const isValid =
-    !isNaN(defectCountVal) && defectCountVal >= 0 &&
+    !isNaN(defectCountVal) &&
+    defectCountVal >= 0 &&
     (!needsSampleSize || (!isNaN(sampleSizeVal) && sampleSizeVal > 0)) &&
     (!needsUnitsInspected || (!isNaN(unitsInspectedVal) && unitsInspectedVal > 0))
 
@@ -59,7 +58,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
           setBatchNumber('')
           setOperatorId('')
         },
-      }
+      },
     )
   }
 
@@ -67,15 +66,15 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Chart type badge */}
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded">
+        <span className="bg-primary/10 text-primary rounded px-2 py-1 text-xs font-medium">
           {CHART_TYPE_LABELS[chartType ?? ''] ?? 'Attribute Chart'}
         </span>
       </div>
 
       {/* Defect Count */}
       <div>
-        <label className="block text-sm font-medium mb-1">
-          Defect Count <span className="text-orange-500">*</span>
+        <label className="mb-1 block text-sm font-medium">
+          Defect Count <span className="text-warning">*</span>
         </label>
         <NumberInput
           value={defectCount}
@@ -85,7 +84,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
           step={1}
           min={0}
         />
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-sm">
           {chartType === 'p' || chartType === 'np'
             ? 'Number of defective items in the sample'
             : 'Number of defects observed'}
@@ -95,8 +94,8 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
       {/* Sample Size (p/np charts) */}
       {needsSampleSize && (
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Sample Size <span className="text-orange-500">*</span>
+          <label className="mb-1 block text-sm font-medium">
+            Sample Size <span className="text-warning">*</span>
           </label>
           <NumberInput
             value={sampleSize}
@@ -106,7 +105,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
             step={1}
             min={1}
           />
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Total number of items inspected in this sample
             {characteristic.default_sample_size != null && (
               <span className="ml-1">(default: {characteristic.default_sample_size})</span>
@@ -118,8 +117,8 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
       {/* Units Inspected (u charts) */}
       {needsUnitsInspected && (
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Units Inspected <span className="text-orange-500">*</span>
+          <label className="mb-1 block text-sm font-medium">
+            Units Inspected <span className="text-warning">*</span>
           </label>
           <NumberInput
             value={unitsInspected}
@@ -129,7 +128,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
             step={1}
             min={1}
           />
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Number of inspection units (area of opportunity)
           </p>
         </div>
@@ -138,42 +137,44 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
       {/* Optional Fields */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Batch Number (optional)
-          </label>
+          <label className="mb-1 block text-sm font-medium">Batch Number (optional)</label>
           <input
             type="text"
             value={batchNumber}
             onChange={(e) => setBatchNumber(e.target.value)}
             placeholder="e.g., LOT-2024-001"
-            className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+            className="bg-background border-input w-full rounded-lg border px-3 py-2"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Operator ID (optional)
-          </label>
+          <label className="mb-1 block text-sm font-medium">Operator ID (optional)</label>
           <input
             type="text"
             value={operatorId}
             onChange={(e) => setOperatorId(e.target.value)}
             placeholder="e.g., OP-123"
-            className="w-full px-3 py-2 bg-background border border-input rounded-lg"
+            className="bg-background border-input w-full rounded-lg border px-3 py-2"
           />
         </div>
       </div>
 
       {/* Submit Result */}
       {submitAttribute.data && (
-        <div className={`p-3 rounded-lg text-sm ${submitAttribute.data.in_control ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400'}`}>
+        <div
+          className={`rounded-lg p-3 text-sm ${submitAttribute.data.in_control ? 'bg-success/5 text-success' : 'bg-destructive/5 text-destructive'}`}
+        >
           <div className="font-medium">
             {submitAttribute.data.in_control ? 'In Control' : 'Out of Control'}
           </div>
           <div>Plotted Value: {submitAttribute.data.plotted_value.toFixed(4)}</div>
-          <div>UCL: {submitAttribute.data.ucl.toFixed(4)} | CL: {submitAttribute.data.center_line.toFixed(4)} | LCL: {submitAttribute.data.lcl.toFixed(4)}</div>
+          <div>
+            UCL: {submitAttribute.data.ucl.toFixed(4)} | CL:{' '}
+            {submitAttribute.data.center_line.toFixed(4)} | LCL:{' '}
+            {submitAttribute.data.lcl.toFixed(4)}
+          </div>
           {submitAttribute.data.violations.length > 0 && (
-            <div className="mt-1 text-red-600 dark:text-red-400">
-              Violations: {submitAttribute.data.violations.map(v => v.rule_name).join(', ')}
+            <div className="text-destructive mt-1">
+              Violations: {submitAttribute.data.violations.map((v) => v.rule_name).join(', ')}
             </div>
           )}
         </div>
@@ -184,7 +185,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
         <button
           type="submit"
           disabled={!isValid || submitAttribute.isPending}
-          className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitAttribute.isPending ? 'Submitting...' : 'Submit Attribute Data'}
         </button>

@@ -12,7 +12,7 @@ export function DatabaseMigrationStatus() {
         <button
           onClick={() => refetch()}
           disabled={isLoading}
-          className="p-1.5 hover:bg-muted rounded-lg"
+          className="hover:bg-muted rounded-lg p-1.5"
           title="Refresh migration status"
         >
           <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
@@ -25,14 +25,15 @@ export function DatabaseMigrationStatus() {
           <div className="flex items-center gap-2">
             {migration.is_up_to_date ? (
               <>
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-sm text-emerald-600 dark:text-emerald-400">Up to date</span>
+                <CheckCircle2 className="text-success h-4 w-4" />
+                <span className="text-success text-sm">Up to date</span>
               </>
             ) : (
               <>
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-sm text-amber-700 dark:text-amber-300">
-                  {migration.pending_count} pending migration{migration.pending_count !== 1 ? 's' : ''}
+                <AlertTriangle className="text-warning h-4 w-4" />
+                <span className="text-warning text-sm">
+                  {migration.pending_count} pending migration
+                  {migration.pending_count !== 1 ? 's' : ''}
                 </span>
               </>
             )}
@@ -40,11 +41,11 @@ export function DatabaseMigrationStatus() {
 
           {/* Revision Details */}
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-card border border-border rounded-xl p-3">
+            <div className="bg-card border-border rounded-xl border p-3">
               <div className="text-muted-foreground mb-0.5">Current Revision</div>
               <div className="font-mono font-medium">{migration.current_revision || 'None'}</div>
             </div>
-            <div className="bg-card border border-border rounded-xl p-3">
+            <div className="bg-card border-border rounded-xl border p-3">
               <div className="text-muted-foreground mb-0.5">Head Revision</div>
               <div className="font-mono font-medium">{migration.head_revision || 'None'}</div>
             </div>
@@ -52,10 +53,13 @@ export function DatabaseMigrationStatus() {
 
           {/* Instructions if behind */}
           {!migration.is_up_to_date && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Run <code className="bg-amber-500/20 px-1 py-0.5 rounded font-mono">alembic upgrade head</code> to
-                apply pending migrations.
+            <div className="border-warning/20 bg-warning/10 rounded-xl border p-3">
+              <p className="text-warning text-xs">
+                Run{' '}
+                <code className="bg-warning/20 rounded px-1 py-0.5 font-mono">
+                  alembic upgrade head
+                </code>{' '}
+                to apply pending migrations.
               </p>
             </div>
           )}
@@ -63,7 +67,7 @@ export function DatabaseMigrationStatus() {
       )}
 
       {!migration && !isLoading && (
-        <p className="text-sm text-muted-foreground">Unable to determine migration status.</p>
+        <p className="text-muted-foreground text-sm">Unable to determine migration status.</p>
       )}
     </div>
   )

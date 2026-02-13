@@ -34,7 +34,7 @@ export function HierarchyCharacteristicSelector({
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set())
 
   const toggleExpanded = (nodeId: number) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const next = new Set(prev)
       if (next.has(nodeId)) {
         next.delete(nodeId)
@@ -58,8 +58,8 @@ export function HierarchyCharacteristicSelector({
   }
 
   return (
-    <div className="border border-border rounded-lg max-h-64 overflow-auto">
-      {hierarchy.map(node => (
+    <div className="border-border max-h-64 overflow-auto rounded-lg border">
+      {hierarchy.map((node) => (
         <SelectorNode
           key={node.id}
           node={node}
@@ -98,14 +98,12 @@ function SelectorNode({
   const hasChildren = node.children && node.children.length > 0
 
   // Load characteristics when expanded
-  const { data: characteristics } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0
-  )
+  const { data: characteristics } = useHierarchyCharacteristics(isExpanded ? node.id : 0)
 
   // Filter characteristics by data source type if specified (only for display)
   const filteredChars = filterProvider
-    ? characteristics?.filter(c =>
-        filterProvider === 'manual' ? !c.data_source : !!c.data_source
+    ? characteristics?.filter((c) =>
+        filterProvider === 'manual' ? !c.data_source : !!c.data_source,
       )
     : characteristics
 
@@ -114,16 +112,13 @@ function SelectorNode({
   const canExpand = hasChildren || (node.characteristic_count ?? 0) > 0
 
   // Show filtered count when expanded, otherwise show total
-  const displayCount = isExpanded && filterProvider
-    ? filteredChars?.length ?? 0
-    : node.characteristic_count ?? 0
+  const displayCount =
+    isExpanded && filterProvider ? (filteredChars?.length ?? 0) : (node.characteristic_count ?? 0)
 
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 px-2 py-1.5 hover:bg-muted cursor-pointer',
-        )}
+        className={cn('hover:bg-muted flex cursor-pointer items-center gap-1 px-2 py-1.5')}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => canExpand && toggleExpanded(node.id)}
       >
@@ -141,16 +136,14 @@ function SelectorNode({
         {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         <span className="flex-1 text-sm">{node.name}</span>
         {displayCount > 0 && (
-          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-            {displayCount}
-          </span>
+          <span className="bg-muted rounded px-1.5 py-0.5 text-xs">{displayCount}</span>
         )}
       </div>
 
       {isExpanded && (
         <div>
           {/* Child nodes */}
-          {node.children?.map(child => (
+          {node.children?.map((child) => (
             <SelectorNode
               key={child.id}
               node={child}
@@ -164,13 +157,13 @@ function SelectorNode({
           ))}
 
           {/* Characteristics */}
-          {filteredChars?.map(char => (
+          {filteredChars?.map((char) => (
             <div
               key={char.id}
               className={cn(
-                'flex items-center gap-2 px-2 py-1.5 cursor-pointer text-sm',
+                'flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm',
                 'hover:bg-muted',
-                selectedCharId === char.id && 'bg-primary/10 text-primary'
+                selectedCharId === char.id && 'bg-primary/10 text-primary',
               )}
               style={{ paddingLeft: `${(level + 1) * 16 + 8}px` }}
               onClick={() => onSelect(char)}
@@ -178,12 +171,12 @@ function SelectorNode({
               <span className="w-4" />
               <div
                 className={cn(
-                  'w-2 h-2 rounded-full',
-                  char.in_control !== false ? 'bg-green-500' : 'bg-destructive'
+                  'h-2 w-2 rounded-full',
+                  char.in_control !== false ? 'bg-success' : 'bg-destructive',
                 )}
               />
               <span className="flex-1">{char.name}</span>
-              <span className="text-xs text-muted-foreground">n={char.subgroup_size}</span>
+              <span className="text-muted-foreground text-xs">n={char.subgroup_size}</span>
             </div>
           ))}
         </div>

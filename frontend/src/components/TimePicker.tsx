@@ -71,7 +71,7 @@ export function TimePicker({
       if (newHour12 < 1) newHour12 = 12
       handleHourChange(newHour12)
     } else {
-      const newHour = ((hour + delta) % 24 + 24) % 24
+      const newHour = (((hour + delta) % 24) + 24) % 24
       onTimeChange(newHour, minute)
     }
   }
@@ -88,7 +88,7 @@ export function TimePicker({
           label="Hour"
         />
 
-        <span className="text-2xl font-bold text-muted-foreground">:</span>
+        <span className="text-muted-foreground text-2xl font-bold">:</span>
 
         {/* Minute selector */}
         <ValueSpinner
@@ -100,14 +100,14 @@ export function TimePicker({
 
         {/* AM/PM toggle (only in 12h mode) */}
         {use12Hour && (
-          <div className="flex flex-col gap-0.5 ml-2">
+          <div className="ml-2 flex flex-col gap-0.5">
             <button
               onClick={() => handleAmPmToggle(true)}
               className={cn(
-                'px-2 py-1 text-xs font-semibold rounded transition-all',
+                'rounded px-2 py-1 text-xs font-semibold transition-all',
                 isAM
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
               )}
             >
               AM
@@ -115,10 +115,10 @@ export function TimePicker({
             <button
               onClick={() => handleAmPmToggle(false)}
               className={cn(
-                'px-2 py-1 text-xs font-semibold rounded transition-all',
+                'rounded px-2 py-1 text-xs font-semibold transition-all',
                 !isAM
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
               )}
             >
               PM
@@ -152,19 +152,19 @@ function ValueSpinner({
     <div className="flex flex-col items-center">
       <HoldButton
         onClick={onIncrement}
-        className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
         aria-label={`Increase ${label}`}
       >
         <ChevronUp className="h-5 w-5" />
       </HoldButton>
 
-      <div className="w-12 h-10 flex items-center justify-center bg-muted/50 rounded-lg">
-        <span className="text-2xl font-mono font-bold tabular-nums">{displayValue}</span>
+      <div className="bg-muted/50 flex h-10 w-12 items-center justify-center rounded-lg">
+        <span className="font-mono text-2xl font-bold tabular-nums">{displayValue}</span>
       </div>
 
       <HoldButton
         onClick={onDecrement}
-        className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
         aria-label={`Decrease ${label}`}
       >
         <ChevronDown className="h-5 w-5" />
@@ -192,16 +192,16 @@ function MinuteControls({
 
       {/* Quick select buttons for common intervals */}
       <div className="flex items-center justify-center gap-1">
-        <span className="text-xs text-muted-foreground mr-2">Quick:</span>
+        <span className="text-muted-foreground mr-2 text-xs">Quick:</span>
         {quickMinutes.map((m) => (
           <button
             key={m}
             onClick={() => onMinuteChange(m)}
             className={cn(
-              'w-10 h-8 text-sm font-medium rounded transition-all',
+              'h-8 w-10 rounded text-sm font-medium transition-all',
               minute === m
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80 text-foreground'
+                : 'bg-muted hover:bg-muted/80 text-foreground',
             )}
           >
             :{m.toString().padStart(2, '0')}
@@ -226,18 +226,24 @@ function MinuteSlider({
   const trackRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const calculateMinuteFromEvent = useCallback((clientX: number) => {
-    if (!trackRef.current) return minute
-    const rect = trackRef.current.getBoundingClientRect()
-    const x = clientX - rect.left
-    const normalized = Math.max(0, Math.min(1, x / rect.width))
-    return Math.round(normalized * 59)
-  }, [minute])
+  const calculateMinuteFromEvent = useCallback(
+    (clientX: number) => {
+      if (!trackRef.current) return minute
+      const rect = trackRef.current.getBoundingClientRect()
+      const x = clientX - rect.left
+      const normalized = Math.max(0, Math.min(1, x / rect.width))
+      return Math.round(normalized * 59)
+    },
+    [minute],
+  )
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true)
-    onMinuteChange(calculateMinuteFromEvent(e.clientX))
-  }, [calculateMinuteFromEvent, onMinuteChange])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setIsDragging(true)
+      onMinuteChange(calculateMinuteFromEvent(e.clientX))
+    },
+    [calculateMinuteFromEvent, onMinuteChange],
+  )
 
   useEffect(() => {
     if (!isDragging) return
@@ -264,7 +270,7 @@ function MinuteSlider({
   return (
     <div className="px-2">
       {/* Labels */}
-      <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+      <div className="text-muted-foreground mb-1 flex justify-between text-[10px]">
         <span>:00</span>
         <span>:15</span>
         <span>:30</span>
@@ -279,11 +285,11 @@ function MinuteSlider({
         onMouseDown={handleMouseDown}
       >
         {/* Track background */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2 bg-muted rounded-full" />
+        <div className="bg-muted absolute top-1/2 right-0 left-0 h-2 -translate-y-1/2 rounded-full" />
 
         {/* Filled portion */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 left-0 h-2 bg-primary rounded-full transition-all"
+          className="bg-primary absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-full transition-all"
           style={{ width: `${percentage}%` }}
         />
 
@@ -291,7 +297,7 @@ function MinuteSlider({
         {[0, 15, 30, 45, 59].map((m) => (
           <div
             key={m}
-            className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 bg-border"
+            className="bg-border absolute top-1/2 h-3 w-0.5 -translate-y-1/2"
             style={{ left: `${(m / 59) * 100}%` }}
           />
         ))}
@@ -299,16 +305,18 @@ function MinuteSlider({
         {/* Thumb */}
         <div
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-primary rounded-full shadow-md border-2 border-primary-foreground transition-transform",
-            isDragging && "scale-110"
+            'bg-primary border-primary-foreground absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 shadow-md transition-transform',
+            isDragging && 'scale-110',
           )}
           style={{ left: `${percentage}%` }}
         />
       </div>
 
       {/* Current value display */}
-      <div className="text-center mt-1">
-        <span className="text-sm font-mono font-semibold">:{minute.toString().padStart(2, '0')}</span>
+      <div className="mt-1 text-center">
+        <span className="font-mono text-sm font-semibold">
+          :{minute.toString().padStart(2, '0')}
+        </span>
       </div>
     </div>
   )

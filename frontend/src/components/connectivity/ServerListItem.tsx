@@ -2,12 +2,25 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Wifi, Server, Pencil, Trash2, Power, PowerOff,
-  Loader2, ShieldCheck, ShieldOff, Lock,
+  Wifi,
+  Server,
+  Pencil,
+  Trash2,
+  Power,
+  PowerOff,
+  Loader2,
+  ShieldCheck,
+  ShieldOff,
+  Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { brokerApi, opcuaApi } from '@/api/client'
-import type { MQTTBroker, OPCUAServer, BrokerConnectionStatus, OPCUAServerConnectionStatus } from '@/types'
+import type {
+  MQTTBroker,
+  OPCUAServer,
+  BrokerConnectionStatus,
+  OPCUAServerConnectionStatus,
+} from '@/types'
 
 type Protocol = 'mqtt' | 'opcua'
 
@@ -25,13 +38,9 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
   const queryClient = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const isConnected = status
-    ? status.is_connected
-    : false
+  const isConnected = status ? status.is_connected : false
 
-  const errorMessage = status
-    ? status.error_message
-    : null
+  const errorMessage = status ? status.error_message : null
 
   // MQTT connect/disconnect
   const mqttConnectMutation = useMutation({
@@ -124,61 +133,65 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
     }
   }
 
-  const isConnecting = protocol === 'mqtt'
-    ? mqttConnectMutation.isPending
-    : opcuaConnectMutation.isPending
+  const isConnecting =
+    protocol === 'mqtt' ? mqttConnectMutation.isPending : opcuaConnectMutation.isPending
 
-  const isDisconnecting = protocol === 'mqtt'
-    ? mqttDisconnectMutation.isPending
-    : opcuaDisconnectMutation.isPending
+  const isDisconnecting =
+    protocol === 'mqtt' ? mqttDisconnectMutation.isPending : opcuaDisconnectMutation.isPending
 
-  const isDeleting = protocol === 'mqtt'
-    ? mqttDeleteMutation.isPending
-    : opcuaDeleteMutation.isPending
+  const isDeleting =
+    protocol === 'mqtt' ? mqttDeleteMutation.isPending : opcuaDeleteMutation.isPending
 
   // Protocol-specific display info
-  const protocolConfig = protocol === 'mqtt'
-    ? { icon: Wifi, color: 'text-teal-400', bgColor: 'bg-teal-500/10', label: 'MQTT' }
-    : { icon: Server, color: 'text-purple-400', bgColor: 'bg-purple-500/10', label: 'OPC-UA' }
+  const protocolConfig =
+    protocol === 'mqtt'
+      ? { icon: Wifi, color: 'text-teal-400', bgColor: 'bg-teal-500/10', label: 'MQTT' }
+      : { icon: Server, color: 'text-purple-400', bgColor: 'bg-purple-500/10', label: 'OPC-UA' }
 
-  const connectionString = protocol === 'mqtt'
-    ? `${(server as MQTTBroker).host}:${(server as MQTTBroker).port}`
-    : (server as OPCUAServer).endpoint_url
+  const connectionString =
+    protocol === 'mqtt'
+      ? `${(server as MQTTBroker).host}:${(server as MQTTBroker).port}`
+      : (server as OPCUAServer).endpoint_url
 
   const authSummary = getAuthSummary(protocol, server)
 
   const Icon = protocolConfig.icon
 
   return (
-    <div className="group bg-card border border-border rounded-xl p-4 hover:border-muted-foreground/30 transition-all duration-200">
+    <div className="group bg-card border-border hover:border-muted-foreground/30 rounded-xl border p-4 transition-all duration-200">
       <div className="flex items-center gap-4">
         {/* Protocol icon */}
-        <div className={cn(
-          'flex items-center justify-center w-10 h-10 rounded-lg shrink-0',
-          protocolConfig.bgColor
-        )}>
+        <div
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+            protocolConfig.bgColor,
+          )}
+        >
           <Icon className={cn('h-5 w-5', protocolConfig.color)} />
         </div>
 
         {/* Server info */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-sm truncate">{server.name}</h3>
-            <span className={cn(
-              'px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded',
-              protocolConfig.bgColor, protocolConfig.color
-            )}>
+            <h3 className="truncate text-sm font-semibold">{server.name}</h3>
+            <span
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase',
+                protocolConfig.bgColor,
+                protocolConfig.color,
+              )}
+            >
               {protocolConfig.label}
             </span>
           </div>
-          <div className="flex items-center gap-3 mt-0.5">
-            <span className="text-xs font-mono text-muted-foreground truncate">
+          <div className="mt-0.5 flex items-center gap-3">
+            <span className="text-muted-foreground truncate font-mono text-xs">
               {connectionString}
             </span>
             {authSummary && (
               <>
                 <span className="text-border">|</span>
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="text-muted-foreground flex items-center gap-1 text-xs">
                   {authSummary.icon}
                   {authSummary.label}
                 </span>
@@ -188,33 +201,43 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
         </div>
 
         {/* Status */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={cn(
-            'w-2 h-2 rounded-full shrink-0',
-            isConnected
-              ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]'
-              : errorMessage && errorMessage !== 'Not connected' && errorMessage !== 'Server is not connected' && errorMessage !== 'Disconnected'
-                ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.4)]'
-                : 'bg-gray-500'
-          )} />
-          <span className={cn(
-            'text-xs font-medium',
-            isConnected
-              ? 'text-emerald-400'
-              : errorMessage && errorMessage !== 'Not connected' && errorMessage !== 'Server is not connected' && errorMessage !== 'Disconnected'
-                ? 'text-red-400'
-                : 'text-muted-foreground'
-          )}>
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            className={cn(
+              'h-2 w-2 shrink-0 rounded-full',
+              isConnected
+                ? 'bg-success shadow-[0_0_6px_rgba(16,185,129,0.4)]'
+                : errorMessage &&
+                    errorMessage !== 'Not connected' &&
+                    errorMessage !== 'Server is not connected' &&
+                    errorMessage !== 'Disconnected'
+                  ? 'bg-destructive shadow-[0_0_6px_rgba(239,68,68,0.4)]'
+                  : 'bg-muted-foreground',
+            )}
+          />
+          <span
+            className={cn(
+              'text-xs font-medium',
+              isConnected
+                ? 'text-success'
+                : errorMessage &&
+                    errorMessage !== 'Not connected' &&
+                    errorMessage !== 'Server is not connected' &&
+                    errorMessage !== 'Disconnected'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground',
+            )}
+          >
             {isConnected ? 'Connected' : 'Disconnected'}
           </span>
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           {/* Edit */}
           <button
             onClick={onEdit}
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg p-2 transition-colors"
             title="Edit"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -225,7 +248,7 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
             <button
               onClick={handleDisconnect}
               disabled={isDisconnecting}
-              className="p-2 rounded-lg text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+              className="text-muted-foreground hover:bg-warning/10 hover:text-warning rounded-lg p-2 transition-colors disabled:opacity-50"
               title="Disconnect"
             >
               {isDisconnecting ? (
@@ -238,7 +261,7 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
             <button
               onClick={handleConnect}
               disabled={isConnecting}
-              className="p-2 rounded-lg text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+              className="text-muted-foreground hover:bg-success/10 hover:text-success rounded-lg p-2 transition-colors disabled:opacity-50"
               title="Connect"
             >
               {isConnecting ? (
@@ -254,12 +277,18 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
             onClick={handleDelete}
             disabled={isDeleting || isConnected}
             className={cn(
-              'p-2 rounded-lg transition-colors disabled:opacity-50',
+              'rounded-lg p-2 transition-colors disabled:opacity-50',
               confirmDelete
-                ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20'
-                : 'text-muted-foreground hover:text-red-400 hover:bg-red-500/10'
+                ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                : 'text-muted-foreground hover:bg-destructive/10 hover:text-destructive',
             )}
-            title={confirmDelete ? 'Click again to confirm' : isConnected ? 'Disconnect before deleting' : 'Delete'}
+            title={
+              confirmDelete
+                ? 'Click again to confirm'
+                : isConnected
+                  ? 'Disconnect before deleting'
+                  : 'Delete'
+            }
           >
             {isDeleting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -271,16 +300,23 @@ export function ServerListItem({ protocol, server, status, onEdit }: ServerListI
       </div>
 
       {/* Error message */}
-      {!isConnected && errorMessage && errorMessage !== 'Not connected' && errorMessage !== 'Server is not connected' && errorMessage !== 'Disconnected' && (
-        <div className="mt-2 ml-14 text-xs text-red-400 truncate" title={errorMessage}>
-          {errorMessage}
-        </div>
-      )}
+      {!isConnected &&
+        errorMessage &&
+        errorMessage !== 'Not connected' &&
+        errorMessage !== 'Server is not connected' &&
+        errorMessage !== 'Disconnected' && (
+          <div className="text-destructive mt-2 ml-14 truncate text-xs" title={errorMessage}>
+            {errorMessage}
+          </div>
+        )}
     </div>
   )
 }
 
-function getAuthSummary(protocol: Protocol, server: MQTTBroker | OPCUAServer): { icon: React.ReactNode; label: string } | null {
+function getAuthSummary(
+  protocol: Protocol,
+  server: MQTTBroker | OPCUAServer,
+): { icon: React.ReactNode; label: string } | null {
   if (protocol === 'mqtt') {
     const broker = server as MQTTBroker
     if (broker.use_tls) {

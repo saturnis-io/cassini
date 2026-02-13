@@ -43,7 +43,8 @@ export function AnnotationDetailPopover({
     onClose()
   }
 
-  const typeLabel = annotation.annotation_type === 'point' ? 'Point Annotation' : 'Period Annotation'
+  const typeLabel =
+    annotation.annotation_type === 'point' ? 'Point Annotation' : 'Period Annotation'
 
   return (
     <>
@@ -54,9 +55,9 @@ export function AnnotationDetailPopover({
       <div
         className={cn(
           'fixed z-50',
-          'bg-popover border border-border rounded-xl shadow-xl',
-          'min-w-[300px] max-w-[400px]',
-          'animate-in fade-in-0 zoom-in-95 duration-100'
+          'bg-popover border-border rounded-xl border shadow-xl',
+          'max-w-[400px] min-w-[300px]',
+          'animate-in fade-in-0 zoom-in-95 duration-100',
         )}
         style={{
           left: Math.min(anchorPosition.x - 150, window.innerWidth - 420),
@@ -64,15 +65,15 @@ export function AnnotationDetailPopover({
         }}
       >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-border bg-muted/50 rounded-t-xl">
+        <div className="border-border bg-muted/50 rounded-t-xl border-b px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-amber-500" />
+              <MessageSquare className="text-warning h-4 w-4" />
               <span className="text-sm font-semibold">{typeLabel}</span>
             </div>
             {annotation.color && (
               <div
-                className="h-3 w-3 rounded-full border border-border"
+                className="border-border h-3 w-3 rounded-full border"
                 style={{ backgroundColor: annotation.color }}
               />
             )}
@@ -80,7 +81,7 @@ export function AnnotationDetailPopover({
         </div>
 
         {/* Body */}
-        <div className="px-4 py-3 space-y-3">
+        <div className="space-y-3 px-4 py-3">
           {/* Annotation text */}
           {isEditing ? (
             <div className="space-y-2">
@@ -89,50 +90,55 @@ export function AnnotationDetailPopover({
                 onChange={(e) => setEditText(e.target.value)}
                 rows={3}
                 maxLength={500}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="bg-background border-border focus:ring-primary/50 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 autoFocus
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
                     setIsEditing(false)
                     setEditText(annotation.text)
                   }}
-                  className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg"
+                  className="text-muted-foreground hover:text-foreground border-border rounded-lg border px-3 py-1.5 text-xs font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={!editText.trim() || updateAnnotation.isPending}
-                  className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                 >
                   {updateAnnotation.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
               {/* Edit history */}
               {annotation.history && annotation.history.length > 0 && (
-                <div className="pt-2 border-t border-border/50">
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <History className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="border-border/50 border-t pt-2">
+                  <div className="mb-1.5 flex items-center gap-1">
+                    <History className="text-muted-foreground h-3 w-3" />
+                    <span className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                       Previous values
                     </span>
                   </div>
-                  <div className="max-h-24 overflow-y-auto space-y-1.5">
+                  <div className="max-h-24 space-y-1.5 overflow-y-auto">
                     {annotation.history.map((entry) => (
-                      <div key={entry.id} className="text-[11px] text-muted-foreground">
-                        <div className="flex items-center gap-1.5 mb-0.5">
+                      <div key={entry.id} className="text-muted-foreground text-[11px]">
+                        <div className="mb-0.5 flex items-center gap-1.5">
                           <span className="text-[10px]">
                             {new Date(entry.changed_at).toLocaleString(undefined, {
-                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
                             })}
                           </span>
                           {entry.changed_by && (
                             <span className="text-[10px]">&mdash; {entry.changed_by}</span>
                           )}
                         </div>
-                        <p className="italic pl-2 border-l border-border/50">&ldquo;{entry.previous_text}&rdquo;</p>
+                        <p className="border-border/50 border-l pl-2 italic">
+                          &ldquo;{entry.previous_text}&rdquo;
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -144,19 +150,19 @@ export function AnnotationDetailPopover({
           )}
 
           {/* Metadata */}
-          <div className="space-y-1.5 pt-2 border-t border-border">
+          <div className="border-border space-y-1.5 border-t pt-2">
             {annotation.created_by && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
                 <User className="h-3 w-3" />
                 <span>{annotation.created_by}</span>
               </div>
             )}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <Clock className="h-3 w-3" />
               <span>Created {new Date(annotation.created_at).toLocaleString()}</span>
             </div>
             {annotation.updated_at !== annotation.created_at && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Clock className="h-3 w-3" />
                 <span>Updated {new Date(annotation.updated_at).toLocaleString()}</span>
               </div>
@@ -166,10 +172,10 @@ export function AnnotationDetailPopover({
 
         {/* Actions */}
         {!isEditing && (
-          <div className="px-4 py-2.5 border-t border-border bg-muted/30 rounded-b-xl flex justify-end gap-1">
+          <div className="border-border bg-muted/30 flex justify-end gap-1 rounded-b-xl border-t px-4 py-2.5">
             <button
               onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
             >
               <Pencil className="h-3.5 w-3.5" />
               Edit
@@ -179,13 +185,13 @@ export function AnnotationDetailPopover({
                 <button
                   onClick={handleDelete}
                   disabled={deleteAnnotation.isPending}
-                  className="px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 disabled:opacity-50"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                 >
                   {deleteAnnotation.isPending ? 'Deleting...' : 'Confirm'}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground rounded-lg"
+                  className="text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-xs font-medium"
                 >
                   Cancel
                 </button>
@@ -193,7 +199,7 @@ export function AnnotationDetailPopover({
             ) : (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                className="text-destructive/70 hover:text-destructive hover:bg-destructive/10 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete

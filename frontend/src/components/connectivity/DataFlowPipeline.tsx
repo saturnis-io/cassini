@@ -17,34 +17,37 @@ function getHealthLevel(connected: number, total: number, errors: number): Healt
   return 'idle'
 }
 
-const healthColors: Record<HealthLevel, { border: string; bg: string; glow: string; text: string; dot: string }> = {
+const healthColors: Record<
+  HealthLevel,
+  { border: string; bg: string; glow: string; text: string; dot: string }
+> = {
   healthy: {
-    border: 'border-emerald-500/30',
-    bg: 'bg-emerald-500/5',
-    glow: 'shadow-[0_0_15px_rgba(16,185,129,0.08)]',
-    text: 'text-emerald-400',
-    dot: 'bg-emerald-500',
+    border: 'border-success/30',
+    bg: 'bg-success/5',
+    glow: 'shadow-[0_0_15px_color-mix(in_srgb,var(--color-success)_8%,transparent)]',
+    text: 'text-success',
+    dot: 'bg-success',
   },
   degraded: {
-    border: 'border-amber-500/30',
-    bg: 'bg-amber-500/5',
-    glow: 'shadow-[0_0_15px_rgba(245,158,11,0.08)]',
-    text: 'text-amber-400',
-    dot: 'bg-amber-500',
+    border: 'border-warning/30',
+    bg: 'bg-warning/5',
+    glow: 'shadow-[0_0_15px_color-mix(in_srgb,var(--color-warning)_8%,transparent)]',
+    text: 'text-warning',
+    dot: 'bg-warning',
   },
   down: {
-    border: 'border-red-500/30',
-    bg: 'bg-red-500/5',
-    glow: 'shadow-[0_0_15px_rgba(239,68,68,0.08)]',
-    text: 'text-red-400',
-    dot: 'bg-red-500',
+    border: 'border-destructive/30',
+    bg: 'bg-destructive/5',
+    glow: 'shadow-[0_0_15px_color-mix(in_srgb,var(--color-destructive)_8%,transparent)]',
+    text: 'text-destructive',
+    dot: 'bg-destructive',
   },
   idle: {
     border: 'border-border',
     bg: 'bg-card',
     glow: '',
     text: 'text-muted-foreground',
-    dot: 'bg-gray-500',
+    dot: 'bg-muted-foreground',
   },
 }
 
@@ -58,8 +61,21 @@ export function DataFlowPipeline({ mqttStates, opcuaStates }: DataFlowPipelinePr
   const totalConnected = mqttConnected + opcuaConnected
   const totalServers = mqttStates.length + opcuaStates.length
 
-  const mqttErrors = mqttStates.filter((s) => !s.is_connected && s.error_message && s.error_message !== 'Not connected' && s.error_message !== 'Disconnected').length
-  const opcuaErrors = opcuaStates.filter((s) => !s.is_connected && s.error_message && s.error_message !== 'Not connected' && s.error_message !== 'Server is not connected' && s.error_message !== 'Disconnected').length
+  const mqttErrors = mqttStates.filter(
+    (s) =>
+      !s.is_connected &&
+      s.error_message &&
+      s.error_message !== 'Not connected' &&
+      s.error_message !== 'Disconnected',
+  ).length
+  const opcuaErrors = opcuaStates.filter(
+    (s) =>
+      !s.is_connected &&
+      s.error_message &&
+      s.error_message !== 'Not connected' &&
+      s.error_message !== 'Server is not connected' &&
+      s.error_message !== 'Disconnected',
+  ).length
   const totalErrors = mqttErrors + opcuaErrors
 
   const totalTopics = mqttStates.reduce((acc, s) => acc + (s.subscribed_topics?.length ?? 0), 0)
@@ -69,9 +85,14 @@ export function DataFlowPipeline({ mqttStates, opcuaStates }: DataFlowPipelinePr
 
   // Health levels for each stage
   const sourceHealth = getHealthLevel(totalConnected, totalServers, totalErrors)
-  const ingestionHealth = totalMappings > 0 && totalConnected > 0
-    ? (totalErrors > 0 ? 'degraded' : 'healthy')
-    : totalErrors > 0 ? 'down' : 'idle'
+  const ingestionHealth =
+    totalMappings > 0 && totalConnected > 0
+      ? totalErrors > 0
+        ? 'degraded'
+        : 'healthy'
+      : totalErrors > 0
+        ? 'down'
+        : 'idle'
   const spcHealth = totalMappings > 0 && totalConnected > 0 ? 'healthy' : 'idle'
 
   const sourceColors = healthColors[sourceHealth]
@@ -83,36 +104,40 @@ export function DataFlowPipeline({ mqttStates, opcuaStates }: DataFlowPipelinePr
   const connector2Active = totalMappings > 0 && totalConnected > 0
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-muted-foreground mb-4">Data Flow Pipeline</h3>
+    <div className="bg-card border-border rounded-xl border p-5">
+      <h3 className="text-muted-foreground mb-4 text-sm font-semibold">Data Flow Pipeline</h3>
 
       <div className="flex items-stretch gap-0">
         {/* Stage 1: Sources */}
-        <div className={cn(
-          'flex-1 rounded-xl border p-4 transition-all duration-300',
-          sourceColors.border, sourceColors.bg, sourceColors.glow
-        )}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className={cn('w-2 h-2 rounded-full', sourceColors.dot)} />
+        <div
+          className={cn(
+            'flex-1 rounded-xl border p-4 transition-all duration-300',
+            sourceColors.border,
+            sourceColors.bg,
+            sourceColors.glow,
+          )}
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <div className={cn('h-2 w-2 rounded-full', sourceColors.dot)} />
             <h4 className="text-sm font-semibold">Sources</h4>
           </div>
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs">
-              <Wifi className="h-3.5 w-3.5 text-teal-400" />
+              <Wifi className="text-accent h-3.5 w-3.5" />
               <span className="text-muted-foreground">MQTT</span>
               <span className="ml-auto font-mono font-medium">
                 {mqttConnected}/{mqttStates.length}
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <Server className="h-3.5 w-3.5 text-purple-400" />
+              <Server className="text-primary h-3.5 w-3.5" />
               <span className="text-muted-foreground">OPC-UA</span>
               <span className="ml-auto font-mono font-medium">
                 {opcuaConnected}/{opcuaStates.length}
               </span>
             </div>
             {totalErrors > 0 && (
-              <div className="text-xs text-red-400 mt-1">
+              <div className="text-destructive mt-1 text-xs">
                 {totalErrors} error{totalErrors !== 1 ? 's' : ''}
               </div>
             )}
@@ -120,31 +145,39 @@ export function DataFlowPipeline({ mqttStates, opcuaStates }: DataFlowPipelinePr
         </div>
 
         {/* Connector 1 */}
-        <div className="flex items-center px-2 shrink-0">
-          <div className={cn(
-            'flex items-center gap-1 transition-colors duration-300',
-            connector1Active ? 'text-emerald-500' : 'text-border'
-          )}>
-            <div className={cn(
-              'w-8 h-0.5 rounded-full transition-colors duration-300',
-              connector1Active ? 'bg-emerald-500/50' : 'bg-border'
-            )} />
+        <div className="flex shrink-0 items-center px-2">
+          <div
+            className={cn(
+              'flex items-center gap-1 transition-colors duration-300',
+              connector1Active ? 'text-success' : 'text-border',
+            )}
+          >
+            <div
+              className={cn(
+                'h-0.5 w-8 rounded-full transition-colors duration-300',
+                connector1Active ? 'bg-success/50' : 'bg-border',
+              )}
+            />
             <ArrowRight className="h-4 w-4" />
           </div>
         </div>
 
         {/* Stage 2: Ingestion */}
-        <div className={cn(
-          'flex-1 rounded-xl border p-4 transition-all duration-300',
-          ingestionColors.border, ingestionColors.bg, ingestionColors.glow
-        )}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className={cn('w-2 h-2 rounded-full', ingestionColors.dot)} />
+        <div
+          className={cn(
+            'flex-1 rounded-xl border p-4 transition-all duration-300',
+            ingestionColors.border,
+            ingestionColors.bg,
+            ingestionColors.glow,
+          )}
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <div className={cn('h-2 w-2 rounded-full', ingestionColors.dot)} />
             <h4 className="text-sm font-semibold">Ingestion</h4>
           </div>
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs">
-              <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+              <Cpu className="text-muted-foreground h-3.5 w-3.5" />
               <span className="text-muted-foreground">Active mappings</span>
               <span className="ml-auto font-mono font-medium">{totalMappings}</span>
             </div>
@@ -160,31 +193,39 @@ export function DataFlowPipeline({ mqttStates, opcuaStates }: DataFlowPipelinePr
         </div>
 
         {/* Connector 2 */}
-        <div className="flex items-center px-2 shrink-0">
-          <div className={cn(
-            'flex items-center gap-1 transition-colors duration-300',
-            connector2Active ? 'text-emerald-500' : 'text-border'
-          )}>
-            <div className={cn(
-              'w-8 h-0.5 rounded-full transition-colors duration-300',
-              connector2Active ? 'bg-emerald-500/50' : 'bg-border'
-            )} />
+        <div className="flex shrink-0 items-center px-2">
+          <div
+            className={cn(
+              'flex items-center gap-1 transition-colors duration-300',
+              connector2Active ? 'text-success' : 'text-border',
+            )}
+          >
+            <div
+              className={cn(
+                'h-0.5 w-8 rounded-full transition-colors duration-300',
+                connector2Active ? 'bg-success/50' : 'bg-border',
+              )}
+            />
             <ArrowRight className="h-4 w-4" />
           </div>
         </div>
 
         {/* Stage 3: SPC Engine */}
-        <div className={cn(
-          'flex-1 rounded-xl border p-4 transition-all duration-300',
-          spcColors.border, spcColors.bg, spcColors.glow
-        )}>
-          <div className="flex items-center gap-2 mb-3">
-            <div className={cn('w-2 h-2 rounded-full', spcColors.dot)} />
+        <div
+          className={cn(
+            'flex-1 rounded-xl border p-4 transition-all duration-300',
+            spcColors.border,
+            spcColors.bg,
+            spcColors.glow,
+          )}
+        >
+          <div className="mb-3 flex items-center gap-2">
+            <div className={cn('h-2 w-2 rounded-full', spcColors.dot)} />
             <h4 className="text-sm font-semibold">SPC Engine</h4>
           </div>
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs">
-              <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
+              <BarChart3 className="text-muted-foreground h-3.5 w-3.5" />
               <span className="text-muted-foreground">Status</span>
               <span className={cn('ml-auto font-medium', spcColors.text)}>
                 {totalConnected > 0 && totalMappings > 0 ? 'Processing' : 'Waiting'}

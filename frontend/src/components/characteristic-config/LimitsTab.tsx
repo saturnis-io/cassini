@@ -28,8 +28,18 @@ interface LimitsTabProps {
   formData: FormData
   characteristic: Characteristic
   onChange: (field: string, value: string) => void
-  onRecalculate: (options?: { excludeOoc?: boolean; startDate?: string; endDate?: string; lastN?: number }) => void
-  onSetManualLimits?: (data: { ucl: number; lcl: number; center_line: number; sigma: number }) => void
+  onRecalculate: (options?: {
+    excludeOoc?: boolean
+    startDate?: string
+    endDate?: string
+    lastN?: number
+  }) => void
+  onSetManualLimits?: (data: {
+    ucl: number
+    lcl: number
+    center_line: number
+    sigma: number
+  }) => void
   isRecalculating?: boolean
   isSettingManual?: boolean
 }
@@ -67,20 +77,23 @@ function LimitVisualization({
   // Nothing to visualize
   if (!hasSpec && !hasControl) {
     return (
-      <div className="py-6 text-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground py-6 text-center text-sm">
         Set specification or control limits to see the visualization.
       </div>
     )
   }
 
   // Capability indices
-  const cp = hasSpec && effectiveSigma && effectiveSigma > 0
-    ? (usl! - lsl!) / (6 * effectiveSigma)
-    : null
+  const cp =
+    hasSpec && effectiveSigma && effectiveSigma > 0 ? (usl! - lsl!) / (6 * effectiveSigma) : null
 
-  const cpk = hasSpec && effectiveSigma && effectiveSigma > 0 && effectiveCenterLine !== null
-    ? Math.min((usl! - effectiveCenterLine) / (3 * effectiveSigma), (effectiveCenterLine - lsl!) / (3 * effectiveSigma))
-    : null
+  const cpk =
+    hasSpec && effectiveSigma && effectiveSigma > 0 && effectiveCenterLine !== null
+      ? Math.min(
+          (usl! - effectiveCenterLine) / (3 * effectiveSigma),
+          (effectiveCenterLine - lsl!) / (3 * effectiveSigma),
+        )
+      : null
 
   // Compute the overall range for the number line - pad 10% on each side
   const allValues: number[] = []
@@ -102,14 +115,15 @@ function LimitVisualization({
   const toPercent = (v: number) => ((v - rangeMin) / totalRange) * 100
 
   // Zone boundaries (±1σ, ±2σ from center line)
-  const zones = effectiveSigma && effectiveSigma > 0 && effectiveCenterLine !== null
-    ? {
-        minus2: effectiveCenterLine - 2 * effectiveSigma,
-        minus1: effectiveCenterLine - effectiveSigma,
-        plus1: effectiveCenterLine + effectiveSigma,
-        plus2: effectiveCenterLine + 2 * effectiveSigma,
-      }
-    : null
+  const zones =
+    effectiveSigma && effectiveSigma > 0 && effectiveCenterLine !== null
+      ? {
+          minus2: effectiveCenterLine - 2 * effectiveSigma,
+          minus1: effectiveCenterLine - effectiveSigma,
+          plus1: effectiveCenterLine + effectiveSigma,
+          plus2: effectiveCenterLine + 2 * effectiveSigma,
+        }
+      : null
 
   return (
     <div className="space-y-4">
@@ -117,32 +131,43 @@ function LimitVisualization({
       {(cp !== null || cpk !== null) && (
         <div className="flex items-center gap-3">
           {cp !== null && (
-            <div className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium',
-              cp >= 1.33 ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                : cp >= 1.0 ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'
-                : 'bg-red-500/10 text-red-700 dark:text-red-400'
-            )}>
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium',
+                cp >= 1.33
+                  ? 'bg-success/10 text-success'
+                  : cp >= 1.0
+                    ? 'bg-warning/10 text-warning'
+                    : 'bg-destructive/10 text-destructive',
+              )}
+            >
               <span className="text-muted-foreground font-normal">Cp</span>
               <span className="font-mono">{cp.toFixed(2)}</span>
             </div>
           )}
           {cpk !== null && (
-            <div className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium',
-              cpk >= 1.33 ? 'bg-green-500/10 text-green-700 dark:text-green-400'
-                : cpk >= 1.0 ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'
-                : 'bg-red-500/10 text-red-700 dark:text-red-400'
-            )}>
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium',
+                cpk >= 1.33
+                  ? 'bg-success/10 text-success'
+                  : cpk >= 1.0
+                    ? 'bg-warning/10 text-warning'
+                    : 'bg-destructive/10 text-destructive',
+              )}
+            >
               <span className="text-muted-foreground font-normal">Cpk</span>
               <span className="font-mono">{cpk.toFixed(2)}</span>
             </div>
           )}
-          <span className="text-xs text-muted-foreground">
-            {cpk !== null && cpk >= 1.33 ? 'Capable'
-              : cpk !== null && cpk >= 1.0 ? 'Marginal'
-              : cpk !== null ? 'Not capable'
-              : ''}
+          <span className="text-muted-foreground text-xs">
+            {cpk !== null && cpk >= 1.33
+              ? 'Capable'
+              : cpk !== null && cpk >= 1.0
+                ? 'Marginal'
+                : cpk !== null
+                  ? 'Not capable'
+                  : ''}
           </span>
         </div>
       )}
@@ -150,12 +175,11 @@ function LimitVisualization({
       {/* Combined number line */}
       <div className="relative pt-2 pb-16">
         {/* Track background */}
-        <div className="relative h-10 rounded bg-muted/40 border border-border overflow-hidden">
-
+        <div className="bg-muted/40 border-border relative h-10 overflow-hidden rounded border">
           {/* Spec limit band (green) */}
           {hasSpec && (
             <div
-              className="absolute inset-y-0 bg-green-500/10 border-x border-green-500/30"
+              className="border-success/30 bg-success/10 absolute inset-y-0 border-x"
               style={{
                 left: `${toPercent(lsl!)}%`,
                 width: `${toPercent(usl!) - toPercent(lsl!)}%`,
@@ -168,7 +192,7 @@ function LimitVisualization({
             <>
               {/* ±2σ zone */}
               <div
-                className="absolute inset-y-0 bg-blue-500/5"
+                className="bg-primary/5 absolute inset-y-0"
                 style={{
                   left: `${Math.max(0, toPercent(zones.minus2))}%`,
                   width: `${Math.min(100, toPercent(zones.plus2)) - Math.max(0, toPercent(zones.minus2))}%`,
@@ -176,7 +200,7 @@ function LimitVisualization({
               />
               {/* ±1σ zone */}
               <div
-                className="absolute inset-y-0 bg-blue-500/8"
+                className="bg-primary/8 absolute inset-y-0"
                 style={{
                   left: `${Math.max(0, toPercent(zones.minus1))}%`,
                   width: `${Math.min(100, toPercent(zones.plus1)) - Math.max(0, toPercent(zones.minus1))}%`,
@@ -188,7 +212,7 @@ function LimitVisualization({
           {/* Control limit band outline (blue dashed) */}
           {hasControl && (
             <div
-              className="absolute inset-y-0 border-x-2 border-blue-500/50 border-dashed"
+              className="border-primary/50 absolute inset-y-0 border-x-2 border-dashed"
               style={{
                 left: `${toPercent(lcl!)}%`,
                 width: `${toPercent(ucl!) - toPercent(lcl!)}%`,
@@ -199,7 +223,7 @@ function LimitVisualization({
           {/* LSL marker */}
           {lsl !== null && (
             <div
-              className="absolute inset-y-0 w-0.5 bg-red-500"
+              className="bg-destructive absolute inset-y-0 w-0.5"
               style={{ left: `${toPercent(lsl)}%` }}
             />
           )}
@@ -207,7 +231,7 @@ function LimitVisualization({
           {/* USL marker */}
           {usl !== null && (
             <div
-              className="absolute inset-y-0 w-0.5 bg-red-500"
+              className="bg-destructive absolute inset-y-0 w-0.5"
               style={{ left: `${toPercent(usl)}%` }}
             />
           )}
@@ -215,7 +239,7 @@ function LimitVisualization({
           {/* LCL marker */}
           {lcl !== null && (
             <div
-              className="absolute inset-y-0 w-0.5 bg-blue-500"
+              className="bg-primary absolute inset-y-0 w-0.5"
               style={{ left: `${toPercent(lcl)}%` }}
             />
           )}
@@ -223,7 +247,7 @@ function LimitVisualization({
           {/* UCL marker */}
           {ucl !== null && (
             <div
-              className="absolute inset-y-0 w-0.5 bg-blue-500"
+              className="bg-primary absolute inset-y-0 w-0.5"
               style={{ left: `${toPercent(ucl)}%` }}
             />
           )}
@@ -231,7 +255,7 @@ function LimitVisualization({
           {/* Target marker */}
           {target !== null && (
             <div
-              className="absolute inset-y-0 w-0.5 bg-emerald-600 dark:bg-emerald-400"
+              className="bg-success absolute inset-y-0 w-0.5"
               style={{ left: `${toPercent(target)}%` }}
             />
           )}
@@ -239,7 +263,7 @@ function LimitVisualization({
           {/* Center line marker */}
           {effectiveCenterLine !== null && (
             <div
-              className="absolute top-0 bottom-0 w-0.5 border-l border-dashed border-primary"
+              className="border-primary absolute top-0 bottom-0 w-0.5 border-l border-dashed"
               style={{ left: `${toPercent(effectiveCenterLine)}%` }}
             />
           )}
@@ -248,85 +272,97 @@ function LimitVisualization({
         {/* Row 1 labels: Spec limits (LSL, TGT, USL) — just below track */}
         {lsl !== null && (
           <div
-            className="absolute text-[10px] font-mono text-red-600 dark:text-red-400 -translate-x-1/2 whitespace-nowrap"
+            className="text-destructive absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(lsl)}%`, top: '3.25rem' }}
           >
-            LSL<br />{lsl}
+            LSL
+            <br />
+            {lsl}
           </div>
         )}
         {target !== null && (
           <div
-            className="absolute text-[10px] font-mono text-emerald-600 dark:text-emerald-400 -translate-x-1/2 whitespace-nowrap"
+            className="text-success absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(target)}%`, top: '3.25rem' }}
           >
-            TGT<br />{target}
+            TGT
+            <br />
+            {target}
           </div>
         )}
         {usl !== null && (
           <div
-            className="absolute text-[10px] font-mono text-red-600 dark:text-red-400 -translate-x-1/2 whitespace-nowrap"
+            className="text-destructive absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(usl)}%`, top: '3.25rem' }}
           >
-            USL<br />{usl}
+            USL
+            <br />
+            {usl}
           </div>
         )}
 
         {/* Row 2 labels: Control limits (LCL, X̄, UCL) — offset below row 1 */}
         {lcl !== null && (
           <div
-            className="absolute text-[10px] font-mono text-blue-600 dark:text-blue-400 -translate-x-1/2 whitespace-nowrap"
+            className="text-primary absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(lcl)}%`, top: '5.25rem' }}
           >
-            LCL<br />{lcl.toFixed(2)}
+            LCL
+            <br />
+            {lcl.toFixed(2)}
           </div>
         )}
         {effectiveCenterLine !== null && (
           <div
-            className="absolute text-[10px] font-mono text-primary -translate-x-1/2 whitespace-nowrap"
+            className="text-primary absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(effectiveCenterLine)}%`, top: '5.25rem' }}
           >
-            X̄<br />{effectiveCenterLine.toFixed(2)}
+            X̄
+            <br />
+            {effectiveCenterLine.toFixed(2)}
           </div>
         )}
         {ucl !== null && (
           <div
-            className="absolute text-[10px] font-mono text-blue-600 dark:text-blue-400 -translate-x-1/2 whitespace-nowrap"
+            className="text-primary absolute -translate-x-1/2 font-mono text-[10px] whitespace-nowrap"
             style={{ left: `${toPercent(ucl)}%`, top: '5.25rem' }}
           >
-            UCL<br />{ucl.toFixed(2)}
+            UCL
+            <br />
+            {ucl.toFixed(2)}
           </div>
         )}
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {hasSpec && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 bg-red-500 rounded-sm" />
+            <span className="bg-destructive inline-block h-2 w-3 rounded-sm" />
             Spec Limits
           </span>
         )}
         {hasControl && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 bg-blue-500 rounded-sm" />
+            <span className="bg-primary inline-block h-2 w-3 rounded-sm" />
             Control Limits
           </span>
         )}
         {target !== null && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5 bg-emerald-600 dark:bg-emerald-400" />
+            <span className="bg-success inline-block h-0.5 w-3" />
             Target
           </span>
         )}
         {effectiveCenterLine !== null && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5 border-t border-dashed border-primary" />
+            <span className="border-primary inline-block h-0.5 w-3 border-t border-dashed" />
             Center Line
           </span>
         )}
         {zones && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-2 bg-blue-500/15 rounded-sm" />
+            <span className="bg-primary/15 inline-block h-2 w-3 rounded-sm" />
             Sigma Zones
           </span>
         )}
@@ -334,9 +370,15 @@ function LimitVisualization({
 
       {/* Capability explanation */}
       {hasBoth && cp !== null && (
-        <div className="text-xs text-muted-foreground border-t border-border pt-3 space-y-1">
-          <p><strong>Cp</strong> measures potential capability (spread vs spec width). Cp {'>'}= 1.33 is generally acceptable.</p>
-          <p><strong>Cpk</strong> measures actual capability (accounts for centering). Cpk {'<'} Cp indicates the process is off-center.</p>
+        <div className="text-muted-foreground border-border space-y-1 border-t pt-3 text-xs">
+          <p>
+            <strong>Cp</strong> measures potential capability (spread vs spec width). Cp {'>'}= 1.33
+            is generally acceptable.
+          </p>
+          <p>
+            <strong>Cpk</strong> measures actual capability (accounts for centering). Cpk {'<'} Cp
+            indicates the process is off-center.
+          </p>
         </div>
       )}
     </div>
@@ -373,9 +415,7 @@ export function LimitsTab({
   // Calculate positions for visual indicator
   const hasSpecLimits = usl !== null && lsl !== null
   const range = hasSpecLimits ? usl - lsl : 0
-  const targetPercent = hasSpecLimits && target !== null
-    ? ((target - lsl) / range) * 100
-    : 50
+  const targetPercent = hasSpecLimits && target !== null ? ((target - lsl) / range) * 100 : 50
 
   const handleRecalculate = () => {
     let startDate: string | undefined
@@ -434,7 +474,7 @@ export function LimitsTab({
       {/* Specification Limits - Default Open */}
       <AccordionSection id="spec-limits" title="Specification Limits">
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Engineering specification limits define the acceptable range for your process.
           </p>
 
@@ -445,7 +485,7 @@ export function LimitsTab({
                 step="any"
                 value={formData.lsl}
                 onChange={(value) => onChange('lsl', value)}
-                className="w-full mt-1.5"
+                className="mt-1.5 w-full"
                 placeholder="Lower limit"
               />
             </div>
@@ -455,7 +495,7 @@ export function LimitsTab({
                 step="any"
                 value={formData.target_value}
                 onChange={(value) => onChange('target_value', value)}
-                className="w-full mt-1.5"
+                className="mt-1.5 w-full"
                 placeholder="Target value"
               />
             </div>
@@ -465,7 +505,7 @@ export function LimitsTab({
                 step="any"
                 value={formData.usl}
                 onChange={(value) => onChange('usl', value)}
-                className="w-full mt-1.5"
+                className="mt-1.5 w-full"
                 placeholder="Upper limit"
               />
             </div>
@@ -473,32 +513,32 @@ export function LimitsTab({
 
           {/* Visual Number Line */}
           {hasSpecLimits && (
-            <div className="mt-4 pt-4 border-t border-border">
+            <div className="border-border mt-4 border-t pt-4">
               <div className="relative h-8">
                 {/* Background bar */}
-                <div className="absolute inset-x-0 top-3 h-2 bg-gradient-to-r from-red-200 via-green-200 to-red-200 rounded-full" />
+                <div className="from-destructive/20 via-success/20 to-destructive/20 absolute inset-x-0 top-3 h-2 rounded-full bg-gradient-to-r" />
 
                 {/* LSL marker */}
-                <div className="absolute left-0 top-0 flex flex-col items-center">
-                  <div className="w-0.5 h-4 bg-red-500" />
-                  <span className="text-xs text-muted-foreground mt-1">{lsl}</span>
+                <div className="absolute top-0 left-0 flex flex-col items-center">
+                  <div className="bg-destructive h-4 w-0.5" />
+                  <span className="text-muted-foreground mt-1 text-xs">{lsl}</span>
                 </div>
 
                 {/* Target marker */}
                 {target !== null && (
                   <div
-                    className="absolute top-0 flex flex-col items-center -translate-x-1/2"
+                    className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
                     style={{ left: `${targetPercent}%` }}
                   >
-                    <div className="w-0.5 h-4 bg-primary" />
-                    <span className="text-xs font-medium text-primary mt-1">{target}</span>
+                    <div className="bg-primary h-4 w-0.5" />
+                    <span className="text-primary mt-1 text-xs font-medium">{target}</span>
                   </div>
                 )}
 
                 {/* USL marker */}
-                <div className="absolute right-0 top-0 flex flex-col items-center">
-                  <div className="w-0.5 h-4 bg-red-500" />
-                  <span className="text-xs text-muted-foreground mt-1">{usl}</span>
+                <div className="absolute top-0 right-0 flex flex-col items-center">
+                  <div className="bg-destructive h-4 w-0.5" />
+                  <span className="text-muted-foreground mt-1 text-xs">{usl}</span>
                 </div>
               </div>
             </div>
@@ -517,8 +557,8 @@ export function LimitsTab({
                 formData.subgroup_mode === 'STANDARDIZED'
                   ? 'ucl-lcl-standardized'
                   : formData.subgroup_mode === 'VARIABLE_LIMITS'
-                  ? 'ucl-lcl-variable'
-                  : 'ucl-lcl-nominal'
+                    ? 'ucl-lcl-variable'
+                    : 'ucl-lcl-nominal'
               }
               triggerAs="span"
             />
@@ -529,14 +569,14 @@ export function LimitsTab({
           {/* Current limits display */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">LCL</label>
-              <div className="mt-1.5 px-3 py-2 bg-muted rounded-lg font-mono text-sm">
+              <label className="text-muted-foreground text-sm font-medium">LCL</label>
+              <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
                 {characteristic.lcl?.toFixed(4) ?? '—'}
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">UCL</label>
-              <div className="mt-1.5 px-3 py-2 bg-muted rounded-lg font-mono text-sm">
+              <label className="text-muted-foreground text-sm font-medium">UCL</label>
+              <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
                 {characteristic.ucl?.toFixed(4) ?? '—'}
               </div>
             </div>
@@ -544,21 +584,22 @@ export function LimitsTab({
 
           {/* Calculation info */}
           {characteristic.stored_sigma && (
-            <div className="text-sm text-muted-foreground">
-              Based on: {characteristic.sample_count ?? '?'} samples, σ = {characteristic.stored_sigma.toFixed(4)}
+            <div className="text-muted-foreground text-sm">
+              Based on: {characteristic.sample_count ?? '?'} samples, σ ={' '}
+              {characteristic.stored_sigma.toFixed(4)}
             </div>
           )}
 
           {/* Source toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
+          <div className="border-border flex overflow-hidden rounded-lg border">
             <button
               type="button"
               onClick={() => setLimitSource('calculate')}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
                 limitSource === 'calculate'
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted',
               )}
             >
               <Calculator className="h-4 w-4" />
@@ -568,10 +609,10 @@ export function LimitsTab({
               type="button"
               onClick={() => setLimitSource('manual')}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
                 limitSource === 'manual'
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted',
               )}
             >
               <Edit3 className="h-4 w-4" />
@@ -582,13 +623,16 @@ export function LimitsTab({
           {/* Calculate from Data mode */}
           {limitSource === 'calculate' && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Control limits are calculated from your sample data and represent the natural process variation.
+              <p className="text-muted-foreground text-sm">
+                Control limits are calculated from your sample data and represent the natural
+                process variation.
               </p>
 
               {/* Baseline period selector */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Baseline Period</label>
+                <label className="text-muted-foreground mb-1.5 block text-sm font-medium">
+                  Baseline Period
+                </label>
                 <div className="flex items-center gap-2">
                   <LocalTimeRangeSelector
                     value={dateRange}
@@ -603,11 +647,20 @@ export function LimitsTab({
                       { label: 'Last 30 days', type: 'duration', value: 720 },
                     ]}
                   />
-                  {(dateRange.type === 'custom' || (dateRange.type === 'duration' && dateRange.hoursBack)) && (
+                  {(dateRange.type === 'custom' ||
+                    (dateRange.type === 'duration' && dateRange.hoursBack)) && (
                     <button
                       type="button"
-                      onClick={() => setDateRange({ type: 'duration', pointsLimit: null, hoursBack: 0, startDate: null, endDate: null })}
-                      className="text-xs text-primary hover:underline whitespace-nowrap"
+                      onClick={() =>
+                        setDateRange({
+                          type: 'duration',
+                          pointsLimit: null,
+                          hoursBack: 0,
+                          startDate: null,
+                          endDate: null,
+                        })
+                      }
+                      className="text-primary text-xs whitespace-nowrap hover:underline"
                     >
                       Use all data
                     </button>
@@ -615,14 +668,16 @@ export function LimitsTab({
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="rounded border-border"
+                  className="border-border rounded"
                   checked={excludeOoc}
                   onChange={(e) => setExcludeOoc(e.target.checked)}
                 />
-                <span className="text-muted-foreground">Exclude out-of-control points from calculation</span>
+                <span className="text-muted-foreground">
+                  Exclude out-of-control points from calculation
+                </span>
               </label>
 
               {/* Recalculate button */}
@@ -631,10 +686,10 @@ export function LimitsTab({
                 onClick={handleRecalculate}
                 disabled={isRecalculating}
                 className={cn(
-                  'w-full flex items-center justify-center gap-2 px-4 py-2.5',
-                  'text-sm font-medium rounded-lg border border-border',
+                  'flex w-full items-center justify-center gap-2 px-4 py-2.5',
+                  'border-border rounded-lg border text-sm font-medium',
                   'hover:bg-muted transition-colors',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                  'disabled:cursor-not-allowed disabled:opacity-50',
                 )}
               >
                 <RefreshCw className={cn('h-4 w-4', isRecalculating && 'animate-spin')} />
@@ -646,7 +701,7 @@ export function LimitsTab({
           {/* Set Manually mode */}
           {limitSource === 'manual' && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Enter values from an external capability study or validation protocol.
               </p>
 
@@ -657,7 +712,7 @@ export function LimitsTab({
                     step="any"
                     value={manualLcl}
                     onChange={setManualLcl}
-                    className="w-full mt-1.5"
+                    className="mt-1.5 w-full"
                     placeholder="Lower control limit"
                   />
                 </div>
@@ -667,7 +722,7 @@ export function LimitsTab({
                     step="any"
                     value={manualUcl}
                     onChange={setManualUcl}
-                    className="w-full mt-1.5"
+                    className="mt-1.5 w-full"
                     placeholder="Upper control limit"
                   />
                 </div>
@@ -680,7 +735,7 @@ export function LimitsTab({
                     step="any"
                     value={manualCenterLine}
                     onChange={setManualCenterLine}
-                    className="w-full mt-1.5"
+                    className="mt-1.5 w-full"
                     placeholder="Process mean"
                   />
                 </div>
@@ -690,7 +745,7 @@ export function LimitsTab({
                     step="any"
                     value={manualSigma}
                     onChange={setManualSigma}
-                    className="w-full mt-1.5"
+                    className="mt-1.5 w-full"
                     placeholder="Process std dev"
                   />
                 </div>
@@ -701,11 +756,11 @@ export function LimitsTab({
                 onClick={handleSetManual}
                 disabled={isSettingManual || !isManualValid}
                 className={cn(
-                  'w-full flex items-center justify-center gap-2 px-4 py-2.5',
-                  'text-sm font-medium rounded-lg',
+                  'flex w-full items-center justify-center gap-2 px-4 py-2.5',
+                  'rounded-lg text-sm font-medium',
                   'bg-primary text-primary-foreground',
                   'hover:bg-primary/90 transition-colors',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                  'disabled:cursor-not-allowed disabled:opacity-50',
                 )}
               >
                 {isSettingManual ? 'Applying...' : 'Apply Manual Limits'}

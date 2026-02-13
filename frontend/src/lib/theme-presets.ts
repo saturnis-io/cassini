@@ -56,25 +56,25 @@ export interface ChartColors {
  */
 export const defaultChartColors: ChartColors = {
   // Primary chart - Blue to Teal gradient
-  lineGradientStart: 'hsl(212, 100%, 35%)',  // OpenSPC Blue (lighter)
-  lineGradientEnd: 'hsl(179, 50%, 55%)',     // OpenSPC Teal
-  centerLine: 'hsl(212, 100%, 30%)',          // OpenSPC Blue
-  uclLine: 'hsl(357, 80%, 52%)',              // OpenSPC Red
-  lclLine: 'hsl(357, 80%, 52%)',              // OpenSPC Red
-  zoneA: 'hsl(32, 63%, 51%)',                 // OpenSPC Orange
-  zoneB: 'hsl(48, 100%, 50%)',                // OpenSPC Yellow
-  zoneC: 'hsl(104, 55%, 40%)',                // OpenSPC Green
-  normalPoint: 'hsl(212, 100%, 30%)',         // OpenSPC Blue
-  violationPoint: 'hsl(357, 80%, 52%)',       // OpenSPC Red
-  undersizedPoint: 'hsl(32, 63%, 51%)',       // OpenSPC Orange
-  excludedPoint: 'hsl(210, 8%, 46%)',         // Muted gray
-  outOfControl: 'hsl(357, 80%, 52%)',         // OpenSPC Red
-  annotationColor: 'hsl(212, 100%, 30%)',       // OpenSPC Blue (brand primary)
+  lineGradientStart: 'hsl(212, 100%, 35%)', // OpenSPC Blue (lighter)
+  lineGradientEnd: 'hsl(179, 50%, 55%)', // OpenSPC Teal
+  centerLine: 'hsl(212, 100%, 30%)', // OpenSPC Blue
+  uclLine: 'hsl(357, 80%, 52%)', // OpenSPC Red
+  lclLine: 'hsl(357, 80%, 52%)', // OpenSPC Red
+  zoneA: 'hsl(32, 63%, 51%)', // OpenSPC Orange
+  zoneB: 'hsl(48, 100%, 50%)', // OpenSPC Yellow
+  zoneC: 'hsl(104, 55%, 40%)', // OpenSPC Green
+  normalPoint: 'hsl(212, 100%, 30%)', // OpenSPC Blue
+  violationPoint: 'hsl(357, 80%, 52%)', // OpenSPC Red
+  undersizedPoint: 'hsl(32, 63%, 51%)', // OpenSPC Orange
+  excludedPoint: 'hsl(210, 8%, 46%)', // Muted gray
+  outOfControl: 'hsl(357, 80%, 52%)', // OpenSPC Red
+  annotationColor: 'hsl(212, 100%, 30%)', // OpenSPC Blue (brand primary)
 
   // Secondary/comparison chart - Purple to Teal gradient (OpenSPC brand)
-  secondaryLineGradientStart: 'hsl(241, 33%, 60%)',  // OpenSPC Purple #7473C0
-  secondaryLineGradientEnd: 'hsl(179, 50%, 59%)',    // OpenSPC Teal #62CBC9
-  secondaryNormalPoint: 'hsl(241, 33%, 55%)',        // OpenSPC Purple (darker)
+  secondaryLineGradientStart: 'hsl(241, 33%, 60%)', // OpenSPC Purple #7473C0
+  secondaryLineGradientEnd: 'hsl(179, 50%, 59%)', // OpenSPC Teal #62CBC9
+  secondaryNormalPoint: 'hsl(241, 33%, 55%)', // OpenSPC Purple (darker)
 }
 
 export const chartPresets: ChartColorPreset[] = [
@@ -175,8 +175,8 @@ export const chartPresets: ChartColorPreset[] = [
       excludedPoint: 'hsl(0, 0%, 55%)',
       outOfControl: 'hsl(0, 90%, 60%)',
       annotationColor: 'hsl(212, 100%, 55%)',
-      secondaryLineGradientStart: 'hsl(241, 50%, 70%)',  // Brightened OpenSPC Purple
-      secondaryLineGradientEnd: 'hsl(179, 60%, 65%)',    // Brightened OpenSPC Teal
+      secondaryLineGradientStart: 'hsl(241, 50%, 70%)', // Brightened OpenSPC Purple
+      secondaryLineGradientEnd: 'hsl(179, 60%, 65%)', // Brightened OpenSPC Teal
       secondaryNormalPoint: 'hsl(241, 50%, 65%)',
     },
   },

@@ -111,7 +111,7 @@ function getMeasurementValues(sample: Sample): number[] {
   if (typeof first === 'number') {
     // Backend returns plain numbers
     return (sample.measurements as unknown as number[]).filter(
-      (v): v is number => typeof v === 'number' && Number.isFinite(v)
+      (v): v is number => typeof v === 'number' && Number.isFinite(v),
     )
   }
   // It's Measurement objects with .value property
@@ -140,16 +140,16 @@ function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData 
   const whiskerHighBound = iqr > 0 ? q3 + 1.5 * iqr : sorted[sorted.length - 1]
 
   const whiskerLow = sorted.find((v) => v >= whiskerLowBound) ?? sorted[0]
-  const whiskerHigh = [...sorted].reverse().find((v) => v <= whiskerHighBound) ?? sorted[sorted.length - 1]
+  const whiskerHigh =
+    [...sorted].reverse().find((v) => v <= whiskerHighBound) ?? sorted[sorted.length - 1]
 
   // Outliers are values outside whisker bounds
   const outliers = iqr > 0 ? sorted.filter((v) => v < whiskerLowBound || v > whiskerHighBound) : []
 
   // Calculate mean from measurements if sample.mean is not available
   const calculatedMean = values.reduce((a, b) => a + b, 0) / values.length
-  const mean = typeof sample.mean === 'number' && Number.isFinite(sample.mean)
-    ? sample.mean
-    : calculatedMean
+  const mean =
+    typeof sample.mean === 'number' && Number.isFinite(sample.mean) ? sample.mean : calculatedMean
 
   const result = {
     sampleId: sample.id,
@@ -168,7 +168,16 @@ function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData 
   }
 
   // Validate all numeric values are finite before returning
-  const numericFields = [result.min, result.q1, result.median, result.q3, result.max, result.whiskerLow, result.whiskerHigh, result.mean]
+  const numericFields = [
+    result.min,
+    result.q1,
+    result.median,
+    result.q3,
+    result.max,
+    result.whiskerLow,
+    result.whiskerHigh,
+    result.mean,
+  ]
   if (numericFields.some((v) => !Number.isFinite(v))) {
     return null
   }
@@ -220,7 +229,6 @@ export function BoxWhiskerChart({
     }
 
     if (!node) {
-  
       return
     }
 
@@ -229,7 +237,6 @@ export function BoxWhiskerChart({
 
       setDimensions({ width: rect.width, height: rect.height })
     }
-
 
     rafRef.current = requestAnimationFrame(updateDimensions)
 
@@ -243,7 +250,7 @@ export function BoxWhiskerChart({
 
     // Sort samples by timestamp and calculate box plots
     const sortedSamples = [...samplesData.items].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     )
 
     return sortedSamples
@@ -256,10 +263,7 @@ export function BoxWhiskerChart({
     if (!showBrush || !rangeWindow || allBoxPlotData.length === 0) {
       return [0, allBoxPlotData.length - 1]
     }
-    return [
-      Math.max(0, rangeWindow[0]),
-      Math.min(allBoxPlotData.length - 1, rangeWindow[1]),
-    ]
+    return [Math.max(0, rangeWindow[0]), Math.min(allBoxPlotData.length - 1, rangeWindow[1])]
   }, [allBoxPlotData, rangeWindow, showBrush])
 
   // boxPlotData is always the full dataset — the range slider controls the viewport, not the data
@@ -277,11 +281,7 @@ export function BoxWhiskerChart({
 
     if (boxPlotData.length === 0) return [0, 100]
 
-    const allValues = boxPlotData.flatMap((box) => [
-      box.min,
-      box.max,
-      ...box.outliers,
-    ])
+    const allValues = boxPlotData.flatMap((box) => [box.min, box.max, ...box.outliers])
 
     // Include spec limits if showing
     if (showSpecLimits && characteristic) {
@@ -303,9 +303,10 @@ export function BoxWhiskerChart({
   }, [boxPlotData, characteristic, showSpecLimits, externalYDomain])
 
   // Get colors based on scheme
-  const boxColor = colorScheme === 'secondary'
-    ? chartColors.secondaryLineGradientStart
-    : chartColors.lineGradientStart
+  const boxColor =
+    colorScheme === 'secondary'
+      ? chartColors.secondaryLineGradientStart
+      : chartColors.lineGradientStart
 
   const decimalPrecision = characteristic?.decimal_precision ?? 3
   const formatValue = (value: number) => value.toFixed(decimalPrecision)
@@ -361,42 +362,38 @@ export function BoxWhiskerChart({
   const whiskerWidth = boxWidth * 0.6
 
   // Get hovered box data for tooltip
-  const hoveredBoxData = hoveredBox != null
-    ? boxPlotData.find((b) => b.sampleId === hoveredBox)
-    : null
+  const hoveredBoxData =
+    hoveredBox != null ? boxPlotData.find((b) => b.sampleId === hoveredBox) : null
 
   if (samplesLoading) {
-
     return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center">
+      <div className="bg-card border-border flex h-full items-center justify-center rounded-2xl border">
         <div className="text-muted-foreground text-sm">Loading samples...</div>
       </div>
     )
   }
 
   if (boxPlotData.length === 0) {
-
     return (
-      <div className="h-full bg-card border border-border rounded-2xl flex items-center justify-center p-4">
-        <div className="text-muted-foreground text-sm text-center">
-          <p className="font-medium mb-1">No box plot data available</p>
+      <div className="bg-card border-border flex h-full items-center justify-center rounded-2xl border p-4">
+        <div className="text-muted-foreground text-center text-sm">
+          <p className="mb-1 font-medium">No box plot data available</p>
           <p className="text-xs">Box plots require samples with at least 2 measurements each.</p>
         </div>
       </div>
     )
   }
 
-
   const { yScale, xScale } = scales
 
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+    <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-        <h3 className="font-semibold text-sm leading-5">
+      <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+        <h3 className="text-sm leading-5 font-semibold">
           {characteristic?.name ?? 'Characteristic'} - Box & Whisker Plot
         </h3>
-        <div className="flex gap-4 text-sm text-muted-foreground leading-5">
+        <div className="text-muted-foreground flex gap-4 text-sm leading-5">
           <span>
             {visibleRange[1] - visibleRange[0] + 1 < boxPlotData.length
               ? `${visibleRange[1] - visibleRange[0] + 1} of ${boxPlotData.length} samples`
@@ -406,16 +403,17 @@ export function BoxWhiskerChart({
       </div>
 
       {/* Chart */}
-      <div ref={containerRef} className="flex-1 min-h-0 relative">
+      <div ref={containerRef} className="relative min-h-0 flex-1">
         {dimensions.width > 0 && dimensions.height > 0 && (
-          <svg
-            width={dimensions.width}
-            height={dimensions.height}
-            style={{ display: 'block' }}
-          >
+          <svg width={dimensions.width} height={dimensions.height} style={{ display: 'block' }}>
             <defs>
               <clipPath id={`box-clip-${characteristicId}`}>
-                <rect x={0} y={-margin.top} width={chartWidth} height={chartHeight + margin.top + margin.bottom} />
+                <rect
+                  x={0}
+                  y={-margin.top}
+                  width={chartWidth}
+                  height={chartHeight + margin.top + margin.bottom}
+                />
               </clipPath>
             </defs>
             <g transform={`translate(${margin.left}, ${margin.top})`}>
@@ -441,14 +439,14 @@ export function BoxWhiskerChart({
                     x2={chartWidth}
                     y1={yScale(characteristic.usl)}
                     y2={yScale(characteristic.usl)}
-                    stroke="#dc2626"
+                    stroke="var(--color-destructive)"
                     strokeWidth={2}
                     strokeDasharray="8 4"
                   />
                   <text
                     x={chartWidth + 5}
                     y={yScale(characteristic.usl)}
-                    fill="#dc2626"
+                    fill="var(--color-destructive)"
                     fontSize={11}
                     dominantBaseline="middle"
                   >
@@ -463,14 +461,14 @@ export function BoxWhiskerChart({
                     x2={chartWidth}
                     y1={yScale(characteristic.lsl)}
                     y2={yScale(characteristic.lsl)}
-                    stroke="#dc2626"
+                    stroke="var(--color-destructive)"
                     strokeWidth={2}
                     strokeDasharray="8 4"
                   />
                   <text
                     x={chartWidth + 5}
                     y={yScale(characteristic.lsl)}
-                    fill="#dc2626"
+                    fill="var(--color-destructive)"
                     fontSize={11}
                     dominantBaseline="middle"
                   >
@@ -527,120 +525,120 @@ export function BoxWhiskerChart({
 
               {/* Box plots - clipped to visible viewport */}
               <g clipPath={`url(#box-clip-${characteristicId})`}>
-              {boxPlotData.slice(visibleRange[0], visibleRange[1] + 1).map((box) => {
-                const x = xScale(box.index)
-                const isHoveredLocal = hoveredBox === box.sampleId
-                // Cross-chart highlighting using sample_id
-                const isHoveredGlobal = hoveredSampleIds?.has(box.sampleId) ?? false
-                const isHovered = isHoveredLocal || isHoveredGlobal
+                {boxPlotData.slice(visibleRange[0], visibleRange[1] + 1).map((box) => {
+                  const x = xScale(box.index)
+                  const isHoveredLocal = hoveredBox === box.sampleId
+                  // Cross-chart highlighting using sample_id
+                  const isHoveredGlobal = hoveredSampleIds?.has(box.sampleId) ?? false
+                  const isHovered = isHoveredLocal || isHoveredGlobal
 
-                const y_q1 = yScale(box.q1)
-                const y_q3 = yScale(box.q3)
-                const y_median = yScale(box.median)
-                const y_whiskerLow = yScale(box.whiskerLow)
-                const y_whiskerHigh = yScale(box.whiskerHigh)
-                const y_mean = yScale(box.mean)
+                  const y_q1 = yScale(box.q1)
+                  const y_q3 = yScale(box.q3)
+                  const y_median = yScale(box.median)
+                  const y_whiskerLow = yScale(box.whiskerLow)
+                  const y_whiskerHigh = yScale(box.whiskerHigh)
+                  const y_mean = yScale(box.mean)
 
-                // Box height (Q3 is higher value but lower y coordinate)
-                const boxTop = Math.min(y_q1, y_q3)
-                const boxBottom = Math.max(y_q1, y_q3)
-                const boxHeight = Math.max(2, boxBottom - boxTop)
+                  // Box height (Q3 is higher value but lower y coordinate)
+                  const boxTop = Math.min(y_q1, y_q3)
+                  const boxBottom = Math.max(y_q1, y_q3)
+                  const boxHeight = Math.max(2, boxBottom - boxTop)
 
-                return (
-                  <g
-                    key={box.sampleId}
-                    onMouseEnter={(e) => {
-                      setHoveredBox(box.sampleId)
-                      setTooltipPos({ x: e.clientX, y: e.clientY })
-                      // Broadcast sample_id to cross-chart hover context
-                      onHoverSample(box.sampleId)
-                    }}
-                    onMouseMove={(e) => {
-                      setTooltipPos({ x: e.clientX, y: e.clientY })
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredBox(null)
-                      setTooltipPos(null)
-                      onLeaveSample()
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {/* Vertical whisker line */}
-                    <line
-                      x1={x}
-                      x2={x}
-                      y1={y_whiskerHigh}
-                      y2={y_whiskerLow}
-                      stroke={boxColor}
-                      strokeWidth={isHovered ? 2 : 1.5}
-                    />
+                  return (
+                    <g
+                      key={box.sampleId}
+                      onMouseEnter={(e) => {
+                        setHoveredBox(box.sampleId)
+                        setTooltipPos({ x: e.clientX, y: e.clientY })
+                        // Broadcast sample_id to cross-chart hover context
+                        onHoverSample(box.sampleId)
+                      }}
+                      onMouseMove={(e) => {
+                        setTooltipPos({ x: e.clientX, y: e.clientY })
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredBox(null)
+                        setTooltipPos(null)
+                        onLeaveSample()
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {/* Vertical whisker line */}
+                      <line
+                        x1={x}
+                        x2={x}
+                        y1={y_whiskerHigh}
+                        y2={y_whiskerLow}
+                        stroke={boxColor}
+                        strokeWidth={isHovered ? 2 : 1.5}
+                      />
 
-                    {/* Top whisker cap */}
-                    <line
-                      x1={x - whiskerWidth / 2}
-                      x2={x + whiskerWidth / 2}
-                      y1={y_whiskerHigh}
-                      y2={y_whiskerHigh}
-                      stroke={boxColor}
-                      strokeWidth={isHovered ? 2 : 1.5}
-                    />
+                      {/* Top whisker cap */}
+                      <line
+                        x1={x - whiskerWidth / 2}
+                        x2={x + whiskerWidth / 2}
+                        y1={y_whiskerHigh}
+                        y2={y_whiskerHigh}
+                        stroke={boxColor}
+                        strokeWidth={isHovered ? 2 : 1.5}
+                      />
 
-                    {/* Bottom whisker cap */}
-                    <line
-                      x1={x - whiskerWidth / 2}
-                      x2={x + whiskerWidth / 2}
-                      y1={y_whiskerLow}
-                      y2={y_whiskerLow}
-                      stroke={boxColor}
-                      strokeWidth={isHovered ? 2 : 1.5}
-                    />
+                      {/* Bottom whisker cap */}
+                      <line
+                        x1={x - whiskerWidth / 2}
+                        x2={x + whiskerWidth / 2}
+                        y1={y_whiskerLow}
+                        y2={y_whiskerLow}
+                        stroke={boxColor}
+                        strokeWidth={isHovered ? 2 : 1.5}
+                      />
 
-                    {/* Box (Q1 to Q3) */}
-                    <rect
-                      x={x - boxWidth / 2}
-                      y={boxTop}
-                      width={boxWidth}
-                      height={boxHeight}
-                      fill={boxColor}
-                      fillOpacity={isHovered ? 0.4 : 0.25}
-                      stroke={boxColor}
-                      strokeWidth={isHovered ? 2 : 1.5}
-                      rx={3}
-                    />
+                      {/* Box (Q1 to Q3) */}
+                      <rect
+                        x={x - boxWidth / 2}
+                        y={boxTop}
+                        width={boxWidth}
+                        height={boxHeight}
+                        fill={boxColor}
+                        fillOpacity={isHovered ? 0.4 : 0.25}
+                        stroke={boxColor}
+                        strokeWidth={isHovered ? 2 : 1.5}
+                        rx={3}
+                      />
 
-                    {/* Median line */}
-                    <line
-                      x1={x - boxWidth / 2}
-                      x2={x + boxWidth / 2}
-                      y1={y_median}
-                      y2={y_median}
-                      stroke={boxColor}
-                      strokeWidth={2.5}
-                    />
+                      {/* Median line */}
+                      <line
+                        x1={x - boxWidth / 2}
+                        x2={x + boxWidth / 2}
+                        y1={y_median}
+                        y2={y_median}
+                        stroke={boxColor}
+                        strokeWidth={2.5}
+                      />
 
-                    {/* Mean marker (diamond) */}
-                    <path
-                      d={`M ${x} ${y_mean - 4} L ${x + 4} ${y_mean} L ${x} ${y_mean + 4} L ${x - 4} ${y_mean} Z`}
-                      fill={chartColors.centerLine}
-                      stroke="white"
-                      strokeWidth={1}
-                    />
-
-                    {/* Outliers */}
-                    {box.outliers.map((outlier, oi) => (
-                      <circle
-                        key={oi}
-                        cx={x}
-                        cy={yScale(outlier)}
-                        r={4}
-                        fill={chartColors.violationPoint}
+                      {/* Mean marker (diamond) */}
+                      <path
+                        d={`M ${x} ${y_mean - 4} L ${x + 4} ${y_mean} L ${x} ${y_mean + 4} L ${x - 4} ${y_mean} Z`}
+                        fill={chartColors.centerLine}
                         stroke="white"
                         strokeWidth={1}
                       />
-                    ))}
-                  </g>
-                )
-              })}
+
+                      {/* Outliers */}
+                      {box.outliers.map((outlier, oi) => (
+                        <circle
+                          key={oi}
+                          cx={x}
+                          cy={yScale(outlier)}
+                          r={4}
+                          fill={chartColors.violationPoint}
+                          stroke="white"
+                          strokeWidth={1}
+                        />
+                      ))}
+                    </g>
+                  )
+                })}
               </g>
 
               {/* Y-axis */}
@@ -701,19 +699,21 @@ export function BoxWhiskerChart({
                 const visible = boxPlotData.slice(visibleRange[0], visibleRange[1] + 1)
                 const maxLabels = 20
                 const step = visible.length <= maxLabels ? 1 : Math.ceil(visible.length / 10)
-                return visible.filter((_, i) => i % step === 0).map((box) => (
-                  <text
-                    key={box.sampleId}
-                    x={xScale(box.index)}
-                    y={chartHeight + 15}
-                    fill="currentColor"
-                    fillOpacity={0.6}
-                    fontSize={10}
-                    textAnchor="middle"
-                  >
-                    {box.index}
-                  </text>
-                ))
+                return visible
+                  .filter((_, i) => i % step === 0)
+                  .map((box) => (
+                    <text
+                      key={box.sampleId}
+                      x={xScale(box.index)}
+                      y={chartHeight + 15}
+                      fill="currentColor"
+                      fillOpacity={0.6}
+                      fontSize={10}
+                      textAnchor="middle"
+                    >
+                      {box.index}
+                    </text>
+                  ))
               })()}
             </g>
           </svg>
@@ -722,14 +722,14 @@ export function BoxWhiskerChart({
         {/* Tooltip */}
         {hoveredBoxData && tooltipPos && (
           <div
-            className="fixed z-50 bg-popover border border-border rounded-lg p-3 text-sm shadow-xl pointer-events-none"
+            className="bg-popover border-border pointer-events-none fixed z-50 rounded-lg border p-3 text-sm shadow-xl"
             style={{
               left: Math.min(tooltipPos.x + 15, window.innerWidth - 200),
               top: Math.max(tooltipPos.y - 100, 10),
             }}
           >
-            <div className="font-semibold mb-1">Sample #{hoveredBoxData.index}</div>
-            <div className="text-xs text-muted-foreground mb-2">
+            <div className="mb-1 font-semibold">Sample #{hoveredBoxData.index}</div>
+            <div className="text-muted-foreground mb-2 text-xs">
               {new Date(hoveredBoxData.timestamp).toLocaleString()}
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
@@ -740,7 +740,9 @@ export function BoxWhiskerChart({
               <span className="text-muted-foreground">Median:</span>
               <span className="font-medium">{formatValue(hoveredBoxData.median)}</span>
               <span className="text-muted-foreground">Mean:</span>
-              <span style={{ color: chartColors.centerLine }}>{formatValue(hoveredBoxData.mean)}</span>
+              <span style={{ color: chartColors.centerLine }}>
+                {formatValue(hoveredBoxData.mean)}
+              </span>
               <span className="text-muted-foreground">Q1:</span>
               <span>{formatValue(hoveredBoxData.q1)}</span>
               <span className="text-muted-foreground">Min:</span>
@@ -751,8 +753,8 @@ export function BoxWhiskerChart({
               <span>{hoveredBoxData.count}</span>
               {hoveredBoxData.outliers.length > 0 && (
                 <>
-                  <span className="text-orange-500">Outliers:</span>
-                  <span className="text-orange-500">{hoveredBoxData.outliers.length}</span>
+                  <span className="text-warning">Outliers:</span>
+                  <span className="text-warning">{hoveredBoxData.outliers.length}</span>
                 </>
               )}
             </div>
@@ -762,21 +764,30 @@ export function BoxWhiskerChart({
 
       {/* Legend */}
       {!hideLegend && (
-        <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+        <div className="text-muted-foreground mt-3 flex flex-wrap items-center justify-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-3 rounded-sm border-2" style={{ borderColor: boxColor, backgroundColor: `${boxColor}40` }} />
+            <div
+              className="h-3 w-5 rounded-sm border-2"
+              style={{ borderColor: boxColor, backgroundColor: `${boxColor}40` }}
+            />
             <span>IQR</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 rounded" style={{ backgroundColor: boxColor }} />
+            <div className="h-0.5 w-4 rounded" style={{ backgroundColor: boxColor }} />
             <span>Median</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rotate-45" style={{ backgroundColor: chartColors.centerLine }} />
+            <div
+              className="h-2 w-2 rotate-45"
+              style={{ backgroundColor: chartColors.centerLine }}
+            />
             <span>Mean</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: chartColors.violationPoint }} />
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: chartColors.violationPoint }}
+            />
             <span>Outlier</span>
           </div>
         </div>

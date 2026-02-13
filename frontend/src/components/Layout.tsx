@@ -26,7 +26,7 @@ export function Layout() {
   const { data: stats } = useViolationStats()
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="bg-background flex min-h-screen flex-col">
       {/* Header - full width */}
       <Header plantSelector={<PlantSelector />} />
 
@@ -42,43 +42,41 @@ export function Layout() {
       </div>
 
       {/* Footer / Status bar - full width */}
-      <footer className="border-t bg-card py-1.5 px-4 shrink-0">
+      <footer className="bg-card shrink-0 border-t px-4 py-1.5">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             {wsConnected ? (
               <>
-                <Wifi className="h-4 w-4 text-green-500" />
+                <Wifi className="text-success h-4 w-4" />
                 <span className="text-muted-foreground">Connected</span>
               </>
             ) : (
               <>
-                <WifiOff className="h-4 w-4 text-destructive" />
+                <WifiOff className="text-destructive h-4 w-4" />
                 <span className="text-destructive">Disconnected</span>
               </>
             )}
           </div>
-          <div className="flex items-center gap-6 text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-6">
             <Link
               to="/violations?status=required"
               className={cn(
-                'flex items-center gap-1 hover:underline transition-colors',
+                'flex items-center gap-1 transition-colors hover:underline',
                 stats?.unacknowledged
                   ? 'text-destructive hover:text-destructive/80'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <AlertTriangle className="h-4 w-4" />
-              Pending:{' '}
-              <span className="font-medium">{stats?.unacknowledged ?? 0}</span>
+              Pending: <span className="font-medium">{stats?.unacknowledged ?? 0}</span>
             </Link>
             {(stats?.informational ?? 0) > 0 && (
               <Link
                 to="/violations?status=informational"
-                className="flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors hover:underline"
               >
                 <Info className="h-4 w-4" />
-                Info:{' '}
-                <span className="font-medium">{stats?.informational ?? 0}</span>
+                Info: <span className="font-medium">{stats?.informational ?? 0}</span>
               </Link>
             )}
           </div>

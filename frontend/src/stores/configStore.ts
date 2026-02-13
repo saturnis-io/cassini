@@ -58,11 +58,12 @@ export const useConfigStore = create<ConfigState>((set) => ({
   setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
 
   // Reset for plant change
-  resetForPlantChange: () => set({
-    selectedNodeId: null,
-    expandedNodeIds: new Set(),
-    editingCharacteristicId: null,
-    isCreatingNew: false,
-    isDirty: false,
-  }),
+  resetForPlantChange: () =>
+    set({
+      selectedNodeId: null,
+      expandedNodeIds: new Set(),
+      editingCharacteristicId: null,
+      isCreatingNew: false,
+      isDirty: false,
+    }),
 }))

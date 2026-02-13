@@ -1,7 +1,7 @@
 /* Import Sansation for headings + Inter for body */
 @import url('https://fonts.googleapis.com/css2?family=Sansation:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   /* OpenSPC Brand Theme
@@ -10,7 +10,7 @@
 
   /* Base - Clean white with OpenSPC Dark Gray text */
   --color-background: hsl(210 20% 98%);
-  --color-foreground: hsl(30 9% 16%);           /* #2D2A26 OpenSPC Dark Gray */
+  --color-foreground: hsl(30 9% 16%); /* #2D2A26 OpenSPC Dark Gray */
 
   /* Card surfaces - Clean white */
   --color-card: hsl(0 0% 100%);
@@ -19,7 +19,7 @@
   --color-popover-foreground: hsl(30 9% 16%);
 
   /* Primary - OpenSPC Blue */
-  --color-primary: hsl(212 100% 30%);           /* #004A98 */
+  --color-primary: hsl(212 100% 30%); /* #004A98 */
   --color-primary-foreground: hsl(0 0% 100%);
 
   /* Secondary - Soft neutral */
@@ -31,14 +31,16 @@
   --color-muted-foreground: hsl(210 8% 46%);
 
   /* Accent - OpenSPC Teal */
-  --color-accent: hsl(179 50% 59%);             /* #62CBC9 */
+  --color-accent: hsl(179 50% 59%); /* #62CBC9 */
   --color-accent-foreground: hsl(30 9% 16%);
 
   /* Semantic colors - OpenSPC palette */
-  --color-destructive: hsl(357 80% 52%);        /* #EC1C24 OpenSPC Red */
+  --color-destructive: hsl(357 80% 52%); /* #EC1C24 OpenSPC Red */
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-warning: hsl(32 63% 51%);             /* #D48232 OpenSPC Orange */
-  --color-success: hsl(104 55% 40%);            /* #4C9C2E OpenSPC Green */
+  --color-warning: hsl(32 63% 51%); /* #D48232 OpenSPC Orange */
+  --color-warning-foreground: hsl(0 0% 100%);
+  --color-success: hsl(104 55% 40%); /* #4C9C2E OpenSPC Green */
+  --color-success-foreground: hsl(0 0% 100%);
 
   /* Borders and inputs */
   --color-border: hsl(210 15% 90%);
@@ -47,16 +49,16 @@
   --radius: 0.75rem;
 
   /* SPC Zone colors - OpenSPC palette mapping */
-  --color-zone-c: hsl(104 55% 40%);             /* OpenSPC Green - in control */
-  --color-zone-b: hsl(48 100% 50%);             /* #FFCD00 OpenSPC Yellow - caution */
-  --color-zone-a: hsl(32 63% 51%);              /* OpenSPC Orange - warning */
-  --color-violation: hsl(357 80% 52%);          /* OpenSPC Red - out of control */
+  --color-zone-c: hsl(104 55% 40%); /* OpenSPC Green - in control */
+  --color-zone-b: hsl(48 100% 50%); /* #FFCD00 OpenSPC Yellow - caution */
+  --color-zone-a: hsl(32 63% 51%); /* OpenSPC Orange - warning */
+  --color-violation: hsl(357 80% 52%); /* OpenSPC Red - out of control */
 
   /* Chart colors - OpenSPC harmonious palette */
-  --color-chart-primary: hsl(212 100% 30%);     /* OpenSPC Blue */
-  --color-chart-secondary: hsl(179 50% 59%);    /* OpenSPC Teal */
-  --color-chart-tertiary: hsl(248 33% 59%);     /* #7473C0 OpenSPC Purple */
-  --color-chart-quaternary: hsl(32 63% 51%);    /* OpenSPC Orange */
+  --color-chart-primary: hsl(212 100% 30%); /* OpenSPC Blue */
+  --color-chart-secondary: hsl(179 50% 59%); /* OpenSPC Teal */
+  --color-chart-tertiary: hsl(248 33% 59%); /* #7473C0 OpenSPC Purple */
+  --color-chart-quaternary: hsl(32 63% 51%); /* OpenSPC Orange */
 
   /* Chart styling variables */
   --chart-line-width: 2.5;
@@ -85,11 +87,22 @@
 
 /* Base styles */
 body {
-  background: linear-gradient(145deg, hsl(210 20% 98%) 0%, hsl(212 25% 96%) 50%, hsl(210 20% 97%) 100%);
+  background: linear-gradient(
+    145deg,
+    hsl(210 20% 98%) 0%,
+    hsl(212 25% 96%) 50%,
+    hsl(210 20% 97%) 100%
+  );
   background-attachment: fixed;
   color: var(--color-foreground);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -98,14 +111,14 @@ body {
 
 /* Ensure all interactive elements have pointer cursor */
 button,
-[role="button"],
+[role='button'],
 [onclick],
 a[href],
 select,
-input[type="checkbox"],
-input[type="radio"],
-input[type="submit"],
-input[type="button"] {
+input[type='checkbox'],
+input[type='radio'],
+input[type='submit'],
+input[type='button'] {
   cursor: pointer;
 }
 
@@ -129,35 +142,50 @@ button:disabled,
 }
 
 /* Smooth micro-interactions */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   transition-property: background-color, border-color, box-shadow, opacity, transform, color;
   transition-duration: 150ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Input styling - Clean and modern */
-input, select, textarea {
-  background: hsl(0 0% 100%);
-  border: 1px solid hsl(240 6% 88%);
-  border-radius: 0.625rem;
-  transition: all 180ms ease;
-}
+/* Input styling - Clean and modern
+ * Wrapped in @layer base so Tailwind utility classes (e.g. border-0, bg-transparent)
+ * can override these defaults in composed components like NumberInput.
+ */
+@layer base {
+  input,
+  select,
+  textarea {
+    background: hsl(0 0% 100%);
+    border: 1px solid hsl(240 6% 88%);
+    border-radius: 0.625rem;
+    transition: all 180ms ease;
+  }
 
-input:hover, select:hover, textarea:hover {
-  border-color: hsl(240 6% 80%);
-}
+  input:hover,
+  select:hover,
+  textarea:hover {
+    border-color: hsl(240 6% 80%);
+  }
 
-input:focus, select:focus, textarea:focus {
-  background: hsl(0 0% 100%);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
-  outline: none;
-}
+  input:focus,
+  select:focus,
+  textarea:focus {
+    background: hsl(0 0% 100%);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+    outline: none;
+  }
 
-input:disabled, select:disabled, textarea:disabled {
-  background: hsl(240 5% 97%);
-  color: var(--color-muted-foreground);
-  cursor: not-allowed;
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    background: hsl(240 5% 97%);
+    color: var(--color-muted-foreground);
+    cursor: not-allowed;
+  }
 }
 
 /* Button styling */
@@ -177,12 +205,20 @@ button:not(:disabled):active {
 
 /* Primary button with glow - Uses brand primary color */
 .bg-primary {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary), white 10%) 0%, color-mix(in srgb, var(--color-primary), black 8%) 100%);
-  box-shadow: var(--shadow-sm), 0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary), white 10%) 0%,
+    color-mix(in srgb, var(--color-primary), black 8%) 100%
+  );
+  box-shadow:
+    var(--shadow-sm),
+    0 2px 8px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .bg-primary:not(:disabled):hover {
-  box-shadow: var(--shadow-md), 0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
+  box-shadow:
+    var(--shadow-md),
+    0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
 /* SPC Chart zone styles - Soft, modern fills */
@@ -198,7 +234,8 @@ button:not(:disabled):active {
 
 /* Violation pulse animation - OpenSPC Red glow */
 @keyframes pulse-violation {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     filter: drop-shadow(0 0 0 transparent);
   }
@@ -238,10 +275,10 @@ button:not(:disabled):active {
   border-color: var(--color-border);
 }
 .card-due {
-  border-left: 3px solid hsl(32 63% 51%);   /* OpenSPC Orange */
+  border-left: 3px solid hsl(32 63% 51%); /* OpenSPC Orange */
 }
 .card-ooc {
-  border-left: 3px solid hsl(357 80% 52%);  /* OpenSPC Red */
+  border-left: 3px solid hsl(357 80% 52%); /* OpenSPC Red */
 }
 
 /* Scrollbar styling - Minimal, refined */
@@ -272,7 +309,9 @@ button:not(:disabled):active {
 /* Focus visible - Accessibility ring (brand primary) */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px hsl(0 0% 100%), 0 0 0 4px color-mix(in srgb, var(--color-primary) 50%, transparent);
+  box-shadow:
+    0 0 0 2px hsl(0 0% 100%),
+    0 0 0 4px color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 /* Smooth page transitions */
@@ -283,7 +322,12 @@ button:not(:disabled):active {
 }
 
 /* Typography refinements - Sansation for headings */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: 'Sansation', 'Inter', sans-serif;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -299,7 +343,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Modern card hover effect */
 .hover-lift {
-  transition: transform 200ms ease, box-shadow 200ms ease;
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
 }
 .hover-lift:hover {
   transform: translateY(-2px);
@@ -317,15 +363,15 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0;
 }
 .stat-badge-success {
-  background: hsl(104 55% 40% / 0.1);  /* OpenSPC Green */
+  background: hsl(104 55% 40% / 0.1); /* OpenSPC Green */
   color: hsl(104 55% 32%);
 }
 .stat-badge-warning {
-  background: hsl(32 63% 51% / 0.1);   /* OpenSPC Orange */
+  background: hsl(32 63% 51% / 0.1); /* OpenSPC Orange */
   color: hsl(32 63% 41%);
 }
 .stat-badge-danger {
-  background: hsl(357 80% 52% / 0.1);  /* OpenSPC Red */
+  background: hsl(357 80% 52% / 0.1); /* OpenSPC Red */
   color: hsl(357 80% 45%);
 }
 
@@ -361,7 +407,9 @@ h1, h2, h3, h4, h5, h6 {
   --color-destructive: hsl(357 85% 60%);
   --color-destructive-foreground: hsl(0 0% 100%);
   --color-warning: hsl(32 70% 55%);
+  --color-warning-foreground: hsl(0 0% 100%);
   --color-success: hsl(104 60% 50%);
+  --color-success-foreground: hsl(0 0% 100%);
 
   /* Borders and inputs */
   --color-border: hsl(220 10% 20%);
@@ -393,7 +441,12 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Dark mode body background */
 .dark body {
-  background: linear-gradient(145deg, hsl(220 15% 8%) 0%, hsl(220 18% 10%) 50%, hsl(220 15% 9%) 100%);
+  background: linear-gradient(
+    145deg,
+    hsl(220 15% 8%) 0%,
+    hsl(220 18% 10%) 50%,
+    hsl(220 15% 9%) 100%
+  );
 }
 
 /* Dark mode card styling */
@@ -409,19 +462,27 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Dark mode input styling */
-.dark input, .dark select, .dark textarea {
-  background: hsl(220 10% 15%);
-  border-color: hsl(220 10% 22%);
-}
+@layer base {
+  .dark input,
+  .dark select,
+  .dark textarea {
+    background: hsl(220 10% 15%);
+    border-color: hsl(220 10% 22%);
+  }
 
-.dark input:hover, .dark select:hover, .dark textarea:hover {
-  border-color: hsl(220 10% 30%);
-}
+  .dark input:hover,
+  .dark select:hover,
+  .dark textarea:hover {
+    border-color: hsl(220 10% 30%);
+  }
 
-.dark input:focus, .dark select:focus, .dark textarea:focus {
-  background: hsl(220 10% 17%);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  .dark input:focus,
+  .dark select:focus,
+  .dark textarea:focus {
+    background: hsl(220 10% 17%);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
 }
 
 /* Dark mode scrollbar */
@@ -435,12 +496,14 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Theme transition */
 html {
-  transition: background-color 200ms ease, color 200ms ease;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
 
 /* Hide number input spinners globally - use !important to override browser defaults */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
   -webkit-appearance: none !important;
   margin: 0 !important;
   display: none !important;
@@ -448,7 +511,7 @@ input[type="number"]::-webkit-inner-spin-button {
   pointer-events: none !important;
 }
 
-input[type="number"] {
+input[type='number'] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
 }

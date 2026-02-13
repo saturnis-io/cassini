@@ -62,7 +62,11 @@ export function DatabaseSettings() {
   const { role } = useAuth()
   const isAdmin = hasAccess(role, 'admin')
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useQuery({
     queryKey: ['database-stats'],
     queryFn: fetchDatabaseStats,
     refetchInterval: 30000,
@@ -102,7 +106,9 @@ export function DatabaseSettings() {
       const totalSamples = (samples as { total?: number }).total ?? 0
       const totalViolations = (violations as { total?: number }).total ?? 0
       if (totalSamples > EXPORT_MAX_RECORDS || totalViolations > EXPORT_MAX_RECORDS) {
-        toast.warning(`Export truncated: ${totalSamples} samples, ${totalViolations} violations (max ${EXPORT_MAX_RECORDS.toLocaleString()} each)`)
+        toast.warning(
+          `Export truncated: ${totalSamples} samples, ${totalViolations} violations (max ${EXPORT_MAX_RECORDS.toLocaleString()} each)`,
+        )
       }
 
       const exportData = {
@@ -122,9 +128,16 @@ export function DatabaseSettings() {
         mimeType = 'application/json'
       } else {
         // Simple CSV export for samples
-        const headers = ['id', 'characteristic_id', 'timestamp', 'mean', 'range_value', 'is_excluded']
+        const headers = [
+          'id',
+          'characteristic_id',
+          'timestamp',
+          'mean',
+          'range_value',
+          'is_excluded',
+        ]
         const rows = (samples.items || []).map((s: Sample) =>
-          [s.id, s.characteristic_id, s.timestamp, s.mean, s.range_value, s.is_excluded].join(',')
+          [s.id, s.characteristic_id, s.timestamp, s.mean, s.range_value, s.is_excluded].join(','),
         )
         content = [headers.join(','), ...rows].join('\n')
         filename = `openspc-samples-${new Date().toISOString().split('T')[0]}.csv`
@@ -173,10 +186,10 @@ export function DatabaseSettings() {
             key={tab.id}
             onClick={() => setSubTab(tab.id)}
             className={cn(
-              'px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors',
+              'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
               subTab === tab.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
             )}
           >
             {tab.label}
@@ -198,8 +211,8 @@ export function DatabaseSettings() {
 
       {subTab === 'connection' && isAdmin && (
         <div className="bg-muted rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Server className="h-5 w-5 text-muted-foreground" />
+          <div className="mb-4 flex items-center gap-2">
+            <Server className="text-muted-foreground h-5 w-5" />
             <h3 className="font-semibold">Connection Configuration</h3>
           </div>
           <DatabaseConnectionForm />
@@ -208,35 +221,32 @@ export function DatabaseSettings() {
 
       {subTab === 'migrations' && isAdmin && (
         <div className="bg-muted rounded-xl p-6">
-          <h3 className="font-semibold mb-4">Migration Status</h3>
+          <h3 className="mb-4 font-semibold">Migration Status</h3>
           <DatabaseMigrationStatus />
         </div>
       )}
 
       {subTab === 'maintenance' && (
-        <MaintenanceContent
-          isExporting={isExporting}
-          onExport={handleExport}
-        />
+        <MaintenanceContent isExporting={isExporting} onExport={handleExport} />
       )}
 
       {/* Danger Zone — separated with extra spacing */}
       <div className="pt-4">
-        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Trash2 className="h-5 w-5 text-destructive" />
-            <h3 className="font-semibold text-destructive">Danger Zone</h3>
+        <div className="bg-destructive/5 border-destructive/20 rounded-xl border p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Trash2 className="text-destructive h-5 w-5" />
+            <h3 className="text-destructive font-semibold">Danger Zone</h3>
           </div>
 
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-muted-foreground mb-4 text-sm">
             These actions are irreversible. Please be certain before proceeding.
           </p>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-card border border-border rounded-lg">
+            <div className="bg-card border-border flex items-center justify-between rounded-lg border p-3">
               <div>
-                <div className="font-medium text-sm">Clear Sample Data</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm font-medium">Clear Sample Data</div>
+                <div className="text-muted-foreground text-xs">
                   Delete all samples and violations while keeping characteristics
                 </div>
               </div>
@@ -245,16 +255,16 @@ export function DatabaseSettings() {
                   setClearTarget('samples')
                   setShowClearDialog(true)
                 }}
-                className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10 rounded-lg border px-4 py-2 text-sm font-medium"
               >
                 Clear Samples
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-card border border-border rounded-lg">
+            <div className="bg-card border-border flex items-center justify-between rounded-lg border p-3">
               <div>
-                <div className="font-medium text-sm">Reset Database</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm font-medium">Reset Database</div>
+                <div className="text-muted-foreground text-xs">
                   Delete all data including hierarchy, characteristics, and samples
                 </div>
               </div>
@@ -263,7 +273,7 @@ export function DatabaseSettings() {
                   setClearTarget('all')
                   setShowClearDialog(true)
                 }}
-                className="px-4 py-2 text-sm font-medium text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10 rounded-lg border px-4 py-2 text-sm font-medium"
               >
                 Reset All
               </button>
@@ -274,9 +284,15 @@ export function DatabaseSettings() {
 
       {/* Clear Confirmation Dialog */}
       {showClearDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowClearDialog(false)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2 text-destructive">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setShowClearDialog(false)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-destructive mb-2 text-lg font-semibold">
               {clearTarget === 'all' ? 'Reset Database?' : 'Clear Sample Data?'}
             </h3>
             <p className="text-muted-foreground mb-4">
@@ -290,13 +306,13 @@ export function DatabaseSettings() {
                   setShowClearDialog(false)
                   setClearTarget(null)
                 }}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClearData}
-                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-destructive text-destructive-foreground"
+                className="bg-destructive text-destructive-foreground rounded-xl px-5 py-2.5 text-sm font-medium"
               >
                 {clearTarget === 'all' ? 'Reset Everything' : 'Clear Samples'}
               </button>
@@ -337,15 +353,15 @@ function StatusContent({
     <div className="space-y-5">
       {/* Database Status */}
       <div className="bg-muted rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-muted-foreground" />
+            <Server className="text-muted-foreground h-5 w-5" />
             <h3 className="font-semibold">Database Status</h3>
           </div>
           <button
             onClick={() => refetchStatus()}
             disabled={statusLoading}
-            className="p-2 hover:bg-card rounded-lg"
+            className="hover:bg-card rounded-lg p-2"
             title="Refresh status"
           >
             <RefreshCw className={cn('h-4 w-4', statusLoading && 'animate-spin')} />
@@ -353,39 +369,46 @@ function StatusContent({
         </div>
 
         {dbStatus ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Engine</div>
-              <div className="font-medium text-sm">
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="bg-card border-border rounded-lg border p-3">
+              <div className="text-muted-foreground mb-1 text-xs">Engine</div>
+              <div className="text-sm font-medium">
+                <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold">
                   {DIALECT_LABELS[dbStatus.dialect] || dbStatus.dialect}
                 </span>
               </div>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Status</div>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <div className="text-muted-foreground mb-1 text-xs">Status</div>
               <div className="flex items-center gap-1.5">
-                <div className={cn('h-2 w-2 rounded-full', dbStatus.is_connected ? 'bg-emerald-500' : 'bg-red-500')} />
-                <span className="text-sm font-medium">{dbStatus.is_connected ? 'Connected' : 'Disconnected'}</span>
+                <div
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    dbStatus.is_connected ? 'bg-success' : 'bg-destructive',
+                  )}
+                />
+                <span className="text-sm font-medium">
+                  {dbStatus.is_connected ? 'Connected' : 'Disconnected'}
+                </span>
               </div>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Tables</div>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <div className="text-muted-foreground mb-1 text-xs">Tables</div>
               <div className="text-sm font-medium">{dbStatus.table_count}</div>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Size</div>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <div className="text-muted-foreground mb-1 text-xs">Size</div>
               <div className="text-sm font-medium">
                 {dbStatus.database_size_mb != null ? `${dbStatus.database_size_mb} MB` : 'N/A'}
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground">Loading status...</div>
+          <div className="text-muted-foreground text-sm">Loading status...</div>
         )}
 
         {dbStatus?.version && (
-          <div className="mt-3 text-xs text-muted-foreground truncate">
+          <div className="text-muted-foreground mt-3 truncate text-xs">
             Version: {dbStatus.version}
           </div>
         )}
@@ -393,15 +416,15 @@ function StatusContent({
 
       {/* Database Statistics */}
       <div className="bg-muted rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-muted-foreground" />
+            <Database className="text-muted-foreground h-5 w-5" />
             <h3 className="font-semibold">Statistics</h3>
           </div>
           <button
             onClick={() => refetchStats()}
             disabled={statsLoading}
-            className="p-2 hover:bg-card rounded-lg"
+            className="hover:bg-card rounded-lg p-2"
             title="Refresh statistics"
           >
             <RefreshCw className={cn('h-4 w-4', statsLoading && 'animate-spin')} />
@@ -412,13 +435,13 @@ function StatusContent({
           {statCards.map((stat) => (
             <div
               key={stat.label}
-              className="bg-card border border-border rounded-lg p-4 text-center"
+              className="bg-card border-border rounded-lg border p-4 text-center"
             >
-              <stat.icon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <stat.icon className="text-muted-foreground mx-auto mb-2 h-8 w-8" />
               <div className="text-2xl font-bold">
                 {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
               </div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
+              <div className="text-muted-foreground text-sm">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -442,18 +465,18 @@ function MaintenanceContent({
     <div className="space-y-5">
       {/* Maintenance Tools */}
       <div className="bg-muted rounded-xl p-6">
-        <h3 className="font-semibold mb-4">Maintenance</h3>
+        <h3 className="mb-4 font-semibold">Maintenance</h3>
         <DatabaseMaintenancePanel />
       </div>
 
       {/* Export Data */}
       <div className="bg-muted rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Download className="h-5 w-5 text-muted-foreground" />
+        <div className="mb-4 flex items-center gap-2">
+          <Download className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Export Data</h3>
         </div>
 
-        <p className="text-sm text-muted-foreground mb-4">
+        <p className="text-muted-foreground mb-4 text-sm">
           Download all characteristics, samples, and violations data for backup or analysis.
         </p>
 
@@ -461,7 +484,7 @@ function MaintenanceContent({
           <button
             onClick={() => onExport('json')}
             disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg bg-card hover:bg-card/80 disabled:opacity-50"
+            className="border-border bg-card hover:bg-card/80 flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             Export JSON
@@ -469,7 +492,7 @@ function MaintenanceContent({
           <button
             onClick={() => onExport('csv')}
             disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg bg-card hover:bg-card/80 disabled:opacity-50"
+            className="border-border bg-card hover:bg-card/80 flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
             Export Samples CSV

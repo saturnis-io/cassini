@@ -30,7 +30,10 @@ const CHART_TYPE_NAMES: Record<string, string> = {
 }
 
 export function AttributeChart({ characteristicId, chartOptions }: AttributeChartProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+  const { data: chartData, isLoading } = useChartData(
+    characteristicId,
+    chartOptions ?? { limit: 50 },
+  )
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
 
@@ -57,17 +60,15 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
       v == null ? 'N/A' : v.toFixed(decimalPrecision)
 
     // X-axis categories
-    const categories = attrPoints.map((pt, i) =>
-      pt.display_key || `#${i + 1}`
-    )
+    const categories = attrPoints.map((pt, i) => pt.display_key || `#${i + 1}`)
 
     // Data series
     const plottedValues = attrPoints.map((pt) => pt.plotted_value)
     const uclValues = attrPoints.map((pt) =>
-      hasVariableLimits ? (pt.effective_ucl ?? controlLimits.ucl) : controlLimits.ucl
+      hasVariableLimits ? (pt.effective_ucl ?? controlLimits.ucl) : controlLimits.ucl,
     )
     const lclValues = attrPoints.map((pt) =>
-      hasVariableLimits ? (pt.effective_lcl ?? controlLimits.lcl) : controlLimits.lcl
+      hasVariableLimits ? (pt.effective_lcl ?? controlLimits.lcl) : controlLimits.lcl,
     )
     const centerLineValues = attrPoints.map(() => controlLimits.center_line)
 
@@ -91,7 +92,8 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: any, api: any) => {
       const arrIndex = api.value(2) as number
-      if (arrIndex < 0 || arrIndex >= localPoints.length) return { type: 'group', children: [] } as unknown
+      if (arrIndex < 0 || arrIndex >= localPoints.length)
+        return { type: 'group', children: [] } as unknown
       const point = localPoints[arrIndex]
 
       const coord = api.coord([api.value(0), api.value(1)])
@@ -119,13 +121,27 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
         if (isAcked) {
           children.push({
             type: 'polygon',
-            shape: { points: [[cx, cy - baseRadius], [cx + baseRadius, cy], [cx, cy + baseRadius], [cx - baseRadius, cy]] },
+            shape: {
+              points: [
+                [cx, cy - baseRadius],
+                [cx + baseRadius, cy],
+                [cx, cy + baseRadius],
+                [cx - baseRadius, cy],
+              ],
+            },
             style: { fill: 'none', stroke: fillColor, lineWidth: 2 },
           })
         } else {
           children.push({
             type: 'polygon',
-            shape: { points: [[cx, cy - baseRadius], [cx + baseRadius, cy], [cx, cy + baseRadius], [cx - baseRadius, cy]] },
+            shape: {
+              points: [
+                [cx, cy - baseRadius],
+                [cx + baseRadius, cy],
+                [cx, cy + baseRadius],
+                [cx - baseRadius, cy],
+              ],
+            },
             style: { fill: fillColor, shadowBlur: 4, shadowColor: fillColor },
           })
         }
@@ -142,11 +158,37 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
         const badgeFill = isAcked ? 'hsl(357, 25%, 48%)' : 'hsl(357, 80%, 52%)'
         const badgeTextFill = isAcked ? 'hsl(0, 0%, 80%)' : '#fff'
         children.push(
-          { type: 'circle', shape: { cx, cy: cy - baseRadius - 8, r: 7 }, style: { fill: badgeFill, stroke: isAcked ? 'hsl(0, 0%, 50%)' : '#fff', lineWidth: 1 } },
-          { type: 'text', style: { x: cx, y: cy - baseRadius - 8, text: String(primaryRule), fill: badgeTextFill, fontSize: 9, fontWeight: 700, textAlign: 'center', textVerticalAlign: 'middle' } },
+          {
+            type: 'circle',
+            shape: { cx, cy: cy - baseRadius - 8, r: 7 },
+            style: { fill: badgeFill, stroke: isAcked ? 'hsl(0, 0%, 50%)' : '#fff', lineWidth: 1 },
+          },
+          {
+            type: 'text',
+            style: {
+              x: cx,
+              y: cy - baseRadius - 8,
+              text: String(primaryRule),
+              fill: badgeTextFill,
+              fontSize: 9,
+              fontWeight: 700,
+              textAlign: 'center',
+              textVerticalAlign: 'middle',
+            },
+          },
         )
         if (point.violation_rules.length > 1) {
-          children.push({ type: 'text', style: { x: cx + 7, y: cy - baseRadius - 12, text: `+${point.violation_rules.length - 1}`, fill: isAcked ? 'hsl(357, 20%, 48%)' : 'hsl(357, 80%, 45%)', fontSize: 8, fontWeight: 600 } })
+          children.push({
+            type: 'text',
+            style: {
+              x: cx + 7,
+              y: cy - baseRadius - 12,
+              text: `+${point.violation_rules.length - 1}`,
+              fill: isAcked ? 'hsl(357, 20%, 48%)' : 'hsl(357, 80%, 45%)',
+              fontSize: 8,
+              fontWeight: 600,
+            },
+          })
         }
       }
 
@@ -187,7 +229,8 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
           html += `<div>Value: ${formatVal(point.plotted_value)}</div>`
           html += `<div>Defects: ${point.defect_count}</div>`
           if (point.sample_size != null) html += `<div>Sample size: ${point.sample_size}</div>`
-          if (point.units_inspected != null) html += `<div>Units inspected: ${point.units_inspected}</div>`
+          if (point.units_inspected != null)
+            html += `<div>Units inspected: ${point.units_inspected}</div>`
           html += `<div style="opacity:0.7">${new Date(point.timestamp).toLocaleString()}</div>`
 
           if (point.violation_rules.length > 0) {
@@ -204,14 +247,16 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
           return html
         },
       },
-      dataZoom: [{
-        type: 'inside' as const,
-        start: 0,
-        end: 100,
-        minSpan: Math.max(2 / Math.max(attrPoints.length, 1) * 100, 0.5),
-        zoomOnMouseWheel: true,
-        moveOnMouseWheel: 'shift' as const,
-      }],
+      dataZoom: [
+        {
+          type: 'inside' as const,
+          start: 0,
+          end: 100,
+          minSpan: Math.max((2 / Math.max(attrPoints.length, 1)) * 100, 0.5),
+          zoomOnMouseWheel: true,
+          moveOnMouseWheel: 'shift' as const,
+        },
+      ],
       series: [
         // Main value line
         {
@@ -230,63 +275,119 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
           silent: true,
           z: 5,
           // Add control limit markLines for constant-limit charts (np, c)
-          ...(!hasVariableLimits ? {
-            markLine: {
-              symbol: 'none',
-              silent: true,
-              data: [
-                ...(controlLimits.ucl != null ? [{
-                  yAxis: controlLimits.ucl,
-                  lineStyle: { color: chartColors.uclLine, type: 'dashed' as const, width: 1.5 },
-                  label: { formatter: `UCL: ${formatVal(controlLimits.ucl)}`, position: 'end' as const, color: chartColors.uclLine, fontSize: 11, fontWeight: 500 },
-                }] : []),
-                ...(controlLimits.center_line != null ? [{
-                  yAxis: controlLimits.center_line,
-                  lineStyle: { color: chartColors.centerLine, type: 'solid' as const, width: 2.5 },
-                  label: { formatter: `CL: ${formatVal(controlLimits.center_line)}`, position: 'end' as const, color: chartColors.centerLine, fontSize: 11, fontWeight: 600 },
-                }] : []),
-                ...(controlLimits.lcl != null ? [{
-                  yAxis: controlLimits.lcl,
-                  lineStyle: { color: chartColors.lclLine, type: 'dashed' as const, width: 1.5 },
-                  label: { formatter: `LCL: ${formatVal(controlLimits.lcl)}`, position: 'end' as const, color: chartColors.lclLine, fontSize: 11, fontWeight: 500 },
-                }] : []),
-              ] as never[],
-            },
-          } : {}),
+          ...(!hasVariableLimits
+            ? {
+                markLine: {
+                  symbol: 'none',
+                  silent: true,
+                  data: [
+                    ...(controlLimits.ucl != null
+                      ? [
+                          {
+                            yAxis: controlLimits.ucl,
+                            lineStyle: {
+                              color: chartColors.uclLine,
+                              type: 'dashed' as const,
+                              width: 1.5,
+                            },
+                            label: {
+                              formatter: `UCL: ${formatVal(controlLimits.ucl)}`,
+                              position: 'end' as const,
+                              color: chartColors.uclLine,
+                              fontSize: 11,
+                              fontWeight: 500,
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(controlLimits.center_line != null
+                      ? [
+                          {
+                            yAxis: controlLimits.center_line,
+                            lineStyle: {
+                              color: chartColors.centerLine,
+                              type: 'solid' as const,
+                              width: 2.5,
+                            },
+                            label: {
+                              formatter: `CL: ${formatVal(controlLimits.center_line)}`,
+                              position: 'end' as const,
+                              color: chartColors.centerLine,
+                              fontSize: 11,
+                              fontWeight: 600,
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(controlLimits.lcl != null
+                      ? [
+                          {
+                            yAxis: controlLimits.lcl,
+                            lineStyle: {
+                              color: chartColors.lclLine,
+                              type: 'dashed' as const,
+                              width: 1.5,
+                            },
+                            label: {
+                              formatter: `LCL: ${formatVal(controlLimits.lcl)}`,
+                              position: 'end' as const,
+                              color: chartColors.lclLine,
+                              fontSize: 11,
+                              fontWeight: 500,
+                            },
+                          },
+                        ]
+                      : []),
+                  ] as never[],
+                },
+              }
+            : {}),
         },
         // UCL line (variable for p/u charts, constant handled by markLine above)
-        ...(hasVariableLimits ? [{
-          name: 'UCL',
-          type: 'line' as const,
-          data: uclValues,
-          lineStyle: { type: 'dashed' as const, color: chartColors.uclLine, width: 1.5 },
-          symbol: 'none' as const,
-          showSymbol: false,
-          silent: true,
-          z: 4,
-        }] : []),
+        ...(hasVariableLimits
+          ? [
+              {
+                name: 'UCL',
+                type: 'line' as const,
+                data: uclValues,
+                lineStyle: { type: 'dashed' as const, color: chartColors.uclLine, width: 1.5 },
+                symbol: 'none' as const,
+                showSymbol: false,
+                silent: true,
+                z: 4,
+              },
+            ]
+          : []),
         // LCL line (variable for p/u charts)
-        ...(hasVariableLimits ? [{
-          name: 'LCL',
-          type: 'line' as const,
-          data: lclValues,
-          lineStyle: { type: 'dashed' as const, color: chartColors.lclLine, width: 1.5 },
-          symbol: 'none' as const,
-          showSymbol: false,
-          silent: true,
-          z: 4,
-        }] : []),
+        ...(hasVariableLimits
+          ? [
+              {
+                name: 'LCL',
+                type: 'line' as const,
+                data: lclValues,
+                lineStyle: { type: 'dashed' as const, color: chartColors.lclLine, width: 1.5 },
+                symbol: 'none' as const,
+                showSymbol: false,
+                silent: true,
+                z: 4,
+              },
+            ]
+          : []),
         // Center line (always a separate series for variable-limit charts)
-        ...(hasVariableLimits ? [{
-          name: 'CL',
-          type: 'line' as const,
-          data: centerLineValues,
-          lineStyle: { type: 'dashed' as const, color: chartColors.centerLine, width: 2 },
-          symbol: 'none' as const,
-          showSymbol: false,
-          silent: true,
-          z: 4,
-        }] : []),
+        ...(hasVariableLimits
+          ? [
+              {
+                name: 'CL',
+                type: 'line' as const,
+                data: centerLineValues,
+                lineStyle: { type: 'dashed' as const, color: chartColors.centerLine, width: 2 },
+                symbol: 'none' as const,
+                showSymbol: false,
+                silent: true,
+                z: 4,
+              },
+            ]
+          : []),
         // Custom series for data point symbols
         {
           type: 'custom' as const,
@@ -312,22 +413,29 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
   const chartTypeName = CHART_TYPE_NAMES[attrType] ?? 'Attribute Chart'
 
   const hierarchyNames = hierarchyPath.map((h) => h.name)
-  const breadcrumb = hierarchyNames.length > 0
-    ? [...hierarchyNames, chartData?.characteristic_name].filter(Boolean).join(' / ')
-    : chartData?.characteristic_name ?? ''
+  const breadcrumb =
+    hierarchyNames.length > 0
+      ? [...hierarchyNames, chartData?.characteristic_name].filter(Boolean).join(' / ')
+      : (chartData?.characteristic_name ?? '')
 
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+    <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
       {hasData && (
-        <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-          <div className="flex items-center gap-4 min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-xs font-medium px-1.5 py-0.5 bg-primary/10 text-primary rounded flex-shrink-0">
+        <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
                 {chartTypeName}
               </span>
-              <h3 className="font-semibold text-sm leading-5 truncate text-foreground" title={breadcrumb}>
-                <span className="text-muted-foreground">{hierarchyNames.join(' / ')}{hierarchyNames.length > 0 && ' / '}</span>
+              <h3
+                className="text-foreground truncate text-sm leading-5 font-semibold"
+                title={breadcrumb}
+              >
+                <span className="text-muted-foreground">
+                  {hierarchyNames.join(' / ')}
+                  {hierarchyNames.length > 0 && ' / '}
+                </span>
                 <span>{chartData?.characteristic_name}</span>
               </h3>
             </div>
@@ -339,8 +447,12 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
       )}
 
       {/* Chart container */}
-      <div className="flex-1 min-h-0 relative">
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: hasData ? 'visible' : 'hidden' }}
+        />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-muted-foreground text-sm">Loading chart data...</div>

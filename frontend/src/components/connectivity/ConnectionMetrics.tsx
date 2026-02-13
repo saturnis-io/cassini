@@ -10,10 +10,7 @@ interface ConnectionMetricsProps {
 export function ConnectionMetrics({ states }: ConnectionMetricsProps) {
   const totalBrokers = states.length
   const connectedBrokers = states.filter((s) => s.is_connected).length
-  const totalTopics = states.reduce(
-    (acc, s) => acc + (s.subscribed_topics?.length ?? 0),
-    0
-  )
+  const totalTopics = states.reduce((acc, s) => acc + (s.subscribed_topics?.length ?? 0), 0)
 
   const metrics = [
     {
@@ -24,7 +21,7 @@ export function ConnectionMetrics({ states }: ConnectionMetricsProps) {
     {
       label: 'Connected',
       value: connectedBrokers,
-      color: connectedBrokers > 0 ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground',
+      color: connectedBrokers > 0 ? 'text-success' : 'text-muted-foreground',
     },
     {
       label: 'Subscribed Topics',
@@ -38,10 +35,10 @@ export function ConnectionMetrics({ states }: ConnectionMetricsProps) {
       {metrics.map((m) => (
         <div
           key={m.label}
-          className="bg-card border border-border rounded-lg px-4 py-3 text-center"
+          className="bg-card border-border rounded-lg border px-4 py-3 text-center"
         >
           <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
-          <p className="text-xs text-muted-foreground mt-1">{m.label}</p>
+          <p className="text-muted-foreground mt-1 text-xs">{m.label}</p>
         </div>
       ))}
     </div>

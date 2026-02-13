@@ -119,48 +119,61 @@ export function DateTimePicker({
     return isSameDay(date, today)
   }
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
   return (
     <div className={cn('relative', className)}>
-      {label && (
-        <label className="block text-sm font-medium mb-1">{label}</label>
-      )}
+      {label && <label className="mb-1 block text-sm font-medium">{label}</label>}
 
       {/* Trigger button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center justify-between gap-2 px-3 py-2',
-          'bg-background border border-input rounded-lg',
+          'flex w-full items-center justify-between gap-2 px-3 py-2',
+          'bg-background border-input rounded-lg border',
           'text-left text-sm transition-colors',
-          'hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20',
-          isOpen && 'border-primary ring-2 ring-primary/20'
+          'hover:border-primary/50 focus:ring-primary/20 focus:ring-2 focus:outline-none',
+          isOpen && 'border-primary ring-primary/20 ring-2',
         )}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          <span className={cn(
-            'truncate',
-            !selectedDate && 'text-muted-foreground'
-          )}>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Calendar className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+          <span className={cn('truncate', !selectedDate && 'text-muted-foreground')}>
             {selectedDate ? formatDisplay(selectedDate) : placeholder}
           </span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-1">
           {clearable && selectedDate && (
             <button
               type="button"
               onClick={handleClear}
-              className="p-0.5 hover:bg-muted rounded transition-colors"
+              className="hover:bg-muted rounded p-0.5 transition-colors"
               aria-label="Clear date"
             >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
+              <X className="text-muted-foreground h-3.5 w-3.5" />
             </button>
           )}
-          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+          <ChevronDown
+            className={cn(
+              'text-muted-foreground h-4 w-4 transition-transform',
+              isOpen && 'rotate-180',
+            )}
+          />
         </div>
       </button>
 
@@ -168,15 +181,12 @@ export function DateTimePicker({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
 
           {/* Picker panel */}
-          <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-3 min-w-[280px]">
+          <div className="bg-popover border-border absolute top-full left-0 z-50 mt-1 min-w-[280px] rounded-lg border p-3 shadow-lg">
             {/* Calendar header */}
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -187,11 +197,13 @@ export function DateTimePicker({
                     setViewMonth(viewMonth - 1)
                   }
                 }}
-                className="p-1 hover:bg-muted rounded transition-colors"
+                className="hover:bg-muted rounded p-1 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-sm font-medium">{monthNames[viewMonth]} {viewYear}</span>
+              <span className="text-sm font-medium">
+                {monthNames[viewMonth]} {viewYear}
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -202,16 +214,18 @@ export function DateTimePicker({
                     setViewMonth(viewMonth + 1)
                   }
                 }}
-                className="p-1 hover:bg-muted rounded transition-colors"
+                className="hover:bg-muted rounded p-1 transition-colors"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
             {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-1 text-center text-xs mb-3">
+            <div className="mb-3 grid grid-cols-7 gap-1 text-center text-xs">
               {dayNames.map((day) => (
-                <div key={day} className="text-muted-foreground py-1">{day}</div>
+                <div key={day} className="text-muted-foreground py-1">
+                  {day}
+                </div>
               ))}
               {calendarDays.map((date, i) => (
                 <button
@@ -220,11 +234,11 @@ export function DateTimePicker({
                   disabled={!date}
                   onClick={() => date && handleDateSelect(date)}
                   className={cn(
-                    'py-1.5 rounded text-xs transition-colors',
+                    'rounded py-1.5 text-xs transition-colors',
                     !date && 'invisible',
                     date && isSameDay(date, selectedDate) && 'bg-primary text-primary-foreground',
                     date && !isSameDay(date, selectedDate) && isToday(date) && 'bg-primary/20',
-                    date && !isSameDay(date, selectedDate) && !isToday(date) && 'hover:bg-muted'
+                    date && !isSameDay(date, selectedDate) && !isToday(date) && 'hover:bg-muted',
                   )}
                 >
                   {date?.getDate()}
@@ -233,8 +247,8 @@ export function DateTimePicker({
             </div>
 
             {/* Time picker */}
-            <div className="border-t border-border pt-3">
-              <div className="text-xs text-muted-foreground text-center mb-2">Time</div>
+            <div className="border-border border-t pt-3">
+              <div className="text-muted-foreground mb-2 text-center text-xs">Time</div>
               <TimePicker
                 hour={pickerDate.getHours()}
                 minute={pickerDate.getMinutes()}
@@ -244,21 +258,21 @@ export function DateTimePicker({
             </div>
 
             {/* Quick actions */}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+            <div className="border-border mt-3 flex gap-2 border-t pt-3">
               <button
                 type="button"
                 onClick={() => {
                   const now = new Date()
                   onChange(now.toISOString())
                 }}
-                className="flex-1 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
+                className="bg-muted hover:bg-muted/80 flex-1 rounded px-3 py-1.5 text-xs transition-colors"
               >
                 Now
               </button>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="flex-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 rounded transition-colors"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded px-3 py-1.5 text-xs transition-colors"
               >
                 Done
               </button>

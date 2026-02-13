@@ -23,25 +23,20 @@ function ColorInput({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <label className="text-sm font-medium text-muted-foreground w-28">
-        {label}:
-      </label>
+      <label className="text-muted-foreground w-28 text-sm font-medium">{label}:</label>
       <div className="flex items-center gap-2">
-        <div
-          className="w-8 h-8 rounded border border-border"
-          style={{ backgroundColor: value }}
-        />
+        <div className="border-border h-8 w-8 rounded border" style={{ backgroundColor: value }} />
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-12 h-8 cursor-pointer rounded border border-border"
+          className="border-border h-8 w-12 cursor-pointer rounded border"
         />
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-24 px-2 py-1 text-sm rounded border border-border bg-background"
+          className="border-border bg-background w-24 rounded border px-2 py-1 text-sm"
           pattern="^#[0-9A-Fa-f]{6}$"
           placeholder="#000000"
         />
@@ -65,9 +60,9 @@ function PreviewPanel({
   accentColor: string
 }) {
   return (
-    <div className="border rounded-lg p-4 bg-muted/30">
-      <div className="text-xs font-medium text-muted-foreground mb-2">Preview</div>
-      <div className="flex items-center gap-3 p-3 rounded bg-background border">
+    <div className="bg-muted/30 rounded-lg border p-4">
+      <div className="text-muted-foreground mb-2 text-xs font-medium">Preview</div>
+      <div className="bg-background flex items-center gap-3 rounded border p-3">
         {/* Logo/App name preview */}
         <div className="flex items-center gap-2">
           <img
@@ -82,7 +77,7 @@ function PreviewPanel({
 
         {/* Button previews */}
         <button
-          className="px-3 py-1 rounded text-sm text-white"
+          className="rounded px-3 py-1 text-sm text-white"
           style={{ backgroundColor: primaryColor }}
         >
           Primary
@@ -143,33 +138,39 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
     setIsDirty(false)
   }, [resetBrandConfig])
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
 
-    // Check file size (max 200KB)
-    if (file.size > 200 * 1024) {
-      alert('Logo file must be under 200KB')
-      return
-    }
+      // Check file size (max 200KB)
+      if (file.size > 200 * 1024) {
+        alert('Logo file must be under 200KB')
+        return
+      }
 
-    // Read as data URI
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUri = event.target?.result as string
-      updateLocalConfig({ logoUrl: dataUri })
-    }
-    reader.readAsDataURL(file)
-  }, [updateLocalConfig])
+      // Read as data URI
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const dataUri = event.target?.result as string
+        updateLocalConfig({ logoUrl: dataUri })
+      }
+      reader.readAsDataURL(file)
+    },
+    [updateLocalConfig],
+  )
 
-  const handleLogoUrlChange = useCallback((url: string) => {
-    updateLocalConfig({ logoUrl: url || null })
-  }, [updateLocalConfig])
+  const handleLogoUrlChange = useCallback(
+    (url: string) => {
+      updateLocalConfig({ logoUrl: url || null })
+    },
+    [updateLocalConfig],
+  )
 
   if (!canCustomize) {
     return (
-      <div className={cn('p-4 rounded-lg border bg-muted/30', className)}>
-        <p className="text-sm text-muted-foreground">
+      <div className={cn('bg-muted/30 rounded-lg border p-4', className)}>
+        <p className="text-muted-foreground text-sm">
           Brand customization requires Administrator privileges.
         </p>
       </div>
@@ -186,7 +187,7 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
             type="text"
             value={localConfig.appName}
             onChange={(e) => updateLocalConfig({ appName: e.target.value })}
-            className="w-full max-w-xs px-3 py-2 rounded border border-border bg-background"
+            className="border-border bg-background w-full max-w-xs rounded border px-3 py-2"
             placeholder="OpenSPC"
           />
         </div>
@@ -216,7 +217,7 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-3 py-2 rounded border border-border hover:bg-muted transition-colors"
+              className="border-border hover:bg-muted flex items-center gap-2 rounded border px-3 py-2 transition-colors"
             >
               <Upload className="h-4 w-4" />
               Upload File
@@ -233,26 +234,26 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
               type="text"
               value={localConfig.logoUrl ?? ''}
               onChange={(e) => handleLogoUrlChange(e.target.value)}
-              className="flex-1 max-w-xs px-3 py-2 rounded border border-border bg-background text-sm"
+              className="border-border bg-background max-w-xs flex-1 rounded border px-3 py-2 text-sm"
               placeholder="https://example.com/logo.png"
             />
           </div>
           {localConfig.logoUrl && (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="mt-2 flex items-center gap-2">
               <img
                 src={localConfig.logoUrl}
                 alt="Logo preview"
-                className="h-10 w-10 object-contain border rounded"
+                className="h-10 w-10 rounded border object-contain"
               />
               <button
                 onClick={() => updateLocalConfig({ logoUrl: null })}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground text-sm"
               >
                 Remove
               </button>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Max size: 200KB. Recommended: 64x64px PNG or SVG.
           </p>
         </div>
@@ -267,10 +268,10 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
       />
 
       {/* Actions */}
-      <div className="flex items-center gap-3 pt-4 border-t">
+      <div className="flex items-center gap-3 border-t pt-4">
         <button
           onClick={handleReset}
-          className="flex items-center gap-2 px-4 py-2 rounded border border-border hover:bg-muted transition-colors"
+          className="border-border hover:bg-muted flex items-center gap-2 rounded border px-4 py-2 transition-colors"
         >
           <RotateCcw className="h-4 w-4" />
           Reset to Default
@@ -279,19 +280,15 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
           onClick={handleSave}
           disabled={!isDirty}
           className={cn(
-            'px-4 py-2 rounded text-white transition-colors',
+            'rounded px-4 py-2 text-white transition-colors',
             isDirty
               ? 'bg-primary hover:bg-primary/90'
-              : 'bg-muted text-muted-foreground cursor-not-allowed'
+              : 'bg-muted text-muted-foreground cursor-not-allowed',
           )}
         >
           Save Changes
         </button>
-        {isDirty && (
-          <span className="text-sm text-muted-foreground">
-            Unsaved changes
-          </span>
-        )}
+        {isDirty && <span className="text-muted-foreground text-sm">Unsaved changes</span>}
       </div>
     </div>
   )

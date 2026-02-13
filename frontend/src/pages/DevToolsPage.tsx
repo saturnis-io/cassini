@@ -1,6 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Wrench, Play, AlertTriangle, Loader2, Database, FlaskConical, TestTubes, BarChart3, Cog, Gauge, Beer } from 'lucide-react'
+import {
+  Wrench,
+  Play,
+  AlertTriangle,
+  Loader2,
+  Database,
+  FlaskConical,
+  TestTubes,
+  BarChart3,
+  Cog,
+  Gauge,
+  Beer,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useDevToolsStatus, useRunSeed } from '@/api/hooks'
@@ -41,28 +53,28 @@ export function DevToolsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl">
+    <div className="flex max-w-4xl flex-col gap-6 p-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-amber-500/10">
-            <Wrench className="h-6 w-6 text-amber-500" />
+          <div className="bg-warning/10 rounded-lg p-2">
+            <Wrench className="text-warning h-6 w-6" />
           </div>
           <div>
             <h1 className="text-2xl font-bold">Dev Tools</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Sandbox mode — reset database and load test data profiles
             </p>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-600 dark:text-amber-400">
+        <div className="border-warning/20 bg-warning/10 text-warning mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>These operations are destructive and will wipe all existing data.</span>
         </div>
@@ -70,51 +82,60 @@ export function DevToolsPage() {
 
       {/* Seed script cards */}
       <div className="grid gap-4 sm:grid-cols-2">
-        {status?.scripts.map((script: { key: string; name: string; description: string; estimated_samples: string }) => (
-          <div
-            key={script.key}
-            className="flex flex-col gap-3 p-5 rounded-xl border border-border bg-card"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                {SCRIPT_ICONS[script.key] ?? <Database className="h-6 w-6" />}
-              </div>
-              <div>
-                <h2 className="font-semibold">{script.name}</h2>
-                <p className="text-xs text-muted-foreground">{script.estimated_samples} samples</p>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground flex-1">{script.description}</p>
-            <button
-              onClick={() => setConfirmScript(script.key)}
-              disabled={runSeed.isPending}
-              className={cn(
-                'flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-                'bg-primary text-primary-foreground hover:bg-primary/90',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
+        {status?.scripts.map(
+          (script: {
+            key: string
+            name: string
+            description: string
+            estimated_samples: string
+          }) => (
+            <div
+              key={script.key}
+              className="border-border bg-card flex flex-col gap-3 rounded-xl border p-5"
             >
-              {runSeed.isPending && runSeed.variables?.script === script.key ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Seeding...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Run
-                </>
-              )}
-            </button>
-          </div>
-        ))}
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 text-primary rounded-lg p-2">
+                  {SCRIPT_ICONS[script.key] ?? <Database className="h-6 w-6" />}
+                </div>
+                <div>
+                  <h2 className="font-semibold">{script.name}</h2>
+                  <p className="text-muted-foreground text-xs">
+                    {script.estimated_samples} samples
+                  </p>
+                </div>
+              </div>
+              <p className="text-muted-foreground flex-1 text-sm">{script.description}</p>
+              <button
+                onClick={() => setConfirmScript(script.key)}
+                disabled={runSeed.isPending}
+                className={cn(
+                  'flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  'bg-primary text-primary-foreground hover:bg-primary/90',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              >
+                {runSeed.isPending && runSeed.variables?.script === script.key ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Seeding...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Run
+                  </>
+                )}
+              </button>
+            </div>
+          ),
+        )}
       </div>
 
       {/* Output panel */}
       {output && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-muted-foreground">Script Output</h3>
-          <pre className="p-4 rounded-lg bg-muted text-xs leading-relaxed overflow-auto max-h-80 font-mono">
+          <h3 className="text-muted-foreground text-sm font-medium">Script Output</h3>
+          <pre className="bg-muted max-h-80 overflow-auto rounded-lg p-4 font-mono text-xs leading-relaxed">
             {output}
           </pre>
         </div>
@@ -123,30 +144,28 @@ export function DevToolsPage() {
       {/* Confirmation dialog */}
       {confirmScript && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setConfirmScript(null)}
-          />
-          <div className="relative bg-card border border-border rounded-xl p-6 shadow-lg max-w-md mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-full bg-destructive/10">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmScript(null)} />
+          <div className="bg-card border-border relative mx-4 max-w-md rounded-xl border p-6 shadow-lg">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="bg-destructive/10 rounded-full p-2">
+                <AlertTriangle className="text-destructive h-5 w-5" />
               </div>
               <h3 className="text-lg font-semibold">Confirm Database Reset</h3>
             </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              This will <strong>wipe ALL data</strong> (plants, users, samples, violations) and replace it with the selected seed data. You will be logged out.
+            <p className="text-muted-foreground mb-6 text-sm">
+              This will <strong>wipe ALL data</strong> (plants, users, samples, violations) and
+              replace it with the selected seed data. You will be logged out.
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmScript(null)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleRun(confirmScript)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               >
                 Wipe &amp; Seed
               </button>

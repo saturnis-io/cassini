@@ -114,17 +114,17 @@ export function ChartTypeSelector({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg',
+          'flex items-center gap-2 rounded-lg px-3 py-1.5',
           'bg-muted/50 hover:bg-muted transition-colors',
           'text-sm font-medium',
-          'focus:outline-none focus:ring-2 focus:ring-primary/20'
+          'focus:ring-primary/20 focus:ring-2 focus:outline-none',
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
         <span className="text-muted-foreground">Chart:</span>
         <span>{currentChart.shortName}</span>
-        <ChevronDown className={cn('w-4 h-4 transition-transform', isOpen && 'rotate-180')} />
+        <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
       {/* Dropdown menu */}
@@ -132,10 +132,10 @@ export function ChartTypeSelector({
         <div
           ref={dropdownRef}
           className={cn(
-            'absolute top-full left-0 mt-1 z-50',
+            'absolute top-full left-0 z-50 mt-1',
             'min-w-[280px]',
-            'bg-popover border border-border rounded-lg shadow-lg',
-            'animate-in fade-in-0 zoom-in-95 duration-150'
+            'bg-popover border-border rounded-lg border shadow-lg',
+            'animate-in fade-in-0 zoom-in-95 duration-150',
           )}
           role="listbox"
           aria-label="Select chart type"
@@ -143,7 +143,7 @@ export function ChartTypeSelector({
           {/* Variable Data section */}
           {visibleGroups.variable.length > 0 && (
             <div className="p-1">
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
                 {CATEGORY_LABELS.variable}
               </div>
               {visibleGroups.variable.map((chartType) => {
@@ -158,39 +158,40 @@ export function ChartTypeSelector({
                     onClick={() => isCompatible && handleSelect(chartType.id)}
                     disabled={!isCompatible}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2 py-2 rounded-md text-left',
+                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
                       'transition-colors',
                       isSelected && 'bg-primary/10',
                       isCompatible && !isSelected && 'hover:bg-muted',
-                      !isCompatible && 'opacity-50 cursor-not-allowed'
+                      !isCompatible && 'cursor-not-allowed opacity-50',
                     )}
                     role="option"
                     aria-selected={isSelected}
                     aria-disabled={!isCompatible}
                   >
                     {/* Selection indicator */}
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      {isSelected && <Check className="w-4 h-4 text-primary" />}
+                    <div className="flex h-4 w-4 items-center justify-center">
+                      {isSelected && <Check className="text-primary h-4 w-4" />}
                     </div>
 
                     {/* Chart info */}
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
+                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
                           {chartType.shortName}
                         </span>
                         {isRecommended && isCompatible && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                          <span className="bg-primary/20 text-primary rounded px-1.5 py-0.5 text-xs">
                             Recommended
                           </span>
                         )}
                         {chartType.recommendedSubgroupRange && (
-                          <span className="text-xs text-muted-foreground">
-                            n={chartType.recommendedSubgroupRange[0]}-{chartType.recommendedSubgroupRange[1]}
+                          <span className="text-muted-foreground text-xs">
+                            n={chartType.recommendedSubgroupRange[0]}-
+                            {chartType.recommendedSubgroupRange[1]}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-muted-foreground truncate text-xs">
                         {chartType.description}
                       </p>
                     </div>
@@ -207,8 +208,8 @@ export function ChartTypeSelector({
 
           {/* Attribute Data section */}
           {visibleGroups.attribute.length > 0 && (
-            <div className="p-1 border-t border-border">
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="border-border border-t p-1">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
                 {CATEGORY_LABELS.attribute}
               </div>
               {visibleGroups.attribute.map((chartType) => {
@@ -220,29 +221,29 @@ export function ChartTypeSelector({
                     type="button"
                     onClick={() => handleSelect(chartType.id)}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2 py-2 rounded-md text-left',
+                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
                       'transition-colors',
                       isSelected && 'bg-primary/10',
-                      !isSelected && 'hover:bg-muted'
+                      !isSelected && 'hover:bg-muted',
                     )}
                     role="option"
                     aria-selected={isSelected}
                   >
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      {isSelected && <Check className="w-4 h-4 text-primary" />}
+                    <div className="flex h-4 w-4 items-center justify-center">
+                      {isSelected && <Check className="text-primary h-4 w-4" />}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
+                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
                           {chartType.shortName}
                         </span>
                         {chartType.attributeType && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             ({chartType.attributeType})
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-muted-foreground truncate text-xs">
                         {chartType.description}
                       </p>
                     </div>
@@ -257,8 +258,8 @@ export function ChartTypeSelector({
 
           {/* Analysis section */}
           {visibleGroups.analysis.length > 0 && (
-            <div className="p-1 border-t border-border">
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="border-border border-t p-1">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
                 {CATEGORY_LABELS.analysis}
               </div>
               {visibleGroups.analysis.map((chartType) => {
@@ -272,31 +273,31 @@ export function ChartTypeSelector({
                     onClick={() => isCompatible && handleSelect(chartType.id)}
                     disabled={!isCompatible}
                     className={cn(
-                      'w-full flex items-center gap-2 px-2 py-2 rounded-md text-left',
+                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
                       'transition-colors',
                       isSelected && 'bg-primary/10',
                       isCompatible && !isSelected && 'hover:bg-muted',
-                      !isCompatible && 'opacity-50 cursor-not-allowed'
+                      !isCompatible && 'cursor-not-allowed opacity-50',
                     )}
                     role="option"
                     aria-selected={isSelected}
                     aria-disabled={!isCompatible}
                   >
-                    <div className="w-4 h-4 flex items-center justify-center">
-                      {isSelected && <Check className="w-4 h-4 text-primary" />}
+                    <div className="flex h-4 w-4 items-center justify-center">
+                      {isSelected && <Check className="text-primary h-4 w-4" />}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className={cn('font-medium text-sm', isSelected && 'text-primary')}>
+                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
                           {chartType.shortName}
                         </span>
                         {!isCompatible && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             (requires n≥{chartType.minSubgroupSize})
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-muted-foreground truncate text-xs">
                         {chartType.description}
                       </p>
                     </div>
@@ -310,13 +311,15 @@ export function ChartTypeSelector({
           )}
 
           {/* Help tip at bottom */}
-          <div className="p-2 border-t border-border bg-muted/30">
-            <div className="flex items-start gap-2 text-xs text-muted-foreground">
-              <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+          <div className="border-border bg-muted/30 border-t p-2">
+            <div className="text-muted-foreground flex items-start gap-2 text-xs">
+              <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
               <span>
                 Current subgroup size: n={subgroupSize}.
                 {subgroupSize === 1 && ' I-MR is recommended for individual measurements.'}
-                {subgroupSize >= 2 && subgroupSize <= 10 && ' X-bar R is commonly used for this range.'}
+                {subgroupSize >= 2 &&
+                  subgroupSize <= 10 &&
+                  ' X-bar R is commonly used for this range.'}
                 {subgroupSize > 10 && ' X-bar S provides better accuracy for larger subgroups.'}
               </span>
             </div>

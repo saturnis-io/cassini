@@ -1,4 +1,12 @@
-import { Columns2, Eye, EyeOff, ArrowLeftRight, CalendarClock, SlidersHorizontal, MessageSquareText } from 'lucide-react'
+import {
+  Columns2,
+  Eye,
+  EyeOff,
+  ArrowLeftRight,
+  CalendarClock,
+  SlidersHorizontal,
+  MessageSquareText,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
@@ -35,10 +43,10 @@ function ToolbarBtn({
       onClick={onClick}
       title={title}
       className={cn(
-        'flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors',
+        'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
         active
-          ? 'bg-primary/15 text-primary border border-primary/30'
-          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
+          ? 'bg-primary/15 text-primary border-primary/30 border'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent',
       )}
     >
       {children}
@@ -69,7 +77,8 @@ export function ChartToolbar({
   } = useDashboardStore()
 
   // Get current chart type for the characteristic (fall back to recommended type for subgroup size)
-  const currentChartType: ChartTypeId = (characteristicId && chartTypes.get(characteristicId)) || recommendChartType(subgroupSize)
+  const currentChartType: ChartTypeId =
+    (characteristicId && chartTypes.get(characteristicId)) || recommendChartType(subgroupSize)
 
   const handleChartTypeChange = (chartType: ChartTypeId) => {
     if (characteristicId) {
@@ -78,12 +87,12 @@ export function ChartToolbar({
   }
 
   return (
-    <div className="flex items-center gap-1 py-1 flex-shrink-0 flex-wrap">
+    <div className="flex flex-shrink-0 flex-wrap items-center gap-1 py-1">
       {/* Left group — data controls */}
       <div className="flex items-center gap-1">
         <TimeRangeSelector />
 
-        <div className="h-4 w-px bg-border/40 mx-0.5" />
+        <div className="bg-border/40 mx-0.5 h-4 w-px" />
 
         <HistogramPositionSelector />
 
@@ -95,7 +104,7 @@ export function ChartToolbar({
           />
         )}
 
-        <div className="h-4 w-px bg-border/40 mx-0.5" />
+        <div className="bg-border/40 mx-0.5 h-4 w-px" />
 
         <ToolbarBtn
           active={xAxisMode === 'timestamp'}
@@ -139,7 +148,7 @@ export function ChartToolbar({
           <span className="hidden sm:inline">LSL/USL</span>
         </ToolbarBtn>
 
-        <div className="h-4 w-px bg-border/40 mx-0.5" />
+        <div className="bg-border/40 mx-0.5 h-4 w-px" />
 
         <ToolbarBtn
           active={comparisonMode}
@@ -154,10 +163,7 @@ export function ChartToolbar({
         </ToolbarBtn>
 
         {comparisonMode && secondaryCharacteristicId && onChangeSecondary && (
-          <ToolbarBtn
-            onClick={onChangeSecondary}
-            title="Change comparison characteristic"
-          >
+          <ToolbarBtn onClick={onChangeSecondary} title="Change comparison characteristic">
             <ArrowLeftRight className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Change</span>
           </ToolbarBtn>

@@ -81,7 +81,10 @@ export function RangeChart({
   onHoverIndex,
   highlightedIndex,
 }: RangeChartProps) {
-  const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+  const { data: chartData, isLoading } = useChartData(
+    characteristicId,
+    chartOptions ?? { limit: 50 },
+  )
   const chartColors = useChartColors()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
@@ -93,7 +96,16 @@ export function RangeChart({
   // Calculate range/stddev values and control limits
   const { data, controlLimits, chartLabel, yAxisLabel } = useMemo(() => {
     if (!chartData?.data_points?.length) {
-      return { data: [] as RangeDataPoint[], controlLimits: { ucl: null as number | null, lcl: null as number | null, cl: null as number | null }, chartLabel: '', yAxisLabel: '' }
+      return {
+        data: [] as RangeDataPoint[],
+        controlLimits: {
+          ucl: null as number | null,
+          lcl: null as number | null,
+          cl: null as number | null,
+        },
+        chartLabel: '',
+        yAxisLabel: '',
+      }
     }
 
     const points = chartData.data_points
@@ -146,38 +158,40 @@ export function RangeChart({
       lcl = 0
     }
 
-    const chartPoints: RangeDataPoint[] = (chartType === 'mr' ? points.slice(1) : points).map((point, index) => {
-      if (chartType === 'mr') {
-        const fromPoint = points[index]
-        return {
-          index: index + 2,
-          value: values[index] ?? 0,
-          displayKey: point.display_key || `#${index + 2}`,
-          timestamp: new Date(point.timestamp).toLocaleTimeString(),
-          timestampMs: new Date(point.timestamp).getTime(),
-          hasViolation: false,
-          sample_id: point.sample_id,
-          sample_id_from: fromPoint.sample_id,
-          mean: point.mean,
-          previousMean: fromPoint.mean,
-          actual_n: point.actual_n,
+    const chartPoints: RangeDataPoint[] = (chartType === 'mr' ? points.slice(1) : points).map(
+      (point, index) => {
+        if (chartType === 'mr') {
+          const fromPoint = points[index]
+          return {
+            index: index + 2,
+            value: values[index] ?? 0,
+            displayKey: point.display_key || `#${index + 2}`,
+            timestamp: new Date(point.timestamp).toLocaleTimeString(),
+            timestampMs: new Date(point.timestamp).getTime(),
+            hasViolation: false,
+            sample_id: point.sample_id,
+            sample_id_from: fromPoint.sample_id,
+            mean: point.mean,
+            previousMean: fromPoint.mean,
+            actual_n: point.actual_n,
+          }
+        } else {
+          return {
+            index: index + 1,
+            value: values[index] ?? 0,
+            displayKey: point.display_key || `#${index + 1}`,
+            timestamp: new Date(point.timestamp).toLocaleTimeString(),
+            timestampMs: new Date(point.timestamp).getTime(),
+            hasViolation: false,
+            sample_id: point.sample_id,
+            sample_id_from: null,
+            mean: point.mean,
+            previousMean: null,
+            actual_n: point.actual_n,
+          }
         }
-      } else {
-        return {
-          index: index + 1,
-          value: values[index] ?? 0,
-          displayKey: point.display_key || `#${index + 1}`,
-          timestamp: new Date(point.timestamp).toLocaleTimeString(),
-          timestampMs: new Date(point.timestamp).getTime(),
-          hasViolation: false,
-          sample_id: point.sample_id,
-          sample_id_from: null,
-          mean: point.mean,
-          previousMean: null,
-          actual_n: point.actual_n,
-        }
-      }
-    })
+      },
+    )
 
     return {
       data: chartPoints,
@@ -190,10 +204,16 @@ export function RangeChart({
   // Store setter for dataZoom-driven range updates
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
 
-  const lineColors = useMemo(() => colorScheme === 'secondary'
-    ? { start: chartColors.secondaryLineGradientStart, end: chartColors.secondaryLineGradientEnd }
-    : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd },
-  [colorScheme, chartColors])
+  const lineColors = useMemo(
+    () =>
+      colorScheme === 'secondary'
+        ? {
+            start: chartColors.secondaryLineGradientStart,
+            end: chartColors.secondaryLineGradientEnd,
+          }
+        : { start: chartColors.lineGradientStart, end: chartColors.lineGradientEnd },
+    [colorScheme, chartColors],
+  )
 
   // Store data in ref for event handlers
   const dataRef = useRef(data)
@@ -222,13 +242,43 @@ export function RangeChart({
     const markLineData: Record<string, unknown>[] = []
 
     if (controlLimits.ucl != null) {
-      markLineData.push({ yAxis: controlLimits.ucl, lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 }, label: { formatter: `UCL: ${formatVal(controlLimits.ucl)}`, position: 'end', color: chartColors.uclLine, fontSize: 11, fontWeight: 500 } })
+      markLineData.push({
+        yAxis: controlLimits.ucl,
+        lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
+        label: {
+          formatter: `UCL: ${formatVal(controlLimits.ucl)}`,
+          position: 'end',
+          color: chartColors.uclLine,
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      })
     }
     if (controlLimits.cl != null) {
-      markLineData.push({ yAxis: controlLimits.cl, lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2 }, label: { formatter: `CL: ${formatVal(controlLimits.cl)}`, position: 'end', color: chartColors.centerLine, fontSize: 11, fontWeight: 600 } })
+      markLineData.push({
+        yAxis: controlLimits.cl,
+        lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2 },
+        label: {
+          formatter: `CL: ${formatVal(controlLimits.cl)}`,
+          position: 'end',
+          color: chartColors.centerLine,
+          fontSize: 11,
+          fontWeight: 600,
+        },
+      })
     }
     if (controlLimits.lcl != null && controlLimits.lcl > 0) {
-      markLineData.push({ yAxis: controlLimits.lcl, lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 }, label: { formatter: `LCL: ${formatVal(controlLimits.lcl)}`, position: 'end', color: chartColors.lclLine, fontSize: 11, fontWeight: 500 } })
+      markLineData.push({
+        yAxis: controlLimits.lcl,
+        lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
+        label: {
+          formatter: `LCL: ${formatVal(controlLimits.lcl)}`,
+          position: 'end',
+          color: chartColors.lclLine,
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      })
     }
 
     // Build markArea for out-of-control zone above UCL
@@ -258,8 +308,10 @@ export function RangeChart({
       const cy = coord[1]
 
       const arrayIndex = point.index - (chartType === 'mr' ? 2 : 1)
-      const isHighlightedLocal = localHighlightedIndex != null && arrayIndex === localHighlightedIndex
-      const isHighlightedGlobal = localHoveredSampleIds != null && localHoveredSampleIds.has(point.sample_id)
+      const isHighlightedLocal =
+        localHighlightedIndex != null && arrayIndex === localHighlightedIndex
+      const isHighlightedGlobal =
+        localHoveredSampleIds != null && localHoveredSampleIds.has(point.sample_id)
       const isHighlighted = isHighlightedLocal || isHighlightedGlobal
       const baseRadius = isHighlighted ? 6 : 4
       const fillColor = isHighlighted ? 'hsl(45, 100%, 50%)' : localChartColors.normalPoint
@@ -303,9 +355,8 @@ export function RangeChart({
     const dataZoomEnd = (localEnd / Math.max(data.length - 1, 1)) * 100
 
     // Time range for adaptive formatting
-    const dataTimeRangeMs = data.length > 1
-      ? data[data.length - 1].timestampMs - data[0].timestampMs
-      : 0
+    const dataTimeRangeMs =
+      data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
 
     const bottomMargin = isTimestamp ? 60 : 30
     const xCategoryData = data.map((p) => String(p.index))
@@ -366,43 +417,51 @@ export function RangeChart({
           if (chartType === 'mr') {
             // Moving Range: show both individual values and their difference
             const prevLabel = point.previousMean != null ? formatVal(point.previousMean) : '—'
-            return `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}</div>` +
+            return (
+              `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}</div>` +
               `<div>Current X = ${formatVal(point.mean)}</div>` +
               `<div>Previous X = ${prevLabel}</div>` +
               `<div>MR = |Δ| = ${formatVal(point.value)}</div>` +
               (clVal != null ? `<div ${dim}>MR̄ = ${formatVal(clVal)}</div>` : '') +
               `<div ${dim}>${point.timestamp}</div>`
+            )
           }
 
           if (chartType === 'stddev') {
             // S Chart: show subgroup size, X-bar, S, and S-bar
-            return `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}` +
+            return (
+              `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}` +
               `<span ${dim}>&ensp;(n=${point.actual_n})</span></div>` +
               `<div>X̄ = ${formatVal(point.mean)}</div>` +
               `<div>S = ${formatVal(point.value)}</div>` +
               (clVal != null ? `<div ${dim}>S̄ = ${formatVal(clVal)}</div>` : '') +
               `<div ${dim}>${point.timestamp}</div>`
+            )
           }
 
           // Range Chart: show subgroup size, X-bar, Range, and R-bar
-          return `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}` +
+          return (
+            `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}` +
             `<span ${dim}>&ensp;(n=${point.actual_n})</span></div>` +
             `<div>X̄ = ${formatVal(point.mean)}</div>` +
             `<div>Range = ${formatVal(point.value)}</div>` +
             (clVal != null ? `<div ${dim}>R̄ = ${formatVal(clVal)}</div>` : '') +
             `<div ${dim}>${point.timestamp}</div>`
+          )
         },
       },
-      dataZoom: [{
-        type: 'inside' as const,
-        start: dataZoomStart,
-        end: dataZoomEnd,
-        minSpan: Math.max(2 / data.length * 100, 0.5),
-        zoomOnMouseWheel: true,
-        moveOnMouseWheel: 'shift' as const,
-        moveOnMouseMove: false,
-        preventDefaultMouseMove: true,
-      }],
+      dataZoom: [
+        {
+          type: 'inside' as const,
+          start: dataZoomStart,
+          end: dataZoomEnd,
+          minSpan: Math.max((2 / data.length) * 100, 0.5),
+          zoomOnMouseWheel: true,
+          moveOnMouseWheel: 'shift' as const,
+          moveOnMouseMove: false,
+          preventDefaultMouseMove: true,
+        },
+      ],
       series: [
         {
           type: 'line',
@@ -435,17 +494,33 @@ export function RangeChart({
         },
       ],
     }
-  }, [data, xAxisMode, chartColors, lineColors, controlLimits, chartData?.decimal_precision, yAxisLabel, chartType, hoveredSampleIds, highlightedIndex, rangeWindow, showBrush])
+  }, [
+    data,
+    xAxisMode,
+    chartColors,
+    lineColors,
+    controlLimits,
+    chartData?.decimal_precision,
+    yAxisLabel,
+    chartType,
+    hoveredSampleIds,
+    highlightedIndex,
+    rangeWindow,
+    showBrush,
+  ])
 
   // Mouse event handlers
-  const handleMouseMove = useCallback((params: EChartsMouseEvent) => {
-    const idx = params.dataIndex
-    const point = dataRef.current[idx]
-    if (point) {
-      onHoverSample(point.sample_id)
-      onHoverIndex?.(idx)
-    }
-  }, [onHoverSample, onHoverIndex])
+  const handleMouseMove = useCallback(
+    (params: EChartsMouseEvent) => {
+      const idx = params.dataIndex
+      const point = dataRef.current[idx]
+      if (point) {
+        onHoverSample(point.sample_id)
+        onHoverIndex?.(idx)
+      }
+    },
+    [onHoverSample, onHoverIndex],
+  )
 
   const handleMouseOut = useCallback(() => {
     onLeaveSample()
@@ -453,32 +528,35 @@ export function RangeChart({
   }, [onLeaveSample, onHoverIndex])
 
   // DataZoom handler: maps zoom percentages back to rangeWindow indices
-  const handleDataZoom = useCallback((params: EChartsDataZoomEvent) => {
-    const totalPoints = dataRef.current.length
-    if (totalPoints <= 1) return
+  const handleDataZoom = useCallback(
+    (params: EChartsDataZoomEvent) => {
+      const totalPoints = dataRef.current.length
+      if (totalPoints <= 1) return
 
-    let newStart = Math.round(params.start / 100 * (totalPoints - 1))
-    let newEnd = Math.round(params.end / 100 * (totalPoints - 1))
+      let newStart = Math.round((params.start / 100) * (totalPoints - 1))
+      let newEnd = Math.round((params.end / 100) * (totalPoints - 1))
 
-    // Convert MR indices back to main chart indices
-    if (chartType === 'mr') {
-      newStart = newStart + 1
-      newEnd = newEnd + 1
-    }
+      // Convert MR indices back to main chart indices
+      if (chartType === 'mr') {
+        newStart = newStart + 1
+        newEnd = newEnd + 1
+      }
 
-    // Zoomed all the way out → clear range
-    if (newStart <= 0 && newEnd >= totalPoints - (chartType === 'mr' ? 0 : 1)) {
-      setRangeWindow(null)
-      return
-    }
+      // Zoomed all the way out → clear range
+      if (newStart <= 0 && newEnd >= totalPoints - (chartType === 'mr' ? 0 : 1)) {
+        setRangeWindow(null)
+        return
+      }
 
-    const store = useDashboardStore.getState()
-    if (!store.showBrush) {
-      useDashboardStore.setState({ showBrush: true, rangeWindow: [newStart, newEnd] })
-    } else {
-      setRangeWindow([newStart, newEnd])
-    }
-  }, [setRangeWindow, chartType])
+      const store = useDashboardStore.getState()
+      if (!store.showBrush) {
+        useDashboardStore.setState({ showBrush: true, rangeWindow: [newStart, newEnd] })
+      } else {
+        setRangeWindow([newStart, newEnd])
+      }
+    },
+    [setRangeWindow, chartType],
+  )
 
   const { containerRef, chartRef, refresh } = useECharts({
     option: echartsOption,
@@ -498,17 +576,21 @@ export function RangeChart({
   const hasData = data.length > 0
 
   return (
-    <div className="h-full bg-card border border-border rounded-2xl p-5 flex flex-col">
+    <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
       {hasData && (
-        <div className="flex justify-between items-center mb-4 h-5 flex-shrink-0">
-          <h3 className="font-semibold text-sm leading-5">{chartLabel}</h3>
+        <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+          <h3 className="text-sm leading-5 font-semibold">{chartLabel}</h3>
         </div>
       )}
 
       {/* Chart container — ALWAYS rendered so useECharts can init */}
-      <div ref={chartWrapperRef} className="flex-1 min-h-0 relative">
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: hasData ? 'visible' : 'hidden' }} />
+      <div ref={chartWrapperRef} className="relative min-h-0 flex-1">
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: hasData ? 'visible' : 'hidden' }}
+        />
 
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">

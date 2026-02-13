@@ -1,5 +1,17 @@
 import { useState, useCallback } from 'react'
-import { Archive, Infinity, Hash, Calendar, Info, Clock, Play, CheckCircle, XCircle, Loader2, Timer } from 'lucide-react'
+import {
+  Archive,
+  Infinity,
+  Hash,
+  Calendar,
+  Info,
+  Clock,
+  Play,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Timer,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePlant } from '@/providers/PlantProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -31,9 +43,12 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
 
 function getPolicyIcon(retentionType: string | undefined) {
   switch (retentionType) {
-    case 'sample_count': return Hash
-    case 'time_delta': return Calendar
-    default: return Infinity
+    case 'sample_count':
+      return Hash
+    case 'time_delta':
+      return Calendar
+    default:
+      return Infinity
   }
 }
 
@@ -81,25 +96,31 @@ export function RetentionSettings() {
         onError: () => {
           setShowDefaultConfirm(null)
         },
-      }
+      },
     )
   }, [showDefaultConfirm, plantId, setDefaultMutation])
 
-  const handleSetOverride = useCallback((node: SelectedNode, policy: RetentionPolicySet) => {
-    if (node.type === 'hierarchy') {
-      setHierarchyMutation.mutate({ hierarchyId: node.id, policy })
-    } else {
-      setCharacteristicMutation.mutate({ charId: node.id, policy })
-    }
-  }, [setHierarchyMutation, setCharacteristicMutation])
+  const handleSetOverride = useCallback(
+    (node: SelectedNode, policy: RetentionPolicySet) => {
+      if (node.type === 'hierarchy') {
+        setHierarchyMutation.mutate({ hierarchyId: node.id, policy })
+      } else {
+        setCharacteristicMutation.mutate({ charId: node.id, policy })
+      }
+    },
+    [setHierarchyMutation, setCharacteristicMutation],
+  )
 
-  const handleClearOverride = useCallback((node: SelectedNode) => {
-    if (node.type === 'hierarchy') {
-      deleteHierarchyMutation.mutate(node.id)
-    } else {
-      deleteCharacteristicMutation.mutate(node.id)
-    }
-  }, [deleteHierarchyMutation, deleteCharacteristicMutation])
+  const handleClearOverride = useCallback(
+    (node: SelectedNode) => {
+      if (node.type === 'hierarchy') {
+        deleteHierarchyMutation.mutate(node.id)
+      } else {
+        deleteCharacteristicMutation.mutate(node.id)
+      }
+    },
+    [deleteHierarchyMutation, deleteCharacteristicMutation],
+  )
 
   const isSavingOverride =
     setHierarchyMutation.isPending ||
@@ -109,7 +130,7 @@ export function RetentionSettings() {
 
   if (!selectedPlant) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
         Select a site to manage retention policies.
       </div>
     )
@@ -124,10 +145,10 @@ export function RetentionSettings() {
             key={tab.id}
             onClick={() => setSubTab(tab.id)}
             className={cn(
-              'px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors',
+              'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
               subTab === tab.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
             )}
           >
             {tab.label}
@@ -140,32 +161,32 @@ export function RetentionSettings() {
         <>
           {/* Global Default Card */}
           <div className="bg-muted rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Archive className="h-5 w-5 text-muted-foreground" />
+            <div className="mb-4 flex items-center gap-2">
+              <Archive className="text-muted-foreground h-5 w-5" />
               <h3 className="font-semibold">Plant-Wide Default Policy</h3>
             </div>
 
             {!isEditingDefault ? (
               <>
                 {defaultLoading ? (
-                  <div className="text-sm text-muted-foreground">Loading...</div>
+                  <div className="text-muted-foreground text-sm">Loading...</div>
                 ) : (
                   <>
-                    <p className="text-sm text-muted-foreground mb-3">Current policy:</p>
-                    <div className="bg-card border border-border rounded-lg p-4 mb-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <PolicyIcon className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium text-sm">
+                    <p className="text-muted-foreground mb-3 text-sm">Current policy:</p>
+                    <div className="bg-card border-border mb-4 rounded-lg border p-4">
+                      <div className="mb-1 flex items-center gap-2">
+                        <PolicyIcon className="text-muted-foreground h-4 w-4" />
+                        <span className="text-sm font-medium">
                           {formatRetentionPolicy(effectiveType, effectiveValue, effectiveUnit)}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {formatRetentionDescription(effectiveType, effectiveValue, effectiveUnit)}
                       </p>
                     </div>
                     <button
                       onClick={() => setIsEditingDefault(true)}
-                      className="px-4 py-2 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-4 py-2 text-sm font-medium"
                     >
                       Edit Default Policy
                     </button>
@@ -174,11 +195,15 @@ export function RetentionSettings() {
               </>
             ) : (
               <RetentionPolicyForm
-                initialPolicy={globalDefault ? {
-                  retention_type: globalDefault.retention_type,
-                  retention_value: globalDefault.retention_value,
-                  retention_unit: globalDefault.retention_unit,
-                } : undefined}
+                initialPolicy={
+                  globalDefault
+                    ? {
+                        retention_type: globalDefault.retention_type,
+                        retention_value: globalDefault.retention_value,
+                        retention_unit: globalDefault.retention_unit,
+                      }
+                    : undefined
+                }
                 onSubmit={handleSaveDefault}
                 onCancel={() => setIsEditingDefault(false)}
                 submitLabel="Save Default Policy"
@@ -189,23 +214,23 @@ export function RetentionSettings() {
 
           {/* Explainer Card */}
           <div className="bg-muted rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="h-5 w-5 text-muted-foreground" />
+            <div className="mb-3 flex items-center gap-2">
+              <Info className="text-muted-foreground h-5 w-5" />
               <h3 className="font-semibold">How Retention Works</h3>
             </div>
-            <div className="text-sm text-muted-foreground space-y-2">
+            <div className="text-muted-foreground space-y-2 text-sm">
               <p>
                 Retention policies control when old samples and violations are permanently deleted.
                 Policies follow an inheritance model:
               </p>
-              <ol className="list-decimal list-inside space-y-1">
+              <ol className="list-inside list-decimal space-y-1">
                 <li>Each characteristic checks for its own override</li>
                 <li>If none, it walks up the hierarchy tree</li>
                 <li>If no override found, the plant-wide default applies</li>
               </ol>
               <p>
-                Purging runs automatically on a schedule. Purged data cannot be recovered
-                -- ensure backups are configured first.
+                Purging runs automatically on a schedule. Purged data cannot be recovered -- ensure
+                backups are configured first.
               </p>
             </div>
           </div>
@@ -218,29 +243,43 @@ export function RetentionSettings() {
           {/* Override Summary Bar */}
           <div className="bg-muted rounded-xl px-5 py-3">
             {overridesLoading ? (
-              <span className="text-sm text-muted-foreground">Loading overrides...</span>
+              <span className="text-muted-foreground text-sm">Loading overrides...</span>
             ) : overrides.length === 0 ? (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-muted-foreground text-sm">
                 No active overrides. All data is retained
-                {effectiveType === 'forever' ? ' indefinitely' : ` per the plant default (${formatRetentionPolicy(effectiveType, effectiveValue, effectiveUnit)})`}.
+                {effectiveType === 'forever'
+                  ? ' indefinitely'
+                  : ` per the plant default (${formatRetentionPolicy(effectiveType, effectiveValue, effectiveUnit)})`}
+                .
               </span>
             ) : (
-              <span className="text-sm text-muted-foreground">
-                <strong className="text-foreground">{overrides.length}</strong> active override{overrides.length !== 1 ? 's' : ''}
+              <span className="text-muted-foreground text-sm">
+                <strong className="text-foreground">{overrides.length}</strong> active override
+                {overrides.length !== 1 ? 's' : ''}
                 {hierarchyOverrides.length > 0 && (
-                  <> across <strong className="text-foreground">{hierarchyOverrides.length}</strong> hierarchy level{hierarchyOverrides.length !== 1 ? 's' : ''}</>
+                  <>
+                    {' '}
+                    across <strong className="text-foreground">
+                      {hierarchyOverrides.length}
+                    </strong>{' '}
+                    hierarchy level{hierarchyOverrides.length !== 1 ? 's' : ''}
+                  </>
                 )}
                 {charOverrides.length > 0 && (
-                  <> and <strong className="text-foreground">{charOverrides.length}</strong> characteristic{charOverrides.length !== 1 ? 's' : ''}</>
+                  <>
+                    {' '}
+                    and <strong className="text-foreground">{charOverrides.length}</strong>{' '}
+                    characteristic{charOverrides.length !== 1 ? 's' : ''}
+                  </>
                 )}
               </span>
             )}
           </div>
 
           {/* Split Layout: Tree + Detail Panel */}
-          <div className="flex gap-4 min-h-[500px]">
+          <div className="flex min-h-[500px] gap-4">
             {/* Tree Panel */}
-            <div className="w-64 shrink-0 border border-border rounded-xl bg-card overflow-y-auto">
+            <div className="border-border bg-card w-64 shrink-0 overflow-y-auto rounded-xl border">
               <RetentionTreeBrowser
                 plantId={plantId}
                 overrides={overrides}
@@ -250,7 +289,7 @@ export function RetentionSettings() {
             </div>
 
             {/* Detail Panel */}
-            <div className="flex-1 border border-border rounded-xl bg-card overflow-y-auto">
+            <div className="border-border bg-card flex-1 overflow-y-auto rounded-xl border">
               <RetentionOverridePanel
                 selectedNode={selectedNode}
                 overrides={overrides}
@@ -265,28 +304,26 @@ export function RetentionSettings() {
       )}
 
       {/* Activity Sub-Tab */}
-      {subTab === 'activity' && (
-        <PurgeActivityPanel plantId={plantId} />
-      )}
+      {subTab === 'activity' && <PurgeActivityPanel plantId={plantId} />}
 
       {/* Default Policy Confirmation Dialog — shared across tabs */}
       {showDefaultConfirm && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onClick={() => setShowDefaultConfirm(null)}
         >
           <div
-            className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl"
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-2">Change Default Policy</h3>
+            <h3 className="mb-2 text-lg font-semibold">Change Default Policy</h3>
             <p className="text-muted-foreground mb-4 text-sm">
               Change the plant-wide default retention policy to{' '}
               <strong>
                 {formatRetentionPolicy(
                   showDefaultConfirm.retention_type,
                   showDefaultConfirm.retention_value ?? null,
-                  showDefaultConfirm.retention_unit ?? null
+                  showDefaultConfirm.retention_unit ?? null,
                 )}
               </strong>
               ? This affects all characteristics that don't have a specific override.
@@ -297,7 +334,7 @@ export function RetentionSettings() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDefaultConfirm(null)}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium"
               >
                 Cancel
               </button>
@@ -305,10 +342,10 @@ export function RetentionSettings() {
                 onClick={confirmSaveDefault}
                 disabled={setDefaultMutation.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   setDefaultMutation.isPending
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90',
                 )}
               >
                 {setDefaultMutation.isPending ? 'Saving...' : 'Confirm'}
@@ -320,7 +357,6 @@ export function RetentionSettings() {
     </div>
   )
 }
-
 
 // ------------------------------------------------------------------
 // Purge Activity Panel
@@ -357,13 +393,13 @@ function formatCountdown(dateStr: string): string {
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
     case 'completed':
-      return <CheckCircle className="h-4 w-4 text-emerald-500" />
+      return <CheckCircle className="text-success h-4 w-4" />
     case 'failed':
-      return <XCircle className="h-4 w-4 text-red-500" />
+      return <XCircle className="text-destructive h-4 w-4" />
     case 'running':
-      return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+      return <Loader2 className="text-primary h-4 w-4 animate-spin" />
     default:
-      return <Clock className="h-4 w-4 text-muted-foreground" />
+      return <Clock className="text-muted-foreground h-4 w-4" />
   }
 }
 
@@ -374,9 +410,7 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
   const triggerMutation = useTriggerPurge()
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const isAdmin = user?.plant_roles?.some(
-    (pr) => pr.plant_id === plantId && pr.role === 'admin'
-  )
+  const isAdmin = user?.plant_roles?.some((pr) => pr.plant_id === plantId && pr.role === 'admin')
 
   const handleTrigger = useCallback(() => {
     triggerMutation.mutate(plantId, {
@@ -389,9 +423,9 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
     <div className="space-y-5">
       {/* Next Scheduled Purge Card */}
       <div className="bg-muted rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Timer className="h-5 w-5 text-muted-foreground" />
+            <Timer className="text-muted-foreground h-5 w-5" />
             <h3 className="font-semibold">Next Scheduled Purge</h3>
           </div>
           {isAdmin && (
@@ -399,10 +433,10 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
               onClick={() => setShowConfirm(true)}
               disabled={triggerMutation.isPending}
               className={cn(
-                'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl',
+                'flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium',
                 triggerMutation.isPending
                   ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90',
               )}
             >
               {triggerMutation.isPending ? (
@@ -416,60 +450,56 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
         </div>
 
         {nextLoading ? (
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="text-muted-foreground text-sm">Loading...</div>
         ) : nextPurge ? (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-card border border-border rounded-lg p-3">
-              <p className="text-xs text-muted-foreground mb-1">Next run</p>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <p className="text-muted-foreground mb-1 text-xs">Next run</p>
               <p className="text-sm font-medium">
-                {nextPurge.next_run_at
-                  ? formatCountdown(nextPurge.next_run_at)
-                  : 'No runs yet'}
+                {nextPurge.next_run_at ? formatCountdown(nextPurge.next_run_at) : 'No runs yet'}
               </p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3">
-              <p className="text-xs text-muted-foreground mb-1">Interval</p>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <p className="text-muted-foreground mb-1 text-xs">Interval</p>
               <p className="text-sm font-medium">{nextPurge.interval_hours}h</p>
             </div>
-            <div className="bg-card border border-border rounded-lg p-3">
-              <p className="text-xs text-muted-foreground mb-1">Last run</p>
+            <div className="bg-card border-border rounded-lg border p-3">
+              <p className="text-muted-foreground mb-1 text-xs">Last run</p>
               <p className="text-sm font-medium">
-                {nextPurge.last_run
-                  ? formatRelativeTime(nextPurge.last_run.started_at)
-                  : 'Never'}
+                {nextPurge.last_run ? formatRelativeTime(nextPurge.last_run.started_at) : 'Never'}
               </p>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No purge schedule information available.</p>
+          <p className="text-muted-foreground text-sm">No purge schedule information available.</p>
         )}
       </div>
 
       {/* Purge History Table */}
       <div className="bg-muted rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5 text-muted-foreground" />
+        <div className="mb-4 flex items-center gap-2">
+          <Clock className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Purge History</h3>
         </div>
 
         {activityLoading ? (
-          <div className="text-sm text-muted-foreground">Loading history...</div>
+          <div className="text-muted-foreground text-sm">Loading history...</div>
         ) : activity.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No purge runs yet. The engine runs automatically every{' '}
-            {nextPurge?.interval_hours ?? 24} hours, or you can trigger one manually.
+          <p className="text-muted-foreground text-sm">
+            No purge runs yet. The engine runs automatically every {nextPurge?.interval_hours ?? 24}{' '}
+            hours, or you can trigger one manually.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="pb-2 font-medium text-muted-foreground">Status</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Started</th>
-                  <th className="pb-2 font-medium text-muted-foreground text-right">Samples</th>
-                  <th className="pb-2 font-medium text-muted-foreground text-right">Violations</th>
-                  <th className="pb-2 font-medium text-muted-foreground text-right">Chars</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Duration</th>
+                <tr className="border-border border-b text-left">
+                  <th className="text-muted-foreground pb-2 font-medium">Status</th>
+                  <th className="text-muted-foreground pb-2 font-medium">Started</th>
+                  <th className="text-muted-foreground pb-2 text-right font-medium">Samples</th>
+                  <th className="text-muted-foreground pb-2 text-right font-medium">Violations</th>
+                  <th className="text-muted-foreground pb-2 text-right font-medium">Chars</th>
+                  <th className="text-muted-foreground pb-2 font-medium">Duration</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,22 +515,22 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
       {/* Manual Purge Confirmation Dialog */}
       {showConfirm && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onClick={() => setShowConfirm(false)}
         >
           <div
-            className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl"
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold mb-2">Run Purge Now</h3>
+            <h3 className="mb-2 text-lg font-semibold">Run Purge Now</h3>
             <p className="text-muted-foreground mb-4 text-sm">
-              This will immediately evaluate all retention policies and permanently delete
-              expired samples for this plant. This action cannot be undone.
+              This will immediately evaluate all retention policies and permanently delete expired
+              samples for this plant. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium"
               >
                 Cancel
               </button>
@@ -508,10 +538,10 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
                 onClick={handleTrigger}
                 disabled={triggerMutation.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   triggerMutation.isPending
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
                 )}
               >
                 {triggerMutation.isPending ? 'Running...' : 'Confirm Purge'}
@@ -532,40 +562,37 @@ function PurgeHistoryRow({ run }: { run: PurgeHistory }) {
       : '-'
 
   return (
-    <tr className="border-b border-border/50 last:border-0">
+    <tr className="border-border/50 border-b last:border-0">
       <td className="py-2">
         <div className="flex items-center gap-1.5">
           <StatusIcon status={run.status} />
-          <span className={cn(
-            'text-xs font-medium capitalize',
-            run.status === 'completed' && 'text-emerald-600 dark:text-emerald-400',
-            run.status === 'failed' && 'text-red-600 dark:text-red-400',
-            run.status === 'running' && 'text-blue-600 dark:text-blue-400',
-          )}>
+          <span
+            className={cn(
+              'text-xs font-medium capitalize',
+              run.status === 'completed' && 'text-success',
+              run.status === 'failed' && 'text-destructive',
+              run.status === 'running' && 'text-primary',
+            )}
+          >
             {run.status}
           </span>
         </div>
         {run.error_message && (
-          <p className="text-xs text-red-500 mt-0.5 truncate max-w-[200px]" title={run.error_message}>
+          <p
+            className="text-destructive mt-0.5 max-w-[200px] truncate text-xs"
+            title={run.error_message}
+          >
             {run.error_message}
           </p>
         )}
       </td>
-      <td className="py-2 text-muted-foreground">
-        {formatRelativeTime(run.started_at)}
-      </td>
-      <td className="py-2 text-right font-mono">
-        {run.samples_deleted.toLocaleString()}
-      </td>
-      <td className="py-2 text-right font-mono">
-        {run.violations_deleted.toLocaleString()}
-      </td>
+      <td className="text-muted-foreground py-2">{formatRelativeTime(run.started_at)}</td>
+      <td className="py-2 text-right font-mono">{run.samples_deleted.toLocaleString()}</td>
+      <td className="py-2 text-right font-mono">{run.violations_deleted.toLocaleString()}</td>
       <td className="py-2 text-right font-mono">
         {run.characteristics_processed.toLocaleString()}
       </td>
-      <td className="py-2 text-muted-foreground">
-        {duration}
-      </td>
+      <td className="text-muted-foreground py-2">{duration}</td>
     </tr>
   )
 }

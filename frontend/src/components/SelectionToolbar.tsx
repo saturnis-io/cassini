@@ -29,12 +29,12 @@ export function SelectionToolbar() {
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
       <div
         className={cn(
           'flex items-center gap-4 px-4 py-2.5',
-          'bg-card border border-border rounded-xl shadow-lg',
-          'animate-in slide-in-from-bottom-4 duration-200'
+          'bg-card border-border rounded-xl border shadow-lg',
+          'animate-in slide-in-from-bottom-4 duration-200',
         )}
       >
         <span className="text-sm font-medium">
@@ -45,9 +45,9 @@ export function SelectionToolbar() {
           <button
             onClick={handleGenerateReport}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg',
+              'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium',
               'bg-primary text-primary-foreground',
-              'hover:bg-primary/90 transition-colors'
+              'hover:bg-primary/90 transition-colors',
             )}
           >
             <FileText className="h-4 w-4" />
@@ -57,9 +57,9 @@ export function SelectionToolbar() {
           <button
             onClick={handleClear}
             className={cn(
-              'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg',
-              'border border-border',
-              'hover:bg-muted transition-colors'
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium',
+              'border-border border',
+              'hover:bg-muted transition-colors',
             )}
           >
             <X className="h-4 w-4" />

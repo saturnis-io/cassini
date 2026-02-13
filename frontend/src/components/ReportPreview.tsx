@@ -50,12 +50,20 @@ interface ReportPreviewProps {
 /**
  * Report preview component that renders report sections based on template
  */
-export function ReportPreview({ template, characteristicIds, chartOptions, className }: ReportPreviewProps) {
+export function ReportPreview({
+  template,
+  characteristicIds,
+  chartOptions,
+  className,
+}: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
   const { brandConfig } = useTheme()
 
   // Fetch data for primary characteristic using the provided chart options
-  const { data: chartData, isLoading: chartLoading } = useChartData(primaryCharId || 0, chartOptions)
+  const { data: chartData, isLoading: chartLoading } = useChartData(
+    primaryCharId || 0,
+    chartOptions,
+  )
   const { data: characteristic } = useCharacteristic(primaryCharId || 0)
   const { data: violations, isLoading: violationsLoading } = useViolations({
     characteristic_id: primaryCharId || undefined,
@@ -67,7 +75,12 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
 
   if (!primaryCharId) {
     return (
-      <div className={cn('bg-card border border-border rounded-xl p-8 text-center text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'bg-card border-border text-muted-foreground rounded-xl border p-8 text-center',
+          className,
+        )}
+      >
         Select at least one characteristic to preview the report
       </div>
     )
@@ -75,17 +88,24 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
 
   if (isLoading) {
     return (
-      <div className={cn('bg-card border border-border rounded-xl p-8 text-center text-muted-foreground', className)}>
+      <div
+        className={cn(
+          'bg-card border-border text-muted-foreground rounded-xl border p-8 text-center',
+          className,
+        )}
+      >
         Loading report data...
       </div>
     )
   }
 
   return (
-    <div className={cn('bg-white dark:bg-card border border-border rounded-xl shadow-sm overflow-hidden', className)}>
-      <div className="p-6 space-y-6" id="report-content">
+    <div
+      className={cn('bg-card border-border overflow-hidden rounded-xl border shadow-sm', className)}
+    >
+      <div className="space-y-6 p-6" id="report-content">
         {/* Report Header with Brand Logo */}
-        <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
+        <div className="border-border mb-6 flex items-center justify-between border-b pb-4">
           <div className="flex items-center gap-3">
             <img
               src={brandConfig.logoUrl || '/header-logo.svg'}
@@ -94,10 +114,10 @@ export function ReportPreview({ template, characteristicIds, chartOptions, class
             />
             <div>
               <h1 className="text-lg font-bold">{brandConfig.appName}</h1>
-              <p className="text-xs text-muted-foreground">SPC Report</p>
+              <p className="text-muted-foreground text-xs">SPC Report</p>
             </div>
           </div>
-          <div className="text-right text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-right text-sm">
             <div>Generated: {new Date().toLocaleString()}</div>
             {characteristic && <div>Characteristic: {characteristic.name}</div>}
           </div>
@@ -149,18 +169,21 @@ function ReportSectionComponent({
   switch (section) {
     case 'header':
       return (
-        <div className="border-b border-border pb-4">
+        <div className="border-border border-b pb-4">
           <h1 className="text-2xl font-bold">{template.name}</h1>
           <p className="text-muted-foreground mt-1">{template.description}</p>
-          <div className="mt-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground mt-2 text-sm">
             {characteristic && (
-              <span>Characteristic: <span className="font-medium text-foreground">{characteristic.name}</span></span>
+              <span>
+                Characteristic:{' '}
+                <span className="text-foreground font-medium">{characteristic.name}</span>
+              </span>
             )}
             {characteristicIds.length > 1 && (
               <span className="ml-4">+ {characteristicIds.length - 1} more</span>
             )}
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mt-1 text-xs">
             Generated: {new Date().toLocaleString()}
           </div>
         </div>
@@ -173,8 +196,8 @@ function ReportSectionComponent({
       // a static PNG fallback. A full static-image replacement for the main control
       // chart would require exposing getDataURL from ControlChart's internal instance.
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Control Chart</h2>
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Control Chart</h2>
           <div className="h-64">
             <ControlChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
           </div>
@@ -185,9 +208,9 @@ function ReportSectionComponent({
       if (!chartData) return null
       const stats = calculateStatistics(chartData)
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Statistics</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Statistics</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard label="Mean" value={stats.mean?.toFixed(4) || '-'} />
             <StatCard label="Std Dev" value={stats.stdDev?.toFixed(4) || '-'} />
             <StatCard label="UCL" value={chartData.control_limits.ucl?.toFixed(4) || '-'} />
@@ -203,25 +226,29 @@ function ReportSectionComponent({
 
     case 'violations':
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Recent Violations</h2>
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Recent Violations</h2>
           {violations.length === 0 ? (
             <p className="text-muted-foreground">No violations recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b">
                 <tr>
-                  <th className="text-left py-2">Date</th>
-                  <th className="text-left py-2">Rule</th>
-                  <th className="text-left py-2">Severity</th>
-                  <th className="text-left py-2">Status</th>
+                  <th className="py-2 text-left">Date</th>
+                  <th className="py-2 text-left">Rule</th>
+                  <th className="py-2 text-left">Severity</th>
+                  <th className="py-2 text-left">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {violations.slice(0, 10).map((v) => (
-                  <tr key={v.id} className="border-b border-border/50">
-                    <td className="py-2">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
-                    <td className="py-2">Rule {v.rule_id}: {v.rule_name}</td>
+                  <tr key={v.id} className="border-border/50 border-b">
+                    <td className="py-2">
+                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="py-2">
+                      Rule {v.rule_id}: {v.rule_name}
+                    </td>
                     <td className="py-2">{v.severity}</td>
                     <td className="py-2">{v.acknowledged ? 'Acknowledged' : 'Pending'}</td>
                   </tr>
@@ -237,15 +264,18 @@ function ReportSectionComponent({
         total: violations.length,
         pending: violations.filter((v) => !v.acknowledged).length,
         acknowledged: violations.filter((v) => v.acknowledged).length,
-        bySeverity: violations.reduce((acc, v) => {
-          acc[v.severity] = (acc[v.severity] || 0) + 1
-          return acc
-        }, {} as Record<string, number>),
+        bySeverity: violations.reduce(
+          (acc, v) => {
+            acc[v.severity] = (acc[v.severity] || 0) + 1
+            return acc
+          },
+          {} as Record<string, number>,
+        ),
       }
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Violation Statistics</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Violation Statistics</h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard label="Total Violations" value={String(vStats.total)} />
             <StatCard label="Pending" value={String(vStats.pending)} highlight="destructive" />
             <StatCard label="Acknowledged" value={String(vStats.acknowledged)} />
@@ -257,25 +287,27 @@ function ReportSectionComponent({
 
     case 'violationTable':
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Violation Details</h2>
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Violation Details</h2>
           {violations.length === 0 ? (
             <p className="text-muted-foreground">No violations found</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b">
                 <tr>
-                  <th className="text-left py-2">Date</th>
-                  <th className="text-left py-2">Characteristic</th>
-                  <th className="text-left py-2">Rule</th>
-                  <th className="text-left py-2">Severity</th>
-                  <th className="text-left py-2">Status</th>
+                  <th className="py-2 text-left">Date</th>
+                  <th className="py-2 text-left">Characteristic</th>
+                  <th className="py-2 text-left">Rule</th>
+                  <th className="py-2 text-left">Severity</th>
+                  <th className="py-2 text-left">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {violations.map((v) => (
-                  <tr key={v.id} className="border-b border-border/50">
-                    <td className="py-2">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
+                  <tr key={v.id} className="border-border/50 border-b">
+                    <td className="py-2">
+                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                    </td>
                     <td className="py-2">{v.characteristic_name || '-'}</td>
                     <td className="py-2">Rule {v.rule_id}</td>
                     <td className="py-2">{v.severity}</td>
@@ -306,48 +338,64 @@ function ReportSectionComponent({
 
     case 'annotations':
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Annotations</h2>
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Annotations</h2>
           {annotations.length === 0 ? (
             <p className="text-muted-foreground text-sm">No annotations recorded</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b">
                 <tr>
-                  <th className="text-left py-2">Date</th>
-                  <th className="text-left py-2">Type</th>
-                  <th className="text-left py-2">Note</th>
-                  <th className="text-left py-2">Time Range</th>
-                  <th className="text-left py-2">Author</th>
+                  <th className="py-2 text-left">Date</th>
+                  <th className="py-2 text-left">Type</th>
+                  <th className="py-2 text-left">Note</th>
+                  <th className="py-2 text-left">Time Range</th>
+                  <th className="py-2 text-left">Author</th>
                 </tr>
               </thead>
               <tbody>
                 {annotations.map((a) => (
-                  <tr key={a.id} className="border-b border-border/50">
+                  <tr key={a.id} className="border-border/50 border-b">
                     <td className="py-2">{new Date(a.created_at).toLocaleDateString()}</td>
                     <td className="py-2">
-                      <span className={cn(
-                        'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-                        a.annotation_type === 'point'
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                      )}>
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium',
+                          a.annotation_type === 'point'
+                            ? 'bg-warning/15 text-warning'
+                            : 'bg-primary/15 text-primary',
+                        )}
+                      >
                         {a.annotation_type === 'point' ? 'Point' : 'Period'}
                       </span>
                     </td>
-                    <td className="py-2 max-w-[200px] truncate" title={a.text}>{a.text}</td>
-                    <td className="py-2 text-xs text-muted-foreground">
+                    <td className="max-w-[200px] truncate py-2" title={a.text}>
+                      {a.text}
+                    </td>
+                    <td className="text-muted-foreground py-2 text-xs">
                       {a.annotation_type === 'period' && a.start_time && a.end_time ? (
                         <>
-                          {new Date(a.start_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(a.start_time).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                           {' — '}
-                          {new Date(a.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(a.end_time).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </>
                       ) : a.annotation_type === 'point' ? (
                         <span>Sample #{a.sample_id}</span>
-                      ) : '—'}
+                      ) : (
+                        '—'
+                      )}
                     </td>
-                    <td className="py-2 text-muted-foreground">{a.created_by || '—'}</td>
+                    <td className="text-muted-foreground py-2">{a.created_by || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -359,32 +407,35 @@ function ReportSectionComponent({
     case 'samples':
       if (!chartData) return null
       return (
-        <div className="border border-border rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">Recent Samples</h2>
+        <div className="border-border rounded-lg border p-4">
+          <h2 className="mb-4 text-lg font-semibold">Recent Samples</h2>
           <table className="w-full text-sm">
             <thead className="border-b">
               <tr>
-                <th className="text-left py-2">Timestamp</th>
-                <th className="text-right py-2">Mean</th>
-                <th className="text-right py-2">Zone</th>
-                <th className="text-center py-2">Status</th>
+                <th className="py-2 text-left">Timestamp</th>
+                <th className="py-2 text-right">Mean</th>
+                <th className="py-2 text-right">Zone</th>
+                <th className="py-2 text-center">Status</th>
               </tr>
             </thead>
             <tbody>
-              {chartData.data_points.slice(-10).reverse().map((dp) => (
-                <tr key={dp.sample_id} className="border-b border-border/50">
-                  <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
-                  <td className="py-2 text-right font-mono">{dp.mean.toFixed(4)}</td>
-                  <td className="py-2 text-right">{dp.zone.replace('_', ' ')}</td>
-                  <td className="py-2 text-center">
-                    {dp.violation_rules?.length > 0 ? (
-                      <span className="text-destructive">OOC</span>
-                    ) : (
-                      <span className="text-green-600">OK</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {chartData.data_points
+                .slice(-10)
+                .reverse()
+                .map((dp) => (
+                  <tr key={dp.sample_id} className="border-border/50 border-b">
+                    <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
+                    <td className="py-2 text-right font-mono">{dp.mean.toFixed(4)}</td>
+                    <td className="py-2 text-right">{dp.zone.replace('_', ' ')}</td>
+                    <td className="py-2 text-center">
+                      {dp.violation_rules?.length > 0 ? (
+                        <span className="text-destructive">OOC</span>
+                      ) : (
+                        <span className="text-success">OK</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -406,12 +457,12 @@ function StatCard({
 }) {
   return (
     <div className="bg-muted/50 rounded-lg p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-muted-foreground text-xs">{label}</div>
       <div
         className={cn(
-          'text-lg font-semibold mt-1',
+          'mt-1 text-lg font-semibold',
           highlight === 'destructive' && 'text-destructive',
-          highlight === 'warning' && 'text-yellow-600'
+          highlight === 'warning' && 'text-warning',
         )}
       >
         {value}
@@ -479,17 +530,41 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
     const maxCount = Math.max(...bins.map((b) => b.count))
 
     // Build reference markLines
-    const markLineData: Array<{ xAxis: number; lineStyle: { color: string; width: number; type: string }; label?: { show: boolean } }> = [
-      { xAxis: mean, lineStyle: { color: 'hsl(212 100% 35%)', width: 2, type: 'dashed' }, label: { show: false } },
+    const markLineData: Array<{
+      xAxis: number
+      lineStyle: { color: string; width: number; type: string }
+      label?: { show: boolean }
+    }> = [
+      {
+        xAxis: mean,
+        lineStyle: { color: 'hsl(212 100% 35%)', width: 2, type: 'dashed' },
+        label: { show: false },
+      },
     ]
     if (control_limits.lcl != null)
-      markLineData.push({ xAxis: control_limits.lcl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+      markLineData.push({
+        xAxis: control_limits.lcl,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      })
     if (control_limits.ucl != null)
-      markLineData.push({ xAxis: control_limits.ucl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+      markLineData.push({
+        xAxis: control_limits.ucl,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      })
     if (spec_limits.lsl != null)
-      markLineData.push({ xAxis: spec_limits.lsl, lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' }, label: { show: false } })
+      markLineData.push({
+        xAxis: spec_limits.lsl,
+        lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' },
+        label: { show: false },
+      })
     if (spec_limits.usl != null)
-      markLineData.push({ xAxis: spec_limits.usl, lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' }, label: { show: false } })
+      markLineData.push({
+        xAxis: spec_limits.usl,
+        lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' },
+        label: { show: false },
+      })
 
     return {
       grid: { top: 10, right: 30, left: 40, bottom: 30 },
@@ -535,19 +610,37 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
   const { spec_limits, control_limits } = chartData
 
   return (
-    <div className="border border-border rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">Distribution Histogram</h2>
-      <div className="h-48 relative">
+    <div className="border-border rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">Distribution Histogram</h2>
+      <div className="relative h-48">
         {/* Hidden canvas for chart capture; static image shown for print reliability */}
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: dataURL ? 'hidden' : 'visible' }} />
-        {dataURL && <img src={dataURL} alt="Distribution histogram" className="absolute inset-0 w-full h-full object-contain" />}
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: dataURL ? 'hidden' : 'visible' }}
+        />
+        {dataURL && (
+          <img
+            src={dataURL}
+            alt="Distribution histogram"
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        )}
       </div>
-      <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
+      <div className="text-muted-foreground mt-2 flex justify-center gap-6 text-xs">
         <span>Mean: {mean.toFixed(4)}</span>
-        {control_limits.lcl != null && <span className="text-teal-600">LCL: {control_limits.lcl.toFixed(4)}</span>}
-        {control_limits.ucl != null && <span className="text-teal-600">UCL: {control_limits.ucl.toFixed(4)}</span>}
-        {spec_limits.lsl != null && <span className="text-destructive">LSL: {spec_limits.lsl}</span>}
-        {spec_limits.usl != null && <span className="text-destructive">USL: {spec_limits.usl}</span>}
+        {control_limits.lcl != null && (
+          <span className="text-teal-600">LCL: {control_limits.lcl.toFixed(4)}</span>
+        )}
+        {control_limits.ucl != null && (
+          <span className="text-teal-600">UCL: {control_limits.ucl.toFixed(4)}</span>
+        )}
+        {spec_limits.lsl != null && (
+          <span className="text-destructive">LSL: {spec_limits.lsl}</span>
+        )}
+        {spec_limits.usl != null && (
+          <span className="text-destructive">USL: {spec_limits.usl}</span>
+        )}
       </div>
     </div>
   )
@@ -569,13 +662,17 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
   const lsl = spec_limits.lsl
   const centerLine = control_limits.center_line
 
-  let cp = 0, cpk = 0, pp = 0, ppk = 0
+  let cp = 0,
+    cpk = 0,
+    pp = 0,
+    ppk = 0
 
   if (usl !== null && lsl !== null && stdDev > 0) {
     // Within sigma (from control chart)
-    const withinSigma = zone_boundaries.plus_1_sigma && centerLine
-      ? zone_boundaries.plus_1_sigma - centerLine
-      : stdDev
+    const withinSigma =
+      zone_boundaries.plus_1_sigma && centerLine
+        ? zone_boundaries.plus_1_sigma - centerLine
+        : stdDev
 
     // Cp/Cpk (potential capability)
     cp = (usl - lsl) / (6 * withinSigma)
@@ -591,16 +688,16 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
   }
 
   const getCapabilityStatus = (value: number) => {
-    if (value >= 1.33) return { text: 'Capable', color: 'text-green-600' }
-    if (value >= 1.0) return { text: 'Marginal', color: 'text-yellow-600' }
+    if (value >= 1.33) return { text: 'Capable', color: 'text-success' }
+    if (value >= 1.0) return { text: 'Marginal', color: 'text-warning' }
     return { text: 'Not Capable', color: 'text-destructive' }
   }
 
   if (!usl || !lsl) {
     return (
-      <div className="border border-border rounded-lg p-4">
-        <h2 className="text-lg font-semibold mb-4">Process Capability</h2>
-        <p className="text-sm text-muted-foreground">
+      <div className="border-border rounded-lg border p-4">
+        <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
+        <p className="text-muted-foreground text-sm">
           Capability metrics require specification limits (USL/LSL) to be defined.
         </p>
       </div>
@@ -608,33 +705,47 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
   }
 
   return (
-    <div className="border border-border rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">Process Capability</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
+    <div className="border-border rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold">{cp.toFixed(2)}</div>
-          <div className="text-sm text-muted-foreground">Cp</div>
-          <div className={cn('text-xs', getCapabilityStatus(cp).color)}>{getCapabilityStatus(cp).text}</div>
+          <div className="text-muted-foreground text-sm">Cp</div>
+          <div className={cn('text-xs', getCapabilityStatus(cp).color)}>
+            {getCapabilityStatus(cp).text}
+          </div>
         </div>
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold">{cpk.toFixed(2)}</div>
-          <div className="text-sm text-muted-foreground">Cpk</div>
-          <div className={cn('text-xs', getCapabilityStatus(cpk).color)}>{getCapabilityStatus(cpk).text}</div>
+          <div className="text-muted-foreground text-sm">Cpk</div>
+          <div className={cn('text-xs', getCapabilityStatus(cpk).color)}>
+            {getCapabilityStatus(cpk).text}
+          </div>
         </div>
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold">{pp.toFixed(2)}</div>
-          <div className="text-sm text-muted-foreground">Pp</div>
-          <div className={cn('text-xs', getCapabilityStatus(pp).color)}>{getCapabilityStatus(pp).text}</div>
+          <div className="text-muted-foreground text-sm">Pp</div>
+          <div className={cn('text-xs', getCapabilityStatus(pp).color)}>
+            {getCapabilityStatus(pp).text}
+          </div>
         </div>
-        <div className="text-center p-3 bg-muted/50 rounded-lg">
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold">{ppk.toFixed(2)}</div>
-          <div className="text-sm text-muted-foreground">Ppk</div>
-          <div className={cn('text-xs', getCapabilityStatus(ppk).color)}>{getCapabilityStatus(ppk).text}</div>
+          <div className="text-muted-foreground text-sm">Ppk</div>
+          <div className={cn('text-xs', getCapabilityStatus(ppk).color)}>
+            {getCapabilityStatus(ppk).text}
+          </div>
         </div>
       </div>
-      <div className="mt-4 text-sm text-muted-foreground">
+      <div className="text-muted-foreground mt-4 text-sm">
         <div className="flex gap-4">
-          <span>σ (within): {(zone_boundaries.plus_1_sigma && centerLine ? zone_boundaries.plus_1_sigma - centerLine : stdDev).toFixed(4)}</span>
+          <span>
+            σ (within):{' '}
+            {(zone_boundaries.plus_1_sigma && centerLine
+              ? zone_boundaries.plus_1_sigma - centerLine
+              : stdDev
+            ).toFixed(4)}
+          </span>
           <span>σ (overall): {stdDev.toFixed(4)}</span>
           <span>n = {values.length}</span>
         </div>
@@ -662,17 +773,28 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
 
   // Process stability
   if (inControlPct >= 95) {
-    interpretations.push('✓ Process is stable with ' + inControlPct.toFixed(1) + '% of points in control.')
+    interpretations.push(
+      '✓ Process is stable with ' + inControlPct.toFixed(1) + '% of points in control.',
+    )
   } else if (inControlPct >= 80) {
-    interpretations.push('⚠ Process shows some instability with ' + (100 - inControlPct).toFixed(1) + '% out-of-control points.')
+    interpretations.push(
+      '⚠ Process shows some instability with ' +
+        (100 - inControlPct).toFixed(1) +
+        '% out-of-control points.',
+    )
   } else {
-    interpretations.push('✗ Process is unstable with ' + (100 - inControlPct).toFixed(1) + '% out-of-control points. Investigation recommended.')
+    interpretations.push(
+      '✗ Process is unstable with ' +
+        (100 - inControlPct).toFixed(1) +
+        '% out-of-control points. Investigation recommended.',
+    )
   }
 
   // Centering
   if (spec_limits.target) {
     const offset = Math.abs(mean - spec_limits.target)
-    const tolerance = spec_limits.usl && spec_limits.lsl ? (spec_limits.usl - spec_limits.lsl) / 2 : null
+    const tolerance =
+      spec_limits.usl && spec_limits.lsl ? (spec_limits.usl - spec_limits.lsl) / 2 : null
     if (tolerance && offset < tolerance * 0.1) {
       interpretations.push('✓ Process is well-centered on target.')
     } else if (tolerance && offset < tolerance * 0.25) {
@@ -696,8 +818,8 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
   }
 
   return (
-    <div className="border border-border rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">Interpretation</h2>
+    <div className="border-border rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">Interpretation</h2>
       <ul className="space-y-2 text-sm">
         {interpretations.map((text, i) => (
           <li key={i}>{text}</li>
@@ -737,13 +859,29 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
     const padding = (maxVal - minVal) * 0.1
 
     // Build markLine data for control limits
-    const markLineData: Array<{ yAxis: number; lineStyle: { color: string; width: number; type: string }; label?: { show: boolean } }> = []
+    const markLineData: Array<{
+      yAxis: number
+      lineStyle: { color: string; width: number; type: string }
+      label?: { show: boolean }
+    }> = []
     if (control_limits.ucl != null)
-      markLineData.push({ yAxis: control_limits.ucl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+      markLineData.push({
+        yAxis: control_limits.ucl,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      })
     if (control_limits.lcl != null)
-      markLineData.push({ yAxis: control_limits.lcl, lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' }, label: { show: false } })
+      markLineData.push({
+        yAxis: control_limits.lcl,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      })
     if (control_limits.center_line != null)
-      markLineData.push({ yAxis: control_limits.center_line, lineStyle: { color: 'hsl(104 55% 40%)', width: 1, type: 'dashed' }, label: { show: false } })
+      markLineData.push({
+        yAxis: control_limits.center_line,
+        lineStyle: { color: 'hsl(104 55% 40%)', width: 1, type: 'dashed' },
+        label: { show: false },
+      })
 
     return {
       grid: { top: 10, right: 20, left: 40, bottom: 30 },
@@ -762,8 +900,13 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
       },
       tooltip: {
         trigger: 'axis' as const,
-        formatter: (params: Array<{ data: number | null; seriesName: string; axisValue: string }>) => {
-          const item = trendData[params[0]?.axisValue ? trendData.findIndex((d) => d.date === params[0].axisValue) : 0]
+        formatter: (
+          params: Array<{ data: number | null; seriesName: string; axisValue: string }>,
+        ) => {
+          const item =
+            trendData[
+              params[0]?.axisValue ? trendData.findIndex((d) => d.date === params[0].axisValue) : 0
+            ]
           if (!item) return ''
           let html = `${new Date(item.timestamp).toLocaleString()}<br/>Value: ${item.value.toFixed(4)}`
           if (item.ma != null) html += `<br/>MA(${windowSize}): ${item.ma.toFixed(4)}`
@@ -780,7 +923,10 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
           symbolSize: 4,
           lineStyle: { color: 'hsl(212 100% 45%)', width: 1 },
           itemStyle: { color: 'hsl(212 100% 45%)' },
-          markLine: markLineData.length > 0 ? { silent: true, symbol: 'none', data: markLineData } : undefined,
+          markLine:
+            markLineData.length > 0
+              ? { silent: true, symbol: 'none', data: markLineData }
+              : undefined,
         },
         {
           name: 'Moving Avg',
@@ -800,19 +946,29 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
   if (dataPoints.length < 5) return null
 
   return (
-    <div className="border border-border rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">Trend Analysis</h2>
-      <div className="h-48 relative">
+    <div className="border-border rounded-lg border p-4">
+      <h2 className="mb-4 text-lg font-semibold">Trend Analysis</h2>
+      <div className="relative h-48">
         {/* Hidden canvas for chart capture; static image shown for print reliability */}
-        <div ref={containerRef} className="absolute inset-0" style={{ visibility: dataURL ? 'hidden' : 'visible' }} />
-        {dataURL && <img src={dataURL} alt="Trend analysis chart" className="absolute inset-0 w-full h-full object-contain" />}
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ visibility: dataURL ? 'hidden' : 'visible' }}
+        />
+        {dataURL && (
+          <img
+            src={dataURL}
+            alt="Trend analysis chart"
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        )}
       </div>
-      <div className="flex justify-center gap-6 mt-2 text-xs text-muted-foreground">
+      <div className="text-muted-foreground mt-2 flex justify-center gap-6 text-xs">
         <span className="flex items-center gap-1">
-          <span className="w-3 h-0.5 bg-blue-500 inline-block" /> Values
+          <span className="bg-primary inline-block h-0.5 w-3" /> Values
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-3 h-0.5 bg-orange-500 inline-block" /> {windowSize}-Point Moving Avg
+          <span className="bg-warning inline-block h-0.5 w-3" /> {windowSize}-Point Moving Avg
         </span>
       </div>
     </div>

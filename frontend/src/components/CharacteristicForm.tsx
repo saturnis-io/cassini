@@ -1,9 +1,22 @@
 import { useEffect, useState, useRef } from 'react'
-import { useCharacteristic, useUpdateCharacteristic, useRecalculateLimits, useSetManualLimits, useChangeMode, useDeleteCharacteristic, useCharacteristicConfig, useUpdateCharacteristicConfig, useHierarchyPath } from '@/api/hooks'
+import {
+  useCharacteristic,
+  useUpdateCharacteristic,
+  useRecalculateLimits,
+  useSetManualLimits,
+  useChangeMode,
+  useDeleteCharacteristic,
+  useCharacteristicConfig,
+  useUpdateCharacteristicConfig,
+  useHierarchyPath,
+} from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Trash2 } from 'lucide-react'
-import { CharacteristicConfigTabs, type TabId } from './characteristic-config/CharacteristicConfigTabs'
+import {
+  CharacteristicConfigTabs,
+  type TabId,
+} from './characteristic-config/CharacteristicConfigTabs'
 import { GeneralTab } from './characteristic-config/GeneralTab'
 import { LimitsTab } from './characteristic-config/LimitsTab'
 import { SamplingTab } from './characteristic-config/SamplingTab'
@@ -57,7 +70,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const rulesTabRef = useRef<RulesTabRef>(null)
 
   // Sync form data from fetched characteristic - this is intentional initialization
-   
+
   useEffect(() => {
     if (characteristic) {
       setFormData({
@@ -98,7 +111,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
   if (isLoading || !characteristic) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     )
@@ -175,27 +188,28 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
     // Save schedule config for MANUAL characteristics (no data source = manual)
     if (!characteristic.data_source && characteristicId) {
-      const schedulePayload = scheduleConfig.type === 'NONE'
-        ? { schedule_type: 'NONE' }
-        : {
-            schedule_type: scheduleConfig.type,
-            ...(scheduleConfig.type === 'INTERVAL' && {
-              interval_minutes: scheduleConfig.interval_minutes,
-              align_to_hour: scheduleConfig.align_to_hour,
-            }),
-            ...(scheduleConfig.type === 'SHIFT' && {
-              shift_count: scheduleConfig.shift_count,
-              shift_times: scheduleConfig.shift_times,
-              samples_per_shift: scheduleConfig.samples_per_shift,
-            }),
-            ...(scheduleConfig.type === 'CRON' && {
-              cron_expression: scheduleConfig.cron_expression,
-            }),
-            ...(scheduleConfig.type === 'BATCH_START' && {
-              batch_tag_path: scheduleConfig.batch_tag,
-              delay_minutes: scheduleConfig.delay_minutes,
-            }),
-          }
+      const schedulePayload =
+        scheduleConfig.type === 'NONE'
+          ? { schedule_type: 'NONE' }
+          : {
+              schedule_type: scheduleConfig.type,
+              ...(scheduleConfig.type === 'INTERVAL' && {
+                interval_minutes: scheduleConfig.interval_minutes,
+                align_to_hour: scheduleConfig.align_to_hour,
+              }),
+              ...(scheduleConfig.type === 'SHIFT' && {
+                shift_count: scheduleConfig.shift_count,
+                shift_times: scheduleConfig.shift_times,
+                samples_per_shift: scheduleConfig.samples_per_shift,
+              }),
+              ...(scheduleConfig.type === 'CRON' && {
+                cron_expression: scheduleConfig.cron_expression,
+              }),
+              ...(scheduleConfig.type === 'BATCH_START' && {
+                batch_tag_path: scheduleConfig.batch_tag,
+                delay_minutes: scheduleConfig.delay_minutes,
+              }),
+            }
 
       await updateConfig.mutateAsync({
         id: characteristicId,
@@ -216,7 +230,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     setIsDirty(false)
   }
 
-  const handleRecalculate = async (options?: { excludeOoc?: boolean; startDate?: string; endDate?: string; lastN?: number }) => {
+  const handleRecalculate = async (options?: {
+    excludeOoc?: boolean
+    startDate?: string
+    endDate?: string
+    lastN?: number
+  }) => {
     if (!characteristicId) return
     await recalculateLimits.mutateAsync({
       id: characteristicId,
@@ -227,7 +246,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     })
   }
 
-  const handleSetManualLimits = async (data: { ucl: number; lcl: number; center_line: number; sigma: number }) => {
+  const handleSetManualLimits = async (data: {
+    ucl: number
+    lcl: number
+    center_line: number
+    sigma: number
+  }) => {
     if (!characteristicId) return
     await setManualLimits.mutateAsync({ id: characteristicId, data })
   }
@@ -332,28 +356,30 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="border-border flex items-center justify-between border-b px-5 py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            className="hover:bg-muted rounded-lg p-1.5 transition-colors"
             title="Back to list"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
             <h2 className="font-semibold">{characteristic.name}</h2>
-            <p className="text-xs text-muted-foreground">
-              {!characteristic.data_source ? 'Manual Entry' : characteristic.data_source.type.toUpperCase()} •
-              Subgroup size: {characteristic.subgroup_size}
+            <p className="text-muted-foreground text-xs">
+              {!characteristic.data_source
+                ? 'Manual Entry'
+                : characteristic.data_source.type.toUpperCase()}{' '}
+              • Subgroup size: {characteristic.subgroup_size}
             </p>
           </div>
         </div>
         <button
           onClick={() => setShowDeleteDialog(true)}
-          className="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+          className="text-destructive hover:bg-destructive/10 rounded-lg p-2 transition-colors"
           title="Delete characteristic"
         >
           <Trash2 className="h-4 w-4" />
@@ -361,16 +387,16 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       </div>
 
       {/* Tabbed Content */}
-      <CharacteristicConfigTabs isDirty={isDirty} className="flex-1 min-h-0">
+      <CharacteristicConfigTabs isDirty={isDirty} className="min-h-0 flex-1">
         {renderTabContent}
       </CharacteristicConfigTabs>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-5 py-4 border-t border-border bg-muted/30">
+      <div className="border-border bg-muted/30 flex items-center justify-between border-t px-5 py-4">
         <div className="text-sm">
           {isDirty && (
-            <span className="text-amber-600 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="text-warning flex items-center gap-1.5">
+              <span className="bg-warning h-2 w-2 rounded-full" />
               Unsaved changes
             </span>
           )}
@@ -378,7 +404,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         <div className="flex items-center gap-3">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors"
+            className="border-border hover:bg-muted rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
           >
             Cancel
           </button>
@@ -386,10 +412,10 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             onClick={handleSave}
             disabled={updateCharacteristic.isPending || !isDirty}
             className={cn(
-              'px-4 py-2 text-sm font-medium rounded-lg',
+              'rounded-lg px-4 py-2 text-sm font-medium',
               'bg-primary text-primary-foreground',
               'hover:bg-primary/90 transition-colors',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {updateCharacteristic.isPending ? 'Saving...' : 'Save Changes'}
@@ -399,14 +425,14 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
       {/* Mode Change Confirmation Dialog */}
       {showModeDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold mb-2">Change Subgroup Mode?</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl">
+            <h3 className="mb-2 text-lg font-semibold">Change Subgroup Mode?</h3>
             <p className="text-muted-foreground mb-4">
-              This will recalculate all historical samples with the new mode's values.
-              This operation cannot be undone.
+              This will recalculate all historical samples with the new mode's values. This
+              operation cannot be undone.
             </p>
-            <div className="bg-muted p-4 rounded-xl mb-4">
+            <div className="bg-muted mb-4 rounded-xl p-4">
               <div className="text-sm">
                 <span className="text-muted-foreground">From: </span>
                 <span className="font-medium">{formData.subgroup_mode}</span>
@@ -420,7 +446,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               <button
                 onClick={cancelModeChange}
                 disabled={changeMode.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -428,9 +454,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
                 onClick={confirmModeChange}
                 disabled={changeMode.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-primary text-primary-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {changeMode.isPending ? 'Migrating...' : 'Confirm Change'}
@@ -442,18 +468,18 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
       {/* Delete Confirmation Dialog */}
       {showDeleteDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold mb-2">Delete Characteristic?</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl">
+            <h3 className="mb-2 text-lg font-semibold">Delete Characteristic?</h3>
             <p className="text-muted-foreground mb-4">
-              Are you sure you want to delete <strong>{characteristic?.name}</strong>?
-              This action cannot be undone.
+              Are you sure you want to delete <strong>{characteristic?.name}</strong>? This action
+              cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteDialog(false)}
                 disabled={deleteCharacteristic.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -461,9 +487,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
                 onClick={handleDelete}
                 disabled={deleteCharacteristic.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-destructive text-destructive-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {deleteCharacteristic.isPending ? 'Deleting...' : 'Delete'}

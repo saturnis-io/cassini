@@ -38,7 +38,7 @@ const BRAND_STORAGE_KEY = 'openspc-brand'
  */
 const DEFAULT_BRAND_CONFIG: BrandConfig = {
   primaryColor: '#004A98', // OpenSPC Blue — matches @theme --color-primary
-  accentColor: '#62CBC9',  // OpenSPC Teal — matches @theme --color-accent
+  accentColor: '#62CBC9', // OpenSPC Teal — matches @theme --color-accent
   logoUrl: null,
   appName: 'OpenSPC',
 }
@@ -138,7 +138,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
-    theme === 'system' ? getSystemTheme() : theme
+    theme === 'system' ? getSystemTheme() : theme,
   )
   const [brandConfig, setBrandConfigState] = useState<BrandConfig>(getStoredBrandConfig)
 
@@ -186,7 +186,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, [])
 
   // Apply theme to document - intentional DOM sync
-   
+
   useEffect(() => {
     const root = document.documentElement
     const resolved = theme === 'system' ? getSystemTheme() : theme

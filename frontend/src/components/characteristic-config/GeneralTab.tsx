@@ -4,7 +4,16 @@ import { toast } from 'sonner'
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { ProtocolBadge } from '../connectivity/ProtocolBadge'
-import { ChevronRight, ExternalLink, PenLine, Archive, Infinity, Hash, Calendar, Loader2 } from 'lucide-react'
+import {
+  ChevronRight,
+  ExternalLink,
+  PenLine,
+  Archive,
+  Infinity,
+  Hash,
+  Calendar,
+  Loader2,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { retentionApi } from '@/api/client'
@@ -60,7 +69,7 @@ export function GeneralTab({
               type="text"
               value={formData.name}
               onChange={(e) => onChange('name', e.target.value)}
-              className="w-full mt-1.5 px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="border-border bg-background focus:ring-primary/30 focus:border-primary mt-1.5 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:outline-none"
               placeholder="Enter characteristic name"
             />
           </div>
@@ -72,26 +81,26 @@ export function GeneralTab({
               type="text"
               value={formData.description}
               onChange={(e) => onChange('description', e.target.value)}
-              className="w-full mt-1.5 px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              className="border-border bg-background focus:ring-primary/30 focus:border-primary mt-1.5 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:outline-none"
               placeholder="Optional description"
             />
           </div>
 
           {/* Hierarchy Location */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Location</label>
+            <label className="text-muted-foreground text-sm font-medium">Location</label>
             <div className="mt-1.5">
               {hierarchyPath.length > 0 ? (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-1 text-sm">
                   {hierarchyPath.map((node, idx) => (
                     <span key={node.id} className="flex items-center">
-                      {idx > 0 && <ChevronRight className="h-3 w-3 mx-0.5" />}
+                      {idx > 0 && <ChevronRight className="mx-0.5 h-3 w-3" />}
                       <span className="hover:text-foreground cursor-pointer">{node.name}</span>
                     </span>
                   ))}
                 </div>
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-muted-foreground text-sm">
                   Hierarchy #{characteristic.hierarchy_id}
                 </span>
               )}
@@ -108,7 +117,7 @@ export function GeneralTab({
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Decimal Precision</label>
-            <div className="flex items-center gap-4 mt-1.5">
+            <div className="mt-1.5 flex items-center gap-4">
               <NumberInput
                 min={0}
                 max={10}
@@ -116,13 +125,11 @@ export function GeneralTab({
                 onChange={(value) => onChange('decimal_precision', value)}
                 className="w-24"
               />
-              <span className="text-sm text-muted-foreground">
-                decimal places (0-10)
-              </span>
+              <span className="text-muted-foreground text-sm">decimal places (0-10)</span>
             </div>
-            <div className="mt-2 p-3 bg-muted/50 rounded-lg">
-              <span className="text-xs text-muted-foreground">Preview: </span>
-              <span className="text-sm font-mono">
+            <div className="bg-muted/50 mt-2 rounded-lg p-3">
+              <span className="text-muted-foreground text-xs">Preview: </span>
+              <span className="font-mono text-sm">
                 123.456789 → {(123.456789).toFixed(parseInt(formData.decimal_precision) || 3)}
               </span>
             </div>
@@ -177,18 +184,18 @@ export function GeneralTab({
 function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | null }) {
   if (!dataSource) {
     return (
-      <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <div className="border-border bg-muted/30 rounded-lg border p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-muted-foreground" />
+            <PenLine className="text-muted-foreground h-4 w-4" />
             <div>
               <p className="text-sm font-medium">Manual Entry</p>
-              <p className="text-xs text-muted-foreground">No data source configured</p>
+              <p className="text-muted-foreground text-xs">No data source configured</p>
             </div>
           </div>
           <Link
             to="/connectivity"
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
+            className="text-primary flex items-center gap-1 text-xs hover:underline"
           >
             Add Data Source
             <ExternalLink className="h-3 w-3" />
@@ -199,18 +206,18 @@ function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | nu
   }
 
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+    <div className="border-border bg-muted/30 space-y-2 rounded-lg border p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ProtocolBadge protocol={dataSource.type} size="md" />
           <span
             className={`inline-flex items-center gap-1 text-xs font-medium ${
-              dataSource.is_active ? 'text-green-500' : 'text-muted-foreground'
+              dataSource.is_active ? 'text-success' : 'text-muted-foreground'
             }`}
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                dataSource.is_active ? 'bg-green-500' : 'bg-muted-foreground'
+              className={`h-1.5 w-1.5 rounded-full ${
+                dataSource.is_active ? 'bg-success' : 'bg-muted-foreground'
               }`}
             />
             {dataSource.is_active ? 'Active' : 'Inactive'}
@@ -218,7 +225,7 @@ function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | nu
         </div>
         <Link
           to="/connectivity"
-          className="flex items-center gap-1 text-xs text-primary hover:underline"
+          className="text-primary flex items-center gap-1 text-xs hover:underline"
         >
           Manage in Connectivity
           <ExternalLink className="h-3 w-3" />
@@ -238,7 +245,6 @@ function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | nu
   )
 }
 
-
 /**
  * RetentionPolicySelector — inline retention picker for a characteristic.
  *
@@ -251,19 +257,27 @@ type TimeUnit = 'days' | 'months' | 'years'
 
 function policyIcon(type: string) {
   switch (type) {
-    case 'sample_count': return Hash
-    case 'time_delta': return Calendar
-    default: return Infinity
+    case 'sample_count':
+      return Hash
+    case 'time_delta':
+      return Calendar
+    default:
+      return Infinity
   }
 }
 
 function sourceLabel(effective: EffectiveRetention): string {
   switch (effective.source) {
-    case 'characteristic': return 'Custom override'
-    case 'hierarchy': return `Inherited from ${effective.source_name ?? 'hierarchy'}`
-    case 'global': return 'Plant default'
-    case 'default': return 'System default (forever)'
-    default: return 'Inherited'
+    case 'characteristic':
+      return 'Custom override'
+    case 'hierarchy':
+      return `Inherited from ${effective.source_name ?? 'hierarchy'}`
+    case 'global':
+      return 'Plant default'
+    case 'default':
+      return 'System default (forever)'
+    default:
+      return 'Inherited'
   }
 }
 
@@ -330,34 +344,53 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
   const isSaving = setPolicy.isPending || clearPolicy.isPending
   const isLoading = policyLoading || effectiveLoading
 
-  const handleModeChange = useCallback((newMode: RetentionMode) => {
-    if (isSaving) return
+  const handleModeChange = useCallback(
+    (newMode: RetentionMode) => {
+      if (isSaving) return
 
-    if (newMode === 'inherit') {
-      // Remove the override
-      if (hasOverride) {
-        clearPolicy.mutate()
+      if (newMode === 'inherit') {
+        // Remove the override
+        if (hasOverride) {
+          clearPolicy.mutate()
+        }
+      } else if (newMode === 'forever') {
+        setPolicy.mutate({ retention_type: 'forever', retention_value: null, retention_unit: null })
+      } else if (newMode === 'sample_count') {
+        setPolicy.mutate({
+          retention_type: 'sample_count',
+          retention_value: count,
+          retention_unit: null,
+        })
+      } else if (newMode === 'time_delta') {
+        setPolicy.mutate({
+          retention_type: 'time_delta',
+          retention_value: ageValue,
+          retention_unit: ageUnit,
+        })
       }
-    } else if (newMode === 'forever') {
-      setPolicy.mutate({ retention_type: 'forever', retention_value: null, retention_unit: null })
-    } else if (newMode === 'sample_count') {
-      setPolicy.mutate({ retention_type: 'sample_count', retention_value: count, retention_unit: null })
-    } else if (newMode === 'time_delta') {
-      setPolicy.mutate({ retention_type: 'time_delta', retention_value: ageValue, retention_unit: ageUnit })
-    }
-  }, [isSaving, hasOverride, clearPolicy, setPolicy, count, ageValue, ageUnit])
+    },
+    [isSaving, hasOverride, clearPolicy, setPolicy, count, ageValue, ageUnit],
+  )
 
   const handleSaveOverride = useCallback(() => {
     if (currentMode === 'sample_count') {
-      setPolicy.mutate({ retention_type: 'sample_count', retention_value: count, retention_unit: null })
+      setPolicy.mutate({
+        retention_type: 'sample_count',
+        retention_value: count,
+        retention_unit: null,
+      })
     } else if (currentMode === 'time_delta') {
-      setPolicy.mutate({ retention_type: 'time_delta', retention_value: ageValue, retention_unit: ageUnit })
+      setPolicy.mutate({
+        retention_type: 'time_delta',
+        retention_value: ageValue,
+        retention_unit: ageUnit,
+      })
     }
   }, [currentMode, setPolicy, count, ageValue, ageUnit])
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading retention policy...
       </div>
@@ -370,46 +403,52 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
     <div className="space-y-4">
       {/* Current effective policy display */}
       {effective && (
-        <div className="rounded-lg border border-border bg-muted/30 p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className="border-border bg-muted/30 rounded-lg border p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <Icon className="text-muted-foreground h-4 w-4" />
             <span className="text-sm font-medium">
-              {formatRetentionPolicy(effective.retention_type, effective.retention_value, effective.retention_unit)}
+              {formatRetentionPolicy(
+                effective.retention_type,
+                effective.retention_value,
+                effective.retention_unit,
+              )}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">{sourceLabel(effective)}</p>
+          <p className="text-muted-foreground text-xs">{sourceLabel(effective)}</p>
         </div>
       )}
 
       {/* Mode selector */}
       <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block">
+        <label className="text-muted-foreground mb-2 block text-sm font-medium">
           Retention Policy
         </label>
         <div className="grid grid-cols-2 gap-2">
-          {([
-            { value: 'inherit', label: 'Use Default', icon: Archive },
-            { value: 'forever', label: 'Forever', icon: Infinity },
-            { value: 'sample_count', label: 'By Count', icon: Hash },
-            { value: 'time_delta', label: 'By Age', icon: Calendar },
-          ] as const).map((opt) => (
+          {(
+            [
+              { value: 'inherit', label: 'Use Default', icon: Archive },
+              { value: 'forever', label: 'Forever', icon: Infinity },
+              { value: 'sample_count', label: 'By Count', icon: Hash },
+              { value: 'time_delta', label: 'By Age', icon: Calendar },
+            ] as const
+          ).map((opt) => (
             <button
               key={opt.value}
               type="button"
               disabled={isSaving}
               onClick={() => handleModeChange(opt.value)}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-all',
+                'flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all',
                 currentMode === opt.value
                   ? 'border-primary bg-primary/5 font-medium'
                   : 'border-border hover:border-primary/50',
-                isSaving && 'opacity-50 cursor-not-allowed'
+                isSaving && 'cursor-not-allowed opacity-50',
               )}
             >
               <opt.icon className="h-4 w-4 shrink-0" />
               {opt.label}
               {isSaving && currentMode === opt.value && (
-                <Loader2 className="h-3 w-3 animate-spin ml-auto" />
+                <Loader2 className="ml-auto h-3 w-3 animate-spin" />
               )}
             </button>
           ))}
@@ -419,26 +458,25 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
       {/* Inline value editor for count/time_delta */}
       {currentMode === 'sample_count' && hasOverride && (
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium shrink-0">Keep last</label>
+          <label className="shrink-0 text-sm font-medium">Keep last</label>
           <input
             type="number"
             min={10}
             max={1_000_000}
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
-            className="w-28 px-3 py-2 text-sm bg-background border border-input rounded-lg
-                       focus:outline-none focus:ring-2 focus:ring-ring"
+            className="bg-background border-input focus:ring-ring w-28 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           />
-          <span className="text-sm text-muted-foreground shrink-0">samples</span>
+          <span className="text-muted-foreground shrink-0 text-sm">samples</span>
           <button
             type="button"
             onClick={handleSaveOverride}
             disabled={isSaving || count === charPolicy?.retention_value}
             className={cn(
-              'ml-auto px-3 py-1.5 text-xs font-medium rounded-lg',
+              'ml-auto rounded-lg px-3 py-1.5 text-xs font-medium',
               isSaving || count === charPolicy?.retention_value
                 ? 'text-muted-foreground cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90',
             )}
           >
             {isSaving ? 'Saving...' : 'Update'}
@@ -448,20 +486,18 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
 
       {currentMode === 'time_delta' && hasOverride && (
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium shrink-0">Keep last</label>
+          <label className="shrink-0 text-sm font-medium">Keep last</label>
           <input
             type="number"
             min={1}
             value={ageValue}
             onChange={(e) => setAgeValue(Number(e.target.value))}
-            className="w-24 px-3 py-2 text-sm bg-background border border-input rounded-lg
-                       focus:outline-none focus:ring-2 focus:ring-ring"
+            className="bg-background border-input focus:ring-ring w-24 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           />
           <select
             value={ageUnit}
             onChange={(e) => setAgeUnit(e.target.value as TimeUnit)}
-            className="px-3 py-2 text-sm bg-background border border-input rounded-lg
-                       focus:outline-none focus:ring-2 focus:ring-ring"
+            className="bg-background border-input focus:ring-ring rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           >
             <option value="days">days</option>
             <option value="months">months</option>
@@ -470,12 +506,16 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
           <button
             type="button"
             onClick={handleSaveOverride}
-            disabled={isSaving || (ageValue === charPolicy?.retention_value && ageUnit === charPolicy?.retention_unit)}
+            disabled={
+              isSaving ||
+              (ageValue === charPolicy?.retention_value && ageUnit === charPolicy?.retention_unit)
+            }
             className={cn(
-              'ml-auto px-3 py-1.5 text-xs font-medium rounded-lg',
-              isSaving || (ageValue === charPolicy?.retention_value && ageUnit === charPolicy?.retention_unit)
+              'ml-auto rounded-lg px-3 py-1.5 text-xs font-medium',
+              isSaving ||
+                (ageValue === charPolicy?.retention_value && ageUnit === charPolicy?.retention_unit)
                 ? 'text-muted-foreground cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90',
             )}
           >
             {isSaving ? 'Saving...' : 'Update'}

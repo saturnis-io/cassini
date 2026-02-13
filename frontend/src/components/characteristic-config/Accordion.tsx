@@ -74,19 +74,19 @@ export function AccordionTrigger({ children, id, className }: AccordionTriggerPr
       aria-controls={`accordion-content-${id}`}
       data-state={isOpen ? 'open' : 'closed'}
       className={cn(
-        'w-full flex items-center justify-between gap-3 px-4 py-3',
-        'text-left font-medium text-sm',
+        'flex w-full items-center justify-between gap-3 px-4 py-3',
+        'text-left text-sm font-medium',
         'bg-muted/40 hover:bg-muted/60 transition-colors',
-        'border border-border rounded-lg',
+        'border-border rounded-lg border',
         isOpen && 'rounded-b-none border-b-0',
-        className
+        className,
       )}
     >
       <span className="flex-1">{children}</span>
       <ChevronDown
         className={cn(
-          'h-4 w-4 text-muted-foreground transition-transform duration-200',
-          isOpen && 'rotate-180'
+          'text-muted-foreground h-4 w-4 transition-transform duration-200',
+          isOpen && 'rotate-180',
         )}
       />
     </button>
@@ -114,10 +114,10 @@ export function AccordionContent({ children, id, className }: AccordionContentPr
       aria-labelledby={`accordion-trigger-${id}`}
       data-state="open"
       className={cn(
-        'px-4 py-4 border border-t-0 border-border rounded-b-lg',
+        'border-border rounded-b-lg border border-t-0 px-4 py-4',
         'bg-background',
         'animate-in slide-in-from-top-1 duration-200',
-        className
+        className,
       )}
     >
       {children}
@@ -134,12 +134,7 @@ interface AccordionSectionProps {
   className?: string
 }
 
-export function AccordionSection({
-  id,
-  title,
-  children,
-  className,
-}: AccordionSectionProps) {
+export function AccordionSection({ id, title, children, className }: AccordionSectionProps) {
   return (
     <AccordionItem id={id} className={className}>
       <AccordionTrigger id={id}>{title}</AccordionTrigger>

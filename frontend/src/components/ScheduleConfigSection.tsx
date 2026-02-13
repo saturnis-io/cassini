@@ -98,7 +98,7 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
 
   const handleFieldChange = <K extends keyof ScheduleConfig>(
     field: K,
-    fieldValue: ScheduleConfig[K]
+    fieldValue: ScheduleConfig[K],
   ) => {
     onChange({ ...value, [field]: fieldValue })
   }
@@ -143,7 +143,7 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
     <div className="space-y-4">
       {/* Schedule Type Selector */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="mb-3 flex items-center gap-2">
           <label className="text-sm font-medium">Schedule Type</label>
           <HelpTooltip helpKey="schedule-type" />
         </div>
@@ -157,10 +157,10 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
                 type="button"
                 onClick={() => handleTypeChange(type.value)}
                 className={cn(
-                  'flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all',
+                  'flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all',
                   isSelected
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-muted/30 hover:border-primary/50 text-muted-foreground hover:text-foreground'
+                    : 'border-border bg-muted/30 hover:border-primary/50 text-muted-foreground hover:text-foreground',
                 )}
               >
                 <Icon className="h-5 w-5" />
@@ -174,16 +174,10 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
 
       {/* Type-specific configuration */}
       {value.type !== 'NONE' && (
-        <div className="p-4 bg-muted/30 rounded-lg border border-border space-y-4">
-          {value.type === 'INTERVAL' && (
-            <IntervalForm value={value} onChange={handleFieldChange} />
-          )}
-          {value.type === 'SHIFT' && (
-            <ShiftForm value={value} onChange={handleFieldChange} />
-          )}
-          {value.type === 'CRON' && (
-            <CronForm value={value} onChange={handleFieldChange} />
-          )}
+        <div className="bg-muted/30 border-border space-y-4 rounded-lg border p-4">
+          {value.type === 'INTERVAL' && <IntervalForm value={value} onChange={handleFieldChange} />}
+          {value.type === 'SHIFT' && <ShiftForm value={value} onChange={handleFieldChange} />}
+          {value.type === 'CRON' && <CronForm value={value} onChange={handleFieldChange} />}
           {value.type === 'BATCH_START' && (
             <BatchStartForm value={value} onChange={handleFieldChange} />
           )}
@@ -192,19 +186,20 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
 
       {/* Ad-hoc info panel */}
       {value.type === 'NONE' && (
-        <div className="p-4 bg-muted/20 rounded-lg border border-border">
-          <p className="text-sm text-muted-foreground">
-            <strong>Ad-hoc sampling:</strong> Measurements can be entered at any time without a fixed schedule.
-            Use this for event-driven sampling, operator-discretion measurements, or new processes without established frequencies.
+        <div className="bg-muted/20 border-border rounded-lg border p-4">
+          <p className="text-muted-foreground text-sm">
+            <strong>Ad-hoc sampling:</strong> Measurements can be entered at any time without a
+            fixed schedule. Use this for event-driven sampling, operator-discretion measurements, or
+            new processes without established frequencies.
           </p>
         </div>
       )}
 
       {/* Schedule Preview */}
       {nextDueTimes.length > 0 && (
-        <div className="p-4 bg-muted/20 rounded-lg border border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="h-4 w-4 text-muted-foreground" />
+        <div className="bg-muted/20 border-border rounded-lg border p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Clock className="text-muted-foreground h-4 w-4" />
             <span className="text-sm font-medium">Schedule Preview</span>
           </div>
           <div className="space-y-2">
@@ -213,16 +208,22 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
                 key={idx}
                 className={cn(
                   'flex items-center gap-2 text-sm',
-                  idx === 0 ? 'text-primary font-medium' : 'text-muted-foreground'
+                  idx === 0 ? 'text-primary font-medium' : 'text-muted-foreground',
                 )}
               >
                 <ChevronRight className={cn('h-3 w-3', idx === 0 && 'text-primary')} />
                 <span>
-                  {time.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {time.toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                   {' at '}
                   {time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </span>
-                {idx === 0 && <span className="text-xs bg-primary/10 px-2 py-0.5 rounded">Next due</span>}
+                {idx === 0 && (
+                  <span className="bg-primary/10 rounded px-2 py-0.5 text-xs">Next due</span>
+                )}
               </div>
             ))}
           </div>
@@ -250,7 +251,7 @@ function IntervalForm({
   return (
     <>
       <div>
-        <label className="text-sm font-medium mb-2 block">Interval (minutes)</label>
+        <label className="mb-2 block text-sm font-medium">Interval (minutes)</label>
         <NumberInput
           min={1}
           max={1440}
@@ -258,11 +259,11 @@ function IntervalForm({
           onChange={(v) => onChange('interval_minutes', parseInt(v) || 120)}
           className="w-full"
         />
-        <p className="text-xs text-muted-foreground mt-1">{intervalHuman}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{intervalHuman}</p>
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Quick Presets</label>
+        <label className="mb-2 block text-sm font-medium">Quick Presets</label>
         <div className="flex flex-wrap gap-2">
           {INTERVAL_PRESETS.map((preset) => (
             <button
@@ -270,10 +271,10 @@ function IntervalForm({
               type="button"
               onClick={() => onChange('interval_minutes', preset.value)}
               className={cn(
-                'px-3 py-1.5 text-sm rounded-lg border transition-colors',
+                'rounded-lg border px-3 py-1.5 text-sm transition-colors',
                 value.interval_minutes === preset.value
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border hover:border-primary/50'
+                  : 'border-border hover:border-primary/50',
               )}
             >
               {preset.label}
@@ -282,15 +283,15 @@ function IntervalForm({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer select-none">
+      <label className="flex cursor-pointer items-center gap-2 select-none">
         <input
           type="checkbox"
           checked={value.align_to_hour ?? false}
           onChange={(e) => onChange('align_to_hour', e.target.checked)}
-          className="rounded border-input"
+          className="border-input rounded"
         />
         <span className="text-sm">Align to clock hours</span>
-        <span className="text-xs text-muted-foreground">(e.g., 2:00, 4:00, 6:00)</span>
+        <span className="text-muted-foreground text-xs">(e.g., 2:00, 4:00, 6:00)</span>
       </label>
     </>
   )
@@ -310,7 +311,8 @@ function ShiftForm({
   const handleShiftCountChange = (count: number) => {
     onChange('shift_count', count)
     // Adjust shift_times array
-    const defaultTimes = count === 1 ? ['06:00'] : count === 2 ? ['06:00', '18:00'] : DEFAULT_SHIFT_TIMES
+    const defaultTimes =
+      count === 1 ? ['06:00'] : count === 2 ? ['06:00', '18:00'] : DEFAULT_SHIFT_TIMES
     onChange('shift_times', defaultTimes.slice(0, count))
   }
 
@@ -325,7 +327,7 @@ function ShiftForm({
   return (
     <>
       <div>
-        <label className="text-sm font-medium mb-2 block">Number of Shifts</label>
+        <label className="mb-2 block text-sm font-medium">Number of Shifts</label>
         <div className="flex gap-2">
           {[1, 2, 3].map((count) => (
             <button
@@ -333,10 +335,10 @@ function ShiftForm({
               type="button"
               onClick={() => handleShiftCountChange(count)}
               className={cn(
-                'flex-1 py-2 text-sm rounded-lg border transition-colors',
+                'flex-1 rounded-lg border py-2 text-sm transition-colors',
                 shiftCount === count
                   ? 'border-primary bg-primary/10 text-primary font-medium'
-                  : 'border-border hover:border-primary/50'
+                  : 'border-border hover:border-primary/50',
               )}
             >
               {count} Shift{count > 1 ? 's' : ''}
@@ -346,13 +348,13 @@ function ShiftForm({
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Shift Start Times</label>
+        <label className="mb-2 block text-sm font-medium">Shift Start Times</label>
         <div className="space-y-3">
           {shiftTimes.slice(0, shiftCount).map((timeStr, idx) => {
             const [hours, minutes] = timeStr.split(':').map(Number)
             return (
               <div key={idx} className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground w-16">{shiftLabels[idx]}:</span>
+                <span className="text-muted-foreground w-16 text-sm">{shiftLabels[idx]}:</span>
                 <TimePicker
                   hour={hours}
                   minute={minutes}
@@ -366,7 +368,7 @@ function ShiftForm({
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Samples per Shift</label>
+        <label className="mb-2 block text-sm font-medium">Samples per Shift</label>
         <NumberInput
           min={1}
           max={10}
@@ -374,7 +376,7 @@ function ShiftForm({
           onChange={(v) => onChange('samples_per_shift', parseInt(v) || 1)}
           className="w-32"
         />
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-xs">
           {shiftCount * (value.samples_per_shift ?? 1)} samples per day total
         </p>
       </div>
@@ -427,38 +429,40 @@ function CronForm({
   return (
     <>
       <div>
-        <label className="text-sm font-medium mb-2 block">Cron Expression</label>
+        <label className="mb-2 block text-sm font-medium">Cron Expression</label>
         <input
           type="text"
           value={cronExpression}
           onChange={(e) => onChange('cron_expression', e.target.value)}
           placeholder="*/30 * * * *"
           className={cn(
-            'w-full px-3 py-2 font-mono text-sm border rounded-lg bg-background',
-            !cronInfo.valid && cronExpression ? 'border-destructive' : 'border-input'
+            'bg-background w-full rounded-lg border px-3 py-2 font-mono text-sm',
+            !cronInfo.valid && cronExpression ? 'border-destructive' : 'border-input',
           )}
         />
-        <p className={cn(
-          'text-xs mt-1',
-          cronInfo.valid ? 'text-muted-foreground' : 'text-destructive'
-        )}>
+        <p
+          className={cn(
+            'mt-1 text-xs',
+            cronInfo.valid ? 'text-muted-foreground' : 'text-destructive',
+          )}
+        >
           {cronInfo.readable}
         </p>
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Expression Format</label>
-        <div className="flex gap-2 text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded">
-          <span className="px-2 py-1 bg-background rounded">MIN</span>
-          <span className="px-2 py-1 bg-background rounded">HOUR</span>
-          <span className="px-2 py-1 bg-background rounded">DAY</span>
-          <span className="px-2 py-1 bg-background rounded">MONTH</span>
-          <span className="px-2 py-1 bg-background rounded">WEEKDAY</span>
+        <label className="mb-2 block text-sm font-medium">Expression Format</label>
+        <div className="text-muted-foreground bg-muted/50 flex gap-2 rounded p-2 font-mono text-xs">
+          <span className="bg-background rounded px-2 py-1">MIN</span>
+          <span className="bg-background rounded px-2 py-1">HOUR</span>
+          <span className="bg-background rounded px-2 py-1">DAY</span>
+          <span className="bg-background rounded px-2 py-1">MONTH</span>
+          <span className="bg-background rounded px-2 py-1">WEEKDAY</span>
         </div>
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Templates</label>
+        <label className="mb-2 block text-sm font-medium">Templates</label>
         <div className="flex flex-wrap gap-2">
           {CRON_TEMPLATES.map((template) => (
             <button
@@ -466,10 +470,10 @@ function CronForm({
               type="button"
               onClick={() => onChange('cron_expression', template.value)}
               className={cn(
-                'px-3 py-1.5 text-sm rounded-lg border transition-colors',
+                'rounded-lg border px-3 py-1.5 text-sm transition-colors',
                 cronExpression === template.value
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border hover:border-primary/50'
+                  : 'border-border hover:border-primary/50',
               )}
             >
               {template.label}
@@ -492,21 +496,21 @@ function BatchStartForm({
   return (
     <>
       <div>
-        <label className="text-sm font-medium mb-2 block">Batch ID Tag Path</label>
+        <label className="mb-2 block text-sm font-medium">Batch ID Tag Path</label>
         <input
           type="text"
           value={value.batch_tag ?? ''}
           onChange={(e) => onChange('batch_tag', e.target.value)}
           placeholder="spBv1.0/Plant1/Line1/BatchID"
-          className="w-full px-3 py-2 text-sm border rounded-lg bg-background border-input"
+          className="bg-background border-input w-full rounded-lg border px-3 py-2 text-sm"
         />
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-xs">
           MQTT topic that publishes batch number changes
         </p>
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-2 block">Delay After Batch Start</label>
+        <label className="mb-2 block text-sm font-medium">Delay After Batch Start</label>
         <div className="flex items-center gap-2">
           <NumberInput
             min={0}
@@ -515,18 +519,18 @@ function BatchStartForm({
             onChange={(v) => onChange('delay_minutes', parseInt(v) || 0)}
             className="w-24"
           />
-          <span className="text-sm text-muted-foreground">minutes</span>
+          <span className="text-muted-foreground text-sm">minutes</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-xs">
           Wait before marking sample as due (allows process to stabilize)
         </p>
       </div>
 
-      <div className="p-3 bg-muted/50 rounded-lg">
-        <p className="text-xs text-muted-foreground">
-          <strong>How it works:</strong> When the batch tag value changes, a measurement task
-          will become due after the configured delay. This is ideal for capturing start-of-batch
-          quality data.
+      <div className="bg-muted/50 rounded-lg p-3">
+        <p className="text-muted-foreground text-xs">
+          <strong>How it works:</strong> When the batch tag value changes, a measurement task will
+          become due after the configured delay. This is ideal for capturing start-of-batch quality
+          data.
         </p>
       </div>
     </>

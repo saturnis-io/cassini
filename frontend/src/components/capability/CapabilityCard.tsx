@@ -10,15 +10,15 @@ import { useMemo } from 'react'
 /** Threshold-based color coding for capability indices */
 function capabilityColor(value: number | null): string {
   if (value === null) return 'text-muted-foreground'
-  if (value >= 1.33) return 'text-green-500'
-  if (value >= 1.0) return 'text-amber-500'
+  if (value >= 1.33) return 'text-success'
+  if (value >= 1.0) return 'text-warning'
   return 'text-destructive'
 }
 
 function capabilityBg(value: number | null): string {
   if (value === null) return 'bg-muted/30'
-  if (value >= 1.33) return 'bg-green-500/10'
-  if (value >= 1.0) return 'bg-amber-500/10'
+  if (value >= 1.33) return 'bg-success/10'
+  if (value >= 1.0) return 'bg-warning/10'
   return 'bg-destructive/10'
 }
 
@@ -31,12 +31,12 @@ function capabilityLabel(value: number | null): string {
 
 function IndexCard({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className={cn('rounded-lg border border-border p-3 text-center', capabilityBg(value))}>
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+    <div className={cn('border-border rounded-lg border p-3 text-center', capabilityBg(value))}>
+      <div className="text-muted-foreground mb-1 text-xs">{label}</div>
       <div className={cn('text-lg font-bold tabular-nums', capabilityColor(value))}>
         {value !== null ? value.toFixed(2) : '--'}
       </div>
-      <div className={cn('text-[10px] mt-0.5', capabilityColor(value))}>
+      <div className={cn('mt-0.5 text-[10px]', capabilityColor(value))}>
         {capabilityLabel(value)}
       </div>
     </div>
@@ -46,7 +46,7 @@ function IndexCard({ label, value }: { label: string; value: number | null }) {
 function NormalityBadge({ result }: { result: CapabilityResult }) {
   if (result.normality_test === 'failed') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
         <Info className="h-3 w-3" />
         Normality: not tested
       </span>
@@ -57,7 +57,7 @@ function NormalityBadge({ result }: { result: CapabilityResult }) {
     <span
       className={cn(
         'inline-flex items-center gap-1 text-xs',
-        result.is_normal ? 'text-green-500' : 'text-amber-500',
+        result.is_normal ? 'text-success' : 'text-warning',
       )}
     >
       {result.is_normal ? (
@@ -131,7 +131,7 @@ function CpkTrendChart({ history }: { history: CapabilityHistoryItem[] }) {
 
   if (sorted.length === 0) {
     return (
-      <div className="h-32 flex items-center justify-center text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex h-32 items-center justify-center text-xs">
         No history snapshots yet
       </div>
     )
@@ -154,12 +154,12 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
 
   if (isLoading) {
     return (
-      <div className="border border-border rounded-xl bg-card p-4">
+      <div className="border-border bg-card rounded-xl border p-4">
         <div className="animate-pulse space-y-3">
-          <div className="h-4 bg-muted rounded w-1/3" />
+          <div className="bg-muted h-4 w-1/3 rounded" />
           <div className="grid grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-16 bg-muted rounded" />
+              <div key={i} className="bg-muted h-16 rounded" />
             ))}
           </div>
         </div>
@@ -170,8 +170,8 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   if (error) {
     const msg = error instanceof Error ? error.message : 'Failed to load'
     return (
-      <div className="border border-border rounded-xl bg-card p-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="border-border bg-card rounded-xl border p-4">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Info className="h-4 w-4" />
           <span>{msg}</span>
         </div>
@@ -182,13 +182,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   if (!capability) return null
 
   return (
-    <div className="border border-border rounded-xl bg-card overflow-hidden">
+    <div className="border-border bg-card overflow-hidden rounded-xl border">
       {/* Header */}
-      <div className="p-4 border-b border-border flex items-center justify-between">
+      <div className="border-border flex items-center justify-between border-b p-4">
         <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-sm">Process Capability</h3>
-          <span className="text-xs text-muted-foreground">
+          <TrendingUp className="text-primary h-4 w-4" />
+          <h3 className="text-sm font-semibold">Process Capability</h3>
+          <span className="text-muted-foreground text-xs">
             ({capability.sample_count} measurements)
           </span>
         </div>
@@ -196,7 +196,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           <button
             onClick={() => saveSnapshot.mutate(characteristicId)}
             disabled={saveSnapshot.isPending}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+            className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50"
           >
             <Camera className="h-3 w-3" />
             {saveSnapshot.isPending ? 'Saving...' : 'Save Snapshot'}
@@ -205,7 +205,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
       </div>
 
       {/* Index Cards */}
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-4">
         <div className="grid grid-cols-5 gap-3">
           <IndexCard label="Cp" value={capability.cp} />
           <IndexCard label="Cpk" value={capability.cpk} />
@@ -218,14 +218,15 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
         <div className="flex items-center justify-between text-xs">
           <NormalityBadge result={capability} />
           <span className="text-muted-foreground">
-            LSL: {capability.lsl ?? '--'} | Target: {capability.target ?? '--'} | USL: {capability.usl ?? '--'}
+            LSL: {capability.lsl ?? '--'} | Target: {capability.target ?? '--'} | USL:{' '}
+            {capability.usl ?? '--'}
           </span>
         </div>
 
         {/* Cpk Trend Chart */}
         {history && history.length > 0 && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Cpk / Ppk Trend</div>
+            <div className="text-muted-foreground mb-1 text-xs font-medium">Cpk / Ppk Trend</div>
             <CpkTrendChart history={history} />
           </div>
         )}

@@ -43,11 +43,9 @@ export function AnnotationDialog({
   const now = new Date()
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
   const [startDate, setStartDate] = useState<Date>(
-    prefillStartTime ? new Date(prefillStartTime) : oneHourAgo
+    prefillStartTime ? new Date(prefillStartTime) : oneHourAgo,
   )
-  const [endDate, setEndDate] = useState<Date>(
-    prefillEndTime ? new Date(prefillEndTime) : now
-  )
+  const [endDate, setEndDate] = useState<Date>(prefillEndTime ? new Date(prefillEndTime) : now)
   const [activeField, setActiveField] = useState<'start' | 'end'>('start')
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [viewYear, setViewYear] = useState(now.getFullYear())
@@ -130,7 +128,11 @@ export function AnnotationDialog({
 
   const isSameDay = (d1: Date | null, d2: Date) => {
     if (!d1) return false
-    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()
+    return (
+      d1.getDate() === d2.getDate() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getFullYear() === d2.getFullYear()
+    )
   }
 
   const isInRange = (date: Date | null) => {
@@ -142,49 +144,58 @@ export function AnnotationDialog({
     return d >= s && d <= e
   }
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
   const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog - wider for period mode, scrollable */}
-      <div className={cn(
-        'relative z-10 w-full bg-card border border-border rounded-2xl shadow-xl flex flex-col',
-        mode === 'period' ? 'max-w-lg' : 'max-w-md',
-        'max-h-[90vh]'
-      )}>
+      <div
+        className={cn(
+          'bg-card border-border relative z-10 flex w-full flex-col rounded-2xl border shadow-xl',
+          mode === 'period' ? 'max-w-lg' : 'max-w-md',
+          'max-h-[90vh]',
+        )}
+      >
         {/* Header - fixed */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
+        <div className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4">
           <div className="flex items-center gap-2">
             {mode === 'point' ? (
-              <MapPin className="h-5 w-5 text-amber-500" />
+              <MapPin className="text-warning h-5 w-5" />
             ) : (
-              <CalendarRange className="h-5 w-5 text-amber-500" />
+              <CalendarRange className="text-warning h-5 w-5" />
             )}
             <h2 className="text-lg font-semibold">
               {mode === 'point' ? 'Annotate Data Point' : 'Annotate Time Range'}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-muted transition-colors"
-          >
+          <button onClick={onClose} className="hover:bg-muted rounded-lg p-1 transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto px-6 pb-6 flex-1 min-h-0">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           {/* Mode-specific fields */}
           {mode === 'point' ? (
-            <div className="mb-4 px-3 py-2.5 bg-muted/50 border border-border rounded-lg">
-              <div className="text-xs font-medium text-muted-foreground mb-0.5">Data Point</div>
+            <div className="bg-muted/50 border-border mb-4 rounded-lg border px-3 py-2.5">
+              <div className="text-muted-foreground mb-0.5 text-xs font-medium">Data Point</div>
               <div className="text-sm font-medium">{sampleLabel || `Sample #${sampleId}`}</div>
             </div>
           ) : (
@@ -193,10 +204,10 @@ export function AnnotationDialog({
               <button
                 type="button"
                 onClick={() => setDatePickerExpanded(!datePickerExpanded)}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/50 border border-border rounded-lg text-left hover:bg-muted/80 transition-colors"
+                className="bg-muted/50 border-border hover:bg-muted/80 flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex min-w-0 items-center gap-3">
+                  <CalendarRange className="text-muted-foreground h-4 w-4 shrink-0" />
                   <div className="text-sm">
                     <span className="font-medium">{formatDateDisplay(startDate)}</span>
                     <span className="text-muted-foreground"> {formatTimeDisplay(startDate)}</span>
@@ -205,10 +216,12 @@ export function AnnotationDialog({
                     <span className="text-muted-foreground"> {formatTimeDisplay(endDate)}</span>
                   </div>
                 </div>
-                <ChevronDown className={cn(
-                  'h-4 w-4 text-muted-foreground shrink-0 transition-transform',
-                  datePickerExpanded && 'rotate-180'
-                )} />
+                <ChevronDown
+                  className={cn(
+                    'text-muted-foreground h-4 w-4 shrink-0 transition-transform',
+                    datePickerExpanded && 'rotate-180',
+                  )}
+                />
               </button>
 
               {/* Expanded date/time picker */}
@@ -219,8 +232,10 @@ export function AnnotationDialog({
                     <button
                       onClick={() => setActiveField('start')}
                       className={cn(
-                        'flex-1 text-left p-2.5 rounded-lg border text-xs transition-colors',
-                        activeField === 'start' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                        'flex-1 rounded-lg border p-2.5 text-left text-xs transition-colors',
+                        activeField === 'start'
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50',
                       )}
                     >
                       <div className="text-muted-foreground">Start</div>
@@ -230,8 +245,10 @@ export function AnnotationDialog({
                     <button
                       onClick={() => setActiveField('end')}
                       className={cn(
-                        'flex-1 text-left p-2.5 rounded-lg border text-xs transition-colors',
-                        activeField === 'end' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                        'flex-1 rounded-lg border p-2.5 text-left text-xs transition-colors',
+                        activeField === 'end'
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50',
                       )}
                     >
                       <div className="text-muted-foreground">End</div>
@@ -241,31 +258,43 @@ export function AnnotationDialog({
                   </div>
 
                   {/* Calendar */}
-                  <div className="border border-border rounded-lg p-2.5">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="border-border rounded-lg border p-2.5">
+                    <div className="mb-2 flex items-center justify-between">
                       <button
                         onClick={() => {
-                          if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1) }
-                          else { setViewMonth(viewMonth - 1) }
+                          if (viewMonth === 0) {
+                            setViewMonth(11)
+                            setViewYear(viewYear - 1)
+                          } else {
+                            setViewMonth(viewMonth - 1)
+                          }
                         }}
-                        className="p-1 hover:bg-muted rounded"
+                        className="hover:bg-muted rounded p-1"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <span className="text-sm font-medium">{monthNames[viewMonth]} {viewYear}</span>
+                      <span className="text-sm font-medium">
+                        {monthNames[viewMonth]} {viewYear}
+                      </span>
                       <button
                         onClick={() => {
-                          if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1) }
-                          else { setViewMonth(viewMonth + 1) }
+                          if (viewMonth === 11) {
+                            setViewMonth(0)
+                            setViewYear(viewYear + 1)
+                          } else {
+                            setViewMonth(viewMonth + 1)
+                          }
                         }}
-                        className="p-1 hover:bg-muted rounded"
+                        className="hover:bg-muted rounded p-1"
                       >
                         <ChevronRight className="h-4 w-4" />
                       </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 text-center text-xs">
                       {dayNames.map((day) => (
-                        <div key={day} className="text-muted-foreground py-1">{day}</div>
+                        <div key={day} className="text-muted-foreground py-1">
+                          {day}
+                        </div>
                       ))}
                       {calendarDays.map((date, i) => (
                         <button
@@ -273,11 +302,19 @@ export function AnnotationDialog({
                           disabled={!date}
                           onClick={() => date && handleDateSelect(date)}
                           className={cn(
-                            'py-1 rounded text-xs transition-colors',
+                            'rounded py-1 text-xs transition-colors',
                             !date && 'invisible',
-                            date && isSameDay(date, activeDate) && 'bg-primary text-primary-foreground',
-                            date && !isSameDay(date, activeDate) && isInRange(date) && 'bg-primary/20',
-                            date && !isSameDay(date, activeDate) && !isInRange(date) && 'hover:bg-muted'
+                            date &&
+                              isSameDay(date, activeDate) &&
+                              'bg-primary text-primary-foreground',
+                            date &&
+                              !isSameDay(date, activeDate) &&
+                              isInRange(date) &&
+                              'bg-primary/20',
+                            date &&
+                              !isSameDay(date, activeDate) &&
+                              !isInRange(date) &&
+                              'hover:bg-muted',
                           )}
                         >
                           {date?.getDate()}
@@ -287,8 +324,8 @@ export function AnnotationDialog({
                   </div>
 
                   {/* Time picker */}
-                  <div className="border border-border rounded-lg p-3">
-                    <div className="text-xs text-muted-foreground mb-2 text-center">
+                  <div className="border-border rounded-lg border p-3">
+                    <div className="text-muted-foreground mb-2 text-center text-xs">
                       Time for {activeField === 'start' ? 'Start' : 'End'}
                     </div>
                     <TimePicker
@@ -302,45 +339,47 @@ export function AnnotationDialog({
               )}
 
               {startDate >= endDate && (
-                <div className="text-xs text-destructive">
-                  Start time must be before end time.
-                </div>
+                <div className="text-destructive text-xs">Start time must be before end time.</div>
               )}
             </div>
           )}
 
           {/* Text input */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1.5">Note</label>
+            <label className="mb-1.5 block text-sm font-medium">Note</label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={mode === 'point' ? 'Note about this data point...' : 'e.g., Changeover, Material batch switch, Equipment maintenance...'}
+              placeholder={
+                mode === 'point'
+                  ? 'Note about this data point...'
+                  : 'e.g., Changeover, Material batch switch, Equipment maintenance...'
+              }
               rows={3}
               maxLength={500}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="bg-background border-border focus:ring-primary/50 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               autoFocus={mode === 'point' || (mode === 'period' && hasPrefill)}
             />
-            <div className="text-xs text-muted-foreground mt-1">{text.length}/500</div>
+            <div className="text-muted-foreground mt-1 text-xs">{text.length}/500</div>
           </div>
 
           {/* Color picker */}
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-1.5">Color (optional)</label>
+            <label className="mb-1.5 block text-sm font-medium">Color (optional)</label>
             <div className="flex items-center gap-3">
               <input
                 type="color"
                 value={color || '#6366f1'}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-border"
+                className="border-border h-8 w-8 cursor-pointer rounded border"
               />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-muted-foreground text-sm">
                 {color || 'Default (theme primary)'}
               </span>
               {color && (
                 <button
                   onClick={() => setColor('')}
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                  className="text-muted-foreground hover:text-foreground text-xs underline"
                 >
                   Reset
                 </button>
@@ -349,10 +388,10 @@ export function AnnotationDialog({
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 justify-end">
+          <div className="flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
+              className="text-muted-foreground hover:text-foreground border-border rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
             >
               Cancel
             </button>
@@ -360,10 +399,10 @@ export function AnnotationDialog({
               onClick={handleSubmit}
               disabled={!canSubmit || createAnnotation.isPending}
               className={cn(
-                'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                 canSubmit && !createAnnotation.isPending
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed',
               )}
             >
               {createAnnotation.isPending ? 'Creating...' : 'Create'}

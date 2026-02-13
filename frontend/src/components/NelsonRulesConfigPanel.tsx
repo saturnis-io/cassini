@@ -55,16 +55,16 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-        'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2',
-        disabled && 'opacity-50 cursor-not-allowed',
-        checked ? 'bg-primary' : 'bg-muted'
+        'focus:ring-primary/20 focus:ring-2 focus:ring-offset-2 focus:outline-none',
+        disabled && 'cursor-not-allowed opacity-50',
+        checked ? 'bg-primary' : 'bg-muted',
       )}
     >
       <span
         className={cn(
           'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
           'shadow-sm',
-          checked ? 'translate-x-6' : 'translate-x-1'
+          checked ? 'translate-x-6' : 'translate-x-1',
         )}
       />
     </button>
@@ -76,16 +76,16 @@ function ToggleSwitch({
  */
 function SeverityBadge({ severity }: { severity: 'CRITICAL' | 'WARNING' | 'INFO' }) {
   const severityStyles = {
-    CRITICAL: 'bg-red-500/20 text-red-600 border-red-500/30',
-    WARNING: 'bg-orange-500/20 text-orange-600 border-orange-500/30',
-    INFO: 'bg-blue-500/20 text-blue-600 border-blue-500/30',
+    CRITICAL: 'bg-destructive/20 text-destructive border-destructive/30',
+    WARNING: 'bg-warning/20 text-warning border-warning/30',
+    INFO: 'bg-primary/20 text-primary border-primary/30',
   }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border',
-        severityStyles[severity]
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
+        severityStyles[severity],
       )}
     >
       {severity}
@@ -132,7 +132,7 @@ export const NelsonRulesConfigPanel = forwardRef<
   const [isDirty, setIsDirty] = useState(false)
 
   // Initialize local state from server data - intentional sync from fetched data
-   
+
   useEffect(() => {
     if (rulesData?.rule_configs && !initialized) {
       const configMap = new Map<number, RuleConfig>()
@@ -155,7 +155,7 @@ export const NelsonRulesConfigPanel = forwardRef<
   }, [rulesData, initialized])
 
   // Reset when characteristic changes - intentional reset
-   
+
   useEffect(() => {
     setInitialized(false)
     setIsDirty(false)
@@ -165,7 +165,11 @@ export const NelsonRulesConfigPanel = forwardRef<
   const handleEnabledToggle = (ruleId: number, checked: boolean) => {
     setRuleConfigs((prev) => {
       const next = new Map(prev)
-      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      const existing = next.get(ruleId) || {
+        rule_id: ruleId,
+        is_enabled: true,
+        require_acknowledgement: true,
+      }
       next.set(ruleId, { ...existing, is_enabled: checked })
       return next
     })
@@ -177,7 +181,11 @@ export const NelsonRulesConfigPanel = forwardRef<
   const handleRequireAckChange = (ruleId: number, checked: boolean) => {
     setRuleConfigs((prev) => {
       const next = new Map(prev)
-      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      const existing = next.get(ruleId) || {
+        rule_id: ruleId,
+        is_enabled: true,
+        require_acknowledgement: true,
+      }
       next.set(ruleId, { ...existing, require_acknowledgement: checked })
       return next
     })
@@ -198,10 +206,14 @@ export const NelsonRulesConfigPanel = forwardRef<
   }
 
   // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    save,
-    isDirty,
-  }), [isDirty, ruleConfigs, characteristicId])
+  useImperativeHandle(
+    ref,
+    () => ({
+      save,
+      isDirty,
+    }),
+    [isDirty, ruleConfigs, characteristicId],
+  )
 
   if (isLoading) {
     return (
@@ -222,25 +234,25 @@ export const NelsonRulesConfigPanel = forwardRef<
           <div
             key={rule.id}
             className={cn(
-              'flex items-center justify-between p-3 rounded-lg',
-              'bg-muted/50 hover:bg-muted/70 transition-colors'
+              'flex items-center justify-between rounded-lg p-3',
+              'bg-muted/50 hover:bg-muted/70 transition-colors',
             )}
           >
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{rule.name}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">{rule.name}</span>
               <HelpTooltip helpKey={`nelson-rule-${rule.id}`} />
               <SeverityBadge severity={rule.severity} />
             </div>
             <div className="flex items-center gap-4">
               {/* Require Acknowledgement checkbox - only visible when rule is enabled */}
               {isEnabled && (
-                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <label className="text-muted-foreground flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={requireAck}
                     onChange={(e) => handleRequireAckChange(rule.id, e.target.checked)}
                     disabled={updateRules.isPending}
-                    className="h-4 w-4 rounded border-border cursor-pointer"
+                    className="border-border h-4 w-4 cursor-pointer rounded"
                   />
                   <span className="whitespace-nowrap">Require Ack</span>
                 </label>
@@ -257,12 +269,10 @@ export const NelsonRulesConfigPanel = forwardRef<
 
       {/* Status indicator */}
       {updateRules.isPending && (
-        <div className="text-sm text-muted-foreground text-center py-2">
-          Saving rules...
-        </div>
+        <div className="text-muted-foreground py-2 text-center text-sm">Saving rules...</div>
       )}
       {updateRules.isError && (
-        <div className="text-sm text-red-600 text-center py-2">
+        <div className="text-destructive py-2 text-center text-sm">
           Failed to save rules. Please try again.
         </div>
       )}

@@ -6,23 +6,23 @@
 export type ChartCategory = 'variable' | 'attribute' | 'analysis'
 
 export type ChartTypeId =
-  | 'xbar'       // X-bar only (current default)
-  | 'xbar-r'     // X-bar and Range
-  | 'xbar-s'     // X-bar and S (Standard Deviation)
-  | 'i-mr'       // Individuals and Moving Range
-  | 'p'          // Proportion defective
-  | 'np'         // Number defective
-  | 'c'          // Defects per unit
-  | 'u'          // Defects per unit (variable sample)
-  | 'pareto'     // Pareto analysis
+  | 'xbar' // X-bar only (current default)
+  | 'xbar-r' // X-bar and Range
+  | 'xbar-s' // X-bar and S (Standard Deviation)
+  | 'i-mr' // Individuals and Moving Range
+  | 'p' // Proportion defective
+  | 'np' // Number defective
+  | 'c' // Defects per unit
+  | 'u' // Defects per unit (variable sample)
+  | 'pareto' // Pareto analysis
   | 'box-whisker' // Box and whisker plot
 
 export type ControlLimitMethod =
-  | 'rbar-d2'            // R-bar / d2 method (X-bar R)
-  | 'sbar-c4'            // S-bar / c4 method (X-bar S)
-  | 'mr-d2'              // Moving Range / d2 method (I-MR)
+  | 'rbar-d2' // R-bar / d2 method (X-bar R)
+  | 'sbar-c4' // S-bar / c4 method (X-bar S)
+  | 'mr-d2' // Moving Range / d2 method (I-MR)
   | 'attribute-binomial' // Binomial (p, np charts)
-  | 'attribute-poisson'  // Poisson (c, u charts)
+  | 'attribute-poisson' // Poisson (c, u charts)
 
 export interface ChartTypeDefinition {
   id: ChartTypeId
@@ -100,7 +100,7 @@ export const SPC_CONSTANTS = {
     6: 2.534,
     7: 2.704,
     8: 2.847,
-    9: 2.970,
+    9: 2.97,
     10: 3.078,
   } as Record<number, number>,
 
@@ -132,7 +132,7 @@ export const SPC_CONSTANTS = {
 
   // A2 constants for X-bar chart limits (using R-bar)
   A2: {
-    2: 1.880,
+    2: 1.88,
     3: 1.023,
     4: 0.729,
     5: 0.577,
@@ -148,10 +148,10 @@ export const SPC_CONSTANTS = {
     2: 0.7979,
     3: 0.8862,
     4: 0.9213,
-    5: 0.9400,
+    5: 0.94,
     6: 0.9515,
     7: 0.9594,
-    8: 0.9650,
+    8: 0.965,
     9: 0.9693,
     10: 0.9727,
     15: 0.9823,
@@ -165,13 +165,13 @@ export const SPC_CONSTANTS = {
     3: 0,
     4: 0,
     5: 0,
-    6: 0.030,
+    6: 0.03,
     7: 0.118,
     8: 0.185,
     9: 0.239,
     10: 0.284,
     15: 0.428,
-    20: 0.510,
+    20: 0.51,
     25: 0.565,
   } as Record<number, number>,
 
@@ -181,13 +181,13 @@ export const SPC_CONSTANTS = {
     3: 2.568,
     4: 2.266,
     5: 2.089,
-    6: 1.970,
+    6: 1.97,
     7: 1.882,
     8: 1.815,
     9: 1.761,
     10: 1.716,
     15: 1.572,
-    20: 1.490,
+    20: 1.49,
     25: 1.435,
   } as Record<number, number>,
 
@@ -203,28 +203,27 @@ export const SPC_CONSTANTS = {
     9: 1.032,
     10: 0.975,
     15: 0.789,
-    20: 0.680,
+    20: 0.68,
     25: 0.606,
   } as Record<number, number>,
 
   // E2 constant for Individuals chart (using MR-bar)
-  E2: 2.660, // For MR of 2 consecutive observations
+  E2: 2.66, // For MR of 2 consecutive observations
 }
 
 /**
  * Get the appropriate constant for a given subgroup size.
  * Falls back to closest available if exact match not found.
  */
-export function getSPCConstant(
-  constantTable: Record<number, number>,
-  n: number
-): number | null {
+export function getSPCConstant(constantTable: Record<number, number>, n: number): number | null {
   if (constantTable[n] !== undefined) {
     return constantTable[n]
   }
 
   // For larger n, use the largest available
-  const keys = Object.keys(constantTable).map(Number).sort((a, b) => a - b)
+  const keys = Object.keys(constantTable)
+    .map(Number)
+    .sort((a, b) => a - b)
   const maxKey = keys[keys.length - 1]
 
   if (n > maxKey) {

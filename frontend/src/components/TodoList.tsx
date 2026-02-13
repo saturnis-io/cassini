@@ -61,14 +61,12 @@ export function TodoList({ characteristics }: TodoListProps) {
   }, [characteristics])
 
   return (
-    <div className="border rounded-lg bg-card h-full flex flex-col">
-      <div className="p-4 border-b">
+    <div className="bg-card flex h-full flex-col rounded-lg border">
+      <div className="border-b p-4">
         <h2 className="font-semibold">To-Do List</h2>
-        <p className="text-sm text-muted-foreground">
-          {characteristics.length} characteristics
-        </p>
+        <p className="text-muted-foreground text-sm">{characteristics.length} characteristics</p>
       </div>
-      <div className="flex-1 overflow-auto p-2 space-y-2">
+      <div className="flex-1 space-y-2 overflow-auto p-2">
         {sorted.map((char) => (
           <TodoCard
             key={char.id}
@@ -92,26 +90,20 @@ interface TodoCardProps {
   onEnterData: () => void
 }
 
-function TodoCard({
-  characteristic,
-  status,
-  isSelected,
-  onSelect,
-  onEnterData,
-}: TodoCardProps) {
+function TodoCard({ characteristic, status, isSelected, onSelect, onEnterData }: TodoCardProps) {
   const statusConfig = {
     ooc: {
       border: 'border-destructive',
       bg: 'bg-destructive/10',
-      icon: <AlertCircle className="h-4 w-4 text-destructive" />,
+      icon: <AlertCircle className="text-destructive h-4 w-4" />,
       label: 'OOC',
       text: 'text-foreground',
       subtext: 'text-foreground/70',
     },
     due: {
-      border: 'border-yellow-500',
-      bg: 'bg-yellow-500/10',
-      icon: <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />,
+      border: 'border-warning',
+      bg: 'bg-warning/10',
+      icon: <Clock className="text-warning h-4 w-4" />,
       label: 'Due',
       text: 'text-foreground',
       subtext: 'text-foreground/70',
@@ -119,7 +111,7 @@ function TodoCard({
     ok: {
       border: 'border-muted',
       bg: 'bg-muted/20',
-      icon: <CheckCircle className="h-4 w-4 text-muted-foreground" />,
+      icon: <CheckCircle className="text-muted-foreground h-4 w-4" />,
       label: 'OK',
       text: 'text-foreground',
       subtext: 'text-muted-foreground',
@@ -131,11 +123,11 @@ function TodoCard({
   return (
     <div
       className={cn(
-        'p-3 rounded-lg border-2 cursor-pointer transition-all',
+        'cursor-pointer rounded-lg border-2 p-3 transition-all',
         config.border,
         config.bg,
-        isSelected && 'ring-2 ring-primary ring-offset-2',
-        status === 'ooc' && 'violation-pulse'
+        isSelected && 'ring-primary ring-2 ring-offset-2',
+        status === 'ooc' && 'violation-pulse',
       )}
       onClick={onSelect}
     >
@@ -145,15 +137,19 @@ function TodoCard({
           <span className={cn('font-medium', config.text)}>{characteristic.name}</span>
         </div>
         {status === 'ooc' && characteristic.unacknowledged_violations && (
-          <span className="text-xs bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
+          <span className="bg-destructive text-destructive-foreground rounded px-1.5 py-0.5 text-xs">
             {characteristic.unacknowledged_violations} alert
             {characteristic.unacknowledged_violations !== 1 ? 's' : ''}
           </span>
         )}
       </div>
       <div className={cn('mt-2 text-sm', config.subtext)}>
-        <div>{characteristic.hierarchy_path || characteristic.description || `ID: ${characteristic.hierarchy_id}`}</div>
-        <div className="flex justify-between mt-1">
+        <div>
+          {characteristic.hierarchy_path ||
+            characteristic.description ||
+            `ID: ${characteristic.hierarchy_id}`}
+        </div>
+        <div className="mt-1 flex justify-between">
           <span>Last: {formatTimeSince(characteristic.last_sample_at ?? null)}</span>
           {!characteristic.data_source && (
             <button

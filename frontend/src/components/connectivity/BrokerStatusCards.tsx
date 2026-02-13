@@ -59,39 +59,39 @@ export function BrokerStatusCards({
 
   if (states.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
+      <div className="text-muted-foreground py-8 text-center">
         <p>No MQTT brokers configured.</p>
-        <p className="text-sm mt-1">Add brokers in Configuration &gt; MQTT Settings.</p>
+        <p className="mt-1 text-sm">Add brokers in Configuration &gt; MQTT Settings.</p>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {states.map((s) => {
         const isSelected = selectedBrokerId === s.broker_id
         return (
           <div
             key={s.broker_id}
             onClick={() => onSelectBroker(s.broker_id)}
-            className={`bg-card border rounded-xl p-4 cursor-pointer transition-all ${
+            className={`bg-card cursor-pointer rounded-xl border p-4 transition-all ${
               isSelected
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'border-primary ring-primary/20 ring-2'
                 : 'border-border hover:border-primary/50'
             }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm truncate">{s.broker_name}</h3>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="truncate text-sm font-semibold">{s.broker_name}</h3>
               <div className="flex items-center gap-1.5">
                 {s.is_connected ? (
-                  <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-success flex items-center gap-1 text-xs">
+                    <span className="bg-success h-2 w-2 animate-pulse rounded-full" />
                     Connected
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <span className="w-2 h-2 rounded-full bg-gray-400" />
+                  <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <span className="bg-muted-foreground h-2 w-2 rounded-full" />
                     Disconnected
                   </span>
                 )}
@@ -99,13 +99,10 @@ export function BrokerStatusCards({
             </div>
 
             {/* Details */}
-            <div className="space-y-1 text-xs text-muted-foreground mb-3">
+            <div className="text-muted-foreground mb-3 space-y-1 text-xs">
               <p>Topics: {s.subscribed_topics?.length ?? 0}</p>
               {s.last_connected && (
-                <p>
-                  Last connected:{' '}
-                  {new Date(s.last_connected).toLocaleTimeString()}
-                </p>
+                <p>Last connected: {new Date(s.last_connected).toLocaleTimeString()}</p>
               )}
               {s.error_message && !s.is_connected && (
                 <p className="text-destructive truncate" title={s.error_message}>
@@ -121,7 +118,7 @@ export function BrokerStatusCards({
                   <button
                     onClick={() => disconnectMutation.mutate()}
                     disabled={disconnectMutation.isPending}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors"
+                    className="border-border hover:bg-accent flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors"
                   >
                     <PowerOff className="h-3.5 w-3.5" />
                     Disconnect
@@ -129,7 +126,7 @@ export function BrokerStatusCards({
                   <button
                     onClick={() => startDiscoveryMutation.mutate(s.broker_id)}
                     disabled={startDiscoveryMutation.isPending}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors"
                   >
                     <Search className="h-3.5 w-3.5" />
                     Discover
@@ -139,7 +136,7 @@ export function BrokerStatusCards({
                 <button
                   onClick={() => connectMutation.mutate(s.broker_id)}
                   disabled={connectMutation.isPending}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition-colors"
                 >
                   <Power className="h-3.5 w-3.5" />
                   Connect

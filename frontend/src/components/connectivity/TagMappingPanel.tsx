@@ -86,21 +86,21 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
 
   if (brokerId === null) {
     return (
-      <div className="bg-card border border-border rounded-xl p-6 text-center text-muted-foreground">
-        <Link2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+      <div className="bg-card border-border text-muted-foreground rounded-xl border p-6 text-center">
+        <Link2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
         <p>Select a broker and topic to create tag mappings</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border">
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
+      <div className="divide-border grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
         {/* Left: Live preview + Mapping form */}
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           {/* Live value preview */}
           <div>
-            <h3 className="text-sm font-medium mb-2">Live Value Preview</h3>
+            <h3 className="mb-2 text-sm font-medium">Live Value Preview</h3>
             {brokerId && (
               <LiveValuePreview
                 brokerId={brokerId}
@@ -113,25 +113,28 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
 
           {/* Mapping form */}
           {selectedTopic && (
-            <div className="space-y-3 pt-3 border-t border-border">
+            <div className="border-border space-y-3 border-t pt-3">
               <h3 className="text-sm font-medium">Map Topic to Characteristic</h3>
 
               <div>
-                <label className="text-xs text-muted-foreground">Topic</label>
-                <p className="text-xs font-mono bg-muted/50 rounded px-2 py-1 mt-0.5 truncate">
+                <label className="text-muted-foreground text-xs">Topic</label>
+                <p className="bg-muted/50 mt-0.5 truncate rounded px-2 py-1 font-mono text-xs">
                   {selectedTopic}
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="text-xs text-muted-foreground">
-                    Metric {!selectedMetric && !metricEditing && <span className="opacity-60">(optional)</span>}
+                  <label className="text-muted-foreground text-xs">
+                    Metric{' '}
+                    {!selectedMetric && !metricEditing && (
+                      <span className="opacity-60">(optional)</span>
+                    )}
                   </label>
                   {!metricEditing && (
                     <button
                       onClick={() => setMetricEditing(true)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
                       title="Manually enter metric name"
                     >
                       <Pencil className="h-3 w-3" />
@@ -140,52 +143,50 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
                   )}
                 </div>
                 {metricEditing ? (
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="mt-0.5 flex items-center gap-2">
                     <input
                       type="text"
                       value={selectedMetric ?? ''}
                       onChange={(e) => setSelectedMetric(e.target.value || null)}
                       placeholder="e.g. Temperature"
-                      className="flex-1 px-2 py-1 text-xs font-mono bg-background border border-border rounded-md"
+                      className="bg-background border-border flex-1 rounded-md border px-2 py-1 font-mono text-xs"
                     />
                     <button
                       onClick={() => {
                         setMetricEditing(false)
                       }}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                     >
                       Done
                     </button>
                   </div>
                 ) : selectedMetric ? (
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs font-mono bg-accent rounded px-2 py-1 flex-1 truncate">
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <p className="bg-accent flex-1 truncate rounded px-2 py-1 font-mono text-xs">
                       {selectedMetric}
                     </p>
                     <button
                       onClick={() => setSelectedMetric(null)}
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground text-xs transition-colors"
                     >
                       Clear
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-muted-foreground mt-0.5 text-xs">
                     Click a metric in preview or use Edit to type manually
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-xs text-muted-foreground">
-                  Characteristic
-                </label>
+                <label className="text-muted-foreground text-xs">Characteristic</label>
                 <select
                   value={characteristicId ?? ''}
                   onChange={(e) =>
                     setCharacteristicId(e.target.value ? Number(e.target.value) : null)
                   }
-                  className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded-md"
+                  className="bg-background border-border mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm"
                 >
                   <option value="">Select characteristic...</option>
                   {characteristics.map((c) => (
@@ -197,13 +198,11 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
               </div>
 
               <div>
-                <label className="text-xs text-muted-foreground">
-                  Trigger Strategy
-                </label>
+                <label className="text-muted-foreground text-xs">Trigger Strategy</label>
                 <select
                   value={triggerStrategy}
                   onChange={(e) => setTriggerStrategy(e.target.value)}
-                  className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded-md"
+                  className="bg-background border-border mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm"
                 >
                   <option value="on_change">On Change</option>
                   <option value="on_trigger">On Trigger</option>
@@ -213,27 +212,21 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
 
               {triggerStrategy === 'on_trigger' && (
                 <div>
-                  <label className="text-xs text-muted-foreground">
-                    Trigger Tag
-                  </label>
+                  <label className="text-muted-foreground text-xs">Trigger Tag</label>
                   <input
                     type="text"
                     value={triggerTag}
                     onChange={(e) => setTriggerTag(e.target.value)}
                     placeholder="e.g. spBv1.0/plant/NCMD/trigger"
-                    className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded-md"
+                    className="bg-background border-border mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm"
                   />
                 </div>
               )}
 
               <button
                 onClick={() => createMappingMutation.mutate()}
-                disabled={
-                  !characteristicId ||
-                  !selectedTopic ||
-                  createMappingMutation.isPending
-                }
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={!characteristicId || !selectedTopic || createMappingMutation.isPending}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {createMappingMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,24 +241,20 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
 
         {/* Right: Existing mappings */}
         <div className="p-4">
-          <h3 className="text-sm font-medium mb-3">Existing Mappings</h3>
+          <h3 className="mb-3 text-sm font-medium">Existing Mappings</h3>
           {mappings && mappings.length > 0 ? (
             <div className="space-y-2">
               {mappings.map((m: TagMappingResponse) => (
                 <div
                   key={m.characteristic_id}
-                  className="flex items-center gap-2 p-2 bg-muted/30 rounded-md text-xs"
+                  className="bg-muted/30 flex items-center gap-2 rounded-md p-2 text-xs"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">
-                      {m.characteristic_name}
-                    </p>
-                    <p className="font-mono text-muted-foreground truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{m.characteristic_name}</p>
+                    <p className="text-muted-foreground truncate font-mono">
                       {m.mqtt_topic}
                       {m.metric_name && (
-                        <span className="ml-1 text-accent-foreground">
-                          [{m.metric_name}]
-                        </span>
+                        <span className="text-accent-foreground ml-1">[{m.metric_name}]</span>
                       )}
                     </p>
                     <p className="text-muted-foreground">
@@ -273,11 +262,9 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
                     </p>
                   </div>
                   <button
-                    onClick={() =>
-                      deleteMappingMutation.mutate(m.characteristic_id)
-                    }
+                    onClick={() => deleteMappingMutation.mutate(m.characteristic_id)}
                     disabled={deleteMappingMutation.isPending}
-                    className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    className="text-muted-foreground hover:text-destructive shrink-0 p-1 transition-colors"
                     title="Remove mapping"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -286,9 +273,7 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No tag mappings yet
-            </p>
+            <p className="text-muted-foreground py-4 text-center text-sm">No tag mappings yet</p>
           )}
         </div>
       </div>

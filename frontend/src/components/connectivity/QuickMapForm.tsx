@@ -41,7 +41,8 @@ export function QuickMapForm({
   // Fetch characteristics for the dropdown
   const { data: charData } = useQuery({
     queryKey: ['characteristics-for-mapping', selectedPlantId],
-    queryFn: () => characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
+    queryFn: () =>
+      characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
   })
   const characteristics = charData?.items ?? []
 
@@ -70,7 +71,9 @@ export function QuickMapForm({
   const createOPCUAMapping = useMutation({
     mutationFn: async () => {
       // TODO: Replace with dataSourceApi.create() when backend endpoint is available
-      throw new Error('OPC-UA data source creation is not yet supported. Use the Mapping tab to configure OPC-UA sources.')
+      throw new Error(
+        'OPC-UA data source creation is not yet supported. Use the Mapping tab to configure OPC-UA sources.',
+      )
     },
     onSuccess: () => {
       toast.success('OPC-UA mapping created successfully')
@@ -107,27 +110,28 @@ export function QuickMapForm({
   }
 
   // Trigger strategies filtered by protocol
-  const strategies = server.protocol === 'mqtt'
-    ? [
-        { value: 'on_change', label: 'On Change' },
-        { value: 'on_trigger', label: 'On Trigger' },
-        { value: 'on_timer', label: 'On Timer' },
-      ]
-    : [
-        { value: 'on_change', label: 'On Change' },
-        { value: 'on_timer', label: 'On Timer' },
-      ]
+  const strategies =
+    server.protocol === 'mqtt'
+      ? [
+          { value: 'on_change', label: 'On Change' },
+          { value: 'on_trigger', label: 'On Trigger' },
+          { value: 'on_timer', label: 'On Timer' },
+        ]
+      : [
+          { value: 'on_change', label: 'On Change' },
+          { value: 'on_timer', label: 'On Timer' },
+        ]
 
   return (
-    <div className="border-t border-border pt-3 space-y-3">
-      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+    <div className="border-border space-y-3 border-t pt-3">
+      <h4 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
         Quick Map
       </h4>
 
       {/* Source info (read-only) */}
       <div>
-        <label className="text-[11px] text-muted-foreground">Source</label>
-        <p className="text-xs font-mono bg-background border border-border rounded px-2 py-1.5 mt-0.5 truncate text-muted-foreground">
+        <label className="text-muted-foreground text-[11px]">Source</label>
+        <p className="bg-background border-border text-muted-foreground mt-0.5 truncate rounded border px-2 py-1.5 font-mono text-xs">
           {server.protocol === 'mqtt' ? selectedTopic : selectedNode?.node_id}
         </p>
       </div>
@@ -136,13 +140,16 @@ export function QuickMapForm({
       {server.protocol === 'mqtt' && (
         <div>
           <div className="flex items-center justify-between">
-            <label className="text-[11px] text-muted-foreground">
-              Metric {!metricName && !metricEditing && <span className="opacity-60">(optional, SparkplugB)</span>}
+            <label className="text-muted-foreground text-[11px]">
+              Metric{' '}
+              {!metricName && !metricEditing && (
+                <span className="opacity-60">(optional, SparkplugB)</span>
+              )}
             </label>
             {!metricEditing && (
               <button
                 onClick={() => setMetricEditing(true)}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
+                className="text-muted-foreground hover:text-muted-foreground flex items-center gap-1 text-[11px] transition-colors"
               >
                 <Pencil className="h-2.5 w-2.5" />
                 Edit
@@ -150,35 +157,35 @@ export function QuickMapForm({
             )}
           </div>
           {metricEditing ? (
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="mt-0.5 flex items-center gap-2">
               <input
                 type="text"
                 value={metricName ?? ''}
                 onChange={(e) => setMetricName(e.target.value || null)}
                 placeholder="e.g. Temperature"
-                className="flex-1 px-2 py-1 text-xs font-mono bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
+                className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 flex-1 rounded border px-2 py-1 font-mono text-xs focus:outline-none"
               />
               <button
                 onClick={() => setMetricEditing(false)}
-                className="text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
+                className="text-muted-foreground hover:text-muted-foreground text-[11px] transition-colors"
               >
                 Done
               </button>
             </div>
           ) : metricName ? (
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs font-mono bg-indigo-500/10 text-indigo-300 rounded px-2 py-1 flex-1 truncate">
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="flex-1 truncate rounded bg-indigo-500/10 px-2 py-1 font-mono text-xs text-indigo-300">
                 {metricName}
               </p>
               <button
                 onClick={() => setMetricName(null)}
-                className="text-[11px] text-muted-foreground hover:text-muted-foreground transition-colors"
+                className="text-muted-foreground hover:text-muted-foreground text-[11px] transition-colors"
               >
                 Clear
               </button>
             </div>
           ) : (
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+            <p className="text-muted-foreground mt-0.5 text-[11px]">
               Click a metric in preview or use Edit to type manually
             </p>
           )}
@@ -187,11 +194,11 @@ export function QuickMapForm({
 
       {/* Characteristic selector */}
       <div>
-        <label className="text-[11px] text-muted-foreground">Characteristic</label>
+        <label className="text-muted-foreground text-[11px]">Characteristic</label>
         <select
           value={characteristicId ?? ''}
           onChange={(e) => setCharacteristicId(e.target.value ? Number(e.target.value) : null)}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
+          className="bg-background border-border text-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none"
         >
           <option value="">Select characteristic...</option>
           {characteristics.map((c) => (
@@ -204,14 +211,16 @@ export function QuickMapForm({
 
       {/* Trigger strategy */}
       <div>
-        <label className="text-[11px] text-muted-foreground">Trigger Strategy</label>
+        <label className="text-muted-foreground text-[11px]">Trigger Strategy</label>
         <select
           value={triggerStrategy}
           onChange={(e) => setTriggerStrategy(e.target.value)}
-          className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground focus:outline-none focus:border-primary/50"
+          className="bg-background border-border text-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none"
         >
           {strategies.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
           ))}
         </select>
       </div>
@@ -219,13 +228,13 @@ export function QuickMapForm({
       {/* Trigger tag (MQTT on_trigger only) */}
       {server.protocol === 'mqtt' && triggerStrategy === 'on_trigger' && (
         <div>
-          <label className="text-[11px] text-muted-foreground">Trigger Tag</label>
+          <label className="text-muted-foreground text-[11px]">Trigger Tag</label>
           <input
             type="text"
             value={triggerTag}
             onChange={(e) => setTriggerTag(e.target.value)}
             placeholder="e.g. spBv1.0/plant/NCMD/trigger"
-            className="w-full mt-0.5 px-2 py-1.5 text-sm bg-background border border-border rounded text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/50"
+            className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none"
           />
         </div>
       )}
@@ -234,13 +243,9 @@ export function QuickMapForm({
       <button
         onClick={handleSave}
         disabled={!characteristicId || isPending}
-        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Link2 className="h-4 w-4" />
-        )}
+        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
         Map to Characteristic
       </button>
     </div>

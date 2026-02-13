@@ -34,7 +34,7 @@ export function CharacteristicConfigTabs({
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab') as TabId | null
   const [activeTab, setActiveTab] = useState<TabId>(
-    tabParam && TABS.some((t) => t.id === tabParam) ? tabParam : 'general'
+    tabParam && TABS.some((t) => t.id === tabParam) ? tabParam : 'general',
   )
 
   const handleTabChange = useCallback(
@@ -44,7 +44,7 @@ export function CharacteristicConfigTabs({
       // Check if there are unsaved changes
       if (isDirty) {
         const confirmed = window.confirm(
-          'You have unsaved changes. Are you sure you want to switch tabs?'
+          'You have unsaved changes. Are you sure you want to switch tabs?',
         )
         if (!confirmed) return
       }
@@ -61,7 +61,7 @@ export function CharacteristicConfigTabs({
         return prev
       })
     },
-    [activeTab, isDirty, onTabChange, setSearchParams]
+    [activeTab, isDirty, onTabChange, setSearchParams],
   )
 
   const handleKeyDown = useCallback(
@@ -87,16 +87,16 @@ export function CharacteristicConfigTabs({
         handleTabChange(TABS[newIndex].id)
       }
     },
-    [activeTab, handleTabChange]
+    [activeTab, handleTabChange],
   )
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div className={cn('flex h-full flex-col', className)}>
       {/* Tab Bar */}
       <div
         role="tablist"
         aria-label="Characteristic configuration sections"
-        className="flex border-b border-border bg-muted/30"
+        className="border-border bg-muted/30 flex border-b"
         onKeyDown={handleKeyDown}
       >
         {TABS.map((tab) => {
@@ -113,10 +113,10 @@ export function CharacteristicConfigTabs({
               className={cn(
                 'flex items-center gap-2 px-5 py-3 text-sm font-medium',
                 'border-b-2 transition-all duration-150',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset',
+                'focus-visible:ring-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset',
                 isActive
                   ? 'border-primary text-primary bg-background'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent',
               )}
             >
               {tab.icon}

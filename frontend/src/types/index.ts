@@ -55,7 +55,7 @@ export interface PlantUpdate {
 export interface HierarchyNode {
   id: number
   name: string
-  type: string  // Flexible: Folder, Enterprise, Site, Area, Line, Cell, Equipment, Tag, or custom
+  type: string // Flexible: Folder, Enterprise, Site, Area, Line, Cell, Equipment, Tag, or custom
   parent_id: number | null
   children?: HierarchyNode[]
   characteristic_count?: number
@@ -67,7 +67,7 @@ export type SubgroupMode = 'STANDARDIZED' | 'VARIABLE_LIMITS' | 'NOMINAL_TOLERAN
 // DataSource (polymorphic base)
 export interface DataSourceResponse {
   id: number
-  type: string  // "mqtt" | "opcua"
+  type: string // "mqtt" | "opcua"
   characteristic_id: number
   trigger_strategy: string
   is_active: boolean
@@ -183,7 +183,7 @@ export interface ChartDataPoint {
   std_dev: number | null
   excluded: boolean
   violation_ids: number[]
-  violation_rules: number[]  // Nelson rule numbers (1-8) that were violated
+  violation_rules: number[] // Nelson rule numbers (1-8) that were violated
   zone: string
   // Variable subgroup size fields
   actual_n: number

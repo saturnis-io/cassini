@@ -27,31 +27,22 @@ interface MappingRowProps {
  * Protocol-aware table row for a data source mapping.
  * Shows protocol badge, source details, server, strategy, status, and actions.
  */
-export function MappingRow({
-  mapping,
-  onEdit,
-  onDelete,
-  onToggleActive,
-}: MappingRowProps) {
+export function MappingRow({ mapping, onEdit, onDelete, onToggleActive }: MappingRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const statusColor = mapping.hasError
-    ? 'fill-red-400 text-red-400'
+    ? 'fill-destructive text-destructive'
     : mapping.isActive
-      ? 'fill-emerald-400 text-emerald-400'
+      ? 'fill-success text-success'
       : 'fill-muted-foreground text-muted-foreground'
 
-  const statusLabel = mapping.hasError
-    ? 'Error'
-    : mapping.isActive
-      ? 'Active'
-      : 'Inactive'
+  const statusLabel = mapping.hasError ? 'Error' : mapping.isActive ? 'Active' : 'Inactive'
 
   return (
-    <tr className="border-t border-border hover:bg-muted/30 transition-colors group">
+    <tr className="border-border hover:bg-muted/30 group border-t transition-colors">
       {/* Characteristic */}
       <td className="px-3 py-2.5">
-        <span className="text-sm text-foreground font-medium">{mapping.characteristicName}</span>
+        <span className="text-foreground text-sm font-medium">{mapping.characteristicName}</span>
       </td>
 
       {/* Source */}
@@ -59,11 +50,11 @@ export function MappingRow({
         <div className="flex items-center gap-2">
           <ProtocolBadge protocol={mapping.protocol} />
           <div className="min-w-0">
-            <p className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">
+            <p className="text-muted-foreground max-w-[200px] truncate font-mono text-xs">
               {mapping.source}
             </p>
             {mapping.sourceDetail && (
-              <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">
+              <p className="text-muted-foreground max-w-[200px] truncate text-[10px]">
                 {mapping.sourceDetail}
               </p>
             )}
@@ -73,7 +64,7 @@ export function MappingRow({
 
       {/* Server */}
       <td className="px-3 py-2.5">
-        <span className="text-xs text-muted-foreground">{mapping.serverName ?? '--'}</span>
+        <span className="text-muted-foreground text-xs">{mapping.serverName ?? '--'}</span>
       </td>
 
       {/* Strategy */}
@@ -85,17 +76,17 @@ export function MappingRow({
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <Circle className={`h-2 w-2 ${statusColor}`} />
-          <span className="text-xs text-muted-foreground">{statusLabel}</span>
+          <span className="text-muted-foreground text-xs">{statusLabel}</span>
         </div>
       </td>
 
       {/* Actions */}
       <td className="px-3 py-2.5">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           {onToggleActive && (
             <button
               onClick={() => onToggleActive(mapping)}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
+              className="text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
               title={mapping.isActive ? 'Deactivate' : 'Activate'}
             >
               {mapping.isActive ? (
@@ -107,7 +98,7 @@ export function MappingRow({
           )}
           <button
             onClick={() => onEdit(mapping)}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
+            className="text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
             title="Edit mapping"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -119,13 +110,13 @@ export function MappingRow({
                   onDelete(mapping)
                   setConfirmDelete(false)
                 }}
-                className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                className="bg-destructive/15 text-destructive hover:bg-destructive/25 rounded px-1.5 py-0.5 text-[10px] transition-colors"
               >
                 Confirm
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="px-1.5 py-0.5 text-[10px] rounded text-muted-foreground hover:text-muted-foreground transition-colors"
+                className="text-muted-foreground hover:text-muted-foreground rounded px-1.5 py-0.5 text-[10px] transition-colors"
               >
                 Cancel
               </button>
@@ -133,7 +124,7 @@ export function MappingRow({
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="p-1 text-muted-foreground hover:text-red-400 transition-colors rounded"
+              className="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
               title="Delete mapping"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -157,23 +148,23 @@ export function UnmappedRow({
   onMap: () => void
 }) {
   return (
-    <tr className="border-t border-border/50 hover:bg-muted/20 transition-colors">
+    <tr className="border-border/50 hover:bg-muted/20 border-t transition-colors">
       <td className="px-3 py-2.5">
-        <span className="text-sm text-muted-foreground">{characteristicName}</span>
+        <span className="text-muted-foreground text-sm">{characteristicName}</span>
       </td>
       <td className="px-3 py-2.5" colSpan={3}>
-        <span className="text-xs text-muted-foreground italic">-- unmapped --</span>
+        <span className="text-muted-foreground text-xs italic">-- unmapped --</span>
       </td>
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-0.5 bg-muted-foreground rounded-full" />
-          <span className="text-xs text-muted-foreground">N/A</span>
+          <span className="bg-muted-foreground h-0.5 w-1.5 rounded-full" />
+          <span className="text-muted-foreground text-xs">N/A</span>
         </div>
       </td>
       <td className="px-3 py-2.5">
         <button
           onClick={onMap}
-          className="px-2 py-1 text-[10px] font-medium rounded bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+          className="rounded bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
         >
           Map
         </button>
@@ -194,13 +185,15 @@ function StrategyBadge({ strategy }: { strategy: string }) {
   }
 
   const colors: Record<string, string> = {
-    on_change: 'bg-blue-500/10 text-blue-400',
-    on_trigger: 'bg-amber-500/10 text-amber-400',
+    on_change: 'bg-primary/10 text-primary',
+    on_trigger: 'bg-warning/10 text-warning',
     on_timer: 'bg-cyan-500/10 text-cyan-400',
   }
 
   return (
-    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[strategy] ?? 'bg-muted text-muted-foreground'}`}>
+    <span
+      className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${colors[strategy] ?? 'bg-muted text-muted-foreground'}`}
+    >
       {labels[strategy] ?? strategy}
     </span>
   )

@@ -45,7 +45,7 @@ interface ProtocolSelectorProps {
  */
 export function ProtocolSelector({ selected, onSelect }: ProtocolSelectorProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {protocols.map((proto) => {
         const Icon = proto.icon
         const isSelected = selected === proto.id
@@ -55,29 +55,31 @@ export function ProtocolSelector({ selected, onSelect }: ProtocolSelectorProps) 
             type="button"
             onClick={() => onSelect(proto.id)}
             className={cn(
-              'flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all duration-200',
+              'flex items-start gap-4 rounded-xl border-2 p-5 text-left transition-all duration-200',
               'hover:shadow-md',
               isSelected
                 ? `${proto.borderColor} ${proto.bgColor} shadow-sm`
-                : 'border-border bg-card hover:border-muted-foreground/30'
+                : 'border-border bg-card hover:border-muted-foreground/30',
             )}
           >
             <div
               className={cn(
-                'flex items-center justify-center w-12 h-12 rounded-lg shrink-0',
-                isSelected ? proto.bgColor : 'bg-muted'
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-lg',
+                isSelected ? proto.bgColor : 'bg-muted',
               )}
             >
               <Icon className={cn('h-6 w-6', isSelected ? proto.color : 'text-muted-foreground')} />
             </div>
             <div className="min-w-0">
-              <h3 className={cn(
-                'font-semibold text-sm',
-                isSelected ? 'text-foreground' : 'text-foreground'
-              )}>
+              <h3
+                className={cn(
+                  'text-sm font-semibold',
+                  isSelected ? 'text-foreground' : 'text-foreground',
+                )}
+              >
                 {proto.label}
               </h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                 {proto.description}
               </p>
             </div>

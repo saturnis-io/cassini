@@ -93,7 +93,11 @@ export function useECharts({
       onClickRef.current?.(params as EChartsMouseEvent)
     })
     chart.on('datazoom', (params: unknown) => {
-      const p = params as { start?: number; end?: number; batch?: Array<{ start: number; end: number }> }
+      const p = params as {
+        start?: number
+        end?: number
+        batch?: Array<{ start: number; end: number }>
+      }
       const start = p.batch?.[0]?.start ?? p.start ?? 0
       const end = p.batch?.[0]?.end ?? p.end ?? 100
       onDataZoomRef.current?.({ start, end })

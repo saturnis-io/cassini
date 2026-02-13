@@ -76,10 +76,10 @@ export function PlantSelector({ className }: PlantSelectorProps) {
           break
       }
     },
-    [isOpen, plants, focusedIndex, setSelectedPlant]
+    [isOpen, plants, focusedIndex, setSelectedPlant],
   )
 
-  const handleSelectPlant = (plant: typeof plants[0]) => {
+  const handleSelectPlant = (plant: (typeof plants)[0]) => {
     setSelectedPlant(plant)
     setIsOpen(false)
     buttonRef.current?.focus()
@@ -89,8 +89,8 @@ export function PlantSelector({ className }: PlantSelectorProps) {
   if (isLoading) {
     return (
       <div className={cn('flex items-center gap-2 px-3 py-1.5', className)}>
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading sites...</span>
+        <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+        <span className="text-muted-foreground text-sm">Loading sites...</span>
       </div>
     )
   }
@@ -98,7 +98,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
   // Show error state
   if (error) {
     return (
-      <div className={cn('flex items-center gap-2 px-3 py-1.5 text-destructive', className)}>
+      <div className={cn('text-destructive flex items-center gap-2 px-3 py-1.5', className)}>
         <AlertCircle className="h-4 w-4" />
         <span className="text-sm">Failed to load sites</span>
       </div>
@@ -108,7 +108,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
   // Show empty state if no plants
   if (plants.length === 0) {
     return (
-      <div className={cn('flex items-center gap-2 px-3 py-1.5 text-muted-foreground', className)}>
+      <div className={cn('text-muted-foreground flex items-center gap-2 px-3 py-1.5', className)}>
         <Building2 className="h-4 w-4" />
         <span className="text-sm">No sites configured</span>
       </div>
@@ -126,20 +126,20 @@ export function PlantSelector({ className }: PlantSelectorProps) {
         }}
         onKeyDown={handleKeyDown}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm',
-          'border bg-background hover:bg-accent transition-colors',
-          'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-          isOpen && 'bg-accent'
+          'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm',
+          'bg-background hover:bg-accent border transition-colors',
+          'focus:ring-ring focus:ring-2 focus:ring-offset-2 focus:outline-none',
+          isOpen && 'bg-accent',
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        <Building2 className="h-4 w-4 text-muted-foreground" />
+        <Building2 className="text-muted-foreground h-4 w-4" />
         <span className="font-medium">{selectedPlant?.name ?? 'Select Site'}</span>
         <ChevronDown
           className={cn(
-            'h-4 w-4 text-muted-foreground transition-transform duration-150',
-            isOpen && 'rotate-180'
+            'text-muted-foreground h-4 w-4 transition-transform duration-150',
+            isOpen && 'rotate-180',
           )}
         />
       </button>
@@ -148,9 +148,9 @@ export function PlantSelector({ className }: PlantSelectorProps) {
       {isOpen && (
         <div
           className={cn(
-            'absolute top-full right-0 mt-1 min-w-full w-max z-50',
-            'bg-popover border rounded-md shadow-lg',
-            'animate-in fade-in-0 zoom-in-95 duration-100'
+            'absolute top-full right-0 z-50 mt-1 w-max min-w-full',
+            'bg-popover rounded-md border shadow-lg',
+            'animate-in fade-in-0 zoom-in-95 duration-100',
           )}
           role="listbox"
           onKeyDown={handleKeyDown}
@@ -166,19 +166,19 @@ export function PlantSelector({ className }: PlantSelectorProps) {
                   onClick={() => handleSelectPlant(plant)}
                   onMouseEnter={() => setFocusedIndex(index)}
                   className={cn(
-                    'flex items-center justify-between w-full px-3 py-2 rounded-sm text-sm',
+                    'flex w-full items-center justify-between rounded-sm px-3 py-2 text-sm',
                     'transition-colors',
                     isFocused && 'bg-accent',
-                    isSelected && 'font-medium'
+                    isSelected && 'font-medium',
                   )}
                   role="option"
                   aria-selected={isSelected}
                 >
                   <div className="flex flex-col items-start">
                     <span>{plant.name}</span>
-                    <span className="text-xs text-muted-foreground">{plant.code}</span>
+                    <span className="text-muted-foreground text-xs">{plant.code}</span>
                   </div>
-                  {isSelected && <Check className="h-4 w-4 text-primary" />}
+                  {isSelected && <Check className="text-primary h-4 w-4" />}
                 </button>
               )
             })}

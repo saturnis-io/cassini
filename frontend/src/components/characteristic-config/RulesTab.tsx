@@ -24,16 +24,16 @@ export interface RulesTabRef {
 
 function SeverityBadge({ severity }: { severity: 'CRITICAL' | 'WARNING' | 'INFO' }) {
   const styles = {
-    CRITICAL: 'bg-red-500/15 text-red-600 border-red-500/30',
-    WARNING: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
-    INFO: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
+    CRITICAL: 'bg-destructive/15 text-destructive border-destructive/30',
+    WARNING: 'bg-warning/15 text-warning border-warning/30',
+    INFO: 'bg-primary/15 text-primary border-primary/30',
   }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border',
-        styles[severity]
+        'inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium',
+        styles[severity],
       )}
     >
       {severity}
@@ -68,17 +68,17 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex items-center rounded-full transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
-        disabled && 'opacity-50 cursor-not-allowed',
+        'focus-visible:ring-primary/50 focus:outline-none focus-visible:ring-2',
+        disabled && 'cursor-not-allowed opacity-50',
         checked ? 'bg-primary' : 'bg-muted-foreground/30',
-        s.track
+        s.track,
       )}
     >
       <span
         className={cn(
           'inline-block transform rounded-full bg-white shadow-sm transition-transform',
           checked ? s.translate : 'translate-x-1',
-          s.thumb
+          s.thumb,
         )}
       />
     </button>
@@ -87,7 +87,7 @@ function ToggleSwitch({
 
 export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab(
   { characteristicId, onDirty },
-  ref
+  ref,
 ) {
   const { data: rulesData, isLoading } = useNelsonRules(characteristicId)
   const updateRules = useUpdateNelsonRules()
@@ -97,7 +97,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const [isDirty, setIsDirty] = useState(false)
 
   // Initialize from server - intentional sync from fetched data
-   
+
   useEffect(() => {
     if (rulesData?.rule_configs && !initialized) {
       const configMap = new Map<number, RuleConfig>()
@@ -120,7 +120,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   }, [rulesData, initialized])
 
   // Reset on characteristic change - intentional reset
-   
+
   useEffect(() => {
     setInitialized(false)
     setIsDirty(false)
@@ -129,7 +129,11 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const handleEnabledToggle = (ruleId: number, checked: boolean) => {
     setRuleConfigs((prev) => {
       const next = new Map(prev)
-      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      const existing = next.get(ruleId) || {
+        rule_id: ruleId,
+        is_enabled: true,
+        require_acknowledgement: true,
+      }
       next.set(ruleId, { ...existing, is_enabled: checked })
       return next
     })
@@ -140,7 +144,11 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const handleRequireAckChange = (ruleId: number, checked: boolean) => {
     setRuleConfigs((prev) => {
       const next = new Map(prev)
-      const existing = next.get(ruleId) || { rule_id: ruleId, is_enabled: true, require_acknowledgement: true }
+      const existing = next.get(ruleId) || {
+        rule_id: ruleId,
+        is_enabled: true,
+        require_acknowledgement: true,
+      }
       next.set(ruleId, { ...existing, require_acknowledgement: checked })
       return next
     })
@@ -206,52 +214,52 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-medium flex items-center gap-2">
+          <h3 className="flex items-center gap-2 font-medium">
             Nelson Rules
             <HelpTooltip helpKey="nelson-rules-overview" />
           </h3>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Detect patterns that indicate a process is out of statistical control.
           </p>
         </div>
       </div>
 
       {/* Quick Actions */}
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border">
-        <span className="text-sm text-muted-foreground mr-2">Quick Actions:</span>
+      <div className="bg-muted/30 border-border flex items-center gap-2 rounded-lg border p-3">
+        <span className="text-muted-foreground mr-2 text-sm">Quick Actions:</span>
         <button
           onClick={handleEnableAll}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted transition-colors"
+          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Enable All
         </button>
         <button
           onClick={handleDisableAll}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted transition-colors"
+          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Disable All
         </button>
         <button
           onClick={handleResetDefaults}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted transition-colors"
+          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Reset to Defaults
         </button>
       </div>
 
       {/* Rules Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full">
           <thead>
-            <tr className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">
-              <th className="px-3 py-2 w-16">Pattern</th>
+            <tr className="bg-muted/50 text-muted-foreground text-left text-xs font-medium">
+              <th className="w-16 px-3 py-2">Pattern</th>
               <th className="px-3 py-2">Rule</th>
-              <th className="px-3 py-2 w-20">Severity</th>
-              <th className="px-3 py-2 w-24 text-center">Req. Ack</th>
-              <th className="px-3 py-2 w-20 text-center">Enabled</th>
+              <th className="w-20 px-3 py-2">Severity</th>
+              <th className="w-24 px-3 py-2 text-center">Req. Ack</th>
+              <th className="w-20 px-3 py-2 text-center">Enabled</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-border divide-y">
             {NELSON_RULES.map((rule) => {
               const config = ruleConfigs.get(rule.id)
               const isEnabled = config?.is_enabled ?? true
@@ -263,12 +271,12 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                   key={rule.id}
                   className={cn(
                     'transition-colors',
-                    isEnabled ? 'bg-background' : 'bg-muted/20 opacity-60'
+                    isEnabled ? 'bg-background' : 'bg-muted/20 opacity-60',
                   )}
                 >
                   {/* Sparkline */}
                   <td className="px-3 py-2">
-                    <div className="w-16 h-6 flex items-center justify-center">
+                    <div className="flex h-6 w-16 items-center justify-center">
                       {Sparkline && <Sparkline className="text-foreground" />}
                     </div>
                   </td>
@@ -276,12 +284,10 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                   {/* Rule Name & Description */}
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-muted-foreground w-4">
-                        {rule.id}
-                      </span>
+                      <span className="text-muted-foreground w-4 font-mono text-xs">{rule.id}</span>
                       <div>
-                        <div className="font-medium text-sm">{rule.name}</div>
-                        <div className="text-xs text-muted-foreground">{rule.shortDesc}</div>
+                        <div className="text-sm font-medium">{rule.name}</div>
+                        <div className="text-muted-foreground text-xs">{rule.shortDesc}</div>
                       </div>
                     </div>
                   </td>
@@ -299,7 +305,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                         checked={requireAck}
                         onChange={(e) => handleRequireAckChange(rule.id, e.target.checked)}
                         disabled={updateRules.isPending}
-                        className="h-4 w-4 rounded border-border cursor-pointer"
+                        className="border-border h-4 w-4 cursor-pointer rounded"
                       />
                     )}
                   </td>
@@ -321,15 +327,15 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center gap-4 text-xs">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-red-500" /> Critical
+          <span className="bg-destructive h-2 w-2 rounded-full" /> Critical
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-amber-500" /> Warning
+          <span className="bg-warning h-2 w-2 rounded-full" /> Warning
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> Info
+          <span className="bg-primary h-2 w-2 rounded-full" /> Info
         </span>
       </div>
 
@@ -342,26 +348,28 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
               const details = NELSON_RULE_DETAILS[rule.id]
 
               return (
-                <div key={rule.id} className="border border-border rounded-lg overflow-hidden">
+                <div key={rule.id} className="border-border overflow-hidden rounded-lg border">
                   {/* Rule Header */}
-                  <div className="flex items-center gap-4 p-4 bg-muted/30">
-                    <div className="w-20 flex-shrink-0 flex items-center justify-center">
+                  <div className="bg-muted/30 flex items-center gap-4 p-4">
+                    <div className="flex w-20 flex-shrink-0 items-center justify-center">
                       {Sparkline && <Sparkline className="text-foreground" />}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">Rule {rule.id}: {rule.name}</span>
+                        <span className="font-semibold">
+                          Rule {rule.id}: {rule.name}
+                        </span>
                         <SeverityBadge severity={rule.severity} />
                       </div>
-                      <p className="text-sm text-muted-foreground">{rule.shortDesc}</p>
+                      <p className="text-muted-foreground text-sm">{rule.shortDesc}</p>
                     </div>
                   </div>
 
                   {/* Rule Details */}
-                  <div className="p-4 space-y-4 text-sm">
+                  <div className="space-y-4 p-4 text-sm">
                     {/* What it detects */}
                     <div>
-                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                      <h5 className="text-muted-foreground mb-1 text-xs font-medium uppercase">
                         What This Detects
                       </h5>
                       <p className="text-foreground">{details.description}</p>
@@ -369,7 +377,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
 
                     {/* Common causes */}
                     <div>
-                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                      <h5 className="text-muted-foreground mb-1 text-xs font-medium uppercase">
                         Common Causes
                       </h5>
                       <p className="text-foreground">{details.cause}</p>
@@ -377,7 +385,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
 
                     {/* Recommended action */}
                     <div>
-                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1">
+                      <h5 className="text-muted-foreground mb-1 text-xs font-medium uppercase">
                         Recommended Action
                       </h5>
                       <p className="text-foreground">{details.action}</p>
@@ -392,10 +400,10 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
 
       {/* Status */}
       {updateRules.isPending && (
-        <div className="text-sm text-muted-foreground text-center py-2">Saving rules...</div>
+        <div className="text-muted-foreground py-2 text-center text-sm">Saving rules...</div>
       )}
       {updateRules.isError && (
-        <div className="text-sm text-red-600 text-center py-2">
+        <div className="text-destructive py-2 text-center text-sm">
           Failed to save rules. Please try again.
         </div>
       )}

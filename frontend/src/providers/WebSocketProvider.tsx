@@ -24,67 +24,66 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const subscriptionsRef = useRef<Set<number>>(new Set())
   const connectRef = useRef<() => void>(() => {})
 
-  const {
-    wsConnected,
-    setWsConnected,
-    addPendingViolation,
-    updateLatestSample,
-  } = useDashboardStore()
+  const { wsConnected, setWsConnected, addPendingViolation, updateLatestSample } =
+    useDashboardStore()
 
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const message: WSMessage = JSON.parse(event.data)
+  const handleMessage = useCallback(
+    (event: MessageEvent) => {
+      try {
+        const message: WSMessage = JSON.parse(event.data)
 
-      switch (message.type) {
-        case 'sample': {
-          updateLatestSample(
-            message.characteristic_id,
-            message.sample.mean,
-            message.sample.timestamp
-          )
-          queryClient.invalidateQueries({
-            queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
-          })
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.characteristics.detail(message.characteristic_id),
-          })
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.violations.stats(),
-          })
-          message.violations.forEach((violation) => {
-            addPendingViolation(violation)
-          })
-          break
+        switch (message.type) {
+          case 'sample': {
+            updateLatestSample(
+              message.characteristic_id,
+              message.sample.mean,
+              message.sample.timestamp,
+            )
+            queryClient.invalidateQueries({
+              queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
+            })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.characteristics.detail(message.characteristic_id),
+            })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.violations.stats(),
+            })
+            message.violations.forEach((violation) => {
+              addPendingViolation(violation)
+            })
+            break
+          }
+
+          case 'violation': {
+            addPendingViolation(message.violation)
+            queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+            break
+          }
+
+          case 'ack_update': {
+            queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.violations.stats(),
+            })
+            break
+          }
+
+          case 'limits_update': {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.characteristics.detail(message.characteristic_id),
+            })
+            queryClient.invalidateQueries({
+              queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
+            })
+            break
+          }
         }
-
-        case 'violation': {
-          addPendingViolation(message.violation)
-          queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-          break
-        }
-
-        case 'ack_update': {
-          queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.violations.stats(),
-          })
-          break
-        }
-
-        case 'limits_update': {
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.characteristics.detail(message.characteristic_id),
-          })
-          queryClient.invalidateQueries({
-            queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
-          })
-          break
-        }
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error)
       }
-    } catch (error) {
-      console.error('Failed to parse WebSocket message:', error)
-    }
-  }, [queryClient, updateLatestSample, addPendingViolation])
+    },
+    [queryClient, updateLatestSample, addPendingViolation],
+  )
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -148,7 +147,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ type: 'subscribe', characteristic_ids: [characteristicId] })
+        JSON.stringify({ type: 'subscribe', characteristic_ids: [characteristicId] }),
       )
     }
   }, [])
@@ -158,7 +157,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
-        JSON.stringify({ type: 'unsubscribe', characteristic_ids: [characteristicId] })
+        JSON.stringify({ type: 'unsubscribe', characteristic_ids: [characteristicId] }),
       )
     }
   }, [])

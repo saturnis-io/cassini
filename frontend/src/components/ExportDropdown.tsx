@@ -116,67 +116,52 @@ export function ExportDropdown({
   }
 
   return (
-    <div
-      ref={dropdownRef}
-      className={cn('relative', className)}
-      onBlur={handleBlur}
-    >
+    <div ref={dropdownRef} className={cn('relative', className)} onBlur={handleBlur}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled || isExporting}
         className={cn(
-          'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+          'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',
-          'disabled:opacity-50 disabled:cursor-not-allowed'
+          'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >
         <Download className="h-4 w-4" />
         {isExporting ? 'Exporting...' : 'Export'}
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 transition-transform',
-            isOpen && 'rotate-180'
-          )}
-        />
+        <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-lg border border-border bg-card shadow-lg z-50">
+        <div className="border-border bg-card absolute right-0 z-50 mt-2 w-48 rounded-lg border shadow-lg">
           <div className="py-1">
             <button
               onClick={() => handleExport('pdf')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-muted transition-colors"
+              className="hover:bg-muted flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
             >
-              <FileText className="h-4 w-4 text-red-500" />
+              <FileText className="text-destructive h-4 w-4" />
               <div>
                 <div className="font-medium">PDF</div>
-                <div className="text-xs text-muted-foreground">
-                  Visual report with charts
-                </div>
+                <div className="text-muted-foreground text-xs">Visual report with charts</div>
               </div>
             </button>
             <button
               onClick={() => handleExport('excel')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-muted transition-colors"
+              className="hover:bg-muted flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
             >
-              <FileSpreadsheet className="h-4 w-4 text-green-500" />
+              <FileSpreadsheet className="text-success h-4 w-4" />
               <div>
                 <div className="font-medium">Excel (.xlsx)</div>
-                <div className="text-xs text-muted-foreground">
-                  Spreadsheet with data
-                </div>
+                <div className="text-muted-foreground text-xs">Spreadsheet with data</div>
               </div>
             </button>
             <button
               onClick={() => handleExport('csv')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left hover:bg-muted transition-colors"
+              className="hover:bg-muted flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
             >
-              <FileText className="h-4 w-4 text-blue-500" />
+              <FileText className="text-primary h-4 w-4" />
               <div>
                 <div className="font-medium">CSV</div>
-                <div className="text-xs text-muted-foreground">
-                  Plain text data
-                </div>
+                <div className="text-muted-foreground text-xs">Plain text data</div>
               </div>
             </button>
           </div>

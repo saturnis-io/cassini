@@ -1,5 +1,17 @@
 import { useState, useMemo } from 'react'
-import { AlertTriangle, Check, Clock, Filter, RefreshCw, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  Clock,
+  Filter,
+  RefreshCw,
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useViolations, useViolationStats, useAcknowledgeViolation } from '@/api/hooks'
 import { violationApi } from '@/api/client'
@@ -41,14 +53,14 @@ function Pager({
 
   return (
     <div className="flex items-center justify-between px-4 py-2">
-      <span className="text-sm text-muted-foreground">
+      <span className="text-muted-foreground text-sm">
         Showing {showingFrom}–{showingTo} of {totalItems}
       </span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(1)}
           disabled={page <= 1}
-          className="px-1.5 py-1 text-xs font-mono font-bold border border-border rounded hover:bg-muted disabled:opacity-40 transition-colors"
+          className="border-border hover:bg-muted rounded border px-1.5 py-1 font-mono text-xs font-bold transition-colors disabled:opacity-40"
           title="First page"
         >
           <ChevronsLeft className="h-4 w-4" />
@@ -56,7 +68,7 @@ function Pager({
         <button
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1}
-          className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 transition-colors"
+          className="border-border hover:bg-muted rounded border p-1 transition-colors disabled:opacity-40"
           title="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -71,14 +83,14 @@ function Pager({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleInputCommit((e.target as HTMLInputElement).value)
             }}
-            className="w-12 px-1 py-0.5 text-sm text-center tabular-nums border border-border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="border-border bg-background focus:ring-primary/50 w-12 rounded border px-1 py-0.5 text-center text-sm tabular-nums focus:ring-1 focus:outline-none"
           />
-          <span className="text-sm text-muted-foreground">/ {totalPages}</span>
+          <span className="text-muted-foreground text-sm">/ {totalPages}</span>
         </div>
         <button
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages}
-          className="p-1 border border-border rounded hover:bg-muted disabled:opacity-40 transition-colors"
+          className="border-border hover:bg-muted rounded border p-1 transition-colors disabled:opacity-40"
           title="Next page"
         >
           <ChevronRight className="h-4 w-4" />
@@ -86,7 +98,7 @@ function Pager({
         <button
           onClick={() => onPageChange(totalPages)}
           disabled={page >= totalPages}
-          className="px-1.5 py-1 text-xs font-mono font-bold border border-border rounded hover:bg-muted disabled:opacity-40 transition-colors"
+          className="border-border hover:bg-muted rounded border px-1.5 py-1 font-mono text-xs font-bold transition-colors disabled:opacity-40"
           title="Last page"
         >
           <ChevronsRight className="h-4 w-4" />
@@ -101,7 +113,11 @@ export function ViolationsView() {
   const [selectedRule, setSelectedRule] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [dateRange, setDateRange] = useState<TimeRangeState>({
-    type: 'points', pointsLimit: null, hoursBack: null, startDate: null, endDate: null,
+    type: 'points',
+    pointsLimit: null,
+    hoursBack: null,
+    startDate: null,
+    endDate: null,
   })
   const [bulkAckDialogOpen, setBulkAckDialogOpen] = useState(false)
   const [bulkIds, setBulkIds] = useState<number[]>([])
@@ -144,12 +160,15 @@ export function ViolationsView() {
   }
 
   const { data: stats, refetch: refetchStats } = useViolationStats()
-  const { data: violations, isLoading, refetch } = useViolations({
-    acknowledged: statusFilter === 'acknowledged' ? true : statusFilter === 'all' ? undefined : false,
+  const {
+    data: violations,
+    isLoading,
+    refetch,
+  } = useViolations({
+    acknowledged:
+      statusFilter === 'acknowledged' ? true : statusFilter === 'all' ? undefined : false,
     requires_acknowledgement:
-      statusFilter === 'required' ? true
-      : statusFilter === 'informational' ? false
-      : undefined,
+      statusFilter === 'required' ? true : statusFilter === 'informational' ? false : undefined,
     rule_id: selectedRule ?? undefined,
     page: isPointsLimit ? 1 : page,
     per_page: effectivePerPage,
@@ -160,8 +179,8 @@ export function ViolationsView() {
   const pendingFromPage = useMemo(() => {
     if (!violations?.items) return []
     return violations.items
-      .filter(v => !v.acknowledged && v.requires_acknowledgement)
-      .map(v => v.id)
+      .filter((v) => !v.acknowledged && v.requires_acknowledgement)
+      .map((v) => v.id)
   }, [violations])
 
   // For paginated modes, get the total pending count across all pages
@@ -173,7 +192,9 @@ export function ViolationsView() {
     ...dateParams,
   })
   // Points mode: scope is exactly the loaded items. Otherwise: total across all pages.
-  const bulkPendingCount = isPointsLimit ? pendingFromPage.length : (pendingCountData?.total ?? pendingFromPage.length)
+  const bulkPendingCount = isPointsLimit
+    ? pendingFromPage.length
+    : (pendingCountData?.total ?? pendingFromPage.length)
 
   const { user, role } = useAuth()
   const acknowledgeMutation = useAcknowledgeViolation()
@@ -207,7 +228,7 @@ export function ViolationsView() {
           per_page: batchSize,
           ...dateParams,
         })
-        allIds.push(...result.items.map(v => v.id))
+        allIds.push(...result.items.map((v) => v.id))
         if (allIds.length >= result.total || result.items.length < batchSize) break
         fetchPage++
       }
@@ -220,13 +241,17 @@ export function ViolationsView() {
 
   const handleAcknowledge = (violationId: number) => {
     acknowledgeMutation.mutate(
-      { id: violationId, reason: 'Acknowledged from violations view', user: user?.username ?? 'Unknown' },
+      {
+        id: violationId,
+        reason: 'Acknowledged from violations view',
+        user: user?.username ?? 'Unknown',
+      },
       {
         onSuccess: () => {
           refetch()
           refetchStats()
         },
-      }
+      },
     )
   }
 
@@ -235,9 +260,9 @@ export function ViolationsView() {
       case 'CRITICAL':
         return 'bg-destructive/10 text-destructive border-destructive/20'
       case 'WARNING':
-        return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20'
+        return 'bg-warning/10 text-warning border-warning/20'
       default:
-        return 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+        return 'bg-primary/10 text-primary border-primary/20'
     }
   }
 
@@ -247,16 +272,14 @@ export function ViolationsView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Violations</h1>
-          <p className="text-muted-foreground">
-            Monitor and acknowledge Nelson rule violations
-          </p>
+          <p className="text-muted-foreground">Monitor and acknowledge Nelson rule violations</p>
         </div>
         <div className="flex items-center gap-2">
           {canBulkAck && (
             <button
               onClick={handleBulkAcknowledge}
               disabled={fetchingBulkIds}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               {fetchingBulkIds ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -271,7 +294,7 @@ export function ViolationsView() {
               refetch()
               refetchStats()
             }}
-            className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+            className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -281,63 +304,67 @@ export function ViolationsView() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-5 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">Total Violations</div>
+        <div className="bg-card border-border rounded-lg border p-4">
+          <div className="text-muted-foreground text-sm">Total Violations</div>
           <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+        <div className="bg-card border-border rounded-lg border p-4">
+          <div className="text-muted-foreground flex items-center gap-1 text-sm">
+            <AlertTriangle className="text-destructive h-3.5 w-3.5" />
             Pending (Required)
           </div>
-          <div className="text-2xl font-bold text-destructive">{stats?.unacknowledged ?? 0}</div>
+          <div className="text-destructive text-2xl font-bold">{stats?.unacknowledged ?? 0}</div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground flex items-center gap-1">
-            <Info className="h-3.5 w-3.5 text-blue-500" />
+        <div className="bg-card border-border rounded-lg border p-4">
+          <div className="text-muted-foreground flex items-center gap-1 text-sm">
+            <Info className="text-primary h-3.5 w-3.5" />
             Informational
           </div>
-          <div className="text-2xl font-bold text-blue-500">{stats?.informational ?? 0}</div>
+          <div className="text-primary text-2xl font-bold">{stats?.informational ?? 0}</div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">Critical</div>
+        <div className="bg-card border-border rounded-lg border p-4">
+          <div className="text-muted-foreground text-sm">Critical</div>
           <div className="text-2xl font-bold">{stats?.by_severity?.CRITICAL ?? 0}</div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">Warning</div>
+        <div className="bg-card border-border rounded-lg border p-4">
+          <div className="text-muted-foreground text-sm">Warning</div>
           <div className="text-2xl font-bold">{stats?.by_severity?.WARNING ?? 0}</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <div className="flex border border-border rounded-lg overflow-hidden">
-            {(['required', 'informational', 'acknowledged', 'all'] as FilterStatus[]).map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={cn(
-                  'px-3 py-1.5 text-sm transition-colors',
-                  statusFilter === status
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted'
-                )}
-              >
-                {status === 'required' ? 'Pending' : status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
+          <Filter className="text-muted-foreground h-4 w-4" />
+          <span className="text-muted-foreground text-sm">Status:</span>
+          <div className="border-border flex overflow-hidden rounded-lg border">
+            {(['required', 'informational', 'acknowledged', 'all'] as FilterStatus[]).map(
+              (status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm transition-colors',
+                    statusFilter === status
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted',
+                  )}
+                >
+                  {status === 'required'
+                    ? 'Pending'
+                    : status.charAt(0).toUpperCase() + status.slice(1)}
+                </button>
+              ),
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Rule:</span>
+          <span className="text-muted-foreground text-sm">Rule:</span>
           <select
             value={selectedRule ?? ''}
             onChange={(e) => setSelectedRule(e.target.value ? Number(e.target.value) : null)}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-background"
+            className="border-border bg-background rounded-lg border px-3 py-1.5 text-sm"
           >
             <option value="">All Rules</option>
             {Object.entries(NELSON_RULES).map(([id, rule]) => (
@@ -349,41 +376,59 @@ export function ViolationsView() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Time:</span>
+          <span className="text-muted-foreground text-sm">Time:</span>
           <TimeRangeSelector value={dateRange} onChange={setDateRange} showAllTime />
         </div>
       </div>
 
       {/* Violations Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="bg-card border-border overflow-hidden rounded-lg border">
         {/* Top Pager */}
         {showPager && (
-          <div className="border-b border-border bg-muted/30">
-            <Pager page={page} totalPages={totalPages} totalItems={displayedItems} perPage={effectivePerPage} onPageChange={setPage} />
+          <div className="border-border bg-muted/30 border-b">
+            <Pager
+              page={page}
+              totalPages={totalPages}
+              totalItems={displayedItems}
+              perPage={effectivePerPage}
+              onPageChange={setPage}
+            />
           </div>
         )}
 
         <table className="w-full">
-          <thead className="bg-muted/50 border-b border-border">
+          <thead className="bg-muted/50 border-border border-b">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Time</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Characteristic</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Rule</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Severity</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
+              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                Time
+              </th>
+              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                Characteristic
+              </th>
+              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                Rule
+              </th>
+              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                Severity
+              </th>
+              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                Status
+              </th>
+              <th className="text-muted-foreground px-4 py-3 text-right text-sm font-medium">
+                Actions
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className="divide-border divide-y">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
                   Loading violations...
                 </td>
               </tr>
             ) : !violations?.items || violations?.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
                   No violations found
                 </td>
               </tr>
@@ -396,15 +441,15 @@ export function ViolationsView() {
                     className={cn(
                       'transition-colors',
                       isInformational && !violation.acknowledged
-                        ? 'opacity-60 bg-muted/20 hover:bg-muted/40'
-                        : 'hover:bg-muted/30'
+                        ? 'bg-muted/20 hover:bg-muted/40 opacity-60'
+                        : 'hover:bg-muted/30',
                     )}
                   >
                     <td className="px-4 py-3 text-sm">
                       {violation.created_at ? (
                         <>
                           <div>{new Date(violation.created_at).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-muted-foreground text-xs">
                             {new Date(violation.created_at).toLocaleTimeString()}
                           </div>
                         </>
@@ -417,42 +462,51 @@ export function ViolationsView() {
                         {violation.characteristic_name || 'Unknown'}
                       </div>
                       {violation.hierarchy_path && (
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-muted-foreground text-xs">
                           {violation.hierarchy_path}
                         </div>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className={cn(
-                          'inline-flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full',
-                          isInformational
-                            ? 'bg-blue-500/10 text-blue-600'
-                            : 'bg-destructive/10 text-destructive'
-                        )}>
+                        <span
+                          className={cn(
+                            'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                            isInformational
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-destructive/10 text-destructive',
+                          )}
+                        >
                           {violation.rule_id}
                         </span>
-                        <span className="text-sm">{NELSON_RULES[violation.rule_id]?.name || violation.rule_name}</span>
+                        <span className="text-sm">
+                          {NELSON_RULES[violation.rule_id]?.name || violation.rule_name}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={cn('px-2 py-1 text-xs font-medium rounded border', getSeverityStyle(violation.severity))}>
+                      <span
+                        className={cn(
+                          'rounded border px-2 py-1 text-xs font-medium',
+                          getSeverityStyle(violation.severity),
+                        )}
+                      >
                         {violation.severity}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       {violation.acknowledged ? (
-                        <div className="flex items-center gap-1 text-sm text-green-600">
+                        <div className="text-success flex items-center gap-1 text-sm">
                           <Check className="h-4 w-4" />
                           <span>Acknowledged</span>
                         </div>
                       ) : isInformational ? (
-                        <div className="flex items-center gap-1 text-sm text-blue-500">
+                        <div className="text-primary flex items-center gap-1 text-sm">
                           <Info className="h-4 w-4" />
                           <span>Informational</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 text-sm text-destructive">
+                        <div className="text-destructive flex items-center gap-1 text-sm">
                           <Clock className="h-4 w-4" />
                           <span>Pending</span>
                         </div>
@@ -463,7 +517,7 @@ export function ViolationsView() {
                         <button
                           onClick={() => handleAcknowledge(violation.id)}
                           disabled={acknowledgeMutation.isPending}
-                          className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           Acknowledge
                         </button>
@@ -478,8 +532,14 @@ export function ViolationsView() {
 
         {/* Bottom Pager */}
         {showPager && (
-          <div className="border-t border-border bg-muted/30">
-            <Pager page={page} totalPages={totalPages} totalItems={displayedItems} perPage={effectivePerPage} onPageChange={setPage} />
+          <div className="border-border bg-muted/30 border-t">
+            <Pager
+              page={page}
+              totalPages={totalPages}
+              totalItems={displayedItems}
+              perPage={effectivePerPage}
+              onPageChange={setPage}
+            />
           </div>
         )}
       </div>

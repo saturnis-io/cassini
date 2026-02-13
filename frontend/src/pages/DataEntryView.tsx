@@ -25,9 +25,7 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
   },
   {
     label: 'Review',
-    tabs: [
-      { id: 'sample-history', label: 'Sample History', icon: History },
-    ],
+    tabs: [{ id: 'sample-history', label: 'Sample History', icon: History }],
   },
 ]
 
@@ -36,18 +34,18 @@ export function DataEntryView() {
   const [showImport, setShowImport] = useState(false)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm px-6 pt-5 pb-5 flex items-start justify-between">
+      <div className="border-border bg-background/80 flex shrink-0 items-start justify-between border-b px-6 pt-5 pb-5 backdrop-blur-sm">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Data Entry</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-foreground text-xl font-bold tracking-tight">Data Entry</h1>
+          <p className="text-muted-foreground mt-0.5 text-sm">
             Submit samples and manage measurement history
           </p>
         </div>
         <button
           onClick={() => setShowImport(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors"
+          className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
         >
           <FileSpreadsheet className="h-4 w-4" />
           Import CSV/Excel
@@ -55,15 +53,15 @@ export function DataEntryView() {
       </div>
 
       {/* Sidebar + Content */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1">
         {/* Sidebar Navigation */}
         <nav
-          className="w-52 shrink-0 border-r border-border bg-card/50 overflow-y-auto py-4 px-3"
+          className="border-border bg-card/50 w-52 shrink-0 overflow-y-auto border-r px-3 py-4"
           aria-label="Data entry navigation"
         >
           {SIDEBAR_GROUPS.map((group) => (
             <div key={group.label} className="mb-5">
-              <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="text-muted-foreground mb-1.5 px-3 text-[10px] font-semibold tracking-wider uppercase">
                 {group.label}
               </div>
               <div className="space-y-0.5">
@@ -73,17 +71,18 @@ export function DataEntryView() {
                     onClick={() => !tab.disabled && setActiveTab(tab.id)}
                     disabled={tab.disabled}
                     className={cn(
-                      'w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                      'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                       activeTab === tab.id
                         ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-                      tab.disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
+                      tab.disabled &&
+                        'hover:text-muted-foreground cursor-not-allowed opacity-50 hover:bg-transparent',
                     )}
                   >
                     <tab.icon className="h-4 w-4" />
                     {tab.label}
                     {tab.disabled && (
-                      <span className="ml-auto text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                      <span className="bg-muted text-muted-foreground ml-auto rounded px-1.5 py-0.5 text-[10px]">
                         Soon
                       </span>
                     )}
@@ -99,13 +98,10 @@ export function DataEntryView() {
           {activeTab === 'manual-entry' && <ManualEntryPanel />}
           {activeTab === 'sample-history' && <SampleHistoryPanel />}
           {activeTab === 'scheduling' && (
-            <div className="bg-muted rounded-xl p-8 text-center text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="font-semibold text-foreground mb-2">Scheduling Coming Soon</h3>
-              <p>
-                Configure scheduled data collection reminders and automated
-                sampling workflows.
-              </p>
+            <div className="bg-muted text-muted-foreground rounded-xl p-8 text-center">
+              <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
+              <h3 className="text-foreground mb-2 font-semibold">Scheduling Coming Soon</h3>
+              <p>Configure scheduled data collection reminders and automated sampling workflows.</p>
             </div>
           )}
         </main>

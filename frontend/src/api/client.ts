@@ -175,7 +175,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
   const buildHeaders = () => {
     const h: Record<string, string> = {
-      ...(options?.headers as Record<string, string> || {}),
+      ...((options?.headers as Record<string, string>) || {}),
     }
     // Only set Content-Type for requests that have a body.
     // Skip for FormData — browser must set multipart boundary automatically.
@@ -206,7 +206,9 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
       })
       if (!retryResponse.ok) {
         const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
-        throw new Error(typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`)
+        throw new Error(
+          typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`,
+        )
       }
       if (retryResponse.status === 204) return undefined as T
       return retryResponse.json()
@@ -222,9 +224,11 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
       message = error.detail
     } else if (Array.isArray(error.detail)) {
       // Pydantic validation error format: [{loc: [...], msg: "...", type: "..."}]
-      message = error.detail.map((e: { msg: string; loc?: string[] }) =>
-        e.loc ? `${e.loc.join('.')}: ${e.msg}` : e.msg
-      ).join('; ')
+      message = error.detail
+        .map((e: { msg: string; loc?: string[] }) =>
+          e.loc ? `${e.loc.join('.')}: ${e.msg}` : e.msg,
+        )
+        .join('; ')
     } else if (error.detail) {
       message = JSON.stringify(error.detail)
     }
@@ -303,8 +307,7 @@ export const plantApi = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: number) =>
-    fetchApi<void>(`/plants/${id}`, { method: 'DELETE' }),
+  delete: (id: number) => fetchApi<void>(`/plants/${id}`, { method: 'DELETE' }),
 }
 
 // Hierarchy API
@@ -326,17 +329,18 @@ export const hierarchyApi = {
       body: JSON.stringify(data),
     }),
 
-  deleteNode: (id: number) =>
-    fetchApi<void>(`/hierarchy/${id}`, { method: 'DELETE' }),
+  deleteNode: (id: number) => fetchApi<void>(`/hierarchy/${id}`, { method: 'DELETE' }),
 
   getCharacteristics: (id: number) =>
     fetchApi<Characteristic[]>(`/hierarchy/${id}/characteristics`),
 
   // Plant-scoped endpoints
-  getTreeByPlant: (plantId: number) =>
-    fetchApi<HierarchyNode[]>(`/plants/${plantId}/hierarchies/`),
+  getTreeByPlant: (plantId: number) => fetchApi<HierarchyNode[]>(`/plants/${plantId}/hierarchies/`),
 
-  createNodeInPlant: (plantId: number, data: { name: string; type: string; parent_id: number | null }) =>
+  createNodeInPlant: (
+    plantId: number,
+    data: { name: string; type: string; parent_id: number | null },
+  ) =>
     fetchApi<HierarchyNode>(`/plants/${plantId}/hierarchies/`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -360,7 +364,9 @@ export const characteristicApi = {
     if (params?.per_page) searchParams.set('per_page', String(params.per_page))
 
     const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Characteristic>>(`/characteristics/${query ? `?${query}` : ''}`)
+    return fetchApi<PaginatedResponse<Characteristic>>(
+      `/characteristics/${query ? `?${query}` : ''}`,
+    )
   },
 
   get: (id: number) => fetchApi<Characteristic>(`/characteristics/${id}`),
@@ -377,14 +383,16 @@ export const characteristicApi = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: number) =>
-    fetchApi<void>(`/characteristics/${id}`, { method: 'DELETE' }),
+  delete: (id: number) => fetchApi<void>(`/characteristics/${id}`, { method: 'DELETE' }),
 
-  getChartData: (id: number, options?: {
-    limit?: number
-    startDate?: string
-    endDate?: string
-  }) => {
+  getChartData: (
+    id: number,
+    options?: {
+      limit?: number
+      startDate?: string
+      endDate?: string
+    },
+  ) => {
     const params = new URLSearchParams()
     if (options?.limit) params.set('limit', String(options.limit))
     if (options?.startDate) params.set('start_date', options.startDate)
@@ -393,12 +401,15 @@ export const characteristicApi = {
     return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
   },
 
-  recalculateLimits: (id: number, options?: {
-    excludeOoc?: boolean
-    startDate?: string
-    endDate?: string
-    lastN?: number
-  }) => {
+  recalculateLimits: (
+    id: number,
+    options?: {
+      excludeOoc?: boolean
+      startDate?: string
+      endDate?: string
+      lastN?: number
+    },
+  ) => {
     const params = new URLSearchParams()
     if (options?.excludeOoc !== undefined) params.set('exclude_ooc', String(options.excludeOoc))
     if (options?.startDate) params.set('start_date', options.startDate)
@@ -411,7 +422,10 @@ export const characteristicApi = {
     )
   },
 
-  setManualLimits: (id: number, data: { ucl: number; lcl: number; center_line: number; sigma: number }) =>
+  setManualLimits: (
+    id: number,
+    data: { ucl: number; lcl: number; center_line: number; sigma: number },
+  ) =>
     fetchApi<{ before: object; after: object; calculation: object }>(
       `/characteristics/${id}/set-limits`,
       {
@@ -422,24 +436,32 @@ export const characteristicApi = {
 
   getRules: async (id: number) => {
     // Backend returns [{rule_id, is_enabled, require_acknowledgement}, ...]
-    const rules = await fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(`/characteristics/${id}/rules`)
+    const rules = await fetchApi<
+      { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]
+    >(`/characteristics/${id}/rules`)
     return {
-      enabled_rules: rules.filter(r => r.is_enabled).map(r => r.rule_id),
+      enabled_rules: rules.filter((r) => r.is_enabled).map((r) => r.rule_id),
       rule_configs: rules,
     }
   },
 
-  updateRules: (id: number, ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]) => {
+  updateRules: (
+    id: number,
+    ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[],
+  ) => {
     // Backend expects array of {rule_id, is_enabled, require_acknowledgement} for all 8 rules
     // Fill in any missing rules with defaults
     const allRules = Array.from({ length: 8 }, (_, i) => {
-      const config = ruleConfigs.find(r => r.rule_id === i + 1)
+      const config = ruleConfigs.find((r) => r.rule_id === i + 1)
       return config || { rule_id: i + 1, is_enabled: true, require_acknowledgement: true }
     })
-    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(`/characteristics/${id}/rules`, {
-      method: 'PUT',
-      body: JSON.stringify(allRules),
-    })
+    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(
+      `/characteristics/${id}/rules`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(allRules),
+      },
+    )
   },
 
   changeMode: (id: number, newMode: string) =>
@@ -479,7 +501,8 @@ export const sampleApi = {
     sort_dir?: 'asc' | 'desc'
   }) => {
     const searchParams = new URLSearchParams()
-    if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
+    if (params?.characteristic_id)
+      searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     if (params?.include_excluded) searchParams.set('include_excluded', 'true')
@@ -496,7 +519,12 @@ export const sampleApi = {
 
   get: (id: number) => fetchApi<Sample>(`/samples/${id}`),
 
-  submit: (data: { characteristic_id: number; measurements: number[]; batch_number?: string; operator_id?: string }) =>
+  submit: (data: {
+    characteristic_id: number
+    measurements: number[]
+    batch_number?: string
+    operator_id?: string
+  }) =>
     fetchApi<SampleProcessingResult>('/samples/', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -518,8 +546,7 @@ export const sampleApi = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: number) =>
-    fetchApi<void>(`/samples/${id}`, { method: 'DELETE' }),
+  delete: (id: number) => fetchApi<void>(`/samples/${id}`, { method: 'DELETE' }),
 
   update: (id: number, data: { measurements: number[]; reason: string; edited_by?: string }) =>
     fetchApi<SampleProcessingResult>(`/samples/${id}`, {
@@ -527,8 +554,7 @@ export const sampleApi = {
       body: JSON.stringify(data),
     }),
 
-  getEditHistory: (id: number) =>
-    fetchApi<SampleEditHistory[]>(`/samples/${id}/history`),
+  getEditHistory: (id: number) => fetchApi<SampleEditHistory[]>(`/samples/${id}/history`),
 }
 
 // Data Entry API — attribute chart data submission
@@ -574,12 +600,14 @@ export const violationApi = {
     per_page?: number
   }) => {
     const searchParams = new URLSearchParams()
-    if (params?.acknowledged !== undefined) searchParams.set('acknowledged', String(params.acknowledged))
+    if (params?.acknowledged !== undefined)
+      searchParams.set('acknowledged', String(params.acknowledged))
     if (params?.requires_acknowledgement !== undefined)
       searchParams.set('requires_acknowledgement', String(params.requires_acknowledgement))
     if (params?.severity) searchParams.set('severity', params.severity)
     if (params?.rule_id) searchParams.set('rule_id', String(params.rule_id))
-    if (params?.characteristic_id) searchParams.set('characteristic_id', String(params.characteristic_id))
+    if (params?.characteristic_id)
+      searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.sample_id) searchParams.set('sample_id', String(params.sample_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
@@ -603,8 +631,19 @@ export const violationApi = {
       body: JSON.stringify(data),
     }),
 
-  batchAcknowledge: (data: { violation_ids: number[]; reason: string; user: string; exclude_sample?: boolean }) =>
-    fetchApi<{ total: number; successful: number; failed: number; acknowledged: number[]; errors: Record<number, string> }>('/violations/batch-acknowledge', {
+  batchAcknowledge: (data: {
+    violation_ids: number[]
+    reason: string
+    user: string
+    exclude_sample?: boolean
+  }) =>
+    fetchApi<{
+      total: number
+      successful: number
+      failed: number
+      acknowledged: number[]
+      errors: Record<number, string>
+    }>('/violations/batch-acknowledge', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -651,23 +690,18 @@ export const brokerApi = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: number) =>
-    fetchApi<void>(`/brokers/${id}`, { method: 'DELETE' }),
+  delete: (id: number) => fetchApi<void>(`/brokers/${id}`, { method: 'DELETE' }),
 
-  activate: (id: number) =>
-    fetchApi<MQTTBroker>(`/brokers/${id}/activate`, { method: 'POST' }),
+  activate: (id: number) => fetchApi<MQTTBroker>(`/brokers/${id}/activate`, { method: 'POST' }),
 
-  getStatus: (id: number) =>
-    fetchApi<BrokerConnectionStatus>(`/brokers/${id}/status`),
+  getStatus: (id: number) => fetchApi<BrokerConnectionStatus>(`/brokers/${id}/status`),
 
-  getCurrentStatus: () =>
-    fetchApi<BrokerConnectionStatus>('/brokers/current/status'),
+  getCurrentStatus: () => fetchApi<BrokerConnectionStatus>('/brokers/current/status'),
 
   connect: (id: number) =>
     fetchApi<BrokerConnectionStatus>(`/brokers/${id}/connect`, { method: 'POST' }),
 
-  disconnect: () =>
-    fetchApi<{ message: string }>('/brokers/disconnect', { method: 'POST' }),
+  disconnect: () => fetchApi<{ message: string }>('/brokers/disconnect', { method: 'POST' }),
 
   test: (data: {
     host: string
@@ -709,13 +743,17 @@ export const providerApi = {
     fetchApi<TagProviderStatus>('/providers/tag/restart', { method: 'POST' }),
 
   refreshTagSubscriptions: () =>
-    fetchApi<{ message: string; characteristics_count: number }>('/providers/tag/refresh', { method: 'POST' }),
+    fetchApi<{ message: string; characteristics_count: number }>('/providers/tag/refresh', {
+      method: 'POST',
+    }),
 }
 
 // OPC-UA Server API
 export const opcuaApi = {
   list: (plantId?: number) =>
-    fetchApi<PaginatedResponse<OPCUAServer>>(`/opcua-servers/${plantId ? `?plant_id=${plantId}` : ''}`),
+    fetchApi<PaginatedResponse<OPCUAServer>>(
+      `/opcua-servers/${plantId ? `?plant_id=${plantId}` : ''}`,
+    ),
 
   get: (id: number) => fetchApi<OPCUAServer>(`/opcua-servers/${id}`),
 
@@ -731,8 +769,7 @@ export const opcuaApi = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: number) =>
-    fetchApi<void>(`/opcua-servers/${id}`, { method: 'DELETE' }),
+  delete: (id: number) => fetchApi<void>(`/opcua-servers/${id}`, { method: 'DELETE' }),
 
   connect: (id: number) =>
     fetchApi<{ status: string }>(`/opcua-servers/${id}/connect`, { method: 'POST' }),
@@ -746,14 +783,17 @@ export const opcuaApi = {
       body: JSON.stringify(data),
     }),
 
-  getStatus: (id: number) =>
-    fetchApi<OPCUAServerStatus>(`/opcua-servers/${id}/status`),
+  getStatus: (id: number) => fetchApi<OPCUAServerStatus>(`/opcua-servers/${id}/status`),
 
   getAllStatus: (plantId?: number) =>
-    fetchApi<{ states: OPCUAServerStatus[] }>(`/opcua-servers/all/status${plantId ? `?plant_id=${plantId}` : ''}`),
+    fetchApi<{ states: OPCUAServerStatus[] }>(
+      `/opcua-servers/all/status${plantId ? `?plant_id=${plantId}` : ''}`,
+    ),
 
   browse: (id: number, nodeId?: string) =>
-    fetchApi<OPCUABrowsedNode[]>(`/opcua-servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`),
+    fetchApi<OPCUABrowsedNode[]>(
+      `/opcua-servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`,
+    ),
 
   readValue: (id: number, nodeId: string) =>
     fetchApi<OPCUANodeValue>(`/opcua-servers/${id}/read?node_id=${encodeURIComponent(nodeId)}`),
@@ -786,17 +826,18 @@ export const apiKeysApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: { name?: string; is_active?: boolean; rate_limit_per_minute?: number }) =>
+  update: (
+    id: string,
+    data: { name?: string; is_active?: boolean; rate_limit_per_minute?: number },
+  ) =>
     fetchApi<APIKeyResponse>(`/api-keys/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
-  delete: (id: string) =>
-    fetchApi<void>(`/api-keys/${id}`, { method: 'DELETE' }),
+  delete: (id: string) => fetchApi<void>(`/api-keys/${id}`, { method: 'DELETE' }),
 
-  revoke: (id: string) =>
-    fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
+  revoke: (id: string) => fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
 }
 
 // Tag Mapping API
@@ -828,7 +869,9 @@ export const tagApi = {
 // Annotation API
 export const annotationApi = {
   list: (characteristicId: number, type?: AnnotationType) =>
-    fetchApi<Annotation[]>(`/characteristics/${characteristicId}/annotations${type ? `?annotation_type=${type}` : ''}`),
+    fetchApi<Annotation[]>(
+      `/characteristics/${characteristicId}/annotations${type ? `?annotation_type=${type}` : ''}`,
+    ),
 
   create: (characteristicId: number, data: AnnotationCreate) =>
     fetchApi<Annotation>(`/characteristics/${characteristicId}/annotations`, {
@@ -884,7 +927,13 @@ export const databaseApi = {
 
   backup: (backupDir?: string) => {
     const params = backupDir ? `?backup_dir=${encodeURIComponent(backupDir)}` : ''
-    return fetchApi<{ message: string; path?: string; directory?: string; size_mb?: number; command?: string }>(`/database/backup${params}`, {
+    return fetchApi<{
+      message: string
+      path?: string
+      directory?: string
+      size_mb?: number
+      command?: string
+    }>(`/database/backup${params}`, {
       method: 'POST',
     })
   },
@@ -931,17 +980,18 @@ export const userApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: number, data: { username?: string; email?: string; password?: string; is_active?: boolean }) =>
+  update: (
+    id: number,
+    data: { username?: string; email?: string; password?: string; is_active?: boolean },
+  ) =>
     fetchApi<UserResponse>(`/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
-  deactivate: (id: number) =>
-    fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
+  deactivate: (id: number) => fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
 
-  deletePermanent: (id: number) =>
-    fetchApi<void>(`/users/${id}/permanent`, { method: 'DELETE' }),
+  deletePermanent: (id: number) => fetchApi<void>(`/users/${id}/permanent`, { method: 'DELETE' }),
 
   assignRole: (userId: number, data: { plant_id: number; role: string }) =>
     fetchApi<UserResponse>(`/users/${userId}/roles`, {
@@ -1081,8 +1131,7 @@ export const notificationApi = {
       body: JSON.stringify(data),
     }),
 
-  testSmtp: () =>
-    fetchApi<{ message: string }>('/notifications/smtp/test', { method: 'POST' }),
+  testSmtp: () => fetchApi<{ message: string }>('/notifications/smtp/test', { method: 'POST' }),
 
   // Webhooks
   listWebhooks: () => fetchApi<WebhookConfigResponse[]>('/notifications/webhooks'),
@@ -1106,8 +1155,7 @@ export const notificationApi = {
     fetchApi<{ message: string }>(`/notifications/webhooks/${id}/test`, { method: 'POST' }),
 
   // Preferences
-  getPreferences: () =>
-    fetchApi<NotificationPreference[]>('/notifications/preferences'),
+  getPreferences: () => fetchApi<NotificationPreference[]>('/notifications/preferences'),
 
   updatePreferences: (preferences: NotificationPreferenceItem[]) =>
     fetchApi<NotificationPreference[]>('/notifications/preferences', {
@@ -1146,7 +1194,12 @@ export interface ImportUploadResponse {
 }
 
 export interface ImportValidateResponse {
-  valid_rows: { measurements: number[]; timestamp?: string; batch_number?: string; operator_id?: string }[]
+  valid_rows: {
+    measurements: number[]
+    timestamp?: string
+    batch_number?: string
+    operator_id?: string
+  }[]
   warnings: string[]
   error_rows: { row: number; error: string }[]
   total_rows: number
@@ -1170,7 +1223,11 @@ export const importApi = {
     })
   },
 
-  validate: (file: File, characteristicId: number, columnMapping: Record<string, number | null>) => {
+  validate: (
+    file: File,
+    characteristicId: number,
+    columnMapping: Record<string, number | null>,
+  ) => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('characteristic_id', String(characteristicId))

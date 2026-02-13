@@ -44,14 +44,10 @@ export function MappingDialog({
 
   // Form state
   const [characteristicId, setCharacteristicId] = useState<number | null>(
-    editData?.characteristicId ?? null
+    editData?.characteristicId ?? null,
   )
-  const [protocol, setProtocol] = useState<'mqtt' | 'opcua'>(
-    editData?.protocol ?? 'mqtt'
-  )
-  const [triggerStrategy, setTriggerStrategy] = useState(
-    editData?.triggerStrategy ?? 'on_change'
-  )
+  const [protocol, setProtocol] = useState<'mqtt' | 'opcua'>(editData?.protocol ?? 'mqtt')
+  const [triggerStrategy, setTriggerStrategy] = useState(editData?.triggerStrategy ?? 'on_change')
   const [protocolFields, setProtocolFields] = useState<ProtocolFieldValues>(() => {
     if (editData?.protocol === 'opcua') {
       return {
@@ -74,7 +70,13 @@ export function MappingDialog({
   // Create MQTT mapping
   const createMQTTMutation = useMutation({
     mutationFn: () => {
-      const fields = protocolFields as { protocol: 'mqtt'; topic: string; broker_id: number | null; metric_name: string; trigger_tag: string }
+      const fields = protocolFields as {
+        protocol: 'mqtt'
+        topic: string
+        broker_id: number | null
+        metric_name: string
+        trigger_tag: string
+      }
       return tagApi.createMapping({
         characteristic_id: characteristicId!,
         mqtt_topic: fields.topic,
@@ -95,7 +97,9 @@ export function MappingDialog({
   // TODO: Replace with dataSourceApi.create() when unified data-source API is implemented
   const createOPCUAMutation = useMutation({
     mutationFn: async () => {
-      throw new Error('OPC-UA data source creation endpoint is not yet available. This will be enabled when the unified data-source API is implemented.')
+      throw new Error(
+        'OPC-UA data source creation endpoint is not yet available. This will be enabled when the unified data-source API is implemented.',
+      )
     },
     onSuccess: () => {
       toast.success('OPC-UA mapping created')
@@ -137,54 +141,64 @@ export function MappingDialog({
     setProtocol(p)
     setTriggerStrategy('on_change')
     if (p === 'mqtt') {
-      setProtocolFields({ protocol: 'mqtt', topic: '', broker_id: null, metric_name: '', trigger_tag: '' })
+      setProtocolFields({
+        protocol: 'mqtt',
+        topic: '',
+        broker_id: null,
+        metric_name: '',
+        trigger_tag: '',
+      })
     } else {
-      setProtocolFields({ protocol: 'opcua', node_id: '', server_id: null, sampling_interval: '', publishing_interval: '' })
+      setProtocolFields({
+        protocol: 'opcua',
+        node_id: '',
+        server_id: null,
+        sampling_interval: '',
+        publishing_interval: '',
+      })
     }
   }
 
   // Trigger strategies filtered by protocol
-  const strategies = protocol === 'mqtt'
-    ? [
-        { value: 'on_change', label: 'On Change' },
-        { value: 'on_trigger', label: 'On Trigger' },
-        { value: 'on_timer', label: 'On Timer' },
-      ]
-    : [
-        { value: 'on_change', label: 'On Change' },
-        { value: 'on_timer', label: 'On Timer' },
-      ]
+  const strategies =
+    protocol === 'mqtt'
+      ? [
+          { value: 'on_change', label: 'On Change' },
+          { value: 'on_trigger', label: 'On Trigger' },
+          { value: 'on_timer', label: 'On Timer' },
+        ]
+      : [
+          { value: 'on_change', label: 'On Change' },
+          { value: 'on_timer', label: 'On Timer' },
+        ]
 
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+      <div className="bg-card border-border relative w-full max-w-lg overflow-hidden rounded-2xl border shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-semibold text-foreground">
+        <div className="border-border flex items-center justify-between border-b px-5 py-4">
+          <h2 className="text-foreground text-base font-semibold">
             {isEdit ? 'Edit Mapping' : 'New Mapping'}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-1 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
           {/* 1. Characteristic */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+            <label className="text-muted-foreground mb-1.5 block text-xs font-medium tracking-wider uppercase">
               Characteristic
             </label>
             <CharacteristicPicker
@@ -197,7 +211,7 @@ export function MappingDialog({
           {/* 2. Protocol selector */}
           {!isEdit && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+              <label className="text-muted-foreground mb-1.5 block text-xs font-medium tracking-wider uppercase">
                 Protocol
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -223,7 +237,7 @@ export function MappingDialog({
 
           {/* 3. Protocol-specific fields */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+            <label className="text-muted-foreground mb-1.5 block text-xs font-medium tracking-wider uppercase">
               Source Configuration
             </label>
             <ProtocolSourceFields
@@ -236,7 +250,7 @@ export function MappingDialog({
 
           {/* 4. Trigger strategy */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+            <label className="text-muted-foreground mb-1.5 block text-xs font-medium tracking-wider uppercase">
               Trigger Strategy
             </label>
             <div className="flex gap-2">
@@ -244,7 +258,7 @@ export function MappingDialog({
                 <button
                   key={s.value}
                   onClick={() => setTriggerStrategy(s.value)}
-                  className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
                     triggerStrategy === s.value
                       ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
                       : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-muted-foreground'
@@ -258,17 +272,17 @@ export function MappingDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+        <div className="border-border flex items-center justify-end gap-2 border-t px-5 py-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground px-4 py-2 text-sm transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!isValid || isPending}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -302,27 +316,40 @@ function ProtocolCard({
   selected: boolean
   onClick: () => void
 }) {
-  const colorClasses = color === 'teal'
-    ? { border: 'border-teal-500', bg: 'bg-teal-500/10', text: 'text-teal-400', iconBg: 'bg-teal-500/15' }
-    : { border: 'border-purple-500', bg: 'bg-purple-500/10', text: 'text-purple-400', iconBg: 'bg-purple-500/15' }
+  const colorClasses =
+    color === 'teal'
+      ? {
+          border: 'border-teal-500',
+          bg: 'bg-teal-500/10',
+          text: 'text-teal-400',
+          iconBg: 'bg-teal-500/15',
+        }
+      : {
+          border: 'border-purple-500',
+          bg: 'bg-purple-500/10',
+          text: 'text-purple-400',
+          iconBg: 'bg-purple-500/15',
+        }
 
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+      className={`flex items-center gap-3 rounded-lg border p-3 transition-all ${
         selected
           ? `${colorClasses.border} ${colorClasses.bg}`
           : 'border-border hover:border-muted-foreground/50'
       }`}
     >
-      <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${colorClasses.iconBg} ${colorClasses.text}`}>
+      <span
+        className={`flex h-8 w-8 items-center justify-center rounded-lg ${colorClasses.iconBg} ${colorClasses.text}`}
+      >
         {icon}
       </span>
       <div className="text-left">
         <div className={`text-sm font-medium ${selected ? colorClasses.text : 'text-foreground'}`}>
           {label}
         </div>
-        <div className="text-[11px] text-muted-foreground">{description}</div>
+        <div className="text-muted-foreground text-[11px]">{description}</div>
       </div>
     </button>
   )

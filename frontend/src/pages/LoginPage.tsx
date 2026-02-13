@@ -46,34 +46,30 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Branding */}
-        <div className="text-center mb-8">
-          <img
-            src={logoSrc}
-            alt="OpenSPC logo"
-            className="h-16 w-16 mx-auto mb-3 object-contain"
-          />
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">OpenSPC</h1>
-          <p className="text-sm text-muted-foreground mt-1">Statistical Process Control</p>
+        <div className="mb-8 text-center">
+          <img src={logoSrc} alt="OpenSPC logo" className="mx-auto mb-3 h-16 w-16 object-contain" />
+          <h1 className="text-foreground text-3xl font-bold tracking-tight">OpenSPC</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Statistical Process Control</p>
         </div>
 
         {/* Login Card */}
-        <div className="border rounded-lg bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Sign In</h2>
+        <div className="bg-card rounded-lg border p-6 shadow-sm">
+          <h2 className="text-foreground mb-4 text-lg font-semibold">Sign In</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Error message */}
             {error && (
-              <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
                 {error}
               </div>
             )}
 
             {/* Username */}
             <div className="space-y-1.5">
-              <label htmlFor="username" className="block text-sm font-medium text-foreground">
+              <label htmlFor="username" className="text-foreground block text-sm font-medium">
                 Username
               </label>
               <input
@@ -84,14 +80,14 @@ export function LoginPage() {
                 required
                 autoComplete="username"
                 autoFocus
-                className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 placeholder="Enter your username"
               />
             </div>
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+              <label htmlFor="password" className="text-foreground block text-sm font-medium">
                 Password
               </label>
               <input
@@ -101,7 +97,7 @@ export function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full px-3 py-2 text-sm rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 placeholder="Enter your password"
               />
             </div>
@@ -113,9 +109,9 @@ export function LoginPage() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                className="border-border text-primary focus:ring-ring h-4 w-4 rounded"
               />
-              <label htmlFor="remember-me" className="text-sm text-muted-foreground">
+              <label htmlFor="remember-me" className="text-muted-foreground text-sm">
                 Remember me
               </label>
             </div>
@@ -124,7 +120,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting || !username || !password}
-              className="w-full px-4 py-2.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
@@ -132,9 +128,7 @@ export function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          OpenSPC v0.4.0
-        </p>
+        <p className="text-muted-foreground mt-4 text-center text-xs">OpenSPC v0.4.0</p>
       </div>
     </div>
   )

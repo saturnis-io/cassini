@@ -27,16 +27,16 @@ function SeverityBadge({ severity }: { severity: HelpContent['severity'] }) {
   if (!severity) return null
 
   const severityStyles = {
-    CRITICAL: 'bg-red-500/20 text-red-600 border-red-500/30',
-    WARNING: 'bg-orange-500/20 text-orange-600 border-orange-500/30',
-    INFO: 'bg-blue-500/20 text-blue-600 border-blue-500/30',
+    CRITICAL: 'bg-destructive/20 text-destructive border-destructive/30',
+    WARNING: 'bg-warning/20 text-warning border-warning/30',
+    INFO: 'bg-primary/20 text-primary border-primary/30',
   }
 
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border',
-        severityStyles[severity]
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
+        severityStyles[severity],
       )}
     >
       {severity}
@@ -214,47 +214,48 @@ export function HelpTooltip({
     'inline-flex items-center justify-center cursor-help',
     'text-muted-foreground hover:text-primary transition-colors',
     'focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-sm',
-    className
+    className,
   )
 
-  const triggerContent = children ?? <HelpCircle className="w-4 h-4" />
+  const triggerContent = children ?? <HelpCircle className="h-4 w-4" />
 
-  const TriggerElement = triggerAs === 'span' ? (
-    <span
-      ref={triggerRef as React.RefObject<HTMLSpanElement>}
-      role="button"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleClick(e as unknown as React.MouseEvent)
-        }
-      }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={triggerClassName}
-      aria-label={`Help: ${content.title}`}
-      aria-expanded={isVisible}
-      aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
-    >
-      {triggerContent}
-    </span>
-  ) : (
-    <button
-      ref={triggerRef as React.RefObject<HTMLButtonElement>}
-      type="button"
-      onClick={handleClick}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={triggerClassName}
-      aria-label={`Help: ${content.title}`}
-      aria-expanded={isVisible}
-      aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
-    >
-      {triggerContent}
-    </button>
-  )
+  const TriggerElement =
+    triggerAs === 'span' ? (
+      <span
+        ref={triggerRef as React.RefObject<HTMLSpanElement>}
+        role="button"
+        tabIndex={0}
+        onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick(e as unknown as React.MouseEvent)
+          }
+        }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={triggerClassName}
+        aria-label={`Help: ${content.title}`}
+        aria-expanded={isVisible}
+        aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
+      >
+        {triggerContent}
+      </span>
+    ) : (
+      <button
+        ref={triggerRef as React.RefObject<HTMLButtonElement>}
+        type="button"
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={triggerClassName}
+        aria-label={`Help: ${content.title}`}
+        aria-expanded={isVisible}
+        aria-describedby={isVisible ? `help-tooltip-${helpKey}` : undefined}
+      >
+        {triggerContent}
+      </button>
+    )
 
   return (
     <>
@@ -269,9 +270,9 @@ export function HelpTooltip({
           onMouseLeave={handleMouseLeave}
           className={cn(
             'fixed z-[60] max-w-[280px] p-3',
-            'bg-white dark:bg-[hsl(220,15%,15%)] text-popover-foreground',
-            'border border-border rounded-lg shadow-lg',
-            'animate-in fade-in-0 zoom-in-95 duration-150'
+            'text-popover-foreground bg-popover',
+            'border-border rounded-lg border shadow-lg',
+            'animate-in fade-in-0 zoom-in-95 duration-150',
           )}
           style={{
             top: position.top,
@@ -279,16 +280,14 @@ export function HelpTooltip({
           }}
         >
           {/* Title */}
-          <div className="font-semibold text-sm mb-1">{content.title}</div>
+          <div className="mb-1 text-sm font-semibold">{content.title}</div>
 
           {/* Description */}
-          <p className="text-sm text-muted-foreground">{content.description}</p>
+          <p className="text-muted-foreground text-sm">{content.description}</p>
 
           {/* Details (if provided) */}
           {content.details && (
-            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-              {content.details}
-            </p>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{content.details}</p>
           )}
 
           {/* Severity badge (if provided) */}
@@ -304,15 +303,10 @@ export function HelpTooltip({
               href={content.learnMoreUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center mt-2 text-xs text-primary hover:underline"
+              className="text-primary mt-2 inline-flex items-center text-xs hover:underline"
             >
               Learn more
-              <svg
-                className="w-3 h-3 ml-1"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -326,11 +320,11 @@ export function HelpTooltip({
           {/* Tooltip arrow indicator */}
           <div
             className={cn(
-              'absolute w-2 h-2 bg-popover border rotate-45',
+              'bg-popover absolute h-2 w-2 rotate-45 border',
               placement === 'top' && 'bottom-[-5px] left-1/2 -translate-x-1/2 border-r border-b',
-              placement === 'bottom' && 'top-[-5px] left-1/2 -translate-x-1/2 border-l border-t',
-              placement === 'left' && 'right-[-5px] top-1/2 -translate-y-1/2 border-t border-r',
-              placement === 'right' && 'left-[-5px] top-1/2 -translate-y-1/2 border-b border-l'
+              placement === 'bottom' && 'top-[-5px] left-1/2 -translate-x-1/2 border-t border-l',
+              placement === 'left' && 'top-1/2 right-[-5px] -translate-y-1/2 border-t border-r',
+              placement === 'right' && 'top-1/2 left-[-5px] -translate-y-1/2 border-b border-l',
             )}
           />
         </div>

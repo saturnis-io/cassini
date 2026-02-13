@@ -29,7 +29,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
   const { brandConfig } = useTheme()
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 flex flex-col overflow-hidden">
+    <div className="bg-background text-foreground flex min-h-screen flex-col overflow-hidden">
       {/* Force dark mode styles */}
       <style>{`
         .kiosk-content {
@@ -47,8 +47,8 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
       {/* Main content area */}
       <main
         className={cn(
-          'flex-1 overflow-hidden text-lg kiosk-content',
-          showStatusBar ? '' : 'h-screen'
+          'kiosk-content flex-1 overflow-hidden text-lg',
+          showStatusBar ? '' : 'h-screen',
         )}
       >
         {children}
@@ -56,18 +56,18 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
 
       {/* Status bar */}
       {showStatusBar && (
-        <footer className="h-10 border-t border-zinc-800 bg-zinc-900 px-4 flex items-center justify-between text-sm">
+        <footer className="border-border bg-card flex h-10 items-center justify-between border-t px-4 text-sm">
           {/* Connection status */}
           <div className="flex items-center gap-2">
             {wsConnected ? (
               <>
-                <Wifi className="h-4 w-4 text-green-500" />
-                <span className="text-zinc-400">Connected</span>
+                <Wifi className="text-success h-4 w-4" />
+                <span className="text-muted-foreground">Connected</span>
               </>
             ) : (
               <>
-                <WifiOff className="h-4 w-4 text-red-500" />
-                <span className="text-red-400">Disconnected</span>
+                <WifiOff className="text-destructive h-4 w-4" />
+                <span className="text-destructive">Disconnected</span>
               </>
             )}
           </div>
@@ -79,7 +79,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
               alt={`${brandConfig.appName} logo`}
               className="h-5 w-5 object-contain"
             />
-            <span className="text-zinc-500 font-medium">{brandConfig.appName} Kiosk</span>
+            <span className="text-muted-foreground font-medium">{brandConfig.appName} Kiosk</span>
           </div>
         </footer>
       )}

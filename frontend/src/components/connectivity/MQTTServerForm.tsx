@@ -69,7 +69,7 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
           outbound_format: broker.outbound_format,
           outbound_rate_limit: broker.outbound_rate_limit,
         }
-      : defaultFormData
+      : defaultFormData,
   )
 
   const createMutation = useMutation({
@@ -126,18 +126,18 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
   const isSaving = createMutation.isPending || updateMutation.isPending
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/30">
+      <div className="border-border bg-muted/30 flex items-center justify-between border-b px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500/10">
-            <span className="text-teal-400 text-sm font-bold">M</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10">
+            <span className="text-sm font-bold text-teal-400">M</span>
           </div>
           <div>
-            <h3 className="font-semibold text-sm">
+            <h3 className="text-sm font-semibold">
               {isEditing ? 'Edit MQTT Broker' : 'New MQTT Broker'}
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Configure connection to an MQTT message broker
             </p>
           </div>
@@ -145,23 +145,23 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg p-1.5 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-5 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5 p-5">
         <div className="grid grid-cols-2 gap-4">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Name</label>
+            <label className="mb-1.5 block text-sm font-medium">Name</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
               placeholder="Production MQTT"
               required
             />
@@ -169,12 +169,12 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
 
           {/* Host */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Host</label>
+            <label className="mb-1.5 block text-sm font-medium">Host</label>
             <input
               type="text"
               value={formData.host}
               onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
               placeholder="mqtt.example.com"
               required
             />
@@ -182,7 +182,7 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
 
           {/* Port */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Port</label>
+            <label className="mb-1.5 block text-sm font-medium">Port</label>
             <NumberInput
               value={String(formData.port)}
               onChange={(v) => setFormData({ ...formData, port: parseInt(v) || 1883 })}
@@ -195,46 +195,46 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
 
           {/* Client ID */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Client ID</label>
+            <label className="mb-1.5 block text-sm font-medium">Client ID</label>
             <input
               type="text"
               value={formData.client_id}
               onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
               placeholder="openspc-client"
             />
           </div>
 
           {/* Username */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium">
               Username <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <input
               type="text"
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
             />
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">
+            <label className="mb-1.5 block text-sm font-medium">
               Password <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <input
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
               placeholder={isEditing ? '(unchanged)' : ''}
             />
           </div>
 
           {/* Keepalive */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Keepalive (seconds)</label>
+            <label className="mb-1.5 block text-sm font-medium">Keepalive (seconds)</label>
             <NumberInput
               value={String(formData.keepalive)}
               onChange={(v) => setFormData({ ...formData, keepalive: parseInt(v) || 60 })}
@@ -252,7 +252,7 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               id="mqtt_use_tls"
               checked={formData.use_tls}
               onChange={(e) => setFormData({ ...formData, use_tls: e.target.checked })}
-              className="rounded border-input"
+              className="border-input rounded"
             />
             <label htmlFor="mqtt_use_tls" className="text-sm">
               Use TLS encryption
@@ -261,49 +261,57 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
         </div>
 
         {/* Outbound Publishing Section */}
-        <div className="border-t border-border pt-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="border-border border-t pt-5">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-semibold">Outbound Publishing</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-muted-foreground mt-0.5 text-xs">
                 Publish SPC events (samples, violations, limits) to this broker
               </p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
                 checked={formData.outbound_enabled}
                 onChange={(e) => setFormData({ ...formData, outbound_enabled: e.target.checked })}
-                className="sr-only peer"
+                className="peer sr-only"
               />
-              <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-background after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full" />
+              <div className="bg-muted peer peer-checked:bg-primary after:bg-background h-5 w-9 rounded-full transition-colors after:absolute after:start-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:transition-all after:content-[''] peer-checked:after:translate-x-full" />
             </label>
           </div>
 
           {formData.outbound_enabled && (
-            <div className="grid grid-cols-2 gap-4 mt-3">
+            <div className="mt-3 grid grid-cols-2 gap-4">
               {/* Topic Prefix */}
               <div>
-                <label className="block text-sm font-medium mb-1.5">Topic Prefix</label>
+                <label className="mb-1.5 block text-sm font-medium">Topic Prefix</label>
                 <input
                   type="text"
                   value={formData.outbound_topic_prefix}
-                  onChange={(e) => setFormData({ ...formData, outbound_topic_prefix: e.target.value })}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  onChange={(e) =>
+                    setFormData({ ...formData, outbound_topic_prefix: e.target.value })
+                  }
+                  className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
                   placeholder="openspc"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Topic format: {formData.outbound_topic_prefix || 'openspc'}/{'<plant>/<path>/<char>/<event>'}
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Topic format: {formData.outbound_topic_prefix || 'openspc'}/
+                  {'<plant>/<path>/<char>/<event>'}
                 </p>
               </div>
 
               {/* Payload Format */}
               <div>
-                <label className="block text-sm font-medium mb-1.5">Payload Format</label>
+                <label className="mb-1.5 block text-sm font-medium">Payload Format</label>
                 <select
                   value={formData.outbound_format}
-                  onChange={(e) => setFormData({ ...formData, outbound_format: e.target.value as 'json' | 'sparkplug' })}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      outbound_format: e.target.value as 'json' | 'sparkplug',
+                    })
+                  }
+                  className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
                 >
                   <option value="json">JSON</option>
                   <option value="sparkplug">SparkplugB</option>
@@ -312,16 +320,18 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
 
               {/* Rate Limit */}
               <div>
-                <label className="block text-sm font-medium mb-1.5">Rate Limit (seconds)</label>
+                <label className="mb-1.5 block text-sm font-medium">Rate Limit (seconds)</label>
                 <NumberInput
                   value={String(formData.outbound_rate_limit)}
-                  onChange={(v) => setFormData({ ...formData, outbound_rate_limit: parseFloat(v) || 1.0 })}
+                  onChange={(v) =>
+                    setFormData({ ...formData, outbound_rate_limit: parseFloat(v) || 1.0 })
+                  }
                   min={0.1}
                   max={60}
                   step={0.1}
                   showButtons={false}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-muted-foreground mt-1 text-xs">
                   Min interval between publishes per characteristic
                 </p>
               </div>
@@ -330,24 +340,21 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <ConnectionTestButton
-            onTest={handleTest}
-            disabled={!formData.host}
-          />
+        <div className="border-border flex items-center justify-between border-t pt-2">
+          <ConnectionTestButton onTest={handleTest} disabled={!formData.host} />
 
           <div className="flex gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="border-border text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               {isSaving ? 'Saving...' : isEditing ? 'Update Broker' : 'Create Broker'}
             </button>

@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import { usePlants, useCreatePlant, useUpdatePlant, useDeletePlant } from '@/api/hooks'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, Factory, Loader2, AlertCircle, Pencil, X, Power, PowerOff } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  Factory,
+  Loader2,
+  AlertCircle,
+  Pencil,
+  X,
+  Power,
+  PowerOff,
+} from 'lucide-react'
 import type { Plant, PlantCreate, PlantUpdate } from '@/types'
 
 /**
@@ -117,16 +127,16 @@ export function PlantSettings() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="flex h-48 items-center justify-center">
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 gap-4">
-        <AlertCircle className="h-8 w-8 text-destructive" />
+      <div className="flex h-48 flex-col items-center justify-center gap-4">
+        <AlertCircle className="text-destructive h-8 w-8" />
         <p className="text-destructive">Failed to load sites</p>
       </div>
     )
@@ -135,29 +145,40 @@ export function PlantSettings() {
   return (
     <div className="space-y-5">
       {/* Plant List */}
-      <div className="bg-muted rounded-xl divide-y divide-border">
+      <div className="bg-muted divide-border divide-y rounded-xl">
         {plants?.map((plant) => (
           <div key={plant.id} className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
-              <Factory className={cn('h-5 w-5', plant.is_active ? 'text-muted-foreground' : 'text-muted-foreground/50')} />
+              <Factory
+                className={cn(
+                  'h-5 w-5',
+                  plant.is_active ? 'text-muted-foreground' : 'text-muted-foreground/50',
+                )}
+              />
               <div>
                 <div className="flex items-center gap-2">
-                  <p className={cn('font-medium', !plant.is_active && 'text-muted-foreground')}>{plant.name}</p>
+                  <p className={cn('font-medium', !plant.is_active && 'text-muted-foreground')}>
+                    {plant.name}
+                  </p>
                   {!plant.is_active && (
-                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Inactive</span>
+                    <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs">
+                      Inactive
+                    </span>
                   )}
                   {plant.code === 'DEFAULT' && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Default</span>
+                    <span className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs">
+                      Default
+                    </span>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground">{plant.code}</p>
+                <p className="text-muted-foreground text-sm">{plant.code}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
               {/* Edit button */}
               <button
                 onClick={() => openEditModal(plant)}
-                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                className="hover:bg-muted rounded-lg p-2 transition-colors"
                 title="Edit site"
               >
                 <Pencil className="h-4 w-4" />
@@ -169,10 +190,10 @@ export function PlantSettings() {
                   onClick={() => handleToggleActive(plant)}
                   disabled={updatePlant.isPending}
                   className={cn(
-                    'p-2 rounded-lg transition-colors',
+                    'rounded-lg p-2 transition-colors',
                     plant.is_active
                       ? 'hover:bg-warning/10 hover:text-warning'
-                      : 'hover:bg-success/10 hover:text-success'
+                      : 'hover:bg-success/10 hover:text-success',
                   )}
                   title={plant.is_active ? 'Deactivate site' : 'Activate site'}
                 >
@@ -188,7 +209,7 @@ export function PlantSettings() {
               {plant.code !== 'DEFAULT' && !plant.is_active && (
                 <button
                   onClick={() => setPlantToDelete({ id: plant.id, name: plant.name })}
-                  className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  className="hover:bg-destructive/10 hover:text-destructive rounded-lg p-2 transition-colors"
                   title="Delete site"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -196,23 +217,21 @@ export function PlantSettings() {
               )}
 
               {plant.code === 'DEFAULT' && (
-                <span className="text-xs text-muted-foreground px-2">Protected</span>
+                <span className="text-muted-foreground px-2 text-xs">Protected</span>
               )}
             </div>
           </div>
         ))}
 
         {plants?.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            No sites configured
-          </div>
+          <div className="text-muted-foreground p-8 text-center">No sites configured</div>
         )}
       </div>
 
       {/* Add New Plant Form */}
-      <div className="bg-muted rounded-xl p-6 space-y-4">
+      <div className="bg-muted space-y-4 rounded-xl p-6">
         <h3 className="font-medium">Add New Site</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Site Name</label>
             <input
@@ -220,7 +239,7 @@ export function PlantSettings() {
               value={newPlantName}
               onChange={(e) => setNewPlantName(e.target.value)}
               placeholder="e.g., Chicago Factory"
-              className="w-full mt-1 px-3 py-2 border rounded-lg"
+              className="mt-1 w-full rounded-lg border px-3 py-2"
             />
           </div>
           <div>
@@ -231,9 +250,9 @@ export function PlantSettings() {
               onChange={(e) => setNewPlantCode(e.target.value.toUpperCase())}
               placeholder="e.g., CHI"
               maxLength={10}
-              className="w-full mt-1 px-3 py-2 border rounded-lg uppercase"
+              className="mt-1 w-full rounded-lg border px-3 py-2 uppercase"
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 text-xs">
               Uppercase letters, numbers, underscores, or hyphens (max 10 chars)
             </p>
           </div>
@@ -245,7 +264,7 @@ export function PlantSettings() {
             onChange={(e) => setNewPlantSettings(e.target.value)}
             placeholder='{"timezone": "America/Chicago", "language": "en"}'
             rows={3}
-            className="w-full mt-1 px-3 py-2 border rounded-lg font-mono text-sm"
+            className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
           />
         </div>
         <div className="flex justify-end">
@@ -253,9 +272,9 @@ export function PlantSettings() {
             onClick={handleCreate}
             disabled={!newPlantName || !newPlantCode || createPlant.isPending}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg',
+              'flex items-center gap-2 rounded-lg px-4 py-2',
               'bg-primary text-primary-foreground hover:bg-primary/90',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             <Plus className="h-4 w-4" />
@@ -266,14 +285,17 @@ export function PlantSettings() {
 
       {/* Edit Modal */}
       {editingPlant && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditingPlant(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setEditingPlant(null)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-lg rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Edit Site</h3>
-              <button
-                onClick={() => setEditingPlant(null)}
-                className="p-1 rounded hover:bg-muted"
-              >
+              <button onClick={() => setEditingPlant(null)} className="hover:bg-muted rounded p-1">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -285,7 +307,7 @@ export function PlantSettings() {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg"
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
                 />
               </div>
               <div>
@@ -295,11 +317,11 @@ export function PlantSettings() {
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value.toUpperCase())}
                   maxLength={10}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg uppercase"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 uppercase"
                   disabled={editingPlant.code === 'DEFAULT'}
                 />
                 {editingPlant.code === 'DEFAULT' && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-muted-foreground mt-1 text-xs">
                     Default site code cannot be changed
                   </p>
                 )}
@@ -311,16 +333,16 @@ export function PlantSettings() {
                   onChange={(e) => setEditSettings(e.target.value)}
                   placeholder='{"timezone": "America/Chicago"}'
                   rows={4}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg font-mono text-sm"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setEditingPlant(null)}
                 disabled={updatePlant.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -328,9 +350,9 @@ export function PlantSettings() {
                 onClick={handleEdit}
                 disabled={!editName || !editCode || updatePlant.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-primary text-primary-foreground hover:bg-primary/90',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {updatePlant.isPending ? 'Saving...' : 'Save Changes'}
@@ -342,19 +364,25 @@ export function PlantSettings() {
 
       {/* Delete Confirmation Dialog */}
       {plantToDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setPlantToDelete(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Delete Site?</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setPlantToDelete(null)}
+        >
+          <div
+            className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-lg font-semibold">Delete Site?</h3>
             <p className="text-muted-foreground mb-4">
-              Are you sure you want to delete <strong>{plantToDelete.name}</strong>?
-              This will also delete all hierarchies, characteristics, and data associated with this site.
-              This action cannot be undone.
+              Are you sure you want to delete <strong>{plantToDelete.name}</strong>? This will also
+              delete all hierarchies, characteristics, and data associated with this site. This
+              action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setPlantToDelete(null)}
                 disabled={deletePlant.isPending}
-                className="px-5 py-2.5 text-sm font-medium border border-border rounded-xl bg-secondary hover:bg-secondary/80 transition-all"
+                className="border-border bg-secondary hover:bg-secondary/80 rounded-xl border px-5 py-2.5 text-sm font-medium transition-all"
               >
                 Cancel
               </button>
@@ -362,9 +390,9 @@ export function PlantSettings() {
                 onClick={handleDelete}
                 disabled={deletePlant.isPending}
                 className={cn(
-                  'px-5 py-2.5 text-sm font-medium rounded-xl',
+                  'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-destructive text-destructive-foreground',
-                  'disabled:opacity-50'
+                  'disabled:opacity-50',
                 )}
               >
                 {deletePlant.isPending ? 'Deleting...' : 'Delete Site'}

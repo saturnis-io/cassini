@@ -20,10 +20,7 @@ interface HeaderProps {
  * - Theme toggle
  * - User menu with logout
  */
-export function Header({
-  className,
-  plantSelector,
-}: HeaderProps) {
+export function Header({ className, plantSelector }: HeaderProps) {
   const { theme, setTheme, brandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
@@ -69,10 +66,7 @@ export function Header({
 
   return (
     <header
-      className={cn(
-        'h-12 border-b bg-card flex items-center justify-between px-4',
-        className
-      )}
+      className={cn('bg-card flex h-12 items-center justify-between border-b px-4', className)}
     >
       {/* Left: Logo and app name */}
       <div className="flex items-center gap-2.5">
@@ -81,7 +75,9 @@ export function Header({
           alt={`${appName} logo`}
           className="h-9 w-9 object-contain"
         />
-        <span className="text-lg font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>{appName}</span>
+        <span className="text-lg font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>
+          {appName}
+        </span>
       </div>
 
       {/* Right: Plant selector, theme toggle, user menu */}
@@ -90,12 +86,12 @@ export function Header({
         {plantSelector}
 
         {/* Divider */}
-        <div className="h-6 w-px bg-border" />
+        <div className="bg-border h-6 w-px" />
 
         {/* Theme toggle */}
         <button
           onClick={cycleTheme}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
           title={`Theme: ${getThemeLabel()}`}
         >
           {getThemeIcon()}
@@ -107,24 +103,26 @@ export function Header({
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setUserMenuOpen((o) => !o)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
               title="User menu"
             >
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">{user.username}</span>
-              <ChevronDown className={cn('h-3 w-3 transition-transform', userMenuOpen && 'rotate-180')} />
+              <ChevronDown
+                className={cn('h-3 w-3 transition-transform', userMenuOpen && 'rotate-180')}
+              />
             </button>
 
             {userMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 rounded-md border bg-popover shadow-md z-50">
-                <div className="px-3 py-2 border-b">
-                  <p className="text-sm font-medium text-foreground">{user.username}</p>
-                  <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
+              <div className="bg-popover absolute top-full right-0 z-50 mt-1 w-52 rounded-md border shadow-md">
+                <div className="border-b px-3 py-2">
+                  <p className="text-foreground text-sm font-medium">{user.username}</p>
+                  <p className="text-muted-foreground text-xs">{ROLE_LABELS[role]}</p>
                 </div>
                 <div className="p-1">
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-sm text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className="text-muted-foreground hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors"
                   >
                     <LogOut className="h-4 w-4" />
                     <span>Sign Out</span>

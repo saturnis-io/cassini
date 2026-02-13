@@ -19,8 +19,16 @@ import type { SmtpConfigUpdate, WebhookConfigCreate } from '@/api/client'
 import type { NotificationPreferenceItem } from '@/api/client'
 
 const EVENT_TYPES = [
-  { value: 'violation_created', label: 'Violation Detected', description: 'When a Nelson rule violation occurs' },
-  { value: 'limits_updated', label: 'Limits Updated', description: 'When control limits are recalculated' },
+  {
+    value: 'violation_created',
+    label: 'Violation Detected',
+    description: 'When a Nelson rule violation occurs',
+  },
+  {
+    value: 'limits_updated',
+    label: 'Limits Updated',
+    description: 'When control limits are recalculated',
+  },
 ]
 
 const CHANNELS = [
@@ -75,7 +83,11 @@ function PreferencesSection() {
           updated.push({ event_type: evt.value, channel: ch.value, is_enabled: newEnabled })
         } else {
           const p = current.find((x) => x.event_type === evt.value && x.channel === ch.value)
-          updated.push({ event_type: evt.value, channel: ch.value, is_enabled: p?.is_enabled ?? false })
+          updated.push({
+            event_type: evt.value,
+            channel: ch.value,
+            is_enabled: p?.is_enabled ?? false,
+          })
         }
       }
     }
@@ -84,43 +96,45 @@ function PreferencesSection() {
 
   return (
     <div className="bg-muted rounded-xl p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Bell className="h-5 w-5 text-muted-foreground" />
+      <div className="mb-4 flex items-center gap-2">
+        <Bell className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">Notification Preferences</h3>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading preferences...
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-[1fr_80px_80px] gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="text-muted-foreground grid grid-cols-[1fr_80px_80px] gap-2 text-xs font-medium tracking-wider uppercase">
             <span>Event</span>
             {CHANNELS.map((ch) => (
-              <span key={ch.value} className="text-center">{ch.label}</span>
+              <span key={ch.value} className="text-center">
+                {ch.label}
+              </span>
             ))}
           </div>
           {EVENT_TYPES.map((evt) => (
-            <div key={evt.value} className="grid grid-cols-[1fr_80px_80px] gap-2 items-center">
+            <div key={evt.value} className="grid grid-cols-[1fr_80px_80px] items-center gap-2">
               <div>
                 <div className="text-sm font-medium">{evt.label}</div>
-                <div className="text-xs text-muted-foreground">{evt.description}</div>
+                <div className="text-muted-foreground text-xs">{evt.description}</div>
               </div>
               {CHANNELS.map((ch) => (
                 <div key={ch.value} className="flex justify-center">
                   <button
                     onClick={() => togglePref(evt.value, ch.value)}
                     className={cn(
-                      'relative w-11 h-6 rounded-full transition-colors',
-                      isEnabled(evt.value, ch.value) ? 'bg-primary' : 'bg-muted-foreground/20'
+                      'relative h-6 w-11 rounded-full transition-colors',
+                      isEnabled(evt.value, ch.value) ? 'bg-primary' : 'bg-muted-foreground/20',
                     )}
                   >
                     <span
                       className={cn(
-                        'absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform',
-                        isEnabled(evt.value, ch.value) && 'translate-x-5'
+                        'absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform',
+                        isEnabled(evt.value, ch.value) && 'translate-x-5',
                       )}
                     />
                   </button>
@@ -174,13 +188,13 @@ function SmtpSection() {
 
   return (
     <div className="bg-muted rounded-xl p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Mail className="h-5 w-5 text-muted-foreground" />
+      <div className="mb-4 flex items-center gap-2">
+        <Mail className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">SMTP Configuration</h3>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading...
         </div>
@@ -194,7 +208,7 @@ function SmtpSection() {
                 value={form.server}
                 onChange={(e) => setForm({ ...form, server: e.target.value })}
                 placeholder="smtp.example.com"
-                className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               />
             </div>
             <div>
@@ -203,7 +217,7 @@ function SmtpSection() {
                 type="number"
                 value={form.port}
                 onChange={(e) => setForm({ ...form, port: parseInt(e.target.value) || 587 })}
-                className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -216,7 +230,7 @@ function SmtpSection() {
                 value={form.username ?? ''}
                 onChange={(e) => setForm({ ...form, username: e.target.value || null })}
                 placeholder="Optional"
-                className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               />
             </div>
             <div>
@@ -226,7 +240,7 @@ function SmtpSection() {
                 value={form.password ?? ''}
                 onChange={(e) => setForm({ ...form, password: e.target.value || null })}
                 placeholder={smtp?.password_set ? '(unchanged)' : 'Optional'}
-                className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -238,26 +252,26 @@ function SmtpSection() {
               value={form.from_address}
               onChange={(e) => setForm({ ...form, from_address: e.target.value })}
               placeholder="noreply@example.com"
-              className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+              className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
             />
           </div>
 
           <div className="flex items-center justify-between">
             <div>
               <label className="text-sm font-medium">Use TLS</label>
-              <p className="text-xs text-muted-foreground">Enable STARTTLS encryption</p>
+              <p className="text-muted-foreground text-xs">Enable STARTTLS encryption</p>
             </div>
             <button
               onClick={() => setForm({ ...form, use_tls: !form.use_tls })}
               className={cn(
-                'relative w-11 h-6 rounded-full transition-colors',
-                form.use_tls ? 'bg-primary' : 'bg-muted-foreground/20'
+                'relative h-6 w-11 rounded-full transition-colors',
+                form.use_tls ? 'bg-primary' : 'bg-muted-foreground/20',
               )}
             >
               <span
                 className={cn(
-                  'absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform',
-                  form.use_tls && 'translate-x-5'
+                  'absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform',
+                  form.use_tls && 'translate-x-5',
                 )}
               />
             </button>
@@ -266,19 +280,19 @@ function SmtpSection() {
           <div className="flex items-center justify-between">
             <div>
               <label className="text-sm font-medium">Active</label>
-              <p className="text-xs text-muted-foreground">Enable email notifications</p>
+              <p className="text-muted-foreground text-xs">Enable email notifications</p>
             </div>
             <button
               onClick={() => setForm({ ...form, is_active: !form.is_active })}
               className={cn(
-                'relative w-11 h-6 rounded-full transition-colors',
-                form.is_active ? 'bg-primary' : 'bg-muted-foreground/20'
+                'relative h-6 w-11 rounded-full transition-colors',
+                form.is_active ? 'bg-primary' : 'bg-muted-foreground/20',
               )}
             >
               <span
                 className={cn(
-                  'absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform',
-                  form.is_active && 'translate-x-5'
+                  'absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform',
+                  form.is_active && 'translate-x-5',
                 )}
               />
             </button>
@@ -288,17 +302,25 @@ function SmtpSection() {
             <button
               onClick={handleSave}
               disabled={updateSmtp.isPending || !form.server || !form.from_address}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {updateSmtp.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {updateSmtp.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
               Save
             </button>
             <button
               onClick={() => testSmtp.mutate()}
               disabled={testSmtp.isPending || !smtp}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted disabled:opacity-50"
+              className="hover:bg-muted flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              {testSmtp.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube className="h-4 w-4" />}
+              {testSmtp.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube className="h-4 w-4" />
+              )}
               Send Test
             </button>
           </div>
@@ -332,21 +354,28 @@ function WebhookSection() {
     createWebhook.mutate(newWebhook, {
       onSuccess: () => {
         setShowCreate(false)
-        setNewWebhook({ name: '', url: '', secret: null, is_active: true, retry_count: 3, events_filter: null })
+        setNewWebhook({
+          name: '',
+          url: '',
+          secret: null,
+          is_active: true,
+          retry_count: 3,
+          events_filter: null,
+        })
       },
     })
   }
 
   return (
     <div className="bg-muted rounded-xl p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Globe className="h-5 w-5 text-muted-foreground" />
+          <Globe className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Webhooks</h3>
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium"
         >
           <Plus className="h-4 w-4" />
           Add
@@ -354,7 +383,7 @@ function WebhookSection() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading...
         </div>
@@ -362,7 +391,7 @@ function WebhookSection() {
         <div className="space-y-3">
           {/* Create form */}
           {showCreate && (
-            <div className="bg-background rounded-lg p-4 border space-y-3">
+            <div className="bg-background space-y-3 rounded-lg border p-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Name</label>
@@ -371,7 +400,7 @@ function WebhookSection() {
                     value={newWebhook.name}
                     onChange={(e) => setNewWebhook({ ...newWebhook, name: e.target.value })}
                     placeholder="My Webhook"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -381,7 +410,7 @@ function WebhookSection() {
                     value={newWebhook.url}
                     onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
                     placeholder="https://example.com/webhook"
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>
               </div>
@@ -392,21 +421,25 @@ function WebhookSection() {
                   value={newWebhook.secret ?? ''}
                   onChange={(e) => setNewWebhook({ ...newWebhook, secret: e.target.value || null })}
                   placeholder="HMAC-SHA256 signing secret"
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 />
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleCreate}
                   disabled={createWebhook.isPending || !newWebhook.name || !newWebhook.url}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
                 >
-                  {createWebhook.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  {createWebhook.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
                   Create
                 </button>
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-sm font-medium border rounded-lg hover:bg-muted"
+                  className="hover:bg-muted rounded-lg border px-4 py-2 text-sm font-medium"
                 >
                   Cancel
                 </button>
@@ -417,43 +450,52 @@ function WebhookSection() {
           {/* Webhook list */}
           {webhooks && webhooks.length > 0 ? (
             webhooks.map((wh) => (
-              <div key={wh.id} className="bg-background rounded-lg p-4 border flex items-center justify-between">
+              <div
+                key={wh.id}
+                className="bg-background flex items-center justify-between rounded-lg border p-4"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{wh.name}</span>
-                    <span className={cn(
-                      'text-xs px-1.5 py-0.5 rounded',
-                      wh.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-muted text-muted-foreground'
-                    )}>
+                    <span className="text-sm font-medium">{wh.name}</span>
+                    <span
+                      className={cn(
+                        'rounded px-1.5 py-0.5 text-xs',
+                        wh.is_active
+                          ? 'bg-success/10 text-success'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
                       {wh.is_active ? 'Active' : 'Inactive'}
                     </span>
                     {wh.has_secret && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs">
                         Signed
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate">{wh.url}</div>
+                  <div className="text-muted-foreground mt-0.5 truncate text-xs">{wh.url}</div>
                 </div>
-                <div className="flex items-center gap-1.5 ml-4 shrink-0">
+                <div className="ml-4 flex shrink-0 items-center gap-1.5">
                   <button
-                    onClick={() => updateWebhook.mutate({ id: wh.id, data: { is_active: !wh.is_active } })}
+                    onClick={() =>
+                      updateWebhook.mutate({ id: wh.id, data: { is_active: !wh.is_active } })
+                    }
                     className={cn(
-                      'relative w-9 h-5 rounded-full transition-colors',
-                      wh.is_active ? 'bg-primary' : 'bg-muted-foreground/20'
+                      'relative h-5 w-9 rounded-full transition-colors',
+                      wh.is_active ? 'bg-primary' : 'bg-muted-foreground/20',
                     )}
                   >
                     <span
                       className={cn(
-                        'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                        wh.is_active && 'translate-x-4'
+                        'absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+                        wh.is_active && 'translate-x-4',
                       )}
                     />
                   </button>
                   <button
                     onClick={() => testWebhook.mutate(wh.id)}
                     disabled={testWebhook.isPending}
-                    className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg p-1.5"
                     title="Send test payload"
                   >
                     <TestTube className="h-4 w-4" />
@@ -465,7 +507,7 @@ function WebhookSection() {
                       }
                     }}
                     disabled={deleteWebhook.isPending}
-                    className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
+                    className="text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg p-1.5"
                     title="Delete webhook"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -474,7 +516,9 @@ function WebhookSection() {
               </div>
             ))
           ) : !showCreate ? (
-            <p className="text-sm text-muted-foreground">No webhooks configured. Click Add to create one.</p>
+            <p className="text-muted-foreground text-sm">
+              No webhooks configured. Click Add to create one.
+            </p>
           ) : null}
         </div>
       )}

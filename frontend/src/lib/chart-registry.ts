@@ -10,7 +10,7 @@ import type { ChartTypeDefinition, ChartTypeId, ChartCategory } from '@/types/ch
  */
 export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   // Current default - X-bar only
-  'xbar': {
+  xbar: {
     id: 'xbar',
     name: 'X-bar Chart',
     shortName: 'X-bar',
@@ -82,7 +82,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   },
 
   // Attribute charts - p chart
-  'p': {
+  p: {
     id: 'p',
     name: 'P Chart (Proportion Defective)',
     shortName: 'p',
@@ -99,7 +99,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   },
 
   // np chart
-  'np': {
+  np: {
     id: 'np',
     name: 'NP Chart (Number Defective)',
     shortName: 'np',
@@ -116,7 +116,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   },
 
   // c chart
-  'c': {
+  c: {
     id: 'c',
     name: 'C Chart (Defects per Unit)',
     shortName: 'c',
@@ -133,7 +133,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   },
 
   // u chart
-  'u': {
+  u: {
     id: 'u',
     name: 'U Chart (Defects per Unit - Variable)',
     shortName: 'u',
@@ -150,7 +150,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
   },
 
   // Pareto chart
-  'pareto': {
+  pareto: {
     id: 'pareto',
     name: 'Pareto Chart',
     shortName: 'Pareto',
@@ -173,7 +173,7 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
     category: 'analysis',
     description: 'Shows measurement distribution per sample. Requires n≥2.',
     requiresSubgroupSize: true,
-    minSubgroupSize: 2,  // Need at least 2 measurements to show distribution
+    minSubgroupSize: 2, // Need at least 2 measurements to show distribution
     maxSubgroupSize: null,
     dataType: 'continuous',
     isDualChart: false,
@@ -224,10 +224,7 @@ export function recommendChartType(subgroupSize: number): ChartTypeId {
 /**
  * Check if a chart type is compatible with a given subgroup size.
  */
-export function isChartTypeCompatible(
-  chartTypeId: ChartTypeId,
-  subgroupSize: number
-): boolean {
+export function isChartTypeCompatible(chartTypeId: ChartTypeId, subgroupSize: number): boolean {
   const chartType = chartTypeRegistry[chartTypeId]
 
   if (subgroupSize < chartType.minSubgroupSize) {
@@ -246,7 +243,7 @@ export function isChartTypeCompatible(
  */
 export function getCompatibleChartTypes(
   subgroupSize: number,
-  dataType: 'continuous' | 'attribute' = 'continuous'
+  dataType: 'continuous' | 'attribute' = 'continuous',
 ): ChartTypeDefinition[] {
   return Object.values(chartTypeRegistry).filter((ct) => {
     // Filter by data type

@@ -89,13 +89,15 @@ export const helpContent: Record<string, HelpContent> = {
   // Statistical terms
   'ucl-explanation': {
     title: 'Upper Control Limit (UCL)',
-    description: 'The upper boundary of expected process variation, typically set at +3 sigma from the center line.',
+    description:
+      'The upper boundary of expected process variation, typically set at +3 sigma from the center line.',
     details:
       'Points above the UCL indicate the process may be out of statistical control. The UCL is calculated from historical data and represents the expected upper limit of natural variation.',
   },
   'lcl-explanation': {
     title: 'Lower Control Limit (LCL)',
-    description: 'The lower boundary of expected process variation, typically set at -3 sigma from the center line.',
+    description:
+      'The lower boundary of expected process variation, typically set at -3 sigma from the center line.',
     details:
       'Points below the LCL indicate the process may be out of statistical control. For some quality characteristics, only the UCL may be relevant (e.g., defect counts).',
   },
@@ -135,13 +137,15 @@ export const helpContent: Record<string, HelpContent> = {
   // Z-score explanations
   'z-score': {
     title: 'Z-Score',
-    description: 'A standardized value showing how many standard deviations a point is from the center line.',
+    description:
+      'A standardized value showing how many standard deviations a point is from the center line.',
     details:
       'Z = (X-bar - Center Line) / (sigma / sqrt(n)). A Z-score of 0 means the point is at the center. Z = +2 means 2 sigma above center, Z = -1.5 means 1.5 sigma below. Control limits are always at +/-3 in standardized mode.',
   },
   'z-score-interpretation': {
     title: 'Interpreting Z-Scores',
-    description: 'Z-scores tell you how unusual a data point is relative to normal process variation.',
+    description:
+      'Z-scores tell you how unusual a data point is relative to normal process variation.',
     details:
       '|Z| < 1: Common, within Zone C (68% of points). |Z| 1-2: Uncommon, Zone B (27% of points). |Z| 2-3: Rare, Zone A (4% of points). |Z| > 3: Very rare, out of control (0.3% of points). The same interpretation applies regardless of the underlying data scale.',
   },
@@ -195,19 +199,19 @@ export const helpContent: Record<string, HelpContent> = {
   },
 
   // MQTT and Data Collection
-  'mqtt_connection': {
+  mqtt_connection: {
     title: 'MQTT Connection',
     description: 'Real-time connection to MQTT broker for automated data collection.',
     details:
       'MQTT is a lightweight messaging protocol used for machine-to-machine communication. When connected, OpenSPC subscribes to topics configured for TAG-type characteristics and automatically processes incoming data.',
   },
-  'mqtt_broker': {
+  mqtt_broker: {
     title: 'MQTT Broker',
     description: 'Server that routes MQTT messages between publishers and subscribers.',
     details:
       'Configure connection details for your MQTT broker (e.g., Mosquitto, HiveMQ, AWS IoT). You can have multiple brokers configured but only one can be active at a time.',
   },
-  'tag_provider': {
+  tag_provider: {
     title: 'Data Providers',
     description: 'Automated data collection from machine tags via MQTT or OPC-UA.',
     details:
@@ -279,7 +283,8 @@ export const helpContent: Record<string, HelpContent> = {
   // When to recalculate control limits
   'recalculate-limits': {
     title: 'When to Recalculate Control Limits',
-    description: 'Control limits should be recalculated after process improvements or when starting fresh.',
+    description:
+      'Control limits should be recalculated after process improvements or when starting fresh.',
     details:
       'Recalculate when: (1) Process has been improved and is now stable at new level, (2) Sufficient data collected after a change (25+ subgroups recommended), (3) Original limits were based on out-of-control process. Do NOT recalculate just to make points "in control" - that defeats the purpose of SPC.',
   },

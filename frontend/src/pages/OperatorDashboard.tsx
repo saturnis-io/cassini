@@ -22,14 +22,7 @@ import { canPerformAction } from '@/lib/roles'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
-import {
-  AlertTriangle,
-  TrendingUp,
-  Activity,
-  Hash,
-  Target,
-  Gauge,
-} from 'lucide-react'
+import { AlertTriangle, TrendingUp, Activity, Hash, Target, Gauge } from 'lucide-react'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
@@ -50,17 +43,15 @@ function StatPill({
 }) {
   const variantClasses = {
     default: 'text-muted-foreground',
-    success: 'text-green-500',
-    warning: 'text-amber-500',
+    success: 'text-success',
+    warning: 'text-warning',
     danger: 'text-destructive',
   }
   return (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/40 border border-border/50 text-xs">
+    <div className="bg-muted/40 border-border/50 flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs">
       <Icon className={cn('h-3 w-3', variantClasses[variant])} />
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn('font-semibold tabular-nums', variantClasses[variant])}>
-        {value}
-      </span>
+      <span className={cn('font-semibold tabular-nums', variantClasses[variant])}>{value}</span>
     </div>
   )
 }
@@ -73,7 +64,9 @@ export function OperatorDashboard() {
   const showSpecLimits = useDashboardStore((state) => state.showSpecLimits)
   const comparisonMode = useDashboardStore((state) => state.comparisonMode)
   const secondaryCharacteristicId = useDashboardStore((state) => state.secondaryCharacteristicId)
-  const setSecondaryCharacteristicId = useDashboardStore((state) => state.setSecondaryCharacteristicId)
+  const setSecondaryCharacteristicId = useDashboardStore(
+    (state) => state.setSecondaryCharacteristicId,
+  )
   const timeRange = useDashboardStore((state) => state.timeRange)
   const chartTypes = useDashboardStore((state) => state.chartTypes)
   const showBrush = useDashboardStore((state) => state.showBrush)
@@ -100,7 +93,8 @@ export function OperatorDashboard() {
 
   // Get current chart type — default to recommended type for the characteristic's subgroup size
   const subgroupSize = selectedCharacteristic?.subgroup_size ?? 5
-  const currentChartType: ChartTypeId = (selectedId && chartTypes.get(selectedId)) || recommendChartType(subgroupSize)
+  const currentChartType: ChartTypeId =
+    (selectedId && chartTypes.get(selectedId)) || recommendChartType(subgroupSize)
   const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
   const isBoxWhisker = currentChartType === 'box-whisker'
 
@@ -150,9 +144,7 @@ export function OperatorDashboard() {
     const isModeA = subgroup_mode === 'STANDARDIZED'
 
     if (isModeA) {
-      const zValues = data_points
-        .filter((p) => p.z_score != null)
-        .map((p) => p.z_score!)
+      const zValues = data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
       if (zValues.length === 0) return [-4, 4]
       const allZLimits = [...zValues, 3, -3]
       const zMin = Math.min(...allZLimits)
@@ -206,14 +198,13 @@ export function OperatorDashboard() {
   const visibleViolationIds = useMemo(() => {
     if (!chartDataForAnnotation?.data_points?.length) return []
     const pts = chartDataForAnnotation.data_points
-    const visible = !showBrush || !rangeWindow
-      ? pts
-      : pts.slice(rangeWindow[0], rangeWindow[1] + 1)
+    const visible = !showBrush || !rangeWindow ? pts : pts.slice(rangeWindow[0], rangeWindow[1] + 1)
     return visible.flatMap((p) => p.unacknowledged_violation_ids ?? p.violation_ids)
   }, [chartDataForAnnotation, rangeWindow, showBrush])
 
   const { role } = useAuth()
-  const canBulkAck = canPerformAction(role, 'violations:acknowledge') && visibleViolationIds.length > 0
+  const canBulkAck =
+    canPerformAction(role, 'violations:acknowledge') && visibleViolationIds.length > 0
 
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
@@ -272,7 +263,7 @@ export function OperatorDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex h-96 items-center justify-center">
         <div className="text-muted-foreground">Loading characteristics...</div>
       </div>
     )
@@ -281,57 +272,34 @@ export function OperatorDashboard() {
   const precision = quickStats?.precision ?? 2
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5.5rem)] -mx-4 -my-3 px-3 py-2 gap-2">
-
+    <div className="-mx-4 -my-3 flex h-[calc(100vh-5.5rem)] flex-col gap-2 px-3 py-2">
       {/* ── Stats Ticker Bar ── */}
       {selectedId && quickStats && (
-        <div className="flex items-center gap-2 px-1 py-1 overflow-x-auto flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-2 overflow-x-auto px-1 py-1">
           {/* Characteristic name + chart type */}
-          <div className="flex items-center gap-2 mr-2 flex-shrink-0">
-            <span className="text-sm font-semibold truncate max-w-[200px]">
+          <div className="mr-2 flex flex-shrink-0 items-center gap-2">
+            <span className="max-w-[200px] truncate text-sm font-semibold">
               {selectedCharacteristic?.name ?? '—'}
             </span>
             {selectedCharacteristic?.unit && (
-              <span className="text-xs text-muted-foreground">
-                ({selectedCharacteristic.unit})
-              </span>
+              <span className="text-muted-foreground text-xs">({selectedCharacteristic.unit})</span>
             )}
           </div>
 
-          <div className="h-4 w-px bg-border/60 flex-shrink-0" />
+          <div className="bg-border/60 h-4 w-px flex-shrink-0" />
 
           {/* Stats pills */}
-          <StatPill
-            icon={Activity}
-            label="Last"
-            value={quickStats.lastMean.toFixed(precision)}
-          />
+          <StatPill icon={Activity} label="Last" value={quickStats.lastMean.toFixed(precision)} />
           {quickStats.centerLine != null && (
-            <StatPill
-              icon={Target}
-              label="CL"
-              value={quickStats.centerLine.toFixed(precision)}
-            />
+            <StatPill icon={Target} label="CL" value={quickStats.centerLine.toFixed(precision)} />
           )}
           {quickStats.ucl != null && (
-            <StatPill
-              icon={TrendingUp}
-              label="UCL"
-              value={quickStats.ucl.toFixed(precision)}
-            />
+            <StatPill icon={TrendingUp} label="UCL" value={quickStats.ucl.toFixed(precision)} />
           )}
           {quickStats.lcl != null && (
-            <StatPill
-              icon={TrendingUp}
-              label="LCL"
-              value={quickStats.lcl.toFixed(precision)}
-            />
+            <StatPill icon={TrendingUp} label="LCL" value={quickStats.lcl.toFixed(precision)} />
           )}
-          <StatPill
-            icon={Hash}
-            label="n"
-            value={quickStats.totalSamples}
-          />
+          <StatPill icon={Hash} label="n" value={quickStats.totalSamples} />
           <StatPill
             icon={AlertTriangle}
             label="OOC"
@@ -344,11 +312,7 @@ export function OperatorDashboard() {
               label="Cpk"
               value={quickStats.cpk.toFixed(2)}
               variant={
-                quickStats.cpk >= 1.33
-                  ? 'success'
-                  : quickStats.cpk >= 1.0
-                  ? 'warning'
-                  : 'danger'
+                quickStats.cpk >= 1.33 ? 'success' : quickStats.cpk >= 1.0 ? 'warning' : 'danger'
               }
             />
           )}
@@ -356,15 +320,14 @@ export function OperatorDashboard() {
       )}
 
       {/* ── Main Content Area ── */}
-      <div className="flex gap-2 flex-1 min-h-0">
-
+      <div className="flex min-h-0 flex-1 gap-2">
         {/* Left Panel — Hierarchy / Characteristics (Watchlist-style) */}
         <div className="w-72 flex-shrink-0">
           <HierarchyTodoList className="h-full" />
         </div>
 
         {/* Center + Right — Chart area */}
-        <div className="flex-1 flex flex-col gap-2 min-h-0 min-w-0">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           {selectedId ? (
             <>
               {/* ── Toolbar ── */}
@@ -384,11 +347,11 @@ export function OperatorDashboard() {
               )}
 
               {/* ── Primary Chart ── */}
-              <div className="flex-1 min-h-0">
+              <div className="min-h-0 flex-1">
                 {isBoxWhisker ? (
                   histogramPosition === 'right' ? (
-                    <div className="flex gap-2 h-full">
-                      <div className="flex-1 min-w-0">
+                    <div className="flex h-full gap-2">
+                      <div className="min-w-0 flex-1">
                         <BoxWhiskerChart
                           characteristicId={selectedId}
                           chartOptions={chartOptions}
@@ -409,8 +372,8 @@ export function OperatorDashboard() {
                       </div>
                     </div>
                   ) : histogramPosition === 'below' ? (
-                    <div className="flex flex-col gap-2 h-full">
-                      <div className="flex-1 min-h-0">
+                    <div className="flex h-full flex-col gap-2">
+                      <div className="min-h-0 flex-1">
                         <BoxWhiskerChart
                           characteristicId={selectedId}
                           chartOptions={chartOptions}
@@ -465,7 +428,7 @@ export function OperatorDashboard() {
 
               {/* ── Secondary Chart (Comparison Mode) ── */}
               {comparisonMode && (
-                <div className="flex-1 min-h-0 relative">
+                <div className="relative min-h-0 flex-1">
                   {secondaryCharacteristicId ? (
                     <ChartPanel
                       characteristicId={secondaryCharacteristicId}
@@ -475,11 +438,11 @@ export function OperatorDashboard() {
                       showSpecLimits={showSpecLimits}
                     />
                   ) : (
-                    <div className="h-full bg-card border border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+                    <div className="bg-card border-border text-muted-foreground flex h-full flex-col items-center justify-center rounded-lg border border-dashed">
                       <p className="mb-3 text-sm">Select a characteristic to compare</p>
                       <button
                         onClick={() => setShowComparisonSelector(true)}
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                       >
                         Browse Hierarchy
                       </button>
@@ -516,14 +479,16 @@ export function OperatorDashboard() {
               )}
 
               {/* ── Process Capability Card ── */}
-              {selectedId && selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null && (
-                <div className="flex-shrink-0">
-                  <CapabilityCard characteristicId={selectedId} />
-                </div>
-              )}
+              {selectedId &&
+                selectedCharacteristic?.usl != null &&
+                selectedCharacteristic?.lsl != null && (
+                  <div className="flex-shrink-0">
+                    <CapabilityCard characteristicId={selectedId} />
+                  </div>
+                )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
               Select a characteristic from the list to view its control chart
             </div>
           )}
@@ -566,7 +531,10 @@ export function OperatorDashboard() {
       {regionSelection && !regionAnnotateOpen && !regionAckOpen && (
         <RegionActionModal
           selection={regionSelection}
-          canAcknowledge={canPerformAction(role, 'violations:acknowledge') && regionSelection.violationIds.length > 0}
+          canAcknowledge={
+            canPerformAction(role, 'violations:acknowledge') &&
+            regionSelection.violationIds.length > 0
+          }
           onAnnotate={() => setRegionAnnotateOpen(true)}
           onAcknowledge={() => setRegionAckOpen(true)}
           onClose={() => setRegionSelection(null)}
@@ -577,7 +545,10 @@ export function OperatorDashboard() {
       {regionAnnotateOpen && selectedId && regionSelection && (
         <AnnotationDialog
           characteristicId={selectedId}
-          onClose={() => { setRegionAnnotateOpen(false); setRegionSelection(null) }}
+          onClose={() => {
+            setRegionAnnotateOpen(false)
+            setRegionSelection(null)
+          }}
           mode="period"
           prefillStartTime={regionSelection.startTime}
           prefillEndTime={regionSelection.endTime}
@@ -588,7 +559,10 @@ export function OperatorDashboard() {
       {regionAckOpen && regionSelection && (
         <BulkAcknowledgeDialog
           violationIds={regionSelection.violationIds}
-          onClose={() => { setRegionAckOpen(false); setRegionSelection(null) }}
+          onClose={() => {
+            setRegionAckOpen(false)
+            setRegionSelection(null)
+          }}
           contextLabel={`in selected region (${formatDisplayKey(regionSelection.startDisplayKey)} \u2014 ${formatDisplayKey(regionSelection.endDisplayKey)})`}
         />
       )}

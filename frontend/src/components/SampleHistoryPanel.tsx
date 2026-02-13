@@ -1,5 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Pencil, Trash2, EyeOff, Eye, History, Filter, X, ChevronDown, ChevronUp, MapPin, Clock, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import {
+  Pencil,
+  Trash2,
+  EyeOff,
+  Eye,
+  History,
+  Filter,
+  X,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Clock,
+  AlertTriangle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from 'lucide-react'
 import { useSamples, useDeleteSample, useExcludeSample, useCharacteristic } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { usePlantContext } from '@/providers/PlantProvider'
@@ -29,14 +45,14 @@ const defaultTimeRange: TimeRangeState = {
 function FilterChip({
   icon: Icon,
   label,
-  onRemove
+  onRemove,
 }: {
   icon: React.ElementType
   label: string
   onRemove: () => void
 }) {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary">
+    <div className="bg-primary/10 border-primary/20 text-primary inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm">
       <Icon className="h-3.5 w-3.5" />
       <span className="font-medium">{label}</span>
       <button
@@ -44,7 +60,7 @@ function FilterChip({
           e.stopPropagation()
           onRemove()
         }}
-        className="ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-colors"
+        className="hover:bg-destructive/20 hover:text-destructive ml-1 rounded p-0.5 transition-colors"
       >
         <X className="h-3 w-3" />
       </button>
@@ -60,9 +76,7 @@ export function SampleHistoryPanel() {
   const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
 
   // Restore selection from global store on mount
-  const { data: restoredChar } = useCharacteristic(
-    globalCharId && !selectedChar ? globalCharId : 0
-  )
+  const { data: restoredChar } = useCharacteristic(globalCharId && !selectedChar ? globalCharId : 0)
   useEffect(() => {
     if (restoredChar && !selectedChar && globalCharId) {
       setSelectedChar(restoredChar)
@@ -80,16 +94,21 @@ export function SampleHistoryPanel() {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
-  const handleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      // Cycle: asc → desc → off
-      if (sortDir === 'asc') setSortDir('desc')
-      else { setSortField(null) }
-    } else {
-      setSortField(field)
-      setSortDir('asc')
-    }
-  }, [sortField, sortDir])
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (sortField === field) {
+        // Cycle: asc → desc → off
+        if (sortDir === 'asc') setSortDir('desc')
+        else {
+          setSortField(null)
+        }
+      } else {
+        setSortField(field)
+        setSortDir('asc')
+      }
+    },
+    [sortField, sortDir],
+  )
 
   // Convert time range to query params
   const queryParams = useMemo(() => {
@@ -126,7 +145,11 @@ export function SampleHistoryPanel() {
   const [editingSample, setEditingSample] = useState<Sample | null>(null)
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null)
 
-  const { data: samplesData, isLoading: loadingSamples, error: samplesError } = useSamples(queryParams)
+  const {
+    data: samplesData,
+    isLoading: loadingSamples,
+    error: samplesError,
+  } = useSamples(queryParams)
 
   const deleteSample = useDeleteSample()
   const excludeSample = useExcludeSample()
@@ -134,9 +157,10 @@ export function SampleHistoryPanel() {
   const samples = samplesData?.items || []
   const rawTotal = samplesData?.total || 0
   // For "Last X points" mode, cap total to pointsLimit so pagination doesn't exceed it
-  const totalSamples = timeRange.type === 'points' && timeRange.pointsLimit
-    ? Math.min(rawTotal, timeRange.pointsLimit)
-    : rawTotal
+  const totalSamples =
+    timeRange.type === 'points' && timeRange.pointsLimit
+      ? Math.min(rawTotal, timeRange.pointsLimit)
+      : rawTotal
   const totalPages = Math.ceil(totalSamples / perPage)
 
   // Apply optional client-side sort for mean column (timestamp sort is handled server-side)
@@ -178,7 +202,7 @@ export function SampleHistoryPanel() {
       return sample.measurements as unknown as number[]
     }
     // It's Measurement objects
-    return sample.measurements.map(m => m.value)
+    return sample.measurements.map((m) => m.value)
   }
 
   const handleCharacteristicSelect = (char: Characteristic) => {
@@ -216,14 +240,14 @@ export function SampleHistoryPanel() {
       <div className="bg-muted rounded-xl">
         {/* Filter Header */}
         <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-xl"
+          className="hover:bg-muted/30 flex cursor-pointer items-center justify-between rounded-t-xl px-4 py-3 transition-colors"
           onClick={() => setFiltersExpanded(!filtersExpanded)}
         >
           <div className="flex items-center gap-3">
-            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Filter className="text-muted-foreground h-4 w-4" />
             <span className="font-medium">Filters</span>
             {activeFilterCount > 0 && (
-              <span className="px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
+              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
                 {activeFilterCount}
               </span>
             )}
@@ -235,22 +259,22 @@ export function SampleHistoryPanel() {
                   e.stopPropagation()
                   handleResetFilters()
                 }}
-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 text-xs transition-colors"
               >
                 Clear all
               </button>
             )}
             {filtersExpanded ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              <ChevronUp className="text-muted-foreground h-4 w-4" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="text-muted-foreground h-4 w-4" />
             )}
           </div>
         </div>
 
         {/* Active Filter Chips (shown when collapsed) */}
         {!filtersExpanded && (selectedChar || includeExcluded) && (
-          <div className="flex flex-wrap items-center gap-2 px-4 pb-3 rounded-b-xl">
+          <div className="flex flex-wrap items-center gap-2 rounded-b-xl px-4 pb-3">
             {selectedChar && (
               <FilterChip
                 icon={MapPin}
@@ -282,10 +306,10 @@ export function SampleHistoryPanel() {
 
         {/* Expanded Filter Panel */}
         {filtersExpanded && (
-          <div className="px-4 pb-4 space-y-4 border-t border-border pt-4 bg-muted/20 rounded-b-xl">
+          <div className="border-border bg-muted/20 space-y-4 rounded-b-xl border-t px-4 pt-4 pb-4">
             {/* Characteristic Selector */}
             <div>
-              <label className="block text-sm font-medium mb-2 text-muted-foreground">
+              <label className="text-muted-foreground mb-2 block text-sm font-medium">
                 Characteristic
               </label>
               <HierarchyCharacteristicSelector
@@ -294,11 +318,14 @@ export function SampleHistoryPanel() {
                 plantId={selectedPlant?.id}
               />
               {selectedChar && (
-                <div className="mt-2 flex items-center justify-between p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="bg-primary/5 border-primary/20 mt-2 flex items-center justify-between rounded-lg border p-2.5">
                   <div>
-                    <div className="font-medium text-sm">{selectedChar.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {selectedChar.data_source ? selectedChar.data_source.type.toUpperCase() : 'Manual'} · n={selectedChar.subgroup_size}
+                    <div className="text-sm font-medium">{selectedChar.name}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {selectedChar.data_source
+                        ? selectedChar.data_source.type.toUpperCase()
+                        : 'Manual'}{' '}
+                      · n={selectedChar.subgroup_size}
                     </div>
                   </div>
                   <button
@@ -307,9 +334,9 @@ export function SampleHistoryPanel() {
                       setGlobalCharId(null)
                       setPage(1)
                     }}
-                    className="p-1 rounded hover:bg-muted transition-colors"
+                    className="hover:bg-muted rounded p-1 transition-colors"
                   >
-                    <X className="h-4 w-4 text-muted-foreground" />
+                    <X className="text-muted-foreground h-4 w-4" />
                   </button>
                 </div>
               )}
@@ -318,7 +345,7 @@ export function SampleHistoryPanel() {
             {/* Time Range and Options Row */}
             <div className="flex flex-wrap items-end gap-6">
               <div>
-                <label className="block text-sm font-medium mb-2 text-muted-foreground">
+                <label className="text-muted-foreground mb-2 block text-sm font-medium">
                   Time Range
                 </label>
                 <LocalTimeRangeSelector
@@ -331,12 +358,12 @@ export function SampleHistoryPanel() {
               </div>
 
               <div className="flex items-center gap-4 pb-1.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+                <label className="flex cursor-pointer items-center gap-2 select-none">
                   <input
                     type="checkbox"
                     checked={includeExcluded}
                     onChange={(e) => setIncludeExcluded(e.target.checked)}
-                    className="rounded border-input"
+                    className="border-input rounded"
                   />
                   <span className="text-sm">Include excluded samples</span>
                 </label>
@@ -348,10 +375,12 @@ export function SampleHistoryPanel() {
 
       {/* Results Summary */}
       {selectedChar && !loadingSamples && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-between text-sm">
           <span>
             {displayedSamples.length > 0 ? (
-              <>Showing {displayedSamples.length} of {totalSamples} samples</>
+              <>
+                Showing {displayedSamples.length} of {totalSamples} samples
+              </>
             ) : (
               <>No samples found</>
             )}
@@ -365,32 +394,44 @@ export function SampleHistoryPanel() {
       )}
 
       {/* Sample Table */}
-      <div className="bg-muted rounded-xl overflow-hidden">
+      <div className="bg-muted overflow-hidden rounded-xl">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">Sample</th>
                 <th
-                  className="px-4 py-3 text-left text-sm font-medium cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                  className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-left text-sm font-medium transition-colors select-none"
                   onClick={() => handleSort('timestamp')}
                 >
                   <span className="inline-flex items-center gap-1">
                     Timestamp
-                    {sortField === 'timestamp'
-                      ? (sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)
-                      : <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                    {sortField === 'timestamp' ? (
+                      sortDir === 'asc' ? (
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
+                    )}
                   </span>
                 </th>
                 <th
-                  className="px-4 py-3 text-right text-sm font-medium cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                  className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-right text-sm font-medium transition-colors select-none"
                   onClick={() => handleSort('mean')}
                 >
                   <span className="inline-flex items-center justify-end gap-1">
                     Mean
-                    {sortField === 'mean'
-                      ? (sortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)
-                      : <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                    {sortField === 'mean' ? (
+                      sortDir === 'asc' ? (
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
+                    )}
                   </span>
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Measurements</th>
@@ -398,16 +439,18 @@ export function SampleHistoryPanel() {
                 <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-border divide-y">
               {!selectedChar ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <MapPin className="h-8 w-8 text-muted-foreground/50" />
-                      <span className="text-muted-foreground">Select a characteristic to view samples</span>
+                      <MapPin className="text-muted-foreground/50 h-8 w-8" />
+                      <span className="text-muted-foreground">
+                        Select a characteristic to view samples
+                      </span>
                       <button
                         onClick={() => setFiltersExpanded(true)}
-                        className="text-sm text-primary hover:underline"
+                        className="text-primary text-sm hover:underline"
                       >
                         Open filters
                       </button>
@@ -418,7 +461,7 @@ export function SampleHistoryPanel() {
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <div className="border-primary h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
                       <span className="text-muted-foreground">Loading samples...</span>
                     </div>
                   </td>
@@ -427,12 +470,12 @@ export function SampleHistoryPanel() {
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <AlertTriangle className="h-8 w-8 text-destructive/50" />
+                      <AlertTriangle className="text-destructive/50 h-8 w-8" />
                       <span className="text-destructive font-medium">Failed to load samples</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         {samplesError instanceof Error ? samplesError.message : 'Unknown error'}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         Try refreshing the page or logging in again.
                       </span>
                     </div>
@@ -442,9 +485,11 @@ export function SampleHistoryPanel() {
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <History className="h-8 w-8 text-muted-foreground/50" />
+                      <History className="text-muted-foreground/50 h-8 w-8" />
                       <span className="text-muted-foreground">No samples found</span>
-                      <span className="text-xs text-muted-foreground">Try adjusting your filters or time range</span>
+                      <span className="text-muted-foreground text-xs">
+                        Try adjusting your filters or time range
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -454,11 +499,8 @@ export function SampleHistoryPanel() {
                   const isModified = sample.is_modified
                   const measurementValues = getMeasurementValues(sample)
                   return (
-                    <tr
-                      key={sample.id}
-                      className={isExcluded ? 'opacity-50 bg-muted/30' : ''}
-                    >
-                      <td className="px-4 py-3 text-sm font-mono">
+                    <tr key={sample.id} className={isExcluded ? 'bg-muted/30 opacity-50' : ''}>
+                      <td className="px-4 py-3 font-mono text-sm">
                         <div className="flex items-center gap-1.5">
                           {sample.display_key ? formatDisplayKey(sample.display_key) : sample.id}
                           {isModified && (
@@ -472,19 +514,19 @@ export function SampleHistoryPanel() {
                       <td className="px-4 py-3 text-sm">
                         {new Date(sample.timestamp).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right font-mono">
+                      <td className="px-4 py-3 text-right font-mono text-sm">
                         {sample.mean.toFixed(4)}
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono">
-                        [{measurementValues.map(v => v.toFixed(2)).join(', ')}]
+                      <td className="px-4 py-3 font-mono text-sm">
+                        [{measurementValues.map((v) => v.toFixed(2)).join(', ')}]
                       </td>
-                      <td className="px-4 py-3 text-sm text-center">
+                      <td className="px-4 py-3 text-center text-sm">
                         {isExcluded ? (
-                          <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded">
+                          <span className="bg-muted text-muted-foreground rounded px-2 py-1 text-xs">
                             Excluded
                           </span>
                         ) : (
-                          <span className="px-2 py-1 text-xs bg-green-500/10 text-green-600 rounded">
+                          <span className="bg-success/10 text-success rounded px-2 py-1 text-xs">
                             Active
                           </span>
                         )}
@@ -494,7 +536,7 @@ export function SampleHistoryPanel() {
                           {canPerformAction(role, 'samples:edit') && (
                             <button
                               onClick={() => setEditingSample(sample)}
-                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
                               title="Edit"
                             >
                               <Pencil className="h-4 w-4" />
@@ -503,7 +545,7 @@ export function SampleHistoryPanel() {
                           {canPerformAction(role, 'samples:exclude') && (
                             <button
                               onClick={() => handleToggleExclude(sample)}
-                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
                               title={isExcluded ? 'Include' : 'Exclude'}
                             >
                               {isExcluded ? (
@@ -516,7 +558,7 @@ export function SampleHistoryPanel() {
                           {canPerformAction(role, 'samples:delete') && (
                             <button
                               onClick={() => setDeletingSampleId(sample.id)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
+                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1.5"
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -534,15 +576,16 @@ export function SampleHistoryPanel() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <div className="text-sm text-muted-foreground">
-              Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalSamples)} of {totalSamples} samples
+          <div className="border-border flex items-center justify-between border-t px-4 py-3">
+            <div className="text-muted-foreground text-sm">
+              Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalSamples)} of{' '}
+              {totalSamples} samples
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-50"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
               >
                 Previous
               </button>
@@ -550,9 +593,9 @@ export function SampleHistoryPanel() {
                 Page {page} of {totalPages}
               </span>
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1 text-sm bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-50"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
               >
                 Next
               </button>

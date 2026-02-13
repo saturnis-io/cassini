@@ -62,7 +62,7 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
           publishing_interval: server.publishing_interval,
           sampling_interval: server.sampling_interval,
         }
-      : defaultFormData
+      : defaultFormData,
   )
 
   const createMutation = useMutation({
@@ -101,10 +101,12 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
       session_timeout: formData.session_timeout,
       publishing_interval: formData.publishing_interval,
       sampling_interval: formData.sampling_interval,
-      ...(formData.auth_mode === 'username_password' ? {
-        username: formData.username || undefined,
-        password: formData.password || undefined,
-      } : {}),
+      ...(formData.auth_mode === 'username_password'
+        ? {
+            username: formData.username || undefined,
+            password: formData.password || undefined,
+          }
+        : {}),
     }
 
     if (isEditing && server) {
@@ -122,10 +124,12 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
       name: formData.name || 'test',
       endpoint_url: formData.endpoint_url,
       auth_mode: formData.auth_mode,
-      ...(formData.auth_mode === 'username_password' ? {
-        username: formData.username || undefined,
-        password: formData.password || undefined,
-      } : {}),
+      ...(formData.auth_mode === 'username_password'
+        ? {
+            username: formData.username || undefined,
+            password: formData.password || undefined,
+          }
+        : {}),
     }
     const result = await opcuaApi.test(testData)
     return { success: result.success, message: result.message }
@@ -133,21 +137,22 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
 
   const isSaving = createMutation.isPending || updateMutation.isPending
 
-  const selectClasses = 'w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors appearance-none'
+  const selectClasses =
+    'w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors appearance-none'
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border-border overflow-hidden rounded-xl border">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/30">
+      <div className="border-border bg-muted/30 flex items-center justify-between border-b px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-500/10">
-            <span className="text-purple-400 text-sm font-bold">U</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+            <span className="text-sm font-bold text-purple-400">U</span>
           </div>
           <div>
-            <h3 className="font-semibold text-sm">
+            <h3 className="text-sm font-semibold">
               {isEditing ? 'Edit OPC-UA Server' : 'New OPC-UA Server'}
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Configure connection to an OPC-UA server
             </p>
           </div>
@@ -155,36 +160,38 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg p-1.5 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-5 space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5 p-5">
         {/* Connection */}
         <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Connection</h4>
+          <h4 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+            Connection
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Name</label>
+              <label className="mb-1.5 block text-sm font-medium">Name</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
                 placeholder="PLC Controller 1"
                 required
               />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1.5">Endpoint URL</label>
+              <label className="mb-1.5 block text-sm font-medium">Endpoint URL</label>
               <input
                 type="text"
                 value={formData.endpoint_url}
                 onChange={(e) => setFormData({ ...formData, endpoint_url: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
                 placeholder="opc.tcp://192.168.1.100:4840"
                 required
                 pattern="^opc\.tcp://.*"
@@ -196,13 +203,20 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
 
         {/* Authentication */}
         <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Authentication</h4>
+          <h4 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+            Authentication
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Auth Mode</label>
+              <label className="mb-1.5 block text-sm font-medium">Auth Mode</label>
               <select
                 value={formData.auth_mode}
-                onChange={(e) => setFormData({ ...formData, auth_mode: e.target.value as OPCUAFormData['auth_mode'] })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    auth_mode: e.target.value as OPCUAFormData['auth_mode'],
+                  })
+                }
                 className={selectClasses}
               >
                 <option value="anonymous">Anonymous</option>
@@ -210,26 +224,25 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
               </select>
             </div>
             <div /> {/* spacer */}
-
             {formData.auth_mode === 'username_password' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Username</label>
+                  <label className="mb-1.5 block text-sm font-medium">Username</label>
                   <input
                     type="text"
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                    className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Password</label>
+                  <label className="mb-1.5 block text-sm font-medium">Password</label>
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                    className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
                     placeholder={isEditing ? '(unchanged)' : ''}
                     required={!isEditing}
                   />
@@ -241,10 +254,12 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
 
         {/* Security */}
         <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Security</h4>
+          <h4 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+            Security
+          </h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Security Policy</label>
+              <label className="mb-1.5 block text-sm font-medium">Security Policy</label>
               <select
                 value={formData.security_policy}
                 onChange={(e) => setFormData({ ...formData, security_policy: e.target.value })}
@@ -255,7 +270,7 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Security Mode</label>
+              <label className="mb-1.5 block text-sm font-medium">Security Mode</label>
               <select
                 value={formData.security_mode}
                 onChange={(e) => setFormData({ ...formData, security_mode: e.target.value })}
@@ -271,55 +286,69 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
 
         {/* Timing */}
         <div>
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Timing</h4>
+          <h4 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+            Timing
+          </h4>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Session Timeout</label>
+              <label className="mb-1.5 block text-sm font-medium">Session Timeout</label>
               <div className="relative">
                 <NumberInput
                   value={String(formData.session_timeout)}
-                  onChange={(v) => setFormData({ ...formData, session_timeout: parseInt(v) || 30000 })}
+                  onChange={(v) =>
+                    setFormData({ ...formData, session_timeout: parseInt(v) || 30000 })
+                  }
                   min={1000}
                   max={300000}
                   step={1000}
                   showButtons={false}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">ms</span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
+                  ms
+                </span>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Publish Interval</label>
+              <label className="mb-1.5 block text-sm font-medium">Publish Interval</label>
               <div className="relative">
                 <NumberInput
                   value={String(formData.publishing_interval)}
-                  onChange={(v) => setFormData({ ...formData, publishing_interval: parseInt(v) || 1000 })}
+                  onChange={(v) =>
+                    setFormData({ ...formData, publishing_interval: parseInt(v) || 1000 })
+                  }
                   min={50}
                   max={60000}
                   step={100}
                   showButtons={false}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">ms</span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
+                  ms
+                </span>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Sampling Interval</label>
+              <label className="mb-1.5 block text-sm font-medium">Sampling Interval</label>
               <div className="relative">
                 <NumberInput
                   value={String(formData.sampling_interval)}
-                  onChange={(v) => setFormData({ ...formData, sampling_interval: parseInt(v) || 250 })}
+                  onChange={(v) =>
+                    setFormData({ ...formData, sampling_interval: parseInt(v) || 250 })
+                  }
                   min={10}
                   max={60000}
                   step={50}
                   showButtons={false}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">ms</span>
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
+                  ms
+                </span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
+        <div className="border-border flex items-center justify-between border-t pt-2">
           <ConnectionTestButton
             onTest={handleTest}
             disabled={!formData.endpoint_url || !formData.endpoint_url.startsWith('opc.tcp://')}
@@ -329,14 +358,14 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="border-border text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               {isSaving ? 'Saving...' : isEditing ? 'Update Server' : 'Create Server'}
             </button>
