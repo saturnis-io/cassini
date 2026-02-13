@@ -42,6 +42,17 @@ class CharacteristicCreate(BaseModel):
         None, ge=1, description="Default sample size for attribute charts"
     )
 
+    # Advanced chart type (CUSUM/EWMA)
+    chart_type: str | None = Field(
+        None, pattern="^(cusum|ewma)$",
+        description="Advanced chart type: cusum, ewma, or null for standard"
+    )
+    cusum_target: float | None = Field(None, description="CUSUM target value (process mean)")
+    cusum_k: float | None = Field(None, ge=0, description="CUSUM slack value, typical 0.5")
+    cusum_h: float | None = Field(None, gt=0, description="CUSUM decision interval, typical 4 or 5")
+    ewma_lambda: float | None = Field(None, gt=0, le=1, description="EWMA smoothing constant (0-1), typical 0.2")
+    ewma_l: float | None = Field(None, gt=0, description="EWMA control limit multiplier, typical 2.7")
+
     # Subgroup mode configuration
     subgroup_mode: SubgroupModeEnum = Field(
         default=SubgroupModeEnum.NOMINAL_TOLERANCE,
@@ -99,6 +110,12 @@ class CharacteristicUpdate(BaseModel):
     data_type: str | None = Field(None, pattern="^(variable|attribute)$")
     attribute_chart_type: str | None = Field(None, pattern="^(p|np|c|u)$")
     default_sample_size: int | None = Field(None, ge=1)
+    chart_type: str | None = Field(None, pattern="^(cusum|ewma)$")
+    cusum_target: float | None = None
+    cusum_k: float | None = Field(None, ge=0)
+    cusum_h: float | None = Field(None, gt=0)
+    ewma_lambda: float | None = Field(None, gt=0, le=1)
+    ewma_l: float | None = Field(None, gt=0)
     subgroup_mode: SubgroupModeEnum | None = None
     min_measurements: int | None = Field(None, ge=1)
     warn_below_count: int | None = None
@@ -122,6 +139,12 @@ class CharacteristicResponse(BaseModel):
     data_type: str = "variable"
     attribute_chart_type: str | None = None
     default_sample_size: int | None = None
+    chart_type: str | None = None
+    cusum_target: float | None = None
+    cusum_k: float | None = None
+    cusum_h: float | None = None
+    ewma_lambda: float | None = None
+    ewma_l: float | None = None
     subgroup_mode: str
     min_measurements: int
     warn_below_count: int | None
@@ -259,6 +282,60 @@ class AttributeChartSample(BaseModel):
     display_key: str = ""
 
 
+class CUSUMChartSample(BaseModel):
+    """Schema for a single sample point on a CUSUM control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        measurement: Raw measurement value
+        cusum_high: Running CUSUM+ value
+        cusum_low: Running CUSUM- value
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+        display_key: Display key for X-axis label
+    """
+
+    sample_id: int
+    timestamp: str
+    measurement: float
+    cusum_high: float
+    cusum_low: float
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
+class EWMAChartSample(BaseModel):
+    """Schema for a single sample point on an EWMA control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        measurement: Raw measurement value
+        ewma_value: Running EWMA value
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+        display_key: Display key for X-axis label
+    """
+
+    sample_id: int
+    timestamp: str
+    measurement: float
+    ewma_value: float
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
 class SpecLimits(BaseModel):
     """Schema for specification limits (Voice of Customer).
 
@@ -303,6 +380,12 @@ class ChartDataResponse(BaseModel):
     data_type: str = "variable"
     attribute_chart_type: str | None = None
     attribute_data_points: list[AttributeChartSample] = []
+    chart_type: str | None = None
+    cusum_data_points: list[CUSUMChartSample] = []
+    cusum_h: float | None = None
+    cusum_target: float | None = None
+    ewma_data_points: list[EWMAChartSample] = []
+    ewma_target: float | None = None
 
 
 class NelsonRuleConfig(BaseModel):

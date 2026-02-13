@@ -10,12 +10,15 @@ import {
   Search,
   Lock,
   Shuffle,
+  TrendingUp,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCreateCharacteristic } from '@/api/hooks'
 import { NumberInput } from '@/components/NumberInput'
 
 type DataType = 'variable' | 'attribute'
+type VariableChartType = 'standard' | 'cusum' | 'ewma'
 type AttributeChartType = 'p' | 'np' | 'c' | 'u'
 type CountingWhat = 'defectives' | 'defects'
 
@@ -78,6 +81,16 @@ export function CreateCharacteristicWizard({
 
   // Variable-specific
   const [subgroupSize, setSubgroupSize] = useState('5')
+  const [variableChartType, setVariableChartType] = useState<VariableChartType>('standard')
+
+  // CUSUM parameters
+  const [cusumTarget, setCusumTarget] = useState('')
+  const [cusumK, setCusumK] = useState('0.5')
+  const [cusumH, setCusumH] = useState('5')
+
+  // EWMA parameters
+  const [ewmaLambda, setEwmaLambda] = useState('0.2')
+  const [ewmaL, setEwmaL] = useState('2.7')
 
   // Attribute-specific (guided)
   const [countingWhat, setCountingWhat] = useState<CountingWhat>('defectives')
@@ -99,9 +112,10 @@ export function CreateCharacteristicWizard({
   const needsSampleSize = derivedChartType !== 'c'
 
   // Attribute completes in 1 step (all decisions on step 1, derived badge is the review).
-  // Variable uses 2 steps (basics → spec limits).
+  // Variable uses 2 steps (basics → spec limits / CUSUM/EWMA params).
   const totalSteps = dataType === 'variable' ? 2 : 1
-  const stepLabels = dataType === 'variable' ? ['Basics', 'Limits'] : ['Basics']
+  const step2Label = variableChartType === 'cusum' ? 'CUSUM' : variableChartType === 'ewma' ? 'EWMA' : 'Limits'
+  const stepLabels = dataType === 'variable' ? ['Basics', step2Label] : ['Basics']
 
   // Clamp step when switching data types while on step 2
   useEffect(() => {
@@ -160,6 +174,18 @@ export function CreateCharacteristicWizard({
         payload.target_value = target ? parseFloat(target) : null
         payload.usl = usl ? parseFloat(usl) : null
         payload.lsl = lsl ? parseFloat(lsl) : null
+
+        if (variableChartType === 'cusum') {
+          ;(payload as Record<string, unknown>).chart_type = 'cusum'
+          ;(payload as Record<string, unknown>).cusum_target = cusumTarget ? parseFloat(cusumTarget) : null
+          ;(payload as Record<string, unknown>).cusum_k = cusumK ? parseFloat(cusumK) : 0.5
+          ;(payload as Record<string, unknown>).cusum_h = cusumH ? parseFloat(cusumH) : 5
+        } else if (variableChartType === 'ewma') {
+          ;(payload as Record<string, unknown>).chart_type = 'ewma'
+          ;(payload as Record<string, unknown>).cusum_target = cusumTarget ? parseFloat(cusumTarget) : null // reused as target
+          ;(payload as Record<string, unknown>).ewma_lambda = ewmaLambda ? parseFloat(ewmaLambda) : 0.2
+          ;(payload as Record<string, unknown>).ewma_l = ewmaL ? parseFloat(ewmaL) : 2.7
+        }
       } else {
         payload.attribute_chart_type = derivedChartType
         payload.default_sample_size = needsSampleSize ? parseInt(defaultSampleSize) || 100 : null
@@ -179,6 +205,12 @@ export function CreateCharacteristicWizard({
     setName('')
     setDataType('variable')
     setSubgroupSize('5')
+    setVariableChartType('standard')
+    setCusumTarget('')
+    setCusumK('0.5')
+    setCusumH('5')
+    setEwmaLambda('0.2')
+    setEwmaL('2.7')
     setCountingWhat('defectives')
     setSizeVaries(false)
     setDefaultSampleSize('100')
@@ -249,6 +281,8 @@ export function CreateCharacteristicWizard({
               onDataTypeChange={setDataType}
               subgroupSize={subgroupSize}
               onSubgroupSizeChange={setSubgroupSize}
+              variableChartType={variableChartType}
+              onVariableChartTypeChange={setVariableChartType}
               countingWhat={countingWhat}
               onCountingWhatChange={setCountingWhat}
               sizeVaries={sizeVaries}
@@ -260,7 +294,7 @@ export function CreateCharacteristicWizard({
             />
           )}
 
-          {currentStep === 2 && dataType === 'variable' && (
+          {currentStep === 2 && dataType === 'variable' && variableChartType === 'standard' && (
             <Step2Limits
               target={target}
               onTargetChange={setTarget}
@@ -268,6 +302,28 @@ export function CreateCharacteristicWizard({
               onUSLChange={setUSL}
               lsl={lsl}
               onLSLChange={setLSL}
+            />
+          )}
+
+          {currentStep === 2 && dataType === 'variable' && variableChartType === 'cusum' && (
+            <Step2CUSUM
+              cusumTarget={cusumTarget}
+              onCusumTargetChange={setCusumTarget}
+              cusumK={cusumK}
+              onCusumKChange={setCusumK}
+              cusumH={cusumH}
+              onCusumHChange={setCusumH}
+            />
+          )}
+
+          {currentStep === 2 && dataType === 'variable' && variableChartType === 'ewma' && (
+            <Step2EWMA
+              ewmaTarget={cusumTarget}
+              onEwmaTargetChange={setCusumTarget}
+              ewmaLambda={ewmaLambda}
+              onEwmaLambdaChange={setEwmaLambda}
+              ewmaL={ewmaL}
+              onEwmaLChange={setEwmaL}
             />
           )}
         </div>
@@ -661,6 +717,8 @@ function Step1Basics({
   onDataTypeChange,
   subgroupSize,
   onSubgroupSizeChange,
+  variableChartType,
+  onVariableChartTypeChange,
   countingWhat,
   onCountingWhatChange,
   sizeVaries,
@@ -676,6 +734,8 @@ function Step1Basics({
   onDataTypeChange: (v: DataType) => void
   subgroupSize: string
   onSubgroupSizeChange: (v: string) => void
+  variableChartType: VariableChartType
+  onVariableChartTypeChange: (v: VariableChartType) => void
   countingWhat: CountingWhat
   onCountingWhatChange: (v: CountingWhat) => void
   sizeVaries: boolean
@@ -730,6 +790,14 @@ function Step1Basics({
         </div>
       )}
 
+      {/* Variable: chart type selector */}
+      {dataType === 'variable' && (
+        <div>
+          <label className="mb-2 block text-sm font-medium">Chart Type</label>
+          <VariableChartTypeSelector value={variableChartType} onChange={onVariableChartTypeChange} />
+        </div>
+      )}
+
       {/* Attribute: guided questions */}
       {dataType === 'attribute' && (
         <AttributeGuide
@@ -752,7 +820,122 @@ function Step1Basics({
 }
 
 /* -----------------------------------------------------------------------
- * Step 2: Limits (variable data only)
+ * Variable Chart Type Selector
+ * ----------------------------------------------------------------------- */
+
+function VariableChartTypeSelector({
+  value,
+  onChange,
+}: {
+  value: VariableChartType
+  onChange: (v: VariableChartType) => void
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Variable chart type">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'standard'}
+        onClick={() => onChange('standard')}
+        className={cn(
+          'flex items-center gap-2 rounded-lg border-2 p-2.5 text-left transition-all',
+          value === 'standard'
+            ? 'border-primary bg-primary/5'
+            : 'border-border hover:border-muted-foreground/30',
+        )}
+      >
+        <div className={cn('rounded-md p-1.5', value === 'standard' ? 'bg-primary/10' : 'bg-muted')}>
+          <BarChart3
+            className={cn(
+              'h-3.5 w-3.5',
+              value === 'standard' ? 'text-primary' : 'text-muted-foreground',
+            )}
+          />
+        </div>
+        <div>
+          <p
+            className={cn(
+              'text-xs font-medium',
+              value === 'standard' ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            Standard
+          </p>
+          <p className="text-muted-foreground text-[10px]">X-bar / I-MR</p>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'cusum'}
+        onClick={() => onChange('cusum')}
+        className={cn(
+          'flex items-center gap-2 rounded-lg border-2 p-2.5 text-left transition-all',
+          value === 'cusum'
+            ? 'border-primary bg-primary/5'
+            : 'border-border hover:border-muted-foreground/30',
+        )}
+      >
+        <div className={cn('rounded-md p-1.5', value === 'cusum' ? 'bg-primary/10' : 'bg-muted')}>
+          <TrendingUp
+            className={cn(
+              'h-3.5 w-3.5',
+              value === 'cusum' ? 'text-primary' : 'text-muted-foreground',
+            )}
+          />
+        </div>
+        <div>
+          <p
+            className={cn(
+              'text-xs font-medium',
+              value === 'cusum' ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            CUSUM
+          </p>
+          <p className="text-muted-foreground text-[10px]">Small shifts</p>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'ewma'}
+        onClick={() => onChange('ewma')}
+        className={cn(
+          'flex items-center gap-2 rounded-lg border-2 p-2.5 text-left transition-all',
+          value === 'ewma'
+            ? 'border-primary bg-primary/5'
+            : 'border-border hover:border-muted-foreground/30',
+        )}
+      >
+        <div className={cn('rounded-md p-1.5', value === 'ewma' ? 'bg-primary/10' : 'bg-muted')}>
+          <Activity
+            className={cn(
+              'h-3.5 w-3.5',
+              value === 'ewma' ? 'text-primary' : 'text-muted-foreground',
+            )}
+          />
+        </div>
+        <div>
+          <p
+            className={cn(
+              'text-xs font-medium',
+              value === 'ewma' ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            EWMA
+          </p>
+          <p className="text-muted-foreground text-[10px]">Weighted avg</p>
+        </div>
+      </button>
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Step 2: Limits (standard variable data only)
  * ----------------------------------------------------------------------- */
 
 function Step2Limits({
@@ -822,6 +1005,185 @@ function Step2Limits({
             placeholder="Optional"
             className="mt-1 w-full"
           />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Step 2: CUSUM Parameters
+ * ----------------------------------------------------------------------- */
+
+function Step2CUSUM({
+  cusumTarget,
+  onCusumTargetChange,
+  cusumK,
+  onCusumKChange,
+  cusumH,
+  onCusumHChange,
+}: {
+  cusumTarget: string
+  onCusumTargetChange: (v: string) => void
+  cusumK: string
+  onCusumKChange: (v: string) => void
+  cusumH: string
+  onCusumHChange: (v: string) => void
+}) {
+  const targetId = useId()
+  const kId = useId()
+  const hId = useId()
+
+  return (
+    <div className="space-y-4">
+      <div className="border-primary/15 bg-primary/5 rounded-lg border p-3">
+        <p className="text-muted-foreground text-sm">
+          CUSUM (Cumulative Sum) charts detect small, persistent shifts in process mean.
+          The chart accumulates deviations from the target value.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor={targetId} className="text-sm font-medium">
+          Process Target <span className="text-destructive">*</span>
+        </label>
+        <NumberInput
+          id={targetId}
+          step="any"
+          value={cusumTarget}
+          onChange={onCusumTargetChange}
+          placeholder="Process mean / target value"
+          className="mt-1 w-full"
+        />
+        <p className="text-muted-foreground mt-1 text-xs">
+          The in-control process mean. CUSUM accumulates deviations from this value.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor={kId} className="text-sm font-medium">
+            Slack Value (k)
+          </label>
+          <NumberInput
+            id={kId}
+            step="any"
+            min={0}
+            value={cusumK}
+            onChange={onCusumKChange}
+            placeholder="0.5"
+            className="mt-1 w-full"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Allowance parameter. Typically 0.5 (half the shift to detect).
+          </p>
+        </div>
+        <div>
+          <label htmlFor={hId} className="text-sm font-medium">
+            Decision Interval (H)
+          </label>
+          <NumberInput
+            id={hId}
+            step="any"
+            min={0}
+            value={cusumH}
+            onChange={onCusumHChange}
+            placeholder="5"
+            className="mt-1 w-full"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Threshold for signaling. Typically 4 or 5. Larger = fewer false alarms.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -----------------------------------------------------------------------
+ * Step 2: EWMA Parameters
+ * ----------------------------------------------------------------------- */
+
+function Step2EWMA({
+  ewmaTarget,
+  onEwmaTargetChange,
+  ewmaLambda,
+  onEwmaLambdaChange,
+  ewmaL,
+  onEwmaLChange,
+}: {
+  ewmaTarget: string
+  onEwmaTargetChange: (v: string) => void
+  ewmaLambda: string
+  onEwmaLambdaChange: (v: string) => void
+  ewmaL: string
+  onEwmaLChange: (v: string) => void
+}) {
+  const targetId = useId()
+  const lambdaId = useId()
+  const lId = useId()
+
+  return (
+    <div className="space-y-4">
+      <div className="border-primary/15 bg-primary/5 rounded-lg border p-3">
+        <p className="text-muted-foreground text-sm">
+          EWMA (Exponentially Weighted Moving Average) charts give more weight to recent
+          observations, making them sensitive to small and moderate shifts.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor={targetId} className="text-sm font-medium">
+          Process Target <span className="text-destructive">*</span>
+        </label>
+        <NumberInput
+          id={targetId}
+          step="any"
+          value={ewmaTarget}
+          onChange={onEwmaTargetChange}
+          placeholder="Process mean / target value"
+          className="mt-1 w-full"
+        />
+        <p className="text-muted-foreground mt-1 text-xs">
+          The in-control process mean. EWMA starts at this value.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor={lambdaId} className="text-sm font-medium">
+            Smoothing Constant (lambda)
+          </label>
+          <NumberInput
+            id={lambdaId}
+            step="any"
+            min={0.01}
+            max={1}
+            value={ewmaLambda}
+            onChange={onEwmaLambdaChange}
+            placeholder="0.2"
+            className="mt-1 w-full"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Weight for the latest observation (0-1). Smaller = more smoothing. Typical: 0.05-0.25.
+          </p>
+        </div>
+        <div>
+          <label htmlFor={lId} className="text-sm font-medium">
+            Limit Multiplier (L)
+          </label>
+          <NumberInput
+            id={lId}
+            step="any"
+            min={0.1}
+            value={ewmaL}
+            onChange={onEwmaLChange}
+            placeholder="2.7"
+            className="mt-1 w-full"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            Control limit width in sigma units. Typical: 2.7 (for lambda=0.2).
+          </p>
         </div>
       </div>
     </div>

@@ -68,6 +68,14 @@ class Characteristic(Base):
     attribute_chart_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     default_sample_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Advanced chart type (CUSUM, EWMA)
+    chart_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    cusum_target: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cusum_k: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cusum_h: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ewma_lambda: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ewma_l: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     # Display formatting
     decimal_precision: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
 

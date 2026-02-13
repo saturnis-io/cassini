@@ -54,6 +54,11 @@ class Sample(Base):
     sample_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     units_inspected: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # CUSUM/EWMA running values
+    cusum_high: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cusum_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ewma_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     # Edit tracking - indicates sample has been modified from original
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

@@ -138,6 +138,94 @@ class AttributeDataEntryResponse(BaseModel):
     violations: list[dict] = Field(default_factory=list)
 
 
+class CUSUMDataEntryRequest(BaseModel):
+    """Request schema for submitting a CUSUM sample.
+
+    Attributes:
+        characteristic_id: ID of the CUSUM characteristic.
+        measurement: Individual measurement value.
+        batch_number: Optional batch/lot identifier.
+        operator_id: Optional operator identifier.
+    """
+
+    characteristic_id: int = Field(..., description="ID of the CUSUM characteristic")
+    measurement: float = Field(..., description="Individual measurement value")
+    batch_number: Optional[str] = Field(None, description="Batch identifier")
+    operator_id: Optional[str] = Field(None, description="Operator identifier")
+
+
+class CUSUMDataEntryResponse(BaseModel):
+    """Response schema for successful CUSUM sample submission.
+
+    Attributes:
+        sample_id: Database ID of the created sample.
+        characteristic_id: ID of the characteristic.
+        timestamp: When the sample was recorded.
+        measurement: Raw measurement value.
+        cusum_high: Running CUSUM+ value.
+        cusum_low: Running CUSUM- value.
+        target: Process target value.
+        h: Decision interval threshold.
+        in_control: True if no violations were triggered.
+        violations: List of triggered violations.
+    """
+
+    sample_id: int
+    characteristic_id: int
+    timestamp: datetime
+    measurement: float
+    cusum_high: float
+    cusum_low: float
+    target: float
+    h: float
+    in_control: bool
+    violations: list[dict] = Field(default_factory=list)
+
+
+class EWMADataEntryRequest(BaseModel):
+    """Request schema for submitting an EWMA sample.
+
+    Attributes:
+        characteristic_id: ID of the EWMA characteristic.
+        measurement: Individual measurement value.
+        batch_number: Optional batch/lot identifier.
+        operator_id: Optional operator identifier.
+    """
+
+    characteristic_id: int = Field(..., description="ID of the EWMA characteristic")
+    measurement: float = Field(..., description="Individual measurement value")
+    batch_number: Optional[str] = Field(None, description="Batch identifier")
+    operator_id: Optional[str] = Field(None, description="Operator identifier")
+
+
+class EWMADataEntryResponse(BaseModel):
+    """Response schema for successful EWMA sample submission.
+
+    Attributes:
+        sample_id: Database ID of the created sample.
+        characteristic_id: ID of the characteristic.
+        timestamp: When the sample was recorded.
+        measurement: Raw measurement value.
+        ewma_value: Running EWMA value.
+        target: Process target value.
+        ucl: Upper control limit.
+        lcl: Lower control limit.
+        in_control: True if no violations were triggered.
+        violations: List of triggered violations.
+    """
+
+    sample_id: int
+    characteristic_id: int
+    timestamp: datetime
+    measurement: float
+    ewma_value: float
+    target: float
+    ucl: float
+    lcl: float
+    in_control: bool
+    violations: list[dict] = Field(default_factory=list)
+
+
 class SchemaResponse(BaseModel):
     """Response schema for API documentation endpoint.
 

@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from openspc.api.schemas.characteristic import (
     AttributeChartSample,
+    CUSUMChartSample,
     ChangeModeRequest,
     ChangeModeResponse,
     CharacteristicCreate,
@@ -23,6 +24,7 @@ from openspc.api.schemas.characteristic import (
     ChartSample,
     ControlLimits,
     ControlLimitsResponse,
+    EWMAChartSample,
     NelsonRuleConfig,
     SetLimitsRequest,
     SpecLimits,
@@ -541,6 +543,215 @@ async def _get_attribute_chart_data(
     )
 
 
+async def _get_cusum_chart_data(
+    char_id: int,
+    characteristic,
+    limit: int,
+    sample_repo: SampleRepository,
+    session: AsyncSession,
+) -> ChartDataResponse:
+    """Build chart data response for CUSUM characteristics."""
+    from openspc.db.repositories import ViolationRepository
+    from openspc.db.models.sample import Sample as SampleModel
+    from sqlalchemy import and_
+
+    target = characteristic.cusum_target or characteristic.target_value or 0.0
+    h = characteristic.cusum_h or 5.0
+
+    # Get samples with measurements
+    samples = await sample_repo.get_rolling_window(
+        char_id=char_id, window_size=limit, exclude_excluded=True,
+    )
+
+    # Batch-load violations
+    violation_repo = ViolationRepository(session)
+    sample_ids = [s.id for s in samples]
+    violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
+
+    # Compute display keys
+    _display_keys: dict[int, str] = {}
+    for sample in samples:
+        day_str = sample.timestamp.strftime('%y%m%d')
+        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        count_stmt = select(func.count()).select_from(
+            select(SampleModel.id).where(
+                and_(
+                    SampleModel.char_id == sample.char_id,
+                    SampleModel.timestamp >= day_start,
+                    SampleModel.timestamp <= day_end,
+                    (SampleModel.timestamp < sample.timestamp)
+                    | (
+                        (SampleModel.timestamp == sample.timestamp)
+                        & (SampleModel.id < sample.id)
+                    ),
+                )
+            ).subquery()
+        )
+        preceding = (await session.execute(count_stmt)).scalar_one()
+        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+
+    cusum_samples = []
+    for sample in samples:
+        values = [m.value for m in sample.measurements]
+        measurement = values[0] if values else 0.0
+
+        sv = violations_by_sample.get(sample.id, [])
+        violation_ids = [v.id for v in sv]
+        unack_ids = [v.id for v in sv if v.requires_acknowledgement and not v.acknowledged]
+        v_rules = list(set(v.rule_id for v in sv))
+
+        cusum_samples.append(CUSUMChartSample(
+            sample_id=sample.id,
+            timestamp=sample.timestamp.isoformat(),
+            measurement=measurement,
+            cusum_high=sample.cusum_high or 0.0,
+            cusum_low=sample.cusum_low or 0.0,
+            excluded=sample.is_excluded,
+            violation_ids=violation_ids,
+            unacknowledged_violation_ids=unack_ids,
+            violation_rules=v_rules,
+            display_key=_display_keys.get(sample.id, ""),
+        ))
+
+    return ChartDataResponse(
+        characteristic_id=char_id,
+        characteristic_name=characteristic.name,
+        data_points=[],
+        cusum_data_points=cusum_samples,
+        control_limits=ControlLimits(
+            center_line=0.0,  # CUSUM center line is always 0
+            ucl=h,
+            lcl=-h,  # Symmetric decision interval
+        ),
+        spec_limits=SpecLimits(
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+        ),
+        zone_boundaries=ZoneBoundaries(),
+        subgroup_mode=characteristic.subgroup_mode,
+        nominal_subgroup_size=characteristic.subgroup_size,
+        decimal_precision=characteristic.decimal_precision,
+        data_type="variable",
+        chart_type="cusum",
+        cusum_h=h,
+        cusum_target=target,
+    )
+
+
+async def _get_ewma_chart_data(
+    char_id: int,
+    characteristic,
+    limit: int,
+    sample_repo: SampleRepository,
+    session: AsyncSession,
+) -> ChartDataResponse:
+    """Build chart data response for EWMA characteristics."""
+    from openspc.core.engine.ewma_engine import calculate_ewma_limits, estimate_sigma_from_values
+    from openspc.db.repositories import ViolationRepository
+    from openspc.db.models.sample import Sample as SampleModel
+    from sqlalchemy import and_
+
+    ewma_lambda = characteristic.ewma_lambda or 0.2
+    ewma_l = characteristic.ewma_l or 2.7
+    target = characteristic.cusum_target or characteristic.target_value or characteristic.stored_center_line or 0.0
+
+    # Get samples with measurements
+    samples = await sample_repo.get_rolling_window(
+        char_id=char_id, window_size=limit, exclude_excluded=True,
+    )
+
+    # Estimate sigma
+    sigma = characteristic.stored_sigma
+    if sigma is None or sigma <= 0:
+        all_values = []
+        for s in samples:
+            for m in s.measurements:
+                all_values.append(m.value)
+        sigma = estimate_sigma_from_values(all_values) if len(all_values) >= 2 else 1.0
+
+    if sigma <= 0:
+        sigma = 1.0
+
+    ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l)
+
+    # Batch-load violations
+    violation_repo = ViolationRepository(session)
+    sample_ids = [s.id for s in samples]
+    violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
+
+    # Compute display keys
+    _display_keys: dict[int, str] = {}
+    for sample in samples:
+        day_str = sample.timestamp.strftime('%y%m%d')
+        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        count_stmt = select(func.count()).select_from(
+            select(SampleModel.id).where(
+                and_(
+                    SampleModel.char_id == sample.char_id,
+                    SampleModel.timestamp >= day_start,
+                    SampleModel.timestamp <= day_end,
+                    (SampleModel.timestamp < sample.timestamp)
+                    | (
+                        (SampleModel.timestamp == sample.timestamp)
+                        & (SampleModel.id < sample.id)
+                    ),
+                )
+            ).subquery()
+        )
+        preceding = (await session.execute(count_stmt)).scalar_one()
+        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+
+    ewma_samples = []
+    for sample in samples:
+        values = [m.value for m in sample.measurements]
+        measurement = values[0] if values else 0.0
+
+        sv = violations_by_sample.get(sample.id, [])
+        violation_ids = [v.id for v in sv]
+        unack_ids = [v.id for v in sv if v.requires_acknowledgement and not v.acknowledged]
+        v_rules = list(set(v.rule_id for v in sv))
+
+        ewma_samples.append(EWMAChartSample(
+            sample_id=sample.id,
+            timestamp=sample.timestamp.isoformat(),
+            measurement=measurement,
+            ewma_value=sample.ewma_value if sample.ewma_value is not None else target,
+            excluded=sample.is_excluded,
+            violation_ids=violation_ids,
+            unacknowledged_violation_ids=unack_ids,
+            violation_rules=v_rules,
+            display_key=_display_keys.get(sample.id, ""),
+        ))
+
+    return ChartDataResponse(
+        characteristic_id=char_id,
+        characteristic_name=characteristic.name,
+        data_points=[],
+        ewma_data_points=ewma_samples,
+        control_limits=ControlLimits(
+            center_line=target,
+            ucl=ucl,
+            lcl=lcl,
+        ),
+        spec_limits=SpecLimits(
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+        ),
+        zone_boundaries=ZoneBoundaries(),
+        subgroup_mode=characteristic.subgroup_mode,
+        nominal_subgroup_size=characteristic.subgroup_size,
+        decimal_precision=characteristic.decimal_precision,
+        stored_sigma=sigma,
+        data_type="variable",
+        chart_type="ewma",
+        ewma_target=target,
+    )
+
+
 @router.get("/{char_id}/chart-data", response_model=ChartDataResponse)
 async def get_chart_data(
     char_id: int,
@@ -568,6 +779,18 @@ async def get_chart_data(
     # --- Attribute chart branch ---
     if characteristic.data_type == "attribute":
         return await _get_attribute_chart_data(
+            char_id, characteristic, limit, sample_repo, session,
+        )
+
+    # --- CUSUM chart branch ---
+    if characteristic.chart_type == "cusum":
+        return await _get_cusum_chart_data(
+            char_id, characteristic, limit, sample_repo, session,
+        )
+
+    # --- EWMA chart branch ---
+    if characteristic.chart_type == "ewma":
+        return await _get_ewma_chart_data(
             char_id, characteristic, limit, sample_repo, session,
         )
 

@@ -21,8 +21,12 @@ from openspc.api.schemas.data_entry import (
     AttributeDataEntryResponse,
     BatchEntryRequest,
     BatchEntryResponse,
+    CUSUMDataEntryRequest,
+    CUSUMDataEntryResponse,
     DataEntryRequest,
     DataEntryResponse,
+    EWMADataEntryRequest,
+    EWMADataEntryResponse,
     SchemaResponse,
 )
 from openspc.core.engine.nelson_rules import NelsonRuleLibrary
@@ -238,6 +242,138 @@ async def submit_attribute_sample(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process attribute sample",
+        )
+
+
+@router.post(
+    "/submit-cusum",
+    response_model=CUSUMDataEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit CUSUM sample",
+    description="Submit a single CUSUM sample. Requires API key or user authentication.",
+)
+@limiter.limit("30/minute")
+async def submit_cusum_sample(
+    request: Request,
+    data: CUSUMDataEntryRequest,
+    auth: object = Depends(get_current_user_or_api_key),
+    session: AsyncSession = Depends(get_db_session),
+) -> CUSUMDataEntryResponse:
+    """Submit a single CUSUM sample."""
+    if isinstance(auth, APIKey):
+        if not auth.can_access_characteristic(data.characteristic_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key does not have permission for characteristic {data.characteristic_id}",
+            )
+
+    sample_repo = SampleRepository(session)
+    char_repo = CharacteristicRepository(session)
+    violation_repo = ViolationRepository(session)
+
+    try:
+        from openspc.core.engine.cusum_engine import process_cusum_sample
+
+        result = await process_cusum_sample(
+            char_id=data.characteristic_id,
+            measurement=data.measurement,
+            sample_repo=sample_repo,
+            char_repo=char_repo,
+            violation_repo=violation_repo,
+            batch_number=data.batch_number,
+            operator_id=data.operator_id,
+        )
+
+        await session.commit()
+
+        return CUSUMDataEntryResponse(
+            sample_id=result.sample_id,
+            characteristic_id=result.characteristic_id,
+            timestamp=result.timestamp,
+            measurement=result.measurement,
+            cusum_high=result.cusum_high,
+            cusum_low=result.cusum_low,
+            target=result.target,
+            h=result.h,
+            in_control=result.in_control,
+            violations=result.violations,
+        )
+
+    except ValueError as e:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        logger.exception("Failed to process CUSUM data entry sample")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process CUSUM sample",
+        )
+
+
+@router.post(
+    "/submit-ewma",
+    response_model=EWMADataEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit EWMA sample",
+    description="Submit a single EWMA sample. Requires API key or user authentication.",
+)
+@limiter.limit("30/minute")
+async def submit_ewma_sample(
+    request: Request,
+    data: EWMADataEntryRequest,
+    auth: object = Depends(get_current_user_or_api_key),
+    session: AsyncSession = Depends(get_db_session),
+) -> EWMADataEntryResponse:
+    """Submit a single EWMA sample."""
+    if isinstance(auth, APIKey):
+        if not auth.can_access_characteristic(data.characteristic_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key does not have permission for characteristic {data.characteristic_id}",
+            )
+
+    sample_repo = SampleRepository(session)
+    char_repo = CharacteristicRepository(session)
+    violation_repo = ViolationRepository(session)
+
+    try:
+        from openspc.core.engine.ewma_engine import process_ewma_sample
+
+        result = await process_ewma_sample(
+            char_id=data.characteristic_id,
+            measurement=data.measurement,
+            sample_repo=sample_repo,
+            char_repo=char_repo,
+            violation_repo=violation_repo,
+            batch_number=data.batch_number,
+            operator_id=data.operator_id,
+        )
+
+        await session.commit()
+
+        return EWMADataEntryResponse(
+            sample_id=result.sample_id,
+            characteristic_id=result.characteristic_id,
+            timestamp=result.timestamp,
+            measurement=result.measurement,
+            ewma_value=result.ewma_value,
+            target=result.target,
+            ucl=result.ucl,
+            lcl=result.lcl,
+            in_control=result.in_control,
+            violations=result.violations,
+        )
+
+    except ValueError as e:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        logger.exception("Failed to process EWMA data entry sample")
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process EWMA sample",
         )
 
 
