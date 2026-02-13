@@ -1,7 +1,8 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { annotationApi, characteristicApi, dataEntryApi, databaseApi, devtoolsApi, hierarchyApi, importApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
+import { annotationApi, auditApi, capabilityApi, characteristicApi, dataEntryApi, databaseApi, devtoolsApi, hierarchyApi, importApi, notificationApi, opcuaApi, plantApi, retentionApi, sampleApi, userApi, violationApi } from './client'
+import type { AuditLogParams, SmtpConfigUpdate, WebhookConfigCreate, WebhookConfigUpdate, NotificationPreferenceItem } from './client'
 import type { AnnotationCreate, AnnotationUpdate, Characteristic, DatabaseDialect, HierarchyNode, OPCUAServerCreate, OPCUAServerUpdate, PlantCreate, PlantUpdate, RetentionPolicySet } from '@/types'
 
 /** Polling intervals (ms) — staggered to avoid synchronized request bursts */
@@ -67,6 +68,22 @@ export const queryKeys = {
     status: () => [...queryKeys.opcuaServers.all, 'status'] as const,
     allStatus: (plantId?: number) => [...queryKeys.opcuaServers.status(), { plantId }] as const,
     browse: (id: number, nodeId?: string) => [...queryKeys.opcuaServers.all, 'browse', id, nodeId] as const,
+  },
+  notifications: {
+    all: ['notifications'] as const,
+    smtp: () => [...queryKeys.notifications.all, 'smtp'] as const,
+    webhooks: () => [...queryKeys.notifications.all, 'webhooks'] as const,
+    preferences: () => [...queryKeys.notifications.all, 'preferences'] as const,
+  },
+  audit: {
+    all: ['audit'] as const,
+    logs: (params?: AuditLogParams) => ['audit', 'logs', params] as const,
+    stats: () => ['audit', 'stats'] as const,
+  },
+  capability: {
+    all: ['capability'] as const,
+    current: (charId: number) => ['capability', 'current', charId] as const,
+    history: (charId: number) => ['capability', 'history', charId] as const,
   },
 }
 
@@ -1323,6 +1340,195 @@ export function useConfirmImport() {
     },
     onError: (error: Error) => {
       toast.error(`Import failed: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Notification hooks
+// -----------------------------------------------------------------------
+
+export function useSmtpConfig() {
+  return useQuery({
+    queryKey: queryKeys.notifications.smtp(),
+    queryFn: notificationApi.getSmtp,
+  })
+}
+
+export function useUpdateSmtpConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: SmtpConfigUpdate) => notificationApi.updateSmtp(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.smtp() })
+      toast.success('SMTP configuration saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save SMTP config: ${error.message}`)
+    },
+  })
+}
+
+export function useTestSmtp() {
+  return useMutation({
+    mutationFn: () => notificationApi.testSmtp(),
+    onSuccess: (data) => {
+      toast.success(data.message)
+    },
+    onError: (error: Error) => {
+      toast.error(`SMTP test failed: ${error.message}`)
+    },
+  })
+}
+
+export function useWebhooks() {
+  return useQuery({
+    queryKey: queryKeys.notifications.webhooks(),
+    queryFn: notificationApi.listWebhooks,
+  })
+}
+
+export function useCreateWebhook() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: WebhookConfigCreate) => notificationApi.createWebhook(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
+      toast.success(`Webhook "${data.name}" created`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create webhook: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateWebhook() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: WebhookConfigUpdate }) =>
+      notificationApi.updateWebhook(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
+      toast.success('Webhook updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update webhook: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteWebhook() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => notificationApi.deleteWebhook(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
+      toast.success('Webhook deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete webhook: ${error.message}`)
+    },
+  })
+}
+
+export function useTestWebhook() {
+  return useMutation({
+    mutationFn: (id: number) => notificationApi.testWebhook(id),
+    onSuccess: (data) => {
+      toast.success(data.message)
+    },
+    onError: (error: Error) => {
+      toast.error(`Webhook test failed: ${error.message}`)
+    },
+  })
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: queryKeys.notifications.preferences(),
+    queryFn: notificationApi.getPreferences,
+  })
+}
+
+export function useUpdateNotificationPreferences() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (preferences: NotificationPreferenceItem[]) =>
+      notificationApi.updatePreferences(preferences),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.preferences() })
+      toast.success('Notification preferences saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save preferences: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Audit log hooks
+// -----------------------------------------------------------------------
+
+export function useAuditLogs(params?: AuditLogParams) {
+  return useQuery({
+    queryKey: queryKeys.audit.logs(params),
+    queryFn: () => auditApi.getLogs(params),
+  })
+}
+
+export function useAuditStats() {
+  return useQuery({
+    queryKey: queryKeys.audit.stats(),
+    queryFn: auditApi.getStats,
+  })
+}
+
+export function useExportAuditLogs() {
+  return useMutation({
+    mutationFn: (params?: AuditLogParams) => auditApi.exportLogs(params),
+    onSuccess: () => {
+      toast.success('Audit log exported')
+    },
+    onError: (error: Error) => {
+      toast.error(`Export failed: ${error.message}`)
+    },
+  })
+}
+
+// ---- Capability Hooks ----
+
+export function useCapability(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.capability.current(charId),
+    queryFn: () => capabilityApi.getCapability(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useCapabilityHistory(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.capability.history(charId),
+    queryFn: () => capabilityApi.getHistory(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useSaveCapabilitySnapshot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (charId: number) => capabilityApi.saveSnapshot(charId),
+    onSuccess: (_data, charId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.capability.history(charId) })
+      toast.success('Capability snapshot saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save snapshot: ${error.message}`)
     },
   })
 }

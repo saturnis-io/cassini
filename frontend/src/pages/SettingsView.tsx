@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Key, Bell, Database, Palette, Building2, Factory, Archive } from 'lucide-react'
+import { Key, Bell, Database, Palette, Building2, Factory, Archive, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess, type Role } from '@/lib/roles'
@@ -27,6 +27,7 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
       { to: 'sites', label: 'Sites', icon: Factory, minRole: 'admin' },
       { to: 'api-keys', label: 'API Keys', icon: Key, minRole: 'engineer' },
       { to: 'retention', label: 'Retention', icon: Archive, minRole: 'engineer' },
+      { to: 'audit-log', label: 'Audit Log', icon: Shield, minRole: 'admin' },
       { to: 'database', label: 'Database', icon: Database, minRole: 'engineer' },
     ],
   },

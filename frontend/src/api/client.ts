@@ -3,6 +3,8 @@ import type {
   AnnotationCreate,
   AnnotationType,
   AnnotationUpdate,
+  AuditLogListResponse,
+  AuditStats,
   AuthUser,
   BrokerConnectionStatus,
   BrokerTestResult,
@@ -44,6 +46,9 @@ import type {
   TagPreviewResponse,
   TagProviderStatus,
   TopicTreeNode,
+  CapabilityResult,
+  CapabilityHistoryItem,
+  CapabilitySnapshotResponse,
   Violation,
   ViolationStats,
 } from '@/types'
@@ -999,6 +1004,118 @@ export const retentionApi = {
     fetchApi<PurgeHistory>(`/retention/purge?plant_id=${plantId}`, { method: 'POST' }),
 }
 
+// Notification API
+export interface SmtpConfigResponse {
+  id: number
+  server: string
+  port: number
+  username: string | null
+  password_set: boolean
+  use_tls: boolean
+  from_address: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface SmtpConfigUpdate {
+  server: string
+  port: number
+  username?: string | null
+  password?: string | null
+  use_tls: boolean
+  from_address: string
+  is_active: boolean
+}
+
+export interface WebhookConfigResponse {
+  id: number
+  name: string
+  url: string
+  has_secret: boolean
+  is_active: boolean
+  retry_count: number
+  events_filter: string[] | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WebhookConfigCreate {
+  name: string
+  url: string
+  secret?: string | null
+  is_active?: boolean
+  retry_count?: number
+  events_filter?: string[] | null
+}
+
+export interface WebhookConfigUpdate {
+  name?: string
+  url?: string
+  secret?: string | null
+  is_active?: boolean
+  retry_count?: number
+  events_filter?: string[] | null
+}
+
+export interface NotificationPreference {
+  id: number
+  event_type: string
+  channel: string
+  is_enabled: boolean
+}
+
+export interface NotificationPreferenceItem {
+  event_type: string
+  channel: string
+  is_enabled: boolean
+}
+
+export const notificationApi = {
+  // SMTP
+  getSmtp: () => fetchApi<SmtpConfigResponse | null>('/notifications/smtp'),
+
+  updateSmtp: (data: SmtpConfigUpdate) =>
+    fetchApi<SmtpConfigResponse>('/notifications/smtp', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  testSmtp: () =>
+    fetchApi<{ message: string }>('/notifications/smtp/test', { method: 'POST' }),
+
+  // Webhooks
+  listWebhooks: () => fetchApi<WebhookConfigResponse[]>('/notifications/webhooks'),
+
+  createWebhook: (data: WebhookConfigCreate) =>
+    fetchApi<WebhookConfigResponse>('/notifications/webhooks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateWebhook: (id: number, data: WebhookConfigUpdate) =>
+    fetchApi<WebhookConfigResponse>(`/notifications/webhooks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteWebhook: (id: number) =>
+    fetchApi<void>(`/notifications/webhooks/${id}`, { method: 'DELETE' }),
+
+  testWebhook: (id: number) =>
+    fetchApi<{ message: string }>(`/notifications/webhooks/${id}/test`, { method: 'POST' }),
+
+  // Preferences
+  getPreferences: () =>
+    fetchApi<NotificationPreference[]>('/notifications/preferences'),
+
+  updatePreferences: (preferences: NotificationPreferenceItem[]) =>
+    fetchApi<NotificationPreference[]>('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ preferences }),
+    }),
+}
+
 // Dev Tools API (sandbox mode only)
 export const devtoolsApi = {
   getStatus: () =>
@@ -1073,5 +1190,87 @@ export const importApi = {
       method: 'POST',
       body: formData,
     })
+  },
+}
+
+// Audit Log API
+export interface AuditLogParams {
+  user_id?: number
+  action?: string
+  resource_type?: string
+  start_date?: string
+  end_date?: string
+  limit?: number
+  offset?: number
+}
+
+export const auditApi = {
+  getLogs: (params?: AuditLogParams) => {
+    const searchParams = new URLSearchParams()
+    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
+    if (params?.action) searchParams.set('action', params.action)
+    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+    searchParams.set('limit', String(params?.limit ?? 50))
+    searchParams.set('offset', String(params?.offset ?? 0))
+    const query = searchParams.toString()
+    return fetchApi<AuditLogListResponse>(`/audit/logs?${query}`)
+  },
+
+  getStats: () => fetchApi<AuditStats>('/audit/stats'),
+
+  exportLogs: async (params?: AuditLogParams) => {
+    const searchParams = new URLSearchParams()
+    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
+    if (params?.action) searchParams.set('action', params.action)
+    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+    const query = searchParams.toString()
+    const response = await fetch(`/api/v1/audit/logs/export?${query}`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      credentials: 'include',
+    })
+    if (!response.ok) throw new Error('Export failed')
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'audit_log.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+}
+
+// ---- Capability API ----
+
+export const capabilityApi = {
+  getCapability: (charId: number, windowSize?: number) => {
+    const params = new URLSearchParams()
+    if (windowSize) params.set('window_size', String(windowSize))
+    const query = params.toString()
+    return fetchApi<CapabilityResult>(
+      `/characteristics/${charId}/capability${query ? `?${query}` : ''}`,
+    )
+  },
+
+  getHistory: (charId: number, limit?: number) => {
+    const params = new URLSearchParams()
+    if (limit) params.set('limit', String(limit))
+    const query = params.toString()
+    return fetchApi<CapabilityHistoryItem[]>(
+      `/characteristics/${charId}/capability/history${query ? `?${query}` : ''}`,
+    )
+  },
+
+  saveSnapshot: (charId: number, windowSize?: number) => {
+    const params = new URLSearchParams()
+    if (windowSize) params.set('window_size', String(windowSize))
+    const query = params.toString()
+    return fetchApi<CapabilitySnapshotResponse>(
+      `/characteristics/${charId}/capability/snapshot${query ? `?${query}` : ''}`,
+      { method: 'POST' },
+    )
   },
 }

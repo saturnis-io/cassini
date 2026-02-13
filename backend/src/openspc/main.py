@@ -10,16 +10,19 @@ from sqlalchemy import text
 
 from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
+from openspc.api.v1.audit import router as audit_router
 from openspc.api.v1.health import router as health_router
 from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
 from openspc.api.v1.opcua_servers import router as opcua_servers_router
 from openspc.api.v1.database_admin import router as database_admin_router
 from openspc.api.v1.characteristic_config import router as config_router
+from openspc.api.v1.capability import router as capability_router
 from openspc.api.v1.characteristics import router as characteristics_router
 from openspc.api.v1.data_entry import router as data_entry_router
 from openspc.api.v1.import_router import router as import_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
+from openspc.api.v1.notifications import router as notifications_router
 from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
@@ -30,8 +33,10 @@ from openspc.api.v1.tags import router as tags_router
 from openspc.api.v1.violations import router as violations_router
 from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
+from openspc.core.audit import AuditMiddleware, AuditService
 from openspc.core.auth.bootstrap import bootstrap_admin_user
 from openspc.core.broadcast import WebSocketBroadcaster
+from openspc.core.notifications import NotificationDispatcher
 from openspc.core.publish import MQTTPublisher
 from openspc.core.config import get_settings
 from openspc.core.events import event_bus
@@ -149,6 +154,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mqtt_publisher = mqtt_publisher
     logger.info("MQTT outbound publisher initialized")
 
+    # Initialize notification dispatcher (email + webhooks)
+    notification_dispatcher = NotificationDispatcher(event_bus, db.session)
+    app.state.notification_dispatcher = notification_dispatcher
+    logger.info("Notification dispatcher initialized")
+
+    # Initialize audit trail service and event bus subscriptions
+    audit_service = AuditService(db.session)
+    app.state.audit_service = audit_service
+
+    async def _audit_violation_created(event):
+        await audit_service.log_event(
+            action="violation_created",
+            resource_type="violation",
+            resource_id=event.violation_id,
+            detail={"rule_id": event.rule_id, "rule_name": event.rule_name, "severity": event.severity},
+        )
+
+    async def _audit_limits_updated(event):
+        await audit_service.log_event(
+            action="recalculate",
+            resource_type="characteristic",
+            resource_id=event.characteristic_id,
+            detail={"ucl": event.ucl, "lcl": event.lcl, "center_line": event.center_line},
+        )
+
+    async def _audit_char_created(event):
+        await audit_service.log_event(
+            action="create",
+            resource_type="characteristic",
+            resource_id=event.characteristic_id,
+            detail={"name": event.name, "chart_type": event.chart_type},
+        )
+
+    async def _audit_char_deleted(event):
+        await audit_service.log_event(
+            action="delete",
+            resource_type="characteristic",
+            resource_id=event.characteristic_id,
+            detail={"name": event.name},
+        )
+
+    from openspc.core.events import (
+        ViolationCreatedEvent,
+        ControlLimitsUpdatedEvent,
+        CharacteristicCreatedEvent,
+        CharacteristicDeletedEvent,
+    )
+    event_bus.subscribe(ViolationCreatedEvent, _audit_violation_created)
+    event_bus.subscribe(ControlLimitsUpdatedEvent, _audit_limits_updated)
+    event_bus.subscribe(CharacteristicCreatedEvent, _audit_char_created)
+    event_bus.subscribe(CharacteristicDeletedEvent, _audit_char_deleted)
+    logger.info("Audit trail service initialized")
+
     # Start retention purge engine (background, 24h interval)
     purge_engine = PurgeEngine()
     await purge_engine.start()
@@ -217,8 +275,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Audit trail middleware (gets AuditService lazily from app.state)
+app.add_middleware(AuditMiddleware)
+
 # Register routers
 app.include_router(annotations_router)
+app.include_router(audit_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
@@ -227,11 +289,13 @@ app.include_router(plants_router)
 app.include_router(api_keys_router)
 app.include_router(brokers_router)
 app.include_router(opcua_servers_router)
+app.include_router(capability_router)
 app.include_router(characteristics_router)
 app.include_router(config_router)
 app.include_router(database_admin_router)
 app.include_router(data_entry_router)
 app.include_router(import_router)
+app.include_router(notifications_router)
 app.include_router(providers_router)
 app.include_router(retention_router)
 app.include_router(samples_router)

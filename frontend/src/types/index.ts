@@ -668,3 +668,67 @@ export interface NextPurgeInfo {
   interval_hours: number
   last_run: PurgeHistory | null
 }
+
+// Audit log types
+export interface AuditLogEntry {
+  id: number
+  user_id: number | null
+  username: string | null
+  action: string
+  resource_type: string | null
+  resource_id: number | null
+  detail: Record<string, unknown> | null
+  ip_address: string | null
+  user_agent: string | null
+  timestamp: string
+}
+
+export interface AuditLogListResponse {
+  items: AuditLogEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AuditStats {
+  total_events: number
+  events_by_action: Record<string, number>
+  events_by_resource: Record<string, number>
+}
+
+// Capability types
+export interface CapabilityResult {
+  cp: number | null
+  cpk: number | null
+  pp: number | null
+  ppk: number | null
+  cpm: number | null
+  sample_count: number
+  normality_p_value: number | null
+  normality_test: string
+  is_normal: boolean
+  calculated_at: string
+  usl: number | null
+  lsl: number | null
+  target: number | null
+  sigma_within: number | null
+}
+
+export interface CapabilityHistoryItem {
+  id: number
+  cp: number | null
+  cpk: number | null
+  pp: number | null
+  ppk: number | null
+  cpm: number | null
+  sample_count: number
+  normality_p_value: number | null
+  normality_test: string | null
+  calculated_at: string
+  calculated_by: string
+}
+
+export interface CapabilitySnapshotResponse {
+  id: number
+  capability: CapabilityResult
+}

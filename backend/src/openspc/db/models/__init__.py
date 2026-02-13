@@ -2,7 +2,9 @@
 
 from openspc.db.models.annotation import Annotation
 from openspc.db.models.api_key import APIKey
+from openspc.db.models.audit_log import AuditLog
 from openspc.db.models.broker import MQTTBroker
+from openspc.db.models.capability import CapabilityHistory
 from openspc.db.models.characteristic import Characteristic, CharacteristicRule
 from openspc.db.models.characteristic_config import CharacteristicConfig
 from openspc.db.models.data_source import (
@@ -13,6 +15,7 @@ from openspc.db.models.data_source import (
     TriggerStrategy,
 )
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
+from openspc.db.models.notification import NotificationPreference, SmtpConfig, WebhookConfig
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
 from openspc.db.models.purge_history import PurgeHistory
@@ -27,7 +30,10 @@ __all__ = [
     # Models
     "Annotation",
     "APIKey",
+    "AuditLog",
+    "CapabilityHistory",
     "MQTTBroker",
+    "NotificationPreference",
     "OPCUAServer",
     "DataSource",
     "MQTTDataSource",
@@ -35,8 +41,10 @@ __all__ = [
     "Plant",
     "PurgeHistory",
     "RetentionPolicy",
+    "SmtpConfig",
     "User",
     "UserPlantRole",
+    "WebhookConfig",
     "Hierarchy",
     "Characteristic",
     "CharacteristicConfig",

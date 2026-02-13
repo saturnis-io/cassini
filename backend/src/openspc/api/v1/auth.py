@@ -69,17 +69,32 @@ async def login(
     Returns a JWT access token in the response body and sets a
     refresh token as an httpOnly cookie.
     """
+    # Helper to get audit service (if initialized)
+    audit_service = getattr(request.app.state, "audit_service", None)
+    ip = _get_client_ip(request)
+    ua = (request.headers.get("user-agent") or "")[:512]
+
     user = await repo.get_by_username(data.username)
     if user is None or not user.is_active:
+        if audit_service:
+            await audit_service.log_login(data.username, success=False, ip_address=ip, user_agent=ua)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
 
     if not verify_password(data.password, user.hashed_password):
+        if audit_service:
+            await audit_service.log_login(data.username, success=False, ip_address=ip, user_agent=ua)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
+        )
+
+    # Log successful login
+    if audit_service:
+        await audit_service.log_login(
+            data.username, success=True, ip_address=ip, user_agent=ua, user_id=user.id
         )
 
     # Create tokens
@@ -177,12 +192,23 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict:
+async def logout(request: Request, response: Response) -> dict:
     """Clear the refresh token cookie."""
     response.delete_cookie(
         key=REFRESH_COOKIE_KEY,
         path=REFRESH_COOKIE_PATH,
     )
+    # Audit log the logout
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        from openspc.core.audit import _extract_user_from_request
+        user_id, username = _extract_user_from_request(request)
+        await audit_service.log(
+            action="logout",
+            user_id=user_id,
+            username=username,
+            ip_address=_get_client_ip(request),
+        )
     return {"message": "Logged out successfully"}
 
 
@@ -223,3 +249,11 @@ async def change_password(
     await session.commit()
 
     return {"message": "Password changed successfully"}
+
+
+def _get_client_ip(request: Request) -> str:
+    """Get client IP, respecting X-Forwarded-For."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
