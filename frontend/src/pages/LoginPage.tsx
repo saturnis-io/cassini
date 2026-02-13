@@ -1,9 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/providers/AuthProvider'
+import { useOIDCProviders } from '@/api/hooks'
+import { oidcApi } from '@/api/client'
+import { setAccessToken } from '@/api/client'
 
 /**
- * Login page with username/password form.
+ * Login page with username/password form and SSO buttons.
  *
  * Displayed outside the main Layout (no sidebar).
  * On successful login, redirects to the previously attempted URL or /dashboard.
@@ -12,6 +15,7 @@ export function LoginPage() {
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const logoSrc = '/header-logo.svg'
 
   const [username, setUsername] = useState('')
@@ -19,9 +23,36 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [ssoLoading, setSsoLoading] = useState<number | null>(null)
+
+  // Fetch active OIDC providers for SSO buttons
+  const { data: oidcProviders } = useOIDCProviders()
 
   // Redirect destination after login (from ProtectedRoute)
   const from = (location.state as { from?: string })?.from || '/dashboard'
+
+  // Handle OIDC callback — if we have code + state in URL params
+  useEffect(() => {
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+
+    if (code && state && !isAuthenticated) {
+      setSsoLoading(-1)
+      setError(null)
+
+      oidcApi
+        .handleCallback(code, state)
+        .then((result) => {
+          setAccessToken(result.access_token)
+          // Force a page reload to let AuthProvider pick up the new session
+          window.location.href = from
+        })
+        .catch((err) => {
+          setError((err as Error).message || 'SSO login failed')
+          setSsoLoading(null)
+        })
+    }
+  }, [searchParams, isAuthenticated, from])
 
   // If already authenticated, redirect via effect (not during render)
   useEffect(() => {
@@ -44,6 +75,24 @@ export function LoginPage() {
       setIsSubmitting(false)
     }
   }
+
+  async function handleSSOLogin(providerId: number) {
+    setError(null)
+    setSsoLoading(providerId)
+
+    try {
+      // Build the callback URL pointing back to this login page
+      const callbackUrl = `${window.location.origin}/login`
+      const result = await oidcApi.getAuthorizationUrl(providerId, callbackUrl)
+      // Redirect to the OIDC provider
+      window.location.href = result.authorization_url
+    } catch (err) {
+      setError((err as Error).message || 'Failed to start SSO login')
+      setSsoLoading(null)
+    }
+  }
+
+  const hasProviders = oidcProviders && oidcProviders.length > 0
 
   return (
     <div className="bg-background flex min-h-screen items-center justify-center p-4">
@@ -125,6 +174,43 @@ export function LoginPage() {
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          {/* SSO Providers */}
+          {hasProviders && (
+            <>
+              {/* Divider */}
+              <div className="my-5 flex items-center gap-3">
+                <div className="bg-border h-px flex-1" />
+                <span className="text-muted-foreground text-xs font-medium uppercase">or</span>
+                <div className="bg-border h-px flex-1" />
+              </div>
+
+              {/* SSO Buttons */}
+              <div className="space-y-2">
+                {oidcProviders.map((provider) => (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    onClick={() => handleSSOLogin(provider.id)}
+                    disabled={ssoLoading !== null}
+                    className="border-border text-foreground hover:bg-muted w-full rounded-md border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {ssoLoading === provider.id
+                      ? 'Redirecting...'
+                      : `Sign in with ${provider.name}`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* OIDC callback loading indicator */}
+          {ssoLoading === -1 && (
+            <div className="mt-4 text-center">
+              <div className="border-primary mx-auto h-6 w-6 animate-spin rounded-full border-4 border-t-transparent" />
+              <p className="text-muted-foreground mt-2 text-sm">Completing SSO login...</p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

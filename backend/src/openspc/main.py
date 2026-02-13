@@ -23,6 +23,7 @@ from openspc.api.v1.data_entry import router as data_entry_router
 from openspc.api.v1.import_router import router as import_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.notifications import router as notifications_router
+from openspc.api.v1.oidc import router as oidc_router
 from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
@@ -296,6 +297,7 @@ app.include_router(database_admin_router)
 app.include_router(data_entry_router)
 app.include_router(import_router)
 app.include_router(notifications_router)
+app.include_router(oidc_router)
 app.include_router(providers_router)
 app.include_router(retention_router)
 app.include_router(samples_router)

@@ -16,6 +16,7 @@ from openspc.db.models.data_source import (
 )
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.notification import NotificationPreference, SmtpConfig, WebhookConfig
+from openspc.db.models.oidc_config import OIDCConfig
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
 from openspc.db.models.purge_history import PurgeHistory
@@ -34,6 +35,7 @@ __all__ = [
     "CapabilityHistory",
     "MQTTBroker",
     "NotificationPreference",
+    "OIDCConfig",
     "OPCUAServer",
     "DataSource",
     "MQTTDataSource",

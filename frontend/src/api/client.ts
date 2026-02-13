@@ -1300,6 +1300,120 @@ export const auditApi = {
   },
 }
 
+// ---- OIDC SSO API ----
+
+export interface OIDCProviderPublic {
+  id: number
+  name: string
+}
+
+export interface OIDCConfigResponse {
+  id: number
+  name: string
+  issuer_url: string
+  client_id: string
+  client_secret_masked: string
+  scopes: string[]
+  role_mapping: Record<string, string>
+  auto_provision: boolean
+  default_role: string
+  is_active: boolean
+  created_at: string
+  updated_at: string | null
+}
+
+export interface OIDCConfigCreate {
+  name: string
+  issuer_url: string
+  client_id: string
+  client_secret: string
+  scopes?: string[]
+  role_mapping?: Record<string, string>
+  auto_provision?: boolean
+  default_role?: string
+}
+
+export interface OIDCConfigUpdate {
+  name?: string
+  issuer_url?: string
+  client_id?: string
+  client_secret?: string
+  scopes?: string[]
+  role_mapping?: Record<string, string>
+  auto_provision?: boolean
+  default_role?: string
+  is_active?: boolean
+}
+
+export interface OIDCAuthorizationResponse {
+  authorization_url: string
+}
+
+export interface OIDCCallbackResponse {
+  access_token: string
+  token_type: string
+  user_id: number
+  username: string
+}
+
+export const oidcApi = {
+  /** List active OIDC providers (public, no auth) */
+  getProviders: () =>
+    fetch(`${API_BASE}/auth/oidc/providers`)
+      .then(async (res) => {
+        if (!res.ok) return [] as OIDCProviderPublic[]
+        return res.json() as Promise<OIDCProviderPublic[]>
+      })
+      .catch(() => [] as OIDCProviderPublic[]),
+
+  /** Get authorization URL for a provider */
+  getAuthorizationUrl: (providerId: number, redirectUri: string) =>
+    fetch(
+      `${API_BASE}/auth/oidc/authorize/${providerId}?redirect_uri=${encodeURIComponent(redirectUri)}`,
+    ).then(async (res) => {
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: 'Failed to start SSO' }))
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'Failed to start SSO')
+      }
+      return res.json() as Promise<OIDCAuthorizationResponse>
+    }),
+
+  /** Handle OIDC callback (exchange code for tokens) */
+  handleCallback: (code: string, state: string) =>
+    fetch(
+      `${API_BASE}/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+      {
+        credentials: 'include',
+      },
+    ).then(async (res) => {
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: 'SSO callback failed' }))
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'SSO callback failed')
+      }
+      return res.json() as Promise<OIDCCallbackResponse>
+    }),
+
+  /** List all OIDC configs (admin only) */
+  getConfigs: () => fetchApi<OIDCConfigResponse[]>('/auth/oidc/config'),
+
+  /** Create a new OIDC config (admin only) */
+  createConfig: (data: OIDCConfigCreate) =>
+    fetchApi<OIDCConfigResponse>('/auth/oidc/config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** Update an OIDC config (admin only) */
+  updateConfig: (id: number, data: OIDCConfigUpdate) =>
+    fetchApi<OIDCConfigResponse>(`/auth/oidc/config/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  /** Delete an OIDC config (admin only) */
+  deleteConfig: (id: number) => fetchApi<void>(`/auth/oidc/config/${id}`, { method: 'DELETE' }),
+}
+
 // ---- Capability API ----
 
 export const capabilityApi = {

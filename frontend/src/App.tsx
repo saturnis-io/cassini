@@ -15,6 +15,7 @@ import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { RetentionSettings } from '@/components/RetentionSettings'
 import { AuditLogViewer } from '@/components/AuditLogViewer'
+import { SSOSettings } from '@/components/SSOSettings'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
@@ -242,6 +243,14 @@ function App() {
                   />
                   <Route path="api-keys" element={<ApiKeysSettings />} />
                   <Route path="retention" element={<RetentionSettings />} />
+                  <Route
+                    path="sso"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <SSOSettings />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="audit-log"
                     element={

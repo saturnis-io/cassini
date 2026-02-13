@@ -12,6 +12,7 @@ import {
   hierarchyApi,
   importApi,
   notificationApi,
+  oidcApi,
   opcuaApi,
   plantApi,
   retentionApi,
@@ -21,6 +22,8 @@ import {
 } from './client'
 import type {
   AuditLogParams,
+  OIDCConfigCreate,
+  OIDCConfigUpdate,
   SmtpConfigUpdate,
   WebhookConfigCreate,
   WebhookConfigUpdate,
@@ -121,6 +124,11 @@ export const queryKeys = {
     all: ['capability'] as const,
     current: (charId: number) => ['capability', 'current', charId] as const,
     history: (charId: number) => ['capability', 'history', charId] as const,
+  },
+  oidc: {
+    all: ['oidc'] as const,
+    providers: () => ['oidc', 'providers'] as const,
+    configs: () => ['oidc', 'configs'] as const,
   },
 }
 
@@ -1650,6 +1658,77 @@ export function useSaveCapabilitySnapshot() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to save snapshot: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// OIDC SSO hooks
+// -----------------------------------------------------------------------
+
+/** Fetch active OIDC providers for the login page (public, no auth) */
+export function useOIDCProviders() {
+  return useQuery({
+    queryKey: queryKeys.oidc.providers(),
+    queryFn: () => oidcApi.getProviders(),
+    staleTime: 60_000,
+    retry: false,
+  })
+}
+
+/** Fetch all OIDC configs (admin only) */
+export function useOIDCConfigs() {
+  return useQuery({
+    queryKey: queryKeys.oidc.configs(),
+    queryFn: () => oidcApi.getConfigs(),
+  })
+}
+
+/** Create a new OIDC config */
+export function useCreateOIDCConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: OIDCConfigCreate) => oidcApi.createConfig(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
+      toast.success(`SSO provider "${data.name}" created`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create SSO provider: ${error.message}`)
+    },
+  })
+}
+
+/** Update an existing OIDC config */
+export function useUpdateOIDCConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: OIDCConfigUpdate }) =>
+      oidcApi.updateConfig(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
+      toast.success('SSO provider updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update SSO provider: ${error.message}`)
+    },
+  })
+}
+
+/** Delete an OIDC config */
+export function useDeleteOIDCConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => oidcApi.deleteConfig(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
+      toast.success('SSO provider deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete SSO provider: ${error.message}`)
     },
   })
 }

@@ -20,6 +20,7 @@ from openspc.db.repositories.capability import CapabilityHistoryRepository
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.data_source import DataSourceRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
+from openspc.db.repositories.oidc_config_repo import OIDCConfigRepository
 from openspc.db.repositories.opcua_server import OPCUAServerRepository
 from openspc.db.repositories.plant import PlantRepository
 from openspc.db.repositories.purge_history import PurgeHistoryRepository
@@ -36,6 +37,7 @@ __all__ = [
     "CapabilityHistoryRepository",
     "DataSourceRepository",
     "HierarchyRepository",
+    "OIDCConfigRepository",
     "OPCUAServerRepository",
     "PlantRepository",
     "PurgeHistoryRepository",
