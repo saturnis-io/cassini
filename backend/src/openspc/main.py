@@ -18,6 +18,7 @@ from openspc.api.v1.database_admin import router as database_admin_router
 from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.characteristics import router as characteristics_router
 from openspc.api.v1.data_entry import router as data_entry_router
+from openspc.api.v1.import_router import router as import_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
@@ -230,6 +231,7 @@ app.include_router(characteristics_router)
 app.include_router(config_router)
 app.include_router(database_admin_router)
 app.include_router(data_entry_router)
+app.include_router(import_router)
 app.include_router(providers_router)
 app.include_router(retention_router)
 app.include_router(samples_router)
