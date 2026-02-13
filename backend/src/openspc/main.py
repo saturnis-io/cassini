@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
+from openspc.api.v1.health import router as health_router
 from openspc.api.v1.auth import router as auth_router
 from openspc.api.v1.brokers import router as brokers_router
 from openspc.api.v1.opcua_servers import router as opcua_servers_router
@@ -235,6 +236,7 @@ app.include_router(samples_router)
 app.include_router(tags_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)
+app.include_router(health_router, prefix="/api/v1")
 
 # Dev tools router — only registered in sandbox mode
 if settings.sandbox:
