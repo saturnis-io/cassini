@@ -63,6 +63,11 @@ class Characteristic(Base):
     stored_sigma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     stored_center_line: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Attribute chart configuration
+    data_type: Mapped[str] = mapped_column(String(20), default="variable", nullable=False)
+    attribute_chart_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    default_sample_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # Display formatting
     decimal_precision: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
 
