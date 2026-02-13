@@ -51,8 +51,8 @@ export function UserTable({ users, onEdit, onDeactivate, onDelete }: UserTablePr
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="bg-muted/50 border-b">
               <th className="text-muted-foreground px-4 py-3 text-left font-medium">Username</th>

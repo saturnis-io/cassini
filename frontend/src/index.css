@@ -150,6 +150,31 @@ button:disabled,
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Touch UX - Prevent 300ms tap delay on touch devices */
+@layer base {
+  html {
+    touch-action: manipulation;
+  }
+}
+
+/* Minimum tap target size for touch devices */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  a[href],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exempt very small inline elements like badges */
+  .stat-badge,
+  [class*='rounded-full'][class*='px-1'] {
+    min-height: unset;
+    min-width: unset;
+  }
+}
+
 /* Input styling - Clean and modern
  * Wrapped in @layer base so Tailwind utility classes (e.g. border-0, bg-transparent)
  * can override these defaults in composed components like NumberInput.

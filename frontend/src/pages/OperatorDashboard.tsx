@@ -272,33 +272,37 @@ export function OperatorDashboard() {
   const precision = quickStats?.precision ?? 2
 
   return (
-    <div className="-mx-4 -my-3 flex h-[calc(100vh-5.5rem)] flex-col gap-2 px-3 py-2">
+    <div className="-mx-2 -my-2 flex h-[calc(100vh-5.5rem)] flex-col gap-2 px-1 py-1 md:-mx-4 md:-my-3 md:px-3 md:py-2">
       {/* ── Stats Ticker Bar ── */}
       {selectedId && quickStats && (
-        <div className="flex flex-shrink-0 items-center gap-2 overflow-x-auto px-1 py-1">
+        <div className="flex flex-shrink-0 items-center gap-1.5 overflow-x-auto px-1 py-1 md:gap-2">
           {/* Characteristic name + chart type */}
-          <div className="mr-2 flex flex-shrink-0 items-center gap-2">
-            <span className="max-w-[200px] truncate text-sm font-semibold">
+          <div className="mr-1 flex flex-shrink-0 items-center gap-1.5 md:mr-2 md:gap-2">
+            <span className="max-w-[120px] truncate text-xs font-semibold md:max-w-[200px] md:text-sm">
               {selectedCharacteristic?.name ?? '—'}
             </span>
             {selectedCharacteristic?.unit && (
-              <span className="text-muted-foreground text-xs">({selectedCharacteristic.unit})</span>
+              <span className="text-muted-foreground hidden text-xs md:inline">
+                ({selectedCharacteristic.unit})
+              </span>
             )}
           </div>
 
-          <div className="bg-border/60 h-4 w-px flex-shrink-0" />
+          <div className="bg-border/60 hidden h-4 w-px flex-shrink-0 md:block" />
 
           {/* Stats pills */}
           <StatPill icon={Activity} label="Last" value={quickStats.lastMean.toFixed(precision)} />
           {quickStats.centerLine != null && (
             <StatPill icon={Target} label="CL" value={quickStats.centerLine.toFixed(precision)} />
           )}
-          {quickStats.ucl != null && (
-            <StatPill icon={TrendingUp} label="UCL" value={quickStats.ucl.toFixed(precision)} />
-          )}
-          {quickStats.lcl != null && (
-            <StatPill icon={TrendingUp} label="LCL" value={quickStats.lcl.toFixed(precision)} />
-          )}
+          <span className="hidden md:contents">
+            {quickStats.ucl != null && (
+              <StatPill icon={TrendingUp} label="UCL" value={quickStats.ucl.toFixed(precision)} />
+            )}
+            {quickStats.lcl != null && (
+              <StatPill icon={TrendingUp} label="LCL" value={quickStats.lcl.toFixed(precision)} />
+            )}
+          </span>
           <StatPill icon={Hash} label="n" value={quickStats.totalSamples} />
           <StatPill
             icon={AlertTriangle}
@@ -320,9 +324,9 @@ export function OperatorDashboard() {
       )}
 
       {/* ── Main Content Area ── */}
-      <div className="flex min-h-0 flex-1 gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row">
         {/* Left Panel — Hierarchy / Characteristics (Watchlist-style) */}
-        <div className="w-72 flex-shrink-0">
+        <div className="h-48 flex-shrink-0 md:h-auto md:w-72">
           <HierarchyTodoList className="h-full" />
         </div>
 

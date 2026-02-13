@@ -298,7 +298,7 @@ export function AuditLogViewer() {
       {/* Table */}
       <div className="border-border bg-card overflow-hidden rounded-lg border">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full min-w-[600px] text-left">
             <thead>
               <tr className="border-border bg-muted/50 border-b">
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Timestamp</th>

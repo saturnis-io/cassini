@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { Outlet, Link } from 'react-router-dom'
 import { Wifi, WifiOff, AlertTriangle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useViolationStats } from '@/api/hooks'
+import { useUIStore } from '@/stores/uiStore'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
 import { PlantSelector } from '@/components/PlantSelector'
@@ -20,13 +22,36 @@ import { PlantSelector } from '@/components/PlantSelector'
  * │          ├──────────────────────────────────┤
  * │          │  Footer/Status Bar               │
  * └──────────┴──────────────────────────────────┘
+ *
+ * Mobile: Sidebar becomes an overlay (hamburger menu).
  */
 export function Layout() {
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { data: stats } = useViolationStats()
+  const { isOffline, setIsOffline } = useUIStore()
+
+  // Listen for online/offline events
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false)
+    const goOffline = () => setIsOffline(true)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [setIsOffline])
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="bg-warning text-warning-foreground flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium">
+          <WifiOff className="h-4 w-4" />
+          You are offline. Some features may be unavailable.
+        </div>
+      )}
+
       {/* Header - full width */}
       <Header plantSelector={<PlantSelector />} />
 
@@ -36,28 +61,28 @@ export function Layout() {
         <Sidebar />
 
         {/* Content area */}
-        <main className="flex-1 overflow-auto px-4 py-3">
+        <main className="flex-1 overflow-auto px-2 py-2 md:px-4 md:py-3">
           <Outlet />
         </main>
       </div>
 
       {/* Footer / Status bar - full width */}
-      <footer className="bg-card shrink-0 border-t px-4 py-1.5">
+      <footer className="bg-card shrink-0 border-t px-2 py-1.5 md:px-4">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             {wsConnected ? (
               <>
                 <Wifi className="text-success h-4 w-4" />
-                <span className="text-muted-foreground">Connected</span>
+                <span className="text-muted-foreground hidden sm:inline">Connected</span>
               </>
             ) : (
               <>
                 <WifiOff className="text-destructive h-4 w-4" />
-                <span className="text-destructive">Disconnected</span>
+                <span className="text-destructive hidden sm:inline">Disconnected</span>
               </>
             )}
           </div>
-          <div className="text-muted-foreground flex items-center gap-6">
+          <div className="text-muted-foreground flex items-center gap-3 md:gap-6">
             <Link
               to="/violations?status=required"
               className={cn(
@@ -68,7 +93,8 @@ export function Layout() {
               )}
             >
               <AlertTriangle className="h-4 w-4" />
-              Pending: <span className="font-medium">{stats?.unacknowledged ?? 0}</span>
+              <span className="hidden sm:inline">Pending:</span>{' '}
+              <span className="font-medium">{stats?.unacknowledged ?? 0}</span>
             </Link>
             {(stats?.informational ?? 0) > 0 && (
               <Link
@@ -76,7 +102,8 @@ export function Layout() {
                 className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors hover:underline"
               >
                 <Info className="h-4 w-4" />
-                Info: <span className="font-medium">{stats?.informational ?? 0}</span>
+                <span className="hidden sm:inline">Info:</span>{' '}
+                <span className="font-medium">{stats?.informational ?? 0}</span>
               </Link>
             )}
           </div>

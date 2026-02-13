@@ -117,7 +117,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      {/* Trigger button */}
+      {/* Trigger button — compact on mobile, full on desktop */}
       <button
         ref={buttonRef}
         onClick={() => {
@@ -126,7 +126,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
         }}
         onKeyDown={handleKeyDown}
         className={cn(
-          'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm',
+          'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm md:px-3',
           'bg-background hover:bg-accent border transition-colors',
           'focus:ring-ring focus:ring-2 focus:ring-offset-2 focus:outline-none',
           isOpen && 'bg-accent',
@@ -135,7 +135,10 @@ export function PlantSelector({ className }: PlantSelectorProps) {
         aria-haspopup="listbox"
       >
         <Building2 className="text-muted-foreground h-4 w-4" />
-        <span className="font-medium">{selectedPlant?.name ?? 'Select Site'}</span>
+        <span className="hidden font-medium md:inline">{selectedPlant?.name ?? 'Select Site'}</span>
+        <span className="font-medium md:hidden">
+          {selectedPlant?.code ?? selectedPlant?.name ?? 'Site'}
+        </span>
         <ChevronDown
           className={cn(
             'text-muted-foreground h-4 w-4 transition-transform duration-150',

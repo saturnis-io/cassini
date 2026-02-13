@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Sun, Moon, Monitor, User, LogOut, ChevronDown } from 'lucide-react'
+import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { ROLE_LABELS } from '@/lib/roles'
+import { useUIStore } from '@/stores/uiStore'
 
 interface HeaderProps {
   className?: string
@@ -27,6 +28,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
   const defaultLogo = '/header-logo.svg'
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -68,14 +70,24 @@ export function Header({ className, plantSelector }: HeaderProps) {
     <header
       className={cn('bg-card flex h-12 items-center justify-between border-b px-4', className)}
     >
-      {/* Left: Logo and app name */}
+      {/* Left: Hamburger (mobile) + Logo and app name */}
       <div className="flex items-center gap-2.5">
+        <button
+          onClick={toggleMobileSidebar}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent mr-1 flex h-9 w-9 items-center justify-center rounded-md transition-colors md:hidden"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <img
           src={logoUrl || defaultLogo}
           alt={`${appName} logo`}
           className="h-9 w-9 object-contain"
         />
-        <span className="text-lg font-bold" style={{ fontFamily: "'Sansation', sans-serif" }}>
+        <span
+          className="hidden text-lg font-bold sm:inline"
+          style={{ fontFamily: "'Sansation', sans-serif" }}
+        >
           {appName}
         </span>
       </div>

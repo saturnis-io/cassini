@@ -269,10 +269,12 @@ export function ViolationsView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Violations</h1>
-          <p className="text-muted-foreground">Monitor and acknowledge Nelson rule violations</p>
+          <h1 className="text-xl font-bold md:text-2xl">Violations</h1>
+          <p className="text-muted-foreground text-sm">
+            Monitor and acknowledge Nelson rule violations
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {canBulkAck && (
@@ -303,7 +305,7 @@ export function ViolationsView() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="text-muted-foreground text-sm">Total Violations</div>
           <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
@@ -396,139 +398,141 @@ export function ViolationsView() {
           </div>
         )}
 
-        <table className="w-full">
-          <thead className="bg-muted/50 border-border border-b">
-            <tr>
-              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                Time
-              </th>
-              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                Characteristic
-              </th>
-              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                Rule
-              </th>
-              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                Severity
-              </th>
-              <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
-                Status
-              </th>
-              <th className="text-muted-foreground px-4 py-3 text-right text-sm font-medium">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-border divide-y">
-            {isLoading ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px]">
+            <thead className="bg-muted/50 border-border border-b">
               <tr>
-                <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
-                  Loading violations...
-                </td>
+                <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                  Time
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                  Characteristic
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                  Rule
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                  Severity
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-left text-sm font-medium">
+                  Status
+                </th>
+                <th className="text-muted-foreground px-4 py-3 text-right text-sm font-medium">
+                  Actions
+                </th>
               </tr>
-            ) : !violations?.items || violations?.items.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
-                  No violations found
-                </td>
-              </tr>
-            ) : (
-              violations?.items.map((violation) => {
-                const isInformational = !violation.requires_acknowledgement
-                return (
-                  <tr
-                    key={violation.id}
-                    className={cn(
-                      'transition-colors',
-                      isInformational && !violation.acknowledged
-                        ? 'bg-muted/20 hover:bg-muted/40 opacity-60'
-                        : 'hover:bg-muted/30',
-                    )}
-                  >
-                    <td className="px-4 py-3 text-sm">
-                      {violation.created_at ? (
-                        <>
-                          <div>{new Date(violation.created_at).toLocaleDateString()}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {new Date(violation.created_at).toLocaleTimeString()}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
+            </thead>
+            <tbody className="divide-border divide-y">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
+                    Loading violations...
+                  </td>
+                </tr>
+              ) : !violations?.items || violations?.items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-muted-foreground px-4 py-8 text-center">
+                    No violations found
+                  </td>
+                </tr>
+              ) : (
+                violations?.items.map((violation) => {
+                  const isInformational = !violation.requires_acknowledgement
+                  return (
+                    <tr
+                      key={violation.id}
+                      className={cn(
+                        'transition-colors',
+                        isInformational && !violation.acknowledged
+                          ? 'bg-muted/20 hover:bg-muted/40 opacity-60'
+                          : 'hover:bg-muted/30',
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium">
-                        {violation.characteristic_name || 'Unknown'}
-                      </div>
-                      {violation.hierarchy_path && (
-                        <div className="text-muted-foreground text-xs">
-                          {violation.hierarchy_path}
+                    >
+                      <td className="px-4 py-3 text-sm">
+                        {violation.created_at ? (
+                          <>
+                            <div>{new Date(violation.created_at).toLocaleDateString()}</div>
+                            <div className="text-muted-foreground text-xs">
+                              {new Date(violation.created_at).toLocaleTimeString()}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium">
+                          {violation.characteristic_name || 'Unknown'}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                        {violation.hierarchy_path && (
+                          <div className="text-muted-foreground text-xs">
+                            {violation.hierarchy_path}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
+                              isInformational
+                                ? 'bg-primary/10 text-primary'
+                                : 'bg-destructive/10 text-destructive',
+                            )}
+                          >
+                            {violation.rule_id}
+                          </span>
+                          <span className="text-sm">
+                            {NELSON_RULES[violation.rule_id]?.name || violation.rule_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
                         <span
                           className={cn(
-                            'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold',
-                            isInformational
-                              ? 'bg-primary/10 text-primary'
-                              : 'bg-destructive/10 text-destructive',
+                            'rounded border px-2 py-1 text-xs font-medium',
+                            getSeverityStyle(violation.severity),
                           )}
                         >
-                          {violation.rule_id}
+                          {violation.severity}
                         </span>
-                        <span className="text-sm">
-                          {NELSON_RULES[violation.rule_id]?.name || violation.rule_name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          'rounded border px-2 py-1 text-xs font-medium',
-                          getSeverityStyle(violation.severity),
+                      </td>
+                      <td className="px-4 py-3">
+                        {violation.acknowledged ? (
+                          <div className="text-success flex items-center gap-1 text-sm">
+                            <Check className="h-4 w-4" />
+                            <span>Acknowledged</span>
+                          </div>
+                        ) : isInformational ? (
+                          <div className="text-primary flex items-center gap-1 text-sm">
+                            <Info className="h-4 w-4" />
+                            <span>Informational</span>
+                          </div>
+                        ) : (
+                          <div className="text-destructive flex items-center gap-1 text-sm">
+                            <Clock className="h-4 w-4" />
+                            <span>Pending</span>
+                          </div>
                         )}
-                      >
-                        {violation.severity}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {violation.acknowledged ? (
-                        <div className="text-success flex items-center gap-1 text-sm">
-                          <Check className="h-4 w-4" />
-                          <span>Acknowledged</span>
-                        </div>
-                      ) : isInformational ? (
-                        <div className="text-primary flex items-center gap-1 text-sm">
-                          <Info className="h-4 w-4" />
-                          <span>Informational</span>
-                        </div>
-                      ) : (
-                        <div className="text-destructive flex items-center gap-1 text-sm">
-                          <Clock className="h-4 w-4" />
-                          <span>Pending</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {!violation.acknowledged && violation.requires_acknowledgement && (
-                        <button
-                          onClick={() => handleAcknowledge(violation.id)}
-                          disabled={acknowledgeMutation.isPending}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                        >
-                          Acknowledge
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {!violation.acknowledged && violation.requires_acknowledgement && (
+                          <button
+                            onClick={() => handleAcknowledge(violation.id)}
+                            disabled={acknowledgeMutation.isPending}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                          >
+                            Acknowledge
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Bottom Pager */}
         {showPager && (

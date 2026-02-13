@@ -10,10 +10,19 @@ import { persist } from 'zustand/middleware'
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden'
 
 interface UIState {
-  // Sidebar state
+  // Sidebar state (desktop)
   sidebarState: SidebarState
   setSidebarState: (state: SidebarState) => void
   toggleSidebar: () => void
+
+  // Mobile sidebar overlay state
+  mobileSidebarOpen: boolean
+  setMobileSidebarOpen: (open: boolean) => void
+  toggleMobileSidebar: () => void
+
+  // Offline awareness
+  isOffline: boolean
+  setIsOffline: (offline: boolean) => void
 
   // Plant context (ID only, provider manages full plant object)
   selectedPlantId: number | null
@@ -30,6 +39,15 @@ export const useUIStore = create<UIState>()(
         set((prev) => ({
           sidebarState: prev.sidebarState === 'expanded' ? 'collapsed' : 'expanded',
         })),
+
+      // Mobile sidebar - default to closed
+      mobileSidebarOpen: false,
+      setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
+      toggleMobileSidebar: () => set((prev) => ({ mobileSidebarOpen: !prev.mobileSidebarOpen })),
+
+      // Offline awareness
+      isOffline: !navigator.onLine,
+      setIsOffline: (offline) => set({ isOffline: offline }),
 
       // Plant context - handle legacy string values during migration
       selectedPlantId: null,
