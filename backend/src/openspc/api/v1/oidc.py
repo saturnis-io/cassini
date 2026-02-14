@@ -109,7 +109,7 @@ async def authorize(
         logger.error("oidc_authorize_failed", provider_id=provider_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to contact OIDC provider: {e}",
+            detail="Failed to contact OIDC provider",
         )
 
 
@@ -173,7 +173,7 @@ async def callback(
         logger.error("oidc_callback_failed", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"OIDC callback processing failed: {e}",
+            detail="OIDC callback processing failed",
         )
 
 

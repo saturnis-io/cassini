@@ -264,7 +264,7 @@ async def confirm_import(
                 await session.flush()
                 imported += 1
         except Exception as e:
-            import_errors.append({"row_index": idx, "error": str(e)})
+            import_errors.append({"row_index": idx, "error": "Failed to import row"})
             logger.warning(
                 "import_row_failed",
                 row_index=idx,

@@ -6,6 +6,7 @@ and node browsing of OPC-UA address spaces.
 
 import asyncio
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,8 @@ from openspc.db.dialects import encrypt_password, get_encryption_key
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.user import User
 from openspc.db.repositories.opcua_server import OPCUAServerRepository
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/opcua-servers", tags=["opcua-servers"])
 
@@ -477,9 +480,10 @@ async def browse_opcua_nodes(
             detail=str(e),
         )
     except Exception as e:
+        logger.error("opcua_browse_failed", server_id=server_id, parent_node_id=parent_node_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to browse OPC-UA server: {str(e)}",
+            detail="Failed to browse OPC-UA server",
         )
 
     return [
@@ -538,9 +542,10 @@ async def read_opcua_node_value(
             detail=str(e),
         )
     except Exception as e:
+        logger.error("opcua_read_node_failed", server_id=server_id, node_id=node_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to read node value: {str(e)}",
+            detail="Failed to read node value",
         )
 
     # Serialize value to JSON-safe type

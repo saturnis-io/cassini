@@ -9,7 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from openspc.api.deps import get_current_user, get_db_session, require_role
+from openspc.api.deps import (
+    check_plant_role,
+    get_current_user,
+    get_db_session,
+    resolve_plant_id_for_characteristic,
+)
 from openspc.api.schemas.annotation import (
     AnnotationCreate,
     AnnotationResponse,
@@ -84,30 +89,24 @@ async def create_annotation(
     characteristic_id: int,
     data: AnnotationCreate,
     session: AsyncSession = Depends(get_db_session),
-    user: User = Depends(require_role("supervisor")),
+    user: User = Depends(get_current_user),
 ) -> AnnotationResponse:
     """Create an annotation for a characteristic.
 
-    Supervisor+ role required to create annotations.
+    Supervisor+ role required (plant-scoped) to create annotations.
 
     Args:
         characteristic_id: ID of the characteristic
         data: Annotation creation data
         session: Database session dependency
-        user: Current user (supervisor+)
+        user: Current user (supervisor+ at owning plant)
 
     Returns:
         Created annotation
     """
-    # Verify characteristic exists
-    char_result = await session.execute(
-        select(Characteristic).where(Characteristic.id == characteristic_id)
-    )
-    if char_result.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Characteristic {characteristic_id} not found",
-        )
+    # Verify characteristic exists and resolve plant for RBAC
+    plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
+    check_plant_role(user, plant_id, "supervisor")
 
     # Validate sample reference for point annotations
     if data.annotation_type == "point" and data.sample_id is not None:
@@ -181,23 +180,27 @@ async def update_annotation(
     annotation_id: int,
     data: AnnotationUpdate,
     session: AsyncSession = Depends(get_db_session),
-    user: User = Depends(require_role("supervisor")),
+    user: User = Depends(get_current_user),
 ) -> AnnotationResponse:
     """Update an annotation's text or color.
 
-    Supervisor+ role required. When text is changed, the previous value
-    is saved to annotation_history for audit trail.
+    Supervisor+ role required (plant-scoped). When text is changed, the
+    previous value is saved to annotation_history for audit trail.
 
     Args:
         characteristic_id: ID of the characteristic
         annotation_id: ID of the annotation to update
         data: Fields to update
         session: Database session dependency
-        user: Current user (supervisor+)
+        user: Current user (supervisor+ at owning plant)
 
     Returns:
         Updated annotation with history
     """
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
+    check_plant_role(user, plant_id, "supervisor")
+
     result = await session.execute(
         select(Annotation)
         .options(selectinload(Annotation.history))
@@ -241,17 +244,21 @@ async def delete_annotation(
     characteristic_id: int,
     annotation_id: int,
     session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(require_role("supervisor")),
+    _user: User = Depends(get_current_user),
 ) -> None:
     """Delete an annotation.
 
-    Supervisor+ role required.
+    Supervisor+ role required (plant-scoped).
 
     Args:
         characteristic_id: ID of the characteristic
         annotation_id: ID of the annotation to delete
         session: Database session dependency
     """
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
+    check_plant_role(_user, plant_id, "supervisor")
+
     result = await session.execute(
         select(Annotation).where(
             Annotation.id == annotation_id,

@@ -21,7 +21,6 @@ from openspc.api.deps import (
     get_db_session,
     get_sample_repo,
     get_violation_repo,
-    require_role,
     resolve_plant_id_for_characteristic,
 )
 from openspc.db.models.user import User
@@ -446,7 +445,7 @@ async def toggle_exclude(
     data: SampleExclude,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
-    _user: User = Depends(require_role("supervisor")),
+    _user: User = Depends(get_current_user),
 ) -> SampleResponse:
     """Mark sample as excluded from calculations.
 
@@ -527,7 +526,7 @@ async def delete_sample(
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
-    _user: User = Depends(require_role("supervisor")),
+    _user: User = Depends(get_current_user),
 ) -> None:
     """Delete a sample and its measurements permanently.
 
@@ -587,7 +586,7 @@ async def update_sample(
     char_repo: CharacteristicRepository = Depends(get_char_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
     violation_repo: ViolationRepository = Depends(get_violation_repo),
-    _user: User = Depends(require_role("supervisor")),
+    _user: User = Depends(get_current_user),
 ) -> SampleProcessingResult:
     """Update sample measurements and recalculate statistics.
 
