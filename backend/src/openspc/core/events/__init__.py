@@ -31,14 +31,20 @@ Usage:
 from openspc.core.events.bus import EventBus, EventHandler, event_bus
 from openspc.core.events.events import (
     AlertThresholdExceededEvent,
+    AnomalyDetectedEvent,
     CharacteristicCreatedEvent,
     CharacteristicDeletedEvent,
     CharacteristicUpdatedEvent,
     ControlLimitsUpdatedEvent,
     Event,
     SampleProcessedEvent,
+    SignatureCreatedEvent,
+    SignatureInvalidatedEvent,
+    SignatureRejectedEvent,
     ViolationAcknowledgedEvent,
     ViolationCreatedEvent,
+    WorkflowCompletedEvent,
+    WorkflowExpiredEvent,
 )
 
 __all__ = [
@@ -61,4 +67,12 @@ __all__ = [
     "CharacteristicDeletedEvent",
     # Alert events
     "AlertThresholdExceededEvent",
+    # Anomaly events
+    "AnomalyDetectedEvent",
+    # Signature events
+    "SignatureCreatedEvent",
+    "SignatureRejectedEvent",
+    "WorkflowCompletedEvent",
+    "WorkflowExpiredEvent",
+    "SignatureInvalidatedEvent",
 ]

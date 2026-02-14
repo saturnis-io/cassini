@@ -199,3 +199,90 @@ class AlertThresholdExceededEvent(Event):
     threshold_value: float
     current_value: float
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class AnomalyDetectedEvent(Event):
+    """Emitted when an anomaly detector finds something noteworthy.
+
+    Published after an anomaly event is persisted to the database.
+    Subscribers (e.g., NotificationDispatcher) can use this to
+    send alerts via email or webhook.
+
+    Attributes:
+        anomaly_event_id: Database ID of the persisted anomaly event
+        characteristic_id: ID of the characteristic being monitored
+        detector_type: Detector that found the anomaly ('pelt', 'isolation_forest', 'ks_test')
+        event_type: Type of anomaly ('changepoint', 'outlier', 'distribution_shift')
+        severity: Severity level ('INFO', 'WARNING', 'CRITICAL')
+        summary: Human-readable description
+        sample_id: Triggering sample ID (if real-time detection)
+        timestamp: When the anomaly was detected
+    """
+
+    anomaly_event_id: int
+    characteristic_id: int
+    detector_type: str
+    event_type: str
+    severity: str
+    summary: str
+    sample_id: int | None = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class SignatureCreatedEvent(Event):
+    """Emitted when an electronic signature is created."""
+
+    signature_id: int
+    user_id: int
+    username: str
+    resource_type: str
+    resource_id: int
+    meaning_code: str
+    workflow_instance_id: int | None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class SignatureRejectedEvent(Event):
+    """Emitted when a workflow step is rejected."""
+
+    workflow_instance_id: int
+    user_id: int
+    username: str
+    resource_type: str
+    resource_id: int
+    reason: str
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class WorkflowCompletedEvent(Event):
+    """Emitted when a signature workflow completes all steps."""
+
+    workflow_instance_id: int
+    resource_type: str
+    resource_id: int
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class WorkflowExpiredEvent(Event):
+    """Emitted when a workflow exceeds its timeout."""
+
+    workflow_instance_id: int
+    resource_type: str
+    resource_id: int
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class SignatureInvalidatedEvent(Event):
+    """Emitted when a record is modified after signing, invalidating signatures."""
+
+    resource_type: str
+    resource_id: int
+    invalidated_signature_ids: list[int]
+    reason: str
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

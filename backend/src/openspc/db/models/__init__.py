@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models for OpenSPC database schema."""
 
 from openspc.db.models.annotation import Annotation
+from openspc.db.models.anomaly import AnomalyDetectorConfig, AnomalyEvent, AnomalyModelState
 from openspc.db.models.api_key import APIKey
 from openspc.db.models.audit_log import AuditLog
 from openspc.db.models.broker import MQTTBroker
@@ -23,6 +24,14 @@ from openspc.db.models.purge_history import PurgeHistory
 from openspc.db.models.report_schedule import ReportRun, ReportSchedule
 from openspc.db.models.retention_policy import RetentionPolicy
 from openspc.db.models.sample import Measurement, Sample
+from openspc.db.models.signature import (
+    ElectronicSignature,
+    PasswordPolicy,
+    SignatureMeaning,
+    SignatureWorkflow,
+    SignatureWorkflowInstance,
+    SignatureWorkflowStep,
+)
 from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.models.violation import Severity, Violation
 
@@ -31,6 +40,9 @@ __all__ = [
     "Base",
     # Models
     "Annotation",
+    "AnomalyDetectorConfig",
+    "AnomalyEvent",
+    "AnomalyModelState",
     "APIKey",
     "AuditLog",
     "CapabilityHistory",
@@ -57,6 +69,13 @@ __all__ = [
     "Sample",
     "Measurement",
     "Violation",
+    # Electronic signatures
+    "ElectronicSignature",
+    "SignatureMeaning",
+    "SignatureWorkflow",
+    "SignatureWorkflowStep",
+    "SignatureWorkflowInstance",
+    "PasswordPolicy",
     # Enums
     "DataSourceType",
     "HierarchyType",
