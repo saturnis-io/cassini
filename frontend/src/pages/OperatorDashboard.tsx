@@ -95,11 +95,17 @@ export function OperatorDashboard() {
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
 
   // Get current chart type — default to recommended type for the characteristic's subgroup size
+  // Auto-select CUSUM/EWMA if the characteristic has a specific chart_type set
   const subgroupSize = selectedCharacteristic?.subgroup_size ?? 5
+  const charChartType = selectedCharacteristic?.chart_type
   const currentChartType: ChartTypeId =
-    (selectedId && chartTypes.get(selectedId)) || recommendChartType(subgroupSize)
-  const isDualChart = DUAL_CHART_TYPES.includes(currentChartType)
-  const isBoxWhisker = currentChartType === 'box-whisker'
+    (selectedId && chartTypes.get(selectedId)) ||
+    (charChartType && ['cusum', 'ewma'].includes(charChartType)
+      ? (charChartType as ChartTypeId)
+      : recommendChartType(subgroupSize))
+  const isAttribute = selectedCharacteristic?.data_type === 'attribute'
+  const isDualChart = DUAL_CHART_TYPES.includes(currentChartType) && !isAttribute
+  const isBoxWhisker = currentChartType === 'box-whisker' && !isAttribute
 
   // Use app-level WebSocket context — when connected, WS delivers real-time
   // updates so polling is redundant and can be disabled
@@ -211,19 +217,49 @@ export function OperatorDashboard() {
 
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
-    if (!chartDataForAnnotation?.data_points?.length) return null
-    const pts = chartDataForAnnotation.data_points
+    if (!chartDataForAnnotation) return null
     const { control_limits, spec_limits } = chartDataForAnnotation
 
-    const totalSamples = pts.length
-    const violationCount = pts.filter((p) => p.violation_ids.length > 0).length
-    const lastMean = pts[pts.length - 1].mean
+    // Support standard, CUSUM, EWMA, and attribute data point arrays
+    const stdPts = chartDataForAnnotation.data_points ?? []
+    const cusumPts = chartDataForAnnotation.cusum_data_points ?? []
+    const ewmaPts = chartDataForAnnotation.ewma_data_points ?? []
+    const attrPts = chartDataForAnnotation.attribute_data_points ?? []
+
+    let totalSamples: number
+    let violationCount: number
+    let lastMean: number
+    let values: number[]
+
+    if (attrPts.length > 0) {
+      totalSamples = attrPts.length
+      violationCount = attrPts.filter((p) => p.violation_ids.length > 0).length
+      lastMean = attrPts[attrPts.length - 1].plotted_value
+      values = attrPts.map((p) => p.plotted_value)
+    } else if (stdPts.length > 0) {
+      totalSamples = stdPts.length
+      violationCount = stdPts.filter((p) => p.violation_ids.length > 0).length
+      lastMean = stdPts[stdPts.length - 1].mean
+      values = stdPts.map((p) => p.mean)
+    } else if (cusumPts.length > 0) {
+      totalSamples = cusumPts.length
+      violationCount = cusumPts.filter((p) => p.violation_ids.length > 0).length
+      lastMean = cusumPts[cusumPts.length - 1].measurement
+      values = cusumPts.map((p) => p.measurement)
+    } else if (ewmaPts.length > 0) {
+      totalSamples = ewmaPts.length
+      violationCount = ewmaPts.filter((p) => p.violation_ids.length > 0).length
+      lastMean = ewmaPts[ewmaPts.length - 1].measurement
+      values = ewmaPts.map((p) => p.measurement)
+    } else {
+      return null
+    }
+
     const centerLine = control_limits.center_line
 
     // Compute Cpk if spec limits exist
     let cpk: number | null = null
     if (spec_limits.usl != null && spec_limits.lsl != null && control_limits.center_line != null) {
-      const values = pts.map((p) => p.mean)
       const mean = values.reduce((a, b) => a + b, 0) / values.length
       const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1)
       const sigma = Math.sqrt(variance)
@@ -341,6 +377,11 @@ export function OperatorDashboard() {
               <ChartToolbar
                 characteristicId={selectedId}
                 subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
+                overrideChartType={
+                  charChartType && ['cusum', 'ewma'].includes(charChartType)
+                    ? (charChartType as ChartTypeId)
+                    : undefined
+                }
                 onChangeSecondary={() => setShowComparisonSelector(true)}
               />
 

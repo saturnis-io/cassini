@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet } from './helpers/api'
-import { seedFullHierarchy, enterSample, seedSamples, createAnnotation, switchToPlant, expandHierarchyToChar } from './helpers/seed'
+import { switchToPlant, expandHierarchyToChar, createAnnotation } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Annotations', () => {
   let token: string
@@ -10,16 +11,11 @@ test.describe('Annotations', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    const seeded = await seedFullHierarchy(request, token, 'Annotations Plant')
-    characteristicId = seeded.characteristic.id
+    characteristicId = getManifest().annotations.char_id
 
-    // Enter 20+ samples
-    const values = [10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                    10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1]
-    for (const val of values) {
-      const result = await enterSample(request, token, characteristicId, [val])
-      sampleId = result.sample_id // keep last sample ID for point annotation
-    }
+    // Get a sample ID from pre-seeded data for point annotations
+    const samples = await apiGet(request, `/samples/?characteristic_id=${characteristicId}&limit=1`, token)
+    sampleId = samples.items?.[0]?.id ?? samples[0]?.id
   })
 
   test.beforeEach(async ({ page }) => {

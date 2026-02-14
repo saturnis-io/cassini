@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet, apiPost } from './helpers/api'
-import { seedFullHierarchy, enterSample } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Violations', () => {
   let token: string
@@ -10,25 +10,9 @@ test.describe('Violations', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    // Idempotent — handles 409 on retry. Sets control limits automatically.
-    const seeded = await seedFullHierarchy(request, token, 'Violations Plant')
-    plantId = seeded.plant.id
-    characteristicId = seeded.characteristic.id
-
-    // Enter enough in-control samples to build up chart data
-    const normalValues = [10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                          10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                          10.0, 10.1, 9.9, 10.0, 10.2]
-    for (const val of normalValues) {
-      await enterSample(request, token, characteristicId, [val])
-    }
-
-    // Recalculate limits from actual data so violations are detected accurately
-    await apiPost(request, `/characteristics/${characteristicId}/recalculate-limits`, token)
-
-    // Enter extreme out-of-control values to trigger Nelson Rule 1
-    await enterSample(request, token, characteristicId, [15.0])
-    await enterSample(request, token, characteristicId, [16.0])
+    const m = getManifest().violations
+    plantId = m.plant_id
+    characteristicId = m.char_id
   })
 
   test.beforeEach(async ({ page }) => {

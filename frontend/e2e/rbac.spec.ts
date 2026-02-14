@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsUser } from './helpers/auth'
-import { getAuthToken, apiPost } from './helpers/api'
-import { seedFullHierarchy, enterSample, createUser, assignRole, createPlant, switchToPlant } from './helpers/seed'
+import { getAuthToken } from './helpers/api'
+import { switchToPlant } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('RBAC', () => {
   let token: string
@@ -9,29 +10,7 @@ test.describe('RBAC', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-
-    // Create test plant
-    const plant = await createPlant(request, token, 'RBAC Plant')
-    plantId = plant.id
-
-    // Seed hierarchy with manual control limits (CL=10, UCL=11.5, LCL=8.5)
-    const seeded = await seedFullHierarchy(request, token, 'RBAC Plant')
-    // Enter OOC value above UCL to trigger violations using manual limits
-    await enterSample(request, token, seeded.characteristic.id, [15.0])
-    await enterSample(request, token, seeded.characteristic.id, [16.0])
-
-    // Create 4 test users with different roles
-    const operator = await createUser(request, token, 'rbac-operator', 'RbacOper123!')
-    await assignRole(request, token, operator.id, plantId, 'operator')
-
-    const supervisor = await createUser(request, token, 'rbac-supervisor', 'RbacSuper123!')
-    await assignRole(request, token, supervisor.id, plantId, 'supervisor')
-
-    const engineer = await createUser(request, token, 'rbac-engineer', 'RbacEng123!')
-    await assignRole(request, token, engineer.id, plantId, 'engineer')
-
-    const admin2 = await createUser(request, token, 'rbac-admin2', 'RbacAdmin123!')
-    await assignRole(request, token, admin2.id, plantId, 'admin')
+    plantId = getManifest().rbac.plant_id
   })
 
   // --- Operator tests ---

@@ -107,7 +107,7 @@ export function ManualEntryPanel() {
         <HierarchyCharacteristicSelector
           selectedCharId={globalCharId}
           onSelect={handleCharacteristicSelect}
-          filterProvider="MANUAL"
+          filterProvider="manual"
           plantId={selectedPlant?.id}
         />
         {selectedChar && (

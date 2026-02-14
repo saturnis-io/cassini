@@ -20,6 +20,8 @@ interface ChartToolbarProps {
   characteristicId?: number | null
   /** Subgroup size of the characteristic (for chart type recommendations) */
   subgroupSize?: number
+  /** Override chart type (e.g. from characteristic's chart_type field for CUSUM/EWMA) */
+  overrideChartType?: ChartTypeId | null
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
 }
@@ -57,6 +59,7 @@ function ToolbarBtn({
 export function ChartToolbar({
   characteristicId,
   subgroupSize = 5,
+  overrideChartType,
   onComparisonToggle,
   onChangeSecondary,
 }: ChartToolbarProps) {
@@ -76,9 +79,9 @@ export function ChartToolbar({
     setShowAnnotations,
   } = useDashboardStore()
 
-  // Get current chart type for the characteristic (fall back to recommended type for subgroup size)
+  // Get current chart type for the characteristic (fall back to override or recommended type for subgroup size)
   const currentChartType: ChartTypeId =
-    (characteristicId && chartTypes.get(characteristicId)) || recommendChartType(subgroupSize)
+    (characteristicId && chartTypes.get(characteristicId)) || overrideChartType || recommendChartType(subgroupSize)
 
   const handleChartTypeChange = (chartType: ChartTypeId) => {
     if (characteristicId) {

@@ -81,6 +81,38 @@ export const chartTypeRegistry: Record<ChartTypeId, ChartTypeDefinition> = {
     helpKey: 'chart-type-i-mr',
   },
 
+  // CUSUM (Cumulative Sum)
+  cusum: {
+    id: 'cusum',
+    name: 'CUSUM Chart',
+    shortName: 'CUSUM',
+    category: 'variable',
+    description: 'Detects small, persistent shifts in the process mean by accumulating deviations from target.',
+    requiresSubgroupSize: false,
+    minSubgroupSize: 1,
+    maxSubgroupSize: 1,
+    dataType: 'continuous',
+    isDualChart: false,
+    controlLimitMethod: null,
+    helpKey: 'chart-type-cusum',
+  },
+
+  // EWMA (Exponentially Weighted Moving Average)
+  ewma: {
+    id: 'ewma',
+    name: 'EWMA Chart',
+    shortName: 'EWMA',
+    category: 'variable',
+    description: 'Weighted moving average chart that gives more weight to recent observations.',
+    requiresSubgroupSize: false,
+    minSubgroupSize: 1,
+    maxSubgroupSize: 1,
+    dataType: 'continuous',
+    isDualChart: false,
+    controlLimitMethod: null,
+    helpKey: 'chart-type-ewma',
+  },
+
   // Attribute charts - p chart
   p: {
     id: 'p',
@@ -259,7 +291,7 @@ export function getCompatibleChartTypes(
 /**
  * Variable data chart types (for filtering in selector).
  */
-export const VARIABLE_CHART_TYPES: ChartTypeId[] = ['xbar', 'xbar-r', 'xbar-s', 'i-mr']
+export const VARIABLE_CHART_TYPES: ChartTypeId[] = ['xbar', 'xbar-r', 'xbar-s', 'i-mr', 'cusum', 'ewma']
 
 /**
  * Attribute chart types.

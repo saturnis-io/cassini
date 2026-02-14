@@ -10,6 +10,8 @@ export type ChartTypeId =
   | 'xbar-r' // X-bar and Range
   | 'xbar-s' // X-bar and S (Standard Deviation)
   | 'i-mr' // Individuals and Moving Range
+  | 'cusum' // CUSUM (Cumulative Sum)
+  | 'ewma' // EWMA (Exponentially Weighted Moving Average)
   | 'p' // Proportion defective
   | 'np' // Number defective
   | 'c' // Defects per unit

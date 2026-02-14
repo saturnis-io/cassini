@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet, apiPatch, apiPut } from './helpers/api'
-import { seedFullHierarchy, seedSamples, switchToPlant, expandSelectorToChar } from './helpers/seed'
+import { switchToPlant, expandSelectorToChar } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Sample Management', () => {
   let token: string
@@ -10,15 +11,12 @@ test.describe('Sample Management', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    const seeded = await seedFullHierarchy(request, token, 'Sample Mgmt Plant')
-    characteristicId = seeded.characteristic.id
+    characteristicId = getManifest().sample_mgmt.char_id
 
-    // Enter 25 samples to ensure pagination
-    const values = [10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                    10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                    10.0, 10.1, 9.9, 10.0, 10.2]
-    const results = await seedSamples(request, token, characteristicId, values)
-    sampleIds = results.map((r: any) => r.sample_id)
+    // Get pre-seeded sample IDs from API
+    const samples = await apiGet(request, `/samples/?characteristic_id=${characteristicId}&limit=50`, token)
+    const items = samples.items ?? samples
+    sampleIds = items.map((s: { id: number }) => s.id)
   })
 
   test.beforeEach(async ({ page }) => {

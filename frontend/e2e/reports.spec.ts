@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken } from './helpers/api'
-import { seedFullHierarchy, seedSamples, switchToPlant } from './helpers/seed'
+import { switchToPlant } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Reports', () => {
   let token: string
@@ -9,13 +10,7 @@ test.describe('Reports', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    const seeded = await seedFullHierarchy(request, token, 'Reports Plant')
-    characteristicId = seeded.characteristic.id
-    await seedSamples(request, token, characteristicId, [
-      10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-      10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-      10.0, 10.1, 9.9, 10.0, 10.2,
-    ])
+    characteristicId = getManifest().reports.char_id
   })
 
   test.beforeEach(async ({ page }) => {

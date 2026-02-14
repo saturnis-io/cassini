@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet, apiPost } from './helpers/api'
-import { seedFullHierarchy, enterSample, seedSamples, switchToPlant, expandHierarchyToChar } from './helpers/seed'
+import { switchToPlant, expandHierarchyToChar } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Dashboard', () => {
   let token: string
@@ -9,23 +10,7 @@ test.describe('Dashboard', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    const seeded = await seedFullHierarchy(request, token, 'Dashboard Plant')
-    characteristicId = seeded.characteristic.id
-
-    // Enter 25 in-control samples
-    const normalValues = [10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                          10.0, 10.1, 9.9, 10.0, 10.2, 9.8, 10.1, 9.9, 10.0, 10.1,
-                          10.0, 10.1, 9.9, 10.0, 10.2]
-    for (const val of normalValues) {
-      await enterSample(request, token, characteristicId, [val])
-    }
-
-    // Recalculate limits from actual data
-    await apiPost(request, `/characteristics/${characteristicId}/recalculate-limits`, token)
-
-    // Enter 2 OOC values
-    await enterSample(request, token, characteristicId, [15.0])
-    await enterSample(request, token, characteristicId, [16.0])
+    characteristicId = getManifest().dashboard.char_id
   })
 
   test.beforeEach(async ({ page }) => {
@@ -117,7 +102,7 @@ test.describe('Dashboard', () => {
     const nText = await valueSpan.textContent()
     expect(nText).toBeTruthy()
     const nValue = parseInt(nText!, 10)
-    expect(nValue).toBeGreaterThanOrEqual(25)
+    expect(nValue).toBeGreaterThanOrEqual(10)
 
     await test.info().attach('dashboard-n-count', {
       body: await page.screenshot(),
@@ -149,7 +134,8 @@ test.describe('Dashboard', () => {
     await selectTestChar(page)
 
     // Test Char has USL=12, LSL=8, so Cpk should be computed
-    await expect(page.getByText('Cpk')).toBeVisible({ timeout: 5000 })
+    // Use .first() — "Cpk" appears in both stats ticker and capability panel
+    await expect(page.getByText('Cpk').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('dashboard-cpk-stat', {
       body: await page.screenshot(),

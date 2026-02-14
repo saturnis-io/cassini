@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet } from './helpers/api'
-import { seedFullHierarchy, enterSample } from './helpers/seed'
+import { enterSample } from './helpers/seed'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Data Entry', () => {
   let token: string
@@ -10,10 +11,9 @@ test.describe('Data Entry', () => {
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    // Idempotent — handles 409 on retry. Sets control limits automatically.
-    const seeded = await seedFullHierarchy(request, token, 'Data Entry Plant')
-    plantId = seeded.plant.id
-    characteristicId = seeded.characteristic.id
+    const m = getManifest().data_entry
+    plantId = m.plant_id
+    characteristicId = m.char_id
   })
 
   test.beforeEach(async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('Data Entry', () => {
     // Verify via backend
     const samples = await apiGet(
       request,
-      `/samples/?characteristic_id=${characteristicId}&limit=10`,
+      `/samples/?characteristic_id=${characteristicId}&limit=50`,
       token,
     )
     expect(samples.items.length).toBeGreaterThan(0)
