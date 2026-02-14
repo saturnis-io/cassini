@@ -18,6 +18,7 @@ import { RetentionSettings } from '@/components/RetentionSettings'
 import { ScheduledReports } from '@/components/settings/ScheduledReports'
 import { AuditLogViewer } from '@/components/AuditLogViewer'
 import { SSOSettings } from '@/components/SSOSettings'
+import { SignatureSettingsPage } from '@/components/signatures/SignatureSettingsPage'
 import { UserManagementPage } from '@/pages/UserManagementPage'
 import { DevToolsPage } from '@/pages/DevToolsPage'
 import { ConnectivityPage } from '@/pages/ConnectivityPage'
@@ -262,6 +263,7 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route path="signatures" element={<SignatureSettingsPage />} />
                   <Route path="database" element={<DatabaseSettings />} />
                 </Route>
                 <Route

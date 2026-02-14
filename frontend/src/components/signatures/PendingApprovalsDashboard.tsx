@@ -26,12 +26,15 @@ const RESOURCE_LABELS: Record<string, string> = {
   user_management: 'User Management',
 }
 
-export function PendingApprovalsDashboard() {
+export function PendingApprovalsDashboard({ compact = false }: { compact?: boolean }) {
   const { data, isLoading } = usePendingApprovals()
   const [signTarget, setSignTarget] = useState<PendingApproval | null>(null)
   const [rejectTarget, setRejectTarget] = useState<PendingApproval | null>(null)
 
   const items = data?.items ?? []
+
+  // In compact mode, hide entirely when there are no pending approvals
+  if (compact && !isLoading && items.length === 0) return null
 
   return (
     <div className="bg-card border-border rounded-2xl border p-4">

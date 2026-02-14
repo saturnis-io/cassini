@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from openspc.api.v1.anomaly import router as anomaly_router
 from openspc.api.v1.annotations import router as annotations_router
 from openspc.api.v1.api_keys import router as api_keys_router
 from openspc.api.v1.audit import router as audit_router
@@ -30,6 +31,7 @@ from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.retention import router as retention_router
 from openspc.api.v1.scheduled_reports import router as scheduled_reports_router
 from openspc.api.v1.samples import router as samples_router
+from openspc.api.v1.signatures import router as signatures_router
 from openspc.api.v1.users import router as users_router
 from openspc.api.v1.tags import router as tags_router
 from openspc.api.v1.violations import router as violations_router
@@ -156,6 +158,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     mqtt_publisher = MQTTPublisher(mqtt_manager, event_bus, db.session)
     app.state.mqtt_publisher = mqtt_publisher
     logger.info("MQTT outbound publisher initialized")
+
+    # Initialize anomaly detector (subscribes to SampleProcessedEvent)
+    from openspc.core.anomaly.detector import AnomalyDetector
+    anomaly_detector = AnomalyDetector(event_bus, db.session)
+    app.state.anomaly_detector = anomaly_detector
+    logger.info("Anomaly detector initialized")
+
+    # Initialize signature workflow engine
+    from openspc.core.signature_engine import SignatureWorkflowEngine
+    signature_engine = SignatureWorkflowEngine(db.session, event_bus)
+    app.state.signature_engine = signature_engine
+    logger.info("Signature workflow engine initialized")
 
     # Initialize notification dispatcher (email + webhooks)
     notification_dispatcher = NotificationDispatcher(event_bus, db.session)
@@ -290,6 +304,7 @@ app.add_middleware(
 app.add_middleware(AuditMiddleware)
 
 # Register routers
+app.include_router(anomaly_router)
 app.include_router(annotations_router)
 app.include_router(audit_router)
 app.include_router(auth_router)
@@ -312,6 +327,7 @@ app.include_router(providers_router)
 app.include_router(retention_router)
 app.include_router(scheduled_reports_router)
 app.include_router(samples_router)
+app.include_router(signatures_router)
 app.include_router(tags_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)

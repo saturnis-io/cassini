@@ -11,6 +11,7 @@ import {
   Shield,
   Fingerprint,
   FileText,
+  PenLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -46,6 +47,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
       { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer' },
       { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer' },
       { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin' },
+      { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer' },
       { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin' },
       { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer' },
     ],

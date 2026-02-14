@@ -15,6 +15,7 @@ import { AnnotationListPanel } from '@/components/AnnotationListPanel'
 import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
+import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
@@ -542,6 +543,9 @@ export function OperatorDashboard() {
           )}
         </div>
       </div>
+
+      {/* Pending Signature Approvals */}
+      <PendingApprovalsDashboard compact />
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}

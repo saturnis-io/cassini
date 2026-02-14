@@ -18,9 +18,12 @@ import structlog
 from sqlalchemy import select
 
 from openspc.core.events import (
+    AnomalyDetectedEvent,
     ControlLimitsUpdatedEvent,
     EventBus,
+    SignatureCreatedEvent,
     ViolationCreatedEvent,
+    WorkflowCompletedEvent,
 )
 from openspc.db.dialects import decrypt_password, get_encryption_key
 from openspc.db.models.notification import (
@@ -61,7 +64,10 @@ class NotificationDispatcher:
         self._event_bus.subscribe(
             ControlLimitsUpdatedEvent, self._on_limits_updated
         )
-        logger.debug("NotificationDispatcher subscribed to 2 event types")
+        self._event_bus.subscribe(AnomalyDetectedEvent, self._on_anomaly_detected)
+        self._event_bus.subscribe(SignatureCreatedEvent, self._on_signature_created)
+        self._event_bus.subscribe(WorkflowCompletedEvent, self._on_workflow_completed)
+        logger.debug("NotificationDispatcher subscribed to 5 event types")
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -119,6 +125,87 @@ class NotificationDispatcher:
         )
         await self._dispatch(
             event_type="limits_updated",
+            payload=payload,
+            email_subject=subject,
+            email_body=body,
+        )
+
+    async def _on_anomaly_detected(self, event: AnomalyDetectedEvent) -> None:
+        """Handle AnomalyDetectedEvent — send email + webhook notifications."""
+        payload = {
+            "event": "anomaly_detected",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "anomaly_event_id": event.anomaly_event_id,
+            "characteristic_id": event.characteristic_id,
+            "detector_type": event.detector_type,
+            "event_type": event.event_type,
+            "severity": event.severity,
+            "summary": event.summary,
+            "sample_id": event.sample_id,
+        }
+        subject = f"[OpenSPC] Anomaly: {event.event_type} ({event.severity})"
+        body = (
+            f"An anomaly has been detected.\n\n"
+            f"Type: {event.event_type}\n"
+            f"Detector: {event.detector_type}\n"
+            f"Severity: {event.severity}\n"
+            f"Characteristic ID: {event.characteristic_id}\n"
+            f"Summary: {event.summary}\n"
+            f"Time: {payload['timestamp']}\n"
+        )
+        await self._dispatch(
+            event_type="anomaly_detected",
+            payload=payload,
+            email_subject=subject,
+            email_body=body,
+        )
+
+    async def _on_signature_created(self, event: SignatureCreatedEvent) -> None:
+        """Handle SignatureCreatedEvent — notify relevant parties."""
+        payload = {
+            "event": "signature_created",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "signature_id": event.signature_id,
+            "user_id": event.user_id,
+            "username": event.username,
+            "resource_type": event.resource_type,
+            "resource_id": event.resource_id,
+            "meaning_code": event.meaning_code,
+            "workflow_instance_id": event.workflow_instance_id,
+        }
+        subject = f"[OpenSPC] Signature: {event.username} signed {event.resource_type} #{event.resource_id}"
+        body = (
+            f"An electronic signature has been created.\n\n"
+            f"Signer: {event.username}\n"
+            f"Resource: {event.resource_type} #{event.resource_id}\n"
+            f"Meaning: {event.meaning_code}\n"
+            f"Time: {payload['timestamp']}\n"
+        )
+        await self._dispatch(
+            event_type="signature_created",
+            payload=payload,
+            email_subject=subject,
+            email_body=body,
+        )
+
+    async def _on_workflow_completed(self, event: WorkflowCompletedEvent) -> None:
+        """Handle WorkflowCompletedEvent — notify workflow initiator."""
+        payload = {
+            "event": "workflow_completed",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "workflow_instance_id": event.workflow_instance_id,
+            "resource_type": event.resource_type,
+            "resource_id": event.resource_id,
+        }
+        subject = f"[OpenSPC] Workflow completed: {event.resource_type} #{event.resource_id}"
+        body = (
+            f"A signature workflow has been completed.\n\n"
+            f"Resource: {event.resource_type} #{event.resource_id}\n"
+            f"Workflow Instance: {event.workflow_instance_id}\n"
+            f"Time: {payload['timestamp']}\n"
+        )
+        await self._dispatch(
+            event_type="workflow_completed",
             payload=payload,
             email_subject=subject,
             email_body=body,
