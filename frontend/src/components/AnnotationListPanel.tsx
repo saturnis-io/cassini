@@ -150,9 +150,12 @@ export function AnnotationListPanel({
       )}
     >
       {/* Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="hover:bg-muted/50 flex w-full items-center justify-between px-3 py-1.5 transition-colors"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded) } }}
+        className="hover:bg-muted/50 flex w-full cursor-pointer items-center justify-between px-3 py-1.5 transition-colors"
       >
         <div className="flex items-center gap-2">
           <MessageSquare className="text-warning h-4 w-4" />
@@ -183,7 +186,7 @@ export function AnnotationListPanel({
             <ChevronDown className="text-muted-foreground h-4 w-4" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* List */}
       {expanded && (

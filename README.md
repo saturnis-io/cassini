@@ -45,6 +45,10 @@ An open-source Statistical Process Control platform. Monitor process stability, 
 
 **Multi-Plant Management** -- ISA-95 equipment hierarchy, plant-scoped data isolation, and per-plant role-based access control across four tiers (Operator, Supervisor, Engineer, Admin).
 
+**Electronic Signatures (21 CFR Part 11)** -- Configurable multi-step signature workflows with password re-authentication, SHA-256 tamper detection, plant-scoped signature meanings, and FDA-compliant password policies. Every signature is immutable and verifiable through the audit trail.
+
+**AI/ML Anomaly Detection** -- Three machine learning detectors (PELT changepoint, Kolmogorov-Smirnov distribution shift, Isolation Forest outlier) run per-characteristic with configurable sensitivity. Detected anomalies overlay directly on control charts and integrate with the notification system.
+
 **Reports & Export** -- PDF, Excel, and PNG export with built-in report templates. Kiosk mode and wall dashboard for shop-floor displays with auto-rotation and keyboard navigation.
 
 ---
@@ -97,6 +101,8 @@ Open **http://localhost:5173** and log in with `admin` / `password`.
 - [API Reference](docs/api-reference.md) -- REST API and WebSocket protocol
 - [Deployment Guide](docs/deployment.md) -- Production deployment (single server to Kubernetes)
 - [Development Guide](docs/development.md) -- Contributing, testing, and project structure
+- [Electronic Signatures](docs/electronic-signatures.md) -- 21 CFR Part 11 compliance
+- [Anomaly Detection](docs/anomaly-detection.md) -- AI/ML process monitoring
 - [Roadmap](docs/TODO.md) -- Planned features and known issues
 
 ---

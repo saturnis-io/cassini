@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Clock, PenLine, XCircle, ChevronRight, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePendingApprovals } from '@/api/hooks'
+import { usePlant } from '@/providers/PlantProvider'
 import { SignatureDialog } from './SignatureDialog'
 import { RejectDialog } from './RejectDialog'
 import type { PendingApproval } from '@/types/signature'
@@ -27,14 +28,15 @@ const RESOURCE_LABELS: Record<string, string> = {
 }
 
 export function PendingApprovalsDashboard({ compact = false }: { compact?: boolean }) {
-  const { data, isLoading } = usePendingApprovals()
+  const { selectedPlant } = usePlant()
+  const { data, isLoading } = usePendingApprovals(selectedPlant?.id)
   const [signTarget, setSignTarget] = useState<PendingApproval | null>(null)
   const [rejectTarget, setRejectTarget] = useState<PendingApproval | null>(null)
 
   const items = data?.items ?? []
 
-  // In compact mode, hide entirely when there are no pending approvals
-  if (compact && !isLoading && items.length === 0) return null
+  // In compact mode, hide entirely when loading or when there are no pending approvals
+  if (compact && (isLoading || items.length === 0)) return null
 
   return (
     <div className="bg-card border-border rounded-2xl border p-4">

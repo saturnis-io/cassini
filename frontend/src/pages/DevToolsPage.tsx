@@ -12,6 +12,7 @@ import {
   Cog,
   Gauge,
   Beer,
+  ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ const SCRIPT_ICONS: Record<string, React.ReactNode> = {
   discrete: <Cog className="h-6 w-6" />,
   continuous: <Gauge className="h-6 w-6" />,
   batch: <Beer className="h-6 w-6" />,
+  fda_demo: <ShieldCheck className="h-6 w-6" />,
 }
 
 export function DevToolsPage() {

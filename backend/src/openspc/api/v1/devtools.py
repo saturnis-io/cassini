@@ -61,6 +61,12 @@ AVAILABLE_SCRIPTS = {
         "estimated_samples": "~5,700",
         "script_file": "scripts/seed_batch.py",
     },
+    "fda_demo": {
+        "name": "FDA 21 CFR Part 11 Demo",
+        "description": "PharmaCorp solid dosage plant with 9 characteristics, anomaly detection (drift/shift/variance), electronic signature workflows, pre-signed records, and FDA-strict password policy.",
+        "estimated_samples": "~1,800",
+        "script_file": "scripts/seed_fda_demo.py",
+    },
 }
 
 

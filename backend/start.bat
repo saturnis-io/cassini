@@ -42,6 +42,12 @@ echo  %DIM%Statistical Process Control Platform%R%
 echo  %DIM%Backend API Server%R%
 echo.
 
+REM Kill any existing process on port 8000
+for /f "tokens=5" %%p in ('netstat -aon ^| findstr ":8000.*LISTENING" 2^>nul') do (
+    echo Killing stale process %%p on port 8000...
+    taskkill /PID %%p /F >nul 2>&1
+)
+
 REM Check if virtual environment exists
 if not exist ".venv" (
     echo Creating virtual environment...
