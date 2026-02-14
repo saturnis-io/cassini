@@ -1,5 +1,15 @@
 import i18n from 'i18next'
 import type {
+  ElectronicSignature,
+  SignatureMeaning,
+  SignatureWorkflow,
+  SignatureWorkflowStep,
+  PasswordPolicy,
+  SignResponse,
+  VerifyResponse,
+  PendingApproval,
+} from '@/types/signature'
+import type {
   Annotation,
   AnnotationCreate,
   AnnotationType,
@@ -57,6 +67,13 @@ import type {
   Violation,
   ViolationStats,
 } from '@/types'
+import type {
+  AnomalyDashboardStats,
+  AnomalyDetectorConfig,
+  AnomalyEvent,
+  AnomalySummary,
+  DetectorStatus,
+} from '@/types/anomaly'
 import type { ScheduleConfig } from '@/components/ScheduleConfigSection'
 
 // Characteristic configuration response type
@@ -1478,4 +1495,270 @@ export const reportScheduleApi = {
     fetchApi<ReportRun>(`/reports/schedules/${id}/trigger`, { method: 'POST' }),
 
   runs: (id: number) => fetchApi<ReportRun[]>(`/reports/schedules/${id}/runs`),
+}
+
+// ---- Electronic Signature API ----
+
+export interface SignRequest {
+  resource_type: string
+  resource_id: number
+  password: string
+  meaning_code: string
+  comment?: string | null
+  workflow_instance_id?: number | null
+}
+
+export interface RejectRequest {
+  workflow_instance_id: number
+  password: string
+  reason: string
+}
+
+export interface SignatureHistoryParams {
+  resource_type?: string
+  user_id?: number
+  start_date?: string
+  end_date?: string
+  limit?: number
+  offset?: number
+}
+
+export interface MeaningCreate {
+  code: string
+  display_name: string
+  description?: string | null
+  requires_comment?: boolean
+  is_active?: boolean
+  sort_order?: number
+}
+
+export interface MeaningUpdate {
+  code?: string
+  display_name?: string
+  description?: string | null
+  requires_comment?: boolean
+  is_active?: boolean
+  sort_order?: number
+}
+
+export interface WorkflowCreate {
+  name: string
+  resource_type: string
+  is_active?: boolean
+  is_required?: boolean
+  description?: string | null
+}
+
+export interface WorkflowUpdate {
+  name?: string
+  resource_type?: string
+  is_active?: boolean
+  is_required?: boolean
+  description?: string | null
+}
+
+export interface StepCreate {
+  step_order: number
+  name: string
+  min_role: string
+  meaning_code: string
+  is_required?: boolean
+  allow_self_sign?: boolean
+  timeout_hours?: number | null
+}
+
+export interface StepUpdate {
+  step_order?: number
+  name?: string
+  min_role?: string
+  meaning_code?: string
+  is_required?: boolean
+  allow_self_sign?: boolean
+  timeout_hours?: number | null
+}
+
+export const signatureApi = {
+  // Core signing
+  sign: (data: SignRequest) =>
+    fetchApi<SignResponse>('/signatures/sign', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  reject: (data: RejectRequest) =>
+    fetchApi<{ message: string }>('/signatures/reject', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getResourceSignatures: (resourceType: string, resourceId: number) =>
+    fetchApi<ElectronicSignature[]>(`/signatures/resource/${resourceType}/${resourceId}`),
+
+  verify: (signatureId: number) =>
+    fetchApi<VerifyResponse>(`/signatures/verify/${signatureId}`),
+
+  getPending: () =>
+    fetchApi<{ items: PendingApproval[]; total: number }>('/signatures/pending'),
+
+  getHistory: (params?: SignatureHistoryParams) => {
+    const searchParams = new URLSearchParams()
+    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
+    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+    searchParams.set('limit', String(params?.limit ?? 50))
+    searchParams.set('offset', String(params?.offset ?? 0))
+    const query = searchParams.toString()
+    return fetchApi<{ items: ElectronicSignature[]; total: number }>(`/signatures/history?${query}`)
+  },
+
+  // Workflow configuration
+  getWorkflows: () =>
+    fetchApi<SignatureWorkflow[]>('/signatures/workflows'),
+
+  createWorkflow: (data: WorkflowCreate) =>
+    fetchApi<SignatureWorkflow>('/signatures/workflows', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateWorkflow: (id: number, data: WorkflowUpdate) =>
+    fetchApi<SignatureWorkflow>(`/signatures/workflows/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteWorkflow: (id: number) =>
+    fetchApi<void>(`/signatures/workflows/${id}`, { method: 'DELETE' }),
+
+  getSteps: (workflowId: number) =>
+    fetchApi<SignatureWorkflowStep[]>(`/signatures/workflows/${workflowId}/steps`),
+
+  createStep: (workflowId: number, data: StepCreate) =>
+    fetchApi<SignatureWorkflowStep>(`/signatures/workflows/${workflowId}/steps`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateStep: (stepId: number, data: StepUpdate) =>
+    fetchApi<SignatureWorkflowStep>(`/signatures/workflows/steps/${stepId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteStep: (stepId: number) =>
+    fetchApi<void>(`/signatures/workflows/steps/${stepId}`, { method: 'DELETE' }),
+
+  // Meanings
+  getMeanings: () =>
+    fetchApi<SignatureMeaning[]>('/signatures/meanings'),
+
+  createMeaning: (data: MeaningCreate) =>
+    fetchApi<SignatureMeaning>('/signatures/meanings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateMeaning: (id: number, data: MeaningUpdate) =>
+    fetchApi<SignatureMeaning>(`/signatures/meanings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteMeaning: (id: number) =>
+    fetchApi<void>(`/signatures/meanings/${id}`, { method: 'DELETE' }),
+
+  // Password policy
+  getPasswordPolicy: () =>
+    fetchApi<PasswordPolicy | null>('/signatures/password-policy'),
+
+  updatePasswordPolicy: (data: Partial<Omit<PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
+    fetchApi<PasswordPolicy>('/signatures/password-policy', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+}
+
+// Anomaly Detection API
+export const anomalyApi = {
+  // Dashboard
+  getDashboard: (params?: {
+    plant_id?: number
+    severity?: string
+    limit?: number
+    offset?: number
+  }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
+    if (params?.severity) searchParams.set('severity', params.severity)
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    if (params?.offset) searchParams.set('offset', String(params.offset))
+    const query = searchParams.toString()
+    return fetchApi<{ items: AnomalyEvent[]; total: number }>(
+      `/anomaly/dashboard${query ? `?${query}` : ''}`,
+    )
+  },
+
+  getDashboardStats: (plantId?: number) => {
+    const params = plantId ? `?plant_id=${plantId}` : ''
+    return fetchApi<AnomalyDashboardStats>(`/anomaly/dashboard/stats${params}`)
+  },
+
+  // Config
+  getConfig: (charId: number) =>
+    fetchApi<AnomalyDetectorConfig>(`/anomaly/${charId}/config`),
+
+  updateConfig: (charId: number, data: Partial<AnomalyDetectorConfig>) =>
+    fetchApi<AnomalyDetectorConfig>(`/anomaly/${charId}/config`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  resetConfig: (charId: number) =>
+    fetchApi<void>(`/anomaly/${charId}/config`, { method: 'DELETE' }),
+
+  // Events
+  getEvents: (
+    charId: number,
+    params?: {
+      severity?: string
+      detector_type?: string
+      limit?: number
+      offset?: number
+    },
+  ) => {
+    const searchParams = new URLSearchParams()
+    if (params?.severity) searchParams.set('severity', params.severity)
+    if (params?.detector_type) searchParams.set('detector_type', params.detector_type)
+    if (params?.limit) searchParams.set('limit', String(params.limit))
+    if (params?.offset) searchParams.set('offset', String(params.offset))
+    const query = searchParams.toString()
+    return fetchApi<{ items: AnomalyEvent[]; total: number }>(
+      `/anomaly/${charId}/events${query ? `?${query}` : ''}`,
+    )
+  },
+
+  getEvent: (charId: number, eventId: number) =>
+    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}`),
+
+  acknowledgeEvent: (charId: number, eventId: number) =>
+    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}/acknowledge`, {
+      method: 'POST',
+    }),
+
+  dismissEvent: (charId: number, eventId: number, reason: string) =>
+    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}/dismiss`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  // Summary & Analysis
+  getSummary: (charId: number) =>
+    fetchApi<AnomalySummary>(`/anomaly/${charId}/summary`),
+
+  triggerAnalysis: (charId: number) =>
+    fetchApi<{ message: string }>(`/anomaly/${charId}/analyze`, { method: 'POST' }),
+
+  getStatus: (charId: number) =>
+    fetchApi<DetectorStatus[]>(`/anomaly/${charId}/status`),
 }

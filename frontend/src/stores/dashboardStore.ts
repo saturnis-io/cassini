@@ -99,6 +99,10 @@ interface DashboardState {
   // Annotation visibility
   showAnnotations: boolean
   setShowAnnotations: (show: boolean) => void
+
+  // Anomaly overlay visibility
+  showAnomalies: boolean
+  setShowAnomalies: (show: boolean) => void
 }
 
 // Default time range: last 50 points
@@ -241,6 +245,10 @@ export const useDashboardStore = create<DashboardState>()(
       // Annotation visibility
       showAnnotations: true,
       setShowAnnotations: (show) => set({ showAnnotations: show }),
+
+      // Anomaly overlay visibility
+      showAnomalies: false,
+      setShowAnomalies: (show) => set({ showAnomalies: show }),
     }),
     {
       name: 'openspc-dashboard',
@@ -257,6 +265,7 @@ export const useDashboardStore = create<DashboardState>()(
         xAxisMode: state.xAxisMode,
         showBrush: state.showBrush,
         showAnnotations: state.showAnnotations,
+        showAnomalies: state.showAnomalies,
       }),
     },
   ),

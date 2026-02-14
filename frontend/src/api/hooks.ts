@@ -2,6 +2,7 @@ import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
+  anomalyApi,
   annotationApi,
   auditApi,
   capabilityApi,
@@ -18,18 +19,29 @@ import {
   reportScheduleApi,
   retentionApi,
   sampleApi,
+  signatureApi,
   userApi,
   violationApi,
 } from './client'
 import type {
   AuditLogParams,
+  MeaningCreate,
+  MeaningUpdate,
   OIDCConfigCreate,
   OIDCConfigUpdate,
+  RejectRequest,
+  SignatureHistoryParams,
+  SignRequest,
   SmtpConfigUpdate,
+  StepCreate,
+  StepUpdate,
   WebhookConfigCreate,
   WebhookConfigUpdate,
+  WorkflowCreate,
+  WorkflowUpdate,
   NotificationPreferenceItem,
 } from './client'
+import type { AnomalyDetectorConfig } from '@/types/anomaly'
 import type {
   AnnotationCreate,
   AnnotationUpdate,
@@ -132,6 +144,26 @@ export const queryKeys = {
     all: ['oidc'] as const,
     providers: () => ['oidc', 'providers'] as const,
     configs: () => ['oidc', 'configs'] as const,
+  },
+  anomaly: {
+    all: ['anomaly'] as const,
+    config: (charId: number) => ['anomaly', 'config', charId] as const,
+    events: (charId: number, params?: object) => ['anomaly', 'events', charId, params] as const,
+    summary: (charId: number) => ['anomaly', 'summary', charId] as const,
+    status: (charId: number) => ['anomaly', 'status', charId] as const,
+    dashboard: (params?: object) => ['anomaly', 'dashboard', params] as const,
+    dashboardStats: (plantId?: number) => ['anomaly', 'dashboard-stats', plantId] as const,
+  },
+  signatures: {
+    all: ['signatures'] as const,
+    resource: (resourceType: string, resourceId: number) =>
+      ['signatures', 'resource', resourceType, resourceId] as const,
+    pending: () => ['signatures', 'pending'] as const,
+    history: (params?: SignatureHistoryParams) => ['signatures', 'history', params] as const,
+    workflows: () => ['signatures', 'workflows'] as const,
+    steps: (workflowId: number) => ['signatures', 'steps', workflowId] as const,
+    meanings: () => ['signatures', 'meanings'] as const,
+    passwordPolicy: () => ['signatures', 'password-policy'] as const,
   },
 }
 
@@ -1830,5 +1862,419 @@ export function useTriggerReport() {
     onError: (error: Error) => {
       toast.error(`Failed to trigger report: ${error.message}`)
     },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Electronic Signature hooks
+// -----------------------------------------------------------------------
+
+const PENDING_APPROVALS_REFETCH_MS = 30_000
+
+export function useSignatures(resourceType: string, resourceId: number) {
+  return useQuery({
+    queryKey: queryKeys.signatures.resource(resourceType, resourceId),
+    queryFn: () => signatureApi.getResourceSignatures(resourceType, resourceId),
+    enabled: resourceId > 0 && resourceType.length > 0,
+  })
+}
+
+export function useVerifySignature() {
+  return useMutation({
+    mutationFn: (signatureId: number) => signatureApi.verify(signatureId),
+    onError: (error: Error) => {
+      toast.error(`Verification failed: ${error.message}`)
+    },
+  })
+}
+
+export function usePendingApprovals() {
+  return useQuery({
+    queryKey: queryKeys.signatures.pending(),
+    queryFn: () => signatureApi.getPending(),
+    refetchInterval: PENDING_APPROVALS_REFETCH_MS,
+  })
+}
+
+export function useSign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: SignRequest) => signatureApi.sign(data),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.signatures.resource(variables.resource_type, variables.resource_id),
+      })
+      toast.success(`Signed by ${result.full_name || result.signer_name}`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Signature failed: ${error.message}`)
+    },
+  })
+}
+
+export function useRejectWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: RejectRequest) => signatureApi.reject(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
+      toast.success('Workflow rejected')
+    },
+    onError: (error: Error) => {
+      toast.error(`Rejection failed: ${error.message}`)
+    },
+  })
+}
+
+export function useSignatureHistory(params?: SignatureHistoryParams) {
+  return useQuery({
+    queryKey: queryKeys.signatures.history(params),
+    queryFn: () => signatureApi.getHistory(params),
+  })
+}
+
+// Workflow configuration hooks
+
+export function useWorkflows() {
+  return useQuery({
+    queryKey: queryKeys.signatures.workflows(),
+    queryFn: () => signatureApi.getWorkflows(),
+  })
+}
+
+export function useCreateWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: WorkflowCreate) => signatureApi.createWorkflow(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
+      toast.success(`Workflow "${data.name}" created`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create workflow: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: WorkflowUpdate }) =>
+      signatureApi.updateWorkflow(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
+      toast.success('Workflow updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update workflow: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteWorkflow() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => signatureApi.deleteWorkflow(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
+      toast.success('Workflow deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete workflow: ${error.message}`)
+    },
+  })
+}
+
+export function useWorkflowSteps(workflowId: number) {
+  return useQuery({
+    queryKey: queryKeys.signatures.steps(workflowId),
+    queryFn: () => signatureApi.getSteps(workflowId),
+    enabled: workflowId > 0,
+  })
+}
+
+export function useCreateStep() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ workflowId, data }: { workflowId: number; data: StepCreate }) =>
+      signatureApi.createStep(workflowId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.signatures.steps(variables.workflowId),
+      })
+      toast.success('Step added')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to add step: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateStep() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ stepId, data }: { stepId: number; data: StepUpdate }) =>
+      signatureApi.updateStep(stepId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
+      toast.success('Step updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update step: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteStep() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (stepId: number) => signatureApi.deleteStep(stepId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
+      toast.success('Step deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete step: ${error.message}`)
+    },
+  })
+}
+
+// Meaning hooks
+
+export function useMeanings() {
+  return useQuery({
+    queryKey: queryKeys.signatures.meanings(),
+    queryFn: () => signatureApi.getMeanings(),
+  })
+}
+
+export function useCreateMeaning() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: MeaningCreate) => signatureApi.createMeaning(data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
+      toast.success(`Meaning "${data.display_name}" created`)
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create meaning: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateMeaning() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: MeaningUpdate }) =>
+      signatureApi.updateMeaning(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
+      toast.success('Meaning updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update meaning: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteMeaning() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => signatureApi.deleteMeaning(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
+      toast.success('Meaning removed')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to remove meaning: ${error.message}`)
+    },
+  })
+}
+
+// Password policy hooks
+
+export function usePasswordPolicy() {
+  return useQuery({
+    queryKey: queryKeys.signatures.passwordPolicy(),
+    queryFn: () => signatureApi.getPasswordPolicy(),
+  })
+}
+
+export function useUpdatePasswordPolicy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: Partial<Omit<import('@/types/signature').PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
+      signatureApi.updatePasswordPolicy(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.passwordPolicy() })
+      toast.success('Password policy updated')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update password policy: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Anomaly Detection hooks
+// -----------------------------------------------------------------------
+
+export function useAnomalyConfig(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.config(charId),
+    queryFn: () => anomalyApi.getConfig(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useUpdateAnomalyConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ charId, data }: { charId: number; data: Partial<AnomalyDetectorConfig> }) =>
+      anomalyApi.updateConfig(charId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.config(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.status(variables.charId) })
+      toast.success('Anomaly detection configuration saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save anomaly config: ${error.message}`)
+    },
+  })
+}
+
+export function useResetAnomalyConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (charId: number) => anomalyApi.resetConfig(charId),
+    onSuccess: (_, charId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.config(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.status(charId) })
+      toast.success('Anomaly detection config reset to defaults')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to reset config: ${error.message}`)
+    },
+  })
+}
+
+export function useAnomalyEvents(
+  charId: number,
+  params?: { severity?: string; detector_type?: string; limit?: number; offset?: number },
+) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.events(charId, params),
+    queryFn: () => anomalyApi.getEvents(charId, params),
+    enabled: charId > 0,
+  })
+}
+
+export function useAcknowledgeAnomaly() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ charId, eventId }: { charId: number; eventId: number }) =>
+      anomalyApi.acknowledgeEvent(charId, eventId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.events(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.summary(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.dashboard() })
+      toast.success('Anomaly acknowledged')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to acknowledge: ${error.message}`)
+    },
+  })
+}
+
+export function useDismissAnomaly() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      charId,
+      eventId,
+      reason,
+    }: {
+      charId: number
+      eventId: number
+      reason: string
+    }) => anomalyApi.dismissEvent(charId, eventId, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.events(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.summary(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.dashboard() })
+      toast.success('Anomaly dismissed')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to dismiss: ${error.message}`)
+    },
+  })
+}
+
+export function useAnomalySummary(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.summary(charId),
+    queryFn: () => anomalyApi.getSummary(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useTriggerAnalysis() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (charId: number) => anomalyApi.triggerAnalysis(charId),
+    onSuccess: (data, charId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.events(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.summary(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.status(charId) })
+      toast.success(data.message || 'Analysis triggered')
+    },
+    onError: (error: Error) => {
+      toast.error(`Analysis failed: ${error.message}`)
+    },
+  })
+}
+
+export function useAnomalyStatus(charId: number) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.status(charId),
+    queryFn: () => anomalyApi.getStatus(charId),
+    enabled: charId > 0,
+  })
+}
+
+export function useAnomalyDashboard(params?: {
+  plant_id?: number
+  severity?: string
+  limit?: number
+  offset?: number
+}) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.dashboard(params),
+    queryFn: () => anomalyApi.getDashboard(params),
+  })
+}
+
+export function useAnomalyDashboardStats(plantId?: number) {
+  return useQuery({
+    queryKey: queryKeys.anomaly.dashboardStats(plantId),
+    queryFn: () => anomalyApi.getDashboardStats(plantId),
   })
 }
