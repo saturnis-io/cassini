@@ -6,13 +6,17 @@ import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts
 import { useChartDragSelect, type DragSelection } from '@/hooks/useChartDragSelect'
 import type { RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
-import { useAnnotations, useChartData, useHierarchyPath } from '@/api/hooks'
+import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
 import type { Annotation } from '@/types'
+import type { AnomalyEvent } from '@/types/anomaly'
+import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
+import { Sparkles, ChevronUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface ControlChartProps {
   characteristicId: number
@@ -86,6 +90,80 @@ interface ChartPoint {
   z_score: number | null
 }
 
+const ANOMALY_SEVERITY_STYLES: Record<string, string> = {
+  CRITICAL: 'bg-red-500/15 text-red-600 border-red-500/30',
+  WARNING: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+  INFO: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
+}
+
+const ANOMALY_EVENT_LABELS: Record<string, string> = {
+  changepoint: 'Changepoint',
+  distribution_shift: 'Distribution Shift',
+  outlier: 'Outlier',
+}
+
+const ANOMALY_DETECTOR_LABELS: Record<string, string> = {
+  pelt: 'PELT',
+  ks_test: 'K-S Test',
+  isolation_forest: 'Isolation Forest',
+}
+
+function AnomalyInsightsOverlay({ events }: { events: AnomalyEvent[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const active = events.filter((e) => !e.is_dismissed)
+  if (active.length === 0) return null
+
+  const worst = active.reduce((w, e) => {
+    const pri: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1 }
+    return (pri[e.severity] ?? 0) > (pri[w.severity] ?? 0) ? e : w
+  }, active[0])
+  const badgeStyle = ANOMALY_SEVERITY_STYLES[worst.severity] ?? ANOMALY_SEVERITY_STYLES.INFO
+
+  return (
+    <div className="pointer-events-none absolute -top-[11px] left-[4.5rem] z-10">
+      <div className="pointer-events-auto inline-flex flex-col items-start">
+        {/* Compact badge — always visible */}
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm transition-colors ${badgeStyle}`}
+        >
+          <Sparkles className="h-3 w-3" />
+          {active.length} AI Insight{active.length !== 1 ? 's' : ''}
+          <ChevronUp className={cn('h-3 w-3 transition-transform', !expanded && 'rotate-180')} />
+        </button>
+        {/* Expanded panel — drops down from the badge */}
+        {expanded && (
+          <div className="bg-card/90 border-border mt-1 max-h-40 w-80 overflow-y-auto rounded-lg border shadow-lg backdrop-blur-sm">
+            <div className="space-y-1 p-2">
+              {active.map((event) => {
+                const style = ANOMALY_SEVERITY_STYLES[event.severity] ?? ANOMALY_SEVERITY_STYLES.INFO
+                const typeLabel = ANOMALY_EVENT_LABELS[event.event_type] ?? event.event_type
+                const detector = ANOMALY_DETECTOR_LABELS[event.detector_type] ?? event.detector_type
+                return (
+                  <div
+                    key={event.id}
+                    className={`rounded border px-2 py-1 text-[11px] leading-snug ${style}`}
+                  >
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-semibold">{event.severity}</span>
+                      <span className="opacity-50">|</span>
+                      <span>{typeLabel}</span>
+                      <span className="opacity-50">({detector})</span>
+                    </div>
+                    {event.summary && (
+                      <div className="mt-0.5 opacity-80">{event.summary}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ControlChart({
   characteristicId,
   chartOptions,
@@ -107,7 +185,9 @@ export function ControlChart({
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
+  const showAnomalies = useDashboardStore((state) => state.showAnomalies)
   const { data: annotations } = useAnnotations(characteristicId)
+  const { data: anomalyData } = useAnomalyEvents(characteristicId, { limit: 100 })
 
   // Annotation detail popover state
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
@@ -196,6 +276,28 @@ export function ControlChart({
   useEffect(() => {
     dataRef.current = data
   }, [data])
+
+  // --- Anomaly overlay marks (extracted so both the ECharts option and the JSX can reference it) ---
+  // Only match events against the visible data range so the summary bar
+  // hides when the shaded region is scrolled out of view.
+  const anomalyOverlay = useMemo(() => {
+    if (!showAnomalies || !anomalyData?.events?.length || data.length === 0) return null
+    const isTs = xAxisMode === 'timestamp'
+    const visibleData = showBrush && rangeWindow
+      ? data.slice(rangeWindow[0], rangeWindow[1] + 1)
+      : data
+    const startIdx = showBrush && rangeWindow ? rangeWindow[0] : 0
+    const anomalyPoints = visibleData.map((p, i) => ({
+      sample_id: p.sample_id,
+      mean: p.mean,
+      xValue: isTs ? p.timestampMs : (startIdx + i),
+    }))
+    const marks = buildAnomalyMarks(anomalyData.events, anomalyPoints)
+    if (marks.markPoints.length || marks.markAreas.length || marks.markLines.length) {
+      return marks
+    }
+    return null
+  }, [showAnomalies, anomalyData, data, xAxisMode, showBrush, rangeWindow])
 
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
@@ -955,6 +1057,72 @@ export function ControlChart({
               },
             ]
           : []),
+        // Anomaly overlay series — interactive marks with tooltips
+        ...(anomalyOverlay
+          ? [
+              {
+                type: 'line' as const,
+                // Invisible line on the same axis so marks position correctly
+                data: isTimestamp
+                  ? data.map((p) => [p.timestampMs, p.mean])
+                  : data.map((p) => p.mean),
+                lineStyle: { width: 0, opacity: 0 },
+                symbol: 'none',
+                showSymbol: false,
+                silent: true,
+                tooltip: { show: false },
+                markPoint:
+                  anomalyOverlay.markPoints.length > 0
+                    ? {
+                        silent: false,
+                        animation: false,
+                        data: anomalyOverlay.markPoints as never[],
+                        tooltip: {
+                          show: true,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter: (params: any) =>
+                            params.data?._tooltipHtml ?? '',
+                        },
+                      }
+                    : undefined,
+                markArea:
+                  anomalyOverlay.markAreas.length > 0
+                    ? {
+                        silent: false,
+                        data: anomalyOverlay.markAreas as never[],
+                        tooltip: {
+                          show: true,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter: (params: any) => {
+                            // markArea formatter receives {data} which is the pair array
+                            const item = params.data
+                            return (
+                              item?.[0]?._tooltipHtml ??
+                              item?._tooltipHtml ??
+                              ''
+                            )
+                          },
+                        },
+                      }
+                    : undefined,
+                markLine:
+                  anomalyOverlay.markLines.length > 0
+                    ? {
+                        symbol: 'none',
+                        silent: false,
+                        data: anomalyOverlay.markLines as never[],
+                        tooltip: {
+                          show: true,
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter: (params: any) =>
+                            params.data?._tooltipHtml ?? '',
+                        },
+                      }
+                    : undefined,
+                z: 7,
+              },
+            ]
+          : []),
       ],
     }
 
@@ -973,6 +1141,7 @@ export function ControlChart({
     hoveredSampleIds,
     rangeWindow,
     showBrush,
+    anomalyOverlay,
   ])
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
@@ -1155,8 +1324,13 @@ export function ControlChart({
         <div
           ref={containerRef}
           className="absolute inset-0"
-          style={{ visibility: hasData ? 'visible' : 'hidden' }}
+          style={{ visibility: hasData ? 'visible' : 'hidden', cursor: 'crosshair' }}
         />
+
+        {/* AI Insights floating overlay — absolutely positioned, no layout shift */}
+        {anomalyOverlay && anomalyData?.events && (
+          <AnomalyInsightsOverlay events={anomalyData.events} />
+        )}
 
         {/* Drag-to-select region overlay */}
         {dragRect && (

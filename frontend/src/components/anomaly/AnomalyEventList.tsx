@@ -59,7 +59,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
   const acknowledgeAnomaly = useAcknowledgeAnomaly()
   const dismissAnomaly = useDismissAnomaly()
 
-  const events = data?.items ?? []
+  const events = data?.events ?? []
 
   // Client-side status filtering
   const filteredEvents = events.filter((e) => {

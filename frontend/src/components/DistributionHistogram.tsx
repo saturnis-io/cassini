@@ -449,12 +449,6 @@ export function DistributionHistogram({
       const matchedGridTop = 20
       const matchedGridBottom = isTimestamp ? 60 : 30
 
-      console.debug('[DistributionHistogram] vertical grid alignment:', {
-        top: matchedGridTop,
-        bottom: matchedGridBottom,
-        xAxisMode,
-      })
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const histogramRenderItem = (_params: any, api: any) => {
         const binIndex = api.value(3) as number
@@ -532,13 +526,6 @@ export function DistributionHistogram({
             type: 'line',
             data: normalData,
             lineStyle: { color: colors.normalStroke, width: 2 },
-            areaStyle: {
-              color: new graphic.LinearGradient(0, 0, 1, 0, [
-                { offset: 0, color: colors.normalFill },
-                { offset: 1, color: colors.normalFill },
-              ]),
-              opacity: 0.15,
-            },
             symbol: 'none',
             showSymbol: false,
             silent: true,
@@ -602,13 +589,6 @@ export function DistributionHistogram({
           type: 'line',
           data: normalData,
           lineStyle: { color: colors.normalStroke, width: 2.5 },
-          areaStyle: {
-            color: new graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: colors.normalFill },
-              { offset: 1, color: colors.normalFill },
-            ]),
-            opacity: 0.15,
-          },
           symbol: 'none',
           showSymbol: false,
           silent: true,

@@ -28,7 +28,7 @@ export function AnomalyBadge({ characteristicId, onClick, className }: AnomalyBa
   const { data } = useAnomalyEvents(characteristicId, { limit: 100 })
 
   // Filter to active events only
-  const activeEvents = (data?.items ?? []).filter((e) => !e.is_acknowledged && !e.is_dismissed)
+  const activeEvents = (data?.events ?? []).filter((e) => !e.is_acknowledged && !e.is_dismissed)
   const count = activeEvents.length
 
   if (count === 0) return null

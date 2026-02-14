@@ -1,6 +1,7 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useUIStore } from '@/stores/uiStore'
 import {
   anomalyApi,
   annotationApi,
@@ -158,7 +159,7 @@ export const queryKeys = {
     all: ['signatures'] as const,
     resource: (resourceType: string, resourceId: number) =>
       ['signatures', 'resource', resourceType, resourceId] as const,
-    pending: () => ['signatures', 'pending'] as const,
+    pending: (plantId?: number | null) => ['signatures', 'pending', plantId] as const,
     history: (params?: SignatureHistoryParams) => ['signatures', 'history', params] as const,
     workflows: () => ['signatures', 'workflows'] as const,
     steps: (workflowId: number) => ['signatures', 'steps', workflowId] as const,
@@ -1871,36 +1872,45 @@ export function useTriggerReport() {
 
 const PENDING_APPROVALS_REFETCH_MS = 30_000
 
+/** Get the active plant ID from the UI store (for use inside hooks) */
+function useActivePlantId(): number | null {
+  return useUIStore((s) => s.selectedPlantId)
+}
+
 export function useSignatures(resourceType: string, resourceId: number) {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.resource(resourceType, resourceId),
-    queryFn: () => signatureApi.getResourceSignatures(resourceType, resourceId),
-    enabled: resourceId > 0 && resourceType.length > 0,
+    queryFn: () => signatureApi.getResourceSignatures(plantId!, resourceType, resourceId),
+    enabled: !!plantId && resourceId > 0 && resourceType.length > 0,
   })
 }
 
 export function useVerifySignature() {
+  const plantId = useActivePlantId()
   return useMutation({
-    mutationFn: (signatureId: number) => signatureApi.verify(signatureId),
+    mutationFn: (signatureId: number) => signatureApi.verify(plantId!, signatureId),
     onError: (error: Error) => {
       toast.error(`Verification failed: ${error.message}`)
     },
   })
 }
 
-export function usePendingApprovals() {
+export function usePendingApprovals(plantId: number | null | undefined) {
   return useQuery({
-    queryKey: queryKeys.signatures.pending(),
-    queryFn: () => signatureApi.getPending(),
+    queryKey: queryKeys.signatures.pending(plantId),
+    queryFn: () => signatureApi.getPending(plantId!),
+    enabled: !!plantId,
     refetchInterval: PENDING_APPROVALS_REFETCH_MS,
   })
 }
 
 export function useSign() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (data: SignRequest) => signatureApi.sign(data),
+    mutationFn: (data: SignRequest) => signatureApi.sign(plantId!, data),
     onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       queryClient.invalidateQueries({
@@ -1916,9 +1926,10 @@ export function useSign() {
 
 export function useRejectWorkflow() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (data: RejectRequest) => signatureApi.reject(data),
+    mutationFn: (data: RejectRequest) => signatureApi.reject(plantId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Workflow rejected')
@@ -1930,26 +1941,31 @@ export function useRejectWorkflow() {
 }
 
 export function useSignatureHistory(params?: SignatureHistoryParams) {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.history(params),
-    queryFn: () => signatureApi.getHistory(params),
+    queryFn: () => signatureApi.getHistory(plantId!, params),
+    enabled: !!plantId,
   })
 }
 
 // Workflow configuration hooks
 
 export function useWorkflows() {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.workflows(),
-    queryFn: () => signatureApi.getWorkflows(),
+    queryFn: () => signatureApi.getWorkflows(plantId!),
+    enabled: !!plantId,
   })
 }
 
 export function useCreateWorkflow() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (data: WorkflowCreate) => signatureApi.createWorkflow(data),
+    mutationFn: (data: WorkflowCreate) => signatureApi.createWorkflow(plantId!, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
       toast.success(`Workflow "${data.name}" created`)
@@ -1962,10 +1978,11 @@ export function useCreateWorkflow() {
 
 export function useUpdateWorkflow() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: WorkflowUpdate }) =>
-      signatureApi.updateWorkflow(id, data),
+      signatureApi.updateWorkflow(plantId!, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
       toast.success('Workflow updated')
@@ -1978,9 +1995,10 @@ export function useUpdateWorkflow() {
 
 export function useDeleteWorkflow() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (id: number) => signatureApi.deleteWorkflow(id),
+    mutationFn: (id: number) => signatureApi.deleteWorkflow(plantId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
       toast.success('Workflow deleted')
@@ -1992,19 +2010,21 @@ export function useDeleteWorkflow() {
 }
 
 export function useWorkflowSteps(workflowId: number) {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.steps(workflowId),
-    queryFn: () => signatureApi.getSteps(workflowId),
-    enabled: workflowId > 0,
+    queryFn: () => signatureApi.getSteps(plantId!, workflowId),
+    enabled: !!plantId && workflowId > 0,
   })
 }
 
 export function useCreateStep() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
     mutationFn: ({ workflowId, data }: { workflowId: number; data: StepCreate }) =>
-      signatureApi.createStep(workflowId, data),
+      signatureApi.createStep(plantId!, workflowId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.signatures.steps(variables.workflowId),
@@ -2019,10 +2039,11 @@ export function useCreateStep() {
 
 export function useUpdateStep() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
     mutationFn: ({ stepId, data }: { stepId: number; data: StepUpdate }) =>
-      signatureApi.updateStep(stepId, data),
+      signatureApi.updateStep(plantId!, stepId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Step updated')
@@ -2035,9 +2056,10 @@ export function useUpdateStep() {
 
 export function useDeleteStep() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (stepId: number) => signatureApi.deleteStep(stepId),
+    mutationFn: (stepId: number) => signatureApi.deleteStep(plantId!, stepId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Step deleted')
@@ -2051,17 +2073,20 @@ export function useDeleteStep() {
 // Meaning hooks
 
 export function useMeanings() {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.meanings(),
-    queryFn: () => signatureApi.getMeanings(),
+    queryFn: () => signatureApi.getMeanings(plantId!),
+    enabled: !!plantId,
   })
 }
 
 export function useCreateMeaning() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (data: MeaningCreate) => signatureApi.createMeaning(data),
+    mutationFn: (data: MeaningCreate) => signatureApi.createMeaning(plantId!, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
       toast.success(`Meaning "${data.display_name}" created`)
@@ -2074,10 +2099,11 @@ export function useCreateMeaning() {
 
 export function useUpdateMeaning() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: MeaningUpdate }) =>
-      signatureApi.updateMeaning(id, data),
+      signatureApi.updateMeaning(plantId!, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
       toast.success('Meaning updated')
@@ -2090,9 +2116,10 @@ export function useUpdateMeaning() {
 
 export function useDeleteMeaning() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
-    mutationFn: (id: number) => signatureApi.deleteMeaning(id),
+    mutationFn: (id: number) => signatureApi.deleteMeaning(plantId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
       toast.success('Meaning removed')
@@ -2106,18 +2133,21 @@ export function useDeleteMeaning() {
 // Password policy hooks
 
 export function usePasswordPolicy() {
+  const plantId = useActivePlantId()
   return useQuery({
     queryKey: queryKeys.signatures.passwordPolicy(),
-    queryFn: () => signatureApi.getPasswordPolicy(),
+    queryFn: () => signatureApi.getPasswordPolicy(plantId!),
+    enabled: !!plantId,
   })
 }
 
 export function useUpdatePasswordPolicy() {
   const queryClient = useQueryClient()
+  const plantId = useActivePlantId()
 
   return useMutation({
     mutationFn: (data: Partial<Omit<import('@/types/signature').PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
-      signatureApi.updatePasswordPolicy(data),
+      signatureApi.updatePasswordPolicy(plantId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.passwordPolicy() })
       toast.success('Password policy updated')

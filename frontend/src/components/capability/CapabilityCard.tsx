@@ -4,8 +4,8 @@ import { hasAccess } from '@/lib/roles'
 import { useECharts } from '@/hooks/useECharts'
 import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
-import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info } from 'lucide-react'
-import { useMemo } from 'react'
+import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react'
+import { useState, useMemo } from 'react'
 
 /** Threshold-based color coding for capability indices */
 function capabilityColor(value: number | null): string {
@@ -29,16 +29,46 @@ function capabilityLabel(value: number | null): string {
   return 'Not Capable'
 }
 
+const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
+  Cp: 'Potential capability. Compares specification width to process spread, ignoring centering. Higher is better; \u22651.33 is typically capable.',
+  Cpk: 'Actual capability. Like Cp but penalizes off-center processes. The most commonly used index \u2014 measures real-world performance against specs.',
+  Pp: 'Overall performance. Like Cp but uses total observed variation (long-term) instead of within-subgroup variation.',
+  Ppk: 'Overall performance index. Like Cpk but using long-term variation. Compare Cpk vs Ppk to assess process stability over time.',
+  Cpm: 'Taguchi capability. Measures how closely the process hits a specific target value, not just staying within spec limits.',
+}
+
 function IndexCard({ label, value }: { label: string; value: number | null }) {
+  const [showTip, setShowTip] = useState(false)
+  const description = CAPABILITY_DESCRIPTIONS[label]
+
   return (
-    <div className={cn('border-border rounded-lg border p-3 text-center', capabilityBg(value))}>
-      <div className="text-muted-foreground mb-1 text-xs">{label}</div>
+    <div className={cn('border-border relative rounded-lg border p-3 text-center', capabilityBg(value))}>
+      <div className="text-muted-foreground mb-1 flex items-center justify-center gap-1 text-xs">
+        {label}
+        {description && (
+          <button
+            type="button"
+            className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            onMouseEnter={() => setShowTip(true)}
+            onMouseLeave={() => setShowTip(false)}
+            onClick={() => setShowTip((v) => !v)}
+            aria-label={`What is ${label}?`}
+          >
+            <HelpCircle className="h-3 w-3" />
+          </button>
+        )}
+      </div>
       <div className={cn('text-lg font-bold tabular-nums', capabilityColor(value))}>
         {value !== null ? value.toFixed(2) : '--'}
       </div>
       <div className={cn('mt-0.5 text-[10px]', capabilityColor(value))}>
         {capabilityLabel(value)}
       </div>
+      {showTip && description && (
+        <div className="bg-popover text-popover-foreground border-border absolute -top-2 left-1/2 z-50 w-52 -translate-x-1/2 -translate-y-full rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
+          {description}
+        </div>
+      )}
     </div>
   )
 }
@@ -127,7 +157,7 @@ function CpkTrendChart({ history }: { history: CapabilityHistoryItem[] }) {
     }
   }, [sorted])
 
-  const containerRef = useECharts({ option })
+  const { containerRef } = useECharts({ option })
 
   if (sorted.length === 0) {
     return (

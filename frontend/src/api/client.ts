@@ -1577,31 +1577,38 @@ export interface StepUpdate {
   timeout_hours?: number | null
 }
 
+/** Append plant_id query param to a path */
+function _pq(path: string, plantId: number): string {
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}plant_id=${plantId}`
+}
+
 export const signatureApi = {
   // Core signing
-  sign: (data: SignRequest) =>
-    fetchApi<SignResponse>('/signatures/sign', {
+  sign: (plantId: number, data: SignRequest) =>
+    fetchApi<SignResponse>(_pq('/signatures/sign', plantId), {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  reject: (data: RejectRequest) =>
-    fetchApi<{ message: string }>('/signatures/reject', {
+  reject: (plantId: number, data: RejectRequest) =>
+    fetchApi<{ message: string }>(_pq('/signatures/reject', plantId), {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  getResourceSignatures: (resourceType: string, resourceId: number) =>
-    fetchApi<ElectronicSignature[]>(`/signatures/resource/${resourceType}/${resourceId}`),
+  getResourceSignatures: (plantId: number, resourceType: string, resourceId: number) =>
+    fetchApi<ElectronicSignature[]>(_pq(`/signatures/resource/${resourceType}/${resourceId}`, plantId)),
 
-  verify: (signatureId: number) =>
-    fetchApi<VerifyResponse>(`/signatures/verify/${signatureId}`),
+  verify: (plantId: number, signatureId: number) =>
+    fetchApi<VerifyResponse>(_pq(`/signatures/verify/${signatureId}`, plantId)),
 
-  getPending: () =>
-    fetchApi<{ items: PendingApproval[]; total: number }>('/signatures/pending'),
+  getPending: (plantId: number) =>
+    fetchApi<{ items: PendingApproval[]; total: number }>(`/signatures/pending?plant_id=${plantId}`),
 
-  getHistory: (params?: SignatureHistoryParams) => {
+  getHistory: (plantId: number, params?: SignatureHistoryParams) => {
     const searchParams = new URLSearchParams()
+    searchParams.set('plant_id', String(plantId))
     if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
     if (params?.user_id) searchParams.set('user_id', String(params.user_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
@@ -1613,67 +1620,67 @@ export const signatureApi = {
   },
 
   // Workflow configuration
-  getWorkflows: () =>
-    fetchApi<SignatureWorkflow[]>('/signatures/workflows'),
+  getWorkflows: (plantId: number) =>
+    fetchApi<SignatureWorkflow[]>(_pq('/signatures/workflows', plantId)),
 
-  createWorkflow: (data: WorkflowCreate) =>
-    fetchApi<SignatureWorkflow>('/signatures/workflows', {
+  createWorkflow: (plantId: number, data: WorkflowCreate) =>
+    fetchApi<SignatureWorkflow>(_pq('/signatures/workflows', plantId), {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateWorkflow: (id: number, data: WorkflowUpdate) =>
-    fetchApi<SignatureWorkflow>(`/signatures/workflows/${id}`, {
+  updateWorkflow: (plantId: number, id: number, data: WorkflowUpdate) =>
+    fetchApi<SignatureWorkflow>(_pq(`/signatures/workflows/${id}`, plantId), {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  deleteWorkflow: (id: number) =>
-    fetchApi<void>(`/signatures/workflows/${id}`, { method: 'DELETE' }),
+  deleteWorkflow: (plantId: number, id: number) =>
+    fetchApi<void>(_pq(`/signatures/workflows/${id}`, plantId), { method: 'DELETE' }),
 
-  getSteps: (workflowId: number) =>
-    fetchApi<SignatureWorkflowStep[]>(`/signatures/workflows/${workflowId}/steps`),
+  getSteps: (plantId: number, workflowId: number) =>
+    fetchApi<SignatureWorkflowStep[]>(_pq(`/signatures/workflows/${workflowId}/steps`, plantId)),
 
-  createStep: (workflowId: number, data: StepCreate) =>
-    fetchApi<SignatureWorkflowStep>(`/signatures/workflows/${workflowId}/steps`, {
+  createStep: (plantId: number, workflowId: number, data: StepCreate) =>
+    fetchApi<SignatureWorkflowStep>(_pq(`/signatures/workflows/${workflowId}/steps`, plantId), {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateStep: (stepId: number, data: StepUpdate) =>
-    fetchApi<SignatureWorkflowStep>(`/signatures/workflows/steps/${stepId}`, {
+  updateStep: (plantId: number, stepId: number, data: StepUpdate) =>
+    fetchApi<SignatureWorkflowStep>(_pq(`/signatures/workflows/steps/${stepId}`, plantId), {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  deleteStep: (stepId: number) =>
-    fetchApi<void>(`/signatures/workflows/steps/${stepId}`, { method: 'DELETE' }),
+  deleteStep: (plantId: number, stepId: number) =>
+    fetchApi<void>(_pq(`/signatures/workflows/steps/${stepId}`, plantId), { method: 'DELETE' }),
 
   // Meanings
-  getMeanings: () =>
-    fetchApi<SignatureMeaning[]>('/signatures/meanings'),
+  getMeanings: (plantId: number) =>
+    fetchApi<SignatureMeaning[]>(_pq('/signatures/meanings', plantId)),
 
-  createMeaning: (data: MeaningCreate) =>
-    fetchApi<SignatureMeaning>('/signatures/meanings', {
+  createMeaning: (plantId: number, data: MeaningCreate) =>
+    fetchApi<SignatureMeaning>(_pq('/signatures/meanings', plantId), {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  updateMeaning: (id: number, data: MeaningUpdate) =>
-    fetchApi<SignatureMeaning>(`/signatures/meanings/${id}`, {
+  updateMeaning: (plantId: number, id: number, data: MeaningUpdate) =>
+    fetchApi<SignatureMeaning>(_pq(`/signatures/meanings/${id}`, plantId), {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  deleteMeaning: (id: number) =>
-    fetchApi<void>(`/signatures/meanings/${id}`, { method: 'DELETE' }),
+  deleteMeaning: (plantId: number, id: number) =>
+    fetchApi<void>(_pq(`/signatures/meanings/${id}`, plantId), { method: 'DELETE' }),
 
   // Password policy
-  getPasswordPolicy: () =>
-    fetchApi<PasswordPolicy | null>('/signatures/password-policy'),
+  getPasswordPolicy: (plantId: number) =>
+    fetchApi<PasswordPolicy | null>(_pq('/signatures/password-policy', plantId)),
 
-  updatePasswordPolicy: (data: Partial<Omit<PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
-    fetchApi<PasswordPolicy>('/signatures/password-policy', {
+  updatePasswordPolicy: (plantId: number, data: Partial<Omit<PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
+    fetchApi<PasswordPolicy>(_pq('/signatures/password-policy', plantId), {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
@@ -1694,7 +1701,7 @@ export const anomalyApi = {
     if (params?.limit) searchParams.set('limit', String(params.limit))
     if (params?.offset) searchParams.set('offset', String(params.offset))
     const query = searchParams.toString()
-    return fetchApi<{ items: AnomalyEvent[]; total: number }>(
+    return fetchApi<{ events: AnomalyEvent[]; total: number }>(
       `/anomaly/dashboard${query ? `?${query}` : ''}`,
     )
   },
@@ -1733,7 +1740,7 @@ export const anomalyApi = {
     if (params?.limit) searchParams.set('limit', String(params.limit))
     if (params?.offset) searchParams.set('offset', String(params.offset))
     const query = searchParams.toString()
-    return fetchApi<{ items: AnomalyEvent[]; total: number }>(
+    return fetchApi<{ events: AnomalyEvent[]; total: number }>(
       `/anomaly/${charId}/events${query ? `?${query}` : ''}`,
     )
   },

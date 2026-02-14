@@ -108,7 +108,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     wsRef.current = ws
 
     ws.onopen = () => {
-      console.log('WebSocket connected (app-level)')
       setWsConnected(true)
       reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
 
@@ -121,7 +120,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     ws.onmessage = handleMessage
 
     ws.onclose = () => {
-      console.log('WebSocket disconnected, will reconnect...')
       setWsConnected(false)
 
       // Reconnect with exponential backoff
@@ -132,8 +130,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }, delay)
     }
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+    ws.onerror = () => {
+      // Errors are handled by the onclose reconnect — no need to log
     }
   }, [handleMessage, setWsConnected])
 
@@ -162,20 +160,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Connect on app mount - this stays connected across page navigations
+  // Connect on app mount after a short delay — avoids spurious connection
+  // attempts during login→dashboard route transitions that Firefox would
+  // interrupt and log as errors.
   useEffect(() => {
-    connect()
+    const timer = window.setTimeout(() => {
+      connectRef.current()
+    }, 1000)
 
-    // Only cleanup on full app unmount (browser close/refresh)
-    // Reset reconnect delay so next session starts fresh (not at max backoff)
     return () => {
+      clearTimeout(timer)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
       reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
       wsRef.current?.close()
     }
-  }, [connect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only; reconnection uses connectRef
+  }, [])
 
   return (
     <WebSocketContext.Provider value={{ isConnected: wsConnected, subscribe, unsubscribe }}>
