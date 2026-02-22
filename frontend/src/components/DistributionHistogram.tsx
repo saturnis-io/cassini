@@ -435,6 +435,26 @@ export function DistributionHistogram({
       }
     }
 
+    // Capability zone bands (only in vertical mode with spec limits)
+    const markAreaData: Array<[Record<string, unknown>, Record<string, unknown>]> = []
+    if (isVertical && showSpecLimits && lsl !== null && usl !== null) {
+      // Green zone: between spec limits (capable region)
+      markAreaData.push([
+        { yAxis: lsl, itemStyle: { color: 'rgba(34, 197, 94, 0.08)' } },
+        { yAxis: usl },
+      ])
+      // Red zone below LSL
+      markAreaData.push([
+        { yAxis: yAxisDomain ? yAxisDomain[0] : xMin, itemStyle: { color: 'rgba(239, 68, 68, 0.06)' } },
+        { yAxis: lsl },
+      ])
+      // Red zone above USL
+      markAreaData.push([
+        { yAxis: usl, itemStyle: { color: 'rgba(239, 68, 68, 0.06)' } },
+        { yAxis: yAxisDomain ? yAxisDomain[1] : xMax },
+      ])
+    }
+
     if (isVertical) {
       // Vertical layout: xAxis is count (horizontal), yAxis is value (vertical, aligned with X-bar chart)
       // Use custom series for horizontal bars since ECharts bar series defaults to vertical with two value axes
@@ -484,6 +504,66 @@ export function DistributionHistogram({
 
       return {
         animation: false,
+        graphic: cpk > 0 ? [
+          {
+            type: 'group',
+            right: 35,
+            top: 4,
+            children: [
+              {
+                type: 'rect',
+                shape: { width: 72, height: 20, r: 4 },
+                style: {
+                  fill: cpk >= 1.33 ? 'rgba(34, 197, 94, 0.15)' : cpk >= 1.0 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  stroke: cpk >= 1.33 ? 'rgba(34, 197, 94, 0.3)' : cpk >= 1.0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                  lineWidth: 1,
+                },
+              },
+              {
+                type: 'text',
+                style: {
+                  text: `Cpk ${cpk.toFixed(2)}`,
+                  x: 36,
+                  y: 10,
+                  textAlign: 'center',
+                  textVerticalAlign: 'middle',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  fill: cpk >= 1.33 ? 'rgb(34, 197, 94)' : cpk >= 1.0 ? 'rgb(180, 140, 8)' : 'rgb(239, 68, 68)',
+                },
+              },
+            ],
+          },
+          ...(ppk > 0 ? [{
+            type: 'group' as const,
+            right: 35,
+            top: 28,
+            children: [
+              {
+                type: 'rect' as const,
+                shape: { width: 72, height: 20, r: 4 },
+                style: {
+                  fill: 'rgba(139, 92, 246, 0.1)',
+                  stroke: 'rgba(139, 92, 246, 0.25)',
+                  lineWidth: 1,
+                },
+              },
+              {
+                type: 'text' as const,
+                style: {
+                  text: `Ppk ${ppk.toFixed(2)}`,
+                  x: 36,
+                  y: 10,
+                  textAlign: 'center',
+                  textVerticalAlign: 'middle',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  fill: 'rgb(139, 92, 246)',
+                },
+              },
+            ],
+          }] : []),
+        ] : undefined,
         grid: {
           top: matchedGridTop,
           right: 30,
@@ -539,11 +619,12 @@ export function DistributionHistogram({
             encode: { x: 0, y: [1, 2] },
             z: 5,
           },
-          // Invisible line series to carry markLine reference lines
+          // Invisible line series to carry markLine reference lines and markArea zone bands
           {
             type: 'line',
             data: [],
             markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
+            markArea: markAreaData.length > 0 ? { silent: true, data: markAreaData as never[] } : undefined,
             silent: true,
           },
         ],
