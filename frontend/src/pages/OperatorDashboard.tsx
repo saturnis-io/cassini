@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCharacteristics, useCharacteristic, useChartData } from '@/api/hooks'
+import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
@@ -24,7 +24,9 @@ import { canPerformAction } from '@/lib/roles'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, TrendingUp, Activity, Hash, Target, Gauge } from 'lucide-react'
+import { AlertTriangle, Activity, Hash, Gauge } from 'lucide-react'
+import { BottomDrawer } from '@/components/BottomDrawer'
+import type { DrawerTab } from '@/components/BottomDrawer'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
@@ -77,6 +79,13 @@ export function OperatorDashboard() {
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
   const showAnnotations = useDashboardStore((state) => state.showAnnotations)
+
+  const { data: annotationsData } = useAnnotations(selectedId ?? 0)
+  const annotationCount = annotationsData?.length ?? 0
+
+  const setDrawerOpen = useDashboardStore((s) => s.setDrawerOpen)
+  const setDrawerTab = useDashboardStore((s) => s.setDrawerTab)
+
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
   const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
   const [annotationMode, setAnnotationMode] = useState<'point' | 'period'>('period')
@@ -288,6 +297,14 @@ export function OperatorDashboard() {
     setRangeWindow(null)
   }, [selectedId, setRangeWindow])
 
+  // Sync annotations toolbar toggle → open drawer to annotations tab
+  useEffect(() => {
+    if (showAnnotations) {
+      setDrawerTab('annotations')
+      setDrawerOpen(true)
+    }
+  }, [showAnnotations, setDrawerTab, setDrawerOpen])
+
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []
   const characteristicIdsKey = characteristicIds.join(',')
 
@@ -330,19 +347,8 @@ export function OperatorDashboard() {
 
           <div className="bg-border/60 hidden h-4 w-px flex-shrink-0 md:block" />
 
-          {/* Stats pills */}
+          {/* Stats pills — trimmed to essentials */}
           <StatPill icon={Activity} label={t('stats.last')} value={quickStats.lastMean.toFixed(precision)} />
-          {quickStats.centerLine != null && (
-            <StatPill icon={Target} label={t('stats.centerLine')} value={quickStats.centerLine.toFixed(precision)} />
-          )}
-          <span className="hidden md:contents">
-            {quickStats.ucl != null && (
-              <StatPill icon={TrendingUp} label={t('stats.ucl')} value={quickStats.ucl.toFixed(precision)} />
-            )}
-            {quickStats.lcl != null && (
-              <StatPill icon={TrendingUp} label={t('stats.lcl')} value={quickStats.lcl.toFixed(precision)} />
-            )}
-          </span>
           <StatPill icon={Hash} label={t('stats.sampleCount')} value={quickStats.totalSamples} />
           <StatPill
             icon={AlertTriangle}
@@ -512,29 +518,50 @@ export function OperatorDashboard() {
                 </div>
               )}
 
-              {/* ── Annotation List Panel ── */}
-              {showAnnotations && selectedId && (
-                <AnnotationListPanel
-                  characteristicId={selectedId}
-                  visibleSampleIds={visibleSampleIds}
-                  visibleTimeRange={visibleTimeRange}
-                  onAddAnnotation={() => {
-                    setAnnotationMode('period')
-                    setAnnotationSampleId(undefined)
-                    setAnnotationSampleLabel(undefined)
-                    setAnnotationDialogOpen(true)
-                  }}
-                />
-              )}
-
-              {/* ── Process Capability Card ── */}
-              {selectedId &&
-                selectedCharacteristic?.usl != null &&
-                selectedCharacteristic?.lsl != null && (
-                  <div className="flex-shrink-0">
-                    <CapabilityCard characteristicId={selectedId} />
-                  </div>
-                )}
+              {/* ── Bottom Drawer — Capability + Annotations ── */}
+              <BottomDrawer
+                tabs={[
+                  {
+                    id: 'capability',
+                    label: 'Capability',
+                    badge:
+                      selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null && quickStats?.cpk != null ? (
+                        <span className={cn(
+                          'font-semibold tabular-nums',
+                          quickStats.cpk >= 1.33 ? 'text-success' : quickStats.cpk >= 1.0 ? 'text-warning' : 'text-destructive',
+                        )}>
+                          {quickStats.cpk.toFixed(2)}
+                        </span>
+                      ) : undefined,
+                    content:
+                      selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null ? (
+                        <CapabilityCard characteristicId={selectedId} />
+                      ) : (
+                        <div className="text-muted-foreground flex h-full items-center justify-center text-sm p-4">
+                          Set spec limits (LSL/USL) to enable capability analysis
+                        </div>
+                      ),
+                  },
+                  {
+                    id: 'annotations',
+                    label: 'Annotations',
+                    badge: annotationCount > 0 ? String(annotationCount) : undefined,
+                    content: (
+                      <AnnotationListPanel
+                        characteristicId={selectedId}
+                        visibleSampleIds={visibleSampleIds}
+                        visibleTimeRange={visibleTimeRange}
+                        onAddAnnotation={() => {
+                          setAnnotationMode('period')
+                          setAnnotationSampleId(undefined)
+                          setAnnotationSampleLabel(undefined)
+                          setAnnotationDialogOpen(true)
+                        }}
+                      />
+                    ),
+                  },
+                ] satisfies DrawerTab[]}
+              />
             </>
           ) : (
             <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
