@@ -136,6 +136,7 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, server_default="draft"),
         sa.Column("created_by", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("submitted_by", sa.Integer(), nullable=True),
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("approved_by", sa.Integer(), nullable=True),
         sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
@@ -147,6 +148,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["created_by"], ["user.id"],
             name="fk_fai_report_created_by_user",
+        ),
+        sa.ForeignKeyConstraint(
+            ["submitted_by"], ["user.id"],
+            name="fk_fai_report_submitted_by_user",
         ),
         sa.ForeignKeyConstraint(
             ["approved_by"], ["user.id"],

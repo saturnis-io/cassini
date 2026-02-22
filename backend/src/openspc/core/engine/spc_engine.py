@@ -431,7 +431,9 @@ class SPCEngine:
             target = char_target_value if char_target_value is not None else 0.0
             sigma = char_stored_sigma
             if sigma and sigma > 0:
-                mean = (mean - target) / sigma
+                # Use sigma_xbar = sigma / sqrt(n) for subgroups > 1
+                sigma_xbar = sigma / math.sqrt(actual_n) if actual_n > 1 else sigma
+                mean = (mean - target) / sigma_xbar
                 char_ucl = 3.0
                 char_lcl = -3.0
                 char_stored_center_line = 0.0

@@ -50,6 +50,7 @@ class FAIReport(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )
+    submitted_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

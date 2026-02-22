@@ -120,6 +120,7 @@ class FAIReportResponse(BaseModel):
     status: str
     created_by: int
     created_at: datetime
+    submitted_by: int | None
     submitted_at: datetime | None
     approved_by: int | None
     approved_at: datetime | None

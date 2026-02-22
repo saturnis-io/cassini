@@ -12,7 +12,7 @@ from collections.abc import Sequence
 
 from scipy.stats import f as f_dist
 
-from openspc.core.msa.models import D2_STAR, GageRRResult
+from openspc.core.msa.models import D2_STAR, D2_STAR_TABLE, GageRRResult
 
 
 def _flatten_3d(measurements_3d: Sequence[Sequence[Sequence[float]]]) -> list[float]:
@@ -41,6 +41,35 @@ def _get_d2_star(m: int) -> float:
             frac = (m - lo) / (hi - lo)
             return D2_STAR[lo] + frac * (D2_STAR[hi] - D2_STAR[lo])
     return D2_STAR[keys[-1]]  # pragma: no cover
+
+
+def _get_d2_star_2d(m: int, g: int) -> float:
+    """Look up d2*(m, g) from AIAG 2D table for the Range Method.
+
+    Args:
+        m: Subgroup size (number of measurements in range).
+        g: Number of subgroups (ranges being averaged).
+
+    Uses full 2D table for accurate K-factor calculation. Falls back to
+    1D d2 table (g→infinity) when m or g not found in 2D table.
+    """
+    if m in D2_STAR_TABLE:
+        row = D2_STAR_TABLE[m]
+        if g in row:
+            return row[g]
+        # Interpolate or use nearest g
+        g_keys = sorted(row.keys())
+        if g < g_keys[0]:
+            return row[g_keys[0]]
+        if g > g_keys[-1]:
+            return row[g_keys[-1]]
+        for i in range(len(g_keys) - 1):
+            if g_keys[i] < g < g_keys[i + 1]:
+                lo, hi = g_keys[i], g_keys[i + 1]
+                frac = (g - lo) / (hi - lo)
+                return row[lo] + frac * (row[hi] - row[lo])
+    # Fallback to 1D table (large g approximation)
+    return _get_d2_star(m)
 
 
 def _build_verdict(pct_study_grr: float) -> str:
@@ -324,7 +353,9 @@ class GageRREngine:
         if n_reps < 2:
             raise ValueError("Range method requires at least 2 replicates")
 
-        d2_reps = _get_d2_star(n_reps)
+        # Number of ranges (cells) for EV d2* lookup
+        g_ev = n_ops * n_parts
+        d2_reps = _get_d2_star_2d(n_reps, g_ev)
 
         # --- Equipment Variation (EV) ---
         # Range across replicates for each operator-part cell
@@ -345,7 +376,8 @@ class GageRREngine:
             op_means.append(_mean(vals))
         x_bar_diff = max(op_means) - min(op_means)
 
-        d2_ops = _get_d2_star(n_ops)
+        # K1 uses d2*(m=n_ops, g=1) — single range of operator averages
+        d2_ops = _get_d2_star_2d(n_ops, 1)
         k1 = 1.0 / d2_ops
         av_squared = max(0.0, (x_bar_diff * k1) ** 2 - sigma2_equipment / (n_parts * n_reps))
         sigma2_operator = av_squared
@@ -358,7 +390,8 @@ class GageRREngine:
             part_means.append(_mean(vals))
         rp = max(part_means) - min(part_means)
 
-        d2_parts = _get_d2_star(n_parts)
+        # K3 uses d2*(m=n_parts, g=1) — single range of part averages
+        d2_parts = _get_d2_star_2d(n_parts, 1)
         k3 = 1.0 / d2_parts
         sigma2_part = (rp * k3) ** 2
 

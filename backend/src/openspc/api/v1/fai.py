@@ -339,6 +339,7 @@ async def submit_report(
     _require_draft(report)
 
     report.status = "submitted"
+    report.submitted_by = user.id
     report.submitted_at = datetime.now(timezone.utc)
     report.rejection_reason = None  # Clear any previous rejection
 
@@ -358,6 +359,7 @@ async def approve_report(
     """Approve a submitted FAI report. Changes status: submitted → approved.
 
     Requires engineer+ role for the report's plant.
+    Enforces separation of duties: approver cannot be the submitter.
     """
     report = await _get_report_or_404(session, report_id)
     check_plant_role(user, report.plant_id, "engineer")
@@ -366,6 +368,13 @@ async def approve_report(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Report is in '{report.status}' status — only submitted reports can be approved",
+        )
+
+    # Separation of duties: approver must differ from submitter
+    if report.submitted_by == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Separation of duties: the approver cannot be the same person who submitted the report",
         )
 
     report.status = "approved"
