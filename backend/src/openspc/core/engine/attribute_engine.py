@@ -109,6 +109,7 @@ class AttributeProcessingResult:
     in_control: bool
     violations: list[AttributeRuleResult] = field(default_factory=list)
     processing_time_ms: float = 0.0
+    sigma_z: float | None = None
 
 
 def calculate_attribute_limits(
@@ -543,6 +544,106 @@ def _check_rule_4(
     return None
 
 
+def calculate_laney_sigma_z(
+    chart_type: str,
+    samples: list[dict],
+    center_line: float,
+) -> float:
+    """Calculate Laney overdispersion correction factor sigma_z.
+
+    For p-chart: Z_i = (p_i - p_bar) / sqrt(p_bar(1-p_bar)/n_i)
+    For u-chart: Z_i = (u_i - u_bar) / sqrt(u_bar/n_i)
+
+    sigma_z = MR_bar / d2 where d2 = 1.128 (moving range span of 2)
+
+    Returns:
+        sigma_z correction factor. ~1.0 means no overdispersion.
+        Returns 1.0 if fewer than 3 samples (can't compute MR).
+    """
+    if len(samples) < 3:
+        return 1.0
+
+    z_values = []
+    for s in samples:
+        if chart_type == "p":
+            n_i = s.get("sample_size", 1)
+            if n_i <= 0:
+                continue
+            p_i = s["defect_count"] / n_i
+            if center_line <= 0 or center_line >= 1:
+                continue
+            sigma_i = math.sqrt(center_line * (1 - center_line) / n_i)
+            if sigma_i == 0:
+                continue
+            z_i = (p_i - center_line) / sigma_i
+        elif chart_type == "u":
+            n_i = s.get("units_inspected", 1)
+            if n_i <= 0:
+                continue
+            u_i = s["defect_count"] / n_i
+            if center_line <= 0:
+                continue
+            sigma_i = math.sqrt(center_line / n_i)
+            if sigma_i == 0:
+                continue
+            z_i = (u_i - center_line) / sigma_i
+        else:
+            return 1.0  # Laney only applies to p and u charts
+        z_values.append(z_i)
+
+    if len(z_values) < 3:
+        return 1.0
+
+    # Moving range of Z values
+    moving_ranges = [abs(z_values[i] - z_values[i - 1]) for i in range(1, len(z_values))]
+    mr_bar = sum(moving_ranges) / len(moving_ranges)
+
+    # sigma_z = MR_bar / d2 (d2 = 1.128 for span of 2)
+    D2 = 1.128
+    sigma_z = mr_bar / D2
+
+    # Guard against zero
+    return max(sigma_z, 0.001)
+
+
+def get_per_point_limits_laney(
+    chart_type: str,
+    center_line: float,
+    sigma_z: float,
+    sample_size: int | None = None,
+    units_inspected: int | None = None,
+) -> tuple[float, float]:
+    """Calculate Laney-corrected per-point control limits.
+
+    UCL = center + 3 * sigma_z * sqrt(center*(1-center)/n)  for p-chart
+    UCL = center + 3 * sigma_z * sqrt(center/n)             for u-chart
+    """
+    if chart_type == "p":
+        if sample_size is None or sample_size <= 0:
+            return center_line, center_line
+        if 0 < center_line < 1:
+            sigma = math.sqrt(center_line * (1 - center_line) / sample_size)
+        else:
+            sigma = 0
+        ucl = center_line + 3 * sigma_z * sigma
+        lcl = max(0.0, center_line - 3 * sigma_z * sigma)
+        ucl = min(ucl, 1.0)
+        return ucl, lcl
+
+    elif chart_type == "u":
+        if units_inspected is None or units_inspected <= 0:
+            return center_line, center_line
+        if center_line > 0:
+            sigma = math.sqrt(center_line / units_inspected)
+        else:
+            sigma = 0
+        ucl = center_line + 3 * sigma_z * sigma
+        lcl = max(0.0, center_line - 3 * sigma_z * sigma)
+        return ucl, lcl
+
+    return center_line, center_line  # Fallback
+
+
 async def process_attribute_sample(
     char_id: int,
     defect_count: int,
@@ -595,6 +696,8 @@ async def process_attribute_sample(
     chart_type = char.attribute_chart_type
     if chart_type not in VALID_ATTRIBUTE_CHART_TYPES:
         raise ValueError(f"Invalid attribute_chart_type: {chart_type}")
+
+    use_laney = getattr(char, 'use_laney_correction', False) and chart_type in ("p", "u")
 
     # Extract values from ORM to avoid lazy loading
     char_ucl = char.ucl
@@ -658,6 +761,11 @@ async def process_attribute_sample(
         # Not enough data for limits - use plotted value as center
         center_line = plotted_value
 
+    # Compute Laney sigma_z once for the entire window
+    sigma_z_value = None
+    if use_laney and len(window_data) >= 3:
+        sigma_z_value = calculate_laney_sigma_z(chart_type, window_data, center_line)
+
     for wd in window_data:
         pv = get_plotted_value(
             chart_type=chart_type,
@@ -668,29 +776,44 @@ async def process_attribute_sample(
         plotted_values.append(pv)
         window_sample_ids.append(wd["sample_id"])
 
-        # Per-point limits
+        # Per-point limits (with optional Laney correction)
         if char_ucl is not None and char_lcl is not None:
-            # Use stored overall limits as defaults
             pt_ucl, pt_lcl = char_ucl, char_lcl
-            # For variable-n charts, compute per-point limits
             if chart_type in ("p", "u"):
-                pt_ucl, pt_lcl = get_per_point_limits(
-                    chart_type=chart_type,
-                    center_line=center_line,
-                    sample_size=wd.get("sample_size"),
-                    units_inspected=wd.get("units_inspected"),
-                )
+                if use_laney and sigma_z_value is not None:
+                    pt_ucl, pt_lcl = get_per_point_limits_laney(
+                        chart_type=chart_type,
+                        center_line=center_line,
+                        sigma_z=sigma_z_value,
+                        sample_size=wd.get("sample_size"),
+                        units_inspected=wd.get("units_inspected"),
+                    )
+                else:
+                    pt_ucl, pt_lcl = get_per_point_limits(
+                        chart_type=chart_type,
+                        center_line=center_line,
+                        sample_size=wd.get("sample_size"),
+                        units_inspected=wd.get("units_inspected"),
+                    )
             ucl_values.append(pt_ucl)
             lcl_values.append(pt_lcl)
         else:
-            # No stored limits; compute from window if possible
             if len(window_data) >= 2:
-                pt_ucl, pt_lcl = get_per_point_limits(
-                    chart_type=chart_type,
-                    center_line=center_line,
-                    sample_size=wd.get("sample_size"),
-                    units_inspected=wd.get("units_inspected"),
-                )
+                if use_laney and sigma_z_value is not None:
+                    pt_ucl, pt_lcl = get_per_point_limits_laney(
+                        chart_type=chart_type,
+                        center_line=center_line,
+                        sigma_z=sigma_z_value,
+                        sample_size=wd.get("sample_size"),
+                        units_inspected=wd.get("units_inspected"),
+                    )
+                else:
+                    pt_ucl, pt_lcl = get_per_point_limits(
+                        chart_type=chart_type,
+                        center_line=center_line,
+                        sample_size=wd.get("sample_size"),
+                        units_inspected=wd.get("units_inspected"),
+                    )
                 ucl_values.append(pt_ucl)
                 lcl_values.append(pt_lcl)
             else:
@@ -749,4 +872,5 @@ async def process_attribute_sample(
         in_control=len(violations) == 0,
         violations=violations,
         processing_time_ms=processing_time_ms,
+        sigma_z=sigma_z_value,
     )

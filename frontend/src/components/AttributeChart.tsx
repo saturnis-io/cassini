@@ -4,6 +4,7 @@ import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
+import { cn } from '@/lib/utils'
 import type { AttributeChartSample } from '@/types'
 
 interface AttributeChartProps {
@@ -428,6 +429,18 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
               <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
                 {chartTypeName}
               </span>
+              {chartData?.sigma_z != null && (
+                <span className={cn(
+                  "flex-shrink-0 rounded-full px-2 py-0.5 font-mono text-xs",
+                  chartData.sigma_z > 1.1 ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :
+                  chartData.sigma_z < 0.9 ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" :
+                  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                )}>
+                  <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
+                  {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
+                   chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                </span>
+              )}
               <h3
                 className="text-foreground truncate text-sm leading-5 font-semibold"
                 title={breadcrumb}

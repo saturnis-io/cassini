@@ -105,6 +105,8 @@ export interface Characteristic {
   cusum_h?: number | null
   ewma_lambda?: number | null
   ewma_l?: number | null
+  // Laney correction (Sprint 5 - A3)
+  use_laney_correction?: boolean
   // Optional metadata fields
   unit?: string
   active?: boolean
@@ -282,6 +284,8 @@ export interface ChartData {
   cusum_target?: number | null
   ewma_data_points?: EWMAChartSample[]
   ewma_target?: number | null
+  // Laney correction (Sprint 5 - A3)
+  sigma_z?: number | null
 }
 
 // Violation types
@@ -772,6 +776,29 @@ export interface CapabilitySnapshotResponse {
   capability: CapabilityResult
 }
 
+// Rule preset types (Sprint 5 - A2)
+export interface RulePreset {
+  id: number
+  name: string
+  description: string | null
+  is_builtin: boolean
+  rules_config: RuleConfig[]
+  plant_id: number | null
+}
+
+export interface RuleConfig {
+  rule_id: number
+  is_enabled: boolean
+  parameters: Record<string, number> | null
+}
+
+export interface CharacteristicRuleWithParams {
+  rule_id: number
+  is_enabled: boolean
+  require_acknowledgement: boolean
+  parameters: Record<string, number> | null
+}
+
 // Scheduled Report types
 export interface ReportSchedule {
   id: number
@@ -831,4 +858,31 @@ export interface UpdateReportSchedule {
   recipients?: string[]
   window_days?: number
   is_active?: boolean
+}
+
+// Non-normal capability types (Sprint 5 - A1)
+export interface NonNormalCapabilityResult extends CapabilityResult {
+  method: string
+  method_detail: string
+  fitted_distribution: DistributionFitResultData | null
+  percentile_pp: number | null
+  percentile_ppk: number | null
+  p0_135: number | null
+  p50: number | null
+  p99_865: number | null
+}
+
+export interface DistributionFitResultData {
+  family: string
+  parameters: Record<string, number>
+  ad_statistic: number
+  ad_p_value: number | null
+  aic: number
+  is_adequate_fit: boolean
+}
+
+export interface DistributionFitResponse {
+  fits: DistributionFitResultData[]
+  best_fit: DistributionFitResultData | null
+  recommendation: string
 }

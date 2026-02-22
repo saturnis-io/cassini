@@ -120,6 +120,7 @@ class CharacteristicUpdate(BaseModel):
     min_measurements: int | None = Field(None, ge=1)
     warn_below_count: int | None = None
     decimal_precision: int | None = Field(None, ge=0, le=10)
+    use_laney_correction: bool | None = None
 
 
 class CharacteristicResponse(BaseModel):
@@ -151,6 +152,7 @@ class CharacteristicResponse(BaseModel):
     stored_sigma: float | None
     stored_center_line: float | None
     decimal_precision: int
+    use_laney_correction: bool = False
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None
@@ -386,6 +388,7 @@ class ChartDataResponse(BaseModel):
     cusum_target: float | None = None
     ewma_data_points: list[EWMAChartSample] = []
     ewma_target: float | None = None
+    sigma_z: float | None = None
 
 
 class NelsonRuleConfig(BaseModel):
@@ -395,6 +398,7 @@ class NelsonRuleConfig(BaseModel):
         rule_id: Nelson Rule number (1-8)
         is_enabled: Whether this rule is active
         require_acknowledgement: Whether violations of this rule require acknowledgement
+        parameters: Optional custom parameters for the rule
     """
 
     rule_id: int = Field(..., ge=1, le=8, description="Nelson Rule ID (1-8)")
@@ -402,6 +406,10 @@ class NelsonRuleConfig(BaseModel):
     require_acknowledgement: bool = Field(
         default=True,
         description="Whether violations of this rule require acknowledgement"
+    )
+    parameters: dict | None = Field(
+        default=None,
+        description="Custom parameters for this rule (e.g., consecutive_count, sigma_multiplier)"
     )
 
 

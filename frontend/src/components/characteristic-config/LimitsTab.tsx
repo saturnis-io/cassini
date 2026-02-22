@@ -14,6 +14,13 @@ interface FormData {
   usl: string
   lsl: string
   subgroup_mode: SubgroupMode
+  chart_type: '' | 'cusum' | 'ewma'
+  cusum_target: string
+  cusum_k: string
+  cusum_h: string
+  ewma_lambda: string
+  ewma_l: string
+  use_laney_correction?: boolean
 }
 
 interface Characteristic {
@@ -22,6 +29,7 @@ interface Characteristic {
   stored_sigma: number | null
   stored_center_line: number | null
   sample_count?: number
+  attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
 }
 
 interface LimitsTabProps {
@@ -470,7 +478,127 @@ export function LimitsTab({
   })()
 
   return (
-    <Accordion defaultOpen={['spec-limits', 'control-limits']} className="space-y-3">
+    <Accordion defaultOpen={['chart-type', 'spec-limits', 'control-limits']} className="space-y-3">
+      {/* Chart Type Selection */}
+      <AccordionSection id="chart-type" title="Chart Type">
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">
+            Select the control chart type for this characteristic. Standard (Shewhart) is the
+            default. CUSUM and EWMA charts are better for detecting small, sustained shifts.
+          </p>
+
+          {/* Chart type selector */}
+          <div className="border-border flex overflow-hidden rounded-lg border">
+            {(['', 'cusum', 'ewma'] as const).map((type) => (
+              <button
+                key={type || 'standard'}
+                type="button"
+                onClick={() => onChange('chart_type', type)}
+                className={cn(
+                  'flex flex-1 items-center justify-center px-3 py-2 text-sm font-medium transition-colors',
+                  formData.chart_type === type
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                )}
+              >
+                {type === '' ? 'Standard' : type === 'cusum' ? 'CUSUM' : 'EWMA'}
+              </button>
+            ))}
+          </div>
+
+          {/* CUSUM parameters */}
+          {formData.chart_type === 'cusum' && (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-xs">
+                CUSUM (Cumulative Sum) detects small sustained shifts. k is the slack value
+                (typically 0.5σ), H is the decision interval (typically 4-5σ).
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Target (μ₀)</label>
+                  <NumberInput
+                    step="any"
+                    value={formData.cusum_target}
+                    onChange={(value) => onChange('cusum_target', value)}
+                    className="mt-1.5 w-full"
+                    placeholder="Process target"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">k (slack)</label>
+                  <NumberInput
+                    step="any"
+                    value={formData.cusum_k}
+                    onChange={(value) => onChange('cusum_k', value)}
+                    className="mt-1.5 w-full"
+                    placeholder="0.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">H (decision)</label>
+                  <NumberInput
+                    step="any"
+                    value={formData.cusum_h}
+                    onChange={(value) => onChange('cusum_h', value)}
+                    className="mt-1.5 w-full"
+                    placeholder="5"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EWMA parameters */}
+          {formData.chart_type === 'ewma' && (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-xs">
+                EWMA (Exponentially Weighted Moving Average) smooths data to detect small shifts.
+                λ is the smoothing factor (0.05-0.25), L is the control limit width (typically 2.5-3).
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">λ (lambda)</label>
+                  <NumberInput
+                    step="any"
+                    value={formData.ewma_lambda}
+                    onChange={(value) => onChange('ewma_lambda', value)}
+                    className="mt-1.5 w-full"
+                    placeholder="0.2"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">L (width)</label>
+                  <NumberInput
+                    step="any"
+                    value={formData.ewma_l}
+                    onChange={(value) => onChange('ewma_l', value)}
+                    className="mt-1.5 w-full"
+                    placeholder="3"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Laney p'/u' correction */}
+          {(characteristic?.attribute_chart_type === 'p' || characteristic?.attribute_chart_type === 'u') && (
+            <div className="flex items-center gap-2 mt-3">
+              <input
+                type="checkbox"
+                id="laney-correction"
+                checked={formData.use_laney_correction ?? false}
+                onChange={(e) => onChange('use_laney_correction', e.target.checked ? 'true' : 'false')}
+                className="border-border rounded"
+              />
+              <label htmlFor="laney-correction" className="text-sm">
+                Use Laney p&apos;/u&apos; correction
+                <span className="text-muted-foreground ml-1">(adjusts limits for over/under-dispersion)</span>
+              </label>
+            </div>
+          )}
+        </div>
+      </AccordionSection>
+
       {/* Specification Limits - Default Open */}
       <AccordionSection id="spec-limits" title="Specification Limits">
         <div className="space-y-4">

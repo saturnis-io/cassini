@@ -41,6 +41,8 @@ from openspc.api.deps import (
 )
 from openspc.api.schemas.common import PaginatedResponse, PaginationParams
 from openspc.core.engine.control_limits import ControlLimitService
+import json as _json
+
 from openspc.core.engine.nelson_rules import NELSON_RULE_IDS
 from openspc.db.models.user import User
 from openspc.core.engine.rolling_window import RollingWindowManager
@@ -412,7 +414,9 @@ async def _get_attribute_chart_data(
     """Build chart data response for attribute characteristics."""
     from openspc.core.engine.attribute_engine import (
         calculate_attribute_limits,
+        calculate_laney_sigma_z,
         get_per_point_limits,
+        get_per_point_limits_laney,
         get_plotted_value,
     )
     from openspc.db.repositories import ViolationRepository
@@ -423,6 +427,7 @@ async def _get_attribute_chart_data(
     center_line = characteristic.stored_center_line
     char_ucl = characteristic.ucl
     char_lcl = characteristic.lcl
+    use_laney = getattr(characteristic, 'use_laney_correction', False) and chart_type in ("p", "u")
 
     # Get attribute samples as dicts
     window_data = await sample_repo.get_attribute_rolling_window(
@@ -473,6 +478,11 @@ async def _get_attribute_chart_data(
         preceding = (await session.execute(count_stmt)).scalar_one()
         _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
 
+    # Compute Laney sigma_z if enabled
+    sigma_z_value = None
+    if use_laney and center_line is not None and len(window_data) >= 3:
+        sigma_z_value = calculate_laney_sigma_z(chart_type, window_data, center_line)
+
     # Build attribute chart samples
     attr_samples = []
     for wd in window_data:
@@ -486,14 +496,19 @@ async def _get_attribute_chart_data(
         except ValueError:
             pv = 0.0
 
-        # Per-point limits
+        # Per-point limits (with optional Laney correction)
         pt_ucl = char_ucl
         pt_lcl = char_lcl
         if center_line is not None and chart_type:
             try:
-                pt_ucl, pt_lcl = get_per_point_limits(
-                    chart_type, center_line, s_size, u_inspected,
-                )
+                if use_laney and sigma_z_value is not None:
+                    pt_ucl, pt_lcl = get_per_point_limits_laney(
+                        chart_type, center_line, sigma_z_value, s_size, u_inspected,
+                    )
+                else:
+                    pt_ucl, pt_lcl = get_per_point_limits(
+                        chart_type, center_line, s_size, u_inspected,
+                    )
             except ValueError:
                 pass
 
@@ -540,6 +555,7 @@ async def _get_attribute_chart_data(
         decimal_precision=characteristic.decimal_precision,
         data_type="attribute",
         attribute_chart_type=chart_type,
+        sigma_z=sigma_z_value,
     )
 
 
@@ -1151,6 +1167,7 @@ async def get_rules(
             rule_id=rule.rule_id,
             is_enabled=rule.is_enabled,
             require_acknowledgement=rule.require_acknowledgement,
+            parameters=_json.loads(rule.parameters) if rule.parameters else None,
         )
         for rule in characteristic.rules
     ]
@@ -1208,6 +1225,7 @@ async def update_rules(
             rule_id=rule_config.rule_id,
             is_enabled=rule_config.is_enabled,
             require_acknowledgement=rule_config.require_acknowledgement,
+            parameters=_json.dumps(rule_config.parameters) if rule_config.parameters else None,
         )
         session.add(rule)
 
@@ -1220,6 +1238,7 @@ async def update_rules(
             rule_id=rule.rule_id,
             is_enabled=rule.is_enabled,
             require_acknowledgement=rule.require_acknowledgement,
+            parameters=_json.loads(rule.parameters) if rule.parameters else None,
         )
         for rule in characteristic.rules
     ]
