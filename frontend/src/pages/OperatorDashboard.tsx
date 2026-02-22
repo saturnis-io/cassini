@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
@@ -298,11 +298,14 @@ export function OperatorDashboard() {
   }, [selectedId, setRangeWindow])
 
   // Sync annotations toolbar toggle → open drawer to annotations tab
+  // Use ref to skip initial mount (avoid forcing drawer open on page load)
+  const prevShowAnnotations = useRef(showAnnotations)
   useEffect(() => {
-    if (showAnnotations) {
+    if (showAnnotations && !prevShowAnnotations.current) {
       setDrawerTab('annotations')
       setDrawerOpen(true)
     }
+    prevShowAnnotations.current = showAnnotations
   }, [showAnnotations, setDrawerTab, setDrawerOpen])
 
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []

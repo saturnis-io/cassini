@@ -10,6 +10,7 @@ export interface DrawerTab {
   content: React.ReactNode
 }
 
+/** Dashboard-specific: tab IDs must match dashboardStore.drawerTab union */
 interface BottomDrawerProps {
   tabs: DrawerTab[]
   className?: string
