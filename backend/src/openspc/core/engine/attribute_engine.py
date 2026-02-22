@@ -172,7 +172,7 @@ def _calculate_p_limits(samples: list[dict]) -> AttributeLimits:
     n_bar = total_inspected / len(samples)
 
     sigma = math.sqrt(p_bar * (1 - p_bar) / n_bar) if p_bar > 0 and p_bar < 1 else 0
-    ucl = p_bar + 3 * sigma
+    ucl = min(p_bar + 3 * sigma, 1.0)  # p-chart UCL capped at 1.0 (probability)
     lcl = max(0.0, p_bar - 3 * sigma)
 
     return AttributeLimits(
@@ -342,7 +342,7 @@ def get_per_point_limits(
         if sample_size is None or sample_size <= 0:
             raise ValueError("p-chart per-point limits require positive sample_size")
         sigma = math.sqrt(center_line * (1 - center_line) / sample_size) if 0 < center_line < 1 else 0
-        ucl = center_line + 3 * sigma
+        ucl = min(center_line + 3 * sigma, 1.0)  # p-chart UCL capped at 1.0 (probability)
         lcl = max(0.0, center_line - 3 * sigma)
         return ucl, lcl
 

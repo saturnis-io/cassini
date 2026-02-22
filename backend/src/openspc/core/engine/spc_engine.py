@@ -362,6 +362,24 @@ class SPCEngine:
             rule.rule_id: rule.require_acknowledgement
             for rule in char.rules
         }
+
+        # Build rule configs with custom parameters (Sprint 5 - A2)
+        import json as _json
+        rule_configs = []
+        for rule in char.rules:
+            params = None
+            if rule.parameters:
+                try:
+                    params = _json.loads(rule.parameters)
+                except (ValueError, TypeError):
+                    params = None
+            rule_configs.append({
+                "rule_id": rule.rule_id,
+                "is_enabled": rule.is_enabled,
+                "parameters": params,
+            })
+        if rule_configs:
+            self._rule_library.create_from_config(rule_configs)
         char_subgroup_mode = char.subgroup_mode
         char_subgroup_size = char.subgroup_size
         char_min_measurements = char.min_measurements

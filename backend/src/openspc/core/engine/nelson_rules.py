@@ -102,6 +102,8 @@ class Rule1Outlier:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._sigma_multiplier = self._params.get("sigma_multiplier", 3.0)
+        if self._sigma_multiplier <= 0:
+            self._sigma_multiplier = 3.0
 
     def check(self, window: RollingWindow) -> RuleResult | None:
         """Check for points beyond control limits."""
@@ -153,6 +155,8 @@ class Rule2Shift:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._consecutive = self._params.get("consecutive_count", 9)
+        if self._consecutive < 2:
+            self._consecutive = 9  # Guard: count < 2 is vacuous or dangerous
 
     @property
     def min_samples_required(self) -> int:
@@ -206,6 +210,8 @@ class Rule3Trend:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._consecutive = self._params.get("consecutive_count", 6)
+        if self._consecutive < 2:
+            self._consecutive = 6  # Guard: need at least 2 points for a trend
 
     @property
     def min_samples_required(self) -> int:
@@ -258,6 +264,8 @@ class Rule4Alternator:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._consecutive = self._params.get("consecutive_count", 14)
+        if self._consecutive < 3:
+            self._consecutive = 14  # Guard: need at least 3 points for alternation
 
     @property
     def min_samples_required(self) -> int:
@@ -314,6 +322,14 @@ class Rule5ZoneA:
         self._params = params or {}
         self._count = self._params.get("count", 2)
         self._window = self._params.get("window", 3)
+        # Guard: count must be >= 1 and <= window (impossible condition otherwise)
+        if self._count < 1:
+            self._count = 2
+        if self._window < 1:
+            self._window = 3
+        if self._count > self._window:
+            self._count = 2
+            self._window = 3
 
     @property
     def min_samples_required(self) -> int:
@@ -370,6 +386,14 @@ class Rule6ZoneB:
         self._params = params or {}
         self._count = self._params.get("count", 4)
         self._window = self._params.get("window", 5)
+        # Guard: count must be >= 1 and <= window
+        if self._count < 1:
+            self._count = 4
+        if self._window < 1:
+            self._window = 5
+        if self._count > self._window:
+            self._count = 4
+            self._window = 5
 
     @property
     def min_samples_required(self) -> int:
@@ -424,6 +448,8 @@ class Rule7Stratification:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._consecutive = self._params.get("consecutive_count", 15)
+        if self._consecutive < 2:
+            self._consecutive = 15
 
     @property
     def min_samples_required(self) -> int:
@@ -470,6 +496,8 @@ class Rule8Mixture:
     def __init__(self, params: dict | None = None):
         self._params = params or {}
         self._consecutive = self._params.get("consecutive_count", 8)
+        if self._consecutive < 2:
+            self._consecutive = 8
 
     @property
     def min_samples_required(self) -> int:

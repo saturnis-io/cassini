@@ -314,7 +314,91 @@ async def submit_sample(
     check_plant_role(_user, plant_id, "operator")
 
     try:
-        # Process sample through SPC engine
+        # Check if the characteristic uses a specialised engine (CUSUM / EWMA)
+        char_repo = CharacteristicRepository(session)
+        characteristic = await char_repo.get_by_id(data.characteristic_id)
+        if characteristic is None:
+            raise ValueError(f"Characteristic {data.characteristic_id} not found")
+
+        chart_type = getattr(characteristic, "chart_type", None)
+
+        if chart_type == "cusum":
+            # Route to CUSUM engine
+            from openspc.core.engine.cusum_engine import process_cusum_sample
+
+            sample_repo = SampleRepository(session)
+            violation_repo = ViolationRepository(session)
+            cusum_result = await process_cusum_sample(
+                char_id=data.characteristic_id,
+                measurement=data.measurements[0],
+                sample_repo=sample_repo,
+                char_repo=char_repo,
+                violation_repo=violation_repo,
+                batch_number=data.batch_number,
+                operator_id=data.operator_id,
+            )
+            await session.commit()
+
+            violation_records = await violation_repo.get_by_sample(cusum_result.sample_id)
+            violations = [
+                ViolationInfo(
+                    violation_id=vr.id,
+                    rule_id=vr.rule_id,
+                    rule_name=vr.rule_name or "",
+                    severity=vr.severity,
+                )
+                for vr in violation_records
+            ]
+            return SampleProcessingResult(
+                sample_id=cusum_result.sample_id,
+                timestamp=cusum_result.timestamp,
+                mean=cusum_result.measurement,
+                range_value=None,
+                zone="cusum",
+                in_control=cusum_result.in_control,
+                violations=violations,
+                processing_time_ms=cusum_result.processing_time_ms,
+            )
+
+        if chart_type == "ewma":
+            # Route to EWMA engine
+            from openspc.core.engine.ewma_engine import process_ewma_sample
+
+            sample_repo = SampleRepository(session)
+            violation_repo = ViolationRepository(session)
+            ewma_result = await process_ewma_sample(
+                char_id=data.characteristic_id,
+                measurement=data.measurements[0],
+                sample_repo=sample_repo,
+                char_repo=char_repo,
+                violation_repo=violation_repo,
+                batch_number=data.batch_number,
+                operator_id=data.operator_id,
+            )
+            await session.commit()
+
+            violation_records = await violation_repo.get_by_sample(ewma_result.sample_id)
+            violations = [
+                ViolationInfo(
+                    violation_id=vr.id,
+                    rule_id=vr.rule_id,
+                    rule_name=vr.rule_name or "",
+                    severity=vr.severity,
+                )
+                for vr in violation_records
+            ]
+            return SampleProcessingResult(
+                sample_id=ewma_result.sample_id,
+                timestamp=ewma_result.timestamp,
+                mean=ewma_result.measurement,
+                range_value=None,
+                zone="ewma",
+                in_control=ewma_result.in_control,
+                violations=violations,
+                processing_time_ms=ewma_result.processing_time_ms,
+            )
+
+        # Standard Shewhart chart — use default SPC engine
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
@@ -702,6 +786,25 @@ async def update_sample(
         await window_manager.invalidate(sample.char_id)
 
         rule_library = NelsonRuleLibrary()
+
+        # Apply custom rule parameters from characteristic config (Sprint 5 - A2)
+        import json as _json
+        rule_configs = []
+        for rule in characteristic.rules:
+            params = None
+            if rule.parameters:
+                try:
+                    params = _json.loads(rule.parameters)
+                except (ValueError, TypeError):
+                    params = None
+            rule_configs.append({
+                "rule_id": rule.rule_id,
+                "is_enabled": rule.is_enabled,
+                "parameters": params,
+            })
+        if rule_configs:
+            rule_library.create_from_config(rule_configs)
+
         window = await window_manager.get_window(sample.char_id)
 
         violations: list[ViolationInfo] = []

@@ -391,21 +391,38 @@ def _box_cox_capability(
         if ppk_values:
             ppk = min(ppk_values)
 
-    # Cp / Cpk (within)
+    # Cp / Cpk (within) — use delta method to transform sigma_within
+    # The derivative of the Box-Cox transform y(x) at the original mean x̄ is:
+    #   dy/dx = x̄^(λ-1)  (for λ != 0)
+    #   dy/dx = 1/x̄       (for λ ≈ 0, i.e. log transform)
+    # So σ_within_transformed ≈ σ_within * |x̄^(λ-1)|
     if sigma_within is not None and sigma_within > 0:
-        # Transform sigma_within approximately
-        # Use the derivative of the Box-Cox transform at the mean of original data
-        # This is an approximation
-        if usl_t is not None and lsl_t is not None:
-            cp = (usl_t - lsl_t) / (6.0 * sigma_overall_t)  # Use overall as approximation
+        # Recover original mean from transformed data's inverse
+        # Since we have the transformed array but need original mean for the derivative,
+        # compute it from the inverse Box-Cox. However, we also receive the original
+        # array indirectly through the calling context. Use the simpler approach:
+        # the mean of the transformed data came from data whose original mean x̄ we can
+        # approximate by inverting the transform at mean_t.
+        if abs(lmbda) < 1e-10:
+            x_bar_orig = math.exp(mean_t)
+            deriv = 1.0 / x_bar_orig if x_bar_orig > 0 else 0.0
+        else:
+            x_bar_orig = (lmbda * mean_t + 1.0) ** (1.0 / lmbda) if (lmbda * mean_t + 1.0) > 0 else 0.0
+            deriv = abs(x_bar_orig ** (lmbda - 1.0)) if x_bar_orig > 0 else 0.0
 
-        cpk_values = []
-        if usl_t is not None:
-            cpk_values.append((usl_t - mean_t) / (3.0 * sigma_overall_t))
-        if lsl_t is not None:
-            cpk_values.append((mean_t - lsl_t) / (3.0 * sigma_overall_t))
-        if cpk_values:
-            cpk = min(cpk_values)
+        sigma_within_t = sigma_within * deriv if deriv > 0 else 0.0
+
+        if sigma_within_t > 0:
+            if usl_t is not None and lsl_t is not None:
+                cp = (usl_t - lsl_t) / (6.0 * sigma_within_t)
+
+            cpk_values = []
+            if usl_t is not None:
+                cpk_values.append((usl_t - mean_t) / (3.0 * sigma_within_t))
+            if lsl_t is not None:
+                cpk_values.append((mean_t - lsl_t) / (3.0 * sigma_within_t))
+            if cpk_values:
+                cpk = min(cpk_values)
 
     # Cpm
     if cp is not None and target is not None:
@@ -513,6 +530,9 @@ def calculate_capability_nonnormal(
     if usl is None and lsl is None:
         raise ValueError("At least one specification limit (USL or LSL) must be provided")
 
+    if usl is not None and lsl is not None and usl <= lsl:
+        raise ValueError(f"USL ({usl}) must be greater than LSL ({lsl})")
+
     arr = np.asarray(values, dtype=np.float64)
     n = len(values)
     now = datetime.now(timezone.utc)
@@ -539,7 +559,12 @@ def calculate_capability_nonnormal(
     normality_test = "shapiro_wilk"
     is_normal = False
     if n >= 3:
-        test_sample = arr[:5000] if n > 5000 else arr
+        # Shapiro-Wilk limit is 5000 samples; use random subset to avoid bias
+        if n > 5000:
+            rng = np.random.default_rng(42)
+            test_sample = rng.choice(arr, size=5000, replace=False)
+        else:
+            test_sample = arr
         try:
             result = scipy_stats.shapiro(test_sample)
             normality_p = float(result.pvalue)
