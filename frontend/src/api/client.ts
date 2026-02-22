@@ -52,6 +52,8 @@ import type {
   RetentionOverride,
   RetentionPolicy,
   RetentionPolicySet,
+  RuleConfig,
+  RulePreset,
   Sample,
   SampleEditHistory,
   SampleProcessingResult,
@@ -64,6 +66,8 @@ import type {
   CapabilityResult,
   CapabilityHistoryItem,
   CapabilitySnapshotResponse,
+  NonNormalCapabilityResult,
+  DistributionFitResponse,
   Violation,
   ViolationStats,
 } from '@/types'
@@ -458,9 +462,9 @@ export const characteristicApi = {
     ),
 
   getRules: async (id: number) => {
-    // Backend returns [{rule_id, is_enabled, require_acknowledgement}, ...]
+    // Backend returns [{rule_id, is_enabled, require_acknowledgement, parameters}, ...]
     const rules = await fetchApi<
-      { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]
+      { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters: Record<string, number> | null }[]
     >(`/characteristics/${id}/rules`)
     return {
       enabled_rules: rules.filter((r) => r.is_enabled).map((r) => r.rule_id),
@@ -470,15 +474,15 @@ export const characteristicApi = {
 
   updateRules: (
     id: number,
-    ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[],
+    ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters?: Record<string, number> | null }[],
   ) => {
-    // Backend expects array of {rule_id, is_enabled, require_acknowledgement} for all 8 rules
+    // Backend expects array of {rule_id, is_enabled, require_acknowledgement, parameters} for all 8 rules
     // Fill in any missing rules with defaults
     const allRules = Array.from({ length: 8 }, (_, i) => {
       const config = ruleConfigs.find((r) => r.rule_id === i + 1)
-      return config || { rule_id: i + 1, is_enabled: true, require_acknowledgement: true }
+      return config || { rule_id: i + 1, is_enabled: true, require_acknowledgement: true, parameters: null }
     })
-    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]>(
+    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters: Record<string, number> | null }[]>(
       `/characteristics/${id}/rules`,
       {
         method: 'PUT',
@@ -1469,6 +1473,34 @@ export const capabilityApi = {
   },
 }
 
+// Distribution Analysis API (Sprint 5 - A1)
+export const distributionApi = {
+  calculateNonNormal: (charId: number, method = 'auto') =>
+    fetchApi<NonNormalCapabilityResult>(
+      `/characteristics/${charId}/capability/nonnormal`,
+      { method: 'POST', body: JSON.stringify({ method }) },
+    ),
+
+  fitDistribution: (charId: number) =>
+    fetchApi<DistributionFitResponse>(
+      `/characteristics/${charId}/capability/fit-distribution`,
+      { method: 'POST' },
+    ),
+
+  updateConfig: (
+    charId: number,
+    config: {
+      distribution_method?: string
+      box_cox_lambda?: number
+      distribution_params?: Record<string, unknown>
+    },
+  ) =>
+    fetchApi<void>(`/characteristics/${charId}/distribution-config`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
+}
+
 // Report Schedule API
 export const reportScheduleApi = {
   list: (plantId: number) =>
@@ -1495,6 +1527,22 @@ export const reportScheduleApi = {
     fetchApi<ReportRun>(`/reports/schedules/${id}/trigger`, { method: 'POST' }),
 
   runs: (id: number) => fetchApi<ReportRun[]>(`/reports/schedules/${id}/runs`),
+}
+
+// Rule Preset API (Sprint 5 - A2)
+export const rulePresetApi = {
+  list: (plantId?: number) => {
+    const params = plantId ? `?plant_id=${plantId}` : ''
+    return fetchApi<RulePreset[]>(`/rule-presets${params}`)
+  },
+  get: (id: number) => fetchApi<RulePreset>(`/rule-presets/${id}`),
+  create: (data: { name: string; description?: string; rules_config: RuleConfig[]; plant_id?: number }) =>
+    fetchApi<RulePreset>('/rule-presets', { method: 'POST', body: JSON.stringify(data) }),
+  applyToCharacteristic: (charId: number, presetId: number) =>
+    fetchApi<void>(`/characteristics/${charId}/rules/preset`, {
+      method: 'PUT',
+      body: JSON.stringify({ preset_id: presetId }),
+    }),
 }
 
 // ---- Electronic Signature API ----

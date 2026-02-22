@@ -21,6 +21,7 @@ from openspc.api.v1.characteristic_config import router as config_router
 from openspc.api.v1.capability import router as capability_router
 from openspc.api.v1.characteristics import router as characteristics_router
 from openspc.api.v1.data_entry import router as data_entry_router
+from openspc.api.v1.distributions import router as distributions_router
 from openspc.api.v1.import_router import router as import_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.notifications import router as notifications_router
@@ -29,6 +30,7 @@ from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
 from openspc.api.v1.retention import router as retention_router
+from openspc.api.v1.rule_presets import router as rule_presets_router
 from openspc.api.v1.scheduled_reports import router as scheduled_reports_router
 from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.signatures import router as signatures_router
@@ -320,11 +322,13 @@ app.include_router(characteristics_router)
 app.include_router(config_router)
 app.include_router(database_admin_router)
 app.include_router(data_entry_router)
+app.include_router(distributions_router)
 app.include_router(import_router)
 app.include_router(notifications_router)
 app.include_router(oidc_router)
 app.include_router(providers_router)
 app.include_router(retention_router)
+app.include_router(rule_presets_router)
 app.include_router(scheduled_reports_router)
 app.include_router(samples_router)
 app.include_router(signatures_router)

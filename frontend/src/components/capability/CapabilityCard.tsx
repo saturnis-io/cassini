@@ -1,11 +1,15 @@
-import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot } from '@/api/hooks'
+import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { useECharts } from '@/hooks/useECharts'
 import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
-import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle, BarChart3 } from 'lucide-react'
+import { useState, useMemo, lazy, Suspense } from 'react'
+
+const DistributionAnalysis = lazy(() =>
+  import('./DistributionAnalysis').then((m) => ({ default: m.DistributionAnalysis })),
+)
 
 /** Threshold-based color coding for capability indices */
 function capabilityColor(value: number | null): string {
@@ -178,9 +182,12 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const { role } = useAuth()
   const { data: capability, isLoading, error } = useCapability(characteristicId)
   const { data: history } = useCapabilityHistory(characteristicId)
+  const { data: nnCapability } = useNonNormalCapability(characteristicId)
   const saveSnapshot = useSaveCapabilitySnapshot()
+  const [showDistAnalysis, setShowDistAnalysis] = useState(false)
 
   const canSaveSnapshot = hasAccess(role, 'engineer')
+  const canFitDist = hasAccess(role, 'engineer')
 
   if (isLoading) {
     return (
@@ -222,16 +229,27 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
             ({capability.sample_count} measurements)
           </span>
         </div>
-        {canSaveSnapshot && (
-          <button
-            onClick={() => saveSnapshot.mutate(characteristicId)}
-            disabled={saveSnapshot.isPending}
-            className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50"
-          >
-            <Camera className="h-3 w-3" />
-            {saveSnapshot.isPending ? 'Saving...' : 'Save Snapshot'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canFitDist && (
+            <button
+              onClick={() => setShowDistAnalysis(true)}
+              className="bg-accent text-accent-foreground hover:bg-accent/80 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors"
+            >
+              <BarChart3 className="h-3 w-3" />
+              Fit Distribution
+            </button>
+          )}
+          {canSaveSnapshot && (
+            <button
+              onClick={() => saveSnapshot.mutate(characteristicId)}
+              disabled={saveSnapshot.isPending}
+              className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50"
+            >
+              <Camera className="h-3 w-3" />
+              {saveSnapshot.isPending ? 'Saving...' : 'Save Snapshot'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Index Cards */}
@@ -244,14 +262,44 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           <IndexCard label="Cpm" value={capability.cpm} />
         </div>
 
-        {/* Normality + Specs */}
+        {/* Normality + Distribution method + Specs */}
         <div className="flex items-center justify-between text-xs">
-          <NormalityBadge result={capability} />
+          <div className="flex items-center gap-2">
+            <NormalityBadge result={capability} />
+            {nnCapability && nnCapability.method !== 'normal' && (
+              <span className="bg-accent/50 text-accent-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                {nnCapability.method.replace('_', '-')}
+              </span>
+            )}
+          </div>
           <span className="text-muted-foreground">
             LSL: {capability.lsl ?? '--'} | Target: {capability.target ?? '--'} | USL:{' '}
             {capability.usl ?? '--'}
           </span>
         </div>
+
+        {/* Non-normal adjusted indices (when different from standard) */}
+        {nnCapability && nnCapability.method !== 'normal' && (
+          <div className="bg-muted/20 border-border rounded-lg border p-3">
+            <div className="text-muted-foreground mb-2 text-[10px] font-medium uppercase tracking-wider">
+              Adjusted ({nnCapability.method_detail})
+            </div>
+            <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              {(['cp', 'cpk', 'pp', 'ppk', 'cpm'] as const).map((key) => {
+                const label = key.charAt(0).toUpperCase() + key.slice(1)
+                const val = nnCapability[key]
+                return (
+                  <div key={key}>
+                    <div className="text-muted-foreground">{label}</div>
+                    <div className={cn('font-bold tabular-nums', capabilityColor(val ?? null))}>
+                      {val !== null && val !== undefined ? val.toFixed(2) : '--'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Cpk Trend Chart */}
         {history && history.length > 0 && (
@@ -261,6 +309,22 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           </div>
         )}
       </div>
+
+      {/* Distribution Analysis Modal */}
+      {showDistAnalysis && (
+        <Suspense
+          fallback={
+            <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+              <div className="text-muted-foreground text-sm">Loading analysis...</div>
+            </div>
+          }
+        >
+          <DistributionAnalysis
+            characteristicId={characteristicId}
+            onClose={() => setShowDistAnalysis(false)}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -145,6 +145,20 @@ def calculate_capability(
     )
 
 
+def calculate_capability_nonnormal(
+    values: list[float],
+    usl: float | None,
+    lsl: float | None,
+    target: float | None = None,
+    sigma_within: float | None = None,
+    method: str = "auto",
+):
+    """Calculate non-normal process capability. Delegates to distributions module."""
+    from openspc.core.distributions import calculate_capability_nonnormal as _impl
+
+    return _impl(values, usl, lsl, target, sigma_within, method)
+
+
 def _round_or_none(value: float | None, decimals: int = 4) -> float | None:
     """Round a value to the specified decimals, or return None."""
     if value is None:

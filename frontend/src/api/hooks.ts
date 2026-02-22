@@ -11,6 +11,7 @@ import {
   dataEntryApi,
   databaseApi,
   devtoolsApi,
+  distributionApi,
   hierarchyApi,
   importApi,
   notificationApi,
@@ -19,6 +20,7 @@ import {
   plantApi,
   reportScheduleApi,
   retentionApi,
+  rulePresetApi,
   sampleApi,
   signatureApi,
   userApi,
@@ -610,7 +612,7 @@ export function useUpdateNelsonRules() {
       ruleConfigs,
     }: {
       id: number
-      ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean }[]
+      ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters?: Record<string, number> | null }[]
     }) => characteristicApi.updateRules(id, ruleConfigs),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
@@ -2306,5 +2308,79 @@ export function useAnomalyDashboardStats(plantId?: number) {
   return useQuery({
     queryKey: queryKeys.anomaly.dashboardStats(plantId),
     queryFn: () => anomalyApi.getDashboardStats(plantId),
+  })
+}
+
+// -----------------------------------------------------------------------
+// Distribution Analysis hooks (Sprint 5 - A1)
+// -----------------------------------------------------------------------
+
+export function useNonNormalCapability(charId: number | undefined, method = 'auto') {
+  return useQuery({
+    queryKey: ['nonnormal-capability', charId, method],
+    queryFn: () => distributionApi.calculateNonNormal(charId!, method),
+    enabled: !!charId,
+  })
+}
+
+export function useFitDistribution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (charId: number) => distributionApi.fitDistribution(charId),
+    onSuccess: (_, charId) => {
+      qc.invalidateQueries({ queryKey: ['nonnormal-capability', charId] })
+    },
+  })
+}
+
+export function useUpdateDistributionConfig() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      charId,
+      config,
+    }: {
+      charId: number
+      config: {
+        distribution_method?: string
+        box_cox_lambda?: number
+        distribution_params?: Record<string, unknown>
+      }
+    }) => distributionApi.updateConfig(charId, config),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['nonnormal-capability', variables.charId] })
+      qc.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.charId) })
+      toast.success('Distribution configuration saved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to save distribution config: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Rule Preset hooks (Sprint 5 - A2)
+// -----------------------------------------------------------------------
+
+export function useRulePresets(plantId?: number) {
+  return useQuery({
+    queryKey: ['rule-presets', plantId],
+    queryFn: () => rulePresetApi.list(plantId),
+  })
+}
+
+export function useApplyPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ charId, presetId }: { charId: number; presetId: number }) =>
+      rulePresetApi.applyToCharacteristic(charId, presetId),
+    onSuccess: (_, { charId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.characteristics.detail(charId) })
+      qc.invalidateQueries({ queryKey: queryKeys.characteristics.rules(charId) })
+      toast.success('Rule preset applied')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to apply preset: ${error.message}`)
+    },
   })
 }
