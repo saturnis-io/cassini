@@ -388,6 +388,8 @@ class SPCEngine:
         char_lcl = char.lcl
         char_stored_sigma = char.stored_sigma
         char_stored_center_line = char.stored_center_line
+        char_short_run_mode = getattr(char, "short_run_mode", None)
+        char_target_value = getattr(char, "target_value", None)
 
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)
@@ -412,6 +414,27 @@ class SPCEngine:
         z_score = stats["z_score"]
         effective_ucl = stats["effective_ucl"]
         effective_lcl = stats["effective_lcl"]
+
+        # Short-run transformation: deviation or standardized mode
+        # Transforms the computed values so the frontend receives pre-shifted data
+        if char_short_run_mode == "deviation":
+            target = char_target_value if char_target_value is not None else 0.0
+            mean = mean - target
+            if char_ucl is not None:
+                char_ucl = char_ucl - target
+            if char_lcl is not None:
+                char_lcl = char_lcl - target
+            if char_stored_center_line is not None:
+                char_stored_center_line = char_stored_center_line - target
+
+        elif char_short_run_mode == "standardized":
+            target = char_target_value if char_target_value is not None else 0.0
+            sigma = char_stored_sigma
+            if sigma and sigma > 0:
+                mean = (mean - target) / sigma
+                char_ucl = 3.0
+                char_lcl = -3.0
+                char_stored_center_line = 0.0
 
         # Step 4: Persist sample and measurements with mode-specific fields
         sample = await self._sample_repo.create_with_measurements(

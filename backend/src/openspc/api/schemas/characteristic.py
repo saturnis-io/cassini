@@ -67,6 +67,10 @@ class CharacteristicCreate(BaseModel):
     decimal_precision: int = Field(
         default=3, ge=0, le=10, description="Decimal places for display formatting"
     )
+    short_run_mode: str | None = Field(
+        None, pattern=r"^(deviation|standardized)$",
+        description="Short-run chart mode: deviation (subtract target) or standardized (Z-score)"
+    )
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -121,6 +125,7 @@ class CharacteristicUpdate(BaseModel):
     warn_below_count: int | None = None
     decimal_precision: int | None = Field(None, ge=0, le=10)
     use_laney_correction: bool | None = None
+    short_run_mode: str | None = Field(None, pattern=r"^(deviation|standardized)$")
 
 
 class CharacteristicResponse(BaseModel):
@@ -153,6 +158,7 @@ class CharacteristicResponse(BaseModel):
     stored_center_line: float | None
     decimal_precision: int
     use_laney_correction: bool = False
+    short_run_mode: str | None = None
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None
@@ -389,6 +395,7 @@ class ChartDataResponse(BaseModel):
     ewma_data_points: list[EWMAChartSample] = []
     ewma_target: float | None = None
     sigma_z: float | None = None
+    short_run_mode: str | None = None
 
 
 class NelsonRuleConfig(BaseModel):
