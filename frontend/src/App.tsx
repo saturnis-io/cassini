@@ -28,6 +28,9 @@ import { BrowseTab } from '@/components/connectivity/BrowseTab'
 import { MappingTab } from '@/components/connectivity/MappingTab'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
+import { MSAPage } from '@/pages/MSAPage'
+import { FAIPage } from '@/pages/FAIPage'
+import { FAIReportEditor } from '@/components/fai/FAIReportEditor'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { LoginPage } from '@/pages/LoginPage'
@@ -214,6 +217,30 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole="engineer">
                       <ConfigurationView />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="msa"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <MSAPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="fai"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <FAIPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="fai/:reportId"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <FAIReportEditor />
                     </ProtectedRoute>
                   }
                 />

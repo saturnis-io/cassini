@@ -51,6 +51,8 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   // Engineer level
   '/connectivity': 'engineer',
   '/configuration': 'engineer',
+  '/msa': 'engineer',
+  '/fai': 'engineer',
 
   // Admin level
   '/settings': 'engineer',

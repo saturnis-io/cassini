@@ -9,6 +9,8 @@ import {
   Settings,
   ListTree,
   Network,
+  Microscope,
+  ClipboardCheck,
   Users,
   Wrench,
   ChevronsLeft,
@@ -100,6 +102,18 @@ export function Sidebar({ className }: SidebarProps) {
       path: '/configuration',
       labelKey: 'configuration',
       icon: <ListTree className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
+      path: '/msa',
+      labelKey: 'msa',
+      icon: <Microscope className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
+      path: '/fai',
+      labelKey: 'fai',
+      icon: <ClipboardCheck className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
