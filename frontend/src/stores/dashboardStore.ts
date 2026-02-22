@@ -103,6 +103,12 @@ interface DashboardState {
   // Anomaly overlay visibility
   showAnomalies: boolean
   setShowAnomalies: (show: boolean) => void
+
+  // Bottom drawer state
+  drawerOpen: boolean
+  setDrawerOpen: (open: boolean) => void
+  drawerTab: 'capability' | 'annotations'
+  setDrawerTab: (tab: 'capability' | 'annotations') => void
 }
 
 // Default time range: last 50 points
@@ -249,6 +255,12 @@ export const useDashboardStore = create<DashboardState>()(
       // Anomaly overlay visibility
       showAnomalies: false,
       setShowAnomalies: (show) => set({ showAnomalies: show }),
+
+      // Bottom drawer
+      drawerOpen: false,
+      setDrawerOpen: (open) => set({ drawerOpen: open }),
+      drawerTab: 'capability' as 'capability' | 'annotations',
+      setDrawerTab: (tab) => set({ drawerTab: tab }),
     }),
     {
       name: 'openspc-dashboard',
@@ -266,6 +278,8 @@ export const useDashboardStore = create<DashboardState>()(
         showBrush: state.showBrush,
         showAnnotations: state.showAnnotations,
         showAnomalies: state.showAnomalies,
+        drawerOpen: state.drawerOpen,
+        drawerTab: state.drawerTab,
       }),
     },
   ),
