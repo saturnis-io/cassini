@@ -23,6 +23,7 @@ from openspc.db.models.plant import Plant
 from openspc.db.models.purge_history import PurgeHistory
 from openspc.db.models.report_schedule import ReportRun, ReportSchedule
 from openspc.db.models.retention_policy import RetentionPolicy
+from openspc.db.models.rule_preset import RulePreset
 from openspc.db.models.sample import Measurement, Sample
 from openspc.db.models.signature import (
     ElectronicSignature,
@@ -58,6 +59,7 @@ __all__ = [
     "ReportRun",
     "ReportSchedule",
     "RetentionPolicy",
+    "RulePreset",
     "SmtpConfig",
     "User",
     "UserPlantRole",

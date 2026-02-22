@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -79,6 +80,16 @@ class Characteristic(Base):
     # Display formatting
     decimal_precision: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
 
+    # Distribution fitting (Sprint 5 - A1)
+    distribution_method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    box_cox_lambda: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    distribution_params: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
+
+    # Laney correction (Sprint 5 - A3)
+    use_laney_correction: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.text("0"), nullable=False
+    )
+
     # Relationships
     hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")
     rules: Mapped[list["CharacteristicRule"]] = relationship(
@@ -118,6 +129,9 @@ class CharacteristicRule(Base):
     rule_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     require_acknowledgement: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Custom rule parameters (Sprint 5 - A2) — JSON string
+    parameters: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 
     # Relationship
     characteristic: Mapped["Characteristic"] = relationship(
