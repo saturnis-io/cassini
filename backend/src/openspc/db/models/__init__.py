@@ -15,7 +15,9 @@ from openspc.db.models.data_source import (
     OPCUADataSource,
     TriggerStrategy,
 )
+from openspc.db.models.fai import FAIItem, FAIReport
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
+from openspc.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
 from openspc.db.models.notification import NotificationPreference, SmtpConfig, WebhookConfig
 from openspc.db.models.oidc_config import OIDCConfig
 from openspc.db.models.opcua_server import OPCUAServer
@@ -54,6 +56,12 @@ __all__ = [
     "DataSource",
     "MQTTDataSource",
     "OPCUADataSource",
+    "FAIItem",
+    "FAIReport",
+    "MSAMeasurement",
+    "MSAOperator",
+    "MSAPart",
+    "MSAStudy",
     "Plant",
     "PurgeHistory",
     "ReportRun",

@@ -90,6 +90,9 @@ class Characteristic(Base):
         Boolean, default=False, server_default=sa.text("0"), nullable=False
     )
 
+    # Short-run charts (Sprint 6 - B2)
+    short_run_mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
     # Relationships
     hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")
     rules: Mapped[list["CharacteristicRule"]] = relationship(
