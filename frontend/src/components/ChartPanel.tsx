@@ -135,10 +135,14 @@ export function ChartPanel({
 
     const { control_limits, spec_limits, subgroup_mode, data_points } = chartData
     const isModeA = subgroup_mode === 'STANDARDIZED'
+    const isStandardizedShortRun = chartData.short_run_mode === 'standardized'
 
-    if (isModeA) {
+    if (isModeA || isStandardizedShortRun) {
       // Dynamic domain for Z-scores: fit actual data + ±3 control limits
-      const zValues = data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
+      // For standardized short-run, the mean values are already Z-scores
+      const zValues = isStandardizedShortRun
+        ? data_points.map((p) => p.mean)
+        : data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
       if (zValues.length === 0) return [-4, 4]
 
       const allZLimits = [...zValues, 3, -3] // include ±3σ control limits
@@ -182,6 +186,13 @@ export function ChartPanel({
     >
       {/* Control Chart, Attribute Chart, CUSUM Chart, or EWMA Chart */}
       <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
+        {(() => {
+          console.log('[ChartPanel] chart_type:', chartData?.chart_type, 'data_type:', chartData?.data_type,
+            'data_points:', chartData?.data_points?.length,
+            'cusum_data_points:', chartData?.cusum_data_points?.length,
+            'ewma_data_points:', chartData?.ewma_data_points?.length)
+          return null
+        })()}
         {chartData?.data_type === 'attribute' ? (
           <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
         ) : chartData?.chart_type === 'cusum' ? (

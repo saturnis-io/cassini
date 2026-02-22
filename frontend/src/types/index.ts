@@ -107,6 +107,8 @@ export interface Characteristic {
   ewma_l?: number | null
   // Laney correction (Sprint 5 - A3)
   use_laney_correction?: boolean
+  // Short-run chart mode (Sprint 6 - B2)
+  short_run_mode?: 'deviation' | 'standardized' | null
   // Optional metadata fields
   unit?: string
   active?: boolean
@@ -286,6 +288,8 @@ export interface ChartData {
   ewma_target?: number | null
   // Laney correction (Sprint 5 - A3)
   sigma_z?: number | null
+  // Short-run chart mode (Sprint 6 - B2)
+  short_run_mode?: 'deviation' | 'standardized' | null
 }
 
 // Violation types

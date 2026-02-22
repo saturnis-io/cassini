@@ -52,6 +52,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     min_measurements: '1',
     warn_below_count: '',
     decimal_precision: '3',
+    chart_type: '' as '' | 'cusum' | 'ewma',
+    cusum_target: '',
+    cusum_k: '',
+    cusum_h: '',
+    ewma_lambda: '',
+    ewma_l: '',
+    short_run_mode: '' as '' | 'deviation' | 'standardized',
   })
 
   // Mode change confirmation dialog state
@@ -83,6 +90,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         min_measurements: characteristic.min_measurements?.toString() ?? '1',
         warn_below_count: characteristic.warn_below_count?.toString() ?? '',
         decimal_precision: characteristic.decimal_precision?.toString() ?? '3',
+        chart_type: characteristic.chart_type ?? '',
+        cusum_target: characteristic.cusum_target?.toString() ?? '',
+        cusum_k: characteristic.cusum_k?.toString() ?? '',
+        cusum_h: characteristic.cusum_h?.toString() ?? '',
+        ewma_lambda: characteristic.ewma_lambda?.toString() ?? '',
+        ewma_l: characteristic.ewma_l?.toString() ?? '',
+        short_run_mode: characteristic.short_run_mode ?? '',
       })
       setIsDirty(false)
     }
@@ -183,6 +197,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         min_measurements: minMeas,
         warn_below_count: warnBelow,
         decimal_precision: parseInt(formData.decimal_precision) || 3,
+        chart_type: formData.chart_type || null,
+        cusum_target: formData.cusum_target ? parseFloat(formData.cusum_target) : null,
+        cusum_k: formData.cusum_k ? parseFloat(formData.cusum_k) : null,
+        cusum_h: formData.cusum_h ? parseFloat(formData.cusum_h) : null,
+        ewma_lambda: formData.ewma_lambda ? parseFloat(formData.ewma_lambda) : null,
+        ewma_l: formData.ewma_l ? parseFloat(formData.ewma_l) : null,
+        short_run_mode: formData.short_run_mode || null,
       },
     })
 
@@ -306,7 +327,15 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               usl: formData.usl,
               lsl: formData.lsl,
               subgroup_mode: formData.subgroup_mode,
+              chart_type: formData.chart_type,
+              cusum_target: formData.cusum_target,
+              cusum_k: formData.cusum_k,
+              cusum_h: formData.cusum_h,
+              ewma_lambda: formData.ewma_lambda,
+              ewma_l: formData.ewma_l,
+              short_run_mode: formData.short_run_mode,
             }}
+            dataType={characteristic.data_type}
             characteristic={{
               ucl: characteristic.ucl,
               lcl: characteristic.lcl,

@@ -3,9 +3,42 @@ import { cn } from '@/lib/utils'
 import { useChartData, useViolations, useCharacteristic, useAnnotations } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
+import { CUSUMChart } from '@/components/CUSUMChart'
+import { EWMAChart } from '@/components/EWMAChart'
 import { useECharts } from '@/hooks/useECharts'
 import type { ReportTemplate, ReportSection } from '@/lib/report-templates'
 import type { ChartData, Violation, Annotation } from '@/types'
+
+/**
+ * Extract measurement values from chart data regardless of chart type.
+ * CUSUM/EWMA charts return data in separate arrays with a `measurement` field
+ * rather than the standard `data_points[].mean`.
+ */
+function getChartMeasurements(chartData: ChartData): number[] {
+  if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
+    console.log('[Report] Using CUSUM data points:', chartData.cusum_data_points.length)
+    return chartData.cusum_data_points
+      .filter((p) => !p.excluded)
+      .map((p) => p.measurement)
+  }
+  if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
+    console.log('[Report] Using EWMA data points:', chartData.ewma_data_points.length)
+    return chartData.ewma_data_points
+      .filter((p) => !p.excluded)
+      .map((p) => p.measurement)
+  }
+  console.log('[Report] Using standard data points:', chartData.data_points.length)
+  return chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+}
+
+/** Check whether chart data has any renderable points (any chart type). */
+function hasChartPoints(chartData: ChartData): boolean {
+  return (
+    chartData.data_points.length > 0 ||
+    (chartData.cusum_data_points?.length ?? 0) > 0 ||
+    (chartData.ewma_data_points?.length ?? 0) > 0
+  )
+}
 
 /**
  * Hook that wraps useECharts and captures a static PNG data URL from the chart
@@ -191,22 +224,37 @@ function ReportSectionComponent({
 
     case 'controlChart':
       if (!chartData || characteristicIds.length === 0) return null
-      // NOTE: ControlChart uses canvas-based ECharts which may not render reliably
-      // in print. The histogram and trend sub-charts use useStaticChart to capture
-      // a static PNG fallback. A full static-image replacement for the main control
-      // chart would require exposing getDataURL from ControlChart's internal instance.
+      console.log('[Report] controlChart section — chart_type:', chartData.chart_type, 'data_type:', chartData.data_type)
       return (
         <div className="border-border rounded-lg border p-4">
-          <h2 className="mb-4 text-lg font-semibold">Control Chart</h2>
+          <h2 className="mb-4 text-lg font-semibold">
+            {chartData.chart_type === 'cusum'
+              ? 'CUSUM Chart'
+              : chartData.chart_type === 'ewma'
+                ? 'EWMA Chart'
+                : 'Control Chart'}
+          </h2>
           <div className="h-64">
-            <ControlChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
+            {chartData.chart_type === 'cusum' ? (
+              <CUSUMChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
+            ) : chartData.chart_type === 'ewma' ? (
+              <EWMAChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
+            ) : (
+              <ControlChart characteristicId={characteristicIds[0]} chartOptions={chartOptions} />
+            )}
           </div>
         </div>
       )
 
     case 'statistics': {
-      if (!chartData) return null
+      if (!chartData || !hasChartPoints(chartData)) return null
       const stats = calculateStatistics(chartData)
+      const sampleCount =
+        chartData.chart_type === 'cusum'
+          ? (chartData.cusum_data_points?.length ?? 0)
+          : chartData.chart_type === 'ewma'
+            ? (chartData.ewma_data_points?.length ?? 0)
+            : chartData.data_points.length
       return (
         <div className="border-border rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Statistics</h2>
@@ -215,7 +263,7 @@ function ReportSectionComponent({
             <StatCard label="Std Dev" value={stats.stdDev?.toFixed(4) || '-'} />
             <StatCard label="UCL" value={chartData.control_limits.ucl?.toFixed(4) || '-'} />
             <StatCard label="LCL" value={chartData.control_limits.lcl?.toFixed(4) || '-'} />
-            <StatCard label="Samples" value={String(chartData.data_points.length)} />
+            <StatCard label="Samples" value={String(sampleCount)} />
             <StatCard label="In Control" value={`${stats.inControlPct.toFixed(1)}%`} />
             <StatCard label="OOC Points" value={String(stats.oocCount)} />
             <StatCard label="Range" value={stats.range?.toFixed(4) || '-'} />
@@ -404,8 +452,41 @@ function ReportSectionComponent({
         </div>
       )
 
-    case 'samples':
-      if (!chartData) return null
+    case 'samples': {
+      if (!chartData || !hasChartPoints(chartData)) return null
+      // Build a uniform array of {sample_id, timestamp, value, violation_rules} from any chart type
+      const sampleRows = (() => {
+        if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
+          return chartData.cusum_data_points.slice(-10).reverse().map((dp) => ({
+            sample_id: dp.sample_id,
+            timestamp: dp.timestamp,
+            value: dp.measurement,
+            extra: `C+: ${dp.cusum_high.toFixed(2)} C-: ${dp.cusum_low.toFixed(2)}`,
+            violation_rules: dp.violation_rules,
+          }))
+        }
+        if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
+          return chartData.ewma_data_points.slice(-10).reverse().map((dp) => ({
+            sample_id: dp.sample_id,
+            timestamp: dp.timestamp,
+            value: dp.measurement,
+            extra: `EWMA: ${dp.ewma_value.toFixed(4)}`,
+            violation_rules: dp.violation_rules,
+          }))
+        }
+        return chartData.data_points.slice(-10).reverse().map((dp) => ({
+          sample_id: dp.sample_id,
+          timestamp: dp.timestamp,
+          value: dp.mean,
+          extra: dp.zone?.replace('_', ' ') ?? '',
+          violation_rules: dp.violation_rules,
+        }))
+      })()
+      const extraHeader = chartData.chart_type === 'cusum'
+        ? 'CUSUM'
+        : chartData.chart_type === 'ewma'
+          ? 'EWMA'
+          : 'Zone'
       return (
         <div className="border-border rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">Recent Samples</h2>
@@ -413,33 +494,31 @@ function ReportSectionComponent({
             <thead className="border-b">
               <tr>
                 <th className="py-2 text-left">Timestamp</th>
-                <th className="py-2 text-right">Mean</th>
-                <th className="py-2 text-right">Zone</th>
+                <th className="py-2 text-right">Value</th>
+                <th className="py-2 text-right">{extraHeader}</th>
                 <th className="py-2 text-center">Status</th>
               </tr>
             </thead>
             <tbody>
-              {chartData.data_points
-                .slice(-10)
-                .reverse()
-                .map((dp) => (
-                  <tr key={dp.sample_id} className="border-border/50 border-b">
-                    <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
-                    <td className="py-2 text-right font-mono">{dp.mean.toFixed(4)}</td>
-                    <td className="py-2 text-right">{dp.zone.replace('_', ' ')}</td>
-                    <td className="py-2 text-center">
-                      {dp.violation_rules?.length > 0 ? (
-                        <span className="text-destructive">OOC</span>
-                      ) : (
-                        <span className="text-success">OK</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+              {sampleRows.map((dp) => (
+                <tr key={dp.sample_id} className="border-border/50 border-b">
+                  <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
+                  <td className="py-2 text-right font-mono">{dp.value.toFixed(4)}</td>
+                  <td className="py-2 text-right">{dp.extra}</td>
+                  <td className="py-2 text-center">
+                    {dp.violation_rules?.length > 0 ? (
+                      <span className="text-destructive">OOC</span>
+                    ) : (
+                      <span className="text-success">OK</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )
+    }
 
     default:
       return null
@@ -472,7 +551,7 @@ function StatCard({
 }
 
 function calculateStatistics(chartData: ChartData) {
-  const values = chartData.data_points.map((dp) => dp.mean)
+  const values = getChartMeasurements(chartData)
   if (values.length === 0) {
     return { mean: null, stdDev: null, range: null, oocCount: 0, inControlPct: 100 }
   }
@@ -481,7 +560,16 @@ function calculateStatistics(chartData: ChartData) {
   const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
   const stdDev = Math.sqrt(variance)
   const range = Math.max(...values) - Math.min(...values)
-  const oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
+
+  // Count OOC from whichever data array is populated
+  let oocCount = 0
+  if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
+    oocCount = chartData.cusum_data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  } else if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
+    oocCount = chartData.ewma_data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  } else {
+    oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  }
   const inControlPct = ((values.length - oocCount) / values.length) * 100
 
   return { mean, stdDev, range, oocCount, inControlPct }
@@ -491,7 +579,7 @@ function calculateStatistics(chartData: ChartData) {
  * Histogram section for reports (ECharts)
  */
 function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
-  const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+  const values = getChartMeasurements(chartData)
 
   const option = useMemo(() => {
     if (values.length === 0) return null
@@ -650,7 +738,7 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
  * Capability metrics section for reports
  */
 function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
-  const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+  const values = getChartMeasurements(chartData)
   if (values.length < 2) return null
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length
@@ -758,7 +846,7 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
  * Interpretation section for reports
  */
 function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
-  const values = chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
+  const values = getChartMeasurements(chartData)
   if (values.length < 2) return null
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length
@@ -766,7 +854,14 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
   const stdDev = Math.sqrt(variance)
 
   const { spec_limits } = chartData
-  const oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  let oocCount = 0
+  if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
+    oocCount = chartData.cusum_data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  } else if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
+    oocCount = chartData.ewma_data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  } else {
+    oocCount = chartData.data_points.filter((dp) => dp.violation_rules?.length > 0).length
+  }
   const inControlPct = ((values.length - oocCount) / values.length) * 100
 
   const interpretations: string[] = []
@@ -833,27 +928,42 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
  * Trend chart section for reports (ECharts)
  */
 function ReportTrendSection({ chartData }: { chartData: ChartData }) {
-  const dataPoints = chartData.data_points.filter((p) => !p.excluded)
+  // Build a unified array of {timestamp, value} from whichever data source is populated
+  const trendPoints = useMemo(() => {
+    if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
+      return chartData.cusum_data_points
+        .filter((p) => !p.excluded)
+        .map((p) => ({ timestamp: p.timestamp, value: p.measurement }))
+    }
+    if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
+      return chartData.ewma_data_points
+        .filter((p) => !p.excluded)
+        .map((p) => ({ timestamp: p.timestamp, value: p.measurement }))
+    }
+    return chartData.data_points
+      .filter((p) => !p.excluded)
+      .map((p) => ({ timestamp: p.timestamp, value: p.mean }))
+  }, [chartData])
   const windowSize = 5
 
   const option = useMemo(() => {
-    if (dataPoints.length < 5) return null
+    if (trendPoints.length < 5) return null
 
     // Calculate moving average (5-point)
-    const trendData = dataPoints.map((dp, i) => {
+    const trendData = trendPoints.map((dp, i) => {
       const windowStart = Math.max(0, i - windowSize + 1)
-      const windowSlice = dataPoints.slice(windowStart, i + 1)
-      const ma = windowSlice.reduce((sum, p) => sum + p.mean, 0) / windowSlice.length
+      const windowSlice = trendPoints.slice(windowStart, i + 1)
+      const ma = windowSlice.reduce((sum, p) => sum + p.value, 0) / windowSlice.length
       return {
         date: new Date(dp.timestamp).toLocaleDateString(),
         timestamp: dp.timestamp,
-        value: dp.mean,
+        value: dp.value,
         ma: i >= windowSize - 1 ? ma : null,
       }
     })
 
     const { control_limits } = chartData
-    const values = dataPoints.map((p) => p.mean)
+    const values = trendPoints.map((p) => p.value)
     const minVal = Math.min(...values, control_limits.lcl ?? Infinity)
     const maxVal = Math.max(...values, control_limits.ucl ?? -Infinity)
     const padding = (maxVal - minVal) * 0.1
@@ -939,11 +1049,11 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
         },
       ],
     }
-  }, [dataPoints, chartData])
+  }, [trendPoints, chartData])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
-  if (dataPoints.length < 5) return null
+  if (trendPoints.length < 5) return null
 
   return (
     <div className="border-border rounded-lg border p-4">

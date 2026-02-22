@@ -26,6 +26,11 @@ export function EWMAChart({ characteristicId, chartOptions }: EWMAChartProps) {
   const ewmaPoints = chartData?.ewma_data_points ?? []
   const controlLimits = chartData?.control_limits
 
+  console.log('[EWMAChart] points:', ewmaPoints.length,
+    'ucl:', controlLimits?.ucl, 'lcl:', controlLimits?.lcl, 'center:', controlLimits?.center_line,
+    'first 3 ewma_value:', ewmaPoints.slice(0, 3).map(p => p.ewma_value),
+    'first 3 measurement:', ewmaPoints.slice(0, 3).map(p => p.measurement))
+
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
     const rules = new Set<number>()

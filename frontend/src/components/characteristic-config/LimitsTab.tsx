@@ -21,6 +21,7 @@ interface FormData {
   ewma_lambda: string
   ewma_l: string
   use_laney_correction?: boolean
+  short_run_mode?: '' | 'deviation' | 'standardized'
 }
 
 interface Characteristic {
@@ -35,6 +36,7 @@ interface Characteristic {
 interface LimitsTabProps {
   formData: FormData
   characteristic: Characteristic
+  dataType?: 'variable' | 'attribute'
   onChange: (field: string, value: string) => void
   onRecalculate: (options?: {
     excludeOoc?: boolean
@@ -396,6 +398,7 @@ function LimitVisualization({
 export function LimitsTab({
   formData,
   characteristic,
+  dataType,
   onChange,
   onRecalculate,
   onSetManualLimits,
@@ -594,6 +597,39 @@ export function LimitsTab({
                 Use Laney p&apos;/u&apos; correction
                 <span className="text-muted-foreground ml-1">(adjusts limits for over/under-dispersion)</span>
               </label>
+            </div>
+          )}
+
+          {/* Short-Run Mode (variable data only) */}
+          {dataType === 'variable' && (
+            <div className="space-y-2 mt-3">
+              <label className="text-sm font-medium">Short-Run Mode</label>
+              <p className="text-muted-foreground text-xs">
+                Short-run charts normalize data across multiple part numbers or short production runs,
+                enabling meaningful SPC with limited data per part.
+              </p>
+              <select
+                value={formData.short_run_mode ?? ''}
+                onChange={(e) => onChange('short_run_mode', e.target.value)}
+                className={cn(
+                  'border-border bg-background w-full rounded-lg border px-3 py-2 text-sm',
+                  'focus:border-primary focus:ring-primary/20 focus:ring-2 focus:outline-none',
+                )}
+              >
+                <option value="">Off (standard chart)</option>
+                <option value="deviation">Deviation from Target</option>
+                <option value="standardized">Standardized (Z)</option>
+              </select>
+              {formData.short_run_mode === 'deviation' && (
+                <p className="text-muted-foreground text-xs">
+                  Each point is plotted as (value - target). Requires a target value to be set.
+                </p>
+              )}
+              {formData.short_run_mode === 'standardized' && (
+                <p className="text-muted-foreground text-xs">
+                  Each point is plotted as (value - target) / sigma. Control limits become fixed at ±3.
+                </p>
+              )}
             </div>
           )}
         </div>

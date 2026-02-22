@@ -30,42 +30,84 @@ AVAILABLE_SCRIPTS = {
         "description": "3 sites with realistic ISA-95 hierarchy, ~26 characteristics, ~6 months of sample data with process shifts, trends, and outliers.",
         "estimated_samples": "~37,000",
         "script_file": "scripts/seed_pharma.py",
+        "category": "demo",
     },
     "nelson_test": {
         "name": "Nelson Rules Test",
         "description": "2 plants with 10 characteristics designed to trigger all 8 Nelson rules. Deterministic patterns for UI/stats verification.",
         "estimated_samples": "~1,200",
         "script_file": "scripts/seed_test_nelson.py",
+        "category": "demo",
     },
     "chart_showcase": {
         "name": "Chart Showcase",
         "description": "Single plant with 4 characteristics showcasing I-MR, X-bar R (variable n), and X-bar S chart types with realistic process behaviors.",
         "estimated_samples": "~360",
         "script_file": "scripts/seed_chart_showcase.py",
+        "category": "demo",
     },
     "discrete": {
         "name": "Discrete Manufacturing",
         "description": "Automotive parts plant with 4 production lines, 10 characteristics (bore diameter, shaft OD, hardness, torque, etc.) showing tool wear drift, material lot shifts, and thermal expansion.",
         "estimated_samples": "~4,000",
         "script_file": "scripts/seed_discrete.py",
+        "category": "demo",
     },
     "continuous": {
         "name": "Continuous Process",
         "description": "Oil refinery with 3 process units, 15 characteristics (temperatures, pressures, flow rates, pH, etc.) featuring autocorrelated data, day/night cycles, catalyst degradation, and process upsets.",
         "estimated_samples": "~7,600",
         "script_file": "scripts/seed_continuous.py",
+        "category": "demo",
     },
     "batch": {
         "name": "Batch Production",
         "description": "Craft brewery with 3 areas (brewhouse, fermentation, packaging), 11 characteristics featuring between-batch variation, within-batch drift, and raw material step changes.",
         "estimated_samples": "~5,700",
         "script_file": "scripts/seed_batch.py",
+        "category": "demo",
     },
     "fda_demo": {
         "name": "FDA 21 CFR Part 11 Demo",
         "description": "PharmaCorp solid dosage plant with 9 characteristics, anomaly detection (drift/shift/variance), electronic signature workflows, pre-signed records, and FDA-strict password policy.",
         "estimated_samples": "~1,800",
         "script_file": "scripts/seed_fda_demo.py",
+        "category": "demo",
+    },
+    "test_sprint5": {
+        "name": "Sprint 5: Statistical Credibility",
+        "description": "3 plants testing non-normal capability (Box-Cox, Weibull, Gamma), custom Nelson rule presets (4 rulesets), and Laney p'/u' charts (overdispersion/underdispersion).",
+        "estimated_samples": "~650",
+        "script_file": "scripts/seed_test_sprint5.py",
+        "category": "test",
+    },
+    "test_sprint6": {
+        "name": "Sprint 6: Compliance Gate",
+        "description": "3 plants with full Gage R&R study (10 parts × 3 operators × 3 trials, ready to calculate), short-run SPC (5 chars with deviation/standardized modes), and 2 FAI reports (draft + submitted with AS9102 items and separation-of-duties test).",
+        "estimated_samples": "~180",
+        "script_file": "scripts/seed_test_sprint6.py",
+        "category": "test",
+    },
+    "test_sprint7": {
+        "name": "Sprint 7: Gage Connectivity",
+        "description": "1 plant with 4 characteristics simulating digital gage types (caliper, micrometer, CMM, surface roughness) with realistic resolution and intervals.",
+        "estimated_samples": "~330",
+        "script_file": "scripts/seed_test_sprint7.py",
+        "category": "test",
+    },
+    "test_sprint8": {
+        "name": "Sprint 8: Enterprise Integration",
+        "description": "3 plants scaffolding ERP connectors (SAP-style work orders), LIMS lab data (certificates), and mobile entry (small subgroups, short batch IDs).",
+        "estimated_samples": "~880",
+        "script_file": "scripts/seed_test_sprint8.py",
+        "category": "test",
+    },
+    "test_sprint9": {
+        "name": "Sprint 9: Advanced Analytics",
+        "description": "4 plants with correlated multivariate data (ρ≈0.85), predictive drift (500+ samples), correlation pairs, and 2³ factorial DOE (8 runs × 5 replicates).",
+        "estimated_samples": "~1,400",
+        "script_file": "scripts/seed_test_sprint9.py",
+        "category": "test",
     },
 }
 
@@ -103,7 +145,7 @@ async def devtools_status(user=Depends(get_current_admin)):
     return {
         "sandbox": True,
         "scripts": [
-            {"key": key, "name": info["name"], "description": info["description"], "estimated_samples": info["estimated_samples"]}
+            {"key": key, "name": info["name"], "description": info["description"], "estimated_samples": info["estimated_samples"], "category": info.get("category", "demo")}
             for key, info in AVAILABLE_SCRIPTS.items()
         ],
     }

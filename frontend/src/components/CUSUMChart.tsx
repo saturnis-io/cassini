@@ -26,6 +26,11 @@ export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) 
   const cusumPoints = chartData?.cusum_data_points ?? []
   const h = chartData?.cusum_h ?? 5
 
+  console.log('[CUSUMChart] points:', cusumPoints.length, 'h:', h,
+    'first 3 cusum_high:', cusumPoints.slice(0, 3).map(p => p.cusum_high),
+    'first 3 cusum_low:', cusumPoints.slice(0, 3).map(p => p.cusum_low),
+    'first 3 measurement:', cusumPoints.slice(0, 3).map(p => p.measurement))
+
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
     const rules = new Set<number>()

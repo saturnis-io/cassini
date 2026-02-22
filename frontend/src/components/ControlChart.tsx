@@ -235,6 +235,7 @@ export function ControlChart({
   // ALL hooks must be called before early returns (Rules of Hooks)
   const isModeA = chartData?.subgroup_mode === 'STANDARDIZED'
   const nominalN = chartData?.nominal_subgroup_size ?? 5
+  const shortRunMode = chartData?.short_run_mode ?? null
 
   // Memoize chart data transformation
   const data: ChartPoint[] = useMemo(() => {
@@ -325,12 +326,13 @@ export function ControlChart({
     }
 
     // Calculate Y-axis domain
+    const isZScaleDomain = isModeA || shortRunMode === 'standardized'
     let yMin: number, yMax: number
 
-    if (isModeA && externalDomain) {
+    if (isZScaleDomain && externalDomain) {
       yMin = externalDomain[0]
       yMax = externalDomain[1]
-    } else if (isModeA) {
+    } else if (isZScaleDomain) {
       const zValues = data.map((p) => p.mean)
       const allZLimits = [...zValues, 3, -3]
       const zMinVal = Math.min(...allZLimits)
@@ -870,7 +872,7 @@ export function ControlChart({
         min: yMin,
         max: yMax,
         axisLabel: { fontSize: 12, formatter: (value: number) => value.toFixed(decimal_precision) },
-        name: isModeA ? 'Z-Score' : 'Value',
+        name: isModeA ? 'Z-Score' : shortRunMode === 'deviation' ? 'Deviation from Target' : shortRunMode === 'standardized' ? 'Standardized Value (Z)' : 'Value',
         nameLocation: 'middle',
         nameGap: 45,
         nameTextStyle: { fontSize: 12 },
@@ -903,6 +905,10 @@ export function ControlChart({
 
           if (isModeA) {
             html += `<div>Z-Score: ${formatVal(point.z_score ?? point.mean)}</div>`
+          } else if (shortRunMode === 'deviation') {
+            html += `<div>Deviation: ${formatVal(point.mean)}</div>`
+          } else if (shortRunMode === 'standardized') {
+            html += `<div>Z-Value: ${formatVal(point.mean)}</div>`
           } else if (localIsModeB && point.effective_ucl) {
             html += `<div>Value: ${formatVal(point.displayValue ?? point.mean)}</div>`
             html += `<div style="opacity:0.7">UCL: ${formatVal(point.effective_ucl)}</div>`
@@ -1141,6 +1147,7 @@ export function ControlChart({
     hoveredSampleIds,
     rangeWindow,
     showBrush,
+    shortRunMode,
     anomalyOverlay,
   ])
 
@@ -1274,13 +1281,18 @@ export function ControlChart({
   const hasData = !!chartData && !!chartData.data_points && chartData.data_points.length > 0
 
   const isModeB = chartData?.subgroup_mode === 'VARIABLE_LIMITS'
-  const chartTypeLabel = isModeA
+  const baseChartLabel = isModeA
     ? 'Z-Score Chart'
     : isModeB
       ? 'Variable Limits Chart'
       : nominalN === 1
         ? 'Individuals Chart'
         : 'X-Bar Chart'
+  const chartTypeLabel = shortRunMode === 'deviation'
+    ? `${baseChartLabel} (Short-Run Deviation)`
+    : shortRunMode === 'standardized'
+      ? `${baseChartLabel} (Short-Run Z)`
+      : baseChartLabel
 
   const hierarchyNames = hierarchyPath.map((h) => h.name)
   const breadcrumb =
