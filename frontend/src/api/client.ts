@@ -1817,3 +1817,307 @@ export const anomalyApi = {
   getStatus: (charId: number) =>
     fetchApi<DetectorStatus[]>(`/anomaly/${charId}/status`),
 }
+
+// ---- FAI (First Article Inspection) Types ----
+
+export interface FAIReport {
+  id: number
+  plant_id: number
+  part_number: string
+  part_name: string | null
+  revision: string | null
+  serial_number: string | null
+  lot_number: string | null
+  drawing_number: string | null
+  organization_name: string | null
+  supplier: string | null
+  purchase_order: string | null
+  reason: string | null
+  material_supplier: string | null
+  material_spec: string | null
+  special_processes: string | null
+  functional_test_results: string | null
+  status: 'draft' | 'submitted' | 'approved' | 'rejected'
+  rejection_reason: string | null
+  created_by: number
+  created_at: string
+  updated_at: string | null
+  submitted_at: string | null
+  approved_at: string | null
+}
+
+export interface FAIItem {
+  id: number
+  report_id: number
+  balloon_number: string | null
+  characteristic: string | null
+  nominal: number | null
+  usl: number | null
+  lsl: number | null
+  actual_value: number | null
+  unit: string | null
+  tools_used: string | null
+  is_designed: boolean
+  result: 'pass' | 'fail' | 'deviation' | null
+  deviation_reason: string | null
+  sequence_order: number
+}
+
+export interface FAIReportDetail extends FAIReport {
+  items: FAIItem[]
+}
+
+export interface FAIReportCreate {
+  plant_id: number
+  part_number: string
+  part_name?: string | null
+  revision?: string | null
+  serial_number?: string | null
+  lot_number?: string | null
+  drawing_number?: string | null
+  organization_name?: string | null
+  supplier?: string | null
+  purchase_order?: string | null
+  reason?: string | null
+  material_supplier?: string | null
+  material_spec?: string | null
+  special_processes?: string | null
+  functional_test_results?: string | null
+}
+
+export interface FAIItemCreate {
+  balloon_number?: string | null
+  characteristic?: string | null
+  nominal?: number | null
+  usl?: number | null
+  lsl?: number | null
+  actual_value?: number | null
+  unit?: string | null
+  tools_used?: string | null
+  is_designed?: boolean
+  result?: 'pass' | 'fail' | 'deviation' | null
+  deviation_reason?: string | null
+  sequence_order?: number
+}
+
+// ---- FAI API ----
+
+export const faiApi = {
+  listReports: (params?: { plant_id?: number; status?: string }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
+    if (params?.status) searchParams.set('status', params.status)
+    const query = searchParams.toString()
+    return fetchApi<FAIReport[]>(`/fai/reports${query ? `?${query}` : ''}`)
+  },
+
+  getReport: (id: number) => fetchApi<FAIReportDetail>(`/fai/reports/${id}`),
+
+  createReport: (data: FAIReportCreate) =>
+    fetchApi<FAIReport>('/fai/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateReport: (id: number, data: Partial<FAIReportCreate>) =>
+    fetchApi<FAIReport>(`/fai/reports/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteReport: (id: number) =>
+    fetchApi<void>(`/fai/reports/${id}`, { method: 'DELETE' }),
+
+  addItem: (reportId: number, data: FAIItemCreate) =>
+    fetchApi<FAIItem>(`/fai/reports/${reportId}/items`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateItem: (reportId: number, itemId: number, data: Partial<FAIItemCreate>) =>
+    fetchApi<FAIItem>(`/fai/reports/${reportId}/items/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteItem: (reportId: number, itemId: number) =>
+    fetchApi<void>(`/fai/reports/${reportId}/items/${itemId}`, { method: 'DELETE' }),
+
+  submit: (reportId: number) =>
+    fetchApi<FAIReport>(`/fai/reports/${reportId}/submit`, { method: 'POST' }),
+
+  approve: (reportId: number) =>
+    fetchApi<FAIReport>(`/fai/reports/${reportId}/approve`, { method: 'POST' }),
+
+  reject: (reportId: number, reason: string) =>
+    fetchApi<FAIReport>(`/fai/reports/${reportId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  getForms: (reportId: number) =>
+    fetchApi<FAIReportDetail>(`/fai/reports/${reportId}/forms`),
+}
+
+// ---- MSA (Measurement System Analysis) Types ----
+
+export interface MSAStudy {
+  id: number
+  plant_id: number
+  name: string
+  study_type: string
+  characteristic_id: number | null
+  num_operators: number
+  num_parts: number
+  num_replicates: number
+  tolerance: number | null
+  status: string
+  created_by: number
+  created_at: string
+  completed_at: string | null
+}
+
+export interface MSAOperator {
+  id: number
+  name: string
+  sequence_order: number
+}
+
+export interface MSAPart {
+  id: number
+  name: string
+  reference_value: number | null
+  sequence_order: number
+}
+
+export interface MSAStudyDetail extends MSAStudy {
+  operators: MSAOperator[]
+  parts: MSAPart[]
+  measurement_count: number
+}
+
+export interface MSAStudyCreate {
+  name: string
+  study_type: string
+  characteristic_id?: number | null
+  num_operators: number
+  num_parts: number
+  num_replicates: number
+  tolerance?: number | null
+  plant_id: number
+}
+
+export interface MSAMeasurement {
+  id: number
+  operator_id: number
+  part_id: number
+  replicate_num: number
+  value: number
+  attribute_value: string | null
+  timestamp: string
+}
+
+export interface MSAMeasurementInput {
+  operator_id: number
+  part_id: number
+  replicate_num: number
+  value: number
+}
+
+export interface MSAAttributeInput {
+  operator_id: number
+  part_id: number
+  replicate_num: number
+  attribute_value: string
+}
+
+export interface GageRRResult {
+  method: string
+  repeatability_ev: number
+  reproducibility_av: number
+  interaction: number | null
+  gage_rr: number
+  part_variation: number
+  total_variation: number
+  pct_contribution_ev: number
+  pct_contribution_av: number
+  pct_contribution_interaction: number | null
+  pct_contribution_grr: number
+  pct_contribution_pv: number
+  pct_study_ev: number
+  pct_study_av: number
+  pct_study_grr: number
+  pct_study_pv: number
+  pct_tolerance_grr: number | null
+  ndc: number
+  anova_table: Record<string, { SS: number; df: number; MS: number; F: number | null; p: number | null }> | null
+  verdict: string
+}
+
+export interface AttributeMSAResult {
+  within_appraiser: Record<string, number>
+  between_appraiser: number
+  vs_reference: Record<string, number> | null
+  cohens_kappa_pairs: Record<string, number>
+  fleiss_kappa: number
+  verdict: string
+}
+
+// ---- MSA API ----
+
+export const msaApi = {
+  listStudies: (plantId: number) =>
+    fetchApi<MSAStudy[]>(`/msa/studies?plant_id=${plantId}`),
+
+  getStudy: (id: number) =>
+    fetchApi<MSAStudyDetail>(`/msa/studies/${id}`),
+
+  createStudy: (data: MSAStudyCreate) =>
+    fetchApi<MSAStudy>('/msa/studies', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteStudy: (id: number) =>
+    fetchApi<void>(`/msa/studies/${id}`, { method: 'DELETE' }),
+
+  setOperators: (studyId: number, operators: string[]) =>
+    fetchApi<MSAOperator[]>(`/msa/studies/${studyId}/operators`, {
+      method: 'POST',
+      body: JSON.stringify({ operators }),
+    }),
+
+  setParts: (studyId: number, parts: { name: string; reference_value?: number | null }[]) =>
+    fetchApi<MSAPart[]>(`/msa/studies/${studyId}/parts`, {
+      method: 'POST',
+      body: JSON.stringify({ parts }),
+    }),
+
+  submitMeasurements: (studyId: number, measurements: MSAMeasurementInput[]) =>
+    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/measurements`, {
+      method: 'POST',
+      body: JSON.stringify({ measurements }),
+    }),
+
+  getMeasurements: (studyId: number) =>
+    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/measurements`),
+
+  calculate: (studyId: number) =>
+    fetchApi<GageRRResult>(`/msa/studies/${studyId}/calculate`, {
+      method: 'POST',
+    }),
+
+  submitAttributeMeasurements: (studyId: number, measurements: MSAAttributeInput[]) =>
+    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/attribute-measurements`, {
+      method: 'POST',
+      body: JSON.stringify({ measurements }),
+    }),
+
+  calculateAttribute: (studyId: number) =>
+    fetchApi<AttributeMSAResult>(`/msa/studies/${studyId}/attribute-calculate`, {
+      method: 'POST',
+    }),
+
+  getResults: (studyId: number) =>
+    fetchApi<GageRRResult | AttributeMSAResult>(`/msa/studies/${studyId}/results`),
+}

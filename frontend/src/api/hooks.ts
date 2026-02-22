@@ -12,8 +12,10 @@ import {
   databaseApi,
   devtoolsApi,
   distributionApi,
+  faiApi,
   hierarchyApi,
   importApi,
+  msaApi,
   notificationApi,
   oidcApi,
   opcuaApi,
@@ -28,8 +30,13 @@ import {
 } from './client'
 import type {
   AuditLogParams,
+  FAIItemCreate,
+  FAIReportCreate,
   MeaningCreate,
   MeaningUpdate,
+  MSAAttributeInput,
+  MSAMeasurementInput,
+  MSAStudyCreate,
   OIDCConfigCreate,
   OIDCConfigUpdate,
   RejectRequest,
@@ -156,6 +163,18 @@ export const queryKeys = {
     status: (charId: number) => ['anomaly', 'status', charId] as const,
     dashboard: (params?: object) => ['anomaly', 'dashboard', params] as const,
     dashboardStats: (plantId?: number) => ['anomaly', 'dashboard-stats', plantId] as const,
+  },
+  msa: {
+    all: ['msa'] as const,
+    list: (plantId: number) => ['msa', 'list', plantId] as const,
+    detail: (id: number) => ['msa', 'detail', id] as const,
+    results: (id: number) => ['msa', 'results', id] as const,
+    measurements: (id: number) => ['msa', 'measurements', id] as const,
+  },
+  fai: {
+    all: ['fai'] as const,
+    list: (params?: object) => ['fai', 'list', params] as const,
+    detail: (id: number) => ['fai', 'detail', id] as const,
   },
   signatures: {
     all: ['signatures'] as const,
@@ -2381,6 +2400,349 @@ export function useApplyPreset() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to apply preset: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// MSA (Measurement System Analysis) hooks
+// -----------------------------------------------------------------------
+
+export function useMSAStudies(plantId: number) {
+  return useQuery({
+    queryKey: queryKeys.msa.list(plantId),
+    queryFn: () => msaApi.listStudies(plantId),
+    enabled: plantId > 0,
+  })
+}
+
+export function useMSAStudy(id: number) {
+  return useQuery({
+    queryKey: queryKeys.msa.detail(id),
+    queryFn: () => msaApi.getStudy(id),
+    enabled: id > 0,
+  })
+}
+
+export function useMSAResults(studyId: number) {
+  return useQuery({
+    queryKey: queryKeys.msa.results(studyId),
+    queryFn: () => msaApi.getResults(studyId),
+    enabled: studyId > 0,
+  })
+}
+
+export function useMSAMeasurements(studyId: number) {
+  return useQuery({
+    queryKey: queryKeys.msa.measurements(studyId),
+    queryFn: () => msaApi.getMeasurements(studyId),
+    enabled: studyId > 0,
+  })
+}
+
+export function useCreateMSAStudy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: MSAStudyCreate) => msaApi.createStudy(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      toast.success('MSA study created')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create study: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteMSAStudy() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => msaApi.deleteStudy(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      toast.success('MSA study deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete study: ${error.message}`)
+    },
+  })
+}
+
+export function useSetMSAOperators() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ studyId, operators }: { studyId: number; operators: string[] }) =>
+      msaApi.setOperators(studyId, operators),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to set operators: ${error.message}`)
+    },
+  })
+}
+
+export function useSetMSAParts() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      studyId,
+      parts,
+    }: {
+      studyId: number
+      parts: { name: string; reference_value?: number | null }[]
+    }) => msaApi.setParts(studyId, parts),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to set parts: ${error.message}`)
+    },
+  })
+}
+
+export function useSubmitMSAMeasurements() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      studyId,
+      measurements,
+    }: {
+      studyId: number
+      measurements: MSAMeasurementInput[]
+    }) => msaApi.submitMeasurements(studyId, measurements),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to submit measurements: ${error.message}`)
+    },
+  })
+}
+
+export function useCalculateMSA() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (studyId: number) => msaApi.calculate(studyId),
+    onSuccess: (_, studyId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      toast.success('Gage R&R analysis complete')
+    },
+    onError: (error: Error) => {
+      toast.error(`Calculation failed: ${error.message}`)
+    },
+  })
+}
+
+export function useSubmitMSAAttributeMeasurements() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      studyId,
+      measurements,
+    }: {
+      studyId: number
+      measurements: MSAAttributeInput[]
+    }) => msaApi.submitAttributeMeasurements(studyId, measurements),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to submit attribute measurements: ${error.message}`)
+    },
+  })
+}
+
+export function useCalculateAttributeMSA() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (studyId: number) => msaApi.calculateAttribute(studyId),
+    onSuccess: (_, studyId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      toast.success('Attribute MSA analysis complete')
+    },
+    onError: (error: Error) => {
+      toast.error(`Calculation failed: ${error.message}`)
+    },
+  })
+}
+
+// -----------------------------------------------------------------------
+// FAI (First Article Inspection) hooks
+// -----------------------------------------------------------------------
+
+export function useFAIReports(params?: { plant_id?: number; status?: string }) {
+  return useQuery({
+    queryKey: queryKeys.fai.list(params),
+    queryFn: () => faiApi.listReports(params),
+  })
+}
+
+export function useFAIReport(id: number) {
+  return useQuery({
+    queryKey: queryKeys.fai.detail(id),
+    queryFn: () => faiApi.getReport(id),
+    enabled: id > 0,
+  })
+}
+
+export function useCreateFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: FAIReportCreate) => faiApi.createReport(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.all })
+      toast.success('FAI report created')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create FAI report: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<FAIReportCreate> }) =>
+      faiApi.updateReport(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.list() })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update FAI report: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => faiApi.deleteReport(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.all })
+      toast.success('FAI report deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete FAI report: ${error.message}`)
+    },
+  })
+}
+
+export function useAddFAIItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, data }: { reportId: number; data: FAIItemCreate }) =>
+      faiApi.addItem(reportId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to add item: ${error.message}`)
+    },
+  })
+}
+
+export function useUpdateFAIItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      reportId,
+      itemId,
+      data,
+    }: {
+      reportId: number
+      itemId: number
+      data: Partial<FAIItemCreate>
+    }) => faiApi.updateItem(reportId, itemId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update item: ${error.message}`)
+    },
+  })
+}
+
+export function useDeleteFAIItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, itemId }: { reportId: number; itemId: number }) =>
+      faiApi.deleteItem(reportId, itemId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete item: ${error.message}`)
+    },
+  })
+}
+
+export function useSubmitFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (reportId: number) => faiApi.submit(reportId),
+    onSuccess: (_, reportId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(reportId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.list() })
+      toast.success('FAI report submitted for approval')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to submit report: ${error.message}`)
+    },
+  })
+}
+
+export function useApproveFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (reportId: number) => faiApi.approve(reportId),
+    onSuccess: (_, reportId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(reportId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.list() })
+      toast.success('FAI report approved')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to approve report: ${error.message}`)
+    },
+  })
+}
+
+export function useRejectFAIReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, reason }: { reportId: number; reason: string }) =>
+      faiApi.reject(reportId, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.list() })
+      toast.success('FAI report rejected')
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to reject report: ${error.message}`)
     },
   })
 }
