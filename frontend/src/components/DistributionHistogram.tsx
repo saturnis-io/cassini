@@ -249,6 +249,28 @@ export function DistributionHistogram({
     binsRef.current = bins
   }, [bins])
 
+  const hasData = !!chartData && chartData.data_points.length > 0
+
+  // Capability indices — computed before echartsOption so they're in scope for graphic overlays
+  let cp = 0
+  let cpk = 0
+  let ppk = 0
+  if (hasData && !isModeA && chartData) {
+    const outerUsl = chartData.spec_limits.usl
+    const outerLsl = chartData.spec_limits.lsl
+    if (outerUsl !== null && outerLsl !== null && stats.stdDev > 0) {
+      const processSigma = chartData.stored_sigma ?? stats.stdDev
+      cp = (outerUsl - outerLsl) / (6 * processSigma)
+      const cpu = (outerUsl - stats.mean) / (3 * processSigma)
+      const cpl = (stats.mean - outerLsl) / (3 * processSigma)
+      cpk = Math.min(cpu, cpl)
+
+      const ppu = (outerUsl - stats.mean) / (3 * stats.stdDev)
+      const ppl = (stats.mean - outerLsl) / (3 * stats.stdDev)
+      ppk = Math.min(ppu, ppl)
+    }
+  }
+
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
     if (!chartData || chartData.data_points.length === 0 || bins.length === 0) return null
@@ -698,6 +720,9 @@ export function DistributionHistogram({
     showSpecLimits,
     xAxisMode,
     gridBottom,
+    cp,
+    cpk,
+    ppk,
   ])
 
   // Mouse event handlers
@@ -729,29 +754,6 @@ export function DistributionHistogram({
   useEffect(() => {
     refresh()
   }, [chartColors, refresh])
-
-  const hasData = !!chartData && chartData.data_points.length > 0
-
-  const { spec_limits } = chartData ?? { spec_limits: { usl: null, lsl: null } }
-  const usl = isModeA ? null : spec_limits.usl
-  const lsl = isModeA ? null : spec_limits.lsl
-
-  // Calculate Cp and Cpk
-  let cp = 0
-  let cpk = 0
-  let ppk = 0
-
-  if (hasData && !isModeA && usl !== null && lsl !== null && stats.stdDev > 0) {
-    const processSigma = chartData!.stored_sigma ?? stats.stdDev
-    cp = (usl - lsl) / (6 * processSigma)
-    const cpu = (usl - stats.mean) / (3 * processSigma)
-    const cpl = (stats.mean - lsl) / (3 * processSigma)
-    cpk = Math.min(cpu, cpl)
-
-    const ppu = (usl - stats.mean) / (3 * stats.stdDev)
-    const ppl = (stats.mean - lsl) / (3 * stats.stdDev)
-    ppk = Math.min(ppu, ppl)
-  }
 
   const getCapabilityStyle = (value: number) => {
     if (value >= 1.33) return 'stat-badge stat-badge-success'
