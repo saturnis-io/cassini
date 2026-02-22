@@ -88,12 +88,20 @@ class Rule1Outlier:
 
     This is the most severe violation - a point beyond the control limits.
     Indicates a special cause or out-of-control condition.
+
+    Parameters:
+        sigma_multiplier (float): Sigma distance for outlier detection (default 3.0).
+            When != 3.0, uses manual computation instead of Zone enum.
     """
 
     rule_id = 1
     rule_name = "Outlier"
     min_samples_required = 1
     severity = Severity.CRITICAL
+
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._sigma_multiplier = self._params.get("sigma_multiplier", 3.0)
 
     def check(self, window: RollingWindow) -> RuleResult | None:
         """Check for points beyond control limits."""
@@ -103,15 +111,28 @@ class Rule1Outlier:
 
         latest = samples[-1]
 
-        if latest.zone in (Zone.BEYOND_UCL, Zone.BEYOND_LCL):
-            return RuleResult(
-                rule_id=self.rule_id,
-                rule_name=self.rule_name,
-                triggered=True,
-                severity=self.severity,
-                involved_sample_ids=[latest.sample_id],
-                message=f"Point at {latest.value:.4f} is beyond 3sigma from center"
-            )
+        if self._sigma_multiplier == 3.0:
+            # Default: use Zone classification
+            if latest.zone in (Zone.BEYOND_UCL, Zone.BEYOND_LCL):
+                return RuleResult(
+                    rule_id=self.rule_id,
+                    rule_name=self.rule_name,
+                    triggered=True,
+                    severity=self.severity,
+                    involved_sample_ids=[latest.sample_id],
+                    message=f"Point at {latest.value:.4f} is beyond 3sigma from center"
+                )
+        else:
+            # Custom sigma multiplier: use pre-computed sigma_distance
+            if latest.sigma_distance > self._sigma_multiplier:
+                return RuleResult(
+                    rule_id=self.rule_id,
+                    rule_name=self.rule_name,
+                    triggered=True,
+                    severity=self.severity,
+                    involved_sample_ids=[latest.sample_id],
+                    message=f"Point at {latest.value:.4f} is beyond {self._sigma_multiplier}sigma from center"
+                )
         return None
 
 
@@ -120,31 +141,40 @@ class Rule2Shift:
 
     Indicates a shift in the process mean. The counter resets when a point
     crosses the center line.
+
+    Parameters:
+        consecutive_count (int): Number of consecutive points required (default 9).
     """
 
     rule_id = 2
     rule_name = "Shift"
-    min_samples_required = 9
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._consecutive = self._params.get("consecutive_count", 9)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._consecutive
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 9 consecutive points on same side of center."""
+        """Check for consecutive points on same side of center."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._consecutive:
             return None
 
-        # Check last 9 points
-        last_9 = samples[-9:]
+        last_n = samples[-self._consecutive:]
 
         # Check if all are on the upper side
         all_upper = all(p.zone in (Zone.ZONE_C_UPPER, Zone.ZONE_B_UPPER,
                                     Zone.ZONE_A_UPPER, Zone.BEYOND_UCL)
-                       for p in last_9)
+                       for p in last_n)
 
         # Check if all are on the lower side
         all_lower = all(p.zone in (Zone.ZONE_C_LOWER, Zone.ZONE_B_LOWER,
                                     Zone.ZONE_A_LOWER, Zone.BEYOND_LCL)
-                       for p in last_9)
+                       for p in last_n)
 
         if all_upper or all_lower:
             side = "above" if all_upper else "below"
@@ -153,8 +183,8 @@ class Rule2Shift:
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
-                involved_sample_ids=[p.sample_id for p in last_9],
-                message=f"9 consecutive points {side} center line"
+                involved_sample_ids=[p.sample_id for p in last_n],
+                message=f"{self._consecutive} consecutive points {side} center line"
             )
         return None
 
@@ -164,28 +194,39 @@ class Rule3Trend:
 
     Indicates a trend in the process, such as tool wear, temperature drift,
     or gradual degradation.
+
+    Parameters:
+        consecutive_count (int): Number of consecutive points required (default 6).
     """
 
     rule_id = 3
     rule_name = "Trend"
-    min_samples_required = 6
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._consecutive = self._params.get("consecutive_count", 6)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._consecutive
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 6 consecutive points monotonically increasing or decreasing."""
+        """Check for consecutive points monotonically increasing or decreasing."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._consecutive:
             return None
 
-        # Check last 6 points
-        last_6 = samples[-6:]
-        values = [p.value for p in last_6]
+        last_n = samples[-self._consecutive:]
+        values = [p.value for p in last_n]
+
+        comparisons = self._consecutive - 1
 
         # Check for strictly increasing
-        all_increasing = all(values[i] < values[i+1] for i in range(5))
+        all_increasing = all(values[i] < values[i+1] for i in range(comparisons))
 
         # Check for strictly decreasing
-        all_decreasing = all(values[i] > values[i+1] for i in range(5))
+        all_decreasing = all(values[i] > values[i+1] for i in range(comparisons))
 
         if all_increasing or all_decreasing:
             direction = "increasing" if all_increasing else "decreasing"
@@ -194,8 +235,8 @@ class Rule3Trend:
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
-                involved_sample_ids=[p.sample_id for p in last_6],
-                message=f"6 consecutive points {direction}"
+                involved_sample_ids=[p.sample_id for p in last_n],
+                message=f"{self._consecutive} consecutive points {direction}"
             )
         return None
 
@@ -205,26 +246,35 @@ class Rule4Alternator:
 
     Indicates systematic variation, such as alternating between two machines,
     operators, or measurement systems.
+
+    Parameters:
+        consecutive_count (int): Number of consecutive points required (default 14).
     """
 
     rule_id = 4
     rule_name = "Alternator"
-    min_samples_required = 14
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._consecutive = self._params.get("consecutive_count", 14)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._consecutive
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 14 consecutive points alternating direction."""
+        """Check for consecutive points alternating direction."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._consecutive:
             return None
 
-        # Check last 14 points
-        last_14 = samples[-14:]
-        values = [p.value for p in last_14]
+        last_n = samples[-self._consecutive:]
+        values = [p.value for p in last_n]
 
-        # Check alternating pattern (13 direction changes)
+        # Check alternating pattern (n-2 direction changes)
         alternating = True
-        for i in range(12):
+        for i in range(self._consecutive - 2):
             # Direction from i to i+1
             dir1 = values[i+1] - values[i]
             # Direction from i+1 to i+2
@@ -240,8 +290,8 @@ class Rule4Alternator:
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
-                involved_sample_ids=[p.sample_id for p in last_14],
-                message="14 consecutive points alternating up and down"
+                involved_sample_ids=[p.sample_id for p in last_n],
+                message=f"{self._consecutive} consecutive points alternating up and down"
             )
         return None
 
@@ -250,42 +300,53 @@ class Rule5ZoneA:
     """Rule 5: Two out of three consecutive points in Zone A or beyond, same side.
 
     Indicates the process mean may be shifting or there's increased variation.
+
+    Parameters:
+        count (int): Number of points required in zone (default 2).
+        window (int): Window size to check (default 3).
     """
 
     rule_id = 5
     rule_name = "Zone A Warning"
-    min_samples_required = 3
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._count = self._params.get("count", 2)
+        self._window = self._params.get("window", 3)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._window
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 2 of 3 points in Zone A or beyond, same side."""
+        """Check for count of window points in Zone A or beyond, same side."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._window:
             return None
 
-        # Check last 3 points
-        last_3 = samples[-3:]
+        last_n = samples[-self._window:]
 
         # Count points in Zone A or beyond on upper side
-        upper_count = sum(1 for p in last_3
+        upper_count = sum(1 for p in last_n
                          if p.zone in (Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
 
         # Count points in Zone A or beyond on lower side
-        lower_count = sum(1 for p in last_3
+        lower_count = sum(1 for p in last_n
                          if p.zone in (Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))
 
-        if upper_count >= 2 or lower_count >= 2:
-            side = "upper" if upper_count >= 2 else "lower"
-            involved = [p for p in last_3
-                       if (upper_count >= 2 and p.zone in (Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
-                       or (lower_count >= 2 and p.zone in (Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))]
+        if upper_count >= self._count or lower_count >= self._count:
+            side = "upper" if upper_count >= self._count else "lower"
+            involved = [p for p in last_n
+                       if (upper_count >= self._count and p.zone in (Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
+                       or (lower_count >= self._count and p.zone in (Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))]
             return RuleResult(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
                 involved_sample_ids=[p.sample_id for p in involved],
-                message=f"2 of 3 consecutive points in Zone A or beyond ({side} side)"
+                message=f"{self._count} of {self._window} consecutive points in Zone A or beyond ({side} side)"
             )
         return None
 
@@ -295,42 +356,53 @@ class Rule6ZoneB:
 
     Indicates the process mean may be shifting or there's increased variation,
     though less severe than Rule 5.
+
+    Parameters:
+        count (int): Number of points required in zone (default 4).
+        window (int): Window size to check (default 5).
     """
 
     rule_id = 6
     rule_name = "Zone B Warning"
-    min_samples_required = 5
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._count = self._params.get("count", 4)
+        self._window = self._params.get("window", 5)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._window
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 4 of 5 points in Zone B or beyond, same side."""
+        """Check for count of window points in Zone B or beyond, same side."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._window:
             return None
 
-        # Check last 5 points
-        last_5 = samples[-5:]
+        last_n = samples[-self._window:]
 
         # Count points in Zone B or beyond on upper side
-        upper_count = sum(1 for p in last_5
+        upper_count = sum(1 for p in last_n
                          if p.zone in (Zone.ZONE_B_UPPER, Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
 
         # Count points in Zone B or beyond on lower side
-        lower_count = sum(1 for p in last_5
+        lower_count = sum(1 for p in last_n
                          if p.zone in (Zone.ZONE_B_LOWER, Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))
 
-        if upper_count >= 4 or lower_count >= 4:
-            side = "upper" if upper_count >= 4 else "lower"
-            involved = [p for p in last_5
-                       if (upper_count >= 4 and p.zone in (Zone.ZONE_B_UPPER, Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
-                       or (lower_count >= 4 and p.zone in (Zone.ZONE_B_LOWER, Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))]
+        if upper_count >= self._count or lower_count >= self._count:
+            side = "upper" if upper_count >= self._count else "lower"
+            involved = [p for p in last_n
+                       if (upper_count >= self._count and p.zone in (Zone.ZONE_B_UPPER, Zone.ZONE_A_UPPER, Zone.BEYOND_UCL))
+                       or (lower_count >= self._count and p.zone in (Zone.ZONE_B_LOWER, Zone.ZONE_A_LOWER, Zone.BEYOND_LCL))]
             return RuleResult(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
                 involved_sample_ids=[p.sample_id for p in involved],
-                message=f"4 of 5 consecutive points in Zone B or beyond ({side} side)"
+                message=f"{self._count} of {self._window} consecutive points in Zone B or beyond ({side} side)"
             )
         return None
 
@@ -340,25 +412,34 @@ class Rule7Stratification:
 
     Indicates stratification - control limits may be too wide or data is
     being smoothed/averaged inappropriately.
+
+    Parameters:
+        consecutive_count (int): Number of consecutive points required (default 15).
     """
 
     rule_id = 7
     rule_name = "Stratification"
-    min_samples_required = 15
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._consecutive = self._params.get("consecutive_count", 15)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._consecutive
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 15 consecutive points in Zone C."""
+        """Check for consecutive points in Zone C."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._consecutive:
             return None
 
-        # Check last 15 points
-        last_15 = samples[-15:]
+        last_n = samples[-self._consecutive:]
 
         # All points must be in Zone C (upper or lower)
         all_in_zone_c = all(p.zone in (Zone.ZONE_C_UPPER, Zone.ZONE_C_LOWER)
-                           for p in last_15)
+                           for p in last_n)
 
         if all_in_zone_c:
             return RuleResult(
@@ -366,8 +447,8 @@ class Rule7Stratification:
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
-                involved_sample_ids=[p.sample_id for p in last_15],
-                message="15 consecutive points within Zone C (hugging mean)"
+                involved_sample_ids=[p.sample_id for p in last_n],
+                message=f"{self._consecutive} consecutive points within Zone C (hugging mean)"
             )
         return None
 
@@ -377,25 +458,34 @@ class Rule8Mixture:
 
     Indicates mixture - two or more processes or populations mixed together,
     or control limits calculated from mixed data.
+
+    Parameters:
+        consecutive_count (int): Number of consecutive points required (default 8).
     """
 
     rule_id = 8
     rule_name = "Mixture"
-    min_samples_required = 8
     severity = Severity.WARNING
 
+    def __init__(self, params: dict | None = None):
+        self._params = params or {}
+        self._consecutive = self._params.get("consecutive_count", 8)
+
+    @property
+    def min_samples_required(self) -> int:
+        return self._consecutive
+
     def check(self, window: RollingWindow) -> RuleResult | None:
-        """Check for 8 consecutive points outside Zone C."""
+        """Check for consecutive points outside Zone C."""
         samples = window.get_samples()
-        if len(samples) < self.min_samples_required:
+        if len(samples) < self._consecutive:
             return None
 
-        # Check last 8 points
-        last_8 = samples[-8:]
+        last_n = samples[-self._consecutive:]
 
         # None of the points should be in Zone C
         none_in_zone_c = all(p.zone not in (Zone.ZONE_C_UPPER, Zone.ZONE_C_LOWER)
-                            for p in last_8)
+                            for p in last_n)
 
         if none_in_zone_c:
             return RuleResult(
@@ -403,8 +493,8 @@ class Rule8Mixture:
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
-                involved_sample_ids=[p.sample_id for p in last_8],
-                message="8 consecutive points outside Zone C (mixture pattern)"
+                involved_sample_ids=[p.sample_id for p in last_n],
+                message=f"{self._consecutive} consecutive points outside Zone C (mixture pattern)"
             )
         return None
 
@@ -435,6 +525,30 @@ class NelsonRuleLibrary:
         ]
         for rule in rules:
             self._rules[rule.rule_id] = rule
+
+    def create_from_config(self, rule_configs: list[dict]) -> None:
+        """Rebuild rules from per-rule config.
+
+        Each item: {"rule_id": int, "is_enabled": bool, "parameters": dict | None}
+        Only enabled rules are registered; disabled rules are removed.
+        """
+        rule_classes: dict[int, type] = {
+            1: Rule1Outlier,
+            2: Rule2Shift,
+            3: Rule3Trend,
+            4: Rule4Alternator,
+            5: Rule5ZoneA,
+            6: Rule6ZoneB,
+            7: Rule7Stratification,
+            8: Rule8Mixture,
+        }
+        self._rules.clear()
+        for cfg in rule_configs:
+            if not cfg.get("is_enabled", True):
+                continue
+            cls = rule_classes.get(cfg["rule_id"])
+            if cls:
+                self._rules[cfg["rule_id"]] = cls(params=cfg.get("parameters"))
 
     def check_all(
         self,
