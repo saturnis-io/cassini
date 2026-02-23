@@ -13,6 +13,7 @@ Run:
 """
 
 import asyncio
+import hashlib
 import logging
 import random
 import sys
@@ -34,8 +35,9 @@ from openspc.db import (
     Violation,
 )
 from openspc.db.models.api_key import APIKey  # noqa: F401
-from openspc.db.models.broker import MQTTBroker  # noqa: F401
+from openspc.db.models.broker import MQTTBroker
 from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from openspc.db.models.gage import GageBridge, GagePort
 from openspc.db.models.plant import Plant
 from openspc.db.models.user import User, UserPlantRole, UserRole
 
@@ -48,8 +50,9 @@ logger = logging.getLogger(__name__)
 RANDOM_SEED = 42
 
 USERS = [
-    ("admin",    "admin@openspc.local",    "admin"),
-    ("operator", "operator@openspc.local", "operator"),
+    ("admin",     "admin@openspc.local",     "admin"),
+    ("engineer1", "engineer1@openspc.local", "engineer"),
+    ("operator",  "operator@openspc.local",  "operator"),
 ]
 
 NELSON_RULE_NAMES = {
@@ -261,7 +264,7 @@ async def seed() -> None:
     rng = random.Random(RANDOM_SEED)
     now = datetime.now(timezone.utc)
 
-    stats = {"plants": 0, "nodes": 0, "chars": 0, "samples": 0, "measurements": 0, "users": 0, "violations": 0}
+    stats = {"plants": 0, "nodes": 0, "chars": 0, "samples": 0, "measurements": 0, "users": 0, "violations": 0, "bridges": 0, "ports": 0}
 
     async with db_config.session() as session:
         # ── 1. Plant ──────────────────────────────────────────────────
@@ -274,6 +277,7 @@ async def seed() -> None:
         # ── 2. Users ─────────────────────────────────────────────────
         print("\nCreating users...")
         hashed_pw = hash_password("password")
+        admin_user = None
         for username, email, role_name in USERS:
             user = User(username=username, email=email, hashed_password=hashed_pw, is_active=True)
             session.add(user)
@@ -282,6 +286,8 @@ async def seed() -> None:
             session.add(upr)
             stats["users"] += 1
             print(f"  User: {username} ({role_name})")
+            if role_name == "admin":
+                admin_user = user
 
         # ── 3. Hierarchy ─────────────────────────────────────────────
         print("\nCreating hierarchy and characteristics...")
@@ -298,6 +304,7 @@ async def seed() -> None:
         print(f"    [Cell] {cell.name} (ID {cell.id})")
 
         # ── 4. Gage Characteristics + Samples ────────────────────────
+        char_objects: list[Characteristic] = []
         for gage in GAGES:
             char = Characteristic(
                 hierarchy_id=cell.id,
@@ -313,6 +320,7 @@ async def seed() -> None:
             session.add(char)
             await session.flush()
             stats["chars"] += 1
+            char_objects.append(char)
 
             # Nelson rules
             for rule_id in gage.get("rules", [1, 2, 3]):
@@ -389,6 +397,67 @@ async def seed() -> None:
 
             await session.flush()
 
+        # ── 5. Gage Bridge + Ports ─────────────────────────────────
+        print("\nCreating gage bridge infrastructure...")
+        caliper_char, micrometer_char, cmm_char, surface_char = char_objects
+
+        # MQTT broker for bridge communication
+        broker = MQTTBroker(
+            plant_id=plant.id,
+            name="Shop Floor MQTT",
+            host="localhost",
+            port=1883,
+            is_active=True,
+        )
+        session.add(broker)
+        await session.flush()
+        print(f"  Broker: {broker.name} (ID {broker.id})")
+
+        # Gage bridge with hashed API key
+        test_api_key = "test-bridge-key-sprint7"
+        api_key_hash = hashlib.sha256(test_api_key.encode()).hexdigest()
+
+        bridge = GageBridge(
+            plant_id=plant.id,
+            name="Shop Floor Bridge 1",
+            api_key_hash=api_key_hash,
+            mqtt_broker_id=broker.id,
+            status="online",
+            last_heartbeat_at=datetime.now(timezone.utc),
+            registered_by=admin_user.id,
+        )
+        session.add(bridge)
+        await session.flush()
+        stats["bridges"] = 1
+        print(f"  Bridge: {bridge.name} (ID {bridge.id}, status={bridge.status})")
+
+        # Gage ports — one per characteristic
+        gage_port_configs = [
+            {"port_name": "COM3", "baud_rate": 9600, "protocol_profile": "mitutoyo_digimatic", "char": caliper_char},
+            {"port_name": "COM4", "baud_rate": 9600, "protocol_profile": "mitutoyo_digimatic", "char": micrometer_char},
+            {"port_name": "COM5", "baud_rate": 115200, "protocol_profile": "generic",
+             "parse_pattern": r"(?P<value>[+-]?\d+\.?\d*)", "char": cmm_char},
+            {"port_name": "COM6", "baud_rate": 9600, "protocol_profile": "generic",
+             "parse_pattern": r"Ra\s*=\s*(?P<value>\d+\.?\d*)", "char": surface_char},
+        ]
+
+        for gc in gage_port_configs:
+            port = GagePort(
+                bridge_id=bridge.id,
+                port_name=gc["port_name"],
+                baud_rate=gc["baud_rate"],
+                protocol_profile=gc["protocol_profile"],
+                parse_pattern=gc.get("parse_pattern"),
+                mqtt_topic=f"openspc/gage/{bridge.id}/{gc['port_name']}/value",
+                characteristic_id=gc["char"].id,
+                is_active=True,
+            )
+            session.add(port)
+            print(f"    Port: {gc['port_name']} -> {gc['char'].name} ({gc['protocol_profile']})")
+
+        await session.flush()
+        stats["ports"] = len(gage_port_configs)
+
         print("\nCommitting to database...")
         await session.commit()
 
@@ -404,11 +473,15 @@ async def seed() -> None:
     print(f"  Samples:         {stats['samples']:,}")
     print(f"  Measurements:    {stats['measurements']:,}")
     print(f"  Violations:      {stats['violations']:,}")
+    print(f"  Gage Bridges:    {stats['bridges']}")
+    print(f"  Gage Ports:      {stats['ports']}")
     print(f"  DB File:         {db_path}")
     print("=" * 60)
     print("\nAll users have password: 'password'")
     print("Admin: admin / password")
+    print("Engineer: engineer1 / password")
     print("Operator: operator / password")
+    print(f"\nTest bridge API key: test-bridge-key-sprint7")
 
 
 def main() -> None:

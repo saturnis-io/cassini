@@ -1,55 +1,64 @@
-# Sprint 7: Shop Floor Connectivity — Verification Checklist
+# Sprint 7: Gage Connectivity — Verification Checklist
 
-**Status**: Planned (not started)
-**Features**: C1 RS-232/USB Gage Integration
+**Status**: Complete
+**Features**: C1: RS-232/USB Gage Integration
 
-> **Note**: Sprint 7 features are not yet implemented. This checklist currently covers
-> seed data scaffolding verification only. Feature verification items (marked "Future")
-> will be expanded when implementation begins.
+---
+
+## Prerequisites
+
+1. Run the Sprint 7 test seed from DevTools page (or `python backend/scripts/seed_test_sprint7.py`)
+2. Users available: `admin`, `engineer1` (all password: `password`)
+3. Test plant "C1: Gage Integration" with 4 characteristics
 
 ---
 
 ## C1: RS-232/USB Gage Integration
 
 **Seed plant**: "C1: Gage Integration"
+**Login as**: engineer1
 
-### Data Scaffolding
+### Data Verification
 
-- [ ] Plant "C1: Gage Integration" exists with correct hierarchy
-- [ ] 4 characteristics created, each simulating a different gage type:
-  - [ ] Digital caliper (resolution: 0.01 mm)
-  - [ ] Micrometer (resolution: 0.001 mm)
-  - [ ] CMM probe (resolution: 0.0001 mm, 3D coordinates)
-  - [ ] Surface roughness tester (resolution: 0.01 Ra)
-- [ ] Timestamps follow regular intervals (simulating automated gage readings)
-- [ ] Measurement values match realistic resolution for each gage type (no sub-resolution noise)
-- [ ] Description metadata includes gage type, communication protocol, and measurement resolution
+- [ ] Plant "C1: Gage Integration" exists with 4 characteristics
+- [ ] Bridge "Shop Floor Bridge 1" appears in Gages tab (/connectivity/gages)
+- [ ] Bridge shows "online" status with recent heartbeat
+- [ ] 4 ports configured (COM3-COM6) with correct protocol profiles
+- [ ] COM3/COM4 use mitutoyo_digimatic profile
+- [ ] COM5/COM6 use generic profile with custom regex patterns
 
-### Gage Type Detail
+### Feature Verification — Bridge Management
 
-| Characteristic | Gage Type        | Protocol  | Resolution  | Sample Count |
-|---------------|------------------|-----------|-------------|--------------|
-| Caliper       | Digital Caliper  | RS-232    | 0.01 mm     | 50+          |
-| Micrometer    | Digital Micrometer| USB HID  | 0.001 mm    | 50+          |
-| CMM           | CMM Probe        | RS-232    | 0.0001 mm   | 30+          |
-| Roughness     | Surface Tester   | USB       | 0.01 Ra     | 40+          |
+- [ ] Navigate to /connectivity/gages — Gages tab visible in sidebar
+- [ ] Bridge list shows "Shop Floor Bridge 1" with online status badge (green dot)
+- [ ] Click "Register Bridge" — registration dialog opens
+- [ ] Enter name and select MQTT broker — submit creates bridge
+- [ ] API key shown once with copy button and warning message
+- [ ] Delete bridge — confirm dialog, cascades to ports
 
-### Future Feature Verification
+### Feature Verification — Port Configuration
 
-- [ ] Serial port configuration dialog (baud rate, parity, stop bits, data bits)
-- [ ] WebSerial API browser integration for direct USB/RS-232 access
-- [ ] Alternative: gage bridge agent (local service relaying serial to WebSocket)
-- [ ] Auto-detect gage protocol from initial handshake bytes
-- [ ] Measurement auto-capture on SPC/Data button press
-- [ ] Gage status indicator (connected/disconnected/error) in toolbar
-- [ ] Buffered readings queue when network is temporarily unavailable
-- [ ] Gage calibration due date tracking and alerts
+- [ ] Click on bridge — port configuration panel shows below
+- [ ] Port table shows 4 ports with names, baud rates, protocols
+- [ ] Click "Add Port" — port configuration form opens
+- [ ] Select Mitutoyo profile — auto-fills baud 9600, 8N1
+- [ ] Select Generic profile — regex pattern field appears
+- [ ] MQTT topic auto-generated as openspc/gage/{id}/{port}/value
+- [ ] Assign characteristic to port — creates MQTT data source mapping
+- [ ] Delete port — removes mapping
+
+### Feature Verification — Profile Selector
+
+- [ ] Profile dropdown lists Mitutoyo Digimatic and Generic
+- [ ] Selecting profile auto-fills default serial settings
+- [ ] Generic profile shows parse pattern input field
 
 ---
 
 ## Quick Smoke Test
 
-Run through these 2 items for a fast confidence check:
-
-1. [ ] Open "C1: Gage Integration" plant, verify 4 characteristics exist with different gage types
-2. [ ] Check that measurement values for the micrometer characteristic have 0.001 mm resolution (3 decimal places)
+1. [ ] /connectivity/gages tab loads, bridge list visible
+2. [ ] Bridge status badge shows green "online"
+3. [ ] Port config panel shows 4 configured ports
+4. [ ] Register new bridge — API key displayed once
+5. [ ] Delete test bridge — cascades cleanly
