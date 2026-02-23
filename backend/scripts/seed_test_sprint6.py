@@ -399,9 +399,11 @@ async def seed() -> None:
                 await session.flush()
                 stats["samples"] += 1
 
+                # Add process offset for deviation mode to show meaningful drift
+                offset = sigma * 3 * (0.5 + s_idx / num_s) if sr_mode == "deviation" else 0
                 vals = []
                 for _ in range(5):
-                    val = round(rng.gauss(nom, sigma), 4)
+                    val = round(rng.gauss(nom + offset, sigma), 4)
                     session.add(Measurement(sample_id=sample.id, value=val))
                     stats["measurements"] += 1
                     vals.append(val)
