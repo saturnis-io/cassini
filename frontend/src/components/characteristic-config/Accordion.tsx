@@ -67,14 +67,21 @@ export function AccordionTrigger({ children, id, className }: AccordionTriggerPr
   const isOpen = ctx.openItems.has(id)
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => ctx.toggle(id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          ctx.toggle(id)
+        }
+      }}
       aria-expanded={isOpen}
       aria-controls={`accordion-content-${id}`}
       data-state={isOpen ? 'open' : 'closed'}
       className={cn(
-        'flex w-full items-center justify-between gap-3 px-4 py-3',
+        'flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3',
         'text-left text-sm font-medium',
         'bg-muted/40 hover:bg-muted/60 transition-colors',
         'border-border rounded-lg border',
@@ -89,7 +96,7 @@ export function AccordionTrigger({ children, id, className }: AccordionTriggerPr
           isOpen && 'rotate-180',
         )}
       />
-    </button>
+    </div>
   )
 }
 
