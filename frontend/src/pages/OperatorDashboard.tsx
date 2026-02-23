@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { HierarchyTodoList } from '@/components/HierarchyTodoList'
 import { ChartPanel } from '@/components/ChartPanel'
 import { DualChartPanel, BoxWhiskerChart } from '@/components/charts'
 import { DistributionHistogram } from '@/components/DistributionHistogram'
@@ -372,15 +371,8 @@ export function OperatorDashboard() {
         </div>
       )}
 
-      {/* ── Main Content Area ── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 md:flex-row">
-        {/* Left Panel — Hierarchy / Characteristics (Watchlist-style) */}
-        <div className="h-48 flex-shrink-0 md:h-auto md:w-72">
-          <HierarchyTodoList className="h-full" />
-        </div>
-
-        {/* Center + Right — Chart area */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+      {/* ── Main Content Area (hierarchy now in sidebar) ── */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
           {selectedId ? (
             <>
               {/* ── Toolbar ── */}
@@ -571,7 +563,6 @@ export function OperatorDashboard() {
               {t('selectCharacteristic')}
             </div>
           )}
-        </div>
       </div>
 
       {/* Pending Signature Approvals */}
