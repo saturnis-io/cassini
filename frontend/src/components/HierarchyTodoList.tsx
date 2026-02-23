@@ -13,6 +13,7 @@ import {
   ListChecks,
   Loader2,
 } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import {
@@ -188,6 +189,8 @@ function FolderStatusSummary({ oocCount, dueCount }: { oocCount: number; dueCoun
 
 interface HierarchyTodoListProps {
   className?: string
+  /** When true, renders without card wrapper for sidebar embedding */
+  embedded?: boolean
 }
 
 /**
@@ -205,7 +208,7 @@ function findPathToNode(tree: HierarchyNode[], targetNodeId: number): number[] {
   return []
 }
 
-export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
+export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProps) {
   const { selectedPlant, isLoading: plantLoading } = usePlant()
   const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(
     selectedPlant?.id ?? 0,
@@ -215,6 +218,19 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
+  const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleCharacteristicSelect = useCallback(
+    (charId: number) => {
+      setSelectedId(charId)
+      if (embedded && location.pathname !== '/dashboard' && location.pathname !== '/') {
+        navigate('/dashboard')
+      }
+    },
+    [embedded, location.pathname, navigate, setSelectedId],
+  )
 
   // Auto-expand hierarchy to reveal the persisted selected characteristic
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
@@ -263,6 +279,65 @@ export function HierarchyTodoList({ className }: HierarchyTodoListProps) {
       }
       return next
     })
+  }
+
+  // Embedded rendering path (sidebar mode — no card chrome)
+  if (embedded) {
+    if (!selectedPlant && !plantLoading) {
+      return (
+        <div className={cn('text-muted-foreground flex flex-1 items-center justify-center px-3 text-xs', className)}>
+          Select a plant
+        </div>
+      )
+    }
+    if (isLoading) {
+      return (
+        <div className={cn('text-muted-foreground flex flex-1 items-center justify-center gap-2 px-3 text-xs', className)}>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Loading...
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className={cn('flex h-full flex-col', className)}>
+          <div className="flex items-center gap-1.5 px-2 pb-1.5">
+            <div className="min-w-0 flex-1">
+              <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
+            </div>
+            <button
+              onClick={() => setMultiSelectMode(!isMultiSelectMode)}
+              className={cn(
+                'flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
+                isMultiSelectMode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted text-muted-foreground',
+              )}
+              title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
+            >
+              <ListChecks className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-1">
+            <div className="space-y-0.5">
+              {nodes?.map((node) => (
+                <TodoTreeNode
+                  key={node.id}
+                  node={node}
+                  level={0}
+                  statusFilter={statusFilter}
+                  expandedNodeIds={expandedNodeIds}
+                  toggleNodeExpanded={toggleNodeExpanded}
+                  onCharacteristicSelect={handleCharacteristicSelect}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        {isMultiSelectMode && <SelectionToolbar />}
+      </>
+    )
   }
 
   // Show message if no plant is selected
@@ -349,6 +424,7 @@ interface TodoTreeNodeProps {
   statusFilter: StatusFilter
   expandedNodeIds: Set<number>
   toggleNodeExpanded: (id: number) => void
+  onCharacteristicSelect?: (charId: number) => void
 }
 
 function TodoTreeNode({
@@ -357,6 +433,7 @@ function TodoTreeNode({
   statusFilter,
   expandedNodeIds,
   toggleNodeExpanded,
+  onCharacteristicSelect,
 }: TodoTreeNodeProps) {
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
@@ -480,6 +557,7 @@ function TodoTreeNode({
               statusFilter={statusFilter}
               expandedNodeIds={expandedNodeIds}
               toggleNodeExpanded={toggleNodeExpanded}
+              onCharacteristicSelect={onCharacteristicSelect}
             />
           ))}
 
@@ -529,6 +607,8 @@ function TodoTreeNode({
                   onClick={() => {
                     if (isMultiSelectMode) {
                       toggleCharacteristicSelection(char.id)
+                    } else if (onCharacteristicSelect) {
+                      onCharacteristicSelect(char.id)
                     } else {
                       setSelectedId(char.id)
                     }
