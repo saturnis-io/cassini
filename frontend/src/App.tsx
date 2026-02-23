@@ -26,6 +26,7 @@ import { MonitorTab } from '@/components/connectivity/MonitorTab'
 import { ServersTab } from '@/components/connectivity/ServersTab'
 import { BrowseTab } from '@/components/connectivity/BrowseTab'
 import { MappingTab } from '@/components/connectivity/MappingTab'
+import { GagesTab } from '@/components/connectivity/GagesTab'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { MSAPage } from '@/pages/MSAPage'
@@ -212,6 +213,7 @@ function App() {
                   <Route path="servers" element={<ServersTab />} />
                   <Route path="browse" element={<BrowseTab />} />
                   <Route path="mapping" element={<MappingTab />} />
+                  <Route path="gages" element={<GagesTab />} />
                 </Route>
                 <Route
                   path="configuration"

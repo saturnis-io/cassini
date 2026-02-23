@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Activity, Server, Search, Link2 } from 'lucide-react'
+import { Activity, Server, Search, Link2, Usb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
 
@@ -22,6 +22,12 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
     tabs: [
       { to: 'browse', label: 'Browse', icon: Search },
       { to: 'mapping', label: 'Mapping', icon: Link2 },
+    ],
+  },
+  {
+    label: 'Instruments',
+    tabs: [
+      { to: 'gages', label: 'Gages', icon: Usb },
     ],
   },
 ]
