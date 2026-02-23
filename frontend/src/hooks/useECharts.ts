@@ -27,6 +27,9 @@ export interface UseEChartsOptions {
   option: EChartsOptionInput
   /** If true, merge with existing option (default). If false, replace entirely. */
   notMerge?: boolean
+  /** Component types to replace (others are merged). Overrides notMerge when set.
+   *  e.g. ['series'] replaces series data while preserving dataZoom state. */
+  replaceMerge?: string[]
   /** Event handlers to attach to the chart instance */
   onMouseMove?: (params: EChartsMouseEvent) => void
   onMouseOut?: () => void
@@ -54,6 +57,7 @@ export interface EChartsMouseEvent {
 export function useECharts({
   option,
   notMerge = false,
+  replaceMerge,
   onMouseMove,
   onMouseOut,
   onClick,
@@ -63,6 +67,12 @@ export function useECharts({
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+
+  // Store config in refs to avoid unnecessary effect re-runs
+  const replaceMergeRef = useRef(replaceMerge)
+  replaceMergeRef.current = replaceMerge
+  const notMergeRef = useRef(notMerge)
+  notMergeRef.current = notMerge
 
   // Store callbacks in refs to avoid re-attaching event listeners
   const onMouseMoveRef = useRef(onMouseMove)
@@ -128,18 +138,21 @@ export function useECharts({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init only once
   }, [])
 
-  // Apply option when it changes
+  // Apply option when it changes (use refs for merge config to avoid
+  // unnecessary effect re-runs from unstable array/boolean references)
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !option) return
-    chart.setOption(option, { notMerge })
-  }, [option, notMerge])
+    const rm = replaceMergeRef.current
+    chart.setOption(option, rm ? { replaceMerge: rm } : { notMerge: notMergeRef.current })
+  }, [option])
 
   // Expose manual refresh for theme changes
   const refresh = useCallback(() => {
     const chart = chartRef.current
     if (!chart || !option) return
-    chart.setOption(option, { notMerge: true })
+    const rm = replaceMergeRef.current
+    chart.setOption(option, rm ? { replaceMerge: rm } : { notMerge: true })
   }, [option])
 
   return {

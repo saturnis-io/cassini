@@ -57,7 +57,7 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
   return (
     <div
       className={cn('border-border bg-card flex-shrink-0 overflow-hidden rounded-lg border transition-all duration-200', className)}
-      style={{ height: drawerOpen ? DRAWER_HEIGHT : 36 }}
+      style={drawerOpen ? { maxHeight: DRAWER_HEIGHT } : { height: 36 }}
     >
       {/* Tab bar */}
       <div className="flex h-9 flex-shrink-0 items-center gap-0 px-2">
@@ -92,7 +92,7 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
 
       {/* Tab content */}
       {drawerOpen && (
-        <div className="overflow-y-auto" style={{ height: DRAWER_HEIGHT - 36 }}>
+        <div className="overflow-y-auto" style={{ maxHeight: DRAWER_HEIGHT - 36 }}>
           {activeTab?.content}
         </div>
       )}

@@ -310,11 +310,17 @@ export function ControlChart({
     if (!chartData || !chartData.data_points || chartData.data_points.length === 0) return null
     if (data.length === 0) return null
 
-    // Compute dataZoom range from rangeWindow (for scroll-to-zoom on chart)
-    const dataZoomStart =
-      showBrush && rangeWindow ? (rangeWindow[0] / Math.max(data.length - 1, 1)) * 100 : 0
-    const dataZoomEnd =
-      showBrush && rangeWindow ? (rangeWindow[1] / Math.max(data.length - 1, 1)) * 100 : 100
+    // Compute dataZoom range from rangeWindow (for scroll-to-zoom on chart).
+    // Only include start/end when a range is actively set (e.g. from the
+    // ChartRangeSlider).  When omitted, ECharts preserves its internal zoom
+    // state so mouse-wheel zoom in/out works without being reset by re-renders.
+    const hasActiveRange = showBrush && rangeWindow !== null
+    const dataZoomStartEnd = hasActiveRange
+      ? {
+          start: (rangeWindow[0] / Math.max(data.length - 1, 1)) * 100,
+          end: (rangeWindow[1] / Math.max(data.length - 1, 1)) * 100,
+        }
+      : {}
 
     const {
       control_limits,
@@ -947,8 +953,7 @@ export function ControlChart({
       dataZoom: [
         {
           type: 'inside' as const,
-          start: dataZoomStart,
-          end: dataZoomEnd,
+          ...dataZoomStartEnd,
           minSpan: Math.max((2 / data.length) * 100, 0.5),
           zoomOnMouseWheel: true,
           moveOnMouseWheel: 'shift' as const,
@@ -1241,7 +1246,7 @@ export function ControlChart({
 
   const { containerRef, chartRef, refresh } = useECharts({
     option: echartsOption,
-    notMerge: true,
+    replaceMerge: ['series'],
     onMouseMove: handleMouseMove,
     onMouseOut: handleMouseOut,
     onClick: handleClick,

@@ -46,7 +46,7 @@ export function Layout() {
   }, [setIsOffline])
 
   return (
-    <div className="bg-background flex min-h-screen flex-col">
+    <div className="bg-background flex h-screen flex-col">
       {/* Offline banner */}
       {isOffline && (
         <div className="bg-warning text-warning-foreground flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium">

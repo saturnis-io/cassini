@@ -246,8 +246,17 @@ export function RangeChart({
     const decimalPrecision = chartData?.decimal_precision ?? 3
     const formatVal = (value: number) => value.toFixed(decimalPrecision)
 
-    // Build markLine for control limits
+    // Build markLine for control limits.
+    // Detect close limit values and offset labels to avoid overlap.
     const markLineData: Record<string, unknown>[] = []
+    const yRange = yMax - yMin
+    const labelProximityThreshold = yRange * 0.06
+
+    // Check if UCL and CL are too close → offset CL label down
+    const uclClClose =
+      controlLimits.ucl != null &&
+      controlLimits.cl != null &&
+      Math.abs(controlLimits.ucl - controlLimits.cl) < labelProximityThreshold
 
     if (controlLimits.ucl != null) {
       markLineData.push({
@@ -259,6 +268,7 @@ export function RangeChart({
           color: chartColors.uclLine,
           fontSize: 11,
           fontWeight: 500,
+          ...(uclClClose && { offset: [0, -12] }),
         },
       })
     }
@@ -272,6 +282,7 @@ export function RangeChart({
           color: chartColors.centerLine,
           fontSize: 11,
           fontWeight: 600,
+          ...(uclClClose && { offset: [0, 12] }),
         },
       })
     }
@@ -347,10 +358,13 @@ export function RangeChart({
       return { type: 'group', children }
     }
 
-    // Compute dataZoom range from rangeWindow (accounting for MR offset)
-    let localStart = 0
-    let localEnd = data.length - 1
+    // Compute dataZoom range from rangeWindow (accounting for MR offset).
+    // Only include start/end when a range is actively set so ECharts
+    // preserves its internal zoom state for mouse-wheel interactions.
+    let dataZoomStartEnd: { start: number; end: number } | Record<string, never> = {}
     if (showBrush && rangeWindow) {
+      let localStart: number
+      let localEnd: number
       if (chartType === 'mr') {
         localStart = Math.max(0, rangeWindow[0] - 1)
         localEnd = Math.min(data.length - 1, rangeWindow[1] - 1)
@@ -358,9 +372,11 @@ export function RangeChart({
         localStart = rangeWindow[0]
         localEnd = rangeWindow[1]
       }
+      dataZoomStartEnd = {
+        start: (localStart / Math.max(data.length - 1, 1)) * 100,
+        end: (localEnd / Math.max(data.length - 1, 1)) * 100,
+      }
     }
-    const dataZoomStart = (localStart / Math.max(data.length - 1, 1)) * 100
-    const dataZoomEnd = (localEnd / Math.max(data.length - 1, 1)) * 100
 
     const bottomMargin = isTimestamp ? 60 : 30
     const xCategoryData = data.map((p) => String(p.index))
@@ -468,8 +484,7 @@ export function RangeChart({
       dataZoom: [
         {
           type: 'inside' as const,
-          start: dataZoomStart,
-          end: dataZoomEnd,
+          ...dataZoomStartEnd,
           minSpan: Math.max((2 / data.length) * 100, 0.5),
           zoomOnMouseWheel: true,
           moveOnMouseWheel: 'shift' as const,
@@ -575,7 +590,7 @@ export function RangeChart({
 
   const { containerRef, chartRef, refresh } = useECharts({
     option: echartsOption,
-    notMerge: true,
+    replaceMerge: ['series'],
     onMouseMove: handleMouseMove,
     onMouseOut: handleMouseOut,
     onDataZoom: handleDataZoom,
