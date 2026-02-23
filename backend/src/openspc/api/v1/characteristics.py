@@ -1001,11 +1001,44 @@ async def get_chart_data(
         lcl=cl_lcl,
     )
 
+    # Transform spec limits for short-run display
+    sl_usl = characteristic.usl
+    sl_lsl = characteristic.lsl
+    sl_target = characteristic.target_value
+    if _sr_mode == "deviation":
+        if sl_usl is not None:
+            sl_usl = sl_usl - _sr_target
+        if sl_lsl is not None:
+            sl_lsl = sl_lsl - _sr_target
+        sl_target = 0.0
+    elif _sr_mode == "standardized" and _sr_sigma and _sr_sigma > 0:
+        if sl_usl is not None:
+            sl_usl = (sl_usl - _sr_target) / _sr_sigma
+        if sl_lsl is not None:
+            sl_lsl = (sl_lsl - _sr_target) / _sr_sigma
+        sl_target = 0.0
+
     spec_limits = SpecLimits(
-        usl=characteristic.usl,
-        lsl=characteristic.lsl,
-        target=characteristic.target_value,
+        usl=sl_usl,
+        lsl=sl_lsl,
+        target=sl_target,
     )
+
+    # Transform zone boundaries for short-run display
+    if _sr_mode == "deviation":
+        zones = ZoneBoundaries(
+            plus_1_sigma=zones.plus_1_sigma - _sr_target if zones.plus_1_sigma is not None else None,
+            plus_2_sigma=zones.plus_2_sigma - _sr_target if zones.plus_2_sigma is not None else None,
+            plus_3_sigma=zones.plus_3_sigma - _sr_target if zones.plus_3_sigma is not None else None,
+            minus_1_sigma=zones.minus_1_sigma - _sr_target if zones.minus_1_sigma is not None else None,
+            minus_2_sigma=zones.minus_2_sigma - _sr_target if zones.minus_2_sigma is not None else None,
+            minus_3_sigma=zones.minus_3_sigma - _sr_target if zones.minus_3_sigma is not None else None,
+        )
+    elif _sr_mode == "standardized" and _sr_sigma and _sr_sigma > 0:
+        zones = ZoneBoundaries(
+            plus_1_sigma=1.0, plus_2_sigma=2.0, plus_3_sigma=3.0,
+            minus_1_sigma=-1.0, minus_2_sigma=-2.0, minus_3_sigma=-3.0,
+        )
 
     return ChartDataResponse(
         characteristic_id=char_id,

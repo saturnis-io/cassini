@@ -761,6 +761,7 @@ export interface CapabilityResult {
   lsl: number | null
   target: number | null
   sigma_within: number | null
+  short_run_mode: string | null
 }
 
 export interface CapabilityHistoryItem {

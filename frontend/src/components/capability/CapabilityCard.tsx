@@ -307,8 +307,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
             )}
           </div>
           <span className="text-muted-foreground">
-            LSL: {capability.lsl ?? '--'} | Target: {capability.target ?? '--'} | USL:{' '}
-            {capability.usl ?? '--'}
+            {capability.short_run_mode === 'standardized' ? (
+              <>LSL(Z): {capability.lsl != null && capability.sigma_within ? ((capability.lsl - (capability.target ?? 0)) / capability.sigma_within).toFixed(2) : '--'} | USL(Z): {capability.usl != null && capability.sigma_within ? ((capability.usl - (capability.target ?? 0)) / capability.sigma_within).toFixed(2) : '--'}</>
+            ) : capability.short_run_mode === 'deviation' ? (
+              <>LSL: {capability.lsl != null ? (capability.lsl - (capability.target ?? 0)).toFixed(4) : '--'} | USL: {capability.usl != null ? (capability.usl - (capability.target ?? 0)).toFixed(4) : '--'}</>
+            ) : (
+              <>LSL: {capability.lsl ?? '--'} | Target: {capability.target ?? '--'} | USL: {capability.usl ?? '--'}</>
+            )}
           </span>
         </div>
 

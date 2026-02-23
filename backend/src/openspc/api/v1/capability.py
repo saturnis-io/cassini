@@ -44,6 +44,7 @@ class CapabilityResponse(BaseModel):
     lsl: float | None = None
     target: float | None = None
     sigma_within: float | None = None
+    short_run_mode: str | None = None
 
 
 class CapabilityHistoryItem(BaseModel):
@@ -171,6 +172,7 @@ async def get_capability(
         lsl=characteristic.lsl,
         target=characteristic.target_value,
         sigma_within=sigma_within,
+        short_run_mode=characteristic.short_run_mode,
     )
 
 
