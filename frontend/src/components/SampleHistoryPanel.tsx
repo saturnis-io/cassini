@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   Pencil,
   Trash2,
@@ -9,7 +9,6 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  MapPin,
   Clock,
   AlertTriangle,
   ArrowUp,
@@ -18,15 +17,15 @@ import {
 } from 'lucide-react'
 import { useSamples, useDeleteSample, useExcludeSample, useCharacteristic } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
-import { usePlantContext } from '@/providers/PlantProvider'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { canPerformAction } from '@/lib/roles'
-import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
+import { CharacteristicContextBar } from './CharacteristicContextBar'
+import { NoCharacteristicState } from './NoCharacteristicState'
 import { SampleEditModal } from './SampleEditModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from './LocalTimeRangeSelector'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
-import type { Sample, Characteristic } from '@/types'
+import type { Sample } from '@/types'
 import { formatDisplayKey } from '@/lib/display-key'
 
 /** Samples shown per page in the history table */
@@ -70,18 +69,9 @@ function FilterChip({
 
 export function SampleHistoryPanel() {
   const { role } = useAuth()
-  const { selectedPlant } = usePlantContext()
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
-  const setGlobalCharId = useDashboardStore((s) => s.setSelectedCharacteristicId)
-  const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
+  const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
-  // Restore selection from global store on mount
-  const { data: restoredChar } = useCharacteristic(globalCharId && !selectedChar ? globalCharId : 0)
-  useEffect(() => {
-    if (restoredChar && !selectedChar && globalCharId) {
-      setSelectedChar(restoredChar)
-    }
-  }, [restoredChar, selectedChar, globalCharId])
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
   const [includeExcluded, setIncludeExcluded] = useState(false)
   const [page, setPage] = useState(1)
@@ -97,7 +87,7 @@ export function SampleHistoryPanel() {
   const handleSort = useCallback(
     (field: SortField) => {
       if (sortField === field) {
-        // Cycle: asc → desc → off
+        // Cycle: asc -> desc -> off
         if (sortDir === 'asc') setSortDir('desc')
         else {
           setSortField(null)
@@ -205,12 +195,6 @@ export function SampleHistoryPanel() {
     return sample.measurements.map((m) => m.value)
   }
 
-  const handleCharacteristicSelect = (char: Characteristic) => {
-    setSelectedChar(char)
-    setGlobalCharId(char.id)
-    setPage(1)
-  }
-
   // Get time range label for chip
   const getTimeRangeLabel = (): string => {
     if (timeRange.type === 'custom') return 'Custom range'
@@ -223,12 +207,10 @@ export function SampleHistoryPanel() {
   }
 
   // Count active filters
-  const activeFilterCount = (selectedChar ? 1 : 0) + (includeExcluded ? 1 : 0)
+  const activeFilterCount = (includeExcluded ? 1 : 0)
 
   // Reset all filters
   const handleResetFilters = () => {
-    setSelectedChar(null)
-    setGlobalCharId(null)
     setTimeRange(defaultTimeRange)
     setIncludeExcluded(false)
     setPage(1)
@@ -236,373 +218,316 @@ export function SampleHistoryPanel() {
 
   return (
     <div className="space-y-5">
-      {/* Filter Bar */}
-      <div className="bg-muted rounded-xl">
-        {/* Filter Header */}
-        <div
-          className="hover:bg-muted/30 flex cursor-pointer items-center justify-between rounded-t-xl px-4 py-3 transition-colors"
-          onClick={() => setFiltersExpanded(!filtersExpanded)}
-        >
-          <div className="flex items-center gap-3">
-            <Filter className="text-muted-foreground h-4 w-4" />
-            <span className="font-medium">Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
-                {activeFilterCount}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {activeFilterCount > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleResetFilters()
-                }}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 text-xs transition-colors"
-              >
-                Clear all
-              </button>
-            )}
-            {filtersExpanded ? (
-              <ChevronUp className="text-muted-foreground h-4 w-4" />
-            ) : (
-              <ChevronDown className="text-muted-foreground h-4 w-4" />
-            )}
-          </div>
-        </div>
+      <CharacteristicContextBar />
 
-        {/* Active Filter Chips (shown when collapsed) */}
-        {!filtersExpanded && (selectedChar || includeExcluded) && (
-          <div className="flex flex-wrap items-center gap-2 rounded-b-xl px-4 pb-3">
-            {selectedChar && (
-              <FilterChip
-                icon={MapPin}
-                label={selectedChar.name}
-                onRemove={() => {
-                  setSelectedChar(null)
-                  setGlobalCharId(null)
-                  setPage(1)
-                }}
-              />
-            )}
-            <FilterChip
-              icon={Clock}
-              label={getTimeRangeLabel()}
-              onRemove={() => {
-                setTimeRange(defaultTimeRange)
-                setPage(1)
-              }}
-            />
-            {includeExcluded && (
-              <FilterChip
-                icon={Eye}
-                label="Include excluded"
-                onRemove={() => setIncludeExcluded(false)}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Expanded Filter Panel */}
-        {filtersExpanded && (
-          <div className="border-border bg-muted/20 space-y-4 rounded-b-xl border-t px-4 pt-4 pb-4">
-            {/* Characteristic Selector */}
-            <div>
-              <label className="text-muted-foreground mb-2 block text-sm font-medium">
-                Characteristic
-              </label>
-              <HierarchyCharacteristicSelector
-                selectedCharId={globalCharId}
-                onSelect={handleCharacteristicSelect}
-                plantId={selectedPlant?.id}
-              />
-              {selectedChar && (
-                <div className="bg-primary/5 border-primary/20 mt-2 flex items-center justify-between rounded-lg border p-2.5">
-                  <div>
-                    <div className="text-sm font-medium">{selectedChar.name}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {selectedChar.data_source
-                        ? selectedChar.data_source.type.toUpperCase()
-                        : 'Manual'}{' '}
-                      · n={selectedChar.subgroup_size}
-                    </div>
-                  </div>
+      {selectedChar ? (
+        <>
+          {/* Filter Bar */}
+          <div className="bg-muted rounded-xl">
+            {/* Filter Header */}
+            <div
+              className="hover:bg-muted/30 flex cursor-pointer items-center justify-between rounded-t-xl px-4 py-3 transition-colors"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+            >
+              <div className="flex items-center gap-3">
+                <Filter className="text-muted-foreground h-4 w-4" />
+                <span className="font-medium">Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
                   <button
-                    onClick={() => {
-                      setSelectedChar(null)
-                      setGlobalCharId(null)
-                      setPage(1)
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleResetFilters()
                     }}
-                    className="hover:bg-muted rounded p-1 transition-colors"
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 text-xs transition-colors"
                   >
-                    <X className="text-muted-foreground h-4 w-4" />
+                    Clear all
                   </button>
-                </div>
-              )}
+                )}
+                {filtersExpanded ? (
+                  <ChevronUp className="text-muted-foreground h-4 w-4" />
+                ) : (
+                  <ChevronDown className="text-muted-foreground h-4 w-4" />
+                )}
+              </div>
             </div>
 
-            {/* Time Range and Options Row */}
-            <div className="flex flex-wrap items-end gap-6">
-              <div>
-                <label className="text-muted-foreground mb-2 block text-sm font-medium">
-                  Time Range
-                </label>
-                <LocalTimeRangeSelector
-                  value={timeRange}
-                  onChange={(range) => {
-                    setTimeRange(range)
+            {/* Active Filter Chips (shown when collapsed) */}
+            {!filtersExpanded && includeExcluded && (
+              <div className="flex flex-wrap items-center gap-2 rounded-b-xl px-4 pb-3">
+                <FilterChip
+                  icon={Clock}
+                  label={getTimeRangeLabel()}
+                  onRemove={() => {
+                    setTimeRange(defaultTimeRange)
                     setPage(1)
                   }}
                 />
+                <FilterChip
+                  icon={Eye}
+                  label="Include excluded"
+                  onRemove={() => setIncludeExcluded(false)}
+                />
               </div>
-
-              <div className="flex items-center gap-4 pb-1.5">
-                <label className="flex cursor-pointer items-center gap-2 select-none">
-                  <input
-                    type="checkbox"
-                    checked={includeExcluded}
-                    onChange={(e) => setIncludeExcluded(e.target.checked)}
-                    className="border-input rounded"
-                  />
-                  <span className="text-sm">Include excluded samples</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Results Summary */}
-      {selectedChar && !loadingSamples && (
-        <div className="text-muted-foreground flex items-center justify-between text-sm">
-          <span>
-            {displayedSamples.length > 0 ? (
-              <>
-                Showing {displayedSamples.length} of {totalSamples} samples
-              </>
-            ) : (
-              <>No samples found</>
             )}
-          </span>
-          {displayedSamples.length > 0 && (
-            <span className="text-xs">
-              {includeExcluded ? 'Including excluded' : 'Excluding excluded samples'}
-            </span>
-          )}
-        </div>
-      )}
 
-      {/* Sample Table */}
-      <div className="bg-muted overflow-hidden rounded-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium">Sample</th>
-                <th
-                  className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-left text-sm font-medium transition-colors select-none"
-                  onClick={() => handleSort('timestamp')}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    Timestamp
-                    {sortField === 'timestamp' ? (
-                      sortDir === 'asc' ? (
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
-                    )}
-                  </span>
-                </th>
-                <th
-                  className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-right text-sm font-medium transition-colors select-none"
-                  onClick={() => handleSort('mean')}
-                >
-                  <span className="inline-flex items-center justify-end gap-1">
-                    Mean
-                    {sortField === 'mean' ? (
-                      sortDir === 'asc' ? (
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
-                    )}
-                  </span>
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Measurements</th>
-                <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
-                <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-border divide-y">
-              {!selectedChar ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <MapPin className="text-muted-foreground/50 h-8 w-8" />
-                      <span className="text-muted-foreground">
-                        Select a characteristic to view samples
-                      </span>
-                      <button
-                        onClick={() => setFiltersExpanded(true)}
-                        className="text-primary text-sm hover:underline"
-                      >
-                        Open filters
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : loadingSamples ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="border-primary h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
-                      <span className="text-muted-foreground">Loading samples...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : samplesError ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <AlertTriangle className="text-destructive/50 h-8 w-8" />
-                      <span className="text-destructive font-medium">Failed to load samples</span>
-                      <span className="text-muted-foreground text-xs">
-                        {samplesError instanceof Error ? samplesError.message : 'Unknown error'}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        Try refreshing the page or logging in again.
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ) : displayedSamples.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <History className="text-muted-foreground/50 h-8 w-8" />
-                      <span className="text-muted-foreground">No samples found</span>
-                      <span className="text-muted-foreground text-xs">
-                        Try adjusting your filters or time range
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                displayedSamples.map((sample: Sample) => {
-                  const isExcluded = sample.is_excluded
-                  const isModified = sample.is_modified
-                  const measurementValues = getMeasurementValues(sample)
-                  return (
-                    <tr key={sample.id} className={isExcluded ? 'bg-muted/30 opacity-50' : ''}>
-                      <td className="px-4 py-3 font-mono text-sm">
-                        <div className="flex items-center gap-1.5">
-                          {sample.display_key ? formatDisplayKey(sample.display_key) : sample.id}
-                          {isModified && (
-                            <EditHistoryTooltip
-                              sampleId={sample.id}
-                              editCount={sample.edit_count || 1}
-                            />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        {new Date(sample.timestamp).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm">
-                        {sample.mean.toFixed(4)}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-sm">
-                        [{measurementValues.map((v) => v.toFixed(2)).join(', ')}]
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm">
-                        {isExcluded ? (
-                          <span className="bg-muted text-muted-foreground rounded px-2 py-1 text-xs">
-                            Excluded
-                          </span>
+            {/* Expanded Filter Panel */}
+            {filtersExpanded && (
+              <div className="border-border bg-muted/20 space-y-4 rounded-b-xl border-t px-4 pt-4 pb-4">
+                {/* Time Range and Options Row */}
+                <div className="flex flex-wrap items-end gap-6">
+                  <div>
+                    <label className="text-muted-foreground mb-2 block text-sm font-medium">
+                      Time Range
+                    </label>
+                    <LocalTimeRangeSelector
+                      value={timeRange}
+                      onChange={(range) => {
+                        setTimeRange(range)
+                        setPage(1)
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4 pb-1.5">
+                    <label className="flex cursor-pointer items-center gap-2 select-none">
+                      <input
+                        type="checkbox"
+                        checked={includeExcluded}
+                        onChange={(e) => setIncludeExcluded(e.target.checked)}
+                        className="border-input rounded"
+                      />
+                      <span className="text-sm">Include excluded samples</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Results Summary */}
+          {!loadingSamples && (
+            <div className="text-muted-foreground flex items-center justify-between text-sm">
+              <span>
+                {displayedSamples.length > 0 ? (
+                  <>
+                    Showing {displayedSamples.length} of {totalSamples} samples
+                  </>
+                ) : (
+                  <>No samples found</>
+                )}
+              </span>
+              {displayedSamples.length > 0 && (
+                <span className="text-xs">
+                  {includeExcluded ? 'Including excluded' : 'Excluding excluded samples'}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sample Table */}
+          <div className="bg-muted overflow-hidden rounded-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Sample</th>
+                    <th
+                      className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-left text-sm font-medium transition-colors select-none"
+                      onClick={() => handleSort('timestamp')}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        Timestamp
+                        {sortField === 'timestamp' ? (
+                          sortDir === 'asc' ? (
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          )
                         ) : (
-                          <span className="bg-success/10 text-success rounded px-2 py-1 text-xs">
-                            Active
-                          </span>
+                          <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex justify-end gap-1">
-                          {canPerformAction(role, 'samples:edit') && (
-                            <button
-                              onClick={() => setEditingSample(sample)}
-                              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
-                              title="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                          )}
-                          {canPerformAction(role, 'samples:exclude') && (
-                            <button
-                              onClick={() => handleToggleExclude(sample)}
-                              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
-                              title={isExcluded ? 'Include' : 'Exclude'}
-                            >
-                              {isExcluded ? (
-                                <Eye className="h-4 w-4" />
-                              ) : (
-                                <EyeOff className="h-4 w-4" />
-                              )}
-                            </button>
-                          )}
-                          {canPerformAction(role, 'samples:delete') && (
-                            <button
-                              onClick={() => setDeletingSampleId(sample.id)}
-                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1.5"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
+                      </span>
+                    </th>
+                    <th
+                      className="hover:bg-muted/80 cursor-pointer px-4 py-3 text-right text-sm font-medium transition-colors select-none"
+                      onClick={() => handleSort('mean')}
+                    >
+                      <span className="inline-flex items-center justify-end gap-1">
+                        Mean
+                        {sortField === 'mean' ? (
+                          sortDir === 'asc' ? (
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="text-muted-foreground/50 h-3.5 w-3.5" />
+                        )}
+                      </span>
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Measurements</th>
+                    <th className="px-4 py-3 text-center text-sm font-medium">Status</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-border divide-y">
+                  {loadingSamples ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="border-primary h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
+                          <span className="text-muted-foreground">Loading samples...</span>
                         </div>
                       </td>
                     </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : samplesError ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <AlertTriangle className="text-destructive/50 h-8 w-8" />
+                          <span className="text-destructive font-medium">Failed to load samples</span>
+                          <span className="text-muted-foreground text-xs">
+                            {samplesError instanceof Error ? samplesError.message : 'Unknown error'}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            Try refreshing the page or logging in again.
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : displayedSamples.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <History className="text-muted-foreground/50 h-8 w-8" />
+                          <span className="text-muted-foreground">No samples found</span>
+                          <span className="text-muted-foreground text-xs">
+                            Try adjusting your filters or time range
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedSamples.map((sample: Sample) => {
+                      const isExcluded = sample.is_excluded
+                      const isModified = sample.is_modified
+                      const measurementValues = getMeasurementValues(sample)
+                      return (
+                        <tr key={sample.id} className={isExcluded ? 'bg-muted/30 opacity-50' : ''}>
+                          <td className="px-4 py-3 font-mono text-sm">
+                            <div className="flex items-center gap-1.5">
+                              {sample.display_key ? formatDisplayKey(sample.display_key) : sample.id}
+                              {isModified && (
+                                <EditHistoryTooltip
+                                  sampleId={sample.id}
+                                  editCount={sample.edit_count || 1}
+                                />
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {new Date(sample.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-sm">
+                            {sample.mean.toFixed(4)}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-sm">
+                            [{measurementValues.map((v) => v.toFixed(2)).join(', ')}]
+                          </td>
+                          <td className="px-4 py-3 text-center text-sm">
+                            {isExcluded ? (
+                              <span className="bg-muted text-muted-foreground rounded px-2 py-1 text-xs">
+                                Excluded
+                              </span>
+                            ) : (
+                              <span className="bg-success/10 text-success rounded px-2 py-1 text-xs">
+                                Active
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex justify-end gap-1">
+                              {canPerformAction(role, 'samples:edit') && (
+                                <button
+                                  onClick={() => setEditingSample(sample)}
+                                  className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
+                                  title="Edit"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              {canPerformAction(role, 'samples:exclude') && (
+                                <button
+                                  onClick={() => handleToggleExclude(sample)}
+                                  className="text-muted-foreground hover:text-foreground hover:bg-muted rounded p-1.5"
+                                  title={isExcluded ? 'Include' : 'Exclude'}
+                                >
+                                  {isExcluded ? (
+                                    <Eye className="h-4 w-4" />
+                                  ) : (
+                                    <EyeOff className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+                              {canPerformAction(role, 'samples:delete') && (
+                                <button
+                                  onClick={() => setDeletingSampleId(sample.id)}
+                                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded p-1.5"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="border-border flex items-center justify-between border-t px-4 py-3">
-            <div className="text-muted-foreground text-sm">
-              Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalSamples)} of{' '}
-              {totalSamples} samples
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="px-3 py-1 text-sm">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="border-border flex items-center justify-between border-t px-4 py-3">
+                <div className="text-muted-foreground text-sm">
+                  Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalSamples)} of{' '}
+                  {totalSamples} samples
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1 text-sm">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded px-3 py-1 text-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <NoCharacteristicState />
+      )}
 
       {/* Edit Modal */}
       <SampleEditModal

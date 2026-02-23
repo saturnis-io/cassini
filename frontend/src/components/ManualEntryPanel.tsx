@@ -1,25 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSubmitSample, useCharacteristic } from '@/api/hooks'
-import { usePlantContext } from '@/providers/PlantProvider'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { HierarchyCharacteristicSelector } from './HierarchyCharacteristicSelector'
+import { CharacteristicContextBar } from './CharacteristicContextBar'
+import { NoCharacteristicState } from './NoCharacteristicState'
 import { NumberInput } from './NumberInput'
 import { AttributeEntryForm } from './AttributeEntryForm'
-import type { Characteristic } from '@/types'
 
 export function ManualEntryPanel() {
-  const { selectedPlant } = usePlantContext()
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
-  const setGlobalCharId = useDashboardStore((s) => s.setSelectedCharacteristicId)
-  const [selectedChar, setSelectedChar] = useState<Characteristic | null>(null)
+  const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
-  // Restore selection from global store on mount
-  const { data: restoredChar } = useCharacteristic(globalCharId && !selectedChar ? globalCharId : 0)
-  useEffect(() => {
-    if (restoredChar && !selectedChar && globalCharId) {
-      setSelectedChar(restoredChar)
-    }
-  }, [restoredChar, selectedChar, globalCharId])
   const [measurements, setMeasurements] = useState<string[]>([])
   const [batchNumber, setBatchNumber] = useState('')
   const [operatorId, setOperatorId] = useState('')
@@ -53,11 +43,6 @@ export function ManualEntryPanel() {
       setMeasurements([])
     }
   }, [inputCount])
-
-  const handleCharacteristicSelect = (char: Characteristic) => {
-    setSelectedChar(char)
-    setGlobalCharId(char.id)
-  }
 
   const handleMeasurementChange = (index: number, value: string) => {
     const newMeasurements = [...measurements]
@@ -102,39 +87,9 @@ export function ManualEntryPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="bg-muted rounded-xl p-6">
-        <h3 className="mb-4 font-semibold">Select Characteristic</h3>
-        <HierarchyCharacteristicSelector
-          selectedCharId={globalCharId}
-          onSelect={handleCharacteristicSelect}
-          filterProvider="manual"
-          plantId={selectedPlant?.id}
-        />
-        {selectedChar && (
-          <div className="bg-muted/50 mt-3 rounded-lg p-3">
-            <div className="font-medium">{selectedChar.name}</div>
-            <div className="text-muted-foreground text-sm">
-              {selectedChar.data_type === 'attribute' ? (
-                <>
-                  Type: {selectedChar.attribute_chart_type?.toUpperCase()}-chart
-                  {selectedChar.default_sample_size != null &&
-                    ` | Default sample size: ${selectedChar.default_sample_size}`}
-                </>
-              ) : (
-                <>
-                  Subgroup size: {selectedChar.subgroup_size ?? 1}
-                  {selectedChar.min_measurements != null &&
-                    selectedChar.min_measurements !== selectedChar.subgroup_size &&
-                    ` | Min: ${selectedChar.min_measurements}`}
-                  {selectedChar.target_value != null && ` | Target: ${selectedChar.target_value}`}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <CharacteristicContextBar />
 
-      {selectedChar && (
+      {selectedChar ? (
         <div className="bg-muted rounded-xl p-6">
           <h3 className="mb-4 font-semibold">
             {selectedChar.data_type === 'attribute' ? 'Submit Attribute Data' : 'Submit Sample'}
@@ -231,74 +186,8 @@ export function ManualEntryPanel() {
             </form>
           )}
         </div>
-      )}
-
-      {/* Quick Stats */}
-      {selectedChar && (
-        <div className="bg-muted rounded-xl p-6">
-          <h3 className="mb-4 font-semibold">Characteristic Info</h3>
-          {selectedChar.data_type === 'attribute' ? (
-            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-              <div>
-                <span className="text-muted-foreground">Data Type</span>
-                <div className="font-medium">Attribute</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Chart Type</span>
-                <div className="font-medium">
-                  {selectedChar.attribute_chart_type?.toUpperCase() ?? '-'}-chart
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">UCL</span>
-                <div className="font-medium">
-                  {selectedChar.ucl != null
-                    ? selectedChar.ucl.toFixed(selectedChar.decimal_precision ?? 4)
-                    : '-'}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">LCL</span>
-                <div className="font-medium">
-                  {selectedChar.lcl != null
-                    ? selectedChar.lcl.toFixed(selectedChar.decimal_precision ?? 4)
-                    : '-'}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
-              <div>
-                <span className="text-muted-foreground">Subgroup Size</span>
-                <div className="font-medium">{selectedChar.subgroup_size ?? 1}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Min Required</span>
-                <div className="font-medium">{minRequired}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">UCL</span>
-                <div className="font-medium">
-                  {selectedChar.ucl != null
-                    ? selectedChar.ucl.toFixed(selectedChar.decimal_precision ?? 4)
-                    : '-'}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">LCL</span>
-                <div className="font-medium">
-                  {selectedChar.lcl != null
-                    ? selectedChar.lcl.toFixed(selectedChar.decimal_precision ?? 4)
-                    : '-'}
-                </div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Mode</span>
-                <div className="font-medium">{selectedChar.subgroup_mode ?? '-'}</div>
-              </div>
-            </div>
-          )}
-        </div>
+      ) : (
+        <NoCharacteristicState />
       )}
     </div>
   )
