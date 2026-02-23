@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useCallback } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
@@ -34,26 +34,43 @@ const TOOLTIPS: Record<string, string> = {
   interaction: 'Operator \u00d7 Part interaction. If significant (p < 0.05), some operators measure certain parts differently \u2014 suggests inconsistent technique.',
 }
 
-/** Tooltip bubble that appears on hover/click */
+/** Tooltip bubble that appears on hover/click, positioned via fixed to avoid clipping */
 function Tip({ id }: { id: string }) {
   const [show, setShow] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const text = TOOLTIPS[id]
+
+  const updatePos = useCallback(() => {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    const tipWidth = 256 // w-64 = 16rem = 256px
+    let left = rect.left + rect.width / 2 - tipWidth / 2
+    // Clamp to viewport edges with 8px padding
+    left = Math.max(8, Math.min(left, window.innerWidth - tipWidth - 8))
+    setPos({ top: rect.top - 4, left })
+  }, [])
+
   if (!text) return null
 
   return (
-    <span className="relative inline-flex">
+    <span className="inline-flex">
       <button
+        ref={btnRef}
         type="button"
         className="text-muted-foreground/60 hover:text-muted-foreground ml-1 transition-colors"
-        onMouseEnter={() => setShow(true)}
+        onMouseEnter={() => { updatePos(); setShow(true) }}
         onMouseLeave={() => setShow(false)}
-        onClick={() => setShow((v) => !v)}
+        onClick={() => { updatePos(); setShow((v) => !v) }}
         aria-label={`Help: ${id}`}
       >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
-      {show && (
-        <span className="bg-popover text-popover-foreground border-border absolute bottom-full left-1/2 z-50 mb-1 w-64 -translate-x-1/2 rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
+      {show && pos && (
+        <span
+          className="bg-popover text-popover-foreground border-border fixed z-50 w-64 rounded-md border p-2 text-left text-[11px] leading-snug shadow-md"
+          style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%)' }}
+        >
           {text}
         </span>
       )}
@@ -163,7 +180,7 @@ export function MSAResults({ result }: MSAResultsProps) {
       </div>
 
       {/* %Contribution table */}
-      <div className="border-border overflow-hidden rounded-xl border">
+      <div className="border-border rounded-xl border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50">
@@ -275,7 +292,7 @@ export function MSAResults({ result }: MSAResultsProps) {
 
       {/* ANOVA table (crossed ANOVA only) */}
       {result.anova_table && (
-        <div className="border-border overflow-hidden rounded-xl border">
+        <div className="border-border rounded-xl border">
           <div className="bg-muted/50 border-border border-b px-4 py-2">
             <h3 className="text-sm font-medium">
               ANOVA Table
@@ -297,19 +314,19 @@ export function MSAResults({ result }: MSAResultsProps) {
               {Object.entries(result.anova_table).map(([source, row]) => (
                 <tr key={source} className="border-border/50 border-t">
                   <td className="px-4 py-2 font-medium capitalize">{source.replace('_', ' x ')}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.SS.toFixed(6)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.df}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.MS.toFixed(6)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{row.SS != null ? row.SS.toFixed(6) : '-'}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{row.df ?? '-'}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{row.MS != null ? row.MS.toFixed(6) : '-'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {row.F !== null ? row.F.toFixed(4) : '-'}
+                    {row.F != null ? row.F.toFixed(4) : '-'}
                   </td>
                   <td
                     className={cn(
                       'px-4 py-2 text-right tabular-nums',
-                      row.p !== null && row.p < 0.05 && 'font-medium text-red-600',
+                      row.p != null && row.p < 0.05 && 'font-medium text-red-600',
                     )}
                   >
-                    {row.p !== null ? row.p.toFixed(4) : '-'}
+                    {row.p != null ? row.p.toFixed(4) : '-'}
                   </td>
                 </tr>
               ))}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Microscope,
   Plus,
@@ -9,8 +10,6 @@ import {
 import { cn } from '@/lib/utils'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useMSAStudies, useDeleteMSAStudy } from '@/api/hooks'
-import type { MSAStudy } from '@/api/client'
-import { MSAStudyWizard } from '@/components/msa/MSAStudyWizard'
 
 const STUDY_TYPE_LABELS: Record<string, string> = {
   crossed_anova: 'Crossed ANOVA',
@@ -34,25 +33,14 @@ function formatDate(iso: string): string {
 }
 
 export function MSAPage() {
+  const navigate = useNavigate()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
   const { data: studies, isLoading } = useMSAStudies(plantId)
   const deleteMutation = useDeleteMSAStudy()
 
-  const [wizardOpen, setWizardOpen] = useState(false)
-  const [editStudyId, setEditStudyId] = useState<number | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
-
-  const handleOpenStudy = (study: MSAStudy) => {
-    setEditStudyId(study.id)
-    setWizardOpen(true)
-  }
-
-  const handleNewStudy = () => {
-    setEditStudyId(null)
-    setWizardOpen(true)
-  }
 
   const handleDelete = async (id: number) => {
     setConfirmDeleteId(null)
@@ -83,7 +71,7 @@ export function MSAPage() {
           </div>
         </div>
         <button
-          onClick={handleNewStudy}
+          onClick={() => navigate('/msa/new')}
           className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -101,7 +89,7 @@ export function MSAPage() {
           <Microscope className="text-muted-foreground h-10 w-10" />
           <p className="text-muted-foreground text-sm">No MSA studies yet.</p>
           <button
-            onClick={handleNewStudy}
+            onClick={() => navigate('/msa/new')}
             className="text-primary hover:text-primary/80 mt-1 text-sm font-medium"
           >
             Create your first study
@@ -128,7 +116,7 @@ export function MSAPage() {
                   <tr
                     key={study.id}
                     className="border-border/50 hover:bg-muted/30 cursor-pointer border-t transition-colors"
-                    onClick={() => handleOpenStudy(study)}
+                    onClick={() => navigate(`/msa/${study.id}`)}
                   >
                     <td className="px-4 py-3 font-medium">{study.name}</td>
                     <td className="text-muted-foreground px-4 py-3">
@@ -169,18 +157,6 @@ export function MSAPage() {
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Wizard modal */}
-      {wizardOpen && (
-        <MSAStudyWizard
-          studyId={editStudyId}
-          plantId={plantId}
-          onClose={() => {
-            setWizardOpen(false)
-            setEditStudyId(null)
-          }}
-        />
       )}
 
       {/* Delete confirmation */}

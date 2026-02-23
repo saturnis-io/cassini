@@ -31,6 +31,7 @@ import { ReportsView } from '@/pages/ReportsView'
 import { MSAPage } from '@/pages/MSAPage'
 import { FAIPage } from '@/pages/FAIPage'
 import { FAIReportEditor } from '@/components/fai/FAIReportEditor'
+import { MSAStudyEditor } from '@/components/msa/MSAStudyEditor'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { LoginPage } from '@/pages/LoginPage'
@@ -225,6 +226,14 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole="engineer">
                       <MSAPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="msa/:studyId"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <MSAStudyEditor />
                     </ProtectedRoute>
                   }
                 />
