@@ -109,6 +109,7 @@ async def create_study(
 @router.get("/studies", response_model=list[MSAStudyResponse])
 async def list_studies(
     plant_id: int = Query(..., description="Plant ID (required)"),
+    status: str | None = Query(None, description="Filter by status (setup, collecting, complete)"),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MSAStudyResponse]:
@@ -123,6 +124,8 @@ async def list_studies(
         .where(MSAStudy.plant_id == plant_id)
         .order_by(MSAStudy.created_at.desc())
     )
+    if status is not None:
+        stmt = stmt.where(MSAStudy.status == status)
     result = await session.execute(stmt)
     studies = list(result.scalars().all())
     return [MSAStudyResponse.model_validate(s) for s in studies]

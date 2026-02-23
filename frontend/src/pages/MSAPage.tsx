@@ -32,12 +32,20 @@ function formatDate(iso: string): string {
   })
 }
 
+const STATUS_FILTERS = [
+  { value: undefined, label: 'All' },
+  { value: 'setup', label: 'Setup' },
+  { value: 'collecting', label: 'Collecting' },
+  { value: 'complete', label: 'Complete' },
+] as const
+
 export function MSAPage() {
   const navigate = useNavigate()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
-  const { data: studies, isLoading } = useMSAStudies(plantId)
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
+  const { data: studies, isLoading } = useMSAStudies(plantId, statusFilter)
   const deleteMutation = useDeleteMSAStudy()
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
@@ -77,6 +85,24 @@ export function MSAPage() {
           <Plus className="h-4 w-4" />
           New Study
         </button>
+      </div>
+
+      {/* Status filter tabs */}
+      <div className="flex gap-1">
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f.label}
+            onClick={() => setStatusFilter(f.value)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              statusFilter === f.value
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Studies table */}

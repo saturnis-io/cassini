@@ -169,7 +169,7 @@ export const queryKeys = {
   },
   msa: {
     all: ['msa'] as const,
-    list: (plantId: number) => ['msa', 'list', plantId] as const,
+    list: (plantId: number, status?: string) => ['msa', 'list', plantId, status] as const,
     detail: (id: number) => ['msa', 'detail', id] as const,
     results: (id: number) => ['msa', 'results', id] as const,
     measurements: (id: number) => ['msa', 'measurements', id] as const,
@@ -2417,10 +2417,10 @@ export function useApplyPreset() {
 // MSA (Measurement System Analysis) hooks
 // -----------------------------------------------------------------------
 
-export function useMSAStudies(plantId: number) {
+export function useMSAStudies(plantId: number, status?: string) {
   return useQuery({
-    queryKey: queryKeys.msa.list(plantId),
-    queryFn: () => msaApi.listStudies(plantId),
+    queryKey: queryKeys.msa.list(plantId, status),
+    queryFn: () => msaApi.listStudies(plantId, status),
     enabled: plantId > 0,
   })
 }

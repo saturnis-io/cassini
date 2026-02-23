@@ -2133,8 +2133,8 @@ export interface GagePortCreate {
 // ---- MSA API ----
 
 export const msaApi = {
-  listStudies: (plantId: number) =>
-    fetchApi<MSAStudy[]>(`/msa/studies?plant_id=${plantId}`),
+  listStudies: (plantId: number, status?: string) =>
+    fetchApi<MSAStudy[]>(`/msa/studies?plant_id=${plantId}${status ? `&status=${status}` : ''}`),
 
   getStudy: (id: number) =>
     fetchApi<MSAStudyDetail>(`/msa/studies/${id}`),
