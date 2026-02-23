@@ -3,9 +3,9 @@
 > **Read this file first at the start of every session.**
 > It tells you where we are, what's done, and what to do next.
 
-**Last updated:** 2026-02-22
-**Active sprint:** Sprint 7 (Phase C — Shop Floor Connectivity)
-**Branch:** `feature/sprint1-visual-impact` (continuing on existing branch)
+**Last updated:** 2026-02-23
+**Active sprint:** Sprint 8 (Phase D — Enterprise Integration)
+**Branch:** `main`
 
 ---
 
@@ -14,8 +14,8 @@
 | Sprint | Phase | Theme | Status | Notes |
 |--------|-------|-------|--------|-------|
 | 5 | A | Statistical Credibility | **COMPLETE** | 5 commits, skeptic-reviewed, 3 BLOCKERs fixed |
-| 6 | B | Automotive/Aerospace | **COMPLETE** | 10 commits, skeptic-reviewed, 3 BLOCKERs fixed (d2* 2D, Z-score sigma, separation of duties) |
-| 7 | C | Shop Floor Connectivity | **NOT STARTED** | 1 feature: RS-232/USB gage integration. Needs arch decision. |
+| 6 | B | Automotive/Aerospace | **COMPLETE** | 10 commits, skeptic-reviewed, 3 BLOCKERs fixed |
+| 7 | C | Shop Floor Connectivity | **COMPLETE** | 7 commits, skeptic-reviewed, 3 BLOCKERs fixed |
 | 8 | D | Enterprise Integration | **NOT STARTED** | 3 features: ERP connectors, LIMS/MES, mobile. Needs arch decision. |
 | 9 | E | Advanced Analytics | **NOT STARTED** | 5 features: multivariate, predictive, gen AI, correlation, DOE |
 
@@ -36,6 +36,8 @@
 | Sprint 6 Schema | 6 | migration 033 | 6 tables (msa_study, msa_operator, msa_part, msa_measurement, fai_report, fai_item) + short_run_mode on characteristic |
 | Sprint 6 Skeptic Fixes | 6 | 4f796c5 | 3 BLOCKERs (d2* 2D lookup, Z-score sigma/sqrt(n), FAI separation of duties) + 5 WARNINGs fixed |
 | Test Seeds + DevTools | 6 | 7349655 | 5 seed scripts (sprints 5-9), testing READMEs, DevTools two-section layout |
+| C1: RS-232/USB Gage Integration | 7 | bb97fc6..b77961b | Python bridge agent (serial→MQTT), migration 034+035, 12 API endpoints, bridge package (parsers/CLI/runner), Gages tab in Connectivity Hub |
+| Sprint 7 Skeptic Fixes | 7 | b77961b | 3 BLOCKERs (config URL mismatch, JSON keys mismatch, dual-mapping bug) + 5 WARNINGs fixed |
 
 ---
 
@@ -43,8 +45,8 @@
 
 | ID | Question | Options | Status |
 |----|----------|---------|--------|
-| Pending | RS-232 gage architecture | WebSerial API vs Python bridge agent vs Electron wrapper | Not started |
-| Pending | Mobile architecture | PWA vs React Native vs responsive-only | Not started |
+| D-002 | RS-232 gage architecture | WebSerial vs Python bridge vs Electron | **DECIDED** — Python bridge agent |
+| D-003 | Mobile architecture | PWA vs React Native vs responsive-only | Not started |
 
 ---
 
@@ -64,9 +66,11 @@
 | 2026-02-22 | Sprint 6 Design | Brainstormed 3 features (B1 Gage R&R, B2 Short-Run, B3 FAI). Wrote design doc + implementation plan. 10-task plan. |
 | 2026-02-22 | Sprint 6 Execute | 6-wave subagent execution. Migration 033, MSA engine (ANOVA/range/nested/attribute), FAI API with separation of duties, short-run transform, full frontend (MSA wizard, FAI editor, short-run charts). Skeptic found 3 BLOCKERs — all fixed. |
 | 2026-02-22 | Sprint 6 Seeds | Updated seed_test_sprint6.py to populate actual MSA/FAI tables. Updated testing README to "Complete". |
+| 2026-02-23 | Sprint 7 Design | Architecture decision D-002 (Python bridge agent). 3-component design: bridge package, backend API, Gages tab. Design doc + 9-task implementation plan. |
+| 2026-02-23 | Sprint 7 Execute | 6 implementation commits + 1 skeptic fix. Migration 034+035, 12 API endpoints (incl /my-config), bridge package (parsers, CLI, runner), frontend API layer + 5 Gages tab components, test seed updated. Skeptic found 3 BLOCKERs + 7 WARNINGs — all critical issues fixed. |
 
 ---
 
 ## Next Action
 
-**Sprint 7 (Phase C — Shop Floor Connectivity)**: RS-232/USB gage integration. Architecture decision needed first (WebSerial API vs Python bridge agent vs Electron wrapper). Then design + implementation plan.
+**Sprint 8 (Phase D — Enterprise Integration)**: 3 features — D1: ERP connectors, D2: LIMS/MES middleware, D3: Native mobile apps. Architecture decisions needed (esp. D-003 for mobile). Then design + implementation plan.
