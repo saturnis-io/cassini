@@ -32,10 +32,10 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  draft: { label: 'Draft', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' },
-  submitted: { label: 'Submitted', bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400' },
-  approved: { label: 'Approved', bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400' },
-  rejected: { label: 'Rejected', bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
+  draft: { label: 'Draft', bg: 'bg-gray-500/10', text: 'text-gray-600 dark:text-gray-400' },
+  submitted: { label: 'Submitted', bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
+  approved: { label: 'Approved', bg: 'bg-green-500/10', text: 'text-green-600 dark:text-green-400' },
+  rejected: { label: 'Rejected', bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400' },
 }
 
 export function FAIReportEditor() {

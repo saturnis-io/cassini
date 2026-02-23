@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   X,
   ArrowRight,
@@ -7,6 +7,9 @@ import {
   Loader2,
   Microscope,
   AlertTriangle,
+  Download,
+  ChevronDown,
+  Table2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -24,6 +27,8 @@ import {
 } from '@/api/hooks'
 import type {
   MSAStudyCreate,
+  MSAStudyDetail,
+  MSAMeasurement,
   MSAMeasurementInput,
   MSAAttributeInput,
   GageRRResult,
@@ -32,6 +37,7 @@ import type {
 import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'
+import { CharacteristicPicker } from './CharacteristicPicker'
 
 interface MSAStudyWizardProps {
   studyId: number | null
@@ -59,6 +65,99 @@ function isAttributeStudy(studyType: string): boolean {
   return studyType === 'attribute_agreement'
 }
 
+/** Convert measurements array → grid data records for display */
+function measurementsToGridData(
+  measurements: MSAMeasurement[],
+  isAttribute: boolean,
+): { gridData: Record<string, number | null>; attrGridData: Record<string, string> } {
+  const gridData: Record<string, number | null> = {}
+  const attrGridData: Record<string, string> = {}
+  for (const m of measurements) {
+    const key = `${m.operator_id}-${m.part_id}-${m.replicate_num}`
+    if (isAttribute) {
+      attrGridData[key] = m.attribute_value ?? ''
+    } else {
+      gridData[key] = m.value
+    }
+  }
+  return { gridData, attrGridData }
+}
+
+/** Trigger CSV download in browser */
+function downloadCSV(filename: string, csvContent: string) {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** Build CSV from measurements */
+function exportMeasurementsCSV(
+  study: MSAStudyDetail,
+  measurements: MSAMeasurement[],
+  isAttribute: boolean,
+) {
+  const opMap = new Map(study.operators.map((o) => [o.id, o.name]))
+  const partMap = new Map(study.parts.map((p) => [p.id, p.name]))
+
+  const header = isAttribute
+    ? 'Operator,Part,Replicate,Attribute Value'
+    : 'Operator,Part,Replicate,Value'
+
+  const rows = measurements.map((m) => {
+    const op = opMap.get(m.operator_id) ?? String(m.operator_id)
+    const part = partMap.get(m.part_id) ?? String(m.part_id)
+    const val = isAttribute ? (m.attribute_value ?? '') : m.value
+    return `"${op}","${part}",${m.replicate_num},${val}`
+  })
+
+  const safeName = study.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  downloadCSV(`${safeName}_measurements.csv`, [header, ...rows].join('\n'))
+}
+
+/** Build CSV from Gage R&R results */
+function exportGageRRResultsCSV(study: MSAStudyDetail, result: GageRRResult) {
+  const rows = [
+    'Source,StdDev,%Contribution,%Study Var',
+    `"Repeatability (EV)",${result.repeatability_ev.toFixed(6)},${result.pct_contribution_ev.toFixed(2)},${result.pct_study_ev.toFixed(2)}`,
+    `"Reproducibility (AV)",${result.reproducibility_av.toFixed(6)},${result.pct_contribution_av.toFixed(2)},${result.pct_study_av.toFixed(2)}`,
+    `"Gage R&R",${result.gage_rr.toFixed(6)},${result.pct_contribution_grr.toFixed(2)},${result.pct_study_grr.toFixed(2)}`,
+    `"Part Variation",${result.part_variation.toFixed(6)},${result.pct_contribution_pv.toFixed(2)},${result.pct_study_pv.toFixed(2)}`,
+    `"Total Variation",${result.total_variation.toFixed(6)},100.00,100.00`,
+    '',
+    `"ndc",${result.ndc}`,
+    `"Verdict","${result.verdict}"`,
+  ]
+  if (result.pct_tolerance_grr !== null) {
+    rows.push(`"%Tolerance GRR",${result.pct_tolerance_grr.toFixed(2)}`)
+  }
+  const safeName = study.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  downloadCSV(`${safeName}_results.csv`, rows.join('\n'))
+}
+
+/** Build CSV from Attribute MSA results */
+function exportAttributeResultsCSV(study: MSAStudyDetail, result: AttributeMSAResult) {
+  const rows = [
+    '"Metric","Value"',
+    `"Fleiss Kappa",${result.fleiss_kappa.toFixed(4)}`,
+    `"Between-Appraiser Agreement",${result.between_appraiser.toFixed(1)}%`,
+    `"Verdict","${result.verdict}"`,
+    '',
+    '"Within-Appraiser Agreement"',
+    '"Appraiser","Agreement %"',
+    ...Object.entries(result.within_appraiser).map(([k, v]) => `"${k}",${v.toFixed(1)}%`),
+    '',
+    '"Cohens Kappa Pairs"',
+    '"Pair","Kappa"',
+    ...Object.entries(result.cohens_kappa_pairs).map(([k, v]) => `"${k}",${v.toFixed(4)}`),
+  ]
+  const safeName = study.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  downloadCSV(`${safeName}_results.csv`, rows.join('\n'))
+}
+
 export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProps) {
   // Form state for new studies
   const [name, setName] = useState('')
@@ -84,6 +183,8 @@ export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProp
   const [gridData, setGridData] = useState<Record<string, number | null>>({})
   // Attribute grid data
   const [attrGridData, setAttrGridData] = useState<Record<string, string>>({})
+  // Results view: show measurement data toggle
+  const [showMeasurementData, setShowMeasurementData] = useState(false)
 
   // Queries
   const { data: study, isLoading: studyLoading } = useMSAStudy(effectiveStudyId)
@@ -142,6 +243,27 @@ export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProp
 
   const measurementCount = measurements?.length ?? study?.measurement_count ?? 0
   const completionPct = totalExpected > 0 ? Math.round((measurementCount / totalExpected) * 100) : 0
+
+  // Read-only grid data built from fetched measurements (for completed studies)
+  const readOnlyData = useMemo(() => {
+    if (!measurements || measurements.length === 0) return null
+    return measurementsToGridData(measurements, isAttribute)
+  }, [measurements, isAttribute])
+
+  // CSV export handlers
+  const handleExportData = useCallback(() => {
+    if (!study || !measurements) return
+    exportMeasurementsCSV(study, measurements, isAttribute)
+  }, [study, measurements, isAttribute])
+
+  const handleExportResults = useCallback(() => {
+    if (!study || !results) return
+    if (isAttribute) {
+      exportAttributeResultsCSV(study, results as AttributeMSAResult)
+    } else {
+      exportGageRRResultsCSV(study, results as GageRRResult)
+    }
+  }, [study, results, isAttribute])
 
   // ----- Step 1: Setup -----
   const handleCreateStudy = async () => {
@@ -341,6 +463,7 @@ export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProp
             <>
               {step === 'setup' && (
                 <SetupStep
+                  plantId={plantId}
                   name={name}
                   onNameChange={setName}
                   studyType={studyType}
@@ -384,11 +507,66 @@ export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProp
               )}
 
               {step === 'results' && study && results && (
-                isAttribute ? (
-                  <AttributeMSAResults result={results as AttributeMSAResult} />
-                ) : (
-                  <MSAResults result={results as GageRRResult} />
-                )
+                <div className="space-y-6">
+                  {/* Export toolbar */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleExportResults}
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Export Results CSV
+                    </button>
+                    {measurements && measurements.length > 0 && (
+                      <button
+                        onClick={handleExportData}
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Export Data CSV
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Results */}
+                  {isAttribute ? (
+                    <AttributeMSAResults result={results as AttributeMSAResult} />
+                  ) : (
+                    <MSAResults result={results as GageRRResult} />
+                  )}
+
+                  {/* Measurement data (collapsible) */}
+                  {readOnlyData && study && (
+                    <div className="border-border rounded-xl border">
+                      <button
+                        onClick={() => setShowMeasurementData(!showMeasurementData)}
+                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Table2 className="h-4 w-4 text-muted-foreground" />
+                          Measurement Data ({measurements?.length ?? 0} values)
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 text-muted-foreground transition-transform',
+                            showMeasurementData && 'rotate-180',
+                          )}
+                        />
+                      </button>
+                      {showMeasurementData && (
+                        <div className="border-border border-t p-4">
+                          <MSADataGrid
+                            study={study}
+                            isAttribute={isAttribute}
+                            gridData={readOnlyData.gridData}
+                            attrGridData={readOnlyData.attrGridData}
+                            readOnly
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -492,6 +670,7 @@ export function MSAStudyWizard({ studyId, plantId, onClose }: MSAStudyWizardProp
 // ── Step 1: Setup ──
 
 function SetupStep({
+  plantId,
   name,
   onNameChange,
   studyType,
@@ -512,6 +691,7 @@ function SetupStep({
   partNames,
   onPartNamesChange,
 }: {
+  plantId: number
   name: string
   onNameChange: (v: string) => void
   studyType: string
@@ -589,18 +769,15 @@ function SetupStep({
         <label className="mb-1.5 block text-sm font-medium">
           Link to Characteristic <span className="text-muted-foreground">(optional)</span>
         </label>
-        <select
-          value={charId ?? ''}
-          onChange={(e) => onCharIdChange(e.target.value ? Number(e.target.value) : null)}
-          className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-        >
-          <option value="">-- None --</option>
-          {characteristics.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <CharacteristicPicker
+          plantId={plantId}
+          value={charId}
+          onChange={onCharIdChange}
+          characteristics={characteristics}
+        />
+        <p className="text-muted-foreground mt-1 text-xs">
+          Browse the hierarchy tree or search to find a characteristic.
+        </p>
       </div>
 
       {/* Numeric params row */}

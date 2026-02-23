@@ -6,9 +6,10 @@ interface MSADataGridProps {
   study: MSAStudyDetail
   isAttribute: boolean
   gridData: Record<string, number | null>
-  onGridDataChange: (data: Record<string, number | null>) => void
+  onGridDataChange?: (data: Record<string, number | null>) => void
   attrGridData: Record<string, string>
-  onAttrGridDataChange: (data: Record<string, string>) => void
+  onAttrGridDataChange?: (data: Record<string, string>) => void
+  readOnly?: boolean
 }
 
 /**
@@ -25,6 +26,7 @@ export function MSADataGrid({
   onGridDataChange,
   attrGridData,
   onAttrGridDataChange,
+  readOnly = false,
 }: MSADataGridProps) {
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -34,15 +36,16 @@ export function MSADataGrid({
 
   const handleValueChange = useCallback(
     (opId: number, partId: number, rep: number, value: string) => {
+      if (readOnly) return
       const key = `${opId}-${partId}-${rep}`
       if (isAttribute) {
-        onAttrGridDataChange({ ...attrGridData, [key]: value })
+        onAttrGridDataChange?.({ ...attrGridData, [key]: value })
       } else {
         const num = value === '' ? null : parseFloat(value)
-        onGridDataChange({ ...gridData, [key]: isNaN(num as number) ? null : num })
+        onGridDataChange?.({ ...gridData, [key]: isNaN(num as number) ? null : num })
       }
     },
-    [isAttribute, gridData, attrGridData, onGridDataChange, onAttrGridDataChange],
+    [readOnly, isAttribute, gridData, attrGridData, onGridDataChange, onAttrGridDataChange],
   )
 
   // Tab-through navigation: focus next input in document order
@@ -135,7 +138,29 @@ export function MSADataGrid({
                     const key = `${op.id}-${part.id}-${r + 1}`
                     return (
                       <td key={key} className="border-border border p-0.5">
-                        {isAttribute ? (
+                        {readOnly ? (
+                          isAttribute ? (
+                            <span
+                              className={cn(
+                                'block px-1.5 py-1 text-center text-xs font-medium',
+                                attrGridData[key] === 'pass' && 'text-green-600 dark:text-green-400',
+                                attrGridData[key] === 'fail' && 'text-red-600 dark:text-red-400',
+                                !attrGridData[key] && 'text-muted-foreground',
+                              )}
+                            >
+                              {attrGridData[key] || '-'}
+                            </span>
+                          ) : (
+                            <span
+                              className={cn(
+                                'block min-w-[60px] px-1.5 py-1 text-center text-xs tabular-nums',
+                                gridData[key] != null ? 'text-foreground' : 'text-muted-foreground',
+                              )}
+                            >
+                              {gridData[key] != null ? gridData[key] : '-'}
+                            </span>
+                          )
+                        ) : isAttribute ? (
                           <select
                             value={attrGridData[key] ?? ''}
                             onChange={(e) =>
@@ -175,9 +200,11 @@ export function MSADataGrid({
         </table>
       </div>
 
-      <p className="text-muted-foreground text-xs">
-        Use Tab or Enter to navigate between cells. All cells must be filled before calculation.
-      </p>
+      {!readOnly && (
+        <p className="text-muted-foreground text-xs">
+          Use Tab or Enter to navigate between cells. All cells must be filled before calculation.
+        </p>
+      )}
     </div>
   )
 }

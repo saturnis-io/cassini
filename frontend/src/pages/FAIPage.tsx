@@ -19,10 +19,10 @@ import {
 } from '@/api/hooks'
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  draft: { label: 'Draft', bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-600 dark:text-gray-400' },
-  submitted: { label: 'Submitted', bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-400' },
-  approved: { label: 'Approved', bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-400' },
-  rejected: { label: 'Rejected', bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400' },
+  draft: { label: 'Draft', bg: 'bg-gray-500/10', text: 'text-gray-600 dark:text-gray-400' },
+  submitted: { label: 'Submitted', bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
+  approved: { label: 'Approved', bg: 'bg-green-500/10', text: 'text-green-600 dark:text-green-400' },
+  rejected: { label: 'Rejected', bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400' },
 }
 
 export function FAIPage() {
@@ -68,7 +68,7 @@ export function FAIPage() {
     plants?.find((p) => p.id === plantId)?.name ?? `Plant ${plantId}`
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex max-w-6xl flex-col gap-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -121,29 +121,29 @@ export function FAIPage() {
           <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
         </div>
       ) : !reports || reports.length === 0 ? (
-        <div className="flex h-64 flex-col items-center justify-center gap-3">
-          <FileText className="text-muted-foreground h-12 w-12" />
-          <p className="text-muted-foreground text-sm">No FAI reports found</p>
+        <div className="border-border flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed">
+          <FileText className="text-muted-foreground h-10 w-10" />
+          <p className="text-muted-foreground text-sm">No FAI reports found.</p>
           <button
             onClick={handleNewReport}
             disabled={createReport.isPending}
-            className="text-primary hover:text-primary/80 text-sm font-medium"
+            className="text-primary hover:text-primary/80 mt-1 text-sm font-medium"
           >
             Create your first report
           </button>
         </div>
       ) : (
-        <div className="border-border overflow-hidden rounded-lg border">
-          <table className="w-full">
+        <div className="border-border overflow-hidden rounded-xl border">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/50 border-border border-b text-left text-sm font-medium">
-                <th className="px-4 py-3">Part Number</th>
-                <th className="px-4 py-3">Part Name</th>
-                <th className="px-4 py-3">Rev</th>
-                <th className="px-4 py-3">Site</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+              <tr className="bg-muted/50">
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Part Number</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Part Name</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Rev</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Site</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
+                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Created</th>
+                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -153,22 +153,22 @@ export function FAIPage() {
                   <tr
                     key={report.id}
                     onClick={() => navigate(`/fai/${report.id}`)}
-                    className="border-border hover:bg-muted/30 cursor-pointer border-b transition-colors last:border-b-0"
+                    className="border-border/50 hover:bg-muted/30 cursor-pointer border-t transition-colors"
                   >
-                    <td className="px-4 py-3 text-sm font-medium">{report.part_number}</td>
-                    <td className="text-muted-foreground px-4 py-3 text-sm">
+                    <td className="px-4 py-3 font-medium">{report.part_number}</td>
+                    <td className="text-muted-foreground px-4 py-3">
                       {report.part_name || '--'}
                     </td>
-                    <td className="text-muted-foreground px-4 py-3 text-sm">
+                    <td className="text-muted-foreground px-4 py-3">
                       {report.revision || '--'}
                     </td>
-                    <td className="text-muted-foreground px-4 py-3 text-sm">
+                    <td className="text-muted-foreground px-4 py-3">
                       {plantName(report.plant_id)}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={cn(
-                          'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
                           statusStyle.bg,
                           statusStyle.text,
                         )}
@@ -176,7 +176,7 @@ export function FAIPage() {
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className="text-muted-foreground px-4 py-3 text-sm">
+                    <td className="text-muted-foreground px-4 py-3">
                       {new Date(report.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
