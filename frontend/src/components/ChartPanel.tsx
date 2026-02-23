@@ -185,13 +185,6 @@ export function ChartPanel({
     >
       {/* Control Chart, Attribute Chart, CUSUM Chart, or EWMA Chart */}
       <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
-        {(() => {
-          console.log('[ChartPanel] chart_type:', chartData?.chart_type, 'data_type:', chartData?.data_type,
-            'data_points:', chartData?.data_points?.length,
-            'cusum_data_points:', chartData?.cusum_data_points?.length,
-            'ewma_data_points:', chartData?.ewma_data_points?.length)
-          return null
-        })()}
         {chartData?.data_type === 'attribute' ? (
           <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
         ) : chartData?.chart_type === 'cusum' ? (
