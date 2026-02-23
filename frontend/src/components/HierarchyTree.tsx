@@ -69,6 +69,10 @@ function TreeNode({ node, level }: TreeNodeProps) {
 
   const handleSelect = () => {
     setSelectedNodeId(node.id)
+    // Also expand when clicking the row (if it has children/characteristics)
+    if ((hasChildren || node.characteristic_count) && !isExpanded) {
+      toggleNodeExpanded(node.id)
+    }
   }
 
   const handleDeleteNode = async () => {
