@@ -922,6 +922,11 @@ async def get_chart_data(
         preceding = (await session.execute(count_stmt)).scalar_one()
         _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
 
+    # Pre-compute short-run transformation parameters
+    _sr_mode = characteristic.short_run_mode
+    _sr_target = characteristic.target_value or 0.0
+    _sr_sigma = characteristic.stored_sigma
+
     chart_samples = []
     for sample in samples:
         values = [m.value for m in sample.measurements]
@@ -930,7 +935,7 @@ async def get_chart_data(
         if len(values) >= 2:
             std_dev_value = float(np.std(values, ddof=1))
 
-        # Classify zone using shared utility
+        # Classify zone using shared utility (raw value vs raw limits)
         zone = classify_zone(value, zones, center_line)
 
         # Get violations for this sample from batch-loaded data
@@ -941,6 +946,18 @@ async def get_chart_data(
             if v.requires_acknowledgement and not v.acknowledged
         ]
         violation_rules = list(set(v.rule_id for v in sample_violations))
+
+        # Compute display_value: Mode A z-score, short-run transform, or raw
+        if characteristic.subgroup_mode == "STANDARDIZED" and sample.z_score is not None:
+            display_val = sample.z_score
+        elif _sr_mode == "deviation":
+            display_val = value - _sr_target
+        elif _sr_mode == "standardized" and _sr_sigma and _sr_sigma > 0:
+            actual_n = sample.actual_n or len(values)
+            sigma_xbar = _sr_sigma / np.sqrt(actual_n) if actual_n > 1 else _sr_sigma
+            display_val = (value - _sr_target) / sigma_xbar
+        else:
+            display_val = value
 
         chart_samples.append(ChartSample(
             sample_id=sample.id,
@@ -958,14 +975,30 @@ async def get_chart_data(
             effective_ucl=sample.effective_ucl,
             effective_lcl=sample.effective_lcl,
             z_score=sample.z_score,
-            display_value=sample.z_score if characteristic.subgroup_mode == "STANDARDIZED" else value,
+            display_value=display_val,
             display_key=_display_keys.get(sample.id, ""),
         ))
 
+    # Build control limits with short-run transformation
+    cl_center = center_line
+    cl_ucl = characteristic.ucl
+    cl_lcl = characteristic.lcl
+    if _sr_mode == "deviation":
+        if cl_center is not None:
+            cl_center = cl_center - _sr_target
+        if cl_ucl is not None:
+            cl_ucl = cl_ucl - _sr_target
+        if cl_lcl is not None:
+            cl_lcl = cl_lcl - _sr_target
+    elif _sr_mode == "standardized" and _sr_sigma and _sr_sigma > 0:
+        cl_center = 0.0
+        cl_ucl = 3.0
+        cl_lcl = -3.0
+
     control_limits = ControlLimits(
-        center_line=center_line,
-        ucl=characteristic.ucl,
-        lcl=characteristic.lcl,
+        center_line=cl_center,
+        ucl=cl_ucl,
+        lcl=cl_lcl,
     )
 
     spec_limits = SpecLimits(

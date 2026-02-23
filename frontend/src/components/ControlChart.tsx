@@ -246,7 +246,7 @@ export function ControlChart({
     return validPoints.map((point, index) => ({
       index: index + 1,
       sample_id: point.sample_id,
-      mean: isModeA ? point.z_score! : point.mean,
+      mean: point.display_value ?? (isModeA ? point.z_score! : point.mean),
       displayValue: point.display_value ?? point.mean,
       displayKey: point.display_key || `#${index + 1}`,
       hasViolation: point.violation_ids.length > 0,
@@ -1363,9 +1363,11 @@ export function ControlChart({
         {dragRect && (
           <div className="absolute inset-0 z-20 cursor-col-resize">
             <div
-              className="bg-primary/15 border-primary/50 absolute top-0 bottom-0 border-x-2"
+              className="bg-primary/20 border-primary absolute top-0 bottom-0 border-x-2"
               style={{ left: dragRect.left, width: dragRect.width }}
-            />
+            >
+              <div className="bg-primary/10 absolute inset-0 animate-pulse" />
+            </div>
           </div>
         )}
         {isLoading && (

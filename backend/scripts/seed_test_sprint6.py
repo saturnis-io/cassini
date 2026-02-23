@@ -372,6 +372,8 @@ async def seed() -> None:
                 ucl=nom * 1.003,
                 lcl=nom * 0.997,
                 short_run_mode=sr_mode,
+                stored_sigma=sigma,
+                stored_center_line=nom,
             )
             session.add(char)
             await session.flush()
