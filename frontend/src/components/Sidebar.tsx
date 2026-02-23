@@ -48,7 +48,7 @@ function useSidebarResize(isCollapsed: boolean) {
       if (isCollapsed) return
       e.preventDefault()
       const startX = e.clientX
-      const startWidth = sidebarWidth
+      const startWidth = useUIStore.getState().sidebarWidth
 
       const onMouseMove = (ev: MouseEvent) => {
         setSidebarWidth(startWidth + ev.clientX - startX)
@@ -65,7 +65,7 @@ function useSidebarResize(isCollapsed: boolean) {
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [isCollapsed, sidebarWidth, setSidebarWidth],
+    [isCollapsed, setSidebarWidth],
   )
 
   return { sidebarWidth, handleMouseDown }

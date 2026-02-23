@@ -3,8 +3,8 @@ import { persist } from 'zustand/middleware'
 
 /**
  * Sidebar display state
- * - expanded: Full width with labels (240px)
- * - collapsed: Icons only (60px)
+ * - expanded: Full width with labels (default 260px, resizable 200–450px)
+ * - collapsed: Icons only (56px)
  * - hidden: Not visible (mobile overlay mode)
  */
 export type SidebarState = 'expanded' | 'collapsed' | 'hidden'
