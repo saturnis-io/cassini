@@ -16,6 +16,7 @@ from openspc.db.models.data_source import (
     TriggerStrategy,
 )
 from openspc.db.models.fai import FAIItem, FAIReport
+from openspc.db.models.gage import GageBridge, GagePort
 from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
 from openspc.db.models.notification import NotificationPreference, SmtpConfig, WebhookConfig
@@ -58,6 +59,8 @@ __all__ = [
     "OPCUADataSource",
     "FAIItem",
     "FAIReport",
+    "GageBridge",
+    "GagePort",
     "MSAMeasurement",
     "MSAOperator",
     "MSAPart",
