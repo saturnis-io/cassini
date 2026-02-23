@@ -11,7 +11,7 @@ Usage:
 import json
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Add backend/src to path for password hashing
@@ -27,6 +27,24 @@ DB_PATH = backend_dir / "test-e2e.db"
 def utcnow() -> str:
     """ISO timestamp for SQLite."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# Base time for seed data — all samples spread backwards from "now"
+_SEED_BASE_TIME = datetime.now(timezone.utc)
+_seed_counter = 0
+
+
+def seed_ts(hours_back: float | None = None) -> str:
+    """Generate a realistic timestamp for seed data.
+
+    Samples are spread 1 hour apart (auto-incrementing) unless hours_back is given.
+    This ensures the time-axis chart mode renders meaningful data.
+    """
+    global _seed_counter
+    if hours_back is not None:
+        return (_SEED_BASE_TIME - timedelta(hours=hours_back)).isoformat()
+    _seed_counter += 1
+    return (_SEED_BASE_TIME - timedelta(hours=200 - _seed_counter)).isoformat()
 
 
 def insert_plant(cur: sqlite3.Cursor, name: str, code: str) -> int:
@@ -114,7 +132,7 @@ def insert_nelson_rules(cur: sqlite3.Cursor, char_id: int) -> None:
 
 def insert_variable_sample(cur: sqlite3.Cursor, char_id: int, value: float, ts: str | None = None) -> int:
     """Insert a variable sample with one measurement."""
-    ts = ts or utcnow()
+    ts = ts or seed_ts()
     cur.execute(
         """INSERT INTO sample
         (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified)
@@ -132,14 +150,16 @@ def insert_variable_sample(cur: sqlite3.Cursor, char_id: int, value: float, ts: 
 def insert_attribute_sample(
     cur: sqlite3.Cursor, char_id: int, defect_count: int,
     sample_size: int | None = None, units_inspected: int | None = None,
+    ts: str | None = None,
 ) -> int:
     """Insert an attribute sample (no measurement row needed)."""
+    ts = ts or seed_ts()
     cur.execute(
         """INSERT INTO sample
         (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified,
          defect_count, sample_size, units_inspected)
         VALUES (?, ?, 1, 0, 0, 0, ?, ?, ?)""",
-        (char_id, utcnow(), defect_count, sample_size, units_inspected),
+        (char_id, ts, defect_count, sample_size, units_inspected),
     )
     return cur.lastrowid
 

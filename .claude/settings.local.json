@@ -3,7 +3,16 @@
     "allow": [
       "Bash(python -m pytest:*)",
       "Bash(python:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(test:*)",
+      "Bash(ls \"C:\\\\Users\\\\djbra\\\\Projects\\\\SPC-client\\\\docs\"\" 2>/dev/null || dir /b \"C:UsersdjbraProjectsSPC-clientdocs\"\")",
+      "Skill(playwright-cli)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add screenshots and remove internal analysis files\n\nAdd 8 application screenshots \\(login, dashboard, connectivity, user\nmanagement, settings, violations, configuration, data entry\\) and\nembed the dashboard screenshot in README. Remove internal analysis\nfiles from tracking and add docs/internal/ to .gitignore.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
