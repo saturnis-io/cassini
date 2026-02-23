@@ -193,6 +193,8 @@ export function DistributionHistogram({
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
 
   const isModeA = chartData?.subgroup_mode === 'STANDARDIZED'
+  const shortRunMode = chartData?.short_run_mode ?? null
+  const isZScale = isModeA || shortRunMode === 'standardized'
 
   // Memoize all heavy histogram calculations, applying rangeWindow to slice data
   const { values, stats, bins } = useMemo(() => {
@@ -215,7 +217,7 @@ export function DistributionHistogram({
       .filter((p) => !p.excluded)
       .filter((p) => !isModeA || p.z_score != null)
       .map((p) => ({
-        value: isModeA ? p.z_score! : p.mean,
+        value: p.display_value ?? (isModeA ? p.z_score! : p.mean),
         sample_id: p.sample_id,
       }))
 
@@ -255,7 +257,7 @@ export function DistributionHistogram({
   let cp = 0
   let cpk = 0
   let ppk = 0
-  if (hasData && !isModeA && chartData) {
+  if (hasData && !isZScale && chartData) {
     const outerUsl = chartData.spec_limits.usl
     const outerLsl = chartData.spec_limits.lsl
     if (outerUsl !== null && outerLsl !== null && stats.stdDev > 0) {
@@ -277,8 +279,8 @@ export function DistributionHistogram({
 
     const { spec_limits, control_limits, decimal_precision: dp = 3 } = chartData
 
-    const usl = isModeA ? null : spec_limits.usl
-    const lsl = isModeA ? null : spec_limits.lsl
+    const usl = isZScale ? null : spec_limits.usl
+    const lsl = isZScale ? null : spec_limits.lsl
     const ucl = isModeA ? 3 : control_limits.ucl
     const lcl = isModeA ? -3 : control_limits.lcl
     const centerLine = isModeA ? 0 : control_limits.center_line
