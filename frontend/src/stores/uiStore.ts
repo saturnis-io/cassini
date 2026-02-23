@@ -20,6 +20,16 @@ interface UIState {
   setMobileSidebarOpen: (open: boolean) => void
   toggleMobileSidebar: () => void
 
+  // Sidebar section collapse states
+  navSectionCollapsed: boolean
+  setNavSectionCollapsed: (collapsed: boolean) => void
+  characteristicsPanelOpen: boolean
+  setCharacteristicsPanelOpen: (open: boolean) => void
+
+  // Sidebar resizable width (px)
+  sidebarWidth: number
+  setSidebarWidth: (width: number) => void
+
   // Offline awareness
   isOffline: boolean
   setIsOffline: (offline: boolean) => void
@@ -49,6 +59,18 @@ export const useUIStore = create<UIState>()(
       setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
       toggleMobileSidebar: () => set((prev) => ({ mobileSidebarOpen: !prev.mobileSidebarOpen })),
 
+      // Nav section collapse — default expanded
+      navSectionCollapsed: false,
+      setNavSectionCollapsed: (collapsed) => set({ navSectionCollapsed: collapsed }),
+
+      // Characteristics panel — default expanded
+      characteristicsPanelOpen: true,
+      setCharacteristicsPanelOpen: (open) => set({ characteristicsPanelOpen: open }),
+
+      // Sidebar width — clamped to [200, 450]
+      sidebarWidth: 260,
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(450, width)) }),
+
       // Offline awareness
       isOffline: !navigator.onLine,
       setIsOffline: (offline) => set({ isOffline: offline }),
@@ -69,6 +91,9 @@ export const useUIStore = create<UIState>()(
       name: 'openspc-ui',
       partialize: (state) => ({
         sidebarState: state.sidebarState,
+        navSectionCollapsed: state.navSectionCollapsed,
+        characteristicsPanelOpen: state.characteristicsPanelOpen,
+        sidebarWidth: state.sidebarWidth,
         selectedPlantId: state.selectedPlantId,
         language: state.language,
       }),
