@@ -227,6 +227,14 @@ export function RangeChart({
 
     const isTimestamp = xAxisMode === 'timestamp'
 
+    // Time range for adaptive formatting
+    const dataTimeRangeMs =
+      data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
+
+    // Detect whether the time axis is usable: if all timestamps collapse into < 1s,
+    // fall back to evenly-spaced category mode with timestamp labels.
+    const useTimeCoords = isTimestamp && dataTimeRangeMs >= 1000
+
     // Calculate Y-axis domain (use full data for stable domain during sliding)
     const allValues = data.map((d) => d.value)
     const minVal = Math.min(...allValues, controlLimits.lcl ?? 0)
@@ -354,34 +362,41 @@ export function RangeChart({
     const dataZoomStart = (localStart / Math.max(data.length - 1, 1)) * 100
     const dataZoomEnd = (localEnd / Math.max(data.length - 1, 1)) * 100
 
-    // Time range for adaptive formatting
-    const dataTimeRangeMs =
-      data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
-
     const bottomMargin = isTimestamp ? 60 : 30
     const xCategoryData = data.map((p) => String(p.index))
 
-    const xAxisConfig = isTimestamp
+    // Build xAxis config based on mode
+    // Use 'time' axis for proper time-series rendering (auto-ticks, date formatting).
+    // Falls back to category when timestamps are too close together (< 1s spread).
+    const xAxisConfig = useTimeCoords
       ? {
-          type: 'value' as const,
+          type: 'time' as const,
           axisLabel: {
-            fontSize: 12,
+            fontSize: 11,
             rotate: 30,
             formatter: (value: number) => {
-              const date = new Date(value)
-              return dataTimeRangeMs > 86400000
-                ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const d = new Date(value)
+              if (dataTimeRangeMs > 86400000 * 30) {
+                // > 30 days: "Feb 14"
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              } else if (dataTimeRangeMs > 86400000) {
+                // > 1 day: "Feb 14 09:00"
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              }
+              // < 1 day: "09:15"
+              return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
             },
           },
           splitLine: { show: false },
-          axisTick: { alignWithLabel: true },
         }
       : {
           type: 'category' as const,
           boundaryGap: false,
-          data: xCategoryData,
-          axisLabel: { fontSize: 12 },
+          data: isTimestamp
+            ? data.map((p) => p.timestamp)
+            : xCategoryData,
+          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0 },
           splitLine: { show: false },
         }
 
@@ -465,7 +480,7 @@ export function RangeChart({
       series: [
         {
           type: 'line',
-          data: isTimestamp ? data.map((p) => [p.timestampMs, p.value]) : data.map((p) => p.value),
+          data: useTimeCoords ? data.map((p) => [p.timestampMs, p.value]) : data.map((p) => p.value),
           lineStyle: {
             width: 2,
             color: new graphic.LinearGradient(0, 0, 1, 0, [
@@ -483,7 +498,7 @@ export function RangeChart({
         {
           type: 'custom',
           data: data.map((p, i) => {
-            const xVal = isTimestamp ? p.timestampMs : i
+            const xVal = useTimeCoords ? p.timestampMs : i
             return [xVal, p.value, i]
           }),
           renderItem: customRenderItem,

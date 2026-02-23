@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useECharts } from '@/hooks/useECharts'
-import { useFitDistribution, useNonNormalCapability, useUpdateDistributionConfig } from '@/api/hooks'
+import { useCharacteristic, useFitDistribution, useNonNormalCapability, useUpdateDistributionConfig } from '@/api/hooks'
 import { cn } from '@/lib/utils'
 import type { DistributionFitResultData, NonNormalCapabilityResult } from '@/types'
-import { X, BarChart3, CheckCircle, ArrowDownUp, Save } from 'lucide-react'
+import { X, BarChart3, CheckCircle, ArrowDownUp, Save, AlertTriangle } from 'lucide-react'
 
 const METHOD_OPTIONS = [
   { value: 'auto', label: 'Auto (cascade)' },
@@ -19,8 +19,24 @@ interface DistributionAnalysisProps {
 }
 
 export function DistributionAnalysis({ characteristicId, onClose }: DistributionAnalysisProps) {
-  const [method, setMethod] = useState('auto')
+  const { data: char } = useCharacteristic(characteristicId)
+  // Initialize from stored value; fall back to 'auto' for null/undefined
+  const storedMethod = char?.distribution_method ?? 'auto'
+  const [method, setMethod] = useState(storedMethod)
   const [selectedFamily, setSelectedFamily] = useState<string | null>(null)
+  const [applied, setApplied] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+
+  // Sync method from async char data on first load
+  useEffect(() => {
+    if (char && !initialized) {
+      setMethod(char.distribution_method ?? 'auto')
+      setInitialized(true)
+    }
+  }, [char, initialized])
+
+  // Track whether user has made changes
+  const hasChanges = method !== storedMethod || selectedFamily !== null
 
   const { data: nnResult, isLoading: nnLoading } = useNonNormalCapability(characteristicId, method)
   const fitMutation = useFitDistribution()
@@ -35,18 +51,60 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
   }
 
   const handleApply = () => {
-    updateConfig.mutate({
-      charId: characteristicId,
-      config: {
-        distribution_method: method,
-        ...(selectedFamily ? { distribution_params: { family: selectedFamily } } : {}),
+    updateConfig.mutate(
+      {
+        charId: characteristicId,
+        config: {
+          distribution_method: method,
+          ...(selectedFamily ? { distribution_params: { family: selectedFamily } } : {}),
+        },
       },
-    })
+      { onSuccess: () => setApplied(true) },
+    )
   }
+
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+
+  const handleClose = useCallback(() => {
+    if (hasChanges && !applied) {
+      setShowUnsavedWarning(true)
+    } else {
+      onClose()
+    }
+  }, [hasChanges, applied, onClose])
 
   return (
     <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="bg-card border-border relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border shadow-xl">
+        {/* Unsaved changes confirmation */}
+        {showUnsavedWarning && (
+          <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">
+            <div className="bg-card border-border mx-4 max-w-sm rounded-lg border p-6 shadow-xl">
+              <div className="mb-3 flex items-center gap-2">
+                <AlertTriangle className="text-warning h-5 w-5" />
+                <h3 className="font-semibold">Unsaved Changes</h3>
+              </div>
+              <p className="text-muted-foreground mb-4 text-sm">
+                You have unapplied distribution changes. Discard them?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowUnsavedWarning(false)}
+                  className="text-muted-foreground hover:text-foreground rounded-md px-3 py-1.5 text-sm"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={onClose}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md px-3 py-1.5 text-sm"
+                >
+                  Discard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="border-border flex items-center justify-between border-b px-6 py-4">
           <div className="flex items-center gap-2">
@@ -54,7 +112,7 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
             <h2 className="text-lg font-semibold">Distribution Analysis</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-muted-foreground hover:text-foreground rounded-md p-1 transition-colors"
           >
             <X className="h-5 w-5" />

@@ -13,7 +13,6 @@ import {
   ListChecks,
   Loader2,
 } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import {
@@ -219,17 +218,12 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
   const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
   const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
-  const navigate = useNavigate()
-  const location = useLocation()
-
   const handleCharacteristicSelect = useCallback(
     (charId: number) => {
+      // Store update broadcasts to all subscribing pages (Dashboard, Data Entry, Reports)
       setSelectedId(charId)
-      if (embedded && location.pathname !== '/dashboard' && location.pathname !== '/') {
-        navigate('/dashboard')
-      }
     },
-    [embedded, location.pathname, navigate, setSelectedId],
+    [setSelectedId],
   )
 
   // Auto-expand hierarchy to reveal the persisted selected characteristic

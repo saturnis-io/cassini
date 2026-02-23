@@ -191,7 +191,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
 
   if (isLoading) {
     return (
-      <div className="border-border bg-card rounded-xl border p-4">
+      <div className="p-4">
         <div className="animate-pulse space-y-3">
           <div className="bg-muted h-4 w-1/3 rounded" />
           <div className="grid grid-cols-4 gap-3">
@@ -207,7 +207,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   if (error) {
     const msg = error instanceof Error ? error.message : 'Failed to load'
     return (
-      <div className="border-border bg-card rounded-xl border p-4">
+      <div className="p-4">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Info className="h-4 w-4" />
           <span>{msg}</span>
@@ -219,9 +219,9 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   if (!capability) return null
 
   return (
-    <div className="border-border bg-card overflow-hidden rounded-xl border">
+    <div className="overflow-hidden">
       {/* Header */}
-      <div className="border-border flex items-center justify-between border-b p-4">
+      <div className="border-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="text-primary h-4 w-4" />
           <h3 className="text-sm font-semibold">Process Capability</h3>
@@ -252,15 +252,49 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
         </div>
       </div>
 
-      {/* Index Cards */}
+      {/* Index Cards — only show indices that have values */}
       <div className="space-y-4 p-4">
-        <div className="grid grid-cols-5 gap-3">
-          <IndexCard label="Cp" value={capability.cp} />
-          <IndexCard label="Cpk" value={capability.cpk} />
-          <IndexCard label="Pp" value={capability.pp} />
-          <IndexCard label="Ppk" value={capability.ppk} />
-          <IndexCard label="Cpm" value={capability.cpm} />
-        </div>
+        {(() => {
+          const indices = [
+            { label: 'Cp', value: capability.cp },
+            { label: 'Cpk', value: capability.cpk },
+            { label: 'Pp', value: capability.pp },
+            { label: 'Ppk', value: capability.ppk },
+            { label: 'Cpm', value: capability.cpm },
+          ].filter((idx) => idx.value !== null)
+
+          if (indices.length === 0) {
+            // Explain why no indices are available
+            const missingBoth = capability.usl === null && capability.lsl === null
+            const missingTarget = capability.target === null
+            return (
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Info className="h-4 w-4 shrink-0" />
+                <span>
+                  {missingBoth
+                    ? 'Set specification limits (USL/LSL) in the characteristic configuration to enable capability indices.'
+                    : missingTarget
+                      ? 'Set a target value to enable Cpm calculation.'
+                      : 'Insufficient data to calculate capability indices.'}
+                </span>
+              </div>
+            )
+          }
+
+          const colsClass =
+            indices.length >= 5 ? 'grid-cols-5' :
+            indices.length === 4 ? 'grid-cols-4' :
+            indices.length === 3 ? 'grid-cols-3' :
+            indices.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
+
+          return (
+            <div className={cn('grid gap-3', colsClass)}>
+              {indices.map(({ label, value }) => (
+                <IndexCard key={label} label={label} value={value} />
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Normality + Distribution method + Specs */}
         <div className="flex items-center justify-between text-xs">

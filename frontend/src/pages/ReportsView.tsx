@@ -22,7 +22,7 @@ export function ReportsView() {
   const timeRange = useDashboardStore((state) => state.timeRange)
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit selectedTemplate to avoid re-running on template change
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
@@ -95,6 +95,7 @@ export function ReportsView() {
         <div className="flex items-center gap-2">
           <FileText className="text-muted-foreground h-4 w-4" />
           <select
+            aria-label="Report template"
             value={selectedTemplate?.id ?? ''}
             onChange={(e) => {
               const tmpl = REPORT_TEMPLATES.find((t) => t.id === e.target.value)
@@ -130,7 +131,19 @@ export function ReportsView() {
       <CharacteristicContextBar />
 
       {/* Report preview — full width */}
-      {selectedTemplate && selectedCharId ? (
+      {!selectedCharId ? (
+        <NoCharacteristicState />
+      ) : !selectedTemplate ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <FileText className="text-muted-foreground/30 mx-auto mb-4 h-12 w-12" />
+            <h3 className="text-foreground mb-1 font-semibold">No template selected</h3>
+            <p className="text-muted-foreground text-sm">
+              Choose a report template from the dropdown above to preview.
+            </p>
+          </div>
+        </div>
+      ) : (
         <div ref={reportContentRef} className="flex-1 overflow-auto">
           <ReportPreview
             template={selectedTemplate}
@@ -138,8 +151,6 @@ export function ReportsView() {
             chartOptions={chartOptions}
           />
         </div>
-      ) : (
-        <NoCharacteristicState />
       )}
     </div>
   )

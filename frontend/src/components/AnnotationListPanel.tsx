@@ -145,7 +145,7 @@ export function AnnotationListPanel({
   return (
     <div
       className={cn(
-        'bg-card border-border flex-shrink-0 overflow-hidden rounded-lg border',
+        'flex-shrink-0 overflow-hidden',
         className,
       )}
     >

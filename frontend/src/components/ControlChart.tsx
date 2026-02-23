@@ -278,12 +278,17 @@ export function ControlChart({
     dataRef.current = data
   }, [data])
 
+  // Detect whether the time axis is usable: if all timestamps collapse into < 1s,
+  // fall back to evenly-spaced category mode with timestamp labels.
+  const dataTimeRangeMs =
+    data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
+  const useTimeCoords = xAxisMode === 'timestamp' && dataTimeRangeMs >= 1000
+
   // --- Anomaly overlay marks (extracted so both the ECharts option and the JSX can reference it) ---
   // Only match events against the visible data range so the summary bar
   // hides when the shaded region is scrolled out of view.
   const anomalyOverlay = useMemo(() => {
     if (!showAnomalies || !anomalyData?.events?.length || data.length === 0) return null
-    const isTs = xAxisMode === 'timestamp'
     const visibleData = showBrush && rangeWindow
       ? data.slice(rangeWindow[0], rangeWindow[1] + 1)
       : data
@@ -291,14 +296,14 @@ export function ControlChart({
     const anomalyPoints = visibleData.map((p, i) => ({
       sample_id: p.sample_id,
       mean: p.mean,
-      xValue: isTs ? p.timestampMs : (startIdx + i),
+      xValue: useTimeCoords ? p.timestampMs : (startIdx + i),
     }))
     const marks = buildAnomalyMarks(anomalyData.events, anomalyPoints)
     if (marks.markPoints.length || marks.markAreas.length || marks.markLines.length) {
       return marks
     }
     return null
-  }, [showAnomalies, anomalyData, data, xAxisMode, showBrush, rangeWindow])
+  }, [showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
 
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
@@ -470,7 +475,7 @@ export function ControlChart({
         if (ann.annotation_type === 'point' && ann.sample_id != null) {
           const pt = sampleMap.get(ann.sample_id)
           if (!pt) continue
-          const xVal = isTimestamp ? pt.timestampMs : pt.catIndex
+          const xVal = useTimeCoords ? pt.timestampMs : pt.catIndex
           annotationMarkLines.push({
             xAxis: xVal,
             lineStyle: { color, type: 'dashed' as const, width: 1.5, opacity: 0.7 },
@@ -485,7 +490,7 @@ export function ControlChart({
             // Time-based period annotation
             const startMs = new Date(ann.start_time).getTime()
             const endMs = new Date(ann.end_time).getTime()
-            if (isTimestamp) {
+            if (useTimeCoords) {
               x1 = startMs
               x2 = endMs
             } else {
@@ -514,8 +519,8 @@ export function ControlChart({
             const startPt = sampleMap.get(ann.start_sample_id)
             const endPt = sampleMap.get(ann.end_sample_id)
             if (startPt && endPt) {
-              x1 = isTimestamp ? startPt.timestampMs : startPt.catIndex
-              x2 = isTimestamp ? endPt.timestampMs : endPt.catIndex
+              x1 = useTimeCoords ? startPt.timestampMs : startPt.catIndex
+              x2 = useTimeCoords ? endPt.timestampMs : endPt.catIndex
             }
           }
 
@@ -828,36 +833,41 @@ export function ControlChart({
       return { type: 'group', children } as unknown
     }
 
-    // Time range for adaptive tick formatting (use full data for stable range)
-    const dataTimeRangeMs =
-      data.length > 1 ? data[data.length - 1].timestampMs - data[0].timestampMs : 0
-
     const bottomMargin = isTimestamp ? 60 : 30
     const xCategoryData = data.map((p) => String(p.index))
 
-    // Build xAxis config based on mode - using ECOption cast to avoid union narrowing issues
-    // Note: no explicit min/max for timestamp mode — dataZoom controls the visible range
-    const xAxisConfig = isTimestamp
+    // Build xAxis config based on mode
+    // Use 'time' axis for proper time-series rendering (auto-ticks, date formatting).
+    // Falls back to category when timestamps are too close together (< 1s spread).
+    const xAxisConfig = useTimeCoords
       ? {
-          type: 'value' as const,
+          type: 'time' as const,
           axisLabel: {
-            fontSize: 12,
+            fontSize: 11,
             rotate: 30,
             formatter: (value: number) => {
-              const date = new Date(value)
-              return dataTimeRangeMs > 86400000
-                ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              const d = new Date(value)
+              if (dataTimeRangeMs > 86400000 * 30) {
+                // > 30 days: "Feb 14"
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              } else if (dataTimeRangeMs > 86400000) {
+                // > 1 day: "Feb 14 09:00"
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                  + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              }
+              // < 1 day: "09:15"
+              return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
             },
           },
           splitLine: { show: false },
-          axisTick: { alignWithLabel: true },
         }
       : {
           type: 'category' as const,
           boundaryGap: false,
-          data: xCategoryData,
-          axisLabel: { fontSize: 12 },
+          data: isTimestamp
+            ? data.map((p) => p.timestampLabel)
+            : xCategoryData,
+          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0 },
           splitLine: { show: false },
         }
 
@@ -950,7 +960,7 @@ export function ControlChart({
         // Line series for the data path + markLine/markArea decorations
         {
           type: 'line',
-          data: isTimestamp ? data.map((p) => [p.timestampMs, p.mean]) : data.map((p) => p.mean),
+          data: useTimeCoords ? data.map((p) => [p.timestampMs, p.mean]) : data.map((p) => p.mean),
           lineStyle: {
             width: 2.5,
             color: new graphic.LinearGradient(0, 0, 1, 0, [
@@ -969,7 +979,7 @@ export function ControlChart({
         {
           type: 'custom',
           data: data.map((p, i) => {
-            const xVal = isTimestamp ? p.timestampMs : i
+            const xVal = useTimeCoords ? p.timestampMs : i
             return [xVal, p.mean, i, p.sample_id]
           }),
           renderItem: customRenderItem,
@@ -1069,7 +1079,7 @@ export function ControlChart({
               {
                 type: 'line' as const,
                 // Invisible line on the same axis so marks position correctly
-                data: isTimestamp
+                data: useTimeCoords
                   ? data.map((p) => [p.timestampMs, p.mean])
                   : data.map((p) => p.mean),
                 lineStyle: { width: 0, opacity: 0 },
@@ -1137,6 +1147,7 @@ export function ControlChart({
     chartData,
     data,
     xAxisMode,
+    useTimeCoords,
     chartColors,
     lineColors,
     isModeA,
@@ -1245,7 +1256,6 @@ export function ControlChart({
   }, [data, chartRef])
 
   // Drag-to-select region overlay — callback is called directly by the hook (no intermediate state)
-  const isTimestamp = xAxisMode === 'timestamp'
   const handleDragSelect = useCallback(
     (sel: DragSelection) => {
       if (!onRegionSelect || !data.length) return
@@ -1268,7 +1278,7 @@ export function ControlChart({
     chartRef,
     chartWrapperRef,
     data,
-    isTimestamp,
+    useTimeCoords,
     handleDragSelect,
   )
 

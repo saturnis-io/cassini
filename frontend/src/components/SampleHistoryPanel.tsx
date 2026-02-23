@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Pencil,
   Trash2,
@@ -72,6 +72,9 @@ export function SampleHistoryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
+  // Reset page when characteristic changes to avoid stale pagination
+  useEffect(() => { setPage(1) }, [globalCharId])
+
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
   const [includeExcluded, setIncludeExcluded] = useState(false)
   const [page, setPage] = useState(1)
@@ -144,7 +147,7 @@ export function SampleHistoryPanel() {
   const deleteSample = useDeleteSample()
   const excludeSample = useExcludeSample()
 
-  const samples = samplesData?.items || []
+  const samples = useMemo(() => samplesData?.items || [], [samplesData?.items])
   const rawTotal = samplesData?.total || 0
   // For "Last X points" mode, cap total to pointsLimit so pagination doesn't exceed it
   const totalSamples =

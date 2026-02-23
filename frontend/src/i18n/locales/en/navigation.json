@@ -5,6 +5,8 @@
   "reports": "Reports",
   "connectivity": "Connectivity",
   "configuration": "Configuration",
+  "msa": "MSA",
+  "fai": "FAI",
   "settings": "Settings",
   "users": "Users",
   "devTools": "Dev Tools",

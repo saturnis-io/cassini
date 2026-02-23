@@ -60,16 +60,16 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
       style={{ height: drawerOpen ? DRAWER_HEIGHT : 36 }}
     >
       {/* Tab bar */}
-      <div className="border-border flex h-9 flex-shrink-0 items-center gap-1 border-b px-2">
+      <div className="flex h-9 flex-shrink-0 items-center gap-0 px-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabClick(tab.id)}
             className={cn(
-              'flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors',
+              'flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors',
               drawerTab === tab.id && drawerOpen
-                ? 'bg-primary/15 text-primary border-primary/30 border'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent',
+                ? 'border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground border-transparent',
             )}
           >
             {tab.label}

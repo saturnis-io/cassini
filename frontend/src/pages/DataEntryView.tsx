@@ -45,10 +45,14 @@ export function DataEntryView() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-border flex flex-shrink-0 gap-1 border-b px-6">
+      <div role="tablist" aria-label="Data entry sections" className="border-border flex flex-shrink-0 gap-1 border-b px-6">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
+            id={`tab-${tab.id}`}
             onClick={() => !tab.disabled && setActiveTab(tab.id)}
             disabled={tab.disabled}
             className={cn(
@@ -69,7 +73,7 @@ export function DataEntryView() {
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="flex-1 overflow-y-auto p-6">
         {activeTab === 'manual-entry' && <ManualEntryPanel />}
         {activeTab === 'sample-history' && <SampleHistoryPanel />}
         {activeTab === 'scheduling' && (

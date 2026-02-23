@@ -109,6 +109,8 @@ export interface Characteristic {
   use_laney_correction?: boolean
   // Short-run chart mode (Sprint 6 - B2)
   short_run_mode?: 'deviation' | 'standardized' | null
+  // Distribution fitting (Sprint 5 - A1)
+  distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
   // Optional metadata fields
   unit?: string
   active?: boolean

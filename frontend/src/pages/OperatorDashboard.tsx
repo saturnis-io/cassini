@@ -516,7 +516,8 @@ export function OperatorDashboard() {
               {/* ── Bottom Drawer — Capability + Annotations ── */}
               <BottomDrawer
                 tabs={[
-                  {
+                  // Capability tab — only for variable charts
+                  ...(selectedCharacteristic?.data_type !== 'attribute' ? [{
                     id: 'capability',
                     label: 'Capability',
                     badge:
@@ -528,15 +529,8 @@ export function OperatorDashboard() {
                           {quickStats.cpk.toFixed(2)}
                         </span>
                       ) : undefined,
-                    content:
-                      selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null ? (
-                        <CapabilityCard characteristicId={selectedId} />
-                      ) : (
-                        <div className="text-muted-foreground flex h-full items-center justify-center text-sm p-4">
-                          Set spec limits (LSL/USL) to enable capability analysis
-                        </div>
-                      ),
-                  },
+                    content: <CapabilityCard characteristicId={selectedId} />,
+                  }] : []),
                   {
                     id: 'annotations',
                     label: 'Annotations',

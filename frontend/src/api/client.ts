@@ -1849,17 +1849,18 @@ export interface FAIReport {
 export interface FAIItem {
   id: number
   report_id: number
-  balloon_number: string | null
-  characteristic: string | null
+  balloon_number: number
+  characteristic_name: string
   nominal: number | null
   usl: number | null
   lsl: number | null
   actual_value: number | null
-  unit: string | null
+  unit: string
   tools_used: string | null
-  is_designed: boolean
-  result: 'pass' | 'fail' | 'deviation' | null
+  designed_char: boolean
+  result: string
   deviation_reason: string | null
+  characteristic_id: number | null
   sequence_order: number
 }
 
@@ -1886,18 +1887,18 @@ export interface FAIReportCreate {
 }
 
 export interface FAIItemCreate {
-  balloon_number?: string | null
-  characteristic?: string | null
+  balloon_number?: number
+  characteristic_name?: string
   nominal?: number | null
   usl?: number | null
   lsl?: number | null
   actual_value?: number | null
   unit?: string | null
   tools_used?: string | null
-  is_designed?: boolean
-  result?: 'pass' | 'fail' | 'deviation' | null
+  designed_char?: boolean
+  result?: string | null
   deviation_reason?: string | null
-  sequence_order?: number
+  characteristic_id?: number | null
 }
 
 // ---- FAI API ----

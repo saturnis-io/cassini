@@ -16,6 +16,7 @@ export function NoCharacteristicState() {
         {sidebarState === 'collapsed' && (
           <button
             onClick={toggleSidebar}
+            aria-label="Expand sidebar to select a characteristic"
             className="text-primary hover:text-primary/80 inline-flex items-center gap-2 text-sm font-medium"
           >
             <ChevronsRight className="h-4 w-4" />

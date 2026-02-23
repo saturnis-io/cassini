@@ -6,8 +6,8 @@
  */
 
 import { use as registerECharts, graphic, init } from 'echarts/core'
-import { LineChart, BarChart, CustomChart } from 'echarts/charts'
-import type { LineSeriesOption, BarSeriesOption, CustomSeriesOption } from 'echarts/charts'
+import { LineChart, BarChart, CustomChart, ScatterChart } from 'echarts/charts'
+import type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption } from 'echarts/charts'
 import {
   GridComponent,
   TooltipComponent,
@@ -16,6 +16,7 @@ import {
   MarkPointComponent,
   DataZoomComponent,
   DatasetComponent,
+  GraphicComponent,
 } from 'echarts/components'
 import type {
   GridComponentOption,
@@ -25,6 +26,7 @@ import type {
   MarkPointComponentOption,
   DataZoomComponentOption,
   DatasetComponentOption,
+  GraphicComponentOption,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ComposeOption } from 'echarts/core'
@@ -35,6 +37,7 @@ registerECharts([
   LineChart,
   BarChart,
   CustomChart,
+  ScatterChart,
   GridComponent,
   TooltipComponent,
   MarkLineComponent,
@@ -42,6 +45,7 @@ registerECharts([
   MarkPointComponent,
   DataZoomComponent,
   DatasetComponent,
+  GraphicComponent,
 ])
 
 // Compose the option type for our charts
@@ -49,6 +53,7 @@ export type ECOption = ComposeOption<
   | LineSeriesOption
   | BarSeriesOption
   | CustomSeriesOption
+  | ScatterSeriesOption
   | GridComponentOption
   | TooltipComponentOption
   | MarkLineComponentOption
@@ -56,8 +61,9 @@ export type ECOption = ComposeOption<
   | MarkPointComponentOption
   | DataZoomComponentOption
   | DatasetComponentOption
+  | GraphicComponentOption
 >
 
 // Re-export what chart components need
 export { init, graphic }
-export type { LineSeriesOption, BarSeriesOption, CustomSeriesOption }
+export type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption }
