@@ -2064,6 +2064,72 @@ export interface AttributeMSAResult {
   verdict: string
 }
 
+// ---- Gage Bridge Types ----
+
+export interface GageBridge {
+  id: number
+  plant_id: number
+  name: string
+  mqtt_broker_id: number | null
+  status: string
+  last_heartbeat_at: string | null
+  registered_by: number
+  created_at: string
+}
+
+export interface GageBridgeDetail extends GageBridge {
+  ports: GagePort[]
+}
+
+export interface GageBridgeRegistered extends GageBridge {
+  api_key: string
+}
+
+export interface GagePort {
+  id: number
+  bridge_id: number
+  port_name: string
+  baud_rate: number
+  data_bits: number
+  parity: string
+  stop_bits: number
+  protocol_profile: string
+  parse_pattern: string | null
+  mqtt_topic: string
+  characteristic_id: number | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface GageProfile {
+  id: string
+  name: string
+  description: string
+  default_baud_rate: number
+  default_data_bits: number
+  default_parity: string
+  default_stop_bits: number
+  parse_pattern: string | null
+}
+
+export interface GageBridgeCreate {
+  plant_id: number
+  name: string
+  mqtt_broker_id?: number | null
+}
+
+export interface GagePortCreate {
+  port_name: string
+  baud_rate?: number
+  data_bits?: number
+  parity?: string
+  stop_bits?: number
+  protocol_profile?: string
+  parse_pattern?: string | null
+  characteristic_id?: number | null
+  is_active?: boolean
+}
+
 // ---- MSA API ----
 
 export const msaApi = {
@@ -2121,4 +2187,47 @@ export const msaApi = {
 
   getResults: (studyId: number) =>
     fetchApi<GageRRResult | AttributeMSAResult>(`/msa/studies/${studyId}/results`),
+}
+
+// ---- Gage Bridge API ----
+
+export const gageBridgeApi = {
+  list: (plantId: number) =>
+    fetchApi<GageBridge[]>(`/gage-bridges?plant_id=${plantId}`),
+
+  get: (id: number) =>
+    fetchApi<GageBridgeDetail>(`/gage-bridges/${id}`),
+
+  register: (data: GageBridgeCreate) =>
+    fetchApi<GageBridgeRegistered>('/gage-bridges', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: Partial<GageBridgeCreate>) =>
+    fetchApi<GageBridge>(`/gage-bridges/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    fetchApi<void>(`/gage-bridges/${id}`, { method: 'DELETE' }),
+
+  addPort: (bridgeId: number, data: GagePortCreate) =>
+    fetchApi<GagePort>(`/gage-bridges/${bridgeId}/ports`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updatePort: (bridgeId: number, portId: number, data: Partial<GagePortCreate>) =>
+    fetchApi<GagePort>(`/gage-bridges/${bridgeId}/ports/${portId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deletePort: (bridgeId: number, portId: number) =>
+    fetchApi<void>(`/gage-bridges/${bridgeId}/ports/${portId}`, { method: 'DELETE' }),
+
+  profiles: () =>
+    fetchApi<GageProfile[]>('/gage-bridges/profiles'),
 }

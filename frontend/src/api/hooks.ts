@@ -13,6 +13,7 @@ import {
   devtoolsApi,
   distributionApi,
   faiApi,
+  gageBridgeApi,
   hierarchyApi,
   importApi,
   msaApi,
@@ -32,6 +33,8 @@ import type {
   AuditLogParams,
   FAIItemCreate,
   FAIReportCreate,
+  GageBridgeCreate,
+  GagePortCreate,
   MeaningCreate,
   MeaningUpdate,
   MSAAttributeInput,
@@ -186,6 +189,12 @@ export const queryKeys = {
     steps: (workflowId: number) => ['signatures', 'steps', workflowId] as const,
     meanings: () => ['signatures', 'meanings'] as const,
     passwordPolicy: () => ['signatures', 'password-policy'] as const,
+  },
+  gageBridges: {
+    all: ['gageBridges'] as const,
+    list: (plantId: number) => [...queryKeys.gageBridges.all, 'list', plantId] as const,
+    detail: (id: number) => [...queryKeys.gageBridges.all, 'detail', id] as const,
+    profiles: ['gageBridges', 'profiles'] as const,
   },
 }
 
@@ -2744,5 +2753,93 @@ export function useRejectFAIReport() {
     onError: (error: Error) => {
       toast.error(`Failed to reject report: ${error.message}`)
     },
+  })
+}
+
+// -----------------------------------------------------------------------
+// Gage Bridge hooks
+// -----------------------------------------------------------------------
+
+export const useGageBridges = (plantId: number) =>
+  useQuery({
+    queryKey: queryKeys.gageBridges.list(plantId),
+    queryFn: () => gageBridgeApi.list(plantId),
+    enabled: plantId > 0,
+  })
+
+export const useGageBridge = (id: number) =>
+  useQuery({
+    queryKey: queryKeys.gageBridges.detail(id),
+    queryFn: () => gageBridgeApi.get(id),
+    enabled: id > 0,
+  })
+
+export const useGageProfiles = () =>
+  useQuery({
+    queryKey: queryKeys.gageBridges.profiles,
+    queryFn: () => gageBridgeApi.profiles(),
+    staleTime: Infinity,
+  })
+
+export const useRegisterGageBridge = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: GageBridgeCreate) => gageBridgeApi.register(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
+      toast.success('Bridge registered')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
+
+export const useDeleteGageBridge = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => gageBridgeApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
+      toast.success('Bridge deleted')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
+
+export const useAddGagePort = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ bridgeId, data }: { bridgeId: number; data: GagePortCreate }) =>
+      gageBridgeApi.addPort(bridgeId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
+      toast.success('Port added')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
+
+export const useUpdateGagePort = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ bridgeId, portId, data }: { bridgeId: number; portId: number; data: Partial<GagePortCreate> }) =>
+      gageBridgeApi.updatePort(bridgeId, portId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
+      toast.success('Port updated')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+}
+
+export const useDeleteGagePort = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ bridgeId, portId }: { bridgeId: number; portId: number }) =>
+      gageBridgeApi.deletePort(bridgeId, portId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
+      toast.success('Port deleted')
+    },
+    onError: (e: Error) => toast.error(e.message),
   })
 }

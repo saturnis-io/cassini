@@ -3,7 +3,7 @@
  * Used by ProtocolBadge, Connectivity Hub tabs, and DataSourceSummary.
  */
 
-import { Wifi, Server, type LucideIcon } from 'lucide-react'
+import { Wifi, Server, Usb, type LucideIcon } from 'lucide-react'
 
 export interface ProtocolDefinition {
   /** Protocol identifier (matches DataSource.type in backend) */
@@ -44,6 +44,16 @@ export const PROTOCOLS: Record<string, ProtocolDefinition> = {
     bgColor: 'bg-purple-500/10',
     borderColor: 'border-purple-500/30',
     description: 'OPC Unified Architecture — industrial communication standard',
+  },
+  serial: {
+    id: 'serial',
+    label: 'Serial Gage',
+    icon: Usb,
+    color: 'amber',
+    textColor: 'text-amber-400',
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500/30',
+    description: 'RS-232/USB serial gage via bridge agent',
   },
 }
 
