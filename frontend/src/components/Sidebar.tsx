@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -15,6 +15,8 @@ import {
   Wrench,
   ChevronsLeft,
   ChevronsRight,
+  ChevronRight,
+  ChevronDown,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,6 +24,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useViolationStats, useDevToolsStatus } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessView, type Role } from '@/lib/roles'
+import { HierarchyTodoList } from './HierarchyTodoList'
 
 interface NavItem {
   path: string
@@ -35,12 +38,47 @@ interface SidebarProps {
   className?: string
 }
 
+/** Drag-resize the sidebar width (200–450px range) */
+function useSidebarResize(isCollapsed: boolean) {
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useUIStore((s) => s.setSidebarWidth)
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (isCollapsed) return
+      e.preventDefault()
+      const startX = e.clientX
+      const startWidth = sidebarWidth
+
+      const onMouseMove = (ev: MouseEvent) => {
+        setSidebarWidth(startWidth + ev.clientX - startX)
+      }
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [isCollapsed, sidebarWidth, setSidebarWidth],
+  )
+
+  return { sidebarWidth, handleMouseDown }
+}
+
 /**
- * Collapsible vertical sidebar navigation
+ * Collapsible vertical sidebar navigation with embedded characteristics tree
  *
  * Features:
- * - Expanded mode: Full width (240px) with labels
- * - Collapsed mode: Icons only (60px)
+ * - Expanded mode: Resizable width (default 260px) with labels
+ * - Collapsed mode: Icons only (56px)
+ * - Dual collapsible sections: Navigation and Characteristics
+ * - Drag-resize handle on right edge
  * - Smooth transition animations
  * - Violation badge count
  * - Active route highlighting
@@ -48,7 +86,16 @@ interface SidebarProps {
  */
 export function Sidebar({ className }: SidebarProps) {
   const { t } = useTranslation('navigation')
-  const { sidebarState, toggleSidebar, mobileSidebarOpen, setMobileSidebarOpen } = useUIStore()
+  const {
+    sidebarState,
+    toggleSidebar,
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
+    navSectionCollapsed,
+    setNavSectionCollapsed,
+    characteristicsPanelOpen,
+    setCharacteristicsPanelOpen,
+  } = useUIStore()
   const { data: stats } = useViolationStats()
   const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
@@ -56,6 +103,8 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isCollapsed = sidebarState === 'collapsed'
   const isHidden = sidebarState === 'hidden'
+
+  const { sidebarWidth, handleMouseDown: handleResizeMouseDown } = useSidebarResize(isCollapsed)
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -228,8 +277,16 @@ export function Sidebar({ className }: SidebarProps) {
               </button>
             </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 space-y-1 overflow-y-auto p-2">{navContent(true)}</nav>
+            {/* Navigation links */}
+            <nav className="space-y-1 overflow-y-auto border-b p-2">{navContent(true)}</nav>
+
+            {/* Characteristics tree */}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="text-muted-foreground px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+                Characteristics
+              </div>
+              <HierarchyTodoList embedded className="min-h-0 flex-1" />
+            </div>
           </aside>
         </div>
       )}
@@ -238,15 +295,72 @@ export function Sidebar({ className }: SidebarProps) {
       {!isHidden && (
         <aside
           className={cn(
-            'bg-card relative hidden h-full flex-col border-r transition-all duration-150 ease-in-out md:flex',
-            isCollapsed ? 'w-[60px]' : 'w-[240px]',
+            'bg-card relative hidden h-full flex-col border-r transition-[width] duration-150 ease-in-out md:flex',
             className,
           )}
+          style={{ width: isCollapsed ? 56 : sidebarWidth }}
         >
-          {/* Main navigation */}
-          <nav className="flex-1 space-y-1 overflow-y-auto p-2">{navContent(false)}</nav>
+          {/* ── Navigation section header ── */}
+          {!isCollapsed && (
+            <button
+              onClick={() => setNavSectionCollapsed(!navSectionCollapsed)}
+              className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+            >
+              <span>Navigation</span>
+              {navSectionCollapsed ? (
+                <ChevronRight className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </button>
+          )}
 
-          {/* Collapse toggle - chevron button at sidebar edge */}
+          {/* ── Navigation items ── */}
+          {isCollapsed ? (
+            <nav className="space-y-0.5 overflow-y-auto px-1 py-2">{navContent(false)}</nav>
+          ) : !navSectionCollapsed ? (
+            <nav className="space-y-0.5 overflow-y-auto px-2 pb-1">{navContent(false)}</nav>
+          ) : null}
+
+          {/* ── Divider ── */}
+          <div className="border-border mx-2 my-1 border-t" />
+
+          {/* ── Characteristics section ── */}
+          {isCollapsed ? (
+            /* Collapsed: tree icon that expands sidebar */
+            <div className="flex flex-col items-center py-2">
+              <button
+                onClick={toggleSidebar}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-10 w-10 items-center justify-center rounded-lg transition-colors"
+                title="Show characteristics"
+              >
+                <ListTree className="h-5 w-5" />
+              </button>
+            </div>
+          ) : (
+            /* Expanded: collapsible characteristics panel */
+            <div className="flex min-h-0 flex-1 flex-col">
+              <button
+                onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
+                className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+              >
+                <span>Characteristics</span>
+                {characteristicsPanelOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </button>
+
+              {characteristicsPanelOpen && (
+                <div className="min-h-0 flex-1">
+                  <HierarchyTodoList embedded className="h-full" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Collapse toggle tab (protruding from sidebar edge) ── */}
           <button
             onClick={toggleSidebar}
             className={cn(
@@ -263,6 +377,14 @@ export function Sidebar({ className }: SidebarProps) {
               <ChevronsLeft className="h-4 w-4" />
             )}
           </button>
+
+          {/* ── Resize handle (right edge drag strip) ── */}
+          {!isCollapsed && (
+            <div
+              onMouseDown={handleResizeMouseDown}
+              className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize transition-colors hover:bg-primary/20"
+            />
+          )}
         </aside>
       )}
     </>
