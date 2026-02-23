@@ -1,6 +1,81 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
+import { Upload, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MSAStudyDetail } from '@/api/client'
+
+// ── CSV Import Helpers ──
+
+const OP_PATTERNS = /^(operator|op|appraiser|inspector|technician)$/i
+const PART_PATTERNS = /^(part|sample|specimen|part.?#|part.?no|part.?name)$/i
+const REP_PATTERNS = /^(replicate|rep|r|run|trial|replication)$/i
+const VAL_PATTERNS = /^(value|measurement|reading|result|data|meas)$/i
+const ATTR_PATTERNS = /^(attribute|pass.?fail|result|status|decision)$/i
+
+interface CSVColumnMap {
+  operator: number
+  part: number
+  replicate: number
+  value: number // value or attribute_value column
+}
+
+/** Parse CSV text into rows of string arrays */
+function parseCSV(text: string): string[][] {
+  const lines = text.trim().split(/\r?\n/)
+  return lines.map((line) => {
+    const cells: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (inQuotes) {
+        if (ch === '"' && line[i + 1] === '"') {
+          current += '"'
+          i++
+        } else if (ch === '"') {
+          inQuotes = false
+        } else {
+          current += ch
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true
+        } else if (ch === ',') {
+          cells.push(current.trim())
+          current = ''
+        } else {
+          current += ch
+        }
+      }
+    }
+    cells.push(current.trim())
+    return cells
+  })
+}
+
+/** Auto-detect column mapping from header row */
+function detectColumns(headers: string[]): CSVColumnMap | null {
+  let operator = -1
+  let part = -1
+  let replicate = -1
+  let value = -1
+
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i].trim()
+    if (OP_PATTERNS.test(h)) operator = i
+    else if (PART_PATTERNS.test(h)) part = i
+    else if (REP_PATTERNS.test(h)) replicate = i
+    else if (VAL_PATTERNS.test(h) || ATTR_PATTERNS.test(h)) value = i
+  }
+
+  if (operator === -1 || part === -1 || replicate === -1 || value === -1) return null
+  return { operator, part, replicate, value }
+}
+
+interface ImportResult {
+  filled: number
+  skipped: number
+  errors: string[]
+}
 
 interface MSADataGridProps {
   study: MSAStudyDetail
@@ -73,6 +148,145 @@ export function MSADataGrid({
     [],
   )
 
+  // CSV template download
+  const handleDownloadTemplate = useCallback(() => {
+    const header = isAttribute
+      ? 'Operator,Part,Replicate,Attribute Value'
+      : 'Operator,Part,Replicate,Value'
+    const rows: string[] = [header]
+    for (const op of operators) {
+      for (const part of parts) {
+        for (let r = 1; r <= numReps; r++) {
+          rows.push(`"${op.name}","${part.name}",${r},`)
+        }
+      }
+    }
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const safeName = study.name?.replace(/[^a-zA-Z0-9_-]/g, '_') ?? 'msa_template'
+    a.download = `${safeName}_template.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [operators, parts, numReps, isAttribute, study.name])
+
+  // CSV import state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+
+  const handleImportCSV = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      // Reset the input so the same file can be re-imported
+      e.target.value = ''
+
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string
+        if (!text) return
+
+        const rows = parseCSV(text)
+        if (rows.length < 2) {
+          setImportResult({ filled: 0, skipped: 0, errors: ['File has no data rows'] })
+          return
+        }
+
+        const headers = rows[0]
+        const colMap = detectColumns(headers)
+        if (!colMap) {
+          setImportResult({
+            filled: 0,
+            skipped: 0,
+            errors: [
+              `Could not detect columns. Expected headers: Operator, Part, Replicate, Value. Found: ${headers.join(', ')}`,
+            ],
+          })
+          return
+        }
+
+        // Build name→id lookup (case-insensitive)
+        const opLookup = new Map(operators.map((o) => [o.name.toLowerCase(), o.id]))
+        const partLookup = new Map(parts.map((p) => [p.name.toLowerCase(), p.id]))
+
+        const newGridData = { ...gridData }
+        const newAttrData = { ...attrGridData }
+        let filled = 0
+        let skipped = 0
+        const errors: string[] = []
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i]
+          if (row.length < 4 || row.every((c) => !c)) continue // skip empty rows
+
+          const opName = row[colMap.operator]?.trim()
+          const partName = row[colMap.part]?.trim()
+          const repStr = row[colMap.replicate]?.trim()
+          const valStr = row[colMap.value]?.trim()
+
+          const opId = opLookup.get(opName?.toLowerCase() ?? '')
+          const partId = partLookup.get(partName?.toLowerCase() ?? '')
+          const rep = parseInt(repStr, 10)
+
+          if (!opId) {
+            errors.push(`Row ${i + 1}: Unknown operator "${opName}"`)
+            skipped++
+            continue
+          }
+          if (!partId) {
+            errors.push(`Row ${i + 1}: Unknown part "${partName}"`)
+            skipped++
+            continue
+          }
+          if (isNaN(rep) || rep < 1 || rep > numReps) {
+            errors.push(`Row ${i + 1}: Invalid replicate "${repStr}" (expected 1-${numReps})`)
+            skipped++
+            continue
+          }
+
+          const key = `${opId}-${partId}-${rep}`
+
+          if (isAttribute) {
+            const lower = valStr?.toLowerCase() ?? ''
+            if (lower === 'pass' || lower === 'p' || lower === '1' || lower === 'yes') {
+              newAttrData[key] = 'pass'
+              filled++
+            } else if (lower === 'fail' || lower === 'f' || lower === '0' || lower === 'no') {
+              newAttrData[key] = 'fail'
+              filled++
+            } else {
+              errors.push(`Row ${i + 1}: Invalid attribute value "${valStr}" (expected pass/fail)`)
+              skipped++
+            }
+          } else {
+            const num = parseFloat(valStr)
+            if (isNaN(num)) {
+              errors.push(`Row ${i + 1}: Invalid number "${valStr}"`)
+              skipped++
+            } else {
+              newGridData[key] = num
+              filled++
+            }
+          }
+        }
+
+        // Apply all at once
+        if (isAttribute) {
+          onAttrGridDataChange?.(newAttrData)
+        } else {
+          onGridDataChange?.(newGridData)
+        }
+
+        setImportResult({ filled, skipped, errors: errors.slice(0, 10) })
+        // Auto-dismiss after 8 seconds
+        setTimeout(() => setImportResult(null), 8000)
+      }
+      reader.readAsText(file)
+    },
+    [operators, parts, numReps, isAttribute, gridData, attrGridData, onGridDataChange, onAttrGridDataChange],
+  )
+
   // Count filled cells
   const totalCells = operators.length * parts.length * numReps
   const filledCells = isAttribute
@@ -83,13 +297,82 @@ export function MSADataGrid({
     <div className="space-y-3">
       {/* Status bar */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">
-          {isAttribute ? 'Attribute Data Entry' : 'Variable Data Entry'}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-medium">
+            {isAttribute ? 'Attribute Data Entry' : 'Variable Data Entry'}
+          </p>
+          {!readOnly && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.txt"
+                className="hidden"
+                onChange={handleImportCSV}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+              >
+                Template
+              </button>
+            </>
+          )}
+        </div>
         <p className="text-muted-foreground text-xs">
           {filledCells} / {totalCells} cells filled
         </p>
       </div>
+
+      {/* Import result banner */}
+      {importResult && (
+        <div
+          className={cn(
+            'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs',
+            importResult.errors.length > 0
+              ? 'border-amber-500/20 bg-amber-500/10'
+              : 'border-green-500/20 bg-green-500/10',
+          )}
+        >
+          {importResult.errors.length > 0 ? (
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          ) : (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" />
+          )}
+          <div className="flex-1">
+            <p className="font-medium">
+              Imported {importResult.filled} values
+              {importResult.skipped > 0 && `, ${importResult.skipped} skipped`}
+            </p>
+            {importResult.errors.length > 0 && (
+              <ul className="text-muted-foreground mt-1 space-y-0.5">
+                {importResult.errors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+                {importResult.skipped > importResult.errors.length && (
+                  <li>...and {importResult.skipped - importResult.errors.length} more</li>
+                )}
+              </ul>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setImportResult(null)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Scrollable grid */}
       <div ref={gridRef} className="overflow-x-auto">
@@ -202,7 +485,7 @@ export function MSADataGrid({
 
       {!readOnly && (
         <p className="text-muted-foreground text-xs">
-          Use Tab or Enter to navigate between cells. All cells must be filled before calculation.
+          Use Tab or Enter to navigate between cells. Import CSV with columns: Operator, Part, Replicate, Value.
         </p>
       )}
     </div>
