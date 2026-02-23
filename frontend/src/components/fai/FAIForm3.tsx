@@ -54,7 +54,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
       if (value === original) return
       // For numeric fields, convert empty string to null
       let sendValue = value
-      if (['nominal', 'usl', 'lsl', 'actual_value'].includes(field)) {
+      if (['balloon_number', 'nominal', 'usl', 'lsl', 'actual_value'].includes(field)) {
         sendValue = value === '' || value === null ? null : Number(value)
         if (typeof sendValue === 'number' && isNaN(sendValue)) sendValue = null
       }
@@ -71,8 +71,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
     addItem.mutate({
       reportId: report.id,
       data: {
-        balloon_number: String(items.length + 1),
-        sequence_order: items.length + 1,
+        balloon_number: items.length + 1,
       },
     })
   }
@@ -92,11 +91,11 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
   }
 
   const handleDesignedChange = (item: FAIItem, checked: boolean) => {
-    setLocalValue(item.id, 'is_designed', checked)
+    setLocalValue(item.id, 'designed_char', checked)
     updateItem.mutate({
       reportId: report.id,
       itemId: item.id,
-      data: { is_designed: checked },
+      data: { designed_char: checked },
     })
   }
 
@@ -188,14 +187,15 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                     {/* Balloon # */}
                     <td className={cellClass}>
                       <input
-                        type="text"
+                        type="number"
+                        min={1}
                         value={getLocalValue(item, 'balloon_number') ?? ''}
                         onChange={(e) =>
                           setLocalValue(item.id, 'balloon_number', e.target.value)
                         }
                         onBlur={(e) => handleBlur(item, 'balloon_number', e.target.value)}
                         disabled={readonly}
-                        className={inputCellClass}
+                        className={numericCellClass}
                       />
                     </td>
 
@@ -203,11 +203,11 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                     <td className={cellClass}>
                       <input
                         type="text"
-                        value={getLocalValue(item, 'characteristic') ?? ''}
+                        value={getLocalValue(item, 'characteristic_name') ?? ''}
                         onChange={(e) =>
-                          setLocalValue(item.id, 'characteristic', e.target.value)
+                          setLocalValue(item.id, 'characteristic_name', e.target.value)
                         }
-                        onBlur={(e) => handleBlur(item, 'characteristic', e.target.value)}
+                        onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
                         disabled={readonly}
                         className={inputCellClass}
                         placeholder="Dimension, tolerance..."
@@ -308,7 +308,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                     <td className={cn(cellClass, 'text-center')}>
                       <input
                         type="checkbox"
-                        checked={getLocalValue(item, 'is_designed') ?? false}
+                        checked={getLocalValue(item, 'designed_char') ?? false}
                         onChange={(e) => handleDesignedChange(item, e.target.checked)}
                         disabled={readonly}
                         className="h-4 w-4 rounded"

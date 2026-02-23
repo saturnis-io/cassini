@@ -199,7 +199,7 @@ export function FAIPrintView({ report, onClose }: FAIPrintViewProps) {
                       )}
                     >
                       <td className={tdClass}>{item.balloon_number || '--'}</td>
-                      <td className={tdClass}>{item.characteristic || '--'}</td>
+                      <td className={tdClass}>{item.characteristic_name || '--'}</td>
                       <td className={tdRightClass}>
                         {item.nominal != null ? item.nominal : '--'}
                       </td>
@@ -215,7 +215,7 @@ export function FAIPrintView({ report, onClose }: FAIPrintViewProps) {
                       <td className={tdClass}>{item.unit || '--'}</td>
                       <td className={tdClass}>{item.tools_used || '--'}</td>
                       <td className={cn(tdClass, 'text-center')}>
-                        {item.is_designed ? 'Y' : 'N'}
+                        {item.designed_char ? 'Y' : 'N'}
                       </td>
                       <td
                         className={cn(

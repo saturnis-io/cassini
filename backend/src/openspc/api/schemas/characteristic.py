@@ -159,6 +159,7 @@ class CharacteristicResponse(BaseModel):
     decimal_precision: int
     use_laney_correction: bool = False
     short_run_mode: str | None = None
+    distribution_method: str | None = None
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None

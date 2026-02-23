@@ -1,8 +1,45 @@
+import { useState } from 'react'
+import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AttributeMSAResult } from '@/api/client'
 
 interface AttributeMSAResultsProps {
   result: AttributeMSAResult
+}
+
+const TOOLTIPS: Record<string, string> = {
+  fleiss_kappa: 'Fleiss\' Kappa measures agreement among multiple raters for categorical data, correcting for chance agreement. κ ≥ 0.75 = excellent, 0.40–0.75 = moderate, < 0.40 = poor (Fleiss, 1971).',
+  within_appraiser: 'Within-Appraiser Agreement (Repeatability). How consistently each appraiser classifies the same part across repeated trials. ≥ 90% indicates reliable individual decisions.',
+  between_appraiser: 'Between-Appraiser Agreement (Reproducibility). Percentage of parts where ALL appraisers agreed on every replicate. ≥ 90% indicates the measurement process produces consistent results regardless of who performs the inspection.',
+  vs_reference: 'Agreement between each appraiser and the known correct classifications. Low values indicate an appraiser may need retraining on acceptance criteria.',
+  cohens_kappa: 'Cohen\'s Kappa measures agreement between two specific raters, correcting for chance. Useful for identifying which appraiser pairs disagree most, guiding targeted training.',
+}
+
+/** Tooltip bubble that appears on hover/click */
+function Tip({ id }: { id: string }) {
+  const [show, setShow] = useState(false)
+  const text = TOOLTIPS[id]
+  if (!text) return null
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        className="text-muted-foreground/60 hover:text-muted-foreground ml-1 transition-colors"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow((v) => !v)}
+        aria-label={`Help: ${id}`}
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+      </button>
+      {show && (
+        <span className="bg-popover text-popover-foreground border-border absolute bottom-full left-1/2 z-50 mb-1 w-64 -translate-x-1/2 rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
+          {text}
+        </span>
+      )}
+    </span>
+  )
 }
 
 const VERDICT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -45,7 +82,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
           <span className="text-muted-foreground text-sm">Attribute Agreement Analysis</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm">Fleiss' Kappa =</span>
+          <span className="text-muted-foreground text-sm">Fleiss' Kappa =<Tip id="fleiss_kappa" /></span>
           <span
             className={cn(
               'rounded-full px-3 py-1 text-sm font-bold',
@@ -61,7 +98,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
       {/* Within-appraiser agreement */}
       <div className="border-border overflow-hidden rounded-xl border">
         <div className="bg-muted/50 border-border border-b px-4 py-2">
-          <h3 className="text-sm font-medium">Within-Appraiser Agreement</h3>
+          <h3 className="text-sm font-medium">Within-Appraiser Agreement<Tip id="within_appraiser" /></h3>
           <p className="text-muted-foreground text-xs">
             Percentage of times each appraiser agreed with themselves across replicates
           </p>
@@ -90,7 +127,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
       <div className="border-border rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-medium">Between-Appraiser Agreement</h3>
+            <h3 className="text-sm font-medium">Between-Appraiser Agreement<Tip id="between_appraiser" /></h3>
             <p className="text-muted-foreground text-xs">
               Percentage of parts where all appraisers agreed on every replicate
             </p>
@@ -111,7 +148,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
       {result.vs_reference && Object.keys(result.vs_reference).length > 0 && (
         <div className="border-border overflow-hidden rounded-xl border">
           <div className="bg-muted/50 border-border border-b px-4 py-2">
-            <h3 className="text-sm font-medium">Appraiser vs Reference</h3>
+            <h3 className="text-sm font-medium">Appraiser vs Reference<Tip id="vs_reference" /></h3>
             <p className="text-muted-foreground text-xs">
               Agreement between each appraiser and the known reference decisions
             </p>
@@ -140,7 +177,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
       {/* Cohen's Kappa pairwise */}
       <div className="border-border overflow-hidden rounded-xl border">
         <div className="bg-muted/50 border-border border-b px-4 py-2">
-          <h3 className="text-sm font-medium">Cohen's Kappa (Pairwise)</h3>
+          <h3 className="text-sm font-medium">Cohen's Kappa (Pairwise)<Tip id="cohens_kappa" /></h3>
           <p className="text-muted-foreground text-xs">
             Inter-rater agreement between each pair of appraisers
           </p>
@@ -177,7 +214,7 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
       <div className="border-border rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-medium">Fleiss' Kappa (Overall)</h3>
+            <h3 className="text-sm font-medium">Fleiss' Kappa (Overall)<Tip id="fleiss_kappa" /></h3>
             <p className="text-muted-foreground text-xs">
               Multi-rater agreement statistic accounting for chance agreement
             </p>

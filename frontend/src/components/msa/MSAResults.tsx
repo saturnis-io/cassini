@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
 import type { ECOption } from '@/lib/echarts'
@@ -18,6 +19,46 @@ const METHOD_LABELS: Record<string, string> = {
   crossed_anova: 'Crossed ANOVA',
   nested_anova: 'Nested ANOVA',
   range_method: 'Range Method',
+}
+
+const TOOLTIPS: Record<string, string> = {
+  ev: 'Equipment Variation (Repeatability). Variation when the same operator measures the same part repeatedly. High EV suggests the gage itself is imprecise.',
+  av: 'Appraiser Variation (Reproducibility). Variation between different operators measuring the same part. High AV suggests operator technique differences or unclear procedures.',
+  grr: 'Gage R&R = EV + AV combined. The total measurement system variation. AIAG guidelines: \u226410% acceptable, 10-30% marginal, >30% unacceptable.',
+  pv: 'Part Variation. The actual variation between parts being measured. A good measurement system has PV >> GRR.',
+  ndc: 'Number of Distinct Categories. How many groups of parts the gage can reliably distinguish. ndc \u2265 5 is required for adequate discrimination (AIAG MSA 4th Ed).',
+  pct_contribution: '% Contribution = (variance component / total variance) \u00d7 100. Shows how much each source accounts for in total variation. Values sum to 100%.',
+  pct_study: '% Study Variation = (6\u00d7\u03c3 component / 6\u00d7\u03c3 total) \u00d7 100. Based on standard deviations, not variances. More conservative than %Contribution.',
+  pct_tolerance: '% Tolerance = (6\u00d7\u03c3 GRR / tolerance) \u00d7 100. Compares measurement variation to the spec range. Only available when tolerance (USL\u2212LSL) is provided.',
+  anova: 'Analysis of Variance. Decomposes total variation into operator, part, and interaction components. p < 0.05 indicates a statistically significant effect.',
+  interaction: 'Operator \u00d7 Part interaction. If significant (p < 0.05), some operators measure certain parts differently \u2014 suggests inconsistent technique.',
+}
+
+/** Tooltip bubble that appears on hover/click */
+function Tip({ id }: { id: string }) {
+  const [show, setShow] = useState(false)
+  const text = TOOLTIPS[id]
+  if (!text) return null
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        className="text-muted-foreground/60 hover:text-muted-foreground ml-1 transition-colors"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow((v) => !v)}
+        aria-label={`Help: ${id}`}
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+      </button>
+      {show && (
+        <span className="bg-popover text-popover-foreground border-border absolute bottom-full left-1/2 z-50 mb-1 w-64 -translate-x-1/2 rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
+          {text}
+        </span>
+      )}
+    </span>
+  )
 }
 
 /** Color-code a percentage value for Gage R&R tables */
@@ -108,12 +149,16 @@ export function MSAResults({ result }: MSAResultsProps) {
           >
             {result.ndc}
           </span>
+          <Tip id="ndc" />
         </div>
       </div>
 
       {/* Variance components chart */}
       <div className="border-border rounded-xl border p-4">
-        <h3 className="mb-2 text-sm font-medium">% Contribution (Variance Components)</h3>
+        <h3 className="mb-2 text-sm font-medium">
+          % Contribution (Variance Components)
+          <Tip id="pct_contribution" />
+        </h3>
         <div ref={containerRef} style={{ width: '100%', height: 200 }} />
       </div>
 
@@ -124,16 +169,28 @@ export function MSAResults({ result }: MSAResultsProps) {
             <tr className="bg-muted/50">
               <th className="text-muted-foreground px-4 py-2 text-left font-medium">Source</th>
               <th className="text-muted-foreground px-4 py-2 text-right font-medium">StdDev</th>
-              <th className="text-muted-foreground px-4 py-2 text-right font-medium">%Contribution</th>
-              <th className="text-muted-foreground px-4 py-2 text-right font-medium">%Study Var</th>
+              <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                %Contribution
+                <Tip id="pct_contribution" />
+              </th>
+              <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                %Study Var
+                <Tip id="pct_study" />
+              </th>
               {result.pct_tolerance_grr !== null && (
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">%Tolerance</th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  %Tolerance
+                  <Tip id="pct_tolerance" />
+                </th>
               )}
             </tr>
           </thead>
           <tbody>
             <tr className="border-border/50 border-t">
-              <td className="px-4 py-2 font-medium">Repeatability (EV)</td>
+              <td className="px-4 py-2 font-medium">
+                Repeatability (EV)
+                <Tip id="ev" />
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{result.repeatability_ev.toFixed(4)}</td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_ev), pctClass(result.pct_contribution_ev))}>
                 {result.pct_contribution_ev.toFixed(2)}%
@@ -144,7 +201,10 @@ export function MSAResults({ result }: MSAResultsProps) {
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
             <tr className="border-border/50 border-t">
-              <td className="px-4 py-2 font-medium">Reproducibility (AV)</td>
+              <td className="px-4 py-2 font-medium">
+                Reproducibility (AV)
+                <Tip id="av" />
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{result.reproducibility_av.toFixed(4)}</td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_av), pctClass(result.pct_contribution_av))}>
                 {result.pct_contribution_av.toFixed(2)}%
@@ -156,7 +216,10 @@ export function MSAResults({ result }: MSAResultsProps) {
             </tr>
             {result.pct_contribution_interaction !== null && (
               <tr className="border-border/50 border-t">
-                <td className="px-4 py-2 font-medium">Interaction</td>
+                <td className="px-4 py-2 font-medium">
+                  Interaction
+                  <Tip id="interaction" />
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {result.interaction !== null ? result.interaction.toFixed(4) : '-'}
                 </td>
@@ -168,7 +231,10 @@ export function MSAResults({ result }: MSAResultsProps) {
               </tr>
             )}
             <tr className="border-border/50 bg-muted/30 border-t font-semibold">
-              <td className="px-4 py-2">Gage R&amp;R (GRR)</td>
+              <td className="px-4 py-2">
+                Gage R&amp;R (GRR)
+                <Tip id="grr" />
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{result.gage_rr.toFixed(4)}</td>
               <td className={cn('px-4 py-2 text-right tabular-nums', pctBg(result.pct_contribution_grr), pctClass(result.pct_contribution_grr))}>
                 {result.pct_contribution_grr.toFixed(2)}%
@@ -183,7 +249,10 @@ export function MSAResults({ result }: MSAResultsProps) {
               )}
             </tr>
             <tr className="border-border/50 border-t">
-              <td className="px-4 py-2 font-medium">Part Variation (PV)</td>
+              <td className="px-4 py-2 font-medium">
+                Part Variation (PV)
+                <Tip id="pv" />
+              </td>
               <td className="px-4 py-2 text-right tabular-nums">{result.part_variation.toFixed(4)}</td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_pv), pctClass(result.pct_contribution_pv))}>
                 {result.pct_contribution_pv.toFixed(2)}%
@@ -208,7 +277,10 @@ export function MSAResults({ result }: MSAResultsProps) {
       {result.anova_table && (
         <div className="border-border overflow-hidden rounded-xl border">
           <div className="bg-muted/50 border-border border-b px-4 py-2">
-            <h3 className="text-sm font-medium">ANOVA Table</h3>
+            <h3 className="text-sm font-medium">
+              ANOVA Table
+              <Tip id="anova" />
+            </h3>
           </div>
           <table className="w-full text-sm">
             <thead>

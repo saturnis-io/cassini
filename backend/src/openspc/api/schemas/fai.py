@@ -43,8 +43,8 @@ class FAIReportUpdate(BaseModel):
 
 
 class FAIItemCreate(BaseModel):
-    balloon_number: int
-    characteristic_name: str = Field(..., max_length=255)
+    balloon_number: int = 1
+    characteristic_name: str = Field("", max_length=255)
     nominal: float | None = None
     usl: float | None = None
     lsl: float | None = None
