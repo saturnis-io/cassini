@@ -476,6 +476,20 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     return measurementsToGridData(measurements, isAttribute)
   }, [measurements, isAttribute])
 
+  // Pre-populate editable grid from existing measurements (e.g. study in "collecting" with saved data)
+  useEffect(() => {
+    if (!readOnlyData || isComplete) return
+    setGridData((prev) => {
+      // Only seed if grid is still empty (user hasn't started editing)
+      if (Object.keys(prev).length > 0) return prev
+      return readOnlyData.gridData
+    })
+    setAttrGridData((prev) => {
+      if (Object.keys(prev).length > 0) return prev
+      return readOnlyData.attrGridData
+    })
+  }, [readOnlyData, isComplete])
+
   const isPending =
     submitMeasurements.isPending ||
     submitAttributeMeasurements.isPending ||

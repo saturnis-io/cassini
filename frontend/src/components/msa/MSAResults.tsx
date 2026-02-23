@@ -29,9 +29,14 @@ const TOOLTIPS: Record<string, string> = {
   ndc: 'Number of Distinct Categories. How many groups of parts the gage can reliably distinguish. ndc \u2265 5 is required for adequate discrimination (AIAG MSA 4th Ed).',
   pct_contribution: '% Contribution = (variance component / total variance) \u00d7 100. Shows how much each source accounts for in total variation. Values sum to 100%.',
   pct_study: '% Study Variation = (6\u00d7\u03c3 component / 6\u00d7\u03c3 total) \u00d7 100. Based on standard deviations, not variances. More conservative than %Contribution.',
-  pct_tolerance: '% Tolerance = (6\u00d7\u03c3 GRR / tolerance) \u00d7 100. Compares measurement variation to the spec range. Only available when tolerance (USL\u2212LSL) is provided.',
+  pct_tolerance: 'P/T Ratio (Precision to Tolerance) = (5.15\u00d7\u03c3 GRR / tolerance) \u00d7 100. Compares measurement variation to the spec range. Only available when tolerance (USL\u2212LSL) is provided. \u226410% acceptable, 10-30% marginal, >30% unacceptable.',
   anova: 'Analysis of Variance. Decomposes total variation into operator, part, and interaction components. p < 0.05 indicates a statistically significant effect.',
   interaction: 'Operator \u00d7 Part interaction. If significant (p < 0.05), some operators measure certain parts differently \u2014 suggests inconsistent technique.',
+  ss: 'Sum of Squares. The total squared deviation for each source of variation. Larger values indicate more variation attributable to that source.',
+  df: 'Degrees of Freedom. The number of independent values that can vary for each source. Used to calculate Mean Squares (MS = SS / df).',
+  ms: 'Mean Squares = SS / df. The average squared deviation for each source. MS values are compared via the F-statistic to test significance.',
+  f_stat: 'F-statistic = MS(source) / MS(error). Ratio of source variation to random error. A large F value suggests the source is statistically significant.',
+  p_value: 'Probability of observing this F-statistic by chance. p < 0.05 is conventionally considered statistically significant (highlighted in red).',
 }
 
 /** Tooltip bubble that appears on hover/click, positioned via fixed to avoid clipping */
@@ -155,6 +160,10 @@ export function MSAResults({ result }: MSAResultsProps) {
           <span className="text-muted-foreground text-sm">
             {METHOD_LABELS[result.method] ?? result.method}
           </span>
+          <span className="text-muted-foreground text-xs">
+            %Study GRR = {result.pct_study_grr.toFixed(1)}%
+            {result.pct_study_grr < 10 ? ' (\u226410%)' : result.pct_study_grr <= 30 ? ' (10-30%)' : ' (>30%)'}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">ndc =</span>
@@ -196,7 +205,7 @@ export function MSAResults({ result }: MSAResultsProps) {
               </th>
               {result.pct_tolerance_grr !== null && (
                 <th className="text-muted-foreground px-4 py-2 text-right font-medium">
-                  %Tolerance
+                  P/T Ratio
                   <Tip id="pct_tolerance" />
                 </th>
               )}
@@ -303,11 +312,21 @@ export function MSAResults({ result }: MSAResultsProps) {
             <thead>
               <tr className="bg-muted/30">
                 <th className="text-muted-foreground px-4 py-2 text-left font-medium">Source</th>
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">SS</th>
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">df</th>
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">MS</th>
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">F</th>
-                <th className="text-muted-foreground px-4 py-2 text-right font-medium">p-value</th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  SS<Tip id="ss" />
+                </th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  df<Tip id="df" />
+                </th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  MS<Tip id="ms" />
+                </th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  F<Tip id="f_stat" />
+                </th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">
+                  p-value<Tip id="p_value" />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -337,12 +356,14 @@ export function MSAResults({ result }: MSAResultsProps) {
 
       {/* Interpretation guide */}
       <div className="bg-muted/30 rounded-lg p-4 text-xs">
-        <p className="mb-1 font-medium">Interpretation Guide</p>
+        <p className="mb-1 font-medium">Interpretation Guide (AIAG MSA 4th Ed)</p>
         <ul className="text-muted-foreground space-y-0.5">
-          <li>%GRR &le; 10% = Acceptable measurement system</li>
-          <li>%GRR 10-30% = Marginal, may be acceptable depending on application</li>
-          <li>%GRR &gt; 30% = Unacceptable, corrective action needed</li>
-          <li>ndc &ge; 5 = Measurement system can distinguish at least 5 categories of parts</li>
+          <li><strong>%Study GRR &le; 10%</strong> = Acceptable measurement system</li>
+          <li><strong>%Study GRR 10-30%</strong> = Marginal, may be acceptable depending on application</li>
+          <li><strong>%Study GRR &gt; 30%</strong> = Unacceptable, corrective action needed</li>
+          <li><strong>P/T Ratio &le; 10%</strong> = Gage variation is small relative to tolerance</li>
+          <li><strong>ndc &ge; 5</strong> = Measurement system can distinguish at least 5 categories of parts</li>
+          <li className="pt-1 italic">Verdict is determined by %Study GRR. ndc &lt; 5 indicates insufficient discrimination regardless of %GRR.</li>
         </ul>
       </div>
     </div>
