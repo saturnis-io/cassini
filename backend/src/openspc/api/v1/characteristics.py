@@ -556,6 +556,7 @@ async def _get_attribute_chart_data(
         data_type="attribute",
         attribute_chart_type=chart_type,
         sigma_z=sigma_z_value,
+        short_run_mode=characteristic.short_run_mode,
     )
 
 
@@ -653,6 +654,7 @@ async def _get_cusum_chart_data(
         chart_type="cusum",
         cusum_h=h,
         cusum_target=target,
+        short_run_mode=characteristic.short_run_mode,
     )
 
 
@@ -765,6 +767,7 @@ async def _get_ewma_chart_data(
         data_type="variable",
         chart_type="ewma",
         ewma_target=target,
+        short_run_mode=characteristic.short_run_mode,
     )
 
 
@@ -834,6 +837,7 @@ async def get_chart_data(
             nominal_subgroup_size=characteristic.subgroup_size,
             decimal_precision=characteristic.decimal_precision,
             data_type=characteristic.data_type,
+            short_run_mode=characteristic.short_run_mode,
         )
 
     # Get samples
@@ -982,6 +986,7 @@ async def get_chart_data(
         decimal_precision=characteristic.decimal_precision,
         stored_sigma=characteristic.stored_sigma,
         data_type=characteristic.data_type,
+        short_run_mode=characteristic.short_run_mode,
     )
 
 
