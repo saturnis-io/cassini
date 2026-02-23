@@ -16,6 +16,7 @@ interface RuleConfig {
 
 interface RulesTabProps {
   characteristicId: number
+  dataType?: 'variable' | 'attribute'
   onDirty?: () => void
 }
 
@@ -190,7 +191,7 @@ function PresetSelector({
 }
 
 export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab(
-  { characteristicId, onDirty },
+  { characteristicId, dataType, onDirty },
   ref,
 ) {
   const { data: rulesData, isLoading } = useNelsonRules(characteristicId)
@@ -415,6 +416,11 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       </div>
 
       {/* Rules Table */}
+      {dataType === 'attribute' && (
+        <p className="text-muted-foreground text-xs">
+          Attribute charts support Nelson Rules 1-4 only. Rules 5-8 require zone-based analysis that is not applicable to attribute data.
+        </p>
+      )}
       <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full">
           <thead>
@@ -427,7 +433,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
             </tr>
           </thead>
           <tbody className="divide-border divide-y">
-            {NELSON_RULES.map((rule) => {
+            {NELSON_RULES.filter((rule) => dataType !== 'attribute' || rule.id <= 4).map((rule) => {
               const config = ruleConfigs.get(rule.id)
               const isEnabled = config?.is_enabled ?? true
               const requireAck = config?.require_acknowledgement ?? true

@@ -18,6 +18,7 @@ from openspc.api.deps import (
     check_plant_role,
 )
 from openspc.core.capability import CapabilityResult, calculate_capability
+from openspc.core.distributions import calculate_capability_nonnormal
 from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.user import User
 from openspc.db.repositories.capability import CapabilityHistoryRepository
@@ -149,6 +150,35 @@ async def get_capability(
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
         )
 
+    # Dispatch to non-normal calculation when distribution_method is configured
+    dist_method = getattr(characteristic, 'distribution_method', None)
+    if dist_method and dist_method != "normal":
+        nn_result = calculate_capability_nonnormal(
+            values=values,
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+            sigma_within=sigma_within,
+            method=dist_method,
+        )
+        return CapabilityResponse(
+            cp=nn_result.cp,
+            cpk=nn_result.cpk,
+            pp=nn_result.pp,
+            ppk=nn_result.ppk,
+            cpm=nn_result.cpm,
+            sample_count=nn_result.sample_count,
+            normality_p_value=nn_result.normality_p_value,
+            normality_test=nn_result.normality_test,
+            is_normal=nn_result.is_normal,
+            calculated_at=nn_result.calculated_at.isoformat(),
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+            sigma_within=sigma_within,
+            short_run_mode=characteristic.short_run_mode,
+        )
+
     result = calculate_capability(
         values=values,
         usl=characteristic.usl,
@@ -238,13 +268,38 @@ async def save_capability_snapshot(
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
         )
 
-    result = calculate_capability(
-        values=values,
-        usl=characteristic.usl,
-        lsl=characteristic.lsl,
-        target=characteristic.target_value,
-        sigma_within=sigma_within,
-    )
+    # Dispatch to non-normal calculation when distribution_method is configured
+    dist_method = getattr(characteristic, 'distribution_method', None)
+    if dist_method and dist_method != "normal":
+        nn_result = calculate_capability_nonnormal(
+            values=values,
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+            sigma_within=sigma_within,
+            method=dist_method,
+        )
+        # Build a CapabilityResult for snapshot persistence
+        result = CapabilityResult(
+            cp=nn_result.cp,
+            cpk=nn_result.cpk,
+            pp=nn_result.pp,
+            ppk=nn_result.ppk,
+            cpm=nn_result.cpm,
+            sample_count=nn_result.sample_count,
+            normality_p_value=nn_result.normality_p_value,
+            normality_test=nn_result.normality_test,
+            is_normal=nn_result.is_normal,
+            calculated_at=nn_result.calculated_at,
+        )
+    else:
+        result = calculate_capability(
+            values=values,
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+            sigma_within=sigma_within,
+        )
 
     # Persist snapshot
     repo = CapabilityHistoryRepository(session)

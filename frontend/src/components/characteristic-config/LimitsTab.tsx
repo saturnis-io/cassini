@@ -37,7 +37,7 @@ interface LimitsTabProps {
   formData: FormData
   characteristic: Characteristic
   dataType?: 'variable' | 'attribute'
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: string | boolean) => void
   onRecalculate: (options?: {
     excludeOoc?: boolean
     startDate?: string
@@ -590,7 +590,7 @@ export function LimitsTab({
                 type="checkbox"
                 id="laney-correction"
                 checked={formData.use_laney_correction ?? false}
-                onChange={(e) => onChange('use_laney_correction', e.target.checked ? 'true' : 'false')}
+                onChange={(e) => onChange('use_laney_correction', e.target.checked)}
                 className="border-border rounded"
               />
               <label htmlFor="laney-correction" className="text-sm">

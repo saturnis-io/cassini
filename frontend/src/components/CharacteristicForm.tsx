@@ -59,6 +59,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     ewma_lambda: '',
     ewma_l: '',
     short_run_mode: '' as '' | 'deviation' | 'standardized',
+    use_laney_correction: false,
   })
 
   // Mode change confirmation dialog state
@@ -97,6 +98,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         ewma_lambda: characteristic.ewma_lambda?.toString() ?? '',
         ewma_l: characteristic.ewma_l?.toString() ?? '',
         short_run_mode: characteristic.short_run_mode ?? '',
+        use_laney_correction: characteristic.use_laney_correction ?? false,
       })
       setIsDirty(false)
     }
@@ -131,7 +133,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     )
   }
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setIsDirty(true)
   }
@@ -204,6 +206,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         ewma_lambda: formData.ewma_lambda ? parseFloat(formData.ewma_lambda) : null,
         ewma_l: formData.ewma_l ? parseFloat(formData.ewma_l) : null,
         short_run_mode: formData.short_run_mode || null,
+        use_laney_correction: formData.use_laney_correction,
       },
     })
 
@@ -334,6 +337,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               ewma_lambda: formData.ewma_lambda,
               ewma_l: formData.ewma_l,
               short_run_mode: formData.short_run_mode,
+              use_laney_correction: formData.use_laney_correction,
             }}
             dataType={characteristic.data_type}
             characteristic={{
@@ -342,6 +346,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               stored_sigma: characteristic.stored_sigma,
               stored_center_line: characteristic.stored_center_line,
               sample_count: characteristic.sample_count,
+              attribute_chart_type: characteristic.attribute_chart_type,
             }}
             onChange={handleChange}
             onRecalculate={handleRecalculate}
@@ -376,6 +381,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           <RulesTab
             ref={rulesTabRef}
             characteristicId={characteristicId!}
+            dataType={characteristic.data_type as 'variable' | 'attribute'}
             onDirty={() => setIsDirty(true)}
           />
         )

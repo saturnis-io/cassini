@@ -285,8 +285,43 @@ async def update_characteristic(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(_user, plant_id, "engineer")
 
-    # Update only provided fields
+    # Validate configuration combinations
     update_data = data.model_dump(exclude_unset=True)
+
+    # Resolve effective values (update overrides existing)
+    eff_data_type = update_data.get("data_type", characteristic.data_type)
+    eff_chart_type = update_data.get("chart_type", characteristic.chart_type)
+    eff_attr_chart_type = update_data.get("attribute_chart_type", characteristic.attribute_chart_type)
+
+    if "short_run_mode" in update_data and update_data["short_run_mode"] is not None:
+        if eff_data_type == "attribute":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Short-run mode is not supported for attribute characteristics",
+            )
+        if eff_chart_type in ("cusum", "ewma"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Short-run mode is not supported for CUSUM/EWMA chart types",
+            )
+
+    # Reciprocal: changing chart_type to cusum/ewma when short_run_mode is already set
+    eff_short_run = update_data.get("short_run_mode", characteristic.short_run_mode)
+    if "chart_type" in update_data and update_data["chart_type"] in ("cusum", "ewma"):
+        if eff_short_run:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot set CUSUM/EWMA chart type while short-run mode is active. Disable short-run mode first.",
+            )
+
+    if "use_laney_correction" in update_data and update_data["use_laney_correction"] is True:
+        if eff_attr_chart_type not in ("p", "u"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Laney correction is only supported for p and u charts",
+            )
+
+    # Update only provided fields
     for key, value in update_data.items():
         setattr(characteristic, key, value)
 
@@ -1012,10 +1047,13 @@ async def get_chart_data(
             sl_lsl = sl_lsl - _sr_target
         sl_target = 0.0
     elif _sr_mode == "standardized" and _sr_sigma and _sr_sigma > 0:
+        # Use sigma_xbar (sigma / sqrt(n)) to match the display_value Z-transform
+        _n = characteristic.subgroup_size or 1
+        _sigma_xbar = _sr_sigma / np.sqrt(_n) if _n > 1 else _sr_sigma
         if sl_usl is not None:
-            sl_usl = (sl_usl - _sr_target) / _sr_sigma
+            sl_usl = (sl_usl - _sr_target) / _sigma_xbar
         if sl_lsl is not None:
-            sl_lsl = (sl_lsl - _sr_target) / _sr_sigma
+            sl_lsl = (sl_lsl - _sr_target) / _sigma_xbar
         sl_target = 0.0
 
     spec_limits = SpecLimits(

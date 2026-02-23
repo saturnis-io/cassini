@@ -22,7 +22,7 @@ interface SamplingTabProps {
   formData: FormData
   characteristic: Characteristic
   scheduleConfig: ScheduleConfig
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: string | boolean) => void
   onScheduleChange: (config: ScheduleConfig) => void
   onModeChange: (mode: string) => void
   isModeChangePending?: boolean

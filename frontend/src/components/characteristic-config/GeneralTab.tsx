@@ -45,7 +45,7 @@ interface GeneralTabProps {
   characteristic: GeneralCharacteristic
   characteristicId: number
   hierarchyPath?: HierarchyBreadcrumb[]
-  onChange: (field: string, value: string) => void
+  onChange: (field: string, value: string | boolean) => void
 }
 
 export function GeneralTab({

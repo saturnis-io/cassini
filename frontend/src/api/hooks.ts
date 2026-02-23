@@ -593,6 +593,10 @@ export function useUpdateCharacteristic() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.list() })
+      // Invalidate chart data so it re-fetches with updated config (short_run_mode, chart_type, etc.)
+      queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', variables.id],
+      })
       toast.success('Characteristic saved')
     },
     onError: (error: Error) => {
