@@ -420,6 +420,7 @@ async def seed() -> None:
                                 severity = "CRITICAL" if rule_id == 1 else "WARNING"
                                 session.add(Violation(
                                     sample_id=sample.id,
+                                    char_id=char.id,
                                     rule_id=rule_id,
                                     rule_name=NELSON_RULE_NAMES.get(rule_id, f"Rule {rule_id}"),
                                     severity=severity,
