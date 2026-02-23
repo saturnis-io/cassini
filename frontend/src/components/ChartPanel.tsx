@@ -129,7 +129,7 @@ export function ChartPanel({
   const { data: chartData } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
 
   // Calculate shared Y-axis domain for BOTH charts to ensure perfect alignment
-  // ALWAYS includes UCL, LCL, USL, LSL so all limits are visible
+  // Mirrors ControlChart's own domain logic so toggling the histogram doesn't shift the view
   const yAxisDomain = useMemo((): [number, number] | undefined => {
     if (!chartData?.data_points?.length) return undefined
 
@@ -138,43 +138,42 @@ export function ChartPanel({
     const isStandardizedShortRun = chartData.short_run_mode === 'standardized'
 
     if (isModeA || isStandardizedShortRun) {
-      // Dynamic domain for Z-scores: fit actual data + ±3 control limits
-      // For standardized short-run, the mean values are already Z-scores
-      const zValues = isStandardizedShortRun
-        ? data_points.map((p) => p.mean)
-        : data_points.filter((p) => p.z_score != null).map((p) => p.z_score!)
+      // Use display_value (Z-scores) — p.mean is raw engineering value
+      const zValues = data_points
+        .map((p) => p.display_value ?? (isModeA ? p.z_score : null))
+        .filter((v): v is number => v != null)
       if (zValues.length === 0) return [-4, 4]
 
-      const allZLimits = [...zValues, 3, -3] // include ±3σ control limits
+      const allZLimits = [...zValues, 3, -3]
       const zMin = Math.min(...allZLimits)
       const zMax = Math.max(...allZLimits)
-      const zPadding = (zMax - zMin) * 0.1
+      const zPadding = (zMax - zMin) * 0.2
       return [zMin - zPadding, zMax + zPadding]
     }
 
-    // Mode B/C: Dynamic domain based on values AND all limits
-    const values = data_points.map((p) => p.mean)
+    // Mode B/C: Dynamic domain based on display values + control limits
+    const values = data_points.map((p) => p.display_value ?? p.mean)
     const minVal = Math.min(...values)
     const maxVal = Math.max(...values)
 
-    // ALWAYS include ALL limits (UCL, LCL, USL, LSL) regardless of display settings
-    // This ensures both charts have the same domain and limits are always visible
     const allLimits = [minVal, maxVal]
 
-    // Control limits
+    // Control limits — always include
     if (control_limits.ucl != null) allLimits.push(control_limits.ucl)
     if (control_limits.lcl != null) allLimits.push(control_limits.lcl)
 
-    // Spec limits - always include so they're visible on both charts
-    if (spec_limits.usl != null) allLimits.push(spec_limits.usl)
-    if (spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
+    // Spec limits — only include when visible, matching ControlChart's own logic
+    if (showSpecLimits) {
+      if (spec_limits.usl != null) allLimits.push(spec_limits.usl)
+      if (spec_limits.lsl != null) allLimits.push(spec_limits.lsl)
+    }
 
     const domainMin = Math.min(...allLimits)
     const domainMax = Math.max(...allLimits)
-    const padding = (domainMax - domainMin) * 0.1
+    const padding = (domainMax - domainMin) * 0.2
 
     return [domainMin - padding, domainMax + padding]
-  }, [chartData])
+  }, [chartData, showSpecLimits])
 
   return (
     <div
