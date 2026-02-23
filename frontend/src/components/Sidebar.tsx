@@ -104,6 +104,9 @@ export function Sidebar({ className }: SidebarProps) {
   const isCollapsed = sidebarState === 'collapsed'
   const isHidden = sidebarState === 'hidden'
 
+  // Only show the Characteristics tree on pages that use it
+  const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(location.pathname)
+
   const { sidebarWidth, handleMouseDown: handleResizeMouseDown } = useSidebarResize(isCollapsed)
 
   // Close mobile sidebar on route change
@@ -280,13 +283,15 @@ export function Sidebar({ className }: SidebarProps) {
             {/* Navigation links */}
             <nav className="space-y-1 overflow-y-auto border-b p-2">{navContent(true)}</nav>
 
-            {/* Characteristics tree */}
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="text-muted-foreground px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
-                Characteristics
+            {/* Characteristics tree — only on dashboard/data-entry/reports */}
+            {showCharacteristics && (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="text-muted-foreground px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+                  Characteristics
+                </div>
+                <HierarchyTodoList embedded className="min-h-0 flex-1" />
               </div>
-              <HierarchyTodoList embedded className="min-h-0 flex-1" />
-            </div>
+            )}
           </aside>
         </div>
       )}
@@ -322,42 +327,45 @@ export function Sidebar({ className }: SidebarProps) {
             <nav className="space-y-0.5 overflow-y-auto px-2 pb-1">{navContent(false)}</nav>
           ) : null}
 
-          {/* ── Divider ── */}
-          <div className="border-border mx-2 my-1 border-t" />
+          {/* ── Divider + Characteristics section — only on dashboard/data-entry/reports ── */}
+          {showCharacteristics && (
+            <>
+              <div className="border-border mx-2 my-1 border-t" />
 
-          {/* ── Characteristics section ── */}
-          {isCollapsed ? (
-            /* Collapsed: tree icon that expands sidebar */
-            <div className="flex flex-col items-center py-2">
-              <button
-                onClick={toggleSidebar}
-                className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-10 w-10 items-center justify-center rounded-lg transition-colors"
-                title="Show characteristics"
-              >
-                <ListTree className="h-5 w-5" />
-              </button>
-            </div>
-          ) : (
-            /* Expanded: collapsible characteristics panel */
-            <div className="flex min-h-0 flex-1 flex-col">
-              <button
-                onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
-                className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider"
-              >
-                <span>Characteristics</span>
-                {characteristicsPanelOpen ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
-              </button>
+              {isCollapsed ? (
+                /* Collapsed: tree icon that expands sidebar */
+                <div className="flex flex-col items-center py-2">
+                  <button
+                    onClick={toggleSidebar}
+                    className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-10 w-10 items-center justify-center rounded-lg transition-colors"
+                    title="Show characteristics"
+                  >
+                    <ListTree className="h-5 w-5" />
+                  </button>
+                </div>
+              ) : (
+                /* Expanded: collapsible characteristics panel */
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <button
+                    onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
+                    className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                  >
+                    <span>Characteristics</span>
+                    {characteristicsPanelOpen ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                  </button>
 
-              {characteristicsPanelOpen && (
-                <div className="min-h-0 flex-1">
-                  <HierarchyTodoList embedded className="h-full" />
+                  {characteristicsPanelOpen && (
+                    <div className="min-h-0 flex-1">
+                      <HierarchyTodoList embedded className="h-full" />
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
 
           {/* ── Collapse toggle tab (protruding from sidebar edge) ── */}
