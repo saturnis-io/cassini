@@ -40,12 +40,13 @@ def load_from_api(server_url: str, api_key: str) -> BridgeConfig:
     resp.raise_for_status()
     data = resp.json()
 
+    mqtt = data.get("mqtt") or {}
     config = BridgeConfig(
         bridge_id=data["bridge_id"],
-        mqtt_host=data["mqtt_host"],
-        mqtt_port=data["mqtt_port"],
-        mqtt_username=data.get("mqtt_username"),
-        mqtt_password=data.get("mqtt_password"),
+        mqtt_host=mqtt.get("host", "localhost"),
+        mqtt_port=mqtt.get("port", 1883),
+        mqtt_username=mqtt.get("username"),
+        mqtt_password=mqtt.get("password"),
         heartbeat_interval=data.get("heartbeat_interval", 30),
     )
     for p in data.get("ports", []):

@@ -37,7 +37,7 @@ const emptyPortForm: GagePortCreate & { characteristic_id: number | null } = {
   is_active: true,
 }
 
-const PARITY_OPTIONS = ['none', 'even', 'odd', 'mark', 'space'] as const
+const PARITY_OPTIONS = ['none', 'even', 'odd'] as const
 const STOP_BITS_OPTIONS = [1, 1.5, 2] as const
 const DATA_BITS_OPTIONS = [5, 6, 7, 8] as const
 

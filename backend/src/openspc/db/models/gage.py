@@ -55,6 +55,7 @@ class GagePort(Base):
     __tablename__ = "gage_port"
     __table_args__ = (
         sa.Index("ix_gage_port_bridge", "bridge_id"),
+        sa.UniqueConstraint("bridge_id", "port_name", name="uq_gage_port_bridge_port"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

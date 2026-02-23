@@ -356,6 +356,76 @@ async def delete_bridge(
 # ===========================================================================
 
 
+@router.get("/my-config")
+async def get_my_config(
+    session: AsyncSession = Depends(get_db_session),
+    bridge: GageBridge = Depends(get_bridge_by_api_key),
+) -> dict:
+    """Pull bridge configuration using only API key (no bridge_id needed).
+
+    The bridge agent calls this on startup to discover its own config.
+    Authenticated via ``Authorization: Bearer <api_key>``.
+    """
+    # Delegate to the same logic as /{bridge_id}/config
+    # Build MQTT connection info from broker (if configured)
+    mqtt_config: dict | None = None
+    if bridge.mqtt_broker_id is not None:
+        broker_result = await session.execute(
+            select(MQTTBroker).where(MQTTBroker.id == bridge.mqtt_broker_id)
+        )
+        broker = broker_result.scalar_one_or_none()
+        if broker is not None:
+            username: str | None = None
+            password: str | None = None
+            try:
+                from openspc.db.dialects import decrypt_password, get_encryption_key
+
+                key = get_encryption_key()
+                if broker.username:
+                    username = decrypt_password(broker.username, key)
+                if broker.password:
+                    password = decrypt_password(broker.password, key)
+            except Exception:
+                logger.warning(
+                    "broker_credential_decrypt_failed",
+                    broker_id=broker.id,
+                )
+                # Don't fall back to raw encrypted values — send None
+
+            mqtt_config = {
+                "host": broker.host,
+                "port": broker.port,
+                "username": username,
+                "password": password,
+                "use_tls": broker.use_tls,
+                "client_id": broker.client_id,
+            }
+
+    active_ports = [
+        {
+            "id": p.id,
+            "port_name": p.port_name,
+            "baud_rate": p.baud_rate,
+            "data_bits": p.data_bits,
+            "parity": p.parity,
+            "stop_bits": p.stop_bits,
+            "protocol_profile": p.protocol_profile,
+            "parse_pattern": p.parse_pattern,
+            "mqtt_topic": p.mqtt_topic,
+            "characteristic_id": p.characteristic_id,
+        }
+        for p in bridge.ports
+        if p.is_active
+    ]
+
+    return {
+        "bridge_id": bridge.id,
+        "bridge_name": bridge.name,
+        "mqtt": mqtt_config,
+        "ports": active_ports,
+    }
+
+
 @router.post("/{bridge_id}/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
 async def bridge_heartbeat(
     bridge_id: int,
@@ -403,25 +473,23 @@ async def get_bridge_config(
         )
         broker = broker_result.scalar_one_or_none()
         if broker is not None:
-            # Decrypt credentials
-            username = broker.username
-            password = broker.password
+            # Decrypt credentials — never send raw encrypted values
+            username: str | None = None
+            password: str | None = None
             try:
                 from openspc.db.dialects import decrypt_password, get_encryption_key
 
                 key = get_encryption_key()
-                if username:
-                    username = decrypt_password(username, key)
-                if password:
-                    password = decrypt_password(password, key)
+                if broker.username:
+                    username = decrypt_password(broker.username, key)
+                if broker.password:
+                    password = decrypt_password(broker.password, key)
             except Exception:
-                # Fall back to raw values if decryption fails
                 logger.warning(
-                    "broker_credential_decrypt_fallback",
+                    "broker_credential_decrypt_failed",
                     broker_id=broker.id,
                 )
-                username = broker.username
-                password = broker.password
+                # Don't fall back to raw encrypted values — send None
 
             mqtt_config = {
                 "host": broker.host,
@@ -546,38 +614,34 @@ async def update_port(
 
     update_data = body.model_dump(exclude_unset=True)
 
-    # Handle characteristic_id change -- manage auto-mapped DataSource
-    if "characteristic_id" in update_data:
-        old_char_id = port.characteristic_id
-        new_char_id = update_data["characteristic_id"]
+    # Compute the final desired state BEFORE making any changes
+    old_char_id = port.characteristic_id
+    old_topic = port.mqtt_topic
 
-        if old_char_id != new_char_id:
-            # Remove old auto-created DataSource
-            await _remove_auto_datasource(session, old_char_id, port.mqtt_topic)
-
-            # Create new auto-mapped DataSource if new char provided
-            if new_char_id is not None:
-                # Temporarily set the new characteristic_id so _auto_map sees it
-                port.characteristic_id = new_char_id
-                await _auto_map_datasource(session, port, bridge)
-
-    # Recalculate MQTT topic if port_name changes
+    final_char_id = update_data.get("characteristic_id", port.characteristic_id)
+    final_topic = old_topic
     if "port_name" in update_data:
-        new_topic = f"openspc/gage/{bridge_id}/{update_data['port_name']}/value"
-        # If old DataSource exists with old topic, update or remove
-        if port.characteristic_id is not None:
-            # Remove old topic DataSource, will re-create with new topic below
-            await _remove_auto_datasource(
-                session, port.characteristic_id, port.mqtt_topic
-            )
-        update_data["mqtt_topic"] = new_topic
-        # Re-create mapping with new topic if char is mapped
-        if port.characteristic_id is not None:
-            port.mqtt_topic = new_topic
-            await _auto_map_datasource(session, port, bridge)
+        final_topic = f"openspc/gage/{bridge_id}/{update_data['port_name']}/value"
+        update_data["mqtt_topic"] = final_topic
 
+    # Determine if DataSource mapping needs to change
+    char_changed = "characteristic_id" in update_data and final_char_id != old_char_id
+    topic_changed = final_topic != old_topic
+
+    needs_remove = (char_changed or topic_changed) and old_char_id is not None
+    needs_create = (char_changed or topic_changed) and final_char_id is not None
+
+    # Single remove of old mapping
+    if needs_remove:
+        await _remove_auto_datasource(session, old_char_id, old_topic)
+
+    # Apply all field updates
     for field, value in update_data.items():
         setattr(port, field, value)
+
+    # Single create of new mapping
+    if needs_create:
+        await _auto_map_datasource(session, port, bridge)
 
     await session.commit()
     await session.refresh(port)
