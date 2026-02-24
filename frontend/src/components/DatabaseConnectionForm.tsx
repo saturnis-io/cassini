@@ -3,6 +3,10 @@ import { Loader2, CheckCircle2, XCircle, Wifi } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDatabaseConfig, useTestConnection, useUpdateDatabaseConfig } from '@/api/hooks'
 import type { DatabaseDialect, ConnectionTestResult } from '@/types'
+import { databaseConnectionSchema } from '@/schemas/admin'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 
 const DIALECT_OPTIONS: { value: DatabaseDialect; label: string; description: string }[] = [
   { value: 'sqlite', label: 'SQLite', description: 'File-based, no server required' },
@@ -31,6 +35,8 @@ export function DatabaseConnectionForm() {
   const [password, setPassword] = useState('')
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
   const [hasTestedSuccessfully, setHasTestedSuccessfully] = useState(false)
+
+  const { validate, getError, clearErrors } = useFormValidation(databaseConnectionSchema)
 
   // Computed: active database value based on dialect
   const database = dialect === 'sqlite' ? sqliteDatabase : serverDatabase
@@ -61,9 +67,13 @@ export function DatabaseConnectionForm() {
     // Username/password preserved across dialect changes
     setTestResult(null)
     setHasTestedSuccessfully(false)
+    clearErrors()
   }
 
   const handleTest = () => {
+    const validated = validate({ dialect, host, port, database, username, password })
+    if (!validated) return
+
     setTestResult(null)
     setHasTestedSuccessfully(false)
     testMutation.mutate(
@@ -134,8 +144,12 @@ export function DatabaseConnectionForm() {
               setHasTestedSuccessfully(false)
             }}
             placeholder="./openspc.db"
-            className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
+            className={cn(
+              'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
+              inputErrorClass(getError('database')),
+            )}
           />
+          <FieldError error={getError('database')} />
         </div>
       )}
 
@@ -154,8 +168,12 @@ export function DatabaseConnectionForm() {
                   setHasTestedSuccessfully(false)
                 }}
                 placeholder="localhost"
-                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
+                className={cn(
+                  'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
+                  inputErrorClass(getError('host')),
+                )}
               />
+              <FieldError error={getError('host')} />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">Port</label>
@@ -168,8 +186,12 @@ export function DatabaseConnectionForm() {
                   setHasTestedSuccessfully(false)
                 }}
                 placeholder={String(DEFAULT_PORTS[dialect] || '')}
-                className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
+                className={cn(
+                  'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
+                  inputErrorClass(getError('port')),
+                )}
               />
+              <FieldError error={getError('port')} />
             </div>
           </div>
 
@@ -184,8 +206,12 @@ export function DatabaseConnectionForm() {
                 setHasTestedSuccessfully(false)
               }}
               placeholder="openspc"
-              className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
+              className={cn(
+                'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
+                inputErrorClass(getError('database')),
+              )}
             />
+            <FieldError error={getError('database')} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

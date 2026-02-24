@@ -18,6 +18,10 @@ import {
 } from '@/api/hooks'
 import { GageProfileSelector } from './GageProfileSelector'
 import { CharacteristicPicker } from './CharacteristicPicker'
+import { gagePortSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 import type { GagePort, GagePortCreate } from '@/api/client'
 
 interface GagePortConfigProps {
@@ -51,6 +55,8 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
   const updatePort = useUpdateGagePort()
   const deletePort = useDeleteGagePort()
 
+  const { validate, getError, clearErrors } = useFormValidation(gagePortSchema)
+
   const [showForm, setShowForm] = useState(false)
   const [editingPort, setEditingPort] = useState<GagePort | null>(null)
   const [form, setForm] = useState(emptyPortForm)
@@ -62,6 +68,7 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
   const handleAdd = () => {
     setEditingPort(null)
     setForm(emptyPortForm)
+    clearErrors()
     setShowForm(true)
   }
 
@@ -79,6 +86,7 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
       characteristic_id: port.characteristic_id,
       is_active: port.is_active,
     })
+    clearErrors()
     setShowForm(true)
   }
 
@@ -86,19 +94,23 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
     setShowForm(false)
     setEditingPort(null)
     setForm(emptyPortForm)
+    clearErrors()
   }
 
   const handleSave = () => {
+    const validated = validate(form)
+    if (!validated) return
+
     const payload: GagePortCreate = {
-      port_name: form.port_name.trim(),
-      baud_rate: form.baud_rate,
-      data_bits: form.data_bits,
-      parity: form.parity,
-      stop_bits: form.stop_bits,
-      protocol_profile: form.protocol_profile || undefined,
-      parse_pattern: form.parse_pattern || null,
-      characteristic_id: form.characteristic_id,
-      is_active: form.is_active,
+      port_name: validated.port_name.trim(),
+      baud_rate: validated.baud_rate,
+      data_bits: validated.data_bits,
+      parity: validated.parity,
+      stop_bits: validated.stop_bits,
+      protocol_profile: validated.protocol_profile || undefined,
+      parse_pattern: validated.parse_pattern || null,
+      characteristic_id: validated.characteristic_id,
+      is_active: validated.is_active,
     }
 
     if (editingPort) {
@@ -124,7 +136,6 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
     : null
 
   const isSaving = addPort.isPending || updatePort.isPending
-  const isFormValid = form.port_name.trim().length > 0
 
   if (isLoading) {
     return (
@@ -273,8 +284,9 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
                 value={form.port_name}
                 onChange={(e) => setForm({ ...form, port_name: e.target.value })}
                 placeholder="e.g. COM3"
-                className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
+                className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2", inputErrorClass(getError('port_name')))}
               />
+              <FieldError error={getError('port_name')} />
             </div>
 
             {/* Profile selector */}
@@ -437,8 +449,8 @@ export function GagePortConfig({ bridgeId }: GagePortConfigProps) {
             </button>
             <button
               onClick={handleSave}
-              disabled={!isFormValid || isSaving}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={isSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isSaving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -10,6 +10,10 @@ import { useState, useMemo } from 'react'
 import { X, MapPin, CalendarRange, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCreateAnnotation } from '@/api/hooks'
+import { annotationSchema } from '@/schemas/characteristics'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 import { TimePicker } from './TimePicker'
 
 interface AnnotationDialogProps {
@@ -58,6 +62,7 @@ export function AnnotationDialog({
   const setActiveDate = activeField === 'start' ? setStartDate : setEndDate
 
   const createAnnotation = useCreateAnnotation()
+  const { validate, getError, clearErrors } = useFormValidation(annotationSchema)
 
   const canSubmit = (() => {
     if (!text.trim()) return false
@@ -67,27 +72,33 @@ export function AnnotationDialog({
   })()
 
   const handleSubmit = async () => {
-    if (!canSubmit) return
+    const formData =
+      mode === 'point'
+        ? { mode: 'point' as const, text, color, sampleId }
+        : { mode: 'period' as const, text, color, startTime: startDate, endTime: endDate }
+
+    const validated = validate(formData)
+    if (!validated) return
 
     if (mode === 'point') {
       await createAnnotation.mutateAsync({
         characteristicId,
         data: {
           annotation_type: 'point',
-          text: text.trim(),
-          color: color || undefined,
+          text: validated.text.trim(),
+          color: validated.color || undefined,
           sample_id: sampleId,
         },
       })
-    } else {
+    } else if (validated.mode === 'period') {
       await createAnnotation.mutateAsync({
         characteristicId,
         data: {
           annotation_type: 'period',
-          text: text.trim(),
-          color: color || undefined,
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
+          text: validated.text.trim(),
+          color: validated.color || undefined,
+          start_time: validated.startTime.toISOString(),
+          end_time: validated.endTime.toISOString(),
         },
       })
     }
@@ -349,7 +360,7 @@ export function AnnotationDialog({
             <label className="mb-1.5 block text-sm font-medium">Note</label>
             <textarea
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); clearErrors() }}
               placeholder={
                 mode === 'point'
                   ? 'Note about this data point...'
@@ -357,9 +368,10 @@ export function AnnotationDialog({
               }
               rows={3}
               maxLength={500}
-              className="bg-background border-border focus:ring-primary/50 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={cn("bg-background border-border focus:ring-primary/50 w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none", inputErrorClass(getError('text')))}
               autoFocus={mode === 'point' || (mode === 'period' && hasPrefill)}
             />
+            <FieldError error={getError('text')} />
             <div className="text-muted-foreground mt-1 text-xs">{text.length}/500</div>
           </div>
 

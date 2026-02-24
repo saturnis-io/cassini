@@ -6,6 +6,11 @@ import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
 import { usePlant } from '@/providers/PlantProvider'
 import { opcuaApi } from '@/api/client'
+import { opcuaServerSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 import type { OPCUAServer, OPCUAServerCreate } from '@/types'
 
 interface OPCUAFormData {
@@ -65,6 +70,8 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
       : defaultFormData,
   )
 
+  const { validate, getError } = useFormValidation(opcuaServerSchema)
+
   const createMutation = useMutation({
     mutationFn: opcuaApi.create,
     onSuccess: (data) => {
@@ -92,19 +99,22 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const validated = validate(formData)
+    if (!validated) return
+
     const data: Omit<OPCUAServerCreate, 'plant_id'> = {
-      name: formData.name,
-      endpoint_url: formData.endpoint_url,
-      auth_mode: formData.auth_mode,
-      security_policy: formData.security_policy,
-      security_mode: formData.security_mode,
-      session_timeout: formData.session_timeout,
-      publishing_interval: formData.publishing_interval,
-      sampling_interval: formData.sampling_interval,
-      ...(formData.auth_mode === 'username_password'
+      name: validated.name,
+      endpoint_url: validated.endpoint_url,
+      auth_mode: validated.auth_mode,
+      security_policy: validated.security_policy,
+      security_mode: validated.security_mode,
+      session_timeout: validated.session_timeout,
+      publishing_interval: validated.publishing_interval,
+      sampling_interval: validated.sampling_interval,
+      ...(validated.auth_mode === 'username_password'
         ? {
-            username: formData.username || undefined,
-            password: formData.password || undefined,
+            username: validated.username || undefined,
+            password: validated.password || undefined,
           }
         : {}),
     }
@@ -180,10 +190,11 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
+                className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2", inputErrorClass(getError('name')))}
                 placeholder="PLC Controller 1"
                 required
               />
+              <FieldError error={getError('name')} />
             </div>
             <div className="col-span-2">
               <label className="mb-1.5 block text-sm font-medium">Endpoint URL</label>
@@ -191,12 +202,13 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                 type="text"
                 value={formData.endpoint_url}
                 onChange={(e) => setFormData({ ...formData, endpoint_url: e.target.value })}
-                className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
+                className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2", inputErrorClass(getError('endpoint_url')))}
                 placeholder="opc.tcp://192.168.1.100:4840"
                 required
                 pattern="^opc\.tcp://.*"
                 title="Must start with opc.tcp://"
               />
+              <FieldError error={getError('endpoint_url')} />
             </div>
           </div>
         </div>
@@ -302,11 +314,13 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                   max={300000}
                   step={1000}
                   showButtons={false}
+                  className={inputErrorClass(getError('session_timeout'))}
                 />
                 <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
                   ms
                 </span>
               </div>
+              <FieldError error={getError('session_timeout')} />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">Publish Interval</label>
@@ -320,11 +334,13 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                   max={60000}
                   step={100}
                   showButtons={false}
+                  className={inputErrorClass(getError('publishing_interval'))}
                 />
                 <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
                   ms
                 </span>
               </div>
+              <FieldError error={getError('publishing_interval')} />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">Sampling Interval</label>
@@ -338,11 +354,13 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                   max={60000}
                   step={50}
                   showButtons={false}
+                  className={inputErrorClass(getError('sampling_interval'))}
                 />
                 <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs">
                   ms
                 </span>
               </div>
+              <FieldError error={getError('sampling_interval')} />
             </div>
           </div>
         </div>

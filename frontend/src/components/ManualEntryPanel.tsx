@@ -5,6 +5,9 @@ import { CharacteristicContextBar } from './CharacteristicContextBar'
 import { NoCharacteristicState } from './NoCharacteristicState'
 import { NumberInput } from './NumberInput'
 import { AttributeEntryForm } from './AttributeEntryForm'
+import { FieldError } from '@/components/FieldError'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { measurementsSchema } from '@/schemas/data-entry'
 
 export function ManualEntryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
@@ -15,6 +18,7 @@ export function ManualEntryPanel() {
   const [operatorId, setOperatorId] = useState('')
 
   const submitSample = useSubmitSample()
+  const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
 
   // Calculate the number of input fields to show and minimum required
   const { inputCount, minRequired } = useMemo(() => {
@@ -42,7 +46,8 @@ export function ManualEntryPanel() {
     } else {
       setMeasurements([])
     }
-  }, [inputCount])
+    clearErrors()
+  }, [inputCount, clearErrors])
 
   const handleMeasurementChange = (index: number, value: string) => {
     const newMeasurements = [...measurements]
@@ -65,12 +70,19 @@ export function ManualEntryPanel() {
 
     if (values.length < minRequired) return
 
+    const validated = validate({
+      measurements: values,
+      batch_number: batchNumber || undefined,
+      operator_id: operatorId || undefined,
+    })
+    if (!validated) return
+
     submitSample.mutate(
       {
         characteristic_id: selectedChar.id,
-        measurements: values,
-        batch_number: batchNumber || undefined,
-        operator_id: operatorId || undefined,
+        measurements: validated.measurements,
+        batch_number: validated.batch_number,
+        operator_id: validated.operator_id,
       },
       {
         onSuccess: () => {
@@ -78,6 +90,7 @@ export function ManualEntryPanel() {
           setMeasurements(Array(inputCount).fill(''))
           setBatchNumber('')
           setOperatorId('')
+          clearErrors()
         },
       },
     )
@@ -130,6 +143,7 @@ export function ManualEntryPanel() {
                     )
                   })}
                 </div>
+                <FieldError error={getError('measurements')} />
                 <p className="text-muted-foreground mt-2 text-sm">
                   {minRequired === inputCount ? (
                     <>All {inputCount} measurements are required.</>

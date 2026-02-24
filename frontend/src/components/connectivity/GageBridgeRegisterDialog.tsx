@@ -3,6 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { X, Loader2, Copy, Check, AlertTriangle } from 'lucide-react'
 import { brokerApi } from '@/api/client'
 import { useRegisterGageBridge } from '@/api/hooks'
+import { gageBridgeRegisterSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 
 interface GageBridgeRegisterDialogProps {
   open: boolean
@@ -26,6 +31,7 @@ export function GageBridgeRegisterDialog({
   const [copied, setCopied] = useState(false)
 
   const registerMutation = useRegisterGageBridge()
+  const { validate, getError, clearErrors } = useFormValidation(gageBridgeRegisterSchema)
 
   // Fetch MQTT brokers for the dropdown
   const { data: brokersResponse } = useQuery({
@@ -36,10 +42,13 @@ export function GageBridgeRegisterDialog({
   const brokers = brokersResponse?.items ?? []
 
   const handleSubmit = () => {
+    const validated = validate({ name })
+    if (!validated) return
+
     registerMutation.mutate(
       {
         plant_id: plantId,
-        name: name.trim(),
+        name: validated.name,
         mqtt_broker_id: brokerId,
       },
       {
@@ -63,6 +72,7 @@ export function GageBridgeRegisterDialog({
     setApiKey(null)
     setCopied(false)
     registerMutation.reset()
+    clearErrors()
     onClose()
   }
 
@@ -145,8 +155,9 @@ export function GageBridgeRegisterDialog({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Lab-Floor Gage PC"
                   autoFocus
-                  className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
+                  className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2", inputErrorClass(getError('name')))}
                 />
+                <FieldError error={getError('name')} />
               </div>
 
               {/* MQTT Broker field */}
@@ -179,7 +190,7 @@ export function GageBridgeRegisterDialog({
           {isRegistered ? (
             <button
               onClick={handleClose}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-500"
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Done
             </button>
@@ -194,7 +205,7 @@ export function GageBridgeRegisterDialog({
               <button
                 onClick={handleSubmit}
                 disabled={!name.trim() || registerMutation.isPending}
-                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {registerMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Register

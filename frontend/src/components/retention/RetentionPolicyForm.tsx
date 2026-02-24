@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Infinity, Hash, Calendar, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RetentionPolicySet } from '@/types'
+import { retentionPolicySchema } from '@/schemas/admin'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 
 type RetentionType = 'forever' | 'sample_count' | 'time_delta'
 type TimeUnit = 'days' | 'months' | 'years'
@@ -19,17 +23,6 @@ const TYPE_OPTIONS: { value: RetentionType; label: string; icon: typeof Infinity
   { value: 'sample_count', label: 'By Count', icon: Hash },
   { value: 'time_delta', label: 'By Age', icon: Calendar },
 ]
-
-function unitToDays(value: number, unit: TimeUnit): number {
-  switch (unit) {
-    case 'days':
-      return value
-    case 'months':
-      return value * 30
-    case 'years':
-      return value * 365
-  }
-}
 
 function parseInitialUnit(unit: string | null | undefined): TimeUnit {
   if (unit === 'months' || unit === 'years') return unit
@@ -58,19 +51,11 @@ export function RetentionPolicyForm({
       : 'days',
   )
 
-  const countError =
-    type === 'sample_count' && (count < 10 || count > 1_000_000)
-      ? 'Must be between 10 and 1,000,000'
-      : null
-  const ageDaysTotal = unitToDays(ageValue, ageUnit)
-  const ageError =
-    type === 'time_delta' && (ageDaysTotal < 1 || ageDaysTotal > 3650)
-      ? 'Must be between 1 day and 10 years'
-      : null
-  const hasError = countError !== null || ageError !== null
+  const { validate, getError, hasErrors } = useFormValidation(retentionPolicySchema)
 
   const handleSubmit = () => {
-    if (hasError) return
+    const validated = validate({ type, count, ageValue, ageUnit })
+    if (!validated) return
     if (type === 'forever') {
       onSubmit({ retention_type: 'forever', retention_value: null, retention_unit: null })
     } else if (type === 'sample_count') {
@@ -117,11 +102,14 @@ export function RetentionPolicyForm({
               max={1_000_000}
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="bg-background border-input focus:ring-ring w-28 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={cn(
+                'bg-background border-input focus:ring-ring w-28 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none',
+                inputErrorClass(getError('count')),
+              )}
             />
             <span className="text-muted-foreground text-sm">samples per characteristic</span>
           </div>
-          {countError && <p className="text-destructive mt-1 text-xs">{countError}</p>}
+          <FieldError error={getError('count')} />
         </div>
       )}
 
@@ -134,7 +122,10 @@ export function RetentionPolicyForm({
               min={1}
               value={ageValue}
               onChange={(e) => setAgeValue(Number(e.target.value))}
-              className="bg-background border-input focus:ring-ring w-24 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={cn(
+                'bg-background border-input focus:ring-ring w-24 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none',
+                inputErrorClass(getError('ageValue')),
+              )}
             />
             <select
               value={ageUnit}
@@ -146,7 +137,7 @@ export function RetentionPolicyForm({
               <option value="years">years</option>
             </select>
           </div>
-          {ageError && <p className="text-destructive mt-1 text-xs">{ageError}</p>}
+          <FieldError error={getError('ageValue')} />
         </div>
       )}
 
@@ -161,10 +152,10 @@ export function RetentionPolicyForm({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={hasError || isSubmitting}
+          disabled={hasErrors || isSubmitting}
           className={cn(
             'rounded-xl px-5 py-2.5 text-sm font-medium',
-            hasError || isSubmitting
+            hasErrors || isSubmitting
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
               : 'bg-primary text-primary-foreground hover:bg-primary/90',
           )}

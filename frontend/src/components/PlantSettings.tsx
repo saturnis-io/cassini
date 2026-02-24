@@ -13,6 +13,10 @@ import {
   PowerOff,
 } from 'lucide-react'
 import type { Plant, PlantCreate, PlantUpdate } from '@/types'
+import { plantFormSchema } from '@/schemas/admin'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 
 /**
  * Plant management settings component
@@ -44,8 +48,13 @@ export function PlantSettings() {
   // Delete confirmation state
   const [plantToDelete, setPlantToDelete] = useState<{ id: number; name: string } | null>(null)
 
+  // Validation hooks for create and edit forms
+  const { validate: validateCreate, getError: getCreateError, clearErrors: clearCreateErrors } = useFormValidation(plantFormSchema)
+  const { validate: validateEdit, getError: getEditError, clearErrors: clearEditErrors } = useFormValidation(plantFormSchema)
+
   const handleCreate = async () => {
-    if (!newPlantName || !newPlantCode) return
+    const validated = validateCreate({ name: newPlantName, code: newPlantCode, settings: newPlantSettings })
+    if (!validated) return
 
     let settings: Record<string, unknown> | null = null
     if (newPlantSettings.trim()) {
@@ -66,6 +75,7 @@ export function PlantSettings() {
       setNewPlantName('')
       setNewPlantCode('')
       setNewPlantSettings('')
+      clearCreateErrors()
     } catch {
       // Error is handled by the hook
     }
@@ -76,10 +86,13 @@ export function PlantSettings() {
     setEditName(plant.name)
     setEditCode(plant.code)
     setEditSettings(plant.settings ? JSON.stringify(plant.settings, null, 2) : '')
+    clearEditErrors()
   }
 
   const handleEdit = async () => {
-    if (!editingPlant || !editName || !editCode) return
+    if (!editingPlant) return
+    const validated = validateEdit({ name: editName, code: editCode, settings: editSettings })
+    if (!validated) return
 
     let settings: Record<string, unknown> | null = null
     if (editSettings.trim()) {
@@ -239,8 +252,9 @@ export function PlantSettings() {
               value={newPlantName}
               onChange={(e) => setNewPlantName(e.target.value)}
               placeholder="e.g., Chicago Factory"
-              className="mt-1 w-full rounded-lg border px-3 py-2"
+              className={cn('mt-1 w-full rounded-lg border px-3 py-2', inputErrorClass(getCreateError('name')))}
             />
+            <FieldError error={getCreateError('name')} />
           </div>
           <div>
             <label className="text-sm font-medium">Code</label>
@@ -250,8 +264,9 @@ export function PlantSettings() {
               onChange={(e) => setNewPlantCode(e.target.value.toUpperCase())}
               placeholder="e.g., CHI"
               maxLength={10}
-              className="mt-1 w-full rounded-lg border px-3 py-2 uppercase"
+              className={cn('mt-1 w-full rounded-lg border px-3 py-2 uppercase', inputErrorClass(getCreateError('code')))}
             />
+            <FieldError error={getCreateError('code')} />
             <p className="text-muted-foreground mt-1 text-xs">
               Uppercase letters, numbers, underscores, or hyphens (max 10 chars)
             </p>
@@ -270,7 +285,7 @@ export function PlantSettings() {
         <div className="flex justify-end">
           <button
             onClick={handleCreate}
-            disabled={!newPlantName || !newPlantCode || createPlant.isPending}
+            disabled={createPlant.isPending}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2',
               'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -307,8 +322,9 @@ export function PlantSettings() {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                  className={cn('mt-1 w-full rounded-lg border px-3 py-2', inputErrorClass(getEditError('name')))}
                 />
+                <FieldError error={getEditError('name')} />
               </div>
               <div>
                 <label className="text-sm font-medium">Code</label>
@@ -317,7 +333,7 @@ export function PlantSettings() {
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value.toUpperCase())}
                   maxLength={10}
-                  className="mt-1 w-full rounded-lg border px-3 py-2 uppercase"
+                  className={cn('mt-1 w-full rounded-lg border px-3 py-2 uppercase', inputErrorClass(getEditError('code')))}
                   disabled={editingPlant.code === 'DEFAULT'}
                 />
                 {editingPlant.code === 'DEFAULT' && (
@@ -348,7 +364,7 @@ export function PlantSettings() {
               </button>
               <button
                 onClick={handleEdit}
-                disabled={!editName || !editCode || updatePlant.isPending}
+                disabled={updatePlant.isPending}
                 className={cn(
                   'rounded-xl px-5 py-2.5 text-sm font-medium',
                   'bg-primary text-primary-foreground hover:bg-primary/90',

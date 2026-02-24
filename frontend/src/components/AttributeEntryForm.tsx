@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useSubmitAttributeData } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
+import { FieldError } from '@/components/FieldError'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { attributeEntrySchema } from '@/schemas/data-entry'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 import type { Characteristic } from '@/types'
 
 interface AttributeEntryFormProps {
@@ -26,6 +31,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
   const [operatorId, setOperatorId] = useState('')
 
   const submitAttribute = useSubmitAttributeData()
+  const { validate, getError, clearErrors } = useFormValidation(attributeEntrySchema)
 
   const defectCountVal = defectCount !== '' ? parseInt(defectCount, 10) : NaN
   const sampleSizeVal = sampleSize !== '' ? parseInt(sampleSize, 10) : NaN
@@ -39,16 +45,25 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isValid) return
+
+    const validated = validate({
+      chart_type: chartType ?? 'c',
+      defect_count: defectCount !== '' ? parseInt(defectCount, 10) : undefined,
+      sample_size: needsSampleSize && sampleSize !== '' ? parseInt(sampleSize, 10) : undefined,
+      units_inspected: needsUnitsInspected && unitsInspected !== '' ? parseInt(unitsInspected, 10) : undefined,
+      batch_number: batchNumber || undefined,
+      operator_id: operatorId || undefined,
+    })
+    if (!validated) return
 
     submitAttribute.mutate(
       {
         characteristic_id: characteristic.id,
-        defect_count: defectCountVal,
-        sample_size: needsSampleSize ? sampleSizeVal : undefined,
-        units_inspected: needsUnitsInspected ? unitsInspectedVal : undefined,
-        batch_number: batchNumber || undefined,
-        operator_id: operatorId || undefined,
+        defect_count: validated.defect_count,
+        sample_size: validated.sample_size,
+        units_inspected: validated.units_inspected,
+        batch_number: validated.batch_number,
+        operator_id: validated.operator_id,
       },
       {
         onSuccess: () => {
@@ -57,6 +72,7 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
           setUnitsInspected('')
           setBatchNumber('')
           setOperatorId('')
+          clearErrors()
         },
       },
     )
@@ -83,7 +99,9 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
           size="md"
           step={1}
           min={0}
+          className={cn(inputErrorClass(getError('defect_count')))}
         />
+        <FieldError error={getError('defect_count')} />
         <p className="text-muted-foreground mt-1 text-sm">
           {chartType === 'p' || chartType === 'np'
             ? 'Number of defective items in the sample'
@@ -104,7 +122,9 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
             size="md"
             step={1}
             min={1}
+            className={cn(inputErrorClass(getError('sample_size')))}
           />
+          <FieldError error={getError('sample_size')} />
           <p className="text-muted-foreground mt-1 text-sm">
             Total number of items inspected in this sample
             {characteristic.default_sample_size != null && (
@@ -127,7 +147,9 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
             size="md"
             step={1}
             min={1}
+            className={cn(inputErrorClass(getError('units_inspected')))}
           />
+          <FieldError error={getError('units_inspected')} />
           <p className="text-muted-foreground mt-1 text-sm">
             Number of inspection units (area of opportunity)
           </p>

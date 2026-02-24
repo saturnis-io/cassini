@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bell, Globe, Mail, Plus, TestTube, Trash2, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { inputErrorClass } from '@/lib/validation'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
+import { smtpConfigSchema, webhookCreateSchema } from '@/schemas/notifications'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
 import {
   useSmtpConfig,
   useUpdateSmtpConfig,
@@ -156,6 +160,7 @@ function SmtpSection() {
   const { data: smtp, isLoading } = useSmtpConfig()
   const updateSmtp = useUpdateSmtpConfig()
   const testSmtp = useTestSmtp()
+  const { validate, getError } = useFormValidation(smtpConfigSchema)
 
   const [form, setForm] = useState<SmtpConfigUpdate>({
     server: '',
@@ -183,6 +188,8 @@ function SmtpSection() {
   }
 
   const handleSave = () => {
+    const validated = validate(form)
+    if (!validated) return
     updateSmtp.mutate(form)
   }
 
@@ -208,8 +215,9 @@ function SmtpSection() {
                 value={form.server}
                 onChange={(e) => setForm({ ...form, server: e.target.value })}
                 placeholder="smtp.example.com"
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('server')))}
               />
+              <FieldError error={getError('server')} />
             </div>
             <div>
               <label className="text-sm font-medium">Port</label>
@@ -217,8 +225,9 @@ function SmtpSection() {
                 type="number"
                 value={form.port}
                 onChange={(e) => setForm({ ...form, port: parseInt(e.target.value) || 587 })}
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('port')))}
               />
+              <FieldError error={getError('port')} />
             </div>
           </div>
 
@@ -252,8 +261,9 @@ function SmtpSection() {
               value={form.from_address}
               onChange={(e) => setForm({ ...form, from_address: e.target.value })}
               placeholder="noreply@example.com"
-              className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+              className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('from_address')))}
             />
+            <FieldError error={getError('from_address')} />
           </div>
 
           <div className="flex items-center justify-between">
@@ -340,6 +350,7 @@ function WebhookSection() {
   const updateWebhook = useUpdateWebhook()
   const deleteWebhook = useDeleteWebhook()
   const testWebhook = useTestWebhook()
+  const { validate, getError, clearErrors } = useFormValidation(webhookCreateSchema)
   const [showCreate, setShowCreate] = useState(false)
   const [newWebhook, setNewWebhook] = useState<WebhookConfigCreate>({
     name: '',
@@ -350,7 +361,14 @@ function WebhookSection() {
     events_filter: null,
   })
 
+  // Clear validation errors when create form toggles
+  useEffect(() => {
+    clearErrors()
+  }, [showCreate, clearErrors])
+
   const handleCreate = () => {
+    const validated = validate(newWebhook)
+    if (!validated) return
     createWebhook.mutate(newWebhook, {
       onSuccess: () => {
         setShowCreate(false)
@@ -400,8 +418,9 @@ function WebhookSection() {
                     value={newWebhook.name}
                     onChange={(e) => setNewWebhook({ ...newWebhook, name: e.target.value })}
                     placeholder="My Webhook"
-                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                    className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('name')))}
                   />
+                  <FieldError error={getError('name')} />
                 </div>
                 <div>
                   <label className="text-sm font-medium">URL</label>
@@ -410,8 +429,9 @@ function WebhookSection() {
                     value={newWebhook.url}
                     onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
                     placeholder="https://example.com/webhook"
-                    className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                    className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('url')))}
                   />
+                  <FieldError error={getError('url')} />
                 </div>
               </div>
               <div>
@@ -421,8 +441,9 @@ function WebhookSection() {
                   value={newWebhook.secret ?? ''}
                   onChange={(e) => setNewWebhook({ ...newWebhook, secret: e.target.value || null })}
                   placeholder="HMAC-SHA256 signing secret"
-                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  className={cn('mt-1 w-full rounded-lg border px-3 py-2 text-sm', inputErrorClass(getError('secret')))}
                 />
+                <FieldError error={getError('secret')} />
               </div>
               <div className="flex gap-2">
                 <button

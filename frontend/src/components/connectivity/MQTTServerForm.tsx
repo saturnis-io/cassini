@@ -6,6 +6,11 @@ import { brokerApi } from '@/api/client'
 import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
 import { usePlant } from '@/providers/PlantProvider'
+import { mqttBrokerSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 import type { MQTTBroker } from '@/types'
 
 interface BrokerFormData {
@@ -72,6 +77,8 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
       : defaultFormData,
   )
 
+  const { validate, getError } = useFormValidation(mqttBrokerSchema)
+
   const createMutation = useMutation({
     mutationFn: brokerApi.create,
     onSuccess: (data) => {
@@ -99,10 +106,13 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const validated = validate(formData)
+    if (!validated) return
+
     const data = {
-      ...formData,
-      username: formData.username || undefined,
-      password: formData.password || undefined,
+      ...validated,
+      username: validated.username || undefined,
+      password: validated.password || undefined,
     }
 
     if (isEditing && broker) {
@@ -161,10 +171,11 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2"
+              className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-2", inputErrorClass(getError('name')))}
               placeholder="Production MQTT"
               required
             />
+            <FieldError error={getError('name')} />
           </div>
 
           {/* Host */}
@@ -174,10 +185,11 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               type="text"
               value={formData.host}
               onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-              className="bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2"
+              className={cn("bg-background border-input focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 font-mono text-sm transition-colors focus:ring-2", inputErrorClass(getError('host')))}
               placeholder="mqtt.example.com"
               required
             />
+            <FieldError error={getError('host')} />
           </div>
 
           {/* Port */}
@@ -190,7 +202,9 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               max={65535}
               step={1}
               showButtons={false}
+              className={inputErrorClass(getError('port'))}
             />
+            <FieldError error={getError('port')} />
           </div>
 
           {/* Client ID */}
@@ -242,7 +256,9 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               max={3600}
               step={1}
               showButtons={false}
+              className={inputErrorClass(getError('keepalive'))}
             />
+            <FieldError error={getError('keepalive')} />
           </div>
 
           {/* TLS */}
@@ -330,7 +346,9 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
                   max={60}
                   step={0.1}
                   showButtons={false}
+                  className={inputErrorClass(getError('outbound_rate_limit'))}
                 />
+                <FieldError error={getError('outbound_rate_limit')} />
                 <p className="text-muted-foreground mt-1 text-xs">
                   Min interval between publishes per characteristic
                 </p>

@@ -4,6 +4,11 @@ import { toast } from 'sonner'
 import { Link2, Loader2, Pencil } from 'lucide-react'
 import { characteristicApi, tagApi } from '@/api/client'
 import { useUIStore } from '@/stores/uiStore'
+import { quickMapSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 import type { SelectedServer } from './ServerSelector'
 import type { OPCUABrowsedNode } from '@/types'
 
@@ -35,8 +40,7 @@ export function QuickMapForm({
   const [metricName, setMetricName] = useState<string | null>(selectedMetric ?? null)
   const [metricEditing, setMetricEditing] = useState(false)
 
-  // Sync selected metric from parent
-  // (using controlled value from parent is preferred, but we also allow local override)
+  const { validate, getError, clearErrors } = useFormValidation(quickMapSchema)
 
   // Fetch characteristics for the dropdown
   const { data: charData } = useQuery({
@@ -89,10 +93,17 @@ export function QuickMapForm({
     setTriggerTag('')
     setMetricName(null)
     setMetricEditing(false)
+    clearErrors()
   }
 
   const handleSave = () => {
-    if (!server || !characteristicId) return
+    if (!server) return
+    const validated = validate({
+      characteristicId: characteristicId ?? undefined,
+      triggerStrategy,
+    })
+    if (!validated) return
+
     if (server.protocol === 'mqtt') {
       createMQTTMapping.mutate()
     } else {
@@ -174,7 +185,7 @@ export function QuickMapForm({
             </div>
           ) : metricName ? (
             <div className="mt-0.5 flex items-center gap-2">
-              <p className="flex-1 truncate rounded bg-indigo-500/10 px-2 py-1 font-mono text-xs text-indigo-300">
+              <p className="flex-1 truncate rounded bg-primary/10 px-2 py-1 font-mono text-xs text-primary">
                 {metricName}
               </p>
               <button
@@ -198,7 +209,7 @@ export function QuickMapForm({
         <select
           value={characteristicId ?? ''}
           onChange={(e) => setCharacteristicId(e.target.value ? Number(e.target.value) : null)}
-          className="bg-background border-border text-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none"
+          className={cn("bg-background border-border text-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none", inputErrorClass(getError('characteristicId')))}
         >
           <option value="">Select characteristic...</option>
           {characteristics.map((c) => (
@@ -207,6 +218,7 @@ export function QuickMapForm({
             </option>
           ))}
         </select>
+        <FieldError error={getError('characteristicId')} />
       </div>
 
       {/* Trigger strategy */}
@@ -243,7 +255,7 @@ export function QuickMapForm({
       <button
         onClick={handleSave}
         disabled={!characteristicId || isPending}
-        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
         Map to Characteristic

@@ -2,6 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { usePlants } from '@/api/hooks'
 import { ROLE_LABELS, type Role } from '@/lib/roles'
 import type { UserResponse } from '@/api/client'
+import { userFormSchema } from '@/schemas/users'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 
 interface PlantRoleEntry {
   plant_id: number
@@ -44,7 +49,7 @@ export function UserFormDialog({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [plantRoles, setPlantRoles] = useState<PlantRoleEntry[]>([])
-  const [errors, setErrors] = useState<string[]>([])
+  const { validate, getError, clearErrors } = useFormValidation(userFormSchema)
 
   // Reset form when dialog opens or user changes
   useEffect(() => {
@@ -69,29 +74,14 @@ export function UserFormDialog({
         setIsActive(true)
         setPlantRoles([])
       }
-      setErrors([])
+      clearErrors()
     }
   }, [open, mode, user])
 
-  function validate(): boolean {
-    const errs: string[] = []
-
-    if (mode === 'create') {
-      if (!username || username.length < 3) errs.push('Username must be at least 3 characters')
-      if (!password || password.length < 8) errs.push('Password must be at least 8 characters')
-    }
-
-    if (password && password !== confirmPassword) {
-      errs.push('Passwords do not match')
-    }
-
-    setErrors(errs)
-    return errs.length === 0
-  }
-
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!validate()) return
+    const validated = validate({ mode, username, email, password, confirmPassword })
+    if (!validated) return
 
     const data: {
       username: string
@@ -149,15 +139,6 @@ export function UserFormDialog({
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Errors */}
-          {errors.length > 0 && (
-            <div className="bg-destructive/10 text-destructive space-y-1 rounded-md p-3 text-sm">
-              {errors.map((err, i) => (
-                <p key={i}>{err}</p>
-              ))}
-            </div>
-          )}
-
           {/* Username */}
           <div className="space-y-1.5">
             <label className="text-foreground block text-sm font-medium">Username</label>
@@ -167,9 +148,13 @@ export function UserFormDialog({
               onChange={(e) => setUsername(e.target.value)}
               required={mode === 'create'}
               readOnly={mode === 'edit'}
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm read-only:opacity-60 focus:ring-2 focus:outline-none"
+              className={cn(
+                'bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm read-only:opacity-60 focus:ring-2 focus:outline-none',
+                inputErrorClass(getError('username')),
+              )}
               placeholder="Enter username"
             />
+            <FieldError error={getError('username')} />
           </div>
 
           {/* Email */}
@@ -195,11 +180,15 @@ export function UserFormDialog({
               onChange={(e) => setPassword(e.target.value)}
               required={mode === 'create'}
               minLength={8}
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={cn(
+                'bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none',
+                inputErrorClass(getError('password')),
+              )}
               placeholder={
                 mode === 'create' ? 'Minimum 8 characters' : 'Leave blank to keep current'
               }
             />
+            <FieldError error={getError('password')} />
           </div>
 
           {/* Confirm Password */}
@@ -210,9 +199,13 @@ export function UserFormDialog({
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+                className={cn(
+                  'bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none',
+                  inputErrorClass(getError('confirmPassword')),
+                )}
                 placeholder="Confirm password"
               />
+              <FieldError error={getError('confirmPassword')} />
             </div>
           )}
 
@@ -250,11 +243,11 @@ export function UserFormDialog({
             ) : (
               <div className="space-y-2">
                 {plantRoles.map((pr, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
+                  <div key={idx} className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-md p-2">
                     <select
                       value={pr.plant_id}
                       onChange={(e) => updatePlantRole(idx, 'plant_id', parseInt(e.target.value))}
-                      className="bg-background focus:ring-ring flex-1 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                      className="bg-background focus:ring-ring min-w-0 flex-1 basis-40 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
                     >
                       {plants?.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -265,7 +258,7 @@ export function UserFormDialog({
                     <select
                       value={pr.role}
                       onChange={(e) => updatePlantRole(idx, 'role', e.target.value)}
-                      className="bg-background focus:ring-ring w-36 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                      className="bg-background focus:ring-ring min-w-0 flex-1 basis-28 rounded-md border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
                     >
                       {roles.map((r) => (
                         <option key={r} value={r}>

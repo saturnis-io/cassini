@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { faiReportGuardSchema } from '@/schemas/compliance'
+import { useFormValidation } from '@/hooks/useFormValidation'
 import {
   useFAIReport,
   useUpdateFAIReport,
@@ -48,6 +50,7 @@ export function FAIReportEditor() {
   const submitReport = useSubmitFAIReport()
   const approveReport = useApproveFAIReport()
   const rejectReport = useRejectFAIReport()
+  const { validate: validateGuard } = useFormValidation(faiReportGuardSchema)
 
   const [activeTab, setActiveTab] = useState<TabKey>('form1')
   const [showPrint, setShowPrint] = useState(false)
@@ -81,6 +84,15 @@ export function FAIReportEditor() {
   const isSubmitted = report.status === 'submitted'
 
   const handleSubmit = async () => {
+    if (!report) return
+    const validated = validateGuard({
+      part_number: report.part_number,
+      items: report.items ?? [],
+    })
+    if (!validated) {
+      toast.error('Please ensure all FAI items have characteristic name, actual value, and result filled in before submitting.')
+      return
+    }
     try {
       await submitReport.mutateAsync(id)
     } catch {
@@ -89,6 +101,15 @@ export function FAIReportEditor() {
   }
 
   const handleApprove = async () => {
+    if (!report) return
+    const validated = validateGuard({
+      part_number: report.part_number,
+      items: report.items ?? [],
+    })
+    if (!validated) {
+      toast.error('Cannot approve: FAI items are missing required fields (characteristic name, actual value, or result).')
+      return
+    }
     try {
       await approveReport.mutateAsync(id)
     } catch {

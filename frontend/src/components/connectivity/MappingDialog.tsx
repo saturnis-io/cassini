@@ -5,6 +5,9 @@ import { X, Loader2, Save, Wifi, Server } from 'lucide-react'
 import { tagApi } from '@/api/client'
 import { CharacteristicPicker } from './CharacteristicPicker'
 import { ProtocolSourceFields } from './ProtocolSourceFields'
+import { mappingDialogSchema } from '@/schemas/connectivity'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
 import type { ProtocolFieldValues } from './ProtocolSourceFields'
 
 interface MappingDialogProps {
@@ -67,6 +70,8 @@ export function MappingDialog({
     }
   })
 
+  const { validate, getError, clearErrors } = useFormValidation(mappingDialogSchema)
+
   // Create MQTT mapping
   const createMQTTMutation = useMutation({
     mutationFn: () => {
@@ -116,6 +121,13 @@ export function MappingDialog({
   }
 
   const handleSave = () => {
+    const validated = validate({
+      characteristicId: characteristicId ?? undefined,
+      protocol,
+      triggerStrategy,
+    })
+    if (!validated) return
+
     if (protocol === 'mqtt') {
       createMQTTMutation.mutate()
     } else {
@@ -140,6 +152,7 @@ export function MappingDialog({
   const handleProtocolChange = (p: 'mqtt' | 'opcua') => {
     setProtocol(p)
     setTriggerStrategy('on_change')
+    clearErrors()
     if (p === 'mqtt') {
       setProtocolFields({
         protocol: 'mqtt',
@@ -206,6 +219,7 @@ export function MappingDialog({
               onChange={setCharacteristicId}
               mappedCharacteristicIds={mappedCharacteristicIds}
             />
+            <FieldError error={getError('characteristicId')} />
           </div>
 
           {/* 2. Protocol selector */}
@@ -219,7 +233,6 @@ export function MappingDialog({
                   label="MQTT"
                   description="MQTT broker topic"
                   icon={<Wifi className="h-4 w-4" />}
-                  color="teal"
                   selected={protocol === 'mqtt'}
                   onClick={() => handleProtocolChange('mqtt')}
                 />
@@ -227,7 +240,6 @@ export function MappingDialog({
                   label="OPC-UA"
                   description="OPC-UA server node"
                   icon={<Server className="h-4 w-4" />}
-                  color="purple"
                   selected={protocol === 'opcua'}
                   onClick={() => handleProtocolChange('opcua')}
                 />
@@ -260,7 +272,7 @@ export function MappingDialog({
                   onClick={() => setTriggerStrategy(s.value)}
                   className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
                     triggerStrategy === s.value
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
+                      ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-muted-foreground'
                   }`}
                 >
@@ -282,7 +294,7 @@ export function MappingDialog({
           <button
             onClick={handleSave}
             disabled={!isValid || isPending}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -305,48 +317,33 @@ function ProtocolCard({
   label,
   description,
   icon,
-  color,
   selected,
   onClick,
 }: {
   label: string
   description: string
   icon: React.ReactNode
-  color: 'teal' | 'purple'
   selected: boolean
   onClick: () => void
 }) {
-  const colorClasses =
-    color === 'teal'
-      ? {
-          border: 'border-teal-500',
-          bg: 'bg-teal-500/10',
-          text: 'text-teal-400',
-          iconBg: 'bg-teal-500/15',
-        }
-      : {
-          border: 'border-purple-500',
-          bg: 'bg-purple-500/10',
-          text: 'text-purple-400',
-          iconBg: 'bg-purple-500/15',
-        }
-
   return (
     <button
       onClick={onClick}
       className={`flex items-center gap-3 rounded-lg border p-3 transition-all ${
         selected
-          ? `${colorClasses.border} ${colorClasses.bg}`
+          ? 'border-primary bg-primary/10'
           : 'border-border hover:border-muted-foreground/50'
       }`}
     >
       <span
-        className={`flex h-8 w-8 items-center justify-center rounded-lg ${colorClasses.iconBg} ${colorClasses.text}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+          selected ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+        }`}
       >
         {icon}
       </span>
       <div className="text-left">
-        <div className={`text-sm font-medium ${selected ? colorClasses.text : 'text-foreground'}`}>
+        <div className={`text-sm font-medium ${selected ? 'text-primary' : 'text-foreground'}`}>
           {label}
         </div>
         <div className="text-muted-foreground text-[11px]">{description}</div>

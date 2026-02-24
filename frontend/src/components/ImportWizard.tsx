@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
+import { z } from 'zod'
 import {
   Upload,
   FileSpreadsheet,
@@ -10,6 +11,9 @@ import {
   Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { FieldError } from '@/components/FieldError'
+import { inputErrorClass } from '@/lib/validation'
 import {
   useUploadFile,
   useValidateMapping,
@@ -23,6 +27,11 @@ import type {
   ImportConfirmResponse,
 } from '@/api/client'
 import type { Characteristic } from '@/types'
+
+const columnMappingSchema = z.object({
+  characteristicId: z.number().int().positive('Target characteristic is required'),
+  value: z.number({ error: 'Value column mapping is required' }).int().min(0, 'Value column mapping is required'),
+})
 
 interface ImportWizardProps {
   onClose: () => void
@@ -82,6 +91,9 @@ export function ImportWizard({ onClose }: ImportWizardProps) {
   const uploadMutation = useUploadFile()
   const validateMutation = useValidateMapping()
   const confirmMutation = useConfirmImport()
+
+  // Column mapping validation
+  const { validate: validateMapping, getError: getMappingError, clearErrors: clearMappingErrors } = useFormValidation(columnMappingSchema)
 
   // Load characteristics for the selected plant
   const { data: charData } = useCharacteristics(
@@ -146,7 +158,13 @@ export function ImportWizard({ onClose }: ImportWizardProps) {
   }
 
   const handleValidate = async () => {
-    if (!file || !selectedCharId) return
+    const validated = validateMapping({
+      characteristicId: selectedCharId,
+      value: columnMapping.value,
+    })
+    if (!validated) return
+    if (!file) return
+    clearMappingErrors()
     try {
       const result = await validateMutation.mutateAsync({
         file,
@@ -276,6 +294,7 @@ export function ImportWizard({ onClose }: ImportWizardProps) {
               columnMapping={columnMapping}
               onMappingChange={handleMappingChange}
               selectedChar={selectedChar}
+              getMappingError={getMappingError}
             />
           )}
 
@@ -475,6 +494,7 @@ function MapStep({
   columnMapping,
   onMappingChange,
   selectedChar,
+  getMappingError,
 }: {
   columns: ImportUploadResponse['columns']
   characteristics: Characteristic[]
@@ -483,6 +503,7 @@ function MapStep({
   columnMapping: Record<string, number | null>
   onMappingChange: (field: string, colIndex: number | null) => void
   selectedChar: Characteristic | undefined
+  getMappingError: (field: string) => string | undefined
 }) {
   return (
     <div className="space-y-5">
@@ -492,7 +513,7 @@ function MapStep({
         <select
           value={selectedCharId}
           onChange={(e) => onCharSelect(Number(e.target.value))}
-          className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          className={cn('bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none', inputErrorClass(getMappingError('characteristicId')))}
         >
           <option value={0}>Select a characteristic...</option>
           {characteristics.map((c) => (
@@ -501,6 +522,7 @@ function MapStep({
             </option>
           ))}
         </select>
+        <FieldError error={getMappingError('characteristicId')} />
         {selectedChar && (
           <p className="text-muted-foreground mt-1 text-xs">
             Subgroup size: {selectedChar.subgroup_size}
@@ -554,7 +576,10 @@ function MapStep({
                             e.target.value === '' ? null : Number(e.target.value),
                           )
                         }
-                        className="bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                        className={cn(
+                          'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1.5 text-sm focus:ring-2 focus:outline-none',
+                          field.key === 'value' && inputErrorClass(getMappingError('value')),
+                        )}
                       >
                         <option value="">-- None --</option>
                         {columns.map((col) => (
@@ -563,6 +588,7 @@ function MapStep({
                           </option>
                         ))}
                       </select>
+                      {field.key === 'value' && <FieldError error={getMappingError('value')} />}
                     </td>
                     <td className="text-muted-foreground px-3 py-2.5 text-xs">
                       {mappedCol ? mappedCol.sample_values.slice(0, 3).join(', ') : '--'}

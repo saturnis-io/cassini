@@ -12,6 +12,8 @@ import {
 } from '@/api/hooks'
 import { useConfigStore } from '@/stores/configStore'
 import { cn } from '@/lib/utils'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { characteristicFormSchema } from '@/schemas/characteristics'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import {
   CharacteristicConfigTabs,
@@ -41,6 +43,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const isDirty = useConfigStore((state) => state.isDirty)
   const setIsDirty = useConfigStore((state) => state.setIsDirty)
   const setEditingCharacteristicId = useConfigStore((state) => state.setEditingCharacteristicId)
+
+  const { validate, clearErrors } = useFormValidation(characteristicFormSchema)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -101,8 +105,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         use_laney_correction: characteristic.use_laney_correction ?? false,
       })
       setIsDirty(false)
+      clearErrors()
     }
-  }, [characteristic, setIsDirty])
+  }, [characteristic, setIsDirty, clearErrors])
 
   // Load schedule config from backend - intentional sync from fetched data
 
@@ -174,39 +179,33 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const handleSave = async () => {
     if (!characteristicId) return
 
-    // Validate subgroup mode configuration
-    const minMeas = parseInt(formData.min_measurements) || 1
-    const warnBelow = formData.warn_below_count ? parseInt(formData.warn_below_count) : null
-
-    if (minMeas > characteristic.subgroup_size) {
-      alert('Minimum measurements cannot exceed subgroup size')
-      return
-    }
-    if (warnBelow !== null && warnBelow < minMeas) {
-      alert('Warn below count must be >= minimum measurements')
-      return
-    }
+    // Validate via schema — includes name, spec limits (USL > LSL), subgroup constraints
+    const validated = validate({
+      ...formData,
+      subgroup_size: characteristic.subgroup_size,
+    })
+    if (!validated) return
 
     await updateCharacteristic.mutateAsync({
       id: characteristicId,
       data: {
-        name: formData.name,
-        description: formData.description || null,
-        target_value: formData.target_value ? parseFloat(formData.target_value) : null,
-        usl: formData.usl ? parseFloat(formData.usl) : null,
-        lsl: formData.lsl ? parseFloat(formData.lsl) : null,
-        subgroup_mode: formData.subgroup_mode,
-        min_measurements: minMeas,
-        warn_below_count: warnBelow,
-        decimal_precision: parseInt(formData.decimal_precision) || 3,
-        chart_type: formData.chart_type || null,
-        cusum_target: formData.cusum_target ? parseFloat(formData.cusum_target) : null,
-        cusum_k: formData.cusum_k ? parseFloat(formData.cusum_k) : null,
-        cusum_h: formData.cusum_h ? parseFloat(formData.cusum_h) : null,
-        ewma_lambda: formData.ewma_lambda ? parseFloat(formData.ewma_lambda) : null,
-        ewma_l: formData.ewma_l ? parseFloat(formData.ewma_l) : null,
-        short_run_mode: formData.short_run_mode || null,
-        use_laney_correction: formData.use_laney_correction,
+        name: validated.name,
+        description: validated.description || null,
+        target_value: validated.target_value ?? null,
+        usl: validated.usl ?? null,
+        lsl: validated.lsl ?? null,
+        subgroup_mode: validated.subgroup_mode as SubgroupMode,
+        min_measurements: validated.min_measurements,
+        warn_below_count: validated.warn_below_count ?? null,
+        decimal_precision: validated.decimal_precision,
+        chart_type: (validated.chart_type || null) as 'cusum' | 'ewma' | null,
+        cusum_target: validated.cusum_target ?? null,
+        cusum_k: validated.cusum_k ?? null,
+        cusum_h: validated.cusum_h ?? null,
+        ewma_lambda: validated.ewma_lambda ?? null,
+        ewma_l: validated.ewma_l ?? null,
+        short_run_mode: (validated.short_run_mode || null) as 'deviation' | 'standardized' | null,
+        use_laney_correction: validated.use_laney_correction,
       },
     })
 

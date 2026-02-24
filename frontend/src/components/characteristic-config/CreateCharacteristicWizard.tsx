@@ -14,8 +14,17 @@ import {
   Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { inputErrorClass } from '@/lib/validation'
 import { useCreateCharacteristic } from '@/api/hooks'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import {
+  wizardStep1Schema,
+  wizardStep2LimitsSchema,
+  wizardStep2CUSUMSchema,
+  wizardStep2EWMASchema,
+} from '@/schemas/characteristics'
 import { NumberInput } from '@/components/NumberInput'
+import { FieldError } from '@/components/FieldError'
 
 type DataType = 'variable' | 'attribute'
 type VariableChartType = 'standard' | 'cusum' | 'ewma'
@@ -108,6 +117,12 @@ export function CreateCharacteristicWizard({
 
   const createChar = useCreateCharacteristic()
 
+  // Validation
+  const step1Validation = useFormValidation(wizardStep1Schema)
+  const limitsValidation = useFormValidation(wizardStep2LimitsSchema)
+  const cusumValidation = useFormValidation(wizardStep2CUSUMSchema)
+  const ewmaValidation = useFormValidation(wizardStep2EWMASchema)
+
   const derivedChartType = deriveChartType(countingWhat, sizeVaries)
   const needsSampleSize = derivedChartType !== 'c'
 
@@ -122,29 +137,43 @@ export function CreateCharacteristicWizard({
     if (currentStep > totalSteps) setCurrentStep(totalSteps)
   }, [totalSteps, currentStep])
 
-  // Validation
-  const isStep1Valid = () => {
-    if (!name.trim()) return false
-    if (dataType === 'variable') {
-      const sg = parseInt(subgroupSize)
-      return sg >= 1 && sg <= 25
-    }
-    if (needsSampleSize) {
-      const ss = parseInt(defaultSampleSize)
-      return ss >= 1
-    }
-    return true
-  }
-
-  const isCurrentStepValid = () => {
-    if (currentStep === 1) return isStep1Valid()
-    return true
-  }
-
   const isLastStep = currentStep === totalSteps
 
+  /** Clear all step validation errors. */
+  const clearAllErrors = useCallback(() => {
+    step1Validation.clearErrors()
+    limitsValidation.clearErrors()
+    cusumValidation.clearErrors()
+    ewmaValidation.clearErrors()
+  }, [step1Validation, limitsValidation, cusumValidation, ewmaValidation])
+
+  /** Validate step 1 via schema. Returns true if valid. */
+  const validateStep1 = () => {
+    return !!step1Validation.validate({
+      name,
+      dataType,
+      subgroupSize,
+      needsSampleSize,
+      defaultSampleSize,
+    })
+  }
+
+  /** Validate step 2 via the appropriate sub-schema. Returns true if valid. */
+  const validateStep2 = () => {
+    if (variableChartType === 'standard') {
+      return !!limitsValidation.validate({ target, usl, lsl })
+    }
+    if (variableChartType === 'cusum') {
+      return !!cusumValidation.validate({ cusumTarget, cusumK, cusumH })
+    }
+    if (variableChartType === 'ewma') {
+      return !!ewmaValidation.validate({ ewmaTarget: cusumTarget, ewmaLambda, ewmaL })
+    }
+    return true
+  }
+
   const handleNext = () => {
-    if (!isCurrentStepValid()) return
+    if (currentStep === 1 && !validateStep1()) return
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1)
     }
@@ -154,11 +183,15 @@ export function CreateCharacteristicWizard({
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
       setSubmitError(null)
+      clearAllErrors()
     }
   }
 
   const handleSubmit = async () => {
-    if (!isCurrentStepValid()) return
+    // For attribute (single step) or variable step 1 on last step
+    if (currentStep === 1 && !validateStep1()) return
+    // For variable step 2
+    if (currentStep === 2 && !validateStep2()) return
     setIsSubmitting(true)
     setSubmitError(null)
 
@@ -219,8 +252,9 @@ export function CreateCharacteristicWizard({
     setLSL('')
     setIsSubmitting(false)
     setSubmitError(null)
+    clearAllErrors()
     onClose()
-  }, [onClose])
+  }, [onClose, clearAllErrors])
 
   // Escape key to close
   useEffect(() => {
@@ -291,6 +325,7 @@ export function CreateCharacteristicWizard({
               onDefaultSampleSizeChange={setDefaultSampleSize}
               derivedChartType={derivedChartType}
               needsSampleSize={needsSampleSize}
+              getError={step1Validation.getError}
             />
           )}
 
@@ -302,6 +337,7 @@ export function CreateCharacteristicWizard({
               onUSLChange={setUSL}
               lsl={lsl}
               onLSLChange={setLSL}
+              getError={limitsValidation.getError}
             />
           )}
 
@@ -313,6 +349,7 @@ export function CreateCharacteristicWizard({
               onCusumKChange={setCusumK}
               cusumH={cusumH}
               onCusumHChange={setCusumH}
+              getError={cusumValidation.getError}
             />
           )}
 
@@ -324,6 +361,7 @@ export function CreateCharacteristicWizard({
               onEwmaLambdaChange={setEwmaLambda}
               ewmaL={ewmaL}
               onEwmaLChange={setEwmaL}
+              getError={ewmaValidation.getError}
             />
           )}
         </div>
@@ -358,7 +396,7 @@ export function CreateCharacteristicWizard({
           {isLastStep ? (
             <button
               onClick={handleSubmit}
-              disabled={!isCurrentStepValid() || isSubmitting}
+              disabled={isSubmitting}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg px-5 py-2 text-sm font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -375,7 +413,6 @@ export function CreateCharacteristicWizard({
           ) : (
             <button
               onClick={handleNext}
-              disabled={!isCurrentStepValid()}
               className={cn(
                 'flex items-center gap-1 rounded-lg px-5 py-2 text-sm font-medium transition-colors',
                 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -598,6 +635,7 @@ function AttributeGuide({
   onDefaultSampleSizeChange,
   derivedChartType,
   needsSampleSize,
+  getError,
 }: {
   countingWhat: CountingWhat
   onCountingWhatChange: (v: CountingWhat) => void
@@ -607,6 +645,7 @@ function AttributeGuide({
   onDefaultSampleSizeChange: (v: string) => void
   derivedChartType: AttributeChartType
   needsSampleSize: boolean
+  getError: (field: string) => string | undefined
 }) {
   const sampleSizeId = useId()
   const info = CHART_DESCRIPTIONS[derivedChartType]
@@ -683,8 +722,9 @@ function AttributeGuide({
             min={1}
             value={defaultSampleSize}
             onChange={onDefaultSampleSizeChange}
-            className="mt-1 w-full"
+            className={cn('mt-1 w-full', inputErrorClass(getError('defaultSampleSize')))}
           />
+          <FieldError error={getError('defaultSampleSize')} />
           <p className="text-muted-foreground mt-1 text-xs">
             {derivedChartType === 'u'
               ? 'Default inspection units per sample — can be overridden per data point'
@@ -727,6 +767,7 @@ function Step1Basics({
   onDefaultSampleSizeChange,
   derivedChartType,
   needsSampleSize,
+  getError,
 }: {
   name: string
   onNameChange: (v: string) => void
@@ -744,6 +785,7 @@ function Step1Basics({
   onDefaultSampleSizeChange: (v: string) => void
   derivedChartType: AttributeChartType
   needsSampleSize: boolean
+  getError: (field: string) => string | undefined
 }) {
   const nameId = useId()
   const subgroupId = useId()
@@ -760,9 +802,13 @@ function Step1Basics({
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
           placeholder={dataType === 'variable' ? 'e.g., Shaft Diameter' : 'e.g., Paint Defects'}
-          className="border-border bg-background focus:ring-primary/30 focus:border-primary mt-1 w-full rounded-lg border px-3 py-2 transition-colors focus:ring-2 focus:outline-none"
+          className={cn(
+            'border-border bg-background focus:ring-primary/30 focus:border-primary mt-1 w-full rounded-lg border px-3 py-2 transition-colors focus:ring-2 focus:outline-none',
+            inputErrorClass(getError('name')),
+          )}
           autoFocus
         />
+        <FieldError error={getError('name')} />
       </div>
 
       <div>
@@ -782,10 +828,11 @@ function Step1Basics({
             max={25}
             value={subgroupSize}
             onChange={onSubgroupSizeChange}
-            className="mt-1 w-full"
+            className={cn('mt-1 w-full', inputErrorClass(getError('subgroupSize')))}
           />
+          <FieldError error={getError('subgroupSize')} />
           <p className="text-muted-foreground mt-1 text-xs">
-            Number of measurements per sample (1–25)
+            Number of measurements per sample (1-25)
           </p>
         </div>
       )}
@@ -809,6 +856,7 @@ function Step1Basics({
           onDefaultSampleSizeChange={onDefaultSampleSizeChange}
           derivedChartType={derivedChartType}
           needsSampleSize={needsSampleSize}
+          getError={getError}
         />
       )}
 
@@ -945,6 +993,7 @@ function Step2Limits({
   onUSLChange,
   lsl,
   onLSLChange,
+  getError,
 }: {
   target: string
   onTargetChange: (v: string) => void
@@ -952,6 +1001,7 @@ function Step2Limits({
   onUSLChange: (v: string) => void
   lsl: string
   onLSLChange: (v: string) => void
+  getError: (field: string) => string | undefined
 }) {
   const targetId = useId()
   const uslId = useId()
@@ -990,8 +1040,9 @@ function Step2Limits({
             value={usl}
             onChange={onUSLChange}
             placeholder="Optional"
-            className="mt-1 w-full"
+            className={cn('mt-1 w-full', inputErrorClass(getError('usl')))}
           />
+          <FieldError error={getError('usl')} />
         </div>
         <div>
           <label htmlFor={lslId} className="text-sm font-medium">
@@ -1022,6 +1073,7 @@ function Step2CUSUM({
   onCusumKChange,
   cusumH,
   onCusumHChange,
+  getError,
 }: {
   cusumTarget: string
   onCusumTargetChange: (v: string) => void
@@ -1029,6 +1081,7 @@ function Step2CUSUM({
   onCusumKChange: (v: string) => void
   cusumH: string
   onCusumHChange: (v: string) => void
+  getError: (field: string) => string | undefined
 }) {
   const targetId = useId()
   const kId = useId()
@@ -1053,8 +1106,9 @@ function Step2CUSUM({
           value={cusumTarget}
           onChange={onCusumTargetChange}
           placeholder="Process mean / target value"
-          className="mt-1 w-full"
+          className={cn('mt-1 w-full', inputErrorClass(getError('cusumTarget')))}
         />
+        <FieldError error={getError('cusumTarget')} />
         <p className="text-muted-foreground mt-1 text-xs">
           The in-control process mean. CUSUM accumulates deviations from this value.
         </p>
@@ -1111,6 +1165,7 @@ function Step2EWMA({
   onEwmaLambdaChange,
   ewmaL,
   onEwmaLChange,
+  getError,
 }: {
   ewmaTarget: string
   onEwmaTargetChange: (v: string) => void
@@ -1118,6 +1173,7 @@ function Step2EWMA({
   onEwmaLambdaChange: (v: string) => void
   ewmaL: string
   onEwmaLChange: (v: string) => void
+  getError: (field: string) => string | undefined
 }) {
   const targetId = useId()
   const lambdaId = useId()
@@ -1142,8 +1198,9 @@ function Step2EWMA({
           value={ewmaTarget}
           onChange={onEwmaTargetChange}
           placeholder="Process mean / target value"
-          className="mt-1 w-full"
+          className={cn('mt-1 w-full', inputErrorClass(getError('ewmaTarget')))}
         />
+        <FieldError error={getError('ewmaTarget')} />
         <p className="text-muted-foreground mt-1 text-xs">
           The in-control process mean. EWMA starts at this value.
         </p>

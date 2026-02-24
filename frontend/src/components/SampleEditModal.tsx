@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { useUpdateSample, useSampleEditHistory } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
+import { FieldError } from '@/components/FieldError'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { sampleEditSchema } from '@/schemas/data-entry'
+import { inputErrorClass } from '@/lib/validation'
+import { cn } from '@/lib/utils'
 import type { Sample } from '@/types'
 import { formatDisplayKey } from '@/lib/display-key'
 
@@ -16,6 +21,7 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
   const [reason, setReason] = useState('')
   const updateSample = useUpdateSample()
   const { data: editHistory } = useSampleEditHistory(isOpen && sample ? sample.id : null)
+  const { validate, getError, clearErrors } = useFormValidation(sampleEditSchema)
 
   // Get the actual edit count from history
   const editCount = editHistory?.length ?? 0
@@ -40,8 +46,9 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
       const values = getMeasurementValues(sample)
       setMeasurements(values.map((v) => String(v)))
       setReason('') // Reset reason for each new sample
+      clearErrors()
     }
-  }, [sample])
+  }, [sample, clearErrors])
 
   if (!isOpen || !sample) return null
 
@@ -53,10 +60,15 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
 
   const handleSave = () => {
     const values = measurements.map((m) => parseFloat(m)).filter((n) => !isNaN(n))
-    if (values.length === 0 || !reason.trim()) return
+
+    const validated = validate({
+      measurements: values,
+      reason: reason.trim(),
+    })
+    if (!validated) return
 
     updateSample.mutate(
-      { id: sample.id, measurements: values, reason: reason.trim() },
+      { id: sample.id, measurements: validated.measurements, reason: validated.reason },
       { onSuccess: onClose },
     )
   }
@@ -104,11 +116,12 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
                   onChange={(v) => handleMeasurementChange(index, v)}
                   placeholder={`M${index + 1}`}
                   size="sm"
-                  className="w-24"
+                  className={cn('w-24', inputErrorClass(getError('measurements')))}
                   inputClassName="text-center"
                 />
               ))}
             </div>
+            <FieldError error={getError('measurements')} />
           </div>
 
           {/* Reason for Change (Required) */}
@@ -120,10 +133,14 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Describe why this sample is being modified..."
-              className="bg-background border-input focus:ring-ring w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={cn(
+                'bg-background border-input focus:ring-ring w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none',
+                inputErrorClass(getError('reason')),
+              )}
               rows={3}
               maxLength={1000}
             />
+            <FieldError error={getError('reason')} />
             <div className="text-muted-foreground mt-1 text-right text-xs">
               {reason.length}/1000
             </div>

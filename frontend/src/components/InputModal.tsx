@@ -3,6 +3,9 @@ import { X } from 'lucide-react'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useCharacteristic, useSubmitSample } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
+import { FieldError } from '@/components/FieldError'
+import { useFormValidation } from '@/hooks/useFormValidation'
+import { measurementsSchema } from '@/schemas/data-entry'
 import { cn } from '@/lib/utils'
 
 export function InputModal() {
@@ -13,6 +16,7 @@ export function InputModal() {
 
   const [measurements, setMeasurements] = useState<string[]>([''])
   const [error, setError] = useState<string | null>(null)
+  const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
 
   if (!characteristic) {
     return null
@@ -33,6 +37,7 @@ export function InputModal() {
     newMeasurements[index] = value
     setMeasurements(newMeasurements)
     setError(null)
+    clearErrors()
   }
 
   const getValueStatus = (value: string): 'ok' | 'warning' | 'error' | 'empty' => {
@@ -61,10 +66,13 @@ export function InputModal() {
 
     const values = measurements.map((m) => parseFloat(m))
 
+    const validated = validate({ measurements: values })
+    if (!validated) return
+
     try {
       await submitSample.mutateAsync({
         characteristic_id: characteristicId,
-        measurements: values,
+        measurements: validated.measurements,
       })
       closeModal()
     } catch (err) {
@@ -144,6 +152,7 @@ export function InputModal() {
               </div>
             )}
 
+          <FieldError error={getError('measurements')} />
           {error && <div className="text-destructive text-sm">{error}</div>}
         </div>
 
