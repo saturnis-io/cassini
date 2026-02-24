@@ -10,18 +10,18 @@ flowchart TD
         C1 --> H3[useNotificationPreferences]
     end
     subgraph API
-        H1 --> E1["GET /notifications/smtp"]
-        H2 --> E2["GET /notifications/webhooks"]
-        H3 --> E3["GET /notifications/preferences"]
+        H1 --> E1[GET /api/v1/notifications/smtp]
+        H2 --> E2[GET /api/v1/notifications/webhooks]
+        H3 --> E3[GET /api/v1/notifications/preferences]
     end
     subgraph Backend
-        E1 --> R1[SmtpConfig query]
-        E2 --> R2[WebhookConfig query]
-        S1[EventBus] --> S2[NotificationDispatcher]
-        S2 --> S3[aiosmtplib send]
-        S2 --> S4[httpx + HMAC webhook]
+        E1 --> R1[Session]
         R1 --> M1[(SmtpConfig)]
+        E2 --> R2[Session]
         R2 --> M2[(WebhookConfig)]
+        S1[NotificationDispatcher] --> M1
+        S1 --> M2
+        S2[EventBus] --> S1
     end
 ```
 
@@ -29,17 +29,16 @@ flowchart TD
 
 ```mermaid
 erDiagram
-    Plant ||--o| SmtpConfig : "has smtp"
-    Plant ||--o{ WebhookConfig : "has webhooks"
-    User ||--o{ NotificationPreference : "has preferences"
+    SmtpConfig ||--|| Plant : "per plant"
+    WebhookConfig }o--|| Plant : "per plant"
+    NotificationPreference }o--|| User : "per user"
     SmtpConfig {
         int id PK
         int plant_id FK
-        string host
+        string server
         int port
         string username
         string password
-        string from_address
         bool use_tls
     }
     WebhookConfig {
@@ -58,6 +57,12 @@ erDiagram
         bool email_enabled
         bool webhook_enabled
     }
+    Plant {
+        int id PK
+    }
+    User {
+        int id PK
+    }
 ```
 
 ## Backend
@@ -65,67 +70,62 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| SmtpConfig | db/models/notification.py | plant_id FK, host, port, username, password, from_address, use_tls | 024 |
-| WebhookConfig | db/models/notification.py | plant_id FK, name, url, secret (HMAC), is_active, events (JSON) | 024 |
-| NotificationPreference | db/models/notification.py | user_id FK, event_type, email_enabled, webhook_enabled | 024 |
+| SmtpConfig | `db/models/notification.py` | id, plant_id FK, server, port, username, password (encrypted), use_tls, from_address | 024 |
+| WebhookConfig | `db/models/notification.py` | id, plant_id FK, name, url, secret (HMAC), is_active, events JSON | 024 |
+| NotificationPreference | `db/models/notification.py` | id, user_id FK, event_type, email_enabled, webhook_enabled | 024 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/notifications/smtp | - | SmtpConfigResponse or null | get_current_engineer |
-| PUT | /api/v1/notifications/smtp | SmtpConfigUpdate body | SmtpConfigResponse | get_current_engineer |
-| POST | /api/v1/notifications/smtp/test | to_address | {success, message} | get_current_engineer |
-| GET | /api/v1/notifications/webhooks | - | list[WebhookConfigResponse] | get_current_engineer |
-| POST | /api/v1/notifications/webhooks | WebhookConfigCreate body | WebhookConfigResponse | get_current_engineer |
-| PUT | /api/v1/notifications/webhooks/{webhook_id} | WebhookConfigUpdate body | WebhookConfigResponse | get_current_engineer |
-| DELETE | /api/v1/notifications/webhooks/{webhook_id} | - | 204 | get_current_engineer |
-| POST | /api/v1/notifications/webhooks/{webhook_id}/test | - | {success, message} | get_current_engineer |
+| GET | /api/v1/notifications/smtp | - | SmtpConfigResponse or null | get_current_admin |
+| PUT | /api/v1/notifications/smtp | body: SmtpConfigUpdate | SmtpConfigResponse | get_current_admin |
+| POST | /api/v1/notifications/smtp/test | - | {success, message} | get_current_admin |
+| GET | /api/v1/notifications/webhooks | - | list[WebhookConfigResponse] | get_current_admin |
+| POST | /api/v1/notifications/webhooks | body: WebhookConfigCreate | WebhookConfigResponse | get_current_admin |
+| PATCH | /api/v1/notifications/webhooks/{id} | body: WebhookConfigUpdate | WebhookConfigResponse | get_current_admin |
+| DELETE | /api/v1/notifications/webhooks/{id} | - | 204 | get_current_admin |
+| POST | /api/v1/notifications/webhooks/{id}/test | - | {success, message} | get_current_admin |
 | GET | /api/v1/notifications/preferences | - | list[NotificationPreferenceResponse] | get_current_user |
-| PUT | /api/v1/notifications/preferences | list[NotificationPreferenceUpdate] body | list[NotificationPreferenceResponse] | get_current_user |
+| PUT | /api/v1/notifications/preferences | body: list[NotificationPreferenceUpdate] | list[NotificationPreferenceResponse] | get_current_user |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| NotificationDispatcher | core/notifications.py | dispatch(), send_email(), send_webhook() |
-| EventBus | core/events/bus.py | publish(), subscribe() |
-| Events | core/events/events.py | SampleProcessedEvent, ViolationCreatedEvent, ControlLimitsUpdatedEvent |
+| NotificationDispatcher | `core/notifications.py` | dispatch(event), send_email(to, subject, body), send_webhook(url, payload, secret) |
+| EventBus | `core/events/bus.py` | publish(event), subscribe(event_type, handler) |
+| Events | `core/events/events.py` | SampleProcessedEvent, ViolationCreatedEvent, ControlLimitsUpdatedEvent |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| (inline queries) | api/v1/notifications.py | Direct SQLAlchemy queries in router |
+| (inline queries) | `api/v1/notifications.py` | Direct SQLAlchemy queries in router |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| NotificationsSettings | components/NotificationsSettings.tsx | - | useSmtpConfig, useUpdateSmtpConfig, useTestSmtp, useWebhooks, useCreateWebhook, useUpdateWebhook, useDeleteWebhook, useTestWebhook, useNotificationPreferences, useUpdateNotificationPreferences |
+| NotificationsSettings | `components/NotificationsSettings.tsx` | - | useSmtpConfig, useWebhooks, useNotificationPreferences, useUpdateSmtp, useCreateWebhook |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useSmtpConfig | notificationApi.getSmtp | GET /notifications/smtp | ['notifications', 'smtp'] |
-| useUpdateSmtpConfig | notificationApi.updateSmtp | PUT /notifications/smtp | invalidates smtp |
-| useTestSmtp | notificationApi.testSmtp | POST /notifications/smtp/test | mutation |
-| useWebhooks | notificationApi.getWebhooks | GET /notifications/webhooks | ['notifications', 'webhooks'] |
-| useCreateWebhook | notificationApi.createWebhook | POST /notifications/webhooks | invalidates webhooks |
-| useUpdateWebhook | notificationApi.updateWebhook | PUT /notifications/webhooks/{id} | invalidates webhooks |
-| useDeleteWebhook | notificationApi.deleteWebhook | DELETE /notifications/webhooks/{id} | invalidates webhooks |
-| useTestWebhook | notificationApi.testWebhook | POST /notifications/webhooks/{id}/test | mutation |
-| useNotificationPreferences | notificationApi.getPreferences | GET /notifications/preferences | ['notifications', 'preferences'] |
-| useUpdateNotificationPreferences | notificationApi.updatePreferences | PUT /notifications/preferences | invalidates preferences |
+| useSmtpConfig | notificationsApi.getSmtp | GET /notifications/smtp | ['notifications', 'smtp'] |
+| useUpdateSmtp | notificationsApi.updateSmtp | PUT /notifications/smtp | invalidates smtp |
+| useWebhooks | notificationsApi.getWebhooks | GET /notifications/webhooks | ['notifications', 'webhooks'] |
+| useCreateWebhook | notificationsApi.createWebhook | POST /notifications/webhooks | invalidates webhooks |
+| useNotificationPreferences | notificationsApi.getPreferences | GET /notifications/preferences | ['notifications', 'preferences'] |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /settings/notifications | SettingsPage (tab) | NotificationsSettings |
+| /settings | SettingsView | NotificationsSettings (tab) |
 
 ## Migrations
 - 024: smtp_config, webhook_config, notification_preference tables
 
 ## Known Issues / Gotchas
-- NotificationDispatcher subscribes to EventBus and fires asynchronously (fire-and-forget)
-- Webhook secret is used for HMAC-SHA256 signature in X-Signature header
-- SMTP test sends a real email to the provided address
-- Events: SampleProcessedEvent, ViolationCreatedEvent, ControlLimitsUpdatedEvent trigger notifications
+- SMTP password is encrypted at rest using Fernet
+- Webhook payloads are signed with HMAC-SHA256
+- NotificationDispatcher subscribes to Event Bus on app startup
+- Dispatching is fire-and-forget (async task, no retry)

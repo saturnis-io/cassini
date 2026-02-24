@@ -5,47 +5,47 @@
 ## Statistics
 | Category | Count |
 |----------|-------|
-| Backend Models | 38 |
-| API Endpoints | ~215 |
+| Backend Models | ~46 |
+| API Endpoints | ~215+ |
 | Frontend Components | ~135 |
 | Frontend Pages | 14 |
-| React Query Hooks | ~107 |
-| API Namespaces | 23 |
-| Alembic Migrations | 35 |
 | Feature Domains | 13 |
+| Alembic Migrations | 35 |
+| Frontend API Namespaces | 23 |
 
 ## Features
 | Feature | File | Description |
 |---------|------|-------------|
-| spc-engine | [spc-engine.md](features/spc-engine.md) | Control charts (X-bar R, I-MR, CUSUM, EWMA, Attribute p/np/c/u), Nelson rules 1-8 with custom params, zone classification, violations, annotations, short-run modes, Laney correction |
-| capability | [capability.md](features/capability.md) | Cp/Cpk/Pp/Ppk/Cpm, non-normal distributions (6 families), Box-Cox, Shapiro-Wilk, capability history snapshots |
-| connectivity | [connectivity.md](features/connectivity.md) | MQTT/SparkplugB, OPC-UA (browse/subscribe), gage bridges (RS-232/USB via bridge agent), tag mapping, protocol registry |
-| msa | [msa.md](features/msa.md) | Gage R&R (crossed ANOVA, range, nested), attribute MSA (Cohen/Fleiss Kappa), AIAG MSA 4th Ed d2* tables |
-| fai | [fai.md](features/fai.md) | AS9102 Rev C First Article Inspection (Forms 1/2/3), draft/submit/approve workflow with separation of duties |
-| data-entry | [data-entry.md](features/data-entry.md) | Manual variable/attribute entry, CSV/Excel import wizard, sample CRUD, edit history, batch import |
-| notifications | [notifications.md](features/notifications.md) | SMTP email, HMAC webhooks, per-user preferences, Event Bus subscriber |
-| signatures | [signatures.md](features/signatures.md) | 21 CFR Part 11 electronic signatures, multi-step workflows, meanings, password policy, SHA-256 verification |
-| anomaly | [anomaly.md](features/anomaly.md) | PELT change-point, K-S distribution shift, Isolation Forest outlier detection, model state persistence |
-| retention | [retention.md](features/retention.md) | Hierarchical retention policies (plant/hierarchy/characteristic), inheritance chain, purge engine with history |
-| auth | [auth.md](features/auth.md) | JWT + refresh cookie, 4-tier RBAC (operator/supervisor/engineer/admin), per-plant roles, API keys, SSO/OIDC |
-| admin | [admin.md](features/admin.md) | Database admin (config/test/backup/vacuum/migrations), audit trail, rate limiting, structured logging |
-| reporting | [reporting.md](features/reporting.md) | Scheduled reports (cron), report templates, PDF/CSV export, report run history |
+| spc-engine | [spc-engine.md](features/spc-engine.md) | Control charts (X-bar R, I-MR, p/np/c/u, CUSUM, EWMA), Nelson rules 1-8, control limits, zone classification, short-run modes |
+| capability | [capability.md](features/capability.md) | Cp/Cpk/Pp/Ppk/Cpm indices, distribution fitting (6 families), normality testing, capability history snapshots |
+| connectivity | [connectivity.md](features/connectivity.md) | MQTT brokers, OPC-UA servers, tag mappings, gage bridges, protocol registry, live data providers |
+| msa | [msa.md](features/msa.md) | Gage R&R (crossed ANOVA, range, nested), attribute MSA (Cohen's/Fleiss' Kappa), AIAG MSA 4th Ed |
+| fai | [fai.md](features/fai.md) | AS9102 Rev C First Article Inspection, Forms 1/2/3, draft/submitted/approved workflow |
+| data-entry | [data-entry.md](features/data-entry.md) | Manual sample entry, batch submission, CSV/Excel import wizard, sample editing with audit trail |
+| notifications | [notifications.md](features/notifications.md) | SMTP email, HMAC webhooks, user preferences, Event Bus integration |
+| signatures | [signatures.md](features/signatures.md) | 21 CFR Part 11 electronic signatures, multi-step workflows, signature meanings, password policy |
+| anomaly | [anomaly.md](features/anomaly.md) | AI/ML anomaly detection (PELT changepoint, K-S distribution shift, Isolation Forest outliers) |
+| retention | [retention.md](features/retention.md) | Data retention policies with inheritance chain, purge engine, purge history tracking |
+| auth | [auth.md](features/auth.md) | JWT auth, refresh tokens, 4-tier RBAC, plant-scoped roles, API keys, OIDC/SSO |
+| admin | [admin.md](features/admin.md) | Database admin (multi-dialect config), audit trail logging, app settings, rate limiting |
+| reporting | [reporting.md](features/reporting.md) | Scheduled reports, report generator, PDF/Excel export, report templates |
 
 ## Architecture Diagrams
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for:
 - **Feature Dependency Graph** -- which features depend on which at runtime
-- **Data Model ER Diagram** -- all ~38 models and their FK relationships
+- **Data Model ER Diagram** -- all ~46 models and their FK relationships
 - **Frontend Page Map** -- pages -> components -> API namespaces
 
 ## Quick Jump (for AI navigation)
-- **Bug in a component?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> search for hook name -> feature file
-- **Bug in an API response?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> API Endpoint Prefixes -> feature file -> Endpoints table
+- **Bug in a component?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> search for component name -> find its feature file
+- **Bug in an API response?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> API Endpoint Prefixes table -> feature file -> Endpoints table
 - **Need all files for a feature?** -> feature file -> all tables (Models, Endpoints, Services, Repos, Components, Hooks, Pages)
 - **Model relationship question?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Data Model ER diagram
 - **Cross-feature impact?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Feature Dependency Graph
 - **Which page renders a component?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Frontend Page Map
 - **Full reverse lookup?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> search for entity name
+- **Query key collision?** -> feature file -> Hooks/API table -> Cache Key column
 
 ## How to Use
 
@@ -62,6 +62,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for:
 
 ### Impact Analysis
 1. Open DEPENDENCIES.md
-2. Search for the entity you're changing
+2. Search for the entity you are changing
 3. See all downstream consumers that may be affected
 4. Check ARCHITECTURE.md Feature Dependency Graph for cross-feature impacts

@@ -4,196 +4,165 @@
 
 ## Backend Models
 
-### Plant
-- Feature: (core, shared across all features)
-- Repos: HierarchyRepository, BrokerRepository, OPCUAServerRepository
-- Routers: plants.py, hierarchy.py
-- Frontend: plantApi, usePlants
-
-### Hierarchy
-- Feature: (core, shared)
-- Repos: HierarchyRepository
-- Routers: hierarchy.py
-- Frontend: hierarchyApi, useHierarchyTree, useHierarchyTreeByPlant
-
 ### Characteristic
 - Feature: [spc-engine](features/spc-engine.md)
 - Repos: CharacteristicRepository
-- Routers: characteristics.py, data_entry.py, capability.py, distributions.py, anomaly.py, msa.py, fai.py, tags.py, retention.py, gage_bridges.py
-- Services: SPCEngine, ControlLimitService, DistributionFitter, GageRREngine, AnomalyDetector, PurgeEngine
-- Frontend: characteristicApi, useCharacteristic, useCharacteristics, useChartData
-
-### CharacteristicRule
-- Feature: [spc-engine](features/spc-engine.md)
-- Repos: CharacteristicRepository (via get_with_rules)
-- Routers: characteristics.py, rule_presets.py
-- Frontend: useNelsonRules, useUpdateNelsonRules
+- Routers: characteristics.py, capability.py, distributions.py, data_entry.py, anomaly.py, msa.py, retention.py, tags.py
+- Services: SPCEngine, ControlLimitService, AttributeEngine, CUSUMEngine, EWMAEngine, PurgeEngine
+- Frontend: characteristicApi, useCharacteristic, useChartData, ChartPanel, ControlChart
 
 ### Sample
 - Feature: [spc-engine](features/spc-engine.md), [data-entry](features/data-entry.md)
 - Repos: SampleRepository
-- Routers: samples.py, data_entry.py, characteristics.py (chart-data)
-- Services: SPCEngine
-- Frontend: sampleApi, useSample, useSamples, useSubmitSample
+- Routers: characteristics.py (chart-data), data_entry.py, samples.py, import_router.py
+- Services: SPCEngine, ControlLimitService, ImportService, PurgeEngine
+- Frontend: samplesApi, useSamples, ManualEntryPanel, SampleInspectorModal
 
 ### Measurement
 - Feature: [spc-engine](features/spc-engine.md)
-- Repos: SampleRepository (via create_with_measurements)
-- Routers: samples.py
+- Repos: SampleRepository (nested via create_with_measurements)
+- Routers: (accessed via Sample)
+- Frontend: (accessed via Sample)
 
 ### Violation
 - Feature: [spc-engine](features/spc-engine.md)
 - Repos: ViolationRepository
-- Routers: violations.py, characteristics.py (chart-data batch load)
-- Services: SPCEngine
-- Frontend: violationApi, useViolations, useAcknowledgeViolation
+- Routers: violations.py, characteristics.py (chart-data includes violation_ids)
+- Services: SPCEngine, AttributeEngine, CUSUMEngine, EWMAEngine
+- Frontend: useViolations, ViolationsView, ChartPanel (violation markers)
 
-### Annotation
+### CharacteristicRule
 - Feature: [spc-engine](features/spc-engine.md)
-- Routers: annotations.py
-- Frontend: annotationApi, useAnnotations
+- Repos: CharacteristicRepository (via get_with_rules)
+- Routers: characteristics.py (rules endpoints)
+- Frontend: useRules, useUpdateRules, RulesTab
 
 ### CapabilityHistory
 - Feature: [capability](features/capability.md)
-- Repos: CapabilityRepository
+- Repos: CapabilityHistoryRepository
 - Routers: capability.py
-- Frontend: capabilityApi, useCapabilityHistory
+- Frontend: qualityApi, useCapabilityHistory, CapabilityCard
 
 ### DataSource / MQTTDataSource / OPCUADataSource
 - Feature: [connectivity](features/connectivity.md)
 - Repos: DataSourceRepository
-- Routers: tags.py, characteristics.py (provider_type filter)
-- Services: TagProvider, OPCUAProvider
-- Frontend: tagApi, opcuaApi
+- Routers: tags.py, providers.py
+- Services: ProviderManager, OPCUAProvider
+- Frontend: connectivityApi, MappingTable, MappingDialog
 
 ### MQTTBroker
 - Feature: [connectivity](features/connectivity.md)
 - Repos: BrokerRepository
 - Routers: brokers.py
-- Frontend: brokerApi
+- Frontend: brokerApi, ServerSelector, MQTTServerForm
 
 ### OPCUAServer
 - Feature: [connectivity](features/connectivity.md)
 - Repos: OPCUAServerRepository
 - Routers: opcua_servers.py
-- Services: OPCUAClient, OPCUABrowsingService
-- Frontend: opcuaApi, useOPCUAServers
+- Services: OPCUAManager, OPCUABrowsingService
+- Frontend: opcuaApi, ServerSelector, OPCUAServerForm, NodeTreeBrowser
 
 ### GageBridge / GagePort
 - Feature: [connectivity](features/connectivity.md)
+- Repos: (inline queries)
 - Routers: gage_bridges.py
-- Frontend: gageBridgeApi, useGageBridges
+- Frontend: gageBridgeApi, GageBridgeList, GageBridgeRegisterDialog, GagePortConfig
 
 ### MSAStudy / MSAOperator / MSAPart / MSAMeasurement
 - Feature: [msa](features/msa.md)
+- Repos: (inline queries)
 - Routers: msa.py
 - Services: GageRREngine, AttributeMSAEngine
-- Frontend: msaApi, useMSAStudies
+- Frontend: msaApi, MSAStudyEditor, MSAResults, MSADataGrid
 
 ### FAIReport / FAIItem
 - Feature: [fai](features/fai.md)
+- Repos: (inline queries)
 - Routers: fai.py
-- Frontend: faiApi, useFAIReports
+- Frontend: faiApi, FAIReportEditor, FAIPrintView
 
 ### SmtpConfig / WebhookConfig / NotificationPreference
 - Feature: [notifications](features/notifications.md)
+- Repos: (inline queries)
 - Routers: notifications.py
 - Services: NotificationDispatcher
-- Frontend: notificationApi, useSmtpConfig, useWebhooks
+- Frontend: notificationsApi, NotificationsSettings
 
-### ElectronicSignature / SignatureWorkflow / SignatureWorkflowStep / SignatureWorkflowInstance / SignatureMeaning / PasswordPolicy
+### SignatureWorkflow / SignatureWorkflowStep / SignatureWorkflowInstance / ElectronicSignature
 - Feature: [signatures](features/signatures.md)
-- Repos: SignatureRepository, WorkflowRepository
+- Repos: SignatureRepository, WorkflowRepository, WorkflowInstanceRepository
 - Routers: signatures.py
 - Services: SignatureWorkflowEngine
-- Frontend: signatureApi, useSign, useWorkflows
+- Frontend: signatureApi, SignatureDialog, PendingApprovalsDashboard, WorkflowConfig
 
 ### AnomalyDetectorConfig / AnomalyEvent / AnomalyModelState
 - Feature: [anomaly](features/anomaly.md)
-- Repos: AnomalyRepository
+- Repos: AnomalyConfigRepository, AnomalyEventRepository, AnomalyModelStateRepository
 - Routers: anomaly.py
 - Services: AnomalyDetector, PELTDetector, KSDetector, IsolationForestDetector
-- Frontend: anomalyApi, useAnomalyConfig, useAnomalyEvents
+- Frontend: anomalyApi, AnomalyOverlay, AnomalyConfigPanel, AnomalyEventList
 
-### RetentionPolicy
+### RetentionPolicy / PurgeHistory
 - Feature: [retention](features/retention.md)
-- Repos: RetentionRepository
+- Repos: RetentionRepository, PurgeHistoryRepository
 - Routers: retention.py
 - Services: PurgeEngine
-- Frontend: retentionApi, useRetentionDefault
-
-### PurgeHistory
-- Feature: [retention](features/retention.md)
-- Repos: PurgeHistoryRepository
-- Routers: retention.py
-- Frontend: retentionApi, useRetentionActivity
+- Frontend: retentionApi, RetentionPolicyForm, RetentionTreeBrowser
 
 ### User / UserPlantRole
 - Feature: [auth](features/auth.md)
 - Repos: UserRepository
 - Routers: auth.py, users.py
 - Services: JWT, Passwords, Bootstrap
-- Frontend: authApi, userApi, useUsers
+- Frontend: authApi, usersApi, AuthProvider, LoginPage, UserManagementPage
 
 ### APIKey
 - Feature: [auth](features/auth.md)
+- Repos: (inline queries)
 - Routers: api_keys.py
-- Frontend: apiKeysApi
-
-### OIDCConfig
-- Feature: [auth](features/auth.md)
-- Repos: OIDCConfigRepository
-- Routers: oidc.py
-- Frontend: oidcApi, useOIDCConfigs
+- Services: APIKeyAuth
+- Frontend: (inline in settings)
 
 ### AuditLog
 - Feature: [admin](features/admin.md)
+- Repos: (inline queries)
 - Routers: audit.py
-- Services: AuditService, AuditMiddleware
-- Frontend: auditApi, useAuditLogs
+- Services: AuditMiddleware, AuditService
+- Frontend: adminApi, AuditLogViewer
 
 ### ReportSchedule / ReportRun
 - Feature: [reporting](features/reporting.md)
 - Repos: ReportScheduleRepository
 - Routers: scheduled_reports.py
 - Services: ReportGenerator, ReportScheduler
-- Frontend: reportScheduleApi, useReportSchedules
+- Frontend: reportsApi, ReportsView
 
-### RulePreset
-- Feature: [spc-engine](features/spc-engine.md)
-- Routers: rule_presets.py
-- Frontend: rulePresetApi, useRulePresets
-
-## Frontend Hooks (Key)
-
-### useChartData()
-- Feature: [spc-engine](features/spc-engine.md)
-- Components: ControlChart, CUSUMChart, EWMAChart, AttributeChart, DualChartPanel, ReportPreview
-- Pages: OperatorDashboard, ReportsView
+## Frontend Hooks
 
 ### useCharacteristic()
 - Feature: [spc-engine](features/spc-engine.md)
-- Components: ChartPanel, CharacteristicConfigTabs, ManualEntryPanel, CapabilityCard
-- Pages: OperatorDashboard, DataEntryView
+- Components: ChartPanel, CapabilityCard, ReportPreview
+- Pages: OperatorDashboard, ReportsView
 
-### useSubmitSample()
-- Feature: [data-entry](features/data-entry.md)
-- Components: ManualEntryPanel
-- Pages: DataEntryView, OperatorDashboard
+### useChartData()
+- Feature: [spc-engine](features/spc-engine.md)
+- Components: ChartPanel, ControlChart, DualChartPanel, AnomalyOverlay
+- Pages: OperatorDashboard, KioskView
 
 ### useCapability()
 - Feature: [capability](features/capability.md)
-- Components: CapabilityCard
-- Pages: OperatorDashboard
+- Components: CapabilityCard, ReportPreview
+- Pages: OperatorDashboard, ReportsView
 
-### useViolations()
-- Feature: [spc-engine](features/spc-engine.md)
-- Components: ViolationLegend
-- Pages: ViolationsView
+### useBrokers()
+- Feature: [connectivity](features/connectivity.md)
+- Components: ServerSelector
+- Pages: ConnectivityPage
 
 ### useOPCUAServers()
 - Feature: [connectivity](features/connectivity.md)
-- Components: ServerSelector, ServersTab
+- Components: ServerSelector
 - Pages: ConnectivityPage
 
 ### useGageBridges()
@@ -206,135 +175,56 @@
 - Components: AnomalyOverlay, AnomalyEventList
 - Pages: OperatorDashboard
 
-### useSign()
+### usePendingApprovals()
 - Feature: [signatures](features/signatures.md)
-- Components: SignatureDialog
-- Pages: (modal, any page)
+- Components: PendingApprovalsDashboard
+- Pages: SettingsView
+
+### useAuditLogs()
+- Feature: [admin](features/admin.md)
+- Components: AuditLogViewer
+- Pages: SettingsView
 
 ## API Endpoint Prefixes
 
-### /api/v1/characteristics
-- Feature: [spc-engine](features/spc-engine.md)
-- Frontend: characteristicApi (11 endpoints)
-- Key hooks: useCharacteristic, useChartData, useRecalculateLimits, useNelsonRules
-
-### /api/v1/samples
-- Feature: [data-entry](features/data-entry.md)
-- Frontend: sampleApi (8 endpoints)
-- Key hooks: useSubmitSample, useSamples, useUpdateSample
-
-### /api/v1/data-entry
-- Feature: [data-entry](features/data-entry.md)
-- Frontend: dataEntryApi (6 endpoints)
-- Key hooks: useSubmitAttributeData
-
-### /api/v1/violations
-- Feature: [spc-engine](features/spc-engine.md)
-- Frontend: violationApi (6 endpoints)
-- Key hooks: useViolations, useAcknowledgeViolation
-
-### /api/v1/capability
-- Feature: [capability](features/capability.md)
-- Frontend: capabilityApi (3 endpoints)
-- Key hooks: useCapability, useCapabilityHistory
-
-### /api/v1/distributions
-- Feature: [capability](features/capability.md)
-- Frontend: distributionApi (3 endpoints)
-- Key hooks: useFitDistribution, useNonNormalCapability
-
-### /api/v1/opcua-servers
-- Feature: [connectivity](features/connectivity.md)
-- Frontend: opcuaApi (12 endpoints)
-- Key hooks: useOPCUAServers, useBrowseOPCUANodes
-
-### /api/v1/brokers
-- Feature: [connectivity](features/connectivity.md)
-- Frontend: brokerApi (15 endpoints)
-
-### /api/v1/tags
-- Feature: [connectivity](features/connectivity.md)
-- Frontend: tagApi (4 endpoints)
-
-### /api/v1/providers
-- Feature: [connectivity](features/connectivity.md)
-- Frontend: providerApi (3 endpoints)
-
-### /api/v1/gage-bridges
-- Feature: [connectivity](features/connectivity.md)
-- Frontend: gageBridgeApi (12 endpoints)
-- Key hooks: useGageBridges, useRegisterGageBridge
-
-### /api/v1/msa
-- Feature: [msa](features/msa.md)
-- Frontend: msaApi (12 endpoints)
-- Key hooks: useMSAStudies, useCalculateMSA
-
-### /api/v1/fai
-- Feature: [fai](features/fai.md)
-- Frontend: faiApi (12 endpoints)
-- Key hooks: useFAIReports, useSubmitFAIReport
-
-### /api/v1/notifications
-- Feature: [notifications](features/notifications.md)
-- Frontend: notificationApi (10 endpoints)
-- Key hooks: useSmtpConfig, useWebhooks
-
-### /api/v1/signatures
-- Feature: [signatures](features/signatures.md)
-- Frontend: signatureApi (20 endpoints)
-- Key hooks: useSign, useWorkflows, usePendingApprovals
-
-### /api/v1/anomaly
-- Feature: [anomaly](features/anomaly.md)
-- Frontend: anomalyApi (12 endpoints)
-- Key hooks: useAnomalyConfig, useAnomalyEvents
-
-### /api/v1/retention
-- Feature: [retention](features/retention.md)
-- Frontend: retentionApi (13 endpoints)
-- Key hooks: useRetentionDefault, useTriggerPurge
-
-### /api/v1/auth
-- Feature: [auth](features/auth.md)
-- Frontend: authApi (5 endpoints)
-
-### /api/v1/users
-- Feature: [auth](features/auth.md)
-- Frontend: userApi (8 endpoints)
-- Key hooks: useUsers, useCreateUser
-
-### /api/v1/api-keys
-- Feature: [auth](features/auth.md)
-- Frontend: apiKeysApi (6 endpoints)
-
-### /api/v1/oidc
-- Feature: [auth](features/auth.md)
-- Frontend: oidcApi (7 endpoints)
-
-### /api/v1/database
-- Feature: [admin](features/admin.md)
-- Frontend: databaseApi (7 endpoints)
-- Key hooks: useDatabaseConfig, useDatabaseStatus
-
-### /api/v1/audit
-- Feature: [admin](features/admin.md)
-- Frontend: auditApi (3 endpoints)
-- Key hooks: useAuditLogs, useAuditStats
-
-### /api/v1/scheduled-reports
-- Feature: [reporting](features/reporting.md)
-- Frontend: reportScheduleApi (7 endpoints)
-- Key hooks: useReportSchedules, useTriggerReport
+| Prefix | Feature | Frontend Namespace |
+|--------|---------|-------------------|
+| /api/v1/characteristics | spc-engine | characteristicApi |
+| /api/v1/characteristics/{id}/capability | capability | qualityApi |
+| /api/v1/characteristics/{id}/distribution | capability | qualityApi |
+| /api/v1/data-entry | data-entry | (fetchApi direct) |
+| /api/v1/samples | data-entry | samplesApi |
+| /api/v1/import | data-entry | (fetchApi direct) |
+| /api/v1/violations | spc-engine | (fetchApi direct) |
+| /api/v1/brokers | connectivity | brokerApi |
+| /api/v1/opcua-servers | connectivity | opcuaApi |
+| /api/v1/tags | connectivity | connectivityApi |
+| /api/v1/providers | connectivity | connectivityApi |
+| /api/v1/gage-bridges | connectivity | gageBridgeApi |
+| /api/v1/msa | msa | msaApi |
+| /api/v1/fai | fai | faiApi |
+| /api/v1/notifications | notifications | notificationsApi |
+| /api/v1/signatures | signatures | signatureApi |
+| /api/v1/anomaly | anomaly | anomalyApi |
+| /api/v1/retention | retention | retentionApi |
+| /api/v1/auth | auth | authApi |
+| /api/v1/users | auth | usersApi |
+| /api/v1/api-keys | auth | (fetchApi direct) |
+| /api/v1/oidc | auth | oidcApi |
+| /api/v1/database | admin | adminApi (databaseApi) |
+| /api/v1/audit | admin | adminApi (auditApi) |
+| /api/v1/reports/schedules | reporting | reportsApi |
+| /api/v1/rule-presets | spc-engine | characteristicApi |
+| /api/v1/annotations | spc-engine | characteristicApi |
 
 ## Zustand Stores
 
-### openspc-ui
-- File: frontend/src/stores/ui-store.ts
-- Key state: selectedCharacteristicId, sidebarOpen, theme, locale, chartSettings
-- Consumers: Sidebar, OperatorDashboard, ChartPanel, Header, Layout
+### uiStore (openspc-ui)
+- File: `frontend/src/stores/uiStore.ts`
+- Key state: selectedPlantId, selectedCharacteristicId, sidebarCollapsed, theme, kioskMode
+- Consumers: Sidebar, ChartPanel, OperatorDashboard, most pages via plant context
 
-### openspc-dashboard
-- File: frontend/src/stores/dashboard-store.ts
-- Key state: dashboardLayout, widgetConfigs, selectedPlantId
-- Consumers: OperatorDashboard, PlantSelector, WallDashboard
+### dashboardStore (openspc-dashboard)
+- File: `frontend/src/stores/dashboardStore.ts`
+- Key state: wallChartIds, wallColumns, autoRotateInterval
+- Consumers: WallDashboard, WallChartCard

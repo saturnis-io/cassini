@@ -4,7 +4,7 @@
 
 ## Feature Dependency Graph
 
-Shows runtime dependencies between feature domains. An edge A --> B means feature A calls into or depends on feature B at runtime.
+Shows runtime dependencies between feature domains. An edge A -> B means feature A calls into or depends on feature B at runtime.
 
 ```mermaid
 graph LR
@@ -34,7 +34,6 @@ graph LR
     retention --> spc-engine
     notifications --> spc-engine
     admin --> auth
-    fai --> auth
 
     click spc-engine "features/spc-engine.md"
     click capability "features/capability.md"
@@ -53,24 +52,20 @@ graph LR
 
 ## Data Model
 
-All models grouped by feature domain. Shows entity names and FK relationships only -- see individual feature files for column details.
+All ~46 models grouped by feature domain. Shows entity names and FK relationships only. See individual feature files for column details.
 
 ```mermaid
 erDiagram
-    %% Core Hierarchy
+    %% SPC Engine
     Plant ||--o{ Hierarchy : contains
     Hierarchy ||--o{ Characteristic : contains
-    Hierarchy }o--o| Hierarchy : "parent-child"
-
-    %% SPC Engine
     Characteristic ||--o{ Sample : "has samples"
     Characteristic ||--o{ CharacteristicRule : "has rules"
-    Characteristic ||--o{ Violation : "has violations"
-    Characteristic ||--o{ Annotation : "has annotations"
+    Characteristic ||--|| CharacteristicConfig : "has config"
     Sample ||--o{ Measurement : contains
-    Sample ||--o{ Violation : triggers
-    Sample ||--o{ SampleEditHistory : "edit trail"
-    Annotation ||--o{ AnnotationHistory : "edit trail"
+    Sample ||--o{ Violation : "has violations"
+    Sample ||--o{ SampleEditHistory : "has edits"
+    Characteristic ||--o| RulePreset : "may use preset"
 
     %% Capability
     Characteristic ||--o{ CapabilityHistory : "has snapshots"
@@ -81,47 +76,38 @@ erDiagram
     DataSource ||--|| OPCUADataSource : "is-a"
     MQTTDataSource }o--|| MQTTBroker : "connects to"
     OPCUADataSource }o--|| OPCUAServer : "connects to"
-    Plant ||--o{ MQTTBroker : "has brokers"
-    Plant ||--o{ OPCUAServer : "has servers"
     GageBridge ||--o{ GagePort : "has ports"
-    GagePort }o--o| Characteristic : "mapped to"
-    GageBridge }o--|| MQTTBroker : "publishes via"
-    Plant ||--o{ GageBridge : "has bridges"
+    GagePort }o--o| MQTTDataSource : "auto-mapped"
 
     %% MSA
     MSAStudy ||--o{ MSAOperator : "has operators"
     MSAStudy ||--o{ MSAPart : "has parts"
     MSAStudy ||--o{ MSAMeasurement : "has measurements"
-    MSAStudy }o--o| Characteristic : "studies"
+    MSAStudy }o--|| Characteristic : studies
 
     %% FAI
     FAIReport ||--o{ FAIItem : "has items"
-    FAIItem }o--o| Characteristic : "linked to"
 
     %% Notifications
-    Plant ||--o| SmtpConfig : "has smtp"
-    Plant ||--o{ WebhookConfig : "has webhooks"
-    User ||--o{ NotificationPreference : "has preferences"
+    SmtpConfig ||--|| Plant : "per plant"
+    WebhookConfig }o--|| Plant : "per plant"
+    NotificationPreference }o--|| User : "per user"
 
     %% Signatures
     SignatureWorkflow ||--o{ SignatureWorkflowStep : "has steps"
     SignatureWorkflow ||--o{ SignatureWorkflowInstance : "has instances"
-    SignatureWorkflowStep ||--o{ ElectronicSignature : "has signatures"
+    SignatureWorkflowInstance ||--o{ ElectronicSignature : "has signatures"
     ElectronicSignature }o--|| User : "signed by"
-    SignatureWorkflow }o--|| Plant : "per plant"
-    SignatureMeaning }o--|| Plant : "per plant"
-    PasswordPolicy }o--|| Plant : "per plant"
 
     %% Anomaly
-    AnomalyDetectorConfig }o--|| Characteristic : "monitors"
-    AnomalyDetectorConfig ||--o{ AnomalyEvent : "produces"
+    AnomalyDetectorConfig }o--|| Characteristic : monitors
+    AnomalyDetectorConfig ||--o{ AnomalyEvent : produces
     AnomalyDetectorConfig ||--o| AnomalyModelState : "has state"
 
     %% Retention
-    RetentionPolicy }o--|| Plant : "scoped to"
-    RetentionPolicy }o--o| Hierarchy : "optional scope"
-    RetentionPolicy }o--o| Characteristic : "optional scope"
-    PurgeHistory }o--|| Plant : "for plant"
+    RetentionPolicy }o--o| Characteristic : "scoped to"
+    RetentionPolicy }o--o| Hierarchy : "scoped to"
+    PurgeHistory }o--|| RetentionPolicy : "executed by"
 
     %% Auth
     User ||--o{ UserPlantRole : "has roles"
@@ -134,9 +120,6 @@ erDiagram
     %% Reporting
     ReportSchedule }o--|| Plant : "for plant"
     ReportSchedule ||--o{ ReportRun : "has runs"
-
-    %% Rule Presets
-    RulePreset }o--o| Plant : "per plant"
 ```
 
 ## Frontend Page Map
@@ -147,23 +130,23 @@ Pages -> key components -> API namespaces consumed.
 graph TD
     subgraph Pages
         P1[OperatorDashboard]
-        P2[DataEntryView]
-        P3[ConnectivityPage]
-        P4[MSAPage]
-        P5[FAIPage]
-        P6[ReportsView]
-        P7[SettingsPage]
-        P8[UserManagementPage]
-        P9[LoginPage]
-        P10[ViolationsView]
-        P11[ConfigurationPage]
+        P2[ConnectivityPage]
+        P3[MSAPage]
+        P4[FAIPage]
+        P5[ReportsView]
+        P6[SettingsView]
+        P7[UserManagementPage]
+        P8[LoginPage]
+        P9[ViolationsView]
+        P10[KioskView]
+        P11[WallDashboard]
     end
 
     subgraph Components
         C1[ControlChart / DualChartPanel]
         C2[CapabilityCard]
         C3[ChartToolbar]
-        C4[ManualEntryPanel / AttributeEntryForm]
+        C4[ManualEntryPanel]
         C5[ImportWizard]
         C6[ServerSelector / NodeTreeBrowser]
         C7[MappingTable]
@@ -173,42 +156,37 @@ graph TD
         C11[ReportPreview]
         C12[AuditLogViewer]
         C13[NotificationsSettings]
-        C14[SignatureSettingsPage]
+        C14[SignatureDialog]
         C15[AnomalyOverlay / AnomalyConfigPanel]
         C16[RetentionSettings]
-        C17[DatabaseSettings]
-        C18[CharacteristicConfigTabs]
     end
 
-    subgraph API_Namespaces[API Namespaces]
+    subgraph API_Namespaces
         A1[characteristicApi]
-        A2[sampleApi / dataEntryApi]
-        A3[capabilityApi / distributionApi]
-        A4[opcuaApi / brokerApi / tagApi]
+        A2[samplesApi]
+        A3[qualityApi]
+        A4[connectivityApi / opcuaApi]
         A5[gageBridgeApi]
         A6[msaApi]
         A7[faiApi]
-        A8[reportScheduleApi]
-        A9[auditApi]
-        A10[notificationApi]
+        A8[reportsApi]
+        A9[adminApi]
+        A10[notificationsApi]
         A11[signatureApi]
         A12[anomalyApi]
         A13[retentionApi]
-        A14[authApi / userApi / oidcApi]
-        A15[databaseApi]
-        A16[violationApi]
+        A14[authApi / usersApi]
     end
 
-    P1 --> C1 & C2 & C3 & C15
-    P2 --> C4 & C5
-    P3 --> C6 & C7 & C8
-    P4 --> C9
-    P5 --> C10
-    P6 --> C11
-    P7 --> C12 & C13 & C14 & C16 & C17
-    P8 --> A14
-    P10 --> A16
-    P11 --> C18
+    P1 --> C1 & C2 & C3 & C4 & C15
+    P2 --> C6 & C7 & C8
+    P3 --> C9
+    P4 --> C10
+    P5 --> C11
+    P6 --> C12 & C13 & C16 & C14
+    P7 --> C14
+    P10 --> C1
+    P11 --> C1
 
     C1 --> A1 & A2
     C2 --> A3
@@ -220,13 +198,13 @@ graph TD
     C8 --> A5
     C9 --> A6
     C10 --> A7
-    C11 --> A8 & A1
+    C11 --> A8 & A1 & A3
     C12 --> A9
     C13 --> A10
     C14 --> A11
     C15 --> A12
     C16 --> A13
-    C17 --> A15
-    C18 --> A1
-    P9 --> A14
+    P7 --> A14
+    P8 --> A14
+    P9 --> A1
 ```
