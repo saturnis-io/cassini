@@ -1,26 +1,70 @@
 # AI/ML Anomaly Detection
 
 ## Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Frontend
+        C1[AnomalyOverlay.tsx] --> H1[useAnomalyEvents]
+        C2[AnomalyConfigPanel.tsx] --> H2[useAnomalyConfig]
+        C3[AnomalyEventList.tsx] --> H3[useAnomalyEvents]
+        C4[AnomalySummaryCard.tsx] --> H4[useAnomalySummary]
+    end
+    subgraph API
+        H1 --> E1["GET /anomaly/{id}/events"]
+        H2 --> E2["GET /anomaly/{id}/config"]
+        H4 --> E3["GET /anomaly/{id}/summary"]
+    end
+    subgraph Backend
+        S0[EventBus] --> S1[AnomalyDetector.on_sample]
+        S1 --> S2[PELTDetector]
+        S1 --> S3[KSDetector]
+        S1 --> S4[IsolationForestDetector]
+        S2 --> R1[AnomalyEvent create]
+        E1 --> R2[AnomalyEvent query]
+        R1 --> M1[(AnomalyEvent)]
+        R2 --> M1
+    end
 ```
-AnomalyDetector subscribes to SampleProcessedEvent on Event Bus
-  → for each sample, loads AnomalyDetectorConfig for characteristic
-  → runs enabled detectors on analysis window (up to 1000 samples):
-    - PELTDetector: change-point detection (ruptures library)
-    - IsolationForestDetector: multivariate outlier scoring (scikit-learn)
-    - KSDetector: Kolmogorov-Smirnov distribution shift test
-  → persists AnomalyEvent with summary → publishes AnomalyDetectedEvent
 
-AnomalyConfigPanel.tsx → useAnomalyConfig(charId)
-  → GET /api/v1/anomaly/{charId}/config
-  → PUT /api/v1/anomaly/{charId}/config (update thresholds, toggles)
+## Entity Relationships
 
-AnomalyEventList.tsx → useAnomalyEvents(charId)
-  → GET /api/v1/anomaly/{charId}/events (paginated, filtered)
-  → POST /{charId}/events/{id}/acknowledge
-  → POST /{charId}/events/{id}/dismiss
-
-ChartToolbar "AI Insights" toggle → AnomalyOverlay.tsx
-  → ECharts markPoint/markArea overlay on ControlChart
+```mermaid
+erDiagram
+    AnomalyDetectorConfig }o--|| Characteristic : "monitors"
+    AnomalyDetectorConfig ||--o{ AnomalyEvent : "produces"
+    AnomalyDetectorConfig ||--o| AnomalyModelState : "has state"
+    AnomalyEvent }o--|| Characteristic : "for"
+    AnomalyEvent }o--o| Sample : "triggered by"
+    AnomalyDetectorConfig {
+        int id PK
+        int characteristic_id FK
+        bool is_enabled
+        string detectors_enabled
+        int pelt_min_size
+        float ks_alpha
+        float iforest_contamination
+        int window_size
+    }
+    AnomalyEvent {
+        int id PK
+        int characteristic_id FK
+        string detector_type
+        string event_type
+        float confidence
+        string description
+        int sample_id FK
+        datetime detected_at
+        bool acknowledged
+        bool dismissed
+    }
+    AnomalyModelState {
+        int id PK
+        int characteristic_id FK
+        string detector_type
+        string model_data
+        datetime updated_at
+    }
 ```
 
 ## Backend
@@ -28,83 +72,80 @@ ChartToolbar "AI Insights" toggle → AnomalyOverlay.tsx
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| AnomalyDetectorConfig | db/models/anomaly.py | id, char_id(FK unique), is_enabled, pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment, iforest_enabled, iforest_contamination, iforest_n_estimators, iforest_min_training, iforest_retrain_interval, ks_enabled, ks_reference_window, ks_test_window, ks_alpha, notify_on_changepoint, notify_on_anomaly_score, notify_on_distribution_shift, anomaly_score_threshold, created_at, updated_at | 030 |
-| AnomalyEvent | db/models/anomaly.py | id, char_id(FK), detector_type, event_type, severity, details(JSON), sample_id(FK nullable), window_start_id(FK nullable), window_end_id(FK nullable), is_acknowledged, acknowledged_by, acknowledged_at, is_dismissed, dismissed_by, dismissed_reason, summary, detected_at; indexes: (char_id, detected_at), (detector_type), (severity) | 030 |
-| AnomalyModelState | db/models/anomaly.py | id, char_id(FK), detector_type, model_blob(Text), training_samples, training_started_at, training_completed_at, feature_names(JSON); unique: (char_id, detector_type) | 030 |
+| AnomalyDetectorConfig | db/models/anomaly.py | characteristic_id FK (unique), is_enabled, detectors_enabled (JSON), pelt_min_size, ks_alpha, iforest_contamination, window_size | 030 |
+| AnomalyEvent | db/models/anomaly.py | characteristic_id FK, detector_type, event_type, confidence, description, sample_id FK, sample_start_id FK, sample_end_id FK, detected_at, acknowledged, dismissed | 030 |
+| AnomalyModelState | db/models/anomaly.py | characteristic_id FK, detector_type, model_data (JSON), updated_at | 030 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/anomaly/dashboard | offset, limit | list[DashboardEventResponse] | get_current_user (supervisor+) |
-| GET | /api/v1/anomaly/dashboard/stats | - | DashboardStatsResponse | get_current_user (supervisor+) |
-| GET | /api/v1/anomaly/{char_id}/config | - | AnomalyConfigResponse | get_current_user (supervisor+) |
-| PUT | /api/v1/anomaly/{char_id}/config | body: AnomalyConfigUpdate | AnomalyConfigResponse | get_current_user (engineer+) |
-| DELETE | /api/v1/anomaly/{char_id}/config | - | 204 | get_current_user (engineer+) |
-| GET | /api/v1/anomaly/{char_id}/events | detector_type, severity, acknowledged, dismissed, offset, limit | AnomalyEventListResponse | get_current_user (operator+) |
-| GET | /api/v1/anomaly/{char_id}/events/{event_id} | - | AnomalyEventResponse | get_current_user (operator+) |
-| POST | /api/v1/anomaly/{char_id}/events/{event_id}/acknowledge | body: AcknowledgeRequest | AnomalyEventResponse | get_current_user (operator+) |
-| POST | /api/v1/anomaly/{char_id}/events/{event_id}/dismiss | body: DismissRequest | AnomalyEventResponse | get_current_user (engineer+) |
-| GET | /api/v1/anomaly/{char_id}/summary | - | AnomalySummaryResponse | get_current_user (supervisor+) |
-| GET | /api/v1/anomaly/{char_id}/status | - | AnomalyStatusResponse | get_current_user (supervisor+) |
-| POST | /api/v1/anomaly/{char_id}/analyze | - | AnalysisResultResponse | get_current_user (engineer+) |
+| GET | /api/v1/anomaly/dashboard | plant_id, limit | list[DashboardEventResponse] | get_current_user |
+| GET | /api/v1/anomaly/dashboard/stats | plant_id | DashboardStatsResponse | get_current_user |
+| GET | /api/v1/anomaly/{char_id}/config | - | AnomalyConfigResponse | get_current_user |
+| PUT | /api/v1/anomaly/{char_id}/config | AnomalyConfigUpdate body | AnomalyConfigResponse | get_current_engineer |
+| DELETE | /api/v1/anomaly/{char_id}/config | - | 204 | get_current_engineer |
+| GET | /api/v1/anomaly/{char_id}/events | limit, detector_type, acknowledged | AnomalyEventListResponse | get_current_user |
+| GET | /api/v1/anomaly/{char_id}/events/{event_id} | - | AnomalyEventResponse | get_current_user |
+| POST | /api/v1/anomaly/{char_id}/events/{event_id}/acknowledge | - | AnomalyEventResponse | get_current_user |
+| POST | /api/v1/anomaly/{char_id}/events/{event_id}/dismiss | - | AnomalyEventResponse | get_current_user |
+| GET | /api/v1/anomaly/{char_id}/summary | - | AnomalySummaryResponse | get_current_user |
+| GET | /api/v1/anomaly/{char_id}/status | - | AnomalyStatusResponse | get_current_user |
+| POST | /api/v1/anomaly/{char_id}/analyze | method | AnalysisResultResponse | get_current_engineer |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| AnomalyDetector | core/anomaly/detector.py | setup_subscriptions(), analyze_characteristic(), _process_sample(), _persist_event(), _publish_notification() |
-| PELTDetector | core/anomaly/pelt_detector.py | analyze() — ruptures-based change-point detection |
-| IsolationForestDetector | core/anomaly/iforest_detector.py | score() — scikit-learn IsolationForest with persistent model state |
-| KSDetector | core/anomaly/ks_detector.py | analyze() — Kolmogorov-Smirnov two-sample test |
-| generate_event_summary | core/anomaly/summary.py | Natural language summary generation for anomaly events |
+| AnomalyDetector | core/anomaly/detector.py | on_sample(), detect_all() |
+| PELTDetector | core/anomaly/pelt_detector.py | detect() using ruptures |
+| KSDetector | core/anomaly/ks_detector.py | detect() using scipy.stats.ks_2samp |
+| IsolationForestDetector | core/anomaly/iforest_detector.py | detect() using sklearn.ensemble.IsolationForest |
+| FeatureBuilder | core/anomaly/feature_builder.py | build_features() |
+| ModelStore | core/anomaly/model_store.py | save(), load() model state |
+| AnomalySummary | core/anomaly/summary.py | compute_summary() |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| AnomalyConfigRepository | db/repositories/anomaly.py | get_by_char_id, upsert, delete_by_char_id |
-| AnomalyEventRepository | db/repositories/anomaly.py | get_events, count_events, acknowledge, dismiss, get_active_events_for_plant, get_stats_for_plant, get_latest_for_char |
-| AnomalyModelStateRepository | db/repositories/anomaly.py | get_by_char_and_type |
+| AnomalyRepository | db/repositories/anomaly.py | get_config, save_config, get_events, create_event, get_model_state, save_model_state |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| AnomalyConfigPanel | components/anomaly/AnomalyConfigPanel.tsx | charId | useAnomalyConfig, useUpdateAnomalyConfig |
-| AnomalyEventList | components/anomaly/AnomalyEventList.tsx | charId | useAnomalyEvents, useAcknowledgeAnomaly, useDismissAnomaly |
-| AnomalyEventDetail | components/anomaly/AnomalyEventDetail.tsx | eventId | useAnomalyEvent |
-| AnomalyOverlay | components/anomaly/AnomalyOverlay.tsx | charId, chartInstance | useAnomalyEvents — renders ECharts markPoint/markArea |
-| AnomalySummaryCard | components/anomaly/AnomalySummaryCard.tsx | charId | useAnomalySummary |
-| AnomalyBadge | components/anomaly/AnomalyBadge.tsx | charId | useAnomalyStatus |
+| AnomalyOverlay | components/anomaly/AnomalyOverlay.tsx | characteristicId, chartInstance | useAnomalyEvents (ECharts markPoint/markArea) |
+| AnomalyConfigPanel | components/anomaly/AnomalyConfigPanel.tsx | characteristicId | useAnomalyConfig, useUpdateAnomalyConfig, useResetAnomalyConfig |
+| AnomalyEventList | components/anomaly/AnomalyEventList.tsx | characteristicId | useAnomalyEvents, useAcknowledgeAnomaly, useDismissAnomaly |
+| AnomalyEventDetail | components/anomaly/AnomalyEventDetail.tsx | event | - |
+| AnomalySummaryCard | components/anomaly/AnomalySummaryCard.tsx | characteristicId | useAnomalySummary |
+| AnomalyBadge | components/anomaly/AnomalyBadge.tsx | count | - |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useAnomalyConfig | anomalyApi.getConfig | GET /anomaly/{charId}/config | ['anomaly', 'config', charId] |
-| useUpdateAnomalyConfig | anomalyApi.updateConfig | PUT /anomaly/{charId}/config | invalidates config |
-| useResetAnomalyConfig | anomalyApi.resetConfig | DELETE /anomaly/{charId}/config | invalidates config |
-| useAnomalyEvents | anomalyApi.getEvents | GET /anomaly/{charId}/events | ['anomaly', 'events', charId, params] |
-| useAnomalyEvent | anomalyApi.getEvent | GET /anomaly/{charId}/events/{id} | ['anomaly', 'event', charId, id] |
-| useAcknowledgeAnomaly | anomalyApi.acknowledge | POST /anomaly/{charId}/events/{id}/acknowledge | invalidates events |
-| useDismissAnomaly | anomalyApi.dismiss | POST /anomaly/{charId}/events/{id}/dismiss | invalidates events |
-| useAnomalySummary | anomalyApi.getSummary | GET /anomaly/{charId}/summary | ['anomaly', 'summary', charId] |
-| useAnomalyStatus | anomalyApi.getStatus | GET /anomaly/{charId}/status | ['anomaly', 'status', charId] |
-| useAnomalyDashboard | anomalyApi.getDashboard | GET /anomaly/dashboard | ['anomaly', 'dashboard'] |
-| useAnomalyDashboardStats | anomalyApi.getDashboardStats | GET /anomaly/dashboard/stats | ['anomaly', 'dashboard-stats'] |
-| useTriggerAnalysis | anomalyApi.analyze | POST /anomaly/{charId}/analyze | invalidates events+summary |
+| useAnomalyConfig | anomalyApi.getConfig | GET /anomaly/{id}/config | ['anomaly', 'config', id] |
+| useUpdateAnomalyConfig | anomalyApi.updateConfig | PUT /anomaly/{id}/config | invalidates config |
+| useResetAnomalyConfig | anomalyApi.deleteConfig | DELETE /anomaly/{id}/config | invalidates config |
+| useAnomalyEvents | anomalyApi.getEvents | GET /anomaly/{id}/events | ['anomaly', 'events', id] |
+| useAcknowledgeAnomaly | anomalyApi.acknowledge | POST /anomaly/{id}/events/{eid}/acknowledge | invalidates events |
+| useDismissAnomaly | anomalyApi.dismiss | POST /anomaly/{id}/events/{eid}/dismiss | invalidates events |
+| useAnomalySummary | anomalyApi.getSummary | GET /anomaly/{id}/summary | ['anomaly', 'summary', id] |
+| useAnomalyStatus | anomalyApi.getStatus | GET /anomaly/{id}/status | ['anomaly', 'status', id] |
+| useTriggerAnalysis | anomalyApi.analyze | POST /anomaly/{id}/analyze | mutation |
+| useAnomalyDashboard | anomalyApi.dashboard | GET /anomaly/dashboard | ['anomaly', 'dashboard'] |
+| useAnomalyDashboardStats | anomalyApi.dashboardStats | GET /anomaly/dashboard/stats | ['anomaly', 'dashboardStats'] |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /dashboard | OperatorDashboard.tsx | AnomalyOverlay (via ChartToolbar "AI Insights" toggle) |
-| /characteristics/{id} | CharacteristicDetailView.tsx | AnomalyConfigPanel, AnomalyEventList, AnomalyOverlay |
+| /dashboard | OperatorDashboard | AnomalyOverlay (via ChartToolbar "AI Insights" toggle), AnomalyConfigPanel |
 
 ## Migrations
-- 030 (ai_anomaly_detection): anomaly_detector_config, anomaly_event, anomaly_model_state tables
+- 030: anomaly_detector_config, anomaly_event, anomaly_model_state tables
 
 ## Known Issues / Gotchas
-- AnomalyDetector subscribes to SampleProcessedEvent via Event Bus (fire-and-forget, does not block SPC pipeline)
-- Isolation Forest model state persisted as base64-encoded joblib blob in anomaly_model_state table
-- Dashboard routes (static paths) MUST come before /{char_id} routes due to FastAPI top-to-bottom matching
-- Minimum 10 samples required in analysis window before any detector runs
-- PELT requires `ruptures>=1.1.9`, Isolation Forest requires optional `scikit-learn>=1.4.0` (ml extra)
-- AnomalyOverlay uses ECharts markPoint (point anomalies) and markArea (change-point regions)
+- AnomalyDetector subscribes to EventBus SampleProcessedEvent; fires asynchronously
+- IsolationForest requires optional scikit-learn>=1.4.0 (installed via ml extra)
+- PELT uses ruptures>=1.1.9 library
+- Model state is persisted per-detector per-characteristic in anomaly_model_state
+- AnomalyOverlay uses ECharts markPoint and markArea for visualization

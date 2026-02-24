@@ -1,30 +1,57 @@
 # Data Entry
 
 ## Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Frontend
+        C1[ManualEntryPanel.tsx] --> H1[useSubmitSample]
+        C2[AttributeEntryForm.tsx] --> H2[useSubmitAttributeData]
+        C3[ImportWizard.tsx] --> H3[useUploadFile]
+        C4[SampleEditModal.tsx] --> H4[useUpdateSample]
+    end
+    subgraph API
+        H1 --> E1["POST /samples/"]
+        H2 --> E2["POST /data-entry/submit-attribute"]
+        H3 --> E3["POST /import/upload"]
+        H4 --> E4["PUT /samples/{id}"]
+    end
+    subgraph Backend
+        E1 --> S1[SPCEngine.process_sample]
+        E2 --> S2[submit_attribute_data]
+        E3 --> S3[ImportService.parse_file]
+        E4 --> S4[update_sample]
+        S1 --> R1[SampleRepository.create_with_measurements]
+        R1 --> M1[(Sample)]
+    end
 ```
-Manual Variable Entry:
-  ManualEntryPanel.tsx → useSubmitSample()
-    → POST /api/v1/samples/ { characteristic_id, measurements[], batch_number, operator_id }
-    → samples.py:submit_sample() → SPCEngine.process_sample()
-    → SampleProcessingResult
 
-Manual Attribute Entry:
-  AttributeEntryForm.tsx → useSubmitAttributeData()
-    → POST /api/v1/data-entry/submit-attribute { characteristic_id, defect_count, sample_size, ... }
-    → data_entry.py → SPCEngine.process_sample() (attribute branch)
+## Entity Relationships
 
-CSV/Excel Import:
-  ImportWizard.tsx (4-step modal)
-    1. Upload: POST /api/v1/import/upload (FormData) → {columns, preview_rows}
-    2. Map columns: UI column mapping
-    3. Validate: POST /api/v1/import/validate → {valid_count, error_count, errors[]}
-    4. Confirm: POST /api/v1/import/confirm → {imported, skipped, errors[]}
-
-Sample Edit:
-  SampleEditModal.tsx → useUpdateSample()
-    → PUT /api/v1/samples/{id} { measurements, reason, edited_by }
-    → samples.py:update_sample() → re-process through SPC engine
-    → SampleEditHistory created
+```mermaid
+erDiagram
+    Characteristic ||--o{ Sample : "has samples"
+    Sample ||--o{ Measurement : contains
+    Sample ||--o{ SampleEditHistory : "edit trail"
+    Sample {
+        int id PK
+        int char_id FK
+        datetime timestamp
+        string batch_number
+        string operator_id
+        int actual_n
+        bool is_excluded
+        int defect_count
+        int sample_size
+    }
+    SampleEditHistory {
+        int id PK
+        int sample_id FK
+        string edited_by
+        string previous_values
+        string new_values
+        datetime edited_at
+    }
 ```
 
 ## Backend
@@ -32,40 +59,41 @@ Sample Edit:
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| Sample | db/models/sample.py | (see spc-engine.md) | 001+ |
-| Measurement | db/models/sample.py | (see spc-engine.md) | 001 |
-| SampleEditHistory | db/models/sample.py | id, sample_id(FK), edited_by, reason, old_values(JSON), new_values(JSON), edited_at | 006 |
+| Sample | db/models/sample.py | char_id FK, timestamp, batch_number, operator_id, actual_n, is_undersized, is_excluded, defect_count, sample_size, units_inspected | 001 |
+| Measurement | db/models/sample.py | sample_id FK, value | 001 |
+| SampleEditHistory | db/models/sample.py | sample_id FK, edited_by, previous_values, new_values, edited_at | 001 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| POST | /api/v1/data-entry/submit | body: {characteristic_id, measurements, batch_number, operator_id} | SampleProcessingResult (201) | get_current_user |
-| POST | /api/v1/data-entry/submit-attribute | body: {characteristic_id, defect_count, sample_size, units_inspected, ...} | SampleProcessingResult | get_current_user |
-| POST | /api/v1/data-entry/submit-cusum | body: {characteristic_id, measurement} | SampleProcessingResult | get_current_user |
-| POST | /api/v1/data-entry/submit-ewma | body: {characteristic_id, measurement} | SampleProcessingResult | get_current_user |
-| POST | /api/v1/data-entry/quick-stats | body: {characteristic_id} | QuickStatsResponse | get_current_user |
-| GET | /api/v1/data-entry/last-samples | characteristic_id, limit | list[SampleResponse] | get_current_user |
-| GET | /api/v1/samples/ | characteristic_id, start_date, end_date, offset, limit | PaginatedResponse[SampleResponse] | get_current_user |
-| POST | /api/v1/samples/ | body: SampleCreate | SampleProcessingResult (201) | get_current_user |
+| POST | /api/v1/data-entry/submit-sample | char_id, measurements, batch_number, operator_id | SampleProcessingResult | get_current_user |
+| POST | /api/v1/data-entry/submit-cusum | char_id, measurement | SampleProcessingResult | get_current_user |
+| POST | /api/v1/data-entry/submit-ewma | char_id, measurement | SampleProcessingResult | get_current_user |
+| POST | /api/v1/data-entry/submit-attribute | char_id, defect_count, sample_size, units_inspected | SampleProcessingResult | get_current_user |
+| POST | /api/v1/data-entry/quick-stats | char_id | QuickStatsResponse | get_current_user |
+| GET | /api/v1/data-entry/characteristics | plant_id | list[CharacteristicSummary] | get_current_user |
+| GET | /api/v1/samples/ | char_id, start_date, end_date, offset, limit | PaginatedResponse[SampleResponse] | get_current_user |
+| POST | /api/v1/samples/ | SampleCreate body | SampleProcessingResult | get_current_user |
 | GET | /api/v1/samples/{sample_id} | - | SampleResponse | get_current_user |
-| PATCH | /api/v1/samples/{sample_id}/exclude | body: {excluded} | SampleResponse | get_current_user |
+| PATCH | /api/v1/samples/{sample_id}/exclude | is_excluded | SampleResponse | get_current_user |
 | DELETE | /api/v1/samples/{sample_id} | - | 204 | get_current_engineer |
-| PUT | /api/v1/samples/{sample_id} | body: {measurements, reason, edited_by} | SampleProcessingResult | get_current_user |
+| PUT | /api/v1/samples/{sample_id} | SampleUpdate body | SampleProcessingResult | get_current_user |
 | GET | /api/v1/samples/{sample_id}/history | - | list[SampleEditHistoryResponse] | get_current_user |
-| POST | /api/v1/samples/batch | body: BatchImportRequest | BatchImportResult | get_current_engineer |
-| POST | /api/v1/import/upload | FormData: file | {columns, preview_rows, row_count} | get_current_engineer |
-| POST | /api/v1/import/validate | FormData: file + mapping | {valid_count, error_count, errors} | get_current_engineer |
-| POST | /api/v1/import/confirm | FormData: file + mapping | {imported, skipped, errors} | get_current_engineer |
+| POST | /api/v1/samples/batch | BatchImportRequest body | BatchImportResult | get_current_engineer |
+| POST | /api/v1/import/upload | FormData (file) | ImportValidationResult | get_current_engineer |
+| POST | /api/v1/import/validate | ImportMappingRequest body | ImportValidationResult | get_current_engineer |
+| POST | /api/v1/import/confirm | ImportConfirmRequest body | ImportResult | get_current_engineer |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| ImportService | core/import_service.py | parse_csv(), parse_excel(), validate_mapping(), import_samples() |
+| ImportService | core/import_service.py | parse_file(), validate_mapping(), confirm_import() |
+| SPCEngine | core/engine/spc_engine.py | process_sample() |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| SampleRepository | db/repositories/sample.py | create_with_measurements, get_by_characteristic, update_measurements, get_rolling_window |
+| SampleRepository | db/repositories/sample.py | create_with_measurements, get_by_id, get_by_characteristic, update, delete, get_rolling_window |
 
 ## Frontend
 
@@ -73,37 +101,37 @@ Sample Edit:
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
 | ManualEntryPanel | components/ManualEntryPanel.tsx | characteristicId | useSubmitSample, useCharacteristic |
-| SampleInspectorModal | components/SampleInspectorModal.tsx | sampleId, open | useSample |
+| AttributeEntryForm | components/AttributeEntryForm.tsx | characteristicId | useSubmitAttributeData |
+| ImportWizard | components/ImportWizard.tsx | - | useUploadFile, useValidateMapping, useConfirmImport |
+| SampleInspectorModal | components/SampleInspectorModal.tsx | sampleId | useSample |
 | SampleHistoryPanel | components/SampleHistoryPanel.tsx | characteristicId | useSamples |
-| SampleEditModal | components/SampleEditModal.tsx | sampleId, open, onClose | useUpdateSample, useSampleEditHistory |
-| ImportWizard | components/ImportWizard.tsx | characteristicId, open, onClose | useUploadFile, useValidateMapping, useConfirmImport |
+| SampleEditModal | components/SampleEditModal.tsx | sampleId | useUpdateSample, useSampleEditHistory |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useSubmitSample | sampleApi.submit | POST /samples/ | invalidates chartData+samples+violations |
-| useSubmitAttributeData | dataEntryApi.submitAttribute | POST /data-entry/submit-attribute | invalidates chartData+samples+violations |
-| useSamples | sampleApi.list | GET /samples/ | ['samples', 'list', params] |
+| useSubmitSample | sampleApi.submit | POST /samples/ | invalidates chartData+violations |
+| useSubmitAttributeData | dataEntryApi.submitAttribute | POST /data-entry/submit-attribute | invalidates chartData |
 | useSample | sampleApi.get | GET /samples/{id} | ['samples', 'detail', id] |
-| useExcludeSample | sampleApi.exclude | PATCH /samples/{id}/exclude | invalidates samples+chartData |
-| useDeleteSample | sampleApi.delete | DELETE /samples/{id} | invalidates samples+characteristics |
-| useUpdateSample | sampleApi.update | PUT /samples/{id} | invalidates samples+editHistory+characteristics |
-| useSampleEditHistory | sampleApi.getEditHistory | GET /samples/{id}/history | ['samples', 'editHistory', id] |
-| useUploadFile | importApi.upload | POST /import/upload | - |
-| useValidateMapping | importApi.validate | POST /import/validate | - |
-| useConfirmImport | importApi.confirm | POST /import/confirm | invalidates samples+characteristics |
+| useSamples | sampleApi.list | GET /samples/ | ['samples', 'list'] |
+| useExcludeSample | sampleApi.exclude | PATCH /samples/{id}/exclude | invalidates chartData |
+| useDeleteSample | sampleApi.delete | DELETE /samples/{id} | invalidates chartData |
+| useUpdateSample | sampleApi.update | PUT /samples/{id} | invalidates chartData+sample |
+| useSampleEditHistory | sampleApi.history | GET /samples/{id}/history | ['samples', 'history', id] |
+| useUploadFile | importApi.upload | POST /import/upload | mutation |
+| useValidateMapping | importApi.validate | POST /import/validate | mutation |
+| useConfirmImport | importApi.confirm | POST /import/confirm | invalidates chartData |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /data-entry | DataEntryView.tsx | ManualEntryPanel, SampleHistoryPanel, ImportWizard, AttributeEntryForm |
-| /dashboard | OperatorDashboard.tsx | ManualEntryPanel (inline) |
+| /data-entry | DataEntryView | ManualEntryPanel, AttributeEntryForm, SampleHistoryPanel, ImportWizard |
 
 ## Migrations
-- 001 (initial): sample, measurement tables
-- 006 (sample_edit_history): sample_edit_history table
+- 001: sample, measurement, sample_edit_history tables
 
 ## Known Issues / Gotchas
-- ImportWizard uses FormData for file upload; fetchApi in client.ts has special FormData handling (no Content-Type header)
-- Sample edit creates SampleEditHistory and re-processes through SPC engine (recomputes violations)
-- Batch import endpoint (/samples/batch) is separate from CSV import (/import/*)
+- FormData fix in fetchApi required for CSV/Excel upload
+- ImportWizard is a 4-step modal (upload, map columns, validate, confirm)
+- Batch import endpoint creates samples in bulk without individual SPC processing
+- Sample edit creates SampleEditHistory record with previous/new values for audit trail

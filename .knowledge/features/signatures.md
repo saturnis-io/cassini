@@ -1,20 +1,88 @@
 # Electronic Signatures (21 CFR Part 11)
 
 ## Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Frontend
+        C1[SignatureDialog.tsx] --> H1[useSign]
+        C2[PendingApprovalsDashboard.tsx] --> H2[usePendingApprovals]
+        C3[WorkflowConfig.tsx] --> H3[useWorkflows]
+        C4[MeaningManager.tsx] --> H4[useMeanings]
+    end
+    subgraph API
+        H1 --> E1["POST /signatures/sign"]
+        H2 --> E2["GET /signatures/pending"]
+        H3 --> E3["GET /signatures/workflows"]
+        H4 --> E4["GET /signatures/meanings"]
+    end
+    subgraph Backend
+        E1 --> S1[SignatureWorkflowEngine.sign]
+        S1 --> R1[ElectronicSignature create]
+        R1 --> M1[(ElectronicSignature)]
+        E3 --> R2[SignatureWorkflow query]
+        R2 --> M2[(SignatureWorkflow)]
+    end
 ```
-SignatureDialog.tsx → useSign()
-  → POST /api/v1/signatures/sign { resource_type, resource_id, meaning_id, password, comment }
-  → signatures.py → SignatureWorkflowEngine.sign()
-    → verify password → create ElectronicSignature with SHA-256 hash
-    → check workflow steps → advance workflow instance if applicable
-    → SignResponse
 
-PendingApprovalsDashboard.tsx → usePendingApprovals(plantId)
-  → GET /api/v1/signatures/pending?plant_id=N
-  → list of resources awaiting current user's signature step
+## Entity Relationships
 
-WorkflowConfig.tsx → useWorkflows() + useWorkflowSteps()
-  → CRUD via /api/v1/signatures/workflows/* endpoints
+```mermaid
+erDiagram
+    SignatureWorkflow ||--o{ SignatureWorkflowStep : "has steps"
+    SignatureWorkflow ||--o{ SignatureWorkflowInstance : "has instances"
+    SignatureWorkflowStep ||--o{ ElectronicSignature : "has signatures"
+    ElectronicSignature }o--|| User : "signed by"
+    SignatureWorkflow }o--|| Plant : "per plant"
+    SignatureMeaning }o--|| Plant : "per plant"
+    PasswordPolicy }o--|| Plant : "per plant"
+    SignatureWorkflow {
+        int id PK
+        int plant_id FK
+        string name
+        string resource_type
+        bool is_active
+    }
+    SignatureWorkflowStep {
+        int id PK
+        int workflow_id FK
+        int step_order
+        string role_required
+        string meaning
+    }
+    SignatureWorkflowInstance {
+        int id PK
+        int workflow_id FK
+        string resource_type
+        int resource_id
+        string status
+        int initiated_by FK
+    }
+    ElectronicSignature {
+        int id PK
+        int user_id FK
+        int workflow_step_id FK
+        string resource_type
+        int resource_id
+        string meaning
+        string hash
+        datetime signed_at
+    }
+    SignatureMeaning {
+        int id PK
+        int plant_id FK
+        string code
+        string label
+        string description
+    }
+    PasswordPolicy {
+        int id PK
+        int plant_id FK
+        int min_length
+        bool require_uppercase
+        bool require_number
+        int max_age_days
+    }
 ```
 
 ## Backend
@@ -22,55 +90,55 @@ WorkflowConfig.tsx → useWorkflows() + useWorkflowSteps()
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| ElectronicSignature | db/models/signature.py | id, plant_id(FK), resource_type, resource_id, signer_id(FK User), signer_name, full_name, meaning_id(FK nullable), comment, hash(SHA-256), signed_at, workflow_instance_id(FK nullable), step_id(FK nullable) | 031 |
-| SignatureMeaning | db/models/signature.py | id, plant_id(FK), code, display_name, description, is_active | 031 |
-| SignatureWorkflow | db/models/signature.py | id, plant_id(FK), name, resource_type, description, is_active, require_all_steps | 031 |
-| SignatureWorkflowStep | db/models/signature.py | id, workflow_id(FK), step_order, name, required_role, meaning_id(FK nullable), is_required | 031 |
-| SignatureWorkflowInstance | db/models/signature.py | id, workflow_id(FK), resource_type, resource_id, status(pending/completed/rejected), current_step_order, created_at, completed_at | 031 |
-| PasswordPolicy | db/models/signature.py | id, plant_id(FK unique), min_length, require_uppercase, require_lowercase, require_digit, require_special, max_age_days, updated_at | 031 |
-| User (sig cols) | db/models/user.py | signature_full_name, signature_title, password_changed_at | 031 |
+| ElectronicSignature | db/models/signature.py | user_id FK, workflow_step_id FK, resource_type, resource_id, meaning, hash (SHA-256), signed_at | 031 |
+| SignatureMeaning | db/models/signature.py | plant_id FK, code, label, description | 031 |
+| SignatureWorkflow | db/models/signature.py | plant_id FK, name, resource_type, is_active; has steps, instances | 031 |
+| SignatureWorkflowStep | db/models/signature.py | workflow_id FK, step_order, role_required, meaning | 031 |
+| SignatureWorkflowInstance | db/models/signature.py | workflow_id FK, resource_type, resource_id, status, initiated_by FK | 031 |
+| PasswordPolicy | db/models/signature.py | plant_id FK, min_length, require_uppercase, require_number, max_age_days | 031 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| POST | /api/v1/signatures/sign | body: SignRequest | SignResponse (201) | get_current_user |
-| POST | /api/v1/signatures/reject | body: RejectRequest | dict | get_current_user |
+| POST | /api/v1/signatures/sign | SignRequest body (resource_type, resource_id, meaning, password) | SignResponse | get_current_user |
+| POST | /api/v1/signatures/reject | RejectRequest body (resource_type, resource_id, reason) | 200 | get_current_user |
 | GET | /api/v1/signatures/pending | plant_id | PendingApprovalsResponse | get_current_user |
-| GET | /api/v1/signatures/history | plant_id, resource_type, resource_id, offset, limit | SignatureHistoryResponse | get_current_user |
-| GET | /api/v1/signatures/resource/{resource_type}/{resource_id} | plant_id | list[SignatureResponse] | get_current_user |
-| GET | /api/v1/signatures/verify/{signature_id} | plant_id | VerifyResponse | get_current_user |
-| GET | /api/v1/signatures/workflows | plant_id | list[WorkflowResponse] | get_current_user |
-| POST | /api/v1/signatures/workflows | body: WorkflowCreate | WorkflowResponse (201) | get_current_engineer |
-| PUT | /api/v1/signatures/workflows/{workflow_id} | body: WorkflowUpdate | WorkflowResponse | get_current_engineer |
+| GET | /api/v1/signatures/history | resource_type, resource_id, user_id | SignatureHistoryResponse | get_current_user |
+| GET | /api/v1/signatures/resource/{resource_type}/{resource_id} | - | list[SignatureResponse] | get_current_user |
+| GET | /api/v1/signatures/verify/{signature_id} | - | VerifyResponse | get_current_user |
+| GET | /api/v1/signatures/workflows | - | list[WorkflowResponse] | get_current_user |
+| POST | /api/v1/signatures/workflows | WorkflowCreate body | WorkflowResponse | get_current_engineer |
+| PUT | /api/v1/signatures/workflows/{workflow_id} | WorkflowUpdate body | WorkflowResponse | get_current_engineer |
 | DELETE | /api/v1/signatures/workflows/{workflow_id} | - | 204 | get_current_engineer |
-| GET | /api/v1/signatures/workflows/{workflow_id}/steps | plant_id | list[StepResponse] | get_current_user |
-| POST | /api/v1/signatures/workflows/{workflow_id}/steps | body: StepCreate | StepResponse (201) | get_current_engineer |
-| PUT | /api/v1/signatures/workflows/steps/{step_id} | body: StepUpdate | StepResponse | get_current_engineer |
+| GET | /api/v1/signatures/workflows/{workflow_id}/steps | - | list[StepResponse] | get_current_user |
+| POST | /api/v1/signatures/workflows/{workflow_id}/steps | StepCreate body | StepResponse | get_current_engineer |
+| PUT | /api/v1/signatures/workflows/steps/{step_id} | StepUpdate body | StepResponse | get_current_engineer |
 | DELETE | /api/v1/signatures/workflows/steps/{step_id} | - | 204 | get_current_engineer |
-| GET | /api/v1/signatures/meanings | plant_id | list[MeaningResponse] | get_current_user |
-| POST | /api/v1/signatures/meanings | body: MeaningCreate | MeaningResponse (201) | get_current_engineer |
-| PUT | /api/v1/signatures/meanings/{meaning_id} | body: MeaningUpdate | MeaningResponse | get_current_engineer |
+| GET | /api/v1/signatures/meanings | - | list[MeaningResponse] | get_current_user |
+| POST | /api/v1/signatures/meanings | MeaningCreate body | MeaningResponse | get_current_engineer |
+| PUT | /api/v1/signatures/meanings/{meaning_id} | MeaningUpdate body | MeaningResponse | get_current_engineer |
 | DELETE | /api/v1/signatures/meanings/{meaning_id} | - | 200 | get_current_engineer |
-| GET | /api/v1/signatures/password-policy | plant_id | PasswordPolicyResponse or null | get_current_user |
-| PUT | /api/v1/signatures/password-policy | body: PasswordPolicyUpdate | PasswordPolicyResponse | get_current_engineer |
+| GET | /api/v1/signatures/password-policy | - | PasswordPolicyResponse or null | get_current_user |
+| PUT | /api/v1/signatures/password-policy | PasswordPolicyUpdate body | PasswordPolicyResponse | get_current_engineer |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| SignatureWorkflowEngine | core/signature_engine.py | sign(), reject(), verify(), get_pending_for_user(), compute_hash() |
+| SignatureWorkflowEngine | core/signature_engine.py | sign(), reject(), verify(), get_pending() |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| SignatureRepository | db/repositories/signature.py | create_signature, get_by_resource, get_history |
-| WorkflowRepository | db/repositories/workflow.py | get_workflows, create_workflow, get_instance, advance_step |
+| SignatureRepository | db/repositories/signature.py | create_signature, get_by_resource, verify_hash |
+| WorkflowRepository | db/repositories/workflow.py | get_workflows, get_steps, create_workflow, create_step |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| SignatureDialog | components/signatures/SignatureDialog.tsx | resourceType, resourceId, open, onClose | useSign, useMeanings, useWorkflows |
+| SignatureDialog | components/signatures/SignatureDialog.tsx | resourceType, resourceId | useSign |
+| RejectDialog | components/signatures/RejectDialog.tsx | resourceType, resourceId | useRejectWorkflow |
 | PendingApprovalsDashboard | components/signatures/PendingApprovalsDashboard.tsx | - | usePendingApprovals |
 | WorkflowConfig | components/signatures/WorkflowConfig.tsx | - | useWorkflows, useCreateWorkflow, useUpdateWorkflow, useDeleteWorkflow |
 | WorkflowStepEditor | components/signatures/WorkflowStepEditor.tsx | workflowId | useWorkflowSteps, useCreateStep, useUpdateStep, useDeleteStep |
@@ -80,43 +148,42 @@ WorkflowConfig.tsx → useWorkflows() + useWorkflowSteps()
 | SignatureHistory | components/signatures/SignatureHistory.tsx | - | useSignatureHistory |
 | SignatureManifest | components/signatures/SignatureManifest.tsx | resourceType, resourceId | useSignatures |
 | SignatureVerifyBadge | components/signatures/SignatureVerifyBadge.tsx | signatureId | useVerifySignature |
-| RejectDialog | components/signatures/RejectDialog.tsx | open, onClose | useRejectWorkflow |
-| SignatureSettingsPage | components/signatures/SignatureSettingsPage.tsx | - | all signature admin hooks |
+| SignatureSettingsPage | components/signatures/SignatureSettingsPage.tsx | - | (composes all signature settings) |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useSignatures | signatureApi.getResourceSignatures | GET /signatures/resource/{type}/{id} | ['signatures', 'resource', type, id] |
-| useSign | signatureApi.sign | POST /signatures/sign | invalidates signatures.all |
-| useRejectWorkflow | signatureApi.reject | POST /signatures/reject | invalidates signatures.all |
-| usePendingApprovals | signatureApi.getPending | GET /signatures/pending | ['signatures', 'pending', plantId] (30s poll) |
-| useSignatureHistory | signatureApi.getHistory | GET /signatures/history | ['signatures', 'history', params] |
-| useVerifySignature | signatureApi.verify | GET /signatures/verify/{id} | - |
-| useWorkflows | signatureApi.getWorkflows | GET /signatures/workflows | ['signatures', 'workflows'] |
+| useSign | signatureApi.sign | POST /signatures/sign | mutation |
+| useRejectWorkflow | signatureApi.reject | POST /signatures/reject | mutation |
+| usePendingApprovals | signatureApi.pending | GET /signatures/pending | ['signatures', 'pending'] |
+| useSignatureHistory | signatureApi.history | GET /signatures/history | ['signatures', 'history'] |
+| useSignatures | signatureApi.forResource | GET /signatures/resource/{type}/{id} | ['signatures', 'resource', type, id] |
+| useVerifySignature | signatureApi.verify | GET /signatures/verify/{id} | mutation |
+| useWorkflows | signatureApi.workflows | GET /signatures/workflows | ['signatures', 'workflows'] |
 | useCreateWorkflow | signatureApi.createWorkflow | POST /signatures/workflows | invalidates workflows |
 | useUpdateWorkflow | signatureApi.updateWorkflow | PUT /signatures/workflows/{id} | invalidates workflows |
 | useDeleteWorkflow | signatureApi.deleteWorkflow | DELETE /signatures/workflows/{id} | invalidates workflows |
-| useWorkflowSteps | signatureApi.getSteps | GET /signatures/workflows/{id}/steps | ['signatures', 'steps', workflowId] |
+| useWorkflowSteps | signatureApi.steps | GET /signatures/workflows/{id}/steps | ['signatures', 'steps', id] |
 | useCreateStep | signatureApi.createStep | POST /signatures/workflows/{id}/steps | invalidates steps |
-| useUpdateStep | signatureApi.updateStep | PUT /signatures/workflows/steps/{id} | invalidates all |
-| useDeleteStep | signatureApi.deleteStep | DELETE /signatures/workflows/steps/{id} | invalidates all |
-| useMeanings | signatureApi.getMeanings | GET /signatures/meanings | ['signatures', 'meanings'] |
+| useUpdateStep | signatureApi.updateStep | PUT /signatures/workflows/steps/{id} | invalidates steps |
+| useDeleteStep | signatureApi.deleteStep | DELETE /signatures/workflows/steps/{id} | invalidates steps |
+| useMeanings | signatureApi.meanings | GET /signatures/meanings | ['signatures', 'meanings'] |
 | useCreateMeaning | signatureApi.createMeaning | POST /signatures/meanings | invalidates meanings |
 | useUpdateMeaning | signatureApi.updateMeaning | PUT /signatures/meanings/{id} | invalidates meanings |
 | useDeleteMeaning | signatureApi.deleteMeaning | DELETE /signatures/meanings/{id} | invalidates meanings |
-| usePasswordPolicy | signatureApi.getPasswordPolicy | GET /signatures/password-policy | ['signatures', 'password-policy'] |
-| useUpdatePasswordPolicy | signatureApi.updatePasswordPolicy | PUT /signatures/password-policy | invalidates password-policy |
+| usePasswordPolicy | signatureApi.passwordPolicy | GET /signatures/password-policy | ['signatures', 'passwordPolicy'] |
+| useUpdatePasswordPolicy | signatureApi.updatePasswordPolicy | PUT /signatures/password-policy | invalidates passwordPolicy |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /settings | SettingsView.tsx | SignatureSettingsPage (tab with WorkflowConfig, MeaningManager, PasswordPolicySettings) |
+| /settings/signatures | SettingsPage (tab) | SignatureSettingsPage (composes WorkflowConfig, MeaningManager, PasswordPolicySettings) |
 
 ## Migrations
-- 031 (electronic_signatures): electronic_signature, signature_meaning, signature_workflow, signature_workflow_step, signature_workflow_instance, password_policy tables; signature_full_name/title/password_changed_at on user
+- 031: electronic_signature, signature_meaning, signature_workflow, signature_workflow_step, signature_workflow_instance, password_policy tables; user columns for signature support
 
 ## Known Issues / Gotchas
-- Hash computed as SHA-256 of (signer_id + resource_type + resource_id + meaning_code + timestamp) for tamper detection
-- All signature hooks use useActivePlantId() from Zustand store to scope queries
-- Pending approvals poll every 30 seconds
-- Workflow instance status: pending -> completed (all steps signed) or rejected
+- SHA-256 hash includes user_id + resource_type + resource_id + meaning + timestamp for tamper detection
+- Signature verification checks hash integrity
+- Password policy is per-plant; absence means no policy enforced
+- Workflow instances track multi-step approval progress
