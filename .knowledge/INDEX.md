@@ -3,65 +3,89 @@
 > Last generated: 2026-02-24
 
 ## Statistics
-| Category | Count |
-|----------|-------|
-| Backend Models | ~46 |
-| API Endpoints | ~215+ |
-| Frontend Components | ~135 |
-| Frontend Pages | 14 |
-| Feature Domains | 13 |
-| Alembic Migrations | 35 |
-| Frontend API Namespaces | 23 |
+
+| Metric | Count |
+|--------|-------|
+| Feature files | 13 |
+| Backend models | 40 |
+| Backend endpoints | ~164 |
+| Backend services | ~30 |
+| Backend repositories | ~18 |
+| Frontend components | ~90 documented |
+| Frontend hooks | ~75 documented |
+| Alembic migrations | 15 tracked |
+| Zustand stores | 2 |
+| API namespaces | 24 router prefixes |
 
 ## Features
-| Feature | File | Description |
-|---------|------|-------------|
-| spc-engine | [spc-engine.md](features/spc-engine.md) | Control charts (X-bar R, I-MR, p/np/c/u, CUSUM, EWMA), Nelson rules 1-8, control limits, zone classification, short-run modes |
-| capability | [capability.md](features/capability.md) | Cp/Cpk/Pp/Ppk/Cpm indices, distribution fitting (6 families), normality testing, capability history snapshots |
-| connectivity | [connectivity.md](features/connectivity.md) | MQTT brokers, OPC-UA servers, tag mappings, gage bridges, protocol registry, live data providers |
-| msa | [msa.md](features/msa.md) | Gage R&R (crossed ANOVA, range, nested), attribute MSA (Cohen's/Fleiss' Kappa), AIAG MSA 4th Ed |
-| fai | [fai.md](features/fai.md) | AS9102 Rev C First Article Inspection, Forms 1/2/3, draft/submitted/approved workflow |
-| data-entry | [data-entry.md](features/data-entry.md) | Manual sample entry, batch submission, CSV/Excel import wizard, sample editing with audit trail |
-| notifications | [notifications.md](features/notifications.md) | SMTP email, HMAC webhooks, user preferences, Event Bus integration |
-| signatures | [signatures.md](features/signatures.md) | 21 CFR Part 11 electronic signatures, multi-step workflows, signature meanings, password policy |
-| anomaly | [anomaly.md](features/anomaly.md) | AI/ML anomaly detection (PELT changepoint, K-S distribution shift, Isolation Forest outliers) |
-| retention | [retention.md](features/retention.md) | Data retention policies with inheritance chain, purge engine, purge history tracking |
-| auth | [auth.md](features/auth.md) | JWT auth, refresh tokens, 4-tier RBAC, plant-scoped roles, API keys, OIDC/SSO |
-| admin | [admin.md](features/admin.md) | Database admin (multi-dialect config), audit trail logging, app settings, rate limiting |
-| reporting | [reporting.md](features/reporting.md) | Scheduled reports, report generator, PDF/Excel export, report templates |
 
-## Architecture Diagrams
+| Feature | File | Backend Models | Endpoints | Frontend Components |
+|---------|------|----------------|-----------|---------------------|
+| [SPC Engine](features/spc-engine.md) | spc-engine.md | 6 | 11 | 11 |
+| [Capability](features/capability.md) | capability.md | 1 | 6 | 3 |
+| [Connectivity](features/connectivity.md) | connectivity.md | 7 | 24 | 14 |
+| [MSA](features/msa.md) | msa.md | 4 | 12 | 5 |
+| [FAI](features/fai.md) | fai.md | 2 | 12 | 5 |
+| [Data Entry](features/data-entry.md) | data-entry.md | 3 (shared) | 13 | 5 |
+| [Notifications](features/notifications.md) | notifications.md | 3 | 10 | 1 |
+| [Signatures](features/signatures.md) | signatures.md | 6 | 19 | 12 |
+| [Anomaly](features/anomaly.md) | anomaly.md | 3 | 12 | 6 |
+| [Retention](features/retention.md) | retention.md | 2 | 10 | 5 |
+| [Auth](features/auth.md) | auth.md | 4 | 19 | 7 |
+| [Admin](features/admin.md) | admin.md | 1 | 10 | 5 |
+| [Reporting](features/reporting.md) | reporting.md | 2 | 7 | 3 |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for:
-- **Feature Dependency Graph** -- which features depend on which at runtime
-- **Data Model ER Diagram** -- all ~46 models and their FK relationships
-- **Frontend Page Map** -- pages -> components -> API namespaces
+## Cross-Feature Files
 
-## Quick Jump (for AI navigation)
-- **Bug in a component?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> search for component name -> find its feature file
-- **Bug in an API response?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> API Endpoint Prefixes table -> feature file -> Endpoints table
-- **Need all files for a feature?** -> feature file -> all tables (Models, Endpoints, Services, Repos, Components, Hooks, Pages)
-- **Model relationship question?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Data Model ER diagram
-- **Cross-feature impact?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Feature Dependency Graph
-- **Which page renders a component?** -> [ARCHITECTURE.md](ARCHITECTURE.md) -> Frontend Page Map
-- **Full reverse lookup?** -> [DEPENDENCIES.md](DEPENDENCIES.md) -> search for entity name
-- **Query key collision?** -> feature file -> Hooks/API table -> Cache Key column
+| File | Description |
+|------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Feature dependency graph, cross-feature ER diagram, frontend page map, Event Bus architecture |
+| [DEPENDENCIES.md](DEPENDENCIES.md) | Reverse-lookup index: models, hooks, endpoints, stores, migrations |
+| [INDEX.md](INDEX.md) | This file -- statistics, feature list, usage guide |
 
-## How to Use
+## Usage Guide
 
-### Bug Tracing
-1. Identify which feature the bug belongs to
-2. Open that feature's .md file
-3. Follow the Data Flow diagram (Mermaid flowchart) to find the right layer
-4. Check Known Issues for documented gotchas
+### Finding a backend model
+1. Open [DEPENDENCIES.md](DEPENDENCIES.md) > "Backend Models" table
+2. Find the model name, see its file path and which features use it
 
-### Feature Mapping
-1. Open the feature file to see every file involved
-2. Use the tables to find specific endpoints, components, or models
-3. Check the Entity Relationships diagram for model structure
+### Finding a frontend hook
+1. Open [DEPENDENCIES.md](DEPENDENCIES.md) > "Frontend Hooks" table
+2. Find the hook name, see its namespace, feature, and cache key
 
-### Impact Analysis
-1. Open DEPENDENCIES.md
-2. Search for the entity you are changing
-3. See all downstream consumers that may be affected
-4. Check ARCHITECTURE.md Feature Dependency Graph for cross-feature impacts
+### Finding an API endpoint
+1. Open [DEPENDENCIES.md](DEPENDENCIES.md) > "API Endpoints" table to find the router prefix
+2. Open the feature file for full endpoint details (params, response shape, auth)
+
+### Understanding a feature end-to-end
+1. Open the feature file in [features/](features/)
+2. Start with the **Data Flow** diagram (frontend -> API -> backend)
+3. Review the **Entity Relationships** ER diagram
+4. Check **Known Issues / Gotchas** for pitfalls
+
+### Understanding cross-feature relationships
+1. Open [ARCHITECTURE.md](ARCHITECTURE.md) > "Feature Dependency Graph"
+2. See the "Data Model ER (Cross-Feature)" for shared entities
+3. Check the "Event Bus Architecture" for async event flows
+
+## Quick Jump
+
+- **SPC processing pipeline**: [spc-engine.md](features/spc-engine.md) > Services > SPCEngine
+- **Control limit calculation**: [spc-engine.md](features/spc-engine.md) > Services > ControlLimitService
+- **Nelson Rules**: [spc-engine.md](features/spc-engine.md) > Services > NelsonRuleLibrary
+- **Attribute charts (p/np/c/u)**: [spc-engine.md](features/spc-engine.md) > Services > AttributeEngine
+- **Non-normal capability**: [capability.md](features/capability.md) > Services > DistributionFitter
+- **MQTT/OPC-UA connectivity**: [connectivity.md](features/connectivity.md) > Services
+- **Gage bridge (RS-232/USB)**: [connectivity.md](features/connectivity.md) > Models > GageBridge
+- **Data entry + CSV import**: [data-entry.md](features/data-entry.md) > Services > ImportService
+- **Gage R&R (ANOVA/Range)**: [msa.md](features/msa.md) > Services > GageRREngine
+- **FAI (AS9102)**: [fai.md](features/fai.md)
+- **Electronic signatures**: [signatures.md](features/signatures.md) > Services > SignatureWorkflowEngine
+- **Anomaly detection**: [anomaly.md](features/anomaly.md) > Services > AnomalyDetector
+- **Notifications (email/webhook)**: [notifications.md](features/notifications.md) > Services > NotificationDispatcher
+- **Data retention/purge**: [retention.md](features/retention.md) > Services > PurgeEngine
+- **JWT auth + RBAC**: [auth.md](features/auth.md) > Services > JWT
+- **Audit trail**: [admin.md](features/admin.md) > Services > AuditMiddleware
+- **Report generation**: [reporting.md](features/reporting.md) > Services > ReportGenerator
+- **Database admin**: [admin.md](features/admin.md) > Endpoints > /api/v1/database/*
+- **Event Bus**: [ARCHITECTURE.md](ARCHITECTURE.md) > Event Bus Architecture

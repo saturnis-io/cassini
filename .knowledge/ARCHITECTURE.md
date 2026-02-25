@@ -4,207 +4,154 @@
 
 ## Feature Dependency Graph
 
-Shows runtime dependencies between feature domains. An edge A -> B means feature A calls into or depends on feature B at runtime.
-
 ```mermaid
-graph LR
-    spc-engine[SPC Engine]
-    capability[Capability]
-    connectivity[Connectivity]
-    msa[MSA]
-    fai[FAI]
-    data-entry[Data Entry]
-    notifications[Notifications]
-    signatures[Signatures]
-    anomaly[Anomaly]
-    retention[Retention]
-    auth[Auth]
-    admin[Admin]
-    reporting[Reporting]
+flowchart TD
+    SPC[spc-engine] --> CAP[capability]
+    SPC --> DE[data-entry]
+    SPC --> AN[anomaly]
+    SPC --> NOT[notifications]
+    DE --> SPC
+    CONN[connectivity] --> SPC
+    CONN --> DE
+    CAP --> SPC
+    REP[reporting] --> SPC
+    REP --> CAP
+    SIG[signatures] --> AUTH[auth]
+    AUTH --> ADM[admin]
+    ADM --> AUTH
+    RET[retention] --> SPC
+    MSA[msa] --> SPC
+    FAI[fai] --> AUTH
+    AN --> SPC
+    NOT --> SPC
+    NOT --> AN
 
-    data-entry --> spc-engine
-    capability --> spc-engine
-    anomaly --> spc-engine
-    anomaly --> notifications
-    connectivity --> spc-engine
-    msa --> spc-engine
-    reporting --> spc-engine
-    reporting --> capability
-    signatures --> auth
-    retention --> spc-engine
-    notifications --> spc-engine
-    admin --> auth
-
-    click spc-engine "features/spc-engine.md"
-    click capability "features/capability.md"
-    click connectivity "features/connectivity.md"
-    click msa "features/msa.md"
-    click fai "features/fai.md"
-    click data-entry "features/data-entry.md"
-    click notifications "features/notifications.md"
-    click signatures "features/signatures.md"
-    click anomaly "features/anomaly.md"
-    click retention "features/retention.md"
-    click auth "features/auth.md"
-    click admin "features/admin.md"
-    click reporting "features/reporting.md"
+    style SPC fill:#f9f,stroke:#333,stroke-width:2px
+    style AUTH fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
-## Data Model
+### Legend
+- **spc-engine**: Core processing hub -- most features depend on it
+- **auth**: Authentication/authorization -- required by all protected endpoints
+- **connectivity**: Data ingestion layer (MQTT, OPC-UA, Gage bridges)
+- **data-entry**: Manual + CSV/Excel import into SPC engine
+- **capability**: Statistical capability analysis (Cp/Cpk/Pp/Ppk)
+- **anomaly**: AI/ML detection (PELT, K-S, Isolation Forest)
+- **notifications**: Event Bus subscriber for violations, samples, anomalies
+- **signatures**: 21 CFR Part 11 electronic signatures
+- **msa**: Gage R&R / Measurement System Analysis
+- **fai**: First Article Inspection (AS9102)
+- **retention**: Data retention policies + purge engine
+- **reporting**: Scheduled PDF/HTML report generation
+- **admin**: DB admin, audit trail, settings
 
-All ~46 models grouped by feature domain. Shows entity names and FK relationships only. See individual feature files for column details.
+## Data Model ER (Cross-Feature)
 
 ```mermaid
 erDiagram
-    %% SPC Engine
-    Plant ||--o{ Hierarchy : contains
-    Hierarchy ||--o{ Characteristic : contains
+    Plant ||--o{ Hierarchy : "contains"
+    Hierarchy ||--o{ Characteristic : "has"
     Characteristic ||--o{ Sample : "has samples"
-    Characteristic ||--o{ CharacteristicRule : "has rules"
-    Characteristic ||--|| CharacteristicConfig : "has config"
-    Sample ||--o{ Measurement : contains
-    Sample ||--o{ Violation : "has violations"
-    Sample ||--o{ SampleEditHistory : "has edits"
-    Characteristic ||--o| RulePreset : "may use preset"
-
-    %% Capability
-    Characteristic ||--o{ CapabilityHistory : "has snapshots"
-
-    %% Connectivity
     Characteristic ||--o| DataSource : "mapped to"
+    Characteristic ||--o{ CharacteristicRule : "has rules"
+    Characteristic ||--o{ Violation : "has violations"
+    Characteristic ||--o{ CapabilityHistory : "has snapshots"
+    Characteristic ||--o| AnomalyDetectorConfig : "monitored by"
+    Sample ||--o{ Measurement : "contains"
+    Sample ||--o{ Violation : "triggers"
+    User ||--o{ UserPlantRole : "has roles"
+    UserPlantRole }o--|| Plant : "for plant"
+    User ||--o{ APIKey : "owns"
+    User ||--o{ ElectronicSignature : "signs"
+    AuditLog }o--o| User : "by user"
+    SignatureWorkflow ||--o{ SignatureWorkflowInstance : "has instances"
+    SignatureWorkflowInstance ||--o{ ElectronicSignature : "has signatures"
     DataSource ||--|| MQTTDataSource : "is-a"
     DataSource ||--|| OPCUADataSource : "is-a"
-    MQTTDataSource }o--|| MQTTBroker : "connects to"
-    OPCUADataSource }o--|| OPCUAServer : "connects to"
+    MQTTBroker ||--o{ MQTTDataSource : "connects"
+    OPCUAServer ||--o{ OPCUADataSource : "connects"
     GageBridge ||--o{ GagePort : "has ports"
-    GagePort }o--o| MQTTDataSource : "auto-mapped"
-
-    %% MSA
-    MSAStudy ||--o{ MSAOperator : "has operators"
-    MSAStudy ||--o{ MSAPart : "has parts"
+    MSAStudy }o--|| Characteristic : "studies"
     MSAStudy ||--o{ MSAMeasurement : "has measurements"
-    MSAStudy }o--|| Characteristic : studies
-
-    %% FAI
     FAIReport ||--o{ FAIItem : "has items"
-
-    %% Notifications
+    RetentionPolicy }o--|| Plant : "per plant"
+    PurgeHistory }o--|| RetentionPolicy : "executed by"
+    ReportSchedule }o--|| Plant : "for plant"
+    ReportSchedule ||--o{ ReportRun : "has runs"
     SmtpConfig ||--|| Plant : "per plant"
     WebhookConfig }o--|| Plant : "per plant"
     NotificationPreference }o--|| User : "per user"
-
-    %% Signatures
-    SignatureWorkflow ||--o{ SignatureWorkflowStep : "has steps"
-    SignatureWorkflow ||--o{ SignatureWorkflowInstance : "has instances"
-    SignatureWorkflowInstance ||--o{ ElectronicSignature : "has signatures"
-    ElectronicSignature }o--|| User : "signed by"
-
-    %% Anomaly
-    AnomalyDetectorConfig }o--|| Characteristic : monitors
-    AnomalyDetectorConfig ||--o{ AnomalyEvent : produces
-    AnomalyDetectorConfig ||--o| AnomalyModelState : "has state"
-
-    %% Retention
-    RetentionPolicy }o--o| Characteristic : "scoped to"
-    RetentionPolicy }o--o| Hierarchy : "scoped to"
-    PurgeHistory }o--|| RetentionPolicy : "executed by"
-
-    %% Auth
-    User ||--o{ UserPlantRole : "has roles"
-    UserPlantRole }o--|| Plant : "for plant"
-    User ||--o{ APIKey : "has keys"
-
-    %% Admin
-    AuditLog }o--o| User : "by user"
-
-    %% Reporting
-    ReportSchedule }o--|| Plant : "for plant"
-    ReportSchedule ||--o{ ReportRun : "has runs"
 ```
 
 ## Frontend Page Map
 
-Pages -> key components -> API namespaces consumed.
+```mermaid
+flowchart TD
+    subgraph Public
+        LOGIN[/login - LoginPage/]
+        CHPW[/change-password/]
+    end
+    subgraph RequireAuth
+        DASH[/dashboard - OperatorDashboard/]
+        DENT[/data-entry - DataEntryView/]
+        VIOL[/violations - ViolationsView/]
+        RPTS[/reports - ReportsView/]
+        CONN[/connectivity - ConnectivityPage/]
+        CFG[/configuration - ConfigurationPage/]
+        MSA[/msa - MSAPage/]
+        FAI[/fai - FAIPage/]
+        KIOSK[/kiosk - KioskView/]
+        WALL[/wall-dashboard - WallDashboard/]
+        USERS[/admin/users - UserManagementPage/]
+        subgraph Settings[/settings - SettingsPage/]
+            S_DB[database]
+            S_AUDIT[audit-log]
+            S_APPEAR[appearance]
+            S_BRAND[branding]
+            S_SITES[sites]
+            S_KEYS[api-keys]
+            S_SSO[sso]
+            S_SIG[signatures]
+            S_NOTIF[notifications]
+            S_RPTS[reports]
+            S_RET[retention]
+        end
+        subgraph ConnSub[/connectivity sub-routes/]
+            C_MON[monitor]
+            C_SRV[servers]
+            C_BROWSE[browse]
+            C_MAP[mapping]
+            C_GAGE[gages]
+            C_INT[integrations]
+        end
+    end
+    LOGIN --> DASH
+    CONN --> ConnSub
+```
+
+## Event Bus Architecture
 
 ```mermaid
-graph TD
-    subgraph Pages
-        P1[OperatorDashboard]
-        P2[ConnectivityPage]
-        P3[MSAPage]
-        P4[FAIPage]
-        P5[ReportsView]
-        P6[SettingsView]
-        P7[UserManagementPage]
-        P8[LoginPage]
-        P9[ViolationsView]
-        P10[KioskView]
-        P11[WallDashboard]
+flowchart LR
+    subgraph Publishers
+        P1[SPCEngine]
+        P2[AttributeEngine]
+        P3[DataEntry API]
     end
-
-    subgraph Components
-        C1[ControlChart / DualChartPanel]
-        C2[CapabilityCard]
-        C3[ChartToolbar]
-        C4[ManualEntryPanel]
-        C5[ImportWizard]
-        C6[ServerSelector / NodeTreeBrowser]
-        C7[MappingTable]
-        C8[GageBridgeList]
-        C9[MSAStudyEditor / MSAResults]
-        C10[FAIReportEditor / FAIPrintView]
-        C11[ReportPreview]
-        C12[AuditLogViewer]
-        C13[NotificationsSettings]
-        C14[SignatureDialog]
-        C15[AnomalyOverlay / AnomalyConfigPanel]
-        C16[RetentionSettings]
+    subgraph EventBus
+        EB[core/events/bus.py]
     end
-
-    subgraph API_Namespaces
-        A1[characteristicApi]
-        A2[samplesApi]
-        A3[qualityApi]
-        A4[connectivityApi / opcuaApi]
-        A5[gageBridgeApi]
-        A6[msaApi]
-        A7[faiApi]
-        A8[reportsApi]
-        A9[adminApi]
-        A10[notificationsApi]
-        A11[signatureApi]
-        A12[anomalyApi]
-        A13[retentionApi]
-        A14[authApi / usersApi]
+    subgraph Subscribers
+        S1[NotificationDispatcher]
+        S2[AnomalyDetector]
+        S3[AuditService]
     end
-
-    P1 --> C1 & C2 & C3 & C4 & C15
-    P2 --> C6 & C7 & C8
-    P3 --> C9
-    P4 --> C10
-    P5 --> C11
-    P6 --> C12 & C13 & C16 & C14
-    P7 --> C14
-    P10 --> C1
-    P11 --> C1
-
-    C1 --> A1 & A2
-    C2 --> A3
-    C3 --> A1
-    C4 --> A2
-    C5 --> A2
-    C6 --> A4
-    C7 --> A4
-    C8 --> A5
-    C9 --> A6
-    C10 --> A7
-    C11 --> A8 & A1 & A3
-    C12 --> A9
-    C13 --> A10
-    C14 --> A11
-    C15 --> A12
-    C16 --> A13
-    P7 --> A14
-    P8 --> A14
-    P9 --> A1
+    P1 -->|SampleProcessedEvent| EB
+    P1 -->|ViolationCreatedEvent| EB
+    P2 -->|SampleProcessedEvent| EB
+    P3 -->|ControlLimitsUpdatedEvent| EB
+    EB -->|SampleProcessedEvent| S1
+    EB -->|ViolationCreatedEvent| S1
+    EB -->|SampleProcessedEvent| S2
+    EB -->|login/logout| S3
 ```

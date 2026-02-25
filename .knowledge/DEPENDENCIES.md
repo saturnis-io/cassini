@@ -4,227 +4,178 @@
 
 ## Backend Models
 
-### Characteristic
-- Feature: [spc-engine](features/spc-engine.md)
-- Repos: CharacteristicRepository
-- Routers: characteristics.py, capability.py, distributions.py, data_entry.py, anomaly.py, msa.py, retention.py, tags.py
-- Services: SPCEngine, ControlLimitService, AttributeEngine, CUSUMEngine, EWMAEngine, PurgeEngine
-- Frontend: characteristicApi, useCharacteristic, useChartData, ChartPanel, ControlChart
-
-### Sample
-- Feature: [spc-engine](features/spc-engine.md), [data-entry](features/data-entry.md)
-- Repos: SampleRepository
-- Routers: characteristics.py (chart-data), data_entry.py, samples.py, import_router.py
-- Services: SPCEngine, ControlLimitService, ImportService, PurgeEngine
-- Frontend: samplesApi, useSamples, ManualEntryPanel, SampleInspectorModal
-
-### Measurement
-- Feature: [spc-engine](features/spc-engine.md)
-- Repos: SampleRepository (nested via create_with_measurements)
-- Routers: (accessed via Sample)
-- Frontend: (accessed via Sample)
-
-### Violation
-- Feature: [spc-engine](features/spc-engine.md)
-- Repos: ViolationRepository
-- Routers: violations.py, characteristics.py (chart-data includes violation_ids)
-- Services: SPCEngine, AttributeEngine, CUSUMEngine, EWMAEngine
-- Frontend: useViolations, ViolationsView, ChartPanel (violation markers)
-
-### CharacteristicRule
-- Feature: [spc-engine](features/spc-engine.md)
-- Repos: CharacteristicRepository (via get_with_rules)
-- Routers: characteristics.py (rules endpoints)
-- Frontend: useRules, useUpdateRules, RulesTab
-
-### CapabilityHistory
-- Feature: [capability](features/capability.md)
-- Repos: CapabilityHistoryRepository
-- Routers: capability.py
-- Frontend: qualityApi, useCapabilityHistory, CapabilityCard
-
-### DataSource / MQTTDataSource / OPCUADataSource
-- Feature: [connectivity](features/connectivity.md)
-- Repos: DataSourceRepository
-- Routers: tags.py, providers.py
-- Services: ProviderManager, OPCUAProvider
-- Frontend: connectivityApi, MappingTable, MappingDialog
-
-### MQTTBroker
-- Feature: [connectivity](features/connectivity.md)
-- Repos: BrokerRepository
-- Routers: brokers.py
-- Frontend: brokerApi, ServerSelector, MQTTServerForm
-
-### OPCUAServer
-- Feature: [connectivity](features/connectivity.md)
-- Repos: OPCUAServerRepository
-- Routers: opcua_servers.py
-- Services: OPCUAManager, OPCUABrowsingService
-- Frontend: opcuaApi, ServerSelector, OPCUAServerForm, NodeTreeBrowser
-
-### GageBridge / GagePort
-- Feature: [connectivity](features/connectivity.md)
-- Repos: (inline queries)
-- Routers: gage_bridges.py
-- Frontend: gageBridgeApi, GageBridgeList, GageBridgeRegisterDialog, GagePortConfig
-
-### MSAStudy / MSAOperator / MSAPart / MSAMeasurement
-- Feature: [msa](features/msa.md)
-- Repos: (inline queries)
-- Routers: msa.py
-- Services: GageRREngine, AttributeMSAEngine
-- Frontend: msaApi, MSAStudyEditor, MSAResults, MSADataGrid
-
-### FAIReport / FAIItem
-- Feature: [fai](features/fai.md)
-- Repos: (inline queries)
-- Routers: fai.py
-- Frontend: faiApi, FAIReportEditor, FAIPrintView
-
-### SmtpConfig / WebhookConfig / NotificationPreference
-- Feature: [notifications](features/notifications.md)
-- Repos: (inline queries)
-- Routers: notifications.py
-- Services: NotificationDispatcher
-- Frontend: notificationsApi, NotificationsSettings
-
-### SignatureWorkflow / SignatureWorkflowStep / SignatureWorkflowInstance / ElectronicSignature
-- Feature: [signatures](features/signatures.md)
-- Repos: SignatureRepository, WorkflowRepository, WorkflowInstanceRepository
-- Routers: signatures.py
-- Services: SignatureWorkflowEngine
-- Frontend: signatureApi, SignatureDialog, PendingApprovalsDashboard, WorkflowConfig
-
-### AnomalyDetectorConfig / AnomalyEvent / AnomalyModelState
-- Feature: [anomaly](features/anomaly.md)
-- Repos: AnomalyConfigRepository, AnomalyEventRepository, AnomalyModelStateRepository
-- Routers: anomaly.py
-- Services: AnomalyDetector, PELTDetector, KSDetector, IsolationForestDetector
-- Frontend: anomalyApi, AnomalyOverlay, AnomalyConfigPanel, AnomalyEventList
-
-### RetentionPolicy / PurgeHistory
-- Feature: [retention](features/retention.md)
-- Repos: RetentionRepository, PurgeHistoryRepository
-- Routers: retention.py
-- Services: PurgeEngine
-- Frontend: retentionApi, RetentionPolicyForm, RetentionTreeBrowser
-
-### User / UserPlantRole
-- Feature: [auth](features/auth.md)
-- Repos: UserRepository
-- Routers: auth.py, users.py
-- Services: JWT, Passwords, Bootstrap
-- Frontend: authApi, usersApi, AuthProvider, LoginPage, UserManagementPage
-
-### APIKey
-- Feature: [auth](features/auth.md)
-- Repos: (inline queries)
-- Routers: api_keys.py
-- Services: APIKeyAuth
-- Frontend: (inline in settings)
-
-### AuditLog
-- Feature: [admin](features/admin.md)
-- Repos: (inline queries)
-- Routers: audit.py
-- Services: AuditMiddleware, AuditService
-- Frontend: adminApi, AuditLogViewer
-
-### ReportSchedule / ReportRun
-- Feature: [reporting](features/reporting.md)
-- Repos: ReportScheduleRepository
-- Routers: scheduled_reports.py
-- Services: ReportGenerator, ReportScheduler
-- Frontend: reportsApi, ReportsView
+| Model | File | Features | Migration |
+|-------|------|----------|-----------|
+| AnomalyDetectorConfig | `db/models/anomaly.py` | anomaly | 030 |
+| AnomalyEvent | `db/models/anomaly.py` | anomaly | 030 |
+| AnomalyModelState | `db/models/anomaly.py` | anomaly | 030 |
+| APIKey | `db/models/api_key.py` | auth | 001 |
+| AuditLog | `db/models/audit_log.py` | admin | 026 |
+| CapabilityHistory | `db/models/capability.py` | capability | 025 |
+| Characteristic | `db/models/characteristic.py` | spc-engine, capability, connectivity, msa, retention, anomaly | 001, 032, 033 |
+| CharacteristicRule | `db/models/characteristic.py` | spc-engine | 001, 032 |
+| DataSource | `db/models/data_source.py` | connectivity | 001, 017 |
+| ElectronicSignature | `db/models/signature.py` | signatures | 031 |
+| FAIItem | `db/models/fai.py` | fai | 033 |
+| FAIReport | `db/models/fai.py` | fai | 033 |
+| GageBridge | `db/models/gage.py` | connectivity | 034 |
+| GagePort | `db/models/gage.py` | connectivity | 034, 035 |
+| Measurement | `db/models/sample.py` | spc-engine, data-entry | 001 |
+| MQTTBroker | `db/models/broker.py` | connectivity | 001, 020 |
+| MQTTDataSource | `db/models/data_source.py` | connectivity | 001 |
+| MSAMeasurement | `db/models/msa.py` | msa | 033 |
+| MSAOperator | `db/models/msa.py` | msa | 033 |
+| MSAPart | `db/models/msa.py` | msa | 033 |
+| MSAStudy | `db/models/msa.py` | msa | 033 |
+| NotificationPreference | `db/models/notification.py` | notifications | 024 |
+| OIDCConfig | `db/models/oidc_config.py` | auth | Sprint 8 |
+| OPCUADataSource | `db/models/data_source.py` | connectivity | 015 |
+| OPCUAServer | `db/models/opcua_server.py` | connectivity | 015 |
+| PasswordPolicy | `db/models/signature.py` | signatures | 031 |
+| PurgeHistory | `db/models/purge_history.py` | retention | 021 |
+| ReportRun | `db/models/report_schedule.py` | reporting | 001 |
+| ReportSchedule | `db/models/report_schedule.py` | reporting | 001 |
+| RetentionPolicy | `db/models/retention_policy.py` | retention | 021 |
+| Sample | `db/models/sample.py` | spc-engine, data-entry | 001 |
+| SampleEditHistory | `db/models/sample.py` | spc-engine, data-entry | 001 |
+| SignatureMeaning | `db/models/signature.py` | signatures | 031 |
+| SignatureWorkflow | `db/models/signature.py` | signatures | 031 |
+| SignatureWorkflowInstance | `db/models/signature.py` | signatures | 031 |
+| SignatureWorkflowStep | `db/models/signature.py` | signatures | 031 |
+| SmtpConfig | `db/models/notification.py` | notifications | 024 |
+| User | `db/models/user.py` | auth, admin, signatures | 001, 031 |
+| UserPlantRole | `db/models/user.py` | auth | 001 |
+| Violation | `db/models/violation.py` | spc-engine | 001, 020 |
+| WebhookConfig | `db/models/notification.py` | notifications | 024 |
 
 ## Frontend Hooks
 
-### useCharacteristic()
-- Feature: [spc-engine](features/spc-engine.md)
-- Components: ChartPanel, CapabilityCard, ReportPreview
-- Pages: OperatorDashboard, ReportsView
+| Hook | Namespace | Feature | Cache Key |
+|------|-----------|---------|-----------|
+| useAcknowledgeEvent | anomalyApi | anomaly | invalidates events |
+| useAnalyze | anomalyApi | anomaly | ['anomaly', 'analysis', id] |
+| useAnomalyConfig | anomalyApi | anomaly | ['anomaly', 'config', id] |
+| useAnomalyDashboard | anomalyApi | anomaly | ['anomaly', 'dashboard'] |
+| useAnomalyEvents | anomalyApi | anomaly | ['anomaly', 'events', id] |
+| useAnomalySummary | anomalyApi | anomaly | ['anomaly', 'summary', id] |
+| useApproveFAIReport | faiApi | fai | invalidates report |
+| useAuditLogs | adminApi | admin | ['audit', 'logs'] |
+| useBrowseNode | connectivityApi | connectivity | ['opcua', 'browse', id, nodeId] |
+| useCalculateAttributeMSA | msaApi | msa | ['msa', 'attr-results', id] |
+| useCalculateGageRR | msaApi | msa | ['msa', 'results', id] |
+| useCapability | qualityApi | capability | ['capability', id] |
+| useCapabilityHistory | qualityApi | capability | ['capability', 'history', id] |
+| useCharacteristic | characteristicsApi | spc-engine | ['characteristics', 'detail', id] |
+| useCharacteristics | characteristicsApi | spc-engine | ['characteristics', 'list'] |
+| useChartData | characteristicsApi | spc-engine | ['characteristics', 'chartData', id] |
+| useCreateFAIReport | faiApi | fai | invalidates reports |
+| useCreateMSAStudy | msaApi | msa | invalidates studies |
+| useCreateScheduledReport | reportsApi | reporting | invalidates schedules |
+| useCreateUser | usersApi | auth | invalidates users |
+| useCurrentUser | authApi | auth | ['auth', 'me'] |
+| useDatabaseConfig | adminApi | admin | ['database', 'config'] |
+| useDatabaseStatus | adminApi | admin | ['database', 'status'] |
+| useDistributionFit | qualityApi | capability | ['distributions', id] |
+| useDistributionStatus | qualityApi | capability | ['distributions', 'status', id] |
+| useEditSample | samplesApi | data-entry | invalidates samples + chartData |
+| useEffectiveRetention | retentionApi | retention | ['retention', 'effective', id] |
+| useExportAuditLogs | adminApi | admin | - |
+| useFAIReport | faiApi | fai | ['fai', 'report', id] |
+| useFAIReports | faiApi | fai | ['fai', 'reports'] |
+| useGageBridges | connectivityApi | connectivity | ['gage-bridges'] |
+| useImportUpload | samplesApi | data-entry | ['import', 'validation'] |
+| useLogin | authApi | auth | - |
+| useMeanings | signatureApi | signatures | ['signatures', 'meanings'] |
+| useMigrationStatus | adminApi | admin | ['database', 'migrations'] |
+| useMQTTBrokers | connectivityApi | connectivity | ['brokers'] |
+| useMSAStudies | msaApi | msa | ['msa', 'studies'] |
+| useMSAStudy | msaApi | msa | ['msa', 'study', id] |
+| useNelsonRules | characteristicsApi | spc-engine | ['characteristics', 'rules', id] |
+| useNotificationPreferences | notificationsApi | notifications | ['notifications', 'preferences'] |
+| useOIDCConfig | oidcApi | auth | ['oidc', 'config'] |
+| useOPCUAServers | connectivityApi | connectivity | ['opcua-servers'] |
+| usePasswordPolicy | signatureApi | signatures | ['signatures', 'password-policy'] |
+| usePendingApprovals | signatureApi | signatures | ['signatures', 'pending'] |
+| useProviderStatus | connectivityApi | connectivity | ['providers', 'status'] |
+| usePurgeHistory | retentionApi | retention | ['retention', 'history'] |
+| useRecalculateLimits | characteristicsApi | spc-engine | invalidates chartData |
+| useRefreshToken | authApi | auth | - |
+| useReportRuns | reportsApi | reporting | ['reports', 'runs', id] |
+| useRetentionPolicies | retentionApi | retention | ['retention', 'policies'] |
+| useRunPurge | retentionApi | retention | invalidates history |
+| useRunReport | reportsApi | reporting | invalidates runs |
+| useSample | samplesApi | data-entry | ['samples', id] |
+| useSaveCapability | qualityApi | capability | invalidates capability |
+| useScheduledReports | reportsApi | reporting | ['reports', 'schedules'] |
+| useSign | signatureApi | signatures | invalidates pending |
+| useSignatureHistory | signatureApi | signatures | ['signatures', 'history'] |
+| useSmtpConfig | notificationsApi | notifications | ['notifications', 'smtp'] |
+| useSubmitAttributeSample | samplesApi | data-entry | invalidates chartData |
+| useSubmitMeasurements | msaApi | msa | invalidates study |
+| useSubmitSample | samplesApi | data-entry | invalidates chartData |
+| useTagMappings | connectivityApi | connectivity | ['tags', 'mappings'] |
+| useTestConnection | adminApi | admin | - |
+| useUpdateCharacteristic | characteristicsApi | spc-engine | invalidates detail + chartData |
+| useUpdateFAIReport | faiApi | fai | invalidates report |
+| useUpdateNelsonRules | characteristicsApi | spc-engine | invalidates rules |
+| useUsers | usersApi | auth | ['users'] |
+| useWebhooks | notificationsApi | notifications | ['notifications', 'webhooks'] |
+| useWorkflows | signatureApi | signatures | ['signatures', 'workflows'] |
 
-### useChartData()
-- Feature: [spc-engine](features/spc-engine.md)
-- Components: ChartPanel, ControlChart, DualChartPanel, AnomalyOverlay
-- Pages: OperatorDashboard, KioskView
+## API Endpoints (by router prefix)
 
-### useCapability()
-- Feature: [capability](features/capability.md)
-- Components: CapabilityCard, ReportPreview
-- Pages: OperatorDashboard, ReportsView
+| Prefix | Feature | Endpoint Count | Auth Level |
+|--------|---------|----------------|------------|
+| /api/v1/anomaly | anomaly | 12 | user/engineer |
+| /api/v1/api-keys | auth | 3 | user/engineer |
+| /api/v1/audit | admin | 3 | admin |
+| /api/v1/auth | auth | 5 | none/user |
+| /api/v1/brokers | connectivity | 5 | engineer |
+| /api/v1/capability | capability | 3 | user/engineer |
+| /api/v1/characteristics | spc-engine | 11 | user/engineer |
+| /api/v1/data-entry | data-entry | 6 | user/api-key |
+| /api/v1/database | admin | 7 | admin |
+| /api/v1/distributions | capability | 3 | user/engineer |
+| /api/v1/fai | fai | 12 | user |
+| /api/v1/gage-bridges | connectivity | 7 | engineer/api-key |
+| /api/v1/import | data-entry | 3 | engineer |
+| /api/v1/msa | msa | 12 | user |
+| /api/v1/notifications | notifications | 10 | user/engineer |
+| /api/v1/oidc | auth | 4 | admin/none |
+| /api/v1/opcua-servers | connectivity | 8 | engineer |
+| /api/v1/providers | connectivity | 1 | user |
+| /api/v1/retention | retention | 10 | user/engineer/admin |
+| /api/v1/samples | data-entry | 4 | user/engineer |
+| /api/v1/scheduled-reports | reporting | 7 | user/engineer |
+| /api/v1/signatures | signatures | 19 | user/engineer/admin |
+| /api/v1/tags | connectivity | 3 | user/engineer |
+| /api/v1/users | auth | 7 | admin |
 
-### useBrokers()
-- Feature: [connectivity](features/connectivity.md)
-- Components: ServerSelector
-- Pages: ConnectivityPage
-
-### useOPCUAServers()
-- Feature: [connectivity](features/connectivity.md)
-- Components: ServerSelector
-- Pages: ConnectivityPage
-
-### useGageBridges()
-- Feature: [connectivity](features/connectivity.md)
-- Components: GageBridgeList, GagesTab
-- Pages: ConnectivityPage
-
-### useAnomalyEvents()
-- Feature: [anomaly](features/anomaly.md)
-- Components: AnomalyOverlay, AnomalyEventList
-- Pages: OperatorDashboard
-
-### usePendingApprovals()
-- Feature: [signatures](features/signatures.md)
-- Components: PendingApprovalsDashboard
-- Pages: SettingsView
-
-### useAuditLogs()
-- Feature: [admin](features/admin.md)
-- Components: AuditLogViewer
-- Pages: SettingsView
-
-## API Endpoint Prefixes
-
-| Prefix | Feature | Frontend Namespace |
-|--------|---------|-------------------|
-| /api/v1/characteristics | spc-engine | characteristicApi |
-| /api/v1/characteristics/{id}/capability | capability | qualityApi |
-| /api/v1/characteristics/{id}/distribution | capability | qualityApi |
-| /api/v1/data-entry | data-entry | (fetchApi direct) |
-| /api/v1/samples | data-entry | samplesApi |
-| /api/v1/import | data-entry | (fetchApi direct) |
-| /api/v1/violations | spc-engine | (fetchApi direct) |
-| /api/v1/brokers | connectivity | brokerApi |
-| /api/v1/opcua-servers | connectivity | opcuaApi |
-| /api/v1/tags | connectivity | connectivityApi |
-| /api/v1/providers | connectivity | connectivityApi |
-| /api/v1/gage-bridges | connectivity | gageBridgeApi |
-| /api/v1/msa | msa | msaApi |
-| /api/v1/fai | fai | faiApi |
-| /api/v1/notifications | notifications | notificationsApi |
-| /api/v1/signatures | signatures | signatureApi |
-| /api/v1/anomaly | anomaly | anomalyApi |
-| /api/v1/retention | retention | retentionApi |
-| /api/v1/auth | auth | authApi |
-| /api/v1/users | auth | usersApi |
-| /api/v1/api-keys | auth | (fetchApi direct) |
-| /api/v1/oidc | auth | oidcApi |
-| /api/v1/database | admin | adminApi (databaseApi) |
-| /api/v1/audit | admin | adminApi (auditApi) |
-| /api/v1/reports/schedules | reporting | reportsApi |
-| /api/v1/rule-presets | spc-engine | characteristicApi |
-| /api/v1/annotations | spc-engine | characteristicApi |
+**Total: ~164 endpoints across 24 router prefixes**
 
 ## Zustand Stores
 
-### uiStore (openspc-ui)
-- File: `frontend/src/stores/uiStore.ts`
-- Key state: selectedPlantId, selectedCharacteristicId, sidebarCollapsed, theme, kioskMode
-- Consumers: Sidebar, ChartPanel, OperatorDashboard, most pages via plant context
+| Store | Persist Key | Feature | Key State |
+|-------|-------------|---------|-----------|
+| useUIStore | openspc-ui | spc-engine | selectedCharacteristicId, sidebarOpen, theme |
+| useDashboardStore | openspc-dashboard | spc-engine | layout, filters, chartSettings |
 
-### dashboardStore (openspc-dashboard)
-- File: `frontend/src/stores/dashboardStore.ts`
-- Key state: wallChartIds, wallColumns, autoRotateInterval
-- Consumers: WallDashboard, WallChartCard
+## Alembic Migrations
+
+| Migration | Tables/Changes | Feature |
+|-----------|---------------|---------|
+| 001 | Initial schema: characteristic, sample, measurement, violation, user, user_plant_role, api_key, mqtt_broker, data_source, mqtt_data_source, report_schedule, report_run | spc-engine, auth, connectivity, reporting |
+| 015 | opcua_server, opcua_data_source | connectivity |
+| 017 | Remove provider_type column | connectivity |
+| 020 | CASCADE FKs, timezone datetimes, broker encrypted_password, violation.char_id, composite indexes | spc-engine, connectivity |
+| 021 | retention_policy, purge_history | retention |
+| 023 | (attribute charts) | spc-engine |
+| 024 | smtp_config, webhook_config, notification_preference | notifications |
+| 025 | capability_history | capability |
+| 026 | audit_log (4 indexes) | admin |
+| 030 | anomaly_detector_config, anomaly_event, anomaly_model_state | anomaly |
+| 031 | signature tables (6), user password columns | signatures, auth |
+| 032 | distribution_method, characteristic_rules params, rule_preset | spc-engine, capability |
+| 033 | msa_study/operator/part/measurement, fai_report/item, short_run_mode | msa, fai, spc-engine |
+| 034 | gage_bridge, gage_port | connectivity |
+| 035 | unique constraint on gage_port | connectivity |

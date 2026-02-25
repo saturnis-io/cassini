@@ -9,8 +9,8 @@ flowchart TD
         C2[DistributionAnalysis.tsx] --> H2[useDistributionFit]
     end
     subgraph API
-        H1 --> E1[GET /api/v1/characteristics/:id/capability]
-        H2 --> E2[POST /api/v1/characteristics/:id/distribution/fit]
+        H1 --> E1[GET /api/v1/capability/:charId]
+        H2 --> E2[POST /api/v1/distributions/:charId/fit]
     end
     subgraph Backend
         E1 --> S1[calculate_capability]
@@ -28,10 +28,6 @@ erDiagram
     Characteristic ||--o{ CapabilityHistory : "has snapshots"
     Characteristic {
         int id PK
-        float usl
-        float lsl
-        float target_value
-        float stored_sigma
         string distribution_method
         float box_cox_lambda
         string distribution_params
@@ -44,10 +40,8 @@ erDiagram
         float pp
         float ppk
         float cpm
-        int sample_count
-        float normality_p_value
+        string method
         datetime calculated_at
-        string calculated_by
     }
 ```
 
@@ -56,57 +50,59 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| CapabilityHistory | `db/models/capability.py` | id, characteristic_id FK, cp, cpk, pp, ppk, cpm, sample_count, normality_p_value, normality_test, calculated_at, calculated_by | 025 |
+| CapabilityHistory | `db/models/capability.py` | id, characteristic_id FK, cp, cpk, pp, ppk, cpm, method, calculated_at | 025 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/characteristics/{id}/capability | window_size (default 1000) | CapabilityResponse | get_current_user |
-| GET | /api/v1/characteristics/{id}/capability/history | - | list[CapabilityHistoryItem] | get_current_user |
-| POST | /api/v1/characteristics/{id}/capability/snapshot | - | SnapshotResponse | get_current_engineer |
-| POST | /api/v1/characteristics/{id}/distribution/fit | - | DistributionFitResponse | get_current_engineer |
-| GET | /api/v1/characteristics/{id}/distribution/info | - | DistributionInfoResponse | get_current_user |
-| POST | /api/v1/characteristics/{id}/distribution/set | body: {method, lambda, params} | 200 | get_current_engineer |
+| GET | /api/v1/capability/{char_id} | char_id path | CapabilityResponse (cp, cpk, pp, ppk, cpm, normality) | get_current_user |
+| POST | /api/v1/capability/{char_id}/save | char_id path | CapabilityHistory | get_current_engineer |
+| GET | /api/v1/capability/{char_id}/history | char_id, limit | list[CapabilityHistory] | get_current_user |
+| POST | /api/v1/distributions/{char_id}/fit | char_id path | DistributionFitResponse | get_current_engineer |
+| GET | /api/v1/distributions/{char_id}/status | char_id path | DistributionStatusResponse | get_current_user |
+| POST | /api/v1/distributions/{char_id}/reset | char_id path | {status: "reset"} | get_current_engineer |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| capability | `core/capability.py` | calculate_capability(values, usl, lsl, target, sigma_within) -> CapabilityResult |
-| distributions | `core/distributions.py` | DistributionFitter.fit(values), calculate_capability_nonnormal(values, usl, lsl, method, params), auto_cascade() |
+| capability | `core/capability.py` | calculate_capability(samples, usl, lsl, target) -> CapabilityResult, calculate_capability_nonnormal(), save_capability_snapshot() |
+| DistributionFitter | `core/distributions.py` | fit(values) -> DistributionFitResult (6 families: normal, lognormal, weibull, gamma, exponential, beta); auto-cascade: Shapiro-Wilk -> Box-Cox -> dist fit -> percentile |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| CapabilityHistoryRepository | `db/repositories/capability.py` | create_snapshot, get_by_characteristic, get_latest |
+| CapabilityRepository | `db/repositories/capability.py` | create, get_by_characteristic, get_latest |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| CapabilityCard | `components/capability/CapabilityCard.tsx` | characteristicId | useCapability, useCapabilityHistory |
-| DistributionAnalysis | `components/capability/DistributionAnalysis.tsx` | characteristicId, onClose | useDistributionFit, useDistributionInfo |
+| CapabilityCard | `components/capability/CapabilityCard.tsx` | characteristicId | useCapability, useCapabilityHistory, useSaveCapability |
+| DistributionAnalysis | `components/capability/DistributionAnalysis.tsx` | characteristicId, onClose | useDistributionFit, useDistributionStatus |
+| ReportPreview | `components/ReportPreview.tsx` | - | useCapability (shared with reporting) |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useCapability | qualityApi.getCapability | GET /characteristics/:id/capability | ['capability', 'current', charId] |
-| useCapabilityHistory | qualityApi.getCapabilityHistory | GET /characteristics/:id/capability/history | ['capability', 'history', charId] |
-| useSaveCapabilitySnapshot | qualityApi.saveSnapshot | POST /characteristics/:id/capability/snapshot | invalidates history |
-| useDistributionFit | qualityApi.fitDistribution | POST /characteristics/:id/distribution/fit | - |
+| useCapability | qualityApi | GET /capability/:id | ['capability', id] |
+| useCapabilityHistory | qualityApi | GET /capability/:id/history | ['capability', 'history', id] |
+| useSaveCapability | qualityApi | POST /capability/:id/save | invalidates capability |
+| useDistributionFit | qualityApi | POST /distributions/:id/fit | ['distributions', id] |
+| useDistributionStatus | qualityApi | GET /distributions/:id/status | ['distributions', 'status', id] |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /dashboard | OperatorDashboard | CapabilityCard (alongside ChartPanel) |
-| /reports | ReportsView | ReportPreview (includes capability data) |
+| /dashboard | OperatorDashboard | CapabilityCard (in sidebar panel) |
 
 ## Migrations
-- 025: capability_history table
+- 025: capability_history table (cp, cpk, pp, ppk, cpm, method, sample_count, characteristic_id FK)
+- 032: distribution_method, box_cox_lambda, distribution_params on characteristic
 
 ## Known Issues / Gotchas
-- Non-normal capability: when distribution_method is set (and not "normal"), GET must dispatch to calculate_capability_nonnormal()
-- Box-Cox Cp==Pp wrong sigma was fixed in Sprint 5 skeptic review
-- Shapiro-Wilk uses random sample of 5000 when n > 5000
-- USL must be > LSL validation added in Sprint 5
-- Capability GET must also respect short_run_mode
+- When characteristic.distribution_method is set (not "normal"), GET capability must dispatch to calculate_capability_nonnormal()
+- Box-Cox Cp==Pp was a blocker (fixed: uses different sigma for short-term vs long-term)
+- Shapiro-Wilk uses random sample of 5000 for large datasets
+- Non-normal capability uses percentile method as final fallback
+- save_capability_snapshot must also dispatch non-normal when distribution_method is set

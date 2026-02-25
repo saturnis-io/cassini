@@ -5,19 +5,19 @@
 ```mermaid
 flowchart TD
     subgraph Frontend
-        C1[RetentionPolicyForm.tsx] --> H1[useRetentionPolicy]
-        C2[RetentionTreeBrowser.tsx] --> H2[useRetentionOverrides]
-        C3[InheritanceChain.tsx] --> H3[useEffectiveRetention]
+        C1[RetentionSettings.tsx] --> H1[useRetentionPolicies]
+        C2[RetentionTreeBrowser.tsx] --> H2[useEffectiveRetention]
     end
     subgraph API
-        H1 --> E1[GET /api/v1/retention/default]
-        H2 --> E2[GET /api/v1/retention/overrides]
-        H3 --> E3[GET /api/v1/retention/effective]
+        H1 --> E1[GET /api/v1/retention/policies]
+        H2 --> E2[GET /api/v1/retention/effective/:charId]
     end
     subgraph Backend
         E1 --> R1[RetentionRepository]
         R1 --> M1[(RetentionPolicy)]
-        S1[PurgeEngine.execute] --> R2[PurgeHistoryRepository]
+        E2 --> S1[resolve_effective_policy]
+        S1 --> M1
+        S2[PurgeEngine.run] --> R2[PurgeHistoryRepository]
         R2 --> M2[(PurgeHistory)]
     end
 ```
@@ -28,23 +28,35 @@ flowchart TD
 erDiagram
     RetentionPolicy }o--o| Characteristic : "scoped to"
     RetentionPolicy }o--o| Hierarchy : "scoped to"
-    RetentionPolicy }o--|| Plant : "for plant"
+    RetentionPolicy }o--|| Plant : "per plant"
     PurgeHistory }o--|| RetentionPolicy : "executed by"
     RetentionPolicy {
         int id PK
         int plant_id FK
         int hierarchy_id FK
         int characteristic_id FK
-        int retention_days
         string scope
-        bool is_default
+        int retention_days
+        bool purge_samples
+        bool purge_violations
+        bool is_active
     }
     PurgeHistory {
         int id PK
         int policy_id FK
+        int samples_deleted
+        int violations_deleted
         datetime executed_at
-        int records_deleted
-        string details
+        float duration_seconds
+    }
+    Plant {
+        int id PK
+    }
+    Hierarchy {
+        int id PK
+    }
+    Characteristic {
+        int id PK
     }
 ```
 
@@ -53,61 +65,63 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| RetentionPolicy | `db/models/retention_policy.py` | id, plant_id FK, hierarchy_id FK (nullable), characteristic_id FK (nullable), retention_days, scope (plant/hierarchy/characteristic), is_default | 021 |
-| PurgeHistory | `db/models/purge_history.py` | id, policy_id FK, executed_at, records_deleted, details JSON | 021 |
+| RetentionPolicy | `db/models/retention_policy.py` | id, plant_id FK, hierarchy_id FK (nullable), characteristic_id FK (nullable), scope (plant/hierarchy/characteristic), retention_days, purge_samples, purge_violations, is_active | 021 |
+| PurgeHistory | `db/models/purge_history.py` | id, policy_id FK, samples_deleted, violations_deleted, executed_at, duration_seconds | 021 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/retention/default | plant_id | RetentionPolicyResponse | get_current_user |
-| PUT | /api/v1/retention/default | plant_id, body: RetentionPolicySet | RetentionPolicyResponse | get_current_engineer |
-| GET | /api/v1/retention/overrides | plant_id | list[RetentionOverrideResponse] | get_current_user |
-| PUT | /api/v1/retention/overrides | plant_id, body: RetentionPolicySet | RetentionOverrideResponse | get_current_engineer |
-| DELETE | /api/v1/retention/overrides/{id} | - | 204 | get_current_engineer |
-| GET | /api/v1/retention/effective | plant_id, hierarchy_id?, characteristic_id? | EffectiveRetentionResponse | get_current_user |
-| GET | /api/v1/retention/activity | plant_id | list[PurgeHistoryResponse] | get_current_user |
-| POST | /api/v1/retention/purge | plant_id | PurgeHistoryResponse | get_current_admin |
+| GET | /api/v1/retention/policies | plant_id | list[RetentionPolicyResponse] | get_current_user |
+| POST | /api/v1/retention/policies | RetentionPolicySet body | RetentionPolicyResponse | get_current_engineer |
+| GET | /api/v1/retention/policies/{id} | id path | RetentionPolicyResponse | get_current_user |
+| PATCH | /api/v1/retention/policies/{id} | update body | RetentionPolicyResponse | get_current_engineer |
+| DELETE | /api/v1/retention/policies/{id} | id path | 204 | get_current_engineer |
+| GET | /api/v1/retention/effective/{char_id} | char_id path | EffectiveRetentionResponse | get_current_user |
+| GET | /api/v1/retention/overrides | plant_id, hierarchy_id | list[RetentionOverrideResponse] | get_current_user |
+| GET | /api/v1/retention/history | plant_id, limit | list[PurgeHistoryResponse] | get_current_user |
+| POST | /api/v1/retention/purge | plant_id, dry_run | PurgeResultResponse | get_current_admin |
 | GET | /api/v1/retention/next-purge | plant_id | NextPurgeResponse | get_current_user |
-| DELETE | /api/v1/retention/all | plant_id | 204 | get_current_admin |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| PurgeEngine | `core/purge_engine.py` | execute(plant_id) -> PurgeResult, resolve_effective_policy(char_id), schedule_next_purge() |
+| PurgeEngine | `core/purge_engine.py` | run(plant_id, dry_run) -> PurgeResult; resolves inheritance chain (characteristic -> hierarchy -> plant), deletes aged-out data, logs to purge_history |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| RetentionRepository | `db/repositories/retention.py` | get_default, set_default, get_overrides, set_override, resolve_effective |
-| PurgeHistoryRepository | `db/repositories/purge_history.py` | create, get_by_plant, get_recent |
+| RetentionRepository | `db/repositories/retention.py` | create, get_by_plant, get_effective, resolve_inheritance |
+| PurgeHistoryRepository | `db/repositories/purge_history.py` | create, list_by_plant |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| RetentionPolicyForm | `components/retention/RetentionPolicyForm.tsx` | policy?, onSave | useSetRetentionPolicy |
-| RetentionTreeBrowser | `components/retention/RetentionTreeBrowser.tsx` | plantId | useRetentionOverrides, useHierarchyTree |
-| RetentionOverridePanel | `components/retention/RetentionOverridePanel.tsx` | override | useDeleteRetentionOverride |
-| InheritanceChain | `components/retention/InheritanceChain.tsx` | characteristicId | useEffectiveRetention |
+| RetentionSettings | `components/RetentionSettings.tsx` | - | useRetentionPolicies, useCreateRetentionPolicy |
+| RetentionTreeBrowser | `components/retention/RetentionTreeBrowser.tsx` | plantId | useEffectiveRetention |
+| RetentionPolicyForm | `components/retention/RetentionPolicyForm.tsx` | policy | useUpdateRetentionPolicy |
+| RetentionOverridePanel | `components/retention/RetentionOverridePanel.tsx` | - | useRetentionOverrides |
+| InheritanceChain | `components/retention/InheritanceChain.tsx` | charId | useEffectiveRetention |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useRetentionPolicy | retentionApi.getDefault | GET /retention/default | ['retention', 'default', plantId] |
-| useRetentionOverrides | retentionApi.getOverrides | GET /retention/overrides | ['retention', 'overrides', plantId] |
-| useEffectiveRetention | retentionApi.getEffective | GET /retention/effective | ['retention', 'effective', params] |
-| usePurgeActivity | retentionApi.getActivity | GET /retention/activity | ['retention', 'activity', plantId] |
+| useRetentionPolicies | retentionApi | GET /retention/policies | ['retention', 'policies'] |
+| useEffectiveRetention | retentionApi | GET /retention/effective/:id | ['retention', 'effective', id] |
+| usePurgeHistory | retentionApi | GET /retention/history | ['retention', 'history'] |
+| useRunPurge | retentionApi | POST /retention/purge | invalidates history |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /settings | SettingsView | RetentionSettings (tab with RetentionPolicyForm, RetentionTreeBrowser) |
+| /settings/retention | SettingsPage > RetentionSettings | RetentionSettings, RetentionTreeBrowser |
 
 ## Migrations
 - 021: retention_policy, purge_history tables
 
 ## Known Issues / Gotchas
-- Inheritance chain resolution: characteristic -> hierarchy (walk up tree) -> plant default
-- Purge engine deletes samples + measurements + violations older than retention_days
-- Purge is admin-only and creates audit trail in purge_history
+- Inheritance chain: characteristic policy overrides hierarchy, which overrides plant-level
+- PurgeEngine resolves the effective policy per characteristic before deleting
+- Purge is admin-only with optional dry_run mode
+- Purge history tracks samples_deleted, violations_deleted, duration_seconds

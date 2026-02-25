@@ -5,21 +5,18 @@
 ```mermaid
 flowchart TD
     subgraph Frontend
-        C1[ReportPreview.tsx] --> H1[useCharacteristic]
-        C1 --> H2[useChartData]
-        C1 --> H3[useCapability]
-        C2[ReportsView.tsx] --> H4[useReportSchedules]
+        C1[ReportPreview.tsx] --> H1[useReportData]
+        C2[ReportsView.tsx] --> H2[useScheduledReports]
     end
     subgraph API
-        H1 --> E1[GET /api/v1/characteristics/:id]
-        H2 --> E2[GET /api/v1/characteristics/:id/chart-data]
-        H4 --> E3[GET /api/v1/reports/schedules/]
+        H1 --> E1[GET /api/v1/characteristics/:id/chart-data]
+        H2 --> E2[GET /api/v1/scheduled-reports/]
     end
     subgraph Backend
-        E3 --> R1[ReportScheduleRepository]
+        E2 --> R1[ReportScheduleRepository]
         R1 --> M1[(ReportSchedule)]
-        S1[ReportGenerator] --> R2[SampleRepository]
-        S2[ReportScheduler] --> S1
+        S1[ReportScheduler.tick] --> S2[ReportGenerator]
+        S2 --> R2[SampleRepository]
     end
 ```
 
@@ -35,17 +32,17 @@ erDiagram
         string name
         string report_type
         string schedule_cron
-        bool is_active
         string recipients
-        int characteristic_id FK
+        bool is_active
+        datetime last_run_at
     }
     ReportRun {
         int id PK
         int schedule_id FK
+        string status
+        string file_path
         datetime started_at
         datetime completed_at
-        string status
-        string output_path
     }
     Plant {
         int id PK
@@ -57,56 +54,59 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| ReportSchedule | `db/models/report_schedule.py` | id, plant_id FK, name, report_type, schedule_cron, is_active, recipients JSON, characteristic_id FK (nullable), last_run_at; rels: runs | 022 |
-| ReportRun | `db/models/report_schedule.py` | id, schedule_id FK, started_at, completed_at, status (running/completed/failed), output_path, error_message | 022 |
+| ReportSchedule | `db/models/report_schedule.py` | id, plant_id FK, name, report_type, schedule_cron, recipients JSON, is_active, last_run_at | 001 |
+| ReportRun | `db/models/report_schedule.py` | id, schedule_id FK, status, file_path, started_at, completed_at | 001 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/reports/schedules/ | plant_id | list[ReportScheduleResponse] | get_current_engineer |
-| POST | /api/v1/reports/schedules/ | body: ReportScheduleCreate | ReportScheduleResponse | get_current_engineer |
-| GET | /api/v1/reports/schedules/{id} | - | ReportScheduleResponse | get_current_engineer |
-| PATCH | /api/v1/reports/schedules/{id} | body: ReportScheduleUpdate | ReportScheduleResponse | get_current_engineer |
-| DELETE | /api/v1/reports/schedules/{id} | - | 204 | get_current_engineer |
-| POST | /api/v1/reports/schedules/{id}/trigger | - | ReportRunResponse | get_current_engineer |
-| GET | /api/v1/reports/schedules/{id}/runs | - | list[ReportRunResponse] | get_current_engineer |
+| GET | /api/v1/scheduled-reports/ | plant_id | list[ReportScheduleResponse] | get_current_user |
+| POST | /api/v1/scheduled-reports/ | ReportScheduleCreate body | ReportScheduleResponse | get_current_engineer |
+| GET | /api/v1/scheduled-reports/{id} | id path | ReportScheduleResponse | get_current_user |
+| PATCH | /api/v1/scheduled-reports/{id} | ReportScheduleUpdate body | ReportScheduleResponse | get_current_engineer |
+| DELETE | /api/v1/scheduled-reports/{id} | id path | 204 | get_current_engineer |
+| POST | /api/v1/scheduled-reports/{id}/run | - | ReportRunResponse | get_current_engineer |
+| GET | /api/v1/scheduled-reports/{id}/runs | limit | list[ReportRunResponse] | get_current_user |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| ReportGenerator | `core/report_generator.py` | generate(schedule) -> output_path (creates PDF/Excel reports) |
-| ReportScheduler | `core/report_scheduler.py` | start(), stop(), check_due_reports() |
+| ReportGenerator | `core/report_generator.py` | generate_report(schedule) -> PDF/HTML report with charts and capability data |
+| ReportScheduler | `core/report_scheduler.py` | tick() -- checks schedules, triggers generation |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| ReportScheduleRepository | `db/repositories/report_schedule.py` | get_by_plant, get_by_id, create, update, delete, get_due_schedules, create_run |
+| ReportScheduleRepository | `db/repositories/report_schedule.py` | create, get_by_id, list_by_plant, get_due_schedules |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| ReportPreview | `components/ReportPreview.tsx` | characteristicId, reportType | useCharacteristic, useChartData, useCapability |
+| ReportPreview | `components/ReportPreview.tsx` | characteristicId | useChartData, useCapability |
+| ReportsView | `pages/ReportsView.tsx` | - | useScheduledReports |
+| ScheduledReports | `components/settings/ScheduledReports.tsx` | - | useScheduledReports |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useReportSchedules | reportsApi.listSchedules | GET /reports/schedules/ | ['report-schedules', 'list', plantId] |
-| useCreateSchedule | reportsApi.createSchedule | POST /reports/schedules/ | invalidates list |
-| useTriggerReport | reportsApi.triggerReport | POST /reports/schedules/:id/trigger | invalidates runs |
-| useReportRuns | reportsApi.getRuns | GET /reports/schedules/:id/runs | ['report-schedules', 'runs', id] |
+| useScheduledReports | reportsApi | GET /scheduled-reports/ | ['reports', 'schedules'] |
+| useCreateScheduledReport | reportsApi | POST /scheduled-reports/ | invalidates schedules |
+| useRunReport | reportsApi | POST /scheduled-reports/:id/run | invalidates runs |
+| useReportRuns | reportsApi | GET /scheduled-reports/:id/runs | ['reports', 'runs', id] |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /reports | ReportsView | ReportPreview, report schedule management |
+| /reports | ReportsView | ReportPreview, report list |
+| /settings/reports | SettingsPage > ScheduledReports | ScheduledReports |
 
 ## Migrations
-- 022: report_schedule, report_run tables
+- 001: report_schedule table (with report_run)
 
 ## Known Issues / Gotchas
-- Report generation is synchronous (no background task queue yet)
-- ReportPreview renders client-side using chart data and capability data
-- Frontend uses lib/report-templates.ts for template definitions
-- Frontend uses lib/export-utils.ts for PDF/Excel export utilities
+- ReportPreview is shared between capability and reporting features
+- Report generation uses chart data from SPC engine + capability data
+- Frontend report templates defined in lib/report-templates.ts
+- Export utilities in lib/export-utils.ts (PDF, CSV, Excel export)
