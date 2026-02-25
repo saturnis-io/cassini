@@ -9,6 +9,7 @@ import { DistributionHistogram } from './DistributionHistogram'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useChartData } from '@/api/hooks'
 import type { HistogramPosition } from '@/stores/dashboardStore'
+import type { ChartTypeId } from '@/types/charts'
 import type { RegionSelection } from '@/components/RegionActionModal'
 
 interface ChartPanelProps {
@@ -18,6 +19,8 @@ interface ChartPanelProps {
     startDate?: string
     endDate?: string
   }
+  /** User-selected chart type — overrides backend chart_type for routing */
+  chartType?: ChartTypeId
   label?: 'Primary' | 'Secondary'
   histogramPosition: HistogramPosition
   showSpecLimits?: boolean
@@ -43,6 +46,7 @@ interface ChartPanelProps {
 export function ChartPanel({
   characteristicId,
   chartOptions,
+  chartType,
   label,
   histogramPosition,
   showSpecLimits = true,
@@ -54,7 +58,6 @@ export function ChartPanel({
 }: ChartPanelProps) {
   const isRightPosition = histogramPosition === 'right'
   const isBelowPosition = histogramPosition === 'below'
-  const showHistogram = histogramPosition !== 'hidden'
 
   // State for cross-chart highlighting (bidirectional)
   // hoveredValue: from X-bar chart hover -> highlights histogram bar
@@ -130,6 +133,13 @@ export function ChartPanel({
   // Fetch chart data to calculate shared Y-axis domain for alignment
   const { data: chartData } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
 
+  // Histogram only applies to standard Shewhart charts (not CUSUM/EWMA/attribute)
+  const isHistogramApplicable =
+    chartData?.data_type !== 'attribute' &&
+    chartType !== 'cusum' && chartData?.chart_type !== 'cusum' &&
+    chartType !== 'ewma' && chartData?.chart_type !== 'ewma'
+  const showHistogram = histogramPosition !== 'hidden' && isHistogramApplicable
+
   // Shared domain keeps histogram + control chart Y-axes aligned
   const yAxisDomain = useMemo(
     () => calculateSharedYAxisDomain(chartData, showSpecLimits),
@@ -147,12 +157,15 @@ export function ChartPanel({
       {/* Control Chart, Attribute Chart, CUSUM Chart, or EWMA Chart */}
       <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
         <ErrorBoundary>
+          {/* Route by user-selected chart type first, then fall back to backend metadata */}
           {chartData?.data_type === 'attribute' ? (
-            <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
-          ) : chartData?.chart_type === 'cusum' ? (
-            <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} />
-          ) : chartData?.chart_type === 'ewma' ? (
-            <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} />
+            <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
+          ) : (chartType === 'cusum' || chartData?.chart_type === 'cusum') &&
+            chartData?.cusum_data_points?.length ? (
+            <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
+          ) : (chartType === 'ewma' || chartData?.chart_type === 'ewma') &&
+            chartData?.ewma_data_points?.length ? (
+            <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
           ) : (
             <ControlChart
               characteristicId={characteristicId}

@@ -278,13 +278,30 @@ export function AppearanceSettings() {
         <div className="bg-muted rounded-xl p-6">
           <h3 className="mb-2 font-semibold">Visual Style</h3>
           <p className="text-muted-foreground mb-4 text-sm">
-            Choose between a retro control-panel aesthetic or a modern glassmorphism look.
+            Choose a visual style for the interface.
           </p>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => setVisualStyle('modern')}
+              className={cn(
+                'rounded-lg border-2 p-4 text-left transition-all',
+                visualStyle === 'modern'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Modern</span>
+                {visualStyle === 'modern' && <Check className="text-primary h-4 w-4" />}
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Clean, rounded, standard look
+              </p>
+            </button>
             <button
               onClick={() => setVisualStyle('retro')}
               className={cn(
-                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                'rounded-lg border-2 p-4 text-left transition-all',
                 visualStyle === 'retro'
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-primary/50',
@@ -301,7 +318,7 @@ export function AppearanceSettings() {
             <button
               onClick={() => setVisualStyle('glass')}
               className={cn(
-                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                'rounded-lg border-2 p-4 text-left transition-all',
                 visualStyle === 'glass'
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:border-primary/50',

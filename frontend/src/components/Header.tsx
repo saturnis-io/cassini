@@ -93,6 +93,9 @@ export function Header({ className, plantSelector }: HeaderProps) {
         >
           {appName}
         </span>
+        <span className="text-muted-foreground hidden text-xs font-normal tracking-wide lg:inline">
+          Enterprise Statistical Process Control
+        </span>
       </div>
 
       {/* Right: Plant selector, theme toggle, user menu */}

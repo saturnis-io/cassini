@@ -528,66 +528,6 @@ export function DistributionHistogram({
 
       return {
         animation: false,
-        graphic: cpk > 0 ? [
-          {
-            type: 'group',
-            right: 35,
-            top: 4,
-            children: [
-              {
-                type: 'rect',
-                shape: { width: 72, height: 20, r: 4 },
-                style: {
-                  fill: cpk >= 1.33 ? 'rgba(34, 197, 94, 0.15)' : cpk >= 1.0 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  stroke: cpk >= 1.33 ? 'rgba(34, 197, 94, 0.3)' : cpk >= 1.0 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-                  lineWidth: 1,
-                },
-              },
-              {
-                type: 'text',
-                style: {
-                  text: `Cpk ${cpk.toFixed(2)}`,
-                  x: 36,
-                  y: 10,
-                  textAlign: 'center',
-                  textVerticalAlign: 'middle',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  fill: cpk >= 1.33 ? 'rgb(34, 197, 94)' : cpk >= 1.0 ? 'rgb(180, 140, 8)' : 'rgb(239, 68, 68)',
-                },
-              },
-            ],
-          },
-          ...(ppk > 0 ? [{
-            type: 'group' as const,
-            right: 35,
-            top: 28,
-            children: [
-              {
-                type: 'rect' as const,
-                shape: { width: 72, height: 20, r: 4 },
-                style: {
-                  fill: 'rgba(139, 92, 246, 0.1)',
-                  stroke: 'rgba(139, 92, 246, 0.25)',
-                  lineWidth: 1,
-                },
-              },
-              {
-                type: 'text' as const,
-                style: {
-                  text: `Ppk ${ppk.toFixed(2)}`,
-                  x: 36,
-                  y: 10,
-                  textAlign: 'center',
-                  textVerticalAlign: 'middle',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  fill: 'rgb(139, 92, 246)',
-                },
-              },
-            ],
-          }] : []),
-        ] : undefined,
         grid: {
           top: matchedGridTop,
           right: 30,
@@ -722,9 +662,6 @@ export function DistributionHistogram({
     showSpecLimits,
     xAxisMode,
     gridBottom,
-    cp,
-    cpk,
-    ppk,
   ])
 
   // Mouse event handlers

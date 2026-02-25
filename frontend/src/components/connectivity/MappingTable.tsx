@@ -8,7 +8,7 @@ type SortDir = 'asc' | 'desc'
 
 interface MappingTableProps {
   mappings: MappingRowData[]
-  unmappedCharacteristics: { id: number; name: string }[]
+  unmappedCharacteristics: { id: number; name: string; hierarchyPath?: string }[]
   filter: 'all' | 'mqtt' | 'opcua' | 'unmapped'
   searchQuery: string
   onEdit: (mapping: MappingRowData) => void
@@ -60,6 +60,7 @@ export function MappingTable({
       result = result.filter(
         (m) =>
           m.characteristicName.toLowerCase().includes(q) ||
+          (m.hierarchyPath ?? '').toLowerCase().includes(q) ||
           m.source.toLowerCase().includes(q) ||
           (m.serverName ?? '').toLowerCase().includes(q),
       )
@@ -157,6 +158,7 @@ export function MappingTable({
                 <UnmappedRow
                   key={`unmapped-${c.id}`}
                   characteristicName={c.name}
+                  hierarchyPath={c.hierarchyPath}
                   onMap={() => onMapUnmapped(c.id)}
                 />
               ))}

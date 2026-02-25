@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Plus, Search, Link2, Loader2 } from 'lucide-react'
 import { tagApi, characteristicApi } from '@/api/client'
+import { useHierarchyTree } from '@/api/hooks'
 import { useUIStore } from '@/stores/uiStore'
+import type { HierarchyNode } from '@/types'
 import { MappingTable } from './MappingTable'
 import { MappingDialog } from './MappingDialog'
 import type { MappingRowData } from './MappingRow'
@@ -39,6 +41,28 @@ export function MappingTab() {
 
   const characteristics = charData?.items ?? []
 
+  // Fetch hierarchy tree for building paths
+  const { data: hierarchyTree } = useHierarchyTree()
+
+  // Build a lookup from hierarchy_id → path string
+  const hierarchyPathMap = useMemo(() => {
+    const map = new Map<number, string>()
+    if (!hierarchyTree) return map
+
+    function walk(nodes: HierarchyNode[], ancestors: string[]) {
+      for (const node of nodes) {
+        const path = [...ancestors, node.name]
+        map.set(node.id, path.join(' > '))
+        if (node.children?.length) {
+          walk(node.children, path)
+        }
+      }
+    }
+
+    walk(hierarchyTree, [])
+    return map
+  }, [hierarchyTree])
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (charId: number) => tagApi.deleteMapping(charId),
@@ -49,24 +73,37 @@ export function MappingTab() {
     onError: (err: Error) => toast.error(`Delete failed: ${err.message}`),
   })
 
+  // Build charId → hierarchy_id lookup
+  const charHierarchyMap = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const c of characteristics) {
+      map.set(c.id, c.hierarchy_id)
+    }
+    return map
+  }, [characteristics])
+
   // Transform MQTT mappings into unified MappingRowData
   const mappingRows: MappingRowData[] = useMemo(() => {
-    const mqttRows: MappingRowData[] = (mqttMappings ?? []).map((m: TagMappingResponse) => ({
-      id: m.data_source_id,
-      characteristicId: m.characteristic_id,
-      characteristicName: m.characteristic_name,
-      protocol: 'mqtt' as const,
-      source: m.mqtt_topic,
-      sourceDetail: m.metric_name ? `metric: ${m.metric_name}` : undefined,
-      serverName: m.broker_name,
-      triggerStrategy: m.trigger_strategy,
-      isActive: m.is_active,
-      hasError: false,
-    }))
+    const mqttRows: MappingRowData[] = (mqttMappings ?? []).map((m: TagMappingResponse) => {
+      const hierarchyId = charHierarchyMap.get(m.characteristic_id)
+      return {
+        id: m.data_source_id,
+        characteristicId: m.characteristic_id,
+        characteristicName: m.characteristic_name,
+        hierarchyPath: hierarchyId ? hierarchyPathMap.get(hierarchyId) : undefined,
+        protocol: 'mqtt' as const,
+        source: m.mqtt_topic,
+        sourceDetail: m.metric_name ? `metric: ${m.metric_name}` : undefined,
+        serverName: m.broker_name,
+        triggerStrategy: m.trigger_strategy,
+        isActive: m.is_active,
+        hasError: false,
+      }
+    })
 
     // TODO: Add OPC-UA mappings when the unified data-source API is available
     return mqttRows
-  }, [mqttMappings])
+  }, [mqttMappings, charHierarchyMap, hierarchyPathMap])
 
   // Determine unmapped characteristics
   const mappedCharIds = useMemo(() => {
@@ -86,8 +123,12 @@ export function MappingTab() {
     () =>
       characteristics
         .filter((c) => !mappedCharIds.has(c.id))
-        .map((c) => ({ id: c.id, name: c.name })),
-    [characteristics, mappedCharIds],
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          hierarchyPath: hierarchyPathMap.get(c.hierarchy_id),
+        })),
+    [characteristics, mappedCharIds, hierarchyPathMap],
   )
 
   const isLoading = mqttLoading || charLoading

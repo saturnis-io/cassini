@@ -5,7 +5,6 @@ import {
   ArrowLeftRight,
   CalendarClock,
   SlidersHorizontal,
-  MessageSquareText,
   Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -13,7 +12,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
-import { recommendChartType } from '@/lib/chart-registry'
+import { recommendChartType, HISTOGRAM_CHART_TYPES } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 
 interface ChartToolbarProps {
@@ -21,8 +20,12 @@ interface ChartToolbarProps {
   characteristicId?: number | null
   /** Subgroup size of the characteristic (for chart type recommendations) */
   subgroupSize?: number
+  /** Whether the characteristic uses attribute data (pass/fail, defect counts) */
+  isAttributeData?: boolean
   /** Override chart type (e.g. from characteristic's chart_type field for CUSUM/EWMA) */
   overrideChartType?: ChartTypeId | null
+  /** Callback when attribute chart type changes (p/np/c/u) — persists to backend */
+  onAttributeChartTypeChange?: (chartType: string) => void
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
 }
@@ -60,7 +63,9 @@ function ToolbarBtn({
 export function ChartToolbar({
   characteristicId,
   subgroupSize = 5,
+  isAttributeData = false,
   overrideChartType,
+  onAttributeChartTypeChange,
   onComparisonToggle,
   onChangeSecondary,
 }: ChartToolbarProps) {
@@ -76,37 +81,44 @@ export function ChartToolbar({
     setXAxisMode,
     showBrush,
     setShowBrush,
-    showAnnotations,
-    setShowAnnotations,
     showAnomalies,
     setShowAnomalies,
   } = useDashboardStore()
 
   // Get current chart type for the characteristic (fall back to override or recommended type for subgroup size)
+  const storeChartType = characteristicId ? chartTypes.get(characteristicId) : undefined
   const currentChartType: ChartTypeId =
-    (characteristicId && chartTypes.get(characteristicId)) || overrideChartType || recommendChartType(subgroupSize)
+    storeChartType || overrideChartType || recommendChartType(subgroupSize)
 
   const handleChartTypeChange = (chartType: ChartTypeId) => {
     if (characteristicId) {
       setChartType(characteristicId, chartType)
+      // For attribute charts, persist to backend so limits are recomputed
+      if (isAttributeData && ['p', 'np', 'c', 'u'].includes(chartType)) {
+        onAttributeChartTypeChange?.(chartType)
+      }
     }
   }
 
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center gap-1 py-1">
+    <div className="flex flex-shrink-0 items-center gap-1 py-1">
       {/* Left group — data controls */}
       <div className="flex items-center gap-1">
         <TimeRangeSelector />
 
-        <div className="bg-border/40 mx-0.5 h-4 w-px" />
-
-        <HistogramPositionSelector />
+        {HISTOGRAM_CHART_TYPES.includes(currentChartType) && (
+          <>
+            <div className="bg-border/40 mx-0.5 h-4 w-px" />
+            <HistogramPositionSelector />
+          </>
+        )}
 
         {characteristicId && (
           <ChartTypeSelector
             value={currentChartType}
             onChange={handleChartTypeChange}
             subgroupSize={subgroupSize}
+            isAttributeData={isAttributeData}
           />
         )}
 
@@ -136,15 +148,6 @@ export function ChartToolbar({
 
       {/* Right group — visibility toggles */}
       <div className="flex items-center gap-1">
-        <ToolbarBtn
-          active={showAnnotations}
-          onClick={() => setShowAnnotations(!showAnnotations)}
-          title={showAnnotations ? 'Hide annotation list' : 'Show annotation list'}
-        >
-          <MessageSquareText className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Annotations</span>
-        </ToolbarBtn>
-
         <ToolbarBtn
           active={showAnomalies}
           onClick={() => setShowAnomalies(!showAnomalies)}

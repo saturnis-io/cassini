@@ -30,9 +30,9 @@
   --color-muted: hsl(210 10% 96%);
   --color-muted-foreground: hsl(210 8% 46%);
 
-  /* Accent - Deep Navy */
-  --color-accent: hsl(220 80% 8%); /* Deep Space Navy */
-  --color-accent-foreground: hsl(45 30% 95%);
+  /* Accent - Subtle hover state */
+  --color-accent: hsl(220 15% 93%); /* Light gray with navy tint for hover */
+  --color-accent-foreground: hsl(220 80% 8%); /* Deep Space Navy text on hover */
 
   /* Semantic colors - Cassini palette */
   --color-destructive: hsl(357 80% 52%); /* Cassini Red */
@@ -358,9 +358,9 @@ h6 {
   letter-spacing: -0.025em;
 }
 
-/* Subtle gradient text for headings (brand primary to accent) */
+/* Subtle gradient text for headings (brand primary to Deep Navy) */
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-foreground) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -407,9 +407,9 @@ h6 {
   --color-foreground: hsl(0 0% 95%);
 
   /* Card surfaces - Elevated dark */
-  --color-card: hsl(220 40% 10%);
+  --color-card: hsl(220 30% 12%);
   --color-card-foreground: hsl(0 0% 95%);
-  --color-popover: hsl(220 15% 15%);
+  --color-popover: hsl(220 20% 18%);
   --color-popover-foreground: hsl(0 0% 95%);
 
   /* Primary - Bright Cassini Gold */
@@ -424,9 +424,9 @@ h6 {
   --color-muted: hsl(220 10% 20%);
   --color-muted-foreground: hsl(220 5% 60%);
 
-  /* Accent - Deep Navy elevated */
-  --color-accent: hsl(220 40% 15%);
-  --color-accent-foreground: hsl(220 15% 10%);
+  /* Accent - Slightly lighter than card for hover visibility */
+  --color-accent: hsl(220 25% 18%);
+  --color-accent-foreground: hsl(0 0% 93%);
 
   /* Semantic colors - Brightened for dark mode */
   --color-destructive: hsl(357 85% 60%);
@@ -437,7 +437,7 @@ h6 {
   --color-success-foreground: hsl(0 0% 100%);
 
   /* Borders and inputs */
-  --color-border: hsl(220 10% 20%);
+  --color-border: hsl(220 10% 22%);
   --color-input: hsl(220 10% 18%);
   --color-ring: hsl(46 70% 58% / 0.4);
 
@@ -476,14 +476,17 @@ h6 {
 
 /* Dark mode card styling */
 .dark .bg-card {
-  background: hsl(220 15% 13%);
-  border-color: hsl(220 10% 18%);
+  background: hsl(220 20% 13%);
+  border-color: hsl(220 10% 20%);
 }
 
 /* Dark mode popover styling */
 .dark .bg-popover {
-  background: hsl(220 15% 15%);
-  border-color: hsl(220 10% 20%);
+  background: hsl(220 20% 20%);
+  border-color: hsl(220 10% 28%);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 0 1px hsl(220 10% 25%);
 }
 
 /* Dark mode input styling */
@@ -531,6 +534,12 @@ h6 {
   box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
 }
 
+.dark.retro .bg-popover {
+  background: hsl(220 20% 20%);
+  border-color: hsl(220 10% 30%);
+  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.7);
+}
+
 .retro .bg-card::before {
   content: '';
   position: absolute;
@@ -553,6 +562,22 @@ h6 {
   border-bottom: 2px solid var(--color-primary);
   border-right: 2px solid var(--color-primary);
   pointer-events: none;
+}
+
+/* Retro: structural elements (header, sidebar, footer) — no corner decorations or card shadow */
+.retro header.bg-card,
+.retro aside.bg-card,
+.retro footer.bg-card {
+  box-shadow: none;
+}
+
+.retro header.bg-card::before,
+.retro header.bg-card::after,
+.retro aside.bg-card::before,
+.retro aside.bg-card::after,
+.retro footer.bg-card::before,
+.retro footer.bg-card::after {
+  content: none;
 }
 
 .retro button:not(.stat-badge) {
@@ -584,6 +609,14 @@ h6 {
   letter-spacing: 0.05em;
 }
 
+/* Retro: nav links use monospace font + uppercase to match retro aesthetic */
+.retro nav a,
+.retro nav button {
+  font-family: 'Courier New', 'Consolas', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 @layer base {
   .retro input,
   .retro select,
@@ -605,22 +638,72 @@ h6 {
   --radius: 1rem;
 }
 
+/* Glass positioning in @layer base so Tailwind utilities (absolute, fixed) can override */
+@layer base {
+  .glass .bg-card,
+  .glass .bg-popover {
+    position: relative;
+    isolation: isolate;
+  }
+}
+
 .glass .bg-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 1rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
 }
 
+.glass .bg-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
 .glass .bg-popover {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 1rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.glass .bg-popover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: inherit;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Glass: structural elements (header, sidebar, footer) — sharp edges, no rounded corners */
+.glass header.bg-card,
+.glass aside.bg-card,
+.glass footer.bg-card {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.glass header.bg-card::before,
+.glass aside.bg-card::before,
+.glass footer.bg-card::before {
+  border-radius: 0;
+}
+
+.dark.glass header.bg-card,
+.dark.glass aside.bg-card,
+.dark.glass footer.bg-card {
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .glass button:not(:disabled):hover {
@@ -633,7 +716,6 @@ h6 {
   .glass select,
   .glass textarea {
     background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(8px);
     border-radius: 0.75rem;
     border: 1px solid rgba(255, 255, 255, 0.3);
   }
@@ -641,15 +723,25 @@ h6 {
 
 /* Glass dark mode overrides */
 .dark.glass .bg-card {
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+.dark.glass .bg-card::before {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .dark.glass .bg-popover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dark.glass .bg-popover::before {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 @layer base {

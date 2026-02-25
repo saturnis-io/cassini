@@ -1,9 +1,14 @@
 /**
  * ChartTypeSelector - Dropdown for selecting chart types.
- * Groups charts by category (Variable, Attribute, Analysis).
+ *
+ * Shows ALL chart types grouped by category (Variable, Attribute, Analysis).
+ * Incompatible charts are disabled with a reason (wrong data type, wrong
+ * subgroup size). This matches how SPC practitioners think: variable data
+ * charts simply don't apply to attribute data, and vice versa.
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Check, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -34,6 +39,34 @@ const CATEGORY_LABELS = {
   analysis: 'Analysis',
 } as const
 
+/**
+ * Determine why a chart type is disabled for the current characteristic.
+ * Returns null if the chart is compatible, or a reason string if not.
+ */
+function getDisabledReason(
+  chartType: { id: ChartTypeId; dataType: string; minSubgroupSize: number; maxSubgroupSize: number | null },
+  subgroupSize: number,
+  isAttributeData: boolean,
+): string | null {
+  // Data type mismatch
+  if (isAttributeData && chartType.dataType === 'continuous') {
+    return 'Requires variable (continuous) data'
+  }
+  if (!isAttributeData && chartType.dataType === 'attribute') {
+    return 'Requires attribute data'
+  }
+
+  // Subgroup size mismatch (only for same-data-type charts)
+  if (!isChartTypeCompatible(chartType.id, subgroupSize)) {
+    if (chartType.maxSubgroupSize !== null && subgroupSize > chartType.maxSubgroupSize) {
+      return `Requires n\u2264${chartType.maxSubgroupSize}`
+    }
+    return `Requires n\u2265${chartType.minSubgroupSize}`
+  }
+
+  return null
+}
+
 export function ChartTypeSelector({
   value,
   onChange,
@@ -42,12 +75,21 @@ export function ChartTypeSelector({
   className,
 }: ChartTypeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const currentChart = chartTypeRegistry[value]
   const chartGroups = getChartTypesGrouped()
-  const recommendedType = recommendChartType(subgroupSize)
+  const recommendedType = isAttributeData ? null : recommendChartType(subgroupSize)
+
+  const openDropdown = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setIsOpen(true)
+  }, [])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -88,31 +130,74 @@ export function ChartTypeSelector({
     setIsOpen(false)
   }
 
-  // Filter visible chart types based on data type
-  const getVisibleChartTypes = () => {
-    if (isAttributeData) {
-      return {
-        variable: [], // Hide variable charts for attribute data
-        attribute: chartGroups.attribute,
-        analysis: chartGroups.analysis,
-      }
-    }
-    return {
-      variable: chartGroups.variable,
-      attribute: [], // Hide attribute charts for variable data
-      analysis: chartGroups.analysis.filter((ct) => ct.dataType === 'continuous'),
-    }
+  const renderChartOption = (
+    chartType: (typeof chartGroups.variable)[number],
+    isSelected: boolean,
+    disabledReason: string | null,
+  ) => {
+    const isCompatible = disabledReason === null
+    const isRecommended = chartType.id === recommendedType
+
+    return (
+      <button
+        key={chartType.id}
+        type="button"
+        onClick={() => isCompatible && handleSelect(chartType.id)}
+        disabled={!isCompatible}
+        className={cn(
+          'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
+          'transition-colors',
+          isSelected && 'bg-primary/10',
+          isCompatible && !isSelected && 'hover:bg-muted',
+          !isCompatible && 'cursor-not-allowed opacity-50',
+        )}
+        role="option"
+        aria-selected={isSelected}
+        aria-disabled={!isCompatible}
+      >
+        {/* Selection indicator */}
+        <div className="flex h-4 w-4 items-center justify-center">
+          {isSelected && <Check className="text-primary h-4 w-4" />}
+        </div>
+
+        {/* Chart info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
+              {chartType.shortName}
+            </span>
+            {isRecommended && isCompatible && (
+              <span className="bg-primary/20 text-primary rounded px-1.5 py-0.5 text-xs">
+                Recommended
+              </span>
+            )}
+            {chartType.recommendedSubgroupRange && isCompatible && (
+              <span className="text-muted-foreground text-xs">
+                n={chartType.recommendedSubgroupRange[0]}-
+                {chartType.recommendedSubgroupRange[1]}
+              </span>
+            )}
+          </div>
+          <p className="text-muted-foreground truncate text-xs">
+            {disabledReason ?? chartType.description}
+          </p>
+        </div>
+
+        {/* Help tooltip */}
+        {chartType.helpKey && (
+          <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
+        )}
+      </button>
+    )
   }
 
-  const visibleGroups = getVisibleChartTypes()
-
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn(className)}>
       {/* Trigger button */}
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => (isOpen ? setIsOpen(false) : openDropdown())}
         className={cn(
           'flex items-center gap-2 rounded-lg px-3 py-1.5',
           'bg-muted/50 hover:bg-muted transition-colors',
@@ -127,185 +212,58 @@ export function ChartTypeSelector({
         <ChevronDown className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
-      {/* Dropdown menu */}
-      {isOpen && (
+      {/* Dropdown menu — portaled to body to escape parent transforms/overflow */}
+      {isOpen && createPortal(
         <div
           ref={dropdownRef}
           className={cn(
-            'absolute top-full left-0 z-50 mt-1',
+            'fixed z-50',
             'min-w-[280px]',
             'bg-popover border-border rounded-lg border shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-150',
           )}
+          style={{ top: dropdownPos.top, left: dropdownPos.left }}
           role="listbox"
           aria-label="Select chart type"
         >
           {/* Variable Data section */}
-          {visibleGroups.variable.length > 0 && (
+          {chartGroups.variable.length > 0 && (
             <div className="p-1">
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold uppercase tracking-wider">
                 {CATEGORY_LABELS.variable}
               </div>
-              {visibleGroups.variable.map((chartType) => {
-                const isCompatible = isChartTypeCompatible(chartType.id, subgroupSize)
-                const isRecommended = chartType.id === recommendedType
+              {chartGroups.variable.map((chartType) => {
                 const isSelected = chartType.id === value
-
-                return (
-                  <button
-                    key={chartType.id}
-                    type="button"
-                    onClick={() => isCompatible && handleSelect(chartType.id)}
-                    disabled={!isCompatible}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
-                      'transition-colors',
-                      isSelected && 'bg-primary/10',
-                      isCompatible && !isSelected && 'hover:bg-muted',
-                      !isCompatible && 'cursor-not-allowed opacity-50',
-                    )}
-                    role="option"
-                    aria-selected={isSelected}
-                    aria-disabled={!isCompatible}
-                  >
-                    {/* Selection indicator */}
-                    <div className="flex h-4 w-4 items-center justify-center">
-                      {isSelected && <Check className="text-primary h-4 w-4" />}
-                    </div>
-
-                    {/* Chart info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
-                          {chartType.shortName}
-                        </span>
-                        {isRecommended && isCompatible && (
-                          <span className="bg-primary/20 text-primary rounded px-1.5 py-0.5 text-xs">
-                            Recommended
-                          </span>
-                        )}
-                        {chartType.recommendedSubgroupRange && (
-                          <span className="text-muted-foreground text-xs">
-                            n={chartType.recommendedSubgroupRange[0]}-
-                            {chartType.recommendedSubgroupRange[1]}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground truncate text-xs">
-                        {chartType.description}
-                      </p>
-                    </div>
-
-                    {/* Help tooltip */}
-                    {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
-                    )}
-                  </button>
-                )
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
           )}
 
           {/* Attribute Data section */}
-          {visibleGroups.attribute.length > 0 && (
+          {chartGroups.attribute.length > 0 && (
             <div className="border-border border-t p-1">
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold uppercase tracking-wider">
                 {CATEGORY_LABELS.attribute}
               </div>
-              {visibleGroups.attribute.map((chartType) => {
+              {chartGroups.attribute.map((chartType) => {
                 const isSelected = chartType.id === value
-
-                return (
-                  <button
-                    key={chartType.id}
-                    type="button"
-                    onClick={() => handleSelect(chartType.id)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
-                      'transition-colors',
-                      isSelected && 'bg-primary/10',
-                      !isSelected && 'hover:bg-muted',
-                    )}
-                    role="option"
-                    aria-selected={isSelected}
-                  >
-                    <div className="flex h-4 w-4 items-center justify-center">
-                      {isSelected && <Check className="text-primary h-4 w-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
-                          {chartType.shortName}
-                        </span>
-                        {chartType.attributeType && (
-                          <span className="text-muted-foreground text-xs">
-                            ({chartType.attributeType})
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground truncate text-xs">
-                        {chartType.description}
-                      </p>
-                    </div>
-                    {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
-                    )}
-                  </button>
-                )
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
           )}
 
           {/* Analysis section */}
-          {visibleGroups.analysis.length > 0 && (
+          {chartGroups.analysis.length > 0 && (
             <div className="border-border border-t p-1">
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold tracking-wider uppercase">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-semibold uppercase tracking-wider">
                 {CATEGORY_LABELS.analysis}
               </div>
-              {visibleGroups.analysis.map((chartType) => {
-                const isCompatible = isChartTypeCompatible(chartType.id, subgroupSize)
+              {chartGroups.analysis.map((chartType) => {
                 const isSelected = chartType.id === value
-
-                return (
-                  <button
-                    key={chartType.id}
-                    type="button"
-                    onClick={() => isCompatible && handleSelect(chartType.id)}
-                    disabled={!isCompatible}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left',
-                      'transition-colors',
-                      isSelected && 'bg-primary/10',
-                      isCompatible && !isSelected && 'hover:bg-muted',
-                      !isCompatible && 'cursor-not-allowed opacity-50',
-                    )}
-                    role="option"
-                    aria-selected={isSelected}
-                    aria-disabled={!isCompatible}
-                  >
-                    <div className="flex h-4 w-4 items-center justify-center">
-                      {isSelected && <Check className="text-primary h-4 w-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-sm font-medium', isSelected && 'text-primary')}>
-                          {chartType.shortName}
-                        </span>
-                        {!isCompatible && (
-                          <span className="text-muted-foreground text-xs">
-                            (requires n≥{chartType.minSubgroupSize})
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-muted-foreground truncate text-xs">
-                        {chartType.description}
-                      </p>
-                    </div>
-                    {chartType.helpKey && (
-                      <HelpTooltip helpKey={chartType.helpKey} placement="right" triggerAs="span" />
-                    )}
-                  </button>
-                )
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
           )}
@@ -315,16 +273,23 @@ export function ChartTypeSelector({
             <div className="text-muted-foreground flex items-start gap-2 text-xs">
               <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
               <span>
-                Current subgroup size: n={subgroupSize}.
-                {subgroupSize === 1 && ' I-MR is recommended for individual measurements.'}
-                {subgroupSize >= 2 &&
-                  subgroupSize <= 10 &&
-                  ' X-bar R is commonly used for this range.'}
-                {subgroupSize > 10 && ' X-bar S provides better accuracy for larger subgroups.'}
+                {isAttributeData ? (
+                  <>Attribute data — variable charts are not applicable.</>
+                ) : (
+                  <>
+                    Subgroup size: n={subgroupSize}.
+                    {subgroupSize === 1 && ' I-MR is recommended for individual measurements.'}
+                    {subgroupSize >= 2 &&
+                      subgroupSize <= 10 &&
+                      ' X-bar R is commonly used for this range.'}
+                    {subgroupSize > 10 && ' X-bar S provides better accuracy for larger subgroups.'}
+                  </>
+                )}
               </span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

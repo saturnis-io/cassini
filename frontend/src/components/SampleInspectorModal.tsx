@@ -11,6 +11,9 @@ import {
   Hash,
   Layers,
   FlaskConical,
+  Target,
+  Users,
+  Percent,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -33,6 +36,7 @@ import {
   SidebarItem,
   MetaItem,
   StatusChip,
+  StatCard,
   getZoneColor,
   getMeasurementValues,
 } from './sample-inspector'
@@ -136,6 +140,7 @@ export function SampleInspectorModal({
 
   const zoneColor = getZoneColor(zone)
   const precision = characteristic?.decimal_precision ?? 4
+  const isAttribute = characteristic?.data_type === 'attribute'
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const startEditing = useCallback(() => {
@@ -293,7 +298,7 @@ export function SampleInspectorModal({
             <nav className="flex-1 py-2">
               <SidebarItem
                 icon={BarChart3}
-                label="Measurements"
+                label={isAttribute ? 'Details' : 'Measurements'}
                 active={activeSection === 'measurements'}
                 onClick={() => setActiveSection('measurements')}
               />
@@ -330,44 +335,99 @@ export function SampleInspectorModal({
           <div className="flex-1 overflow-y-auto">
             {/* Overview section (always visible) */}
             <div className="border-border border-b px-5 py-4">
-              {/* Large mean value */}
-              <div className="mb-3 flex items-center gap-4">
-                <div className={cn('font-mono text-3xl font-bold tabular-nums', zoneColor.text)}>
-                  {(sample.mean ?? 0).toFixed(precision)}
-                </div>
-                {zone && (
-                  <span
-                    className={cn(
-                      'rounded border px-2 py-0.5 text-xs font-medium',
-                      zoneColor.bg,
-                      zoneColor.text,
+              {/* Large value display — branches on data type */}
+              {isAttribute ? (
+                <>
+                  <div className="mb-3 flex items-center gap-4">
+                    <div className="font-mono text-3xl font-bold tabular-nums">
+                      {sample.defect_count ?? 0}
+                    </div>
+                    <span className="text-muted-foreground text-sm">
+                      defect{(sample.defect_count ?? 0) !== 1 ? 's' : ''}
+                    </span>
+                    {characteristic?.attribute_chart_type && (
+                      <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
+                        {characteristic.attribute_chart_type}-chart
+                      </span>
                     )}
-                  >
-                    {zoneColor.label}
-                  </span>
-                )}
-              </div>
+                  </div>
 
-              {/* Metadata grid */}
-              <div className="mb-3 grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
-                <MetaItem
-                  icon={Clock}
-                  label="Timestamp"
-                  value={new Date(sample.timestamp).toLocaleString()}
-                />
-                <MetaItem icon={Layers} label="Source" value={sample.source ?? 'Manual'} />
-                <MetaItem
-                  icon={Hash}
-                  label="Subgroup"
-                  value={`${getMeasurementValues(sample).length} measurements`}
-                />
-                {sample.batch_number && (
-                  <MetaItem icon={FlaskConical} label="Batch" value={sample.batch_number} />
-                )}
-                {sample.operator_id && (
-                  <MetaItem icon={User} label="Operator" value={sample.operator_id} />
-                )}
-              </div>
+                  {/* Attribute metadata grid */}
+                  <div className="mb-3 grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                    <MetaItem
+                      icon={Clock}
+                      label="Timestamp"
+                      value={new Date(sample.timestamp).toLocaleString()}
+                    />
+                    <MetaItem
+                      icon={Target}
+                      label="Plotted Value"
+                      value={(sample.mean ?? 0).toFixed(precision)}
+                    />
+                    {sample.sample_size != null && (
+                      <MetaItem
+                        icon={Users}
+                        label="Sample Size"
+                        value={String(sample.sample_size)}
+                      />
+                    )}
+                    {sample.units_inspected != null && (
+                      <MetaItem
+                        icon={Percent}
+                        label="Units Inspected"
+                        value={String(sample.units_inspected)}
+                      />
+                    )}
+                    <MetaItem icon={Layers} label="Source" value={sample.source ?? 'Manual'} />
+                    {sample.batch_number && (
+                      <MetaItem icon={FlaskConical} label="Batch" value={sample.batch_number} />
+                    )}
+                    {sample.operator_id && (
+                      <MetaItem icon={User} label="Operator" value={sample.operator_id} />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center gap-4">
+                    <div className={cn('font-mono text-3xl font-bold tabular-nums', zoneColor.text)}>
+                      {(sample.mean ?? 0).toFixed(precision)}
+                    </div>
+                    {zone && (
+                      <span
+                        className={cn(
+                          'rounded border px-2 py-0.5 text-xs font-medium',
+                          zoneColor.bg,
+                          zoneColor.text,
+                        )}
+                      >
+                        {zoneColor.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Variable metadata grid */}
+                  <div className="mb-3 grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                    <MetaItem
+                      icon={Clock}
+                      label="Timestamp"
+                      value={new Date(sample.timestamp).toLocaleString()}
+                    />
+                    <MetaItem icon={Layers} label="Source" value={sample.source ?? 'Manual'} />
+                    <MetaItem
+                      icon={Hash}
+                      label="Subgroup"
+                      value={`${getMeasurementValues(sample).length} measurements`}
+                    />
+                    {sample.batch_number && (
+                      <MetaItem icon={FlaskConical} label="Batch" value={sample.batch_number} />
+                    )}
+                    {sample.operator_id && (
+                      <MetaItem icon={User} label="Operator" value={sample.operator_id} />
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* Status chips */}
               <div className="flex flex-wrap gap-2">
@@ -390,25 +450,74 @@ export function SampleInspectorModal({
             {/* Active section content */}
             <div className="px-5 py-5">
               {activeSection === 'measurements' && (
-                <MeasurementsSection
-                  measurementValues={measurementValues}
-                  stats={stats}
-                  precision={precision}
-                  isEditing={isEditing}
-                  editValues={editValues}
-                  editReason={editReason}
-                  setEditValues={setEditValues}
-                  setEditReason={setEditReason}
-                  canEdit={canEdit}
-                  isSaving={updateSample.isPending}
-                  onStartEdit={startEditing}
-                  onCancelEdit={cancelEditing}
-                  onSave={saveEdits}
-                  canExclude={canExclude}
-                  isExcluded={sample.is_excluded}
-                  isExcluding={excludeSample.isPending}
-                  onToggleExclude={handleExclude}
-                />
+                isAttribute ? (
+                  <div className="space-y-4">
+                    {/* Exclude action for attribute data */}
+                    {canExclude && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleExclude}
+                          disabled={excludeSample.isPending}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                            sample.is_excluded
+                              ? 'border-success/30 text-success hover:bg-success/10'
+                              : 'border-destructive/30 text-destructive hover:bg-destructive/10',
+                          )}
+                        >
+                          {sample.is_excluded ? 'Restore Sample' : 'Exclude Sample'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Attribute data summary */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <StatCard label="Defect Count" value={String(sample.defect_count ?? 0)} />
+                      <StatCard label="Plotted Value" value={(sample.mean ?? 0).toFixed(precision)} />
+                      {sample.sample_size != null && (
+                        <StatCard label="Sample Size" value={String(sample.sample_size)} />
+                      )}
+                      {sample.units_inspected != null && (
+                        <StatCard label="Units Inspected" value={String(sample.units_inspected)} />
+                      )}
+                    </div>
+
+                    {/* Chart type explanation */}
+                    {characteristic?.attribute_chart_type && (
+                      <div className="bg-muted/30 border-border rounded-lg border p-3 text-sm">
+                        <div className="text-muted-foreground mb-1 text-[10px] tracking-wider uppercase">
+                          Chart Type
+                        </div>
+                        <div className="text-foreground">
+                          {characteristic.attribute_chart_type === 'p' && 'Proportion defective (p-chart)'}
+                          {characteristic.attribute_chart_type === 'np' && 'Number defective (np-chart)'}
+                          {characteristic.attribute_chart_type === 'c' && 'Defect count (c-chart)'}
+                          {characteristic.attribute_chart_type === 'u' && 'Defects per unit (u-chart)'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <MeasurementsSection
+                    measurementValues={measurementValues}
+                    stats={stats}
+                    precision={precision}
+                    isEditing={isEditing}
+                    editValues={editValues}
+                    editReason={editReason}
+                    setEditValues={setEditValues}
+                    setEditReason={setEditReason}
+                    canEdit={canEdit}
+                    isSaving={updateSample.isPending}
+                    onStartEdit={startEditing}
+                    onCancelEdit={cancelEditing}
+                    onSave={saveEdits}
+                    canExclude={canExclude}
+                    isExcluded={sample.is_excluded}
+                    isExcluding={excludeSample.isPending}
+                    onToggleExclude={handleExclude}
+                  />
+                )
               )}
 
               {activeSection === 'violations' && (

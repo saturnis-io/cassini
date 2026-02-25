@@ -7,6 +7,7 @@ export interface MappingRowData {
   id: number
   characteristicId: number
   characteristicName: string
+  hierarchyPath?: string
   protocol: 'mqtt' | 'opcua'
   source: string
   sourceDetail?: string
@@ -42,6 +43,9 @@ export function MappingRow({ mapping, onEdit, onDelete, onToggleActive }: Mappin
     <tr className="border-border hover:bg-muted/30 group border-t transition-colors">
       {/* Characteristic */}
       <td className="px-3 py-2.5">
+        {mapping.hierarchyPath && (
+          <p className="text-muted-foreground mb-0.5 text-[10px]">{mapping.hierarchyPath}</p>
+        )}
         <span className="text-foreground text-sm font-medium">{mapping.characteristicName}</span>
       </td>
 
@@ -142,14 +146,19 @@ export function MappingRow({ mapping, onEdit, onDelete, onToggleActive }: Mappin
 
 export function UnmappedRow({
   characteristicName,
+  hierarchyPath,
   onMap,
 }: {
   characteristicName: string
+  hierarchyPath?: string
   onMap: () => void
 }) {
   return (
     <tr className="border-border/50 hover:bg-muted/20 border-t transition-colors">
       <td className="px-3 py-2.5">
+        {hierarchyPath && (
+          <p className="text-muted-foreground mb-0.5 text-[10px]">{hierarchyPath}</p>
+        )}
         <span className="text-muted-foreground text-sm">{characteristicName}</span>
       </td>
       <td className="px-3 py-2.5" colSpan={3}>

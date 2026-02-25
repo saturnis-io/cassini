@@ -243,6 +243,18 @@ export const helpContent: Record<string, HelpContent> = {
     details:
       'When subgrouping is not possible or practical, I-MR charts track individual values and the moving range between consecutive observations. Uses E2 constant (2.66) for control limits.',
   },
+  'chart-type-cusum': {
+    title: 'CUSUM Chart',
+    description: 'Cumulative Sum chart for detecting small, persistent process shifts.',
+    details:
+      'Accumulates deviations from a target value over time. More sensitive than Shewhart charts for detecting small sustained shifts (0.5–2 sigma). Uses V-mask or tabular CUSUM with decision interval H and slack value K.',
+  },
+  'chart-type-ewma': {
+    title: 'EWMA Chart',
+    description: 'Exponentially Weighted Moving Average chart for detecting gradual process shifts.',
+    details:
+      'Applies exponentially decreasing weights to older observations. Smoothing parameter lambda (0 < λ ≤ 1) controls sensitivity — smaller λ detects smaller shifts. Effective for autocorrelated or non-normal data.',
+  },
   'chart-type-p': {
     title: 'P Chart (Proportion Defective)',
     description: 'Attribute chart for proportion of defective items.',

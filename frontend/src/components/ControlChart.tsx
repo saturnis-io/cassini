@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { graphic } from '@/lib/echarts'
 // ECharts tree-shaken imports are registered in @/lib/echarts
 import { useECharts } from '@/hooks/useECharts'
@@ -9,6 +10,7 @@ import { formatDisplayKey } from '@/lib/display-key'
 import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useTheme } from '@/providers/ThemeProvider'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
@@ -164,6 +166,41 @@ function AnomalyInsightsOverlay({ events }: { events: AnomalyEvent[] }) {
   )
 }
 
+/**
+ * Renders the drag-selection rectangle as a fixed-position portal at <body>.
+ * This avoids z-index/compositing fights with the ECharts <canvas>.
+ */
+function DragOverlayPortal({
+  wrapperRef,
+  dragRect,
+}: {
+  wrapperRef: React.RefObject<HTMLDivElement | null>
+  dragRect: { left: number; width: number }
+}) {
+  const [box, setBox] = useState<DOMRect | null>(null)
+
+  useLayoutEffect(() => {
+    if (wrapperRef.current) setBox(wrapperRef.current.getBoundingClientRect())
+  }, [wrapperRef, dragRect])
+
+  if (!box) return null
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed z-[100]"
+      style={{ top: box.top, left: box.left, width: box.width, height: box.height }}
+    >
+      <div
+        className="bg-primary/20 border-primary absolute top-0 bottom-0 border-x-2"
+        style={{ left: dragRect.left, width: dragRect.width }}
+      >
+        <div className="bg-primary/10 absolute inset-0 animate-pulse" />
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 export function ControlChart({
   characteristicId,
   chartOptions,
@@ -181,6 +218,8 @@ export function ControlChart({
     chartOptions ?? { limit: 50 },
   )
   const chartColors = useChartColors()
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
@@ -845,12 +884,19 @@ export function ControlChart({
     // Build xAxis config based on mode
     // Use 'time' axis for proper time-series rendering (auto-ticks, date formatting).
     // Falls back to category when timestamps are too close together (< 1s spread).
+    // Theme-aware axis colors — in dark mode, use brighter text/lines for readability
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : 'hsl(220, 15%, 40%)'
+
     const xAxisConfig = useTimeCoords
       ? {
           type: 'time' as const,
           axisLabel: {
             fontSize: 11,
             rotate: 30,
+            color: axisLabelColor,
             formatter: (value: number) => {
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
@@ -865,6 +911,7 @@ export function ControlChart({
               return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
             },
           },
+          axisLine: { lineStyle: { color: axisLineColor } },
           splitLine: { show: false },
         }
       : {
@@ -873,7 +920,8 @@ export function ControlChart({
           data: isTimestamp
             ? data.map((p) => p.timestampLabel)
             : xCategoryData,
-          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0 },
+          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0, color: axisLabelColor },
+          axisLine: { lineStyle: { color: axisLineColor } },
           splitLine: { show: false },
         }
 
@@ -887,12 +935,17 @@ export function ControlChart({
         type: 'value',
         min: yMin,
         max: yMax,
-        axisLabel: { fontSize: 12, formatter: (value: number) => value.toFixed(decimal_precision) },
+        axisLabel: {
+          fontSize: 12,
+          color: axisLabelColor,
+          formatter: (value: number) => value.toFixed(decimal_precision),
+        },
+        axisLine: { lineStyle: { color: axisLineColor } },
         name: isModeA ? 'Z-Score' : shortRunMode === 'deviation' ? 'Deviation from Target' : shortRunMode === 'standardized' ? 'Standardized Value (Z)' : 'Value',
         nameLocation: 'middle',
         nameGap: 45,
-        nameTextStyle: { fontSize: 12 },
-        splitLine: { lineStyle: { type: 'dashed', opacity: 0.3 } },
+        nameTextStyle: { fontSize: 12, color: axisNameColor },
+        splitLine: { lineStyle: { type: 'dashed', color: splitLineColor, opacity: isDark ? 0.5 : 0.3 } },
       },
       tooltip: {
         trigger: 'item',
@@ -955,10 +1008,10 @@ export function ControlChart({
           type: 'inside' as const,
           ...dataZoomStartEnd,
           minSpan: Math.max((2 / data.length) * 100, 0.5),
-          zoomOnMouseWheel: true,
-          moveOnMouseWheel: 'shift' as const,
+          zoomOnMouseWheel: false,
+          moveOnMouseWheel: false,
           moveOnMouseMove: false,
-          preventDefaultMouseMove: true,
+          preventDefaultMouseMove: false,
         },
       ],
       series: [
@@ -1165,6 +1218,7 @@ export function ControlChart({
     showBrush,
     shortRunMode,
     anomalyOverlay,
+    isDark,
   ])
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
@@ -1359,17 +1413,11 @@ export function ControlChart({
           <AnomalyInsightsOverlay events={anomalyData.events} />
         )}
 
-        {/* Drag-to-select region overlay */}
-        {dragRect && (
-          <div className="absolute inset-0 z-20 cursor-col-resize">
-            <div
-              className="bg-primary/20 border-primary absolute top-0 bottom-0 border-x-2"
-              style={{ left: dragRect.left, width: dragRect.width }}
-            >
-              <div className="bg-primary/10 absolute inset-0 animate-pulse" />
-            </div>
-          </div>
-        )}
+        {/* Drag-to-select region overlay — rendered via portal at body level
+             to reliably paint above the ECharts canvas (which has its own
+             hardware-accelerated compositing layer). pointer-events-none so
+             mouse events still reach the window listeners in useChartDragSelect. */}
+        {dragRect && <DragOverlayPortal wrapperRef={chartWrapperRef} dragRect={dragRect} />}
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-muted-foreground text-sm">Loading chart data...</div>

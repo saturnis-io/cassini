@@ -149,6 +149,10 @@ export interface Sample {
   is_modified?: boolean
   edit_count?: number
   display_key?: string
+  // Attribute data fields (populated for attribute-type characteristics)
+  defect_count?: number | null
+  sample_size?: number | null
+  units_inspected?: number | null
 }
 
 export interface SampleEditHistory {

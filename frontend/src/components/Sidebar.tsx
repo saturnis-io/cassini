@@ -15,8 +15,8 @@ import {
   FlaskConical,
   Users,
   Wrench,
-  ChevronsLeft,
-  ChevronsRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   ChevronRight,
   ChevronDown,
   X,
@@ -41,51 +41,16 @@ interface SidebarProps {
   className?: string
 }
 
-/** Drag-resize the sidebar width (200–450px range) */
-function useSidebarResize(isCollapsed: boolean) {
-  const sidebarWidth = useUIStore((s) => s.sidebarWidth)
-  const setSidebarWidth = useUIStore((s) => s.setSidebarWidth)
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (isCollapsed) return
-      e.preventDefault()
-      const startX = e.clientX
-      const startWidth = useUIStore.getState().sidebarWidth
-
-      const onMouseMove = (ev: MouseEvent) => {
-        setSidebarWidth(startWidth + ev.clientX - startX)
-      }
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-      }
-
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-    },
-    [isCollapsed, setSidebarWidth],
-  )
-
-  return { sidebarWidth, handleMouseDown }
-}
-
 /**
  * Collapsible vertical sidebar navigation with embedded characteristics tree
  *
- * Features:
- * - Expanded mode: Resizable width (default 260px) with labels
- * - Collapsed mode: Icons only (56px)
- * - Dual collapsible sections: Navigation and Characteristics
- * - Drag-resize handle on right edge
- * - Smooth transition animations
- * - Violation badge count
- * - Active route highlighting
- * - Role-based navigation item filtering
+ * Two states:
+ * - Expanded: Fixed 260px width with labels + optional characteristics panel
+ * - Collapsed: 56px icons only
+ *
+ * The characteristics panel appears on pages that use it (dashboard, data-entry,
+ * reports) and can be collapsed independently. The navigation section is always
+ * visible — never collapses — to prevent layout bounce between pages.
  */
 export function Sidebar({ className }: SidebarProps) {
   const { t } = useTranslation('navigation')
@@ -94,8 +59,6 @@ export function Sidebar({ className }: SidebarProps) {
     toggleSidebar,
     mobileSidebarOpen,
     setMobileSidebarOpen,
-    navSectionCollapsed,
-    setNavSectionCollapsed,
     characteristicsPanelOpen,
     setCharacteristicsPanelOpen,
   } = useUIStore()
@@ -111,9 +74,9 @@ export function Sidebar({ className }: SidebarProps) {
   const isHidden = sidebarState === 'hidden'
 
   // Only show the Characteristics tree on pages that use it
-  const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(location.pathname)
-
-  const { sidebarWidth, handleMouseDown: handleResizeMouseDown } = useSidebarResize(isCollapsed)
+  const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(
+    location.pathname,
+  )
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -220,7 +183,7 @@ export function Sidebar({ className }: SidebarProps) {
         onClick={forMobile ? () => setMobileSidebarOpen(false) : undefined}
         className={({ isActive }) =>
           cn(
-            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
+            'relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
             'hover:transition-colors hover:duration-150',
             isActive
               ? 'bg-primary text-primary-foreground shadow-sm'
@@ -320,37 +283,39 @@ export function Sidebar({ className }: SidebarProps) {
       {!isHidden && (
         <aside
           className={cn(
-            'bg-card relative hidden h-full flex-col border-r transition-[width] duration-150 ease-in-out md:flex',
+            'bg-card relative hidden h-full flex-col border-r transition-[width] duration-200 ease-in-out md:flex',
             className,
           )}
-          style={{ width: isCollapsed ? 56 : sidebarWidth }}
+          style={{ width: isCollapsed ? 56 : 260 }}
         >
-          {/* ── Navigation section header ── */}
-          {!isCollapsed && (
+          {/* ── Collapse/expand toggle — top of sidebar ── */}
+          <div className="border-border flex h-10 shrink-0 items-center border-b px-2">
             <button
-              onClick={() => setNavSectionCollapsed(!navSectionCollapsed)}
-              className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+              onClick={toggleSidebar}
+              className={cn(
+                'text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                isCollapsed && 'mx-auto',
+              )}
+              title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
             >
-              <span>Navigation</span>
-              {navSectionCollapsed ? (
-                <ChevronRight className="h-3 w-3" />
+              {isCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
               ) : (
-                <ChevronDown className="h-3 w-3" />
+                <>
+                  <PanelLeftClose className="h-4 w-4" />
+                  <span>{t('collapseSidebar')}</span>
+                </>
               )}
             </button>
-          )}
+          </div>
 
-          {/* ── Navigation items ── */}
-          {isCollapsed ? (
-            <nav className="space-y-0.5 overflow-y-auto px-1 py-2">{navContent(false)}</nav>
-          ) : !navSectionCollapsed ? (
-            <nav className="space-y-0.5 overflow-y-auto px-2 pb-1">{navContent(false)}</nav>
-          ) : null}
+          {/* ── Navigation items — always visible, never collapses ── */}
+          <nav className="space-y-0.5 overflow-y-auto px-2 py-2">{navContent(false)}</nav>
 
-          {/* ── Divider + Characteristics section — only on dashboard/data-entry/reports ── */}
+          {/* ── Characteristics section — only on dashboard/data-entry/reports ── */}
           {showCharacteristics && (
             <>
-              <div className="border-border mx-2 my-1 border-t" />
+              <div className="border-border mx-2 border-t" />
 
               {isCollapsed ? (
                 /* Collapsed: tree icon that expands sidebar */
@@ -368,7 +333,7 @@ export function Sidebar({ className }: SidebarProps) {
                 <div className="flex min-h-0 flex-1 flex-col">
                   <button
                     onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
-                    className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                    className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider"
                   >
                     <span>Characteristics</span>
                     {characteristicsPanelOpen ? (
@@ -386,32 +351,6 @@ export function Sidebar({ className }: SidebarProps) {
                 </div>
               )}
             </>
-          )}
-
-          {/* ── Collapse toggle tab (protruding from sidebar edge) ── */}
-          <button
-            onClick={toggleSidebar}
-            className={cn(
-              'absolute top-20 right-0 z-10 translate-x-full',
-              'flex h-12 w-6 items-center justify-center rounded-r-md',
-              'bg-card border-border border border-l-0 shadow-sm',
-              'text-muted-foreground hover:text-foreground hover:bg-accent transition-colors',
-            )}
-            title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
-          >
-            {isCollapsed ? (
-              <ChevronsRight className="h-4 w-4" />
-            ) : (
-              <ChevronsLeft className="h-4 w-4" />
-            )}
-          </button>
-
-          {/* ── Resize handle (right edge drag strip) ── */}
-          {!isCollapsed && (
-            <div
-              onMouseDown={handleResizeMouseDown}
-              className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize transition-colors hover:bg-primary/20"
-            />
           )}
         </aside>
       )}

@@ -71,6 +71,10 @@ class SampleResponse(BaseModel):
     is_modified: bool = False
     edit_count: int = 0
     display_key: str = ""
+    # Attribute data fields (populated for attribute-type characteristics)
+    defect_count: int | None = None
+    sample_size: int | None = None
+    units_inspected: int | None = None
 
     # Frontend-friendly alias fields
     characteristic_id: int | None = None

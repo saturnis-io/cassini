@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
+import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { EWMAChartSample } from '@/types'
 
 interface EWMAChartProps {
@@ -13,9 +14,11 @@ interface EWMAChartProps {
     startDate?: string
     endDate?: string
   }
+  /** Callback when a data point is clicked — opens Sample Inspector */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
-export function EWMAChart({ characteristicId, chartOptions }: EWMAChartProps) {
+export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation }: EWMAChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
@@ -25,11 +28,6 @@ export function EWMAChart({ characteristicId, chartOptions }: EWMAChartProps) {
 
   const ewmaPoints = chartData?.ewma_data_points ?? []
   const controlLimits = chartData?.control_limits
-
-  console.log('[EWMAChart] points:', ewmaPoints.length,
-    'ucl:', controlLimits?.ucl, 'lcl:', controlLimits?.lcl, 'center:', controlLimits?.center_line,
-    'first 3 ewma_value:', ewmaPoints.slice(0, 3).map(p => p.ewma_value),
-    'first 3 measurement:', ewmaPoints.slice(0, 3).map(p => p.measurement))
 
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
@@ -321,7 +319,7 @@ export function EWMAChart({ characteristicId, chartOptions }: EWMAChartProps) {
         // Custom series for data point symbols
         {
           type: 'custom' as const,
-          data: ewmaPoints.map((pt, i) => [i, pt.ewma_value, i]),
+          data: ewmaPoints.map((pt, i) => [i, pt.ewma_value, i, pt.sample_id]),
           renderItem: customRenderItem,
           coordinateSystem: 'cartesian2d' as const,
           encode: { x: 0, y: 1 },
@@ -334,9 +332,20 @@ export function EWMAChart({ characteristicId, chartOptions }: EWMAChartProps) {
     return option
   }, [chartData, ewmaPoints, controlLimits, chartColors])
 
+  const handleClick = useCallback(
+    (params: EChartsMouseEvent) => {
+      if (!onPointAnnotation) return
+      const pointData = params.data as unknown as number[]
+      const sampleId = pointData?.[3]
+      if (sampleId) onPointAnnotation(sampleId)
+    },
+    [onPointAnnotation],
+  )
+
   const { containerRef } = useECharts({
     option: echartsOption,
     notMerge: true,
+    onClick: handleClick,
   })
 
   const hasData = ewmaPoints.length > 0

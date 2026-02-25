@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -245,6 +246,53 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
   const setTimeRange = onChange ?? storeSetRange
   const [isOpen, setIsOpen] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+
+  const openDropdown = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setIsOpen(true)
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+        setShowCustom(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false)
+        setShowCustom(false)
+        triggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
   const getCurrentLabel = (): string => {
     if (timeRange.type === 'custom') {
@@ -275,9 +323,10 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
   }
 
   return (
-    <div className="relative">
+    <div>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={triggerRef}
+        onClick={() => (isOpen ? setIsOpen(false) : openDropdown())}
         className={cn(
           'flex items-center gap-1.5 rounded border px-2 py-1 text-xs transition-colors',
           'bg-card border-border hover:border-primary/50',
@@ -294,19 +343,12 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
         />
       </button>
 
-      {isOpen && (
-        <>
-          {/* Backdrop */}
+      {isOpen && createPortal(
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => {
-              setIsOpen(false)
-              setShowCustom(false)
-            }}
-          />
-
-          {/* Dropdown */}
-          <div className="bg-card border-border absolute top-full left-0 z-50 mt-1 min-w-[180px] rounded-lg border shadow-lg">
+            ref={dropdownRef}
+            className="bg-popover text-popover-foreground border-border fixed z-50 min-w-[180px] rounded-lg border shadow-lg"
+            style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          >
             {!showCustom ? (
               <>
                 {showAllTime && (
@@ -404,8 +446,8 @@ export function TimeRangeSelector({ value, onChange, showAllTime }: TimeRangeSel
                 onBack={() => setShowCustom(false)}
               />
             )}
-          </div>
-        </>
+          </div>,
+        document.body,
       )}
     </div>
   )

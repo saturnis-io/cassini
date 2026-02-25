@@ -307,3 +307,10 @@ export const ANALYSIS_CHART_TYPES: ChartTypeId[] = ['pareto', 'box-whisker']
  * Dual chart types that show two synchronized charts.
  */
 export const DUAL_CHART_TYPES: ChartTypeId[] = ['xbar-r', 'xbar-s', 'i-mr']
+
+/**
+ * Chart types that support a companion distribution histogram.
+ * CUSUM/EWMA plot cumulative/weighted stats (not raw measurements),
+ * and attribute charts use count/proportion data — histograms don't apply.
+ */
+export const HISTOGRAM_CHART_TYPES: ChartTypeId[] = ['xbar', 'xbar-r', 'xbar-s', 'i-mr', 'box-whisker']

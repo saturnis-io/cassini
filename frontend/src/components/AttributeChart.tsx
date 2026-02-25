@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { cn } from '@/lib/utils'
+import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { AttributeChartSample } from '@/types'
 
 interface AttributeChartProps {
@@ -14,6 +15,8 @@ interface AttributeChartProps {
     startDate?: string
     endDate?: string
   }
+  /** Callback when a data point is clicked — opens Sample Inspector */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
 const Y_AXIS_LABELS: Record<string, string> = {
@@ -30,7 +33,7 @@ const CHART_TYPE_NAMES: Record<string, string> = {
   u: 'u-chart',
 }
 
-export function AttributeChart({ characteristicId, chartOptions }: AttributeChartProps) {
+export function AttributeChart({ characteristicId, chartOptions, onPointAnnotation }: AttributeChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
@@ -392,7 +395,7 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
         // Custom series for data point symbols
         {
           type: 'custom' as const,
-          data: attrPoints.map((pt, i) => [i, pt.plotted_value, i]),
+          data: attrPoints.map((pt, i) => [i, pt.plotted_value, i, pt.sample_id]),
           renderItem: customRenderItem,
           coordinateSystem: 'cartesian2d' as const,
           encode: { x: 0, y: 1 },
@@ -405,9 +408,20 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
     return option
   }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors])
 
+  const handleClick = useCallback(
+    (params: EChartsMouseEvent) => {
+      if (!onPointAnnotation) return
+      const pointData = params.data as unknown as number[]
+      const sampleId = pointData?.[3]
+      if (sampleId) onPointAnnotation(sampleId)
+    },
+    [onPointAnnotation],
+  )
+
   const { containerRef } = useECharts({
     option: echartsOption,
     notMerge: true,
+    onClick: handleClick,
   })
 
   const hasData = attrPoints.length > 0
@@ -431,10 +445,10 @@ export function AttributeChart({ characteristicId, chartOptions }: AttributeChar
               </span>
               {chartData?.sigma_z != null && (
                 <span className={cn(
-                  "flex-shrink-0 rounded-full px-2 py-0.5 font-mono text-xs",
-                  chartData.sigma_z > 1.1 ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" :
-                  chartData.sigma_z < 0.9 ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" :
-                  "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                  "flex-shrink-0 rounded-full border px-2 py-0.5 font-mono text-xs",
+                  chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
+                  chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
+                  "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
                 )}>
                   <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
                   {chartData.sigma_z > 1.1 ? ' (overdispersion)' :

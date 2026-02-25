@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
+import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { CUSUMChartSample } from '@/types'
 
 interface CUSUMChartProps {
@@ -13,9 +14,11 @@ interface CUSUMChartProps {
     startDate?: string
     endDate?: string
   }
+  /** Callback when a data point is clicked — opens Sample Inspector */
+  onPointAnnotation?: (sampleId: number) => void
 }
 
-export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) {
+export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }: CUSUMChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
@@ -25,11 +28,6 @@ export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) 
 
   const cusumPoints = chartData?.cusum_data_points ?? []
   const h = chartData?.cusum_h ?? 5
-
-  console.log('[CUSUMChart] points:', cusumPoints.length, 'h:', h,
-    'first 3 cusum_high:', cusumPoints.slice(0, 3).map(p => p.cusum_high),
-    'first 3 cusum_low:', cusumPoints.slice(0, 3).map(p => p.cusum_low),
-    'first 3 measurement:', cusumPoints.slice(0, 3).map(p => p.measurement))
 
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
@@ -334,7 +332,7 @@ export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) 
         // Custom series for CUSUM+ data point symbols
         {
           type: 'custom' as const,
-          data: cusumPoints.map((pt, i) => [i, pt.cusum_high, i]),
+          data: cusumPoints.map((pt, i) => [i, pt.cusum_high, i, pt.sample_id]),
           renderItem: customRenderItem,
           coordinateSystem: 'cartesian2d' as const,
           encode: { x: 0, y: 1 },
@@ -344,7 +342,7 @@ export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) 
         // Custom series for CUSUM- data point symbols (negated)
         {
           type: 'custom' as const,
-          data: cusumPoints.map((pt, i) => [i, -pt.cusum_low, i]),
+          data: cusumPoints.map((pt, i) => [i, -pt.cusum_low, i, pt.sample_id]),
           renderItem: customRenderItem,
           coordinateSystem: 'cartesian2d' as const,
           encode: { x: 0, y: 1 },
@@ -357,9 +355,20 @@ export function CUSUMChart({ characteristicId, chartOptions }: CUSUMChartProps) 
     return option
   }, [chartData, cusumPoints, h, chartColors])
 
+  const handleClick = useCallback(
+    (params: EChartsMouseEvent) => {
+      if (!onPointAnnotation) return
+      const pointData = params.data as unknown as number[]
+      const sampleId = pointData?.[3]
+      if (sampleId) onPointAnnotation(sampleId)
+    },
+    [onPointAnnotation],
+  )
+
   const { containerRef } = useECharts({
     option: echartsOption,
     notMerge: true,
+    onClick: handleClick,
   })
 
   const hasData = cusumPoints.length > 0

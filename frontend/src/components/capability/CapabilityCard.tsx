@@ -235,7 +235,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           {canFitDist && (
             <button
               onClick={() => setShowDistAnalysis(true)}
-              className="bg-accent text-accent-foreground hover:bg-accent/80 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors"
+              className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-md border border-primary/20 px-2.5 py-1.5 text-xs font-medium transition-colors"
             >
               <BarChart3 className="h-3 w-3" />
               Fit Distribution
@@ -303,7 +303,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           <div className="flex items-center gap-2">
             <NormalityBadge result={capability} />
             {nnCapability && nnCapability.method !== 'normal' && (
-              <span className="bg-accent/50 text-accent-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium">
+              <span className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium">
                 {nnCapability.method.replace('_', '-')}
               </span>
             )}

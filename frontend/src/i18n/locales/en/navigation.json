@@ -7,6 +7,8 @@
   "configuration": "Configuration",
   "msa": "MSA",
   "fai": "FAI",
+  "analytics": "Analytics",
+  "doe": "DOE",
   "settings": "Settings",
   "users": "Users",
   "devTools": "Dev Tools",

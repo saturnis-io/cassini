@@ -348,7 +348,7 @@ export function LocalTimeRangeSelector({
 
             <div
               ref={dropdownRef}
-              className="bg-card border-border fixed z-50 min-w-[180px] rounded-lg border shadow-lg"
+              className="bg-popover text-popover-foreground border-border fixed z-50 min-w-[180px] rounded-lg border shadow-lg"
               style={dropdownStyle}
             >
               {!showCustom ? (

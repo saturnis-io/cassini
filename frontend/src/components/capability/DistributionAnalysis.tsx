@@ -14,6 +14,11 @@ const METHOD_OPTIONS = [
   { value: 'distribution_fit', label: 'Distribution Fit' },
 ]
 
+/** Read a CSS custom property value from :root at render time */
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
 /** Colors for each distribution family in chart overlays */
 const FAMILY_COLORS: Record<string, string> = {
   normal: '#3b82f6',
@@ -717,7 +722,7 @@ function HistogramChart({ result, fits, bestFit, selectedFamily }: HistogramChar
           style: {
             text: `P0.135=${p0.toFixed(3)} | P50=${p50.toFixed(3)} | P99.865=${p99.toFixed(3)}`,
             fontSize: 10,
-            fill: '#888',
+            fill: cssVar('--color-muted-foreground'),
           },
         },
       ],
@@ -808,7 +813,7 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
         type: 'scatter',
         data: qqData,
         symbolSize: 6,
-        itemStyle: { color: '#3b82f6' },
+        itemStyle: { color: cssVar('--color-primary') },
       },
       {
         name: 'Reference Line',
@@ -817,7 +822,7 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
           [minVal, minVal],
           [maxVal, maxVal],
         ],
-        lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
+        lineStyle: { color: cssVar('--color-destructive'), type: 'dashed', width: 1 },
         symbol: 'none',
       },
     ]

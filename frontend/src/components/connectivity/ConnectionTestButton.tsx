@@ -67,9 +67,14 @@ export function ConnectionTestButton({ onTest, disabled, className }: Connection
             'animate-in fade-in-0 slide-in-from-left-2 flex items-center gap-1.5 text-sm font-medium duration-200',
             result.success ? 'text-success' : 'text-destructive',
           )}
+          title={result.message}
         >
-          {result.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          <span className="max-w-[240px] truncate">{result.message}</span>
+          {result.success ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+          ) : (
+            <XCircle className="h-4 w-4 shrink-0" />
+          )}
+          <span className="max-w-sm break-words">{result.message}</span>
         </span>
       )}
     </div>

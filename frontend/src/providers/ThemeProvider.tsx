@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 
 type Theme = 'light' | 'dark' | 'system'
-export type VisualStyle = 'retro' | 'glass'
+export type VisualStyle = 'modern' | 'retro' | 'glass'
 
 /**
  * Brand customization configuration
@@ -73,12 +73,12 @@ function getStoredBrandConfig(): BrandConfig {
 }
 
 function getStoredVisualStyle(): VisualStyle {
-  if (typeof window === 'undefined') return 'retro'
+  if (typeof window === 'undefined') return 'modern'
   const stored = localStorage.getItem(VISUAL_STYLE_KEY)
-  if (stored === 'retro' || stored === 'glass') {
+  if (stored === 'modern' || stored === 'retro' || stored === 'glass') {
     return stored
   }
-  return 'retro'
+  return 'modern'
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -132,17 +132,18 @@ function hexToHsl(hex: string): string {
 }
 
 /**
- * Apply brand colors as CSS custom properties
+ * Apply brand colors as CSS custom properties.
+ *
+ * NOTE: --color-accent is intentionally NOT set here. It is a semantic UI
+ * color used for hover/focus backgrounds across the app and must remain
+ * a soft, readable tint defined in CSS themes (index.css @theme / .dark).
+ * Brand identity is expressed through --color-primary only.
  */
 function applyBrandColors(config: BrandConfig) {
   const root = document.documentElement
 
   if (isValidHexColor(config.primaryColor)) {
     root.style.setProperty('--color-primary', `hsl(${hexToHsl(config.primaryColor)})`)
-  }
-
-  if (isValidHexColor(config.accentColor)) {
-    root.style.setProperty('--color-accent', `hsl(${hexToHsl(config.accentColor)})`)
   }
 }
 
@@ -203,7 +204,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Reset CSS variables to theme defaults
     const root = document.documentElement
     root.style.removeProperty('--color-primary')
-    root.style.removeProperty('--color-accent')
   }, [])
 
   // Apply theme to document - intentional DOM sync
@@ -228,8 +228,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Apply visual style class to document
   useEffect(() => {
     const root = document.documentElement
-    root.classList.remove('retro', 'glass')
-    root.classList.add(visualStyle)
+    root.classList.remove('modern', 'retro', 'glass')
+    if (visualStyle !== 'modern') {
+      root.classList.add(visualStyle)
+    }
   }, [visualStyle])
 
   // Listen for system theme changes when in 'system' mode

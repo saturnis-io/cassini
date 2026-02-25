@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getHelpContent, type HelpContent } from '@/lib/help-content'
@@ -261,74 +262,89 @@ export function HelpTooltip({
     <>
       {TriggerElement}
 
-      {isVisible && (
-        <div
-          ref={tooltipRef}
-          id={`help-tooltip-${helpKey}`}
-          role="tooltip"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          className={cn(
-            'fixed z-[60] max-w-[280px] p-3',
-            'text-popover-foreground bg-popover',
-            'border-border rounded-lg border shadow-lg',
-            'animate-in fade-in-0 zoom-in-95 duration-150',
-          )}
-          style={{
-            top: position.top,
-            left: position.left,
-          }}
-        >
-          {/* Title */}
-          <div className="mb-1 text-sm font-semibold">{content.title}</div>
-
-          {/* Description */}
-          <p className="text-muted-foreground text-sm">{content.description}</p>
-
-          {/* Details (if provided) */}
-          {content.details && (
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{content.details}</p>
-          )}
-
-          {/* Severity badge (if provided) */}
-          {content.severity && (
-            <div className="mt-2">
-              <SeverityBadge severity={content.severity} />
-            </div>
-          )}
-
-          {/* Learn more link (if provided) */}
-          {content.learnMoreUrl && (
-            <a
-              href={content.learnMoreUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary mt-2 inline-flex items-center text-xs hover:underline"
-            >
-              Learn more
-              <svg className="ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </a>
-          )}
-
-          {/* Tooltip arrow indicator */}
+      {/* Portal to body to avoid position:fixed breakage from parent CSS transforms
+           (e.g., animate-in zoom-in-95 on dropdown parents creates a new containing block) */}
+      {isVisible &&
+        createPortal(
           <div
+            ref={tooltipRef}
+            id={`help-tooltip-${helpKey}`}
+            role="tooltip"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             className={cn(
-              'bg-popover absolute h-2 w-2 rotate-45 border',
-              placement === 'top' && 'bottom-[-5px] left-1/2 -translate-x-1/2 border-r border-b',
-              placement === 'bottom' && 'top-[-5px] left-1/2 -translate-x-1/2 border-t border-l',
-              placement === 'left' && 'top-1/2 right-[-5px] -translate-y-1/2 border-t border-r',
-              placement === 'right' && 'top-1/2 left-[-5px] -translate-y-1/2 border-b border-l',
+              'fixed z-[60] max-w-[280px] p-3',
+              'text-popover-foreground bg-popover',
+              'border-border rounded-lg border shadow-lg',
+              'animate-in fade-in-0 zoom-in-95 duration-150',
             )}
-          />
-        </div>
-      )}
+            style={{
+              top: position.top,
+              left: position.left,
+            }}
+          >
+            {/* Title */}
+            <div className="mb-1 text-sm font-semibold">{content.title}</div>
+
+            {/* Description */}
+            <p className="text-muted-foreground text-sm">{content.description}</p>
+
+            {/* Details (if provided) */}
+            {content.details && (
+              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+                {content.details}
+              </p>
+            )}
+
+            {/* Severity badge (if provided) */}
+            {content.severity && (
+              <div className="mt-2">
+                <SeverityBadge severity={content.severity} />
+              </div>
+            )}
+
+            {/* Learn more link (if provided) */}
+            {content.learnMoreUrl && (
+              <a
+                href={content.learnMoreUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary mt-2 inline-flex items-center text-xs hover:underline"
+              >
+                Learn more
+                <svg
+                  className="ml-1 h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </a>
+            )}
+
+            {/* Tooltip arrow indicator */}
+            <div
+              className={cn(
+                'bg-popover absolute h-2 w-2 rotate-45 border',
+                placement === 'top' &&
+                  'bottom-[-5px] left-1/2 -translate-x-1/2 border-r border-b',
+                placement === 'bottom' &&
+                  'top-[-5px] left-1/2 -translate-x-1/2 border-t border-l',
+                placement === 'left' &&
+                  'top-1/2 right-[-5px] -translate-y-1/2 border-t border-r',
+                placement === 'right' &&
+                  'top-1/2 left-[-5px] -translate-y-1/2 border-b border-l',
+              )}
+            />
+          </div>,
+          document.body,
+        )}
     </>
   )
 }

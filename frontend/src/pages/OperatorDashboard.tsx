@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
+import { characteristicApi } from '@/api/characteristics.api'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { calculateSharedYAxisDomain } from '@/lib/chart-domain'
 import { ChartPanel } from '@/components/ChartPanel'
@@ -79,13 +81,9 @@ export function OperatorDashboard() {
   const showBrush = useDashboardStore((state) => state.showBrush)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
-  const showAnnotations = useDashboardStore((state) => state.showAnnotations)
 
   const { data: annotationsData } = useAnnotations(selectedId ?? 0)
   const annotationCount = annotationsData?.length ?? 0
-
-  const setDrawerOpen = useDashboardStore((s) => s.setDrawerOpen)
-  const setDrawerTab = useDashboardStore((s) => s.setDrawerTab)
 
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
   const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
@@ -105,16 +103,25 @@ export function OperatorDashboard() {
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
 
-  // Get current chart type — default to recommended type for the characteristic's subgroup size
-  // Auto-select CUSUM/EWMA if the characteristic has a specific chart_type set
+  // Derive characteristic metadata before chart type computation
   const subgroupSize = selectedCharacteristic?.subgroup_size ?? 5
   const charChartType = selectedCharacteristic?.chart_type
+  const isAttribute = selectedCharacteristic?.data_type === 'attribute'
+
+  // Compute the effective chart type override for when the user hasn't explicitly selected one.
+  // Priority: user store selection > characteristic-level config > data-type-aware default
+  const effectiveOverride: ChartTypeId | undefined =
+    charChartType && ['cusum', 'ewma'].includes(charChartType)
+      ? (charChartType as ChartTypeId)
+      : isAttribute
+        ? ((selectedCharacteristic?.attribute_chart_type ?? 'p') as ChartTypeId)
+        : undefined
+
   const currentChartType: ChartTypeId =
     (selectedId && chartTypes.get(selectedId)) ||
-    (charChartType && ['cusum', 'ewma'].includes(charChartType)
-      ? (charChartType as ChartTypeId)
-      : recommendChartType(subgroupSize))
-  const isAttribute = selectedCharacteristic?.data_type === 'attribute'
+    effectiveOverride ||
+    recommendChartType(subgroupSize)
+
   const isDualChart = DUAL_CHART_TYPES.includes(currentChartType) && !isAttribute
   const isBoxWhisker = currentChartType === 'box-whisker' && !isAttribute
 
@@ -146,13 +153,19 @@ export function OperatorDashboard() {
 
   // Sparkline values for range slider
   const sparklineValues = useMemo(() => {
-    if (!chartDataForAnnotation?.data_points) return []
+    if (!chartDataForAnnotation) return []
+    const attrPts = chartDataForAnnotation.attribute_data_points ?? []
+    if (attrPts.length > 0) return attrPts.map((p) => p.plotted_value)
+    if (!chartDataForAnnotation.data_points) return []
     return chartDataForAnnotation.data_points.map((p) => p.mean)
   }, [chartDataForAnnotation])
 
   // Timestamps for range slider time labels
   const sparklineTimestamps = useMemo(() => {
-    if (!chartDataForAnnotation?.data_points) return []
+    if (!chartDataForAnnotation) return []
+    const attrPts = chartDataForAnnotation.attribute_data_points ?? []
+    if (attrPts.length > 0) return attrPts.map((p) => p.timestamp)
+    if (!chartDataForAnnotation.data_points) return []
     return chartDataForAnnotation.data_points.map((p) => p.timestamp)
   }, [chartDataForAnnotation])
 
@@ -166,41 +179,77 @@ export function OperatorDashboard() {
     [isBoxWhisker, isShortRun, chartDataForAnnotation, showSpecLimits],
   )
 
+  // Unified data points accessor (variable or attribute)
+  const unifiedPoints = useMemo(() => {
+    if (!chartDataForAnnotation) return null
+    const attrPts = chartDataForAnnotation.attribute_data_points ?? []
+    if (attrPts.length > 0) {
+      return attrPts.map((p) => ({
+        sample_id: p.sample_id,
+        timestamp: p.timestamp,
+        unacknowledged_violation_ids: p.unacknowledged_violation_ids,
+        violation_ids: p.violation_ids,
+      }))
+    }
+    const stdPts = chartDataForAnnotation.data_points ?? []
+    if (stdPts.length > 0) {
+      return stdPts.map((p) => ({
+        sample_id: p.sample_id,
+        timestamp: p.timestamp,
+        unacknowledged_violation_ids: p.unacknowledged_violation_ids,
+        violation_ids: p.violation_ids,
+      }))
+    }
+    return null
+  }, [chartDataForAnnotation])
+
   // Compute visible sample IDs and time range for annotation panel filtering
   const visibleSampleIds = useMemo(() => {
-    if (!chartDataForAnnotation?.data_points) return null
-    const pts = chartDataForAnnotation.data_points
+    if (!unifiedPoints) return null
     if (!showBrush || !rangeWindow) {
-      return new Set(pts.map((p) => p.sample_id))
+      return new Set(unifiedPoints.map((p) => p.sample_id))
     }
     const [start, end] = rangeWindow
-    return new Set(pts.slice(start, end + 1).map((p) => p.sample_id))
-  }, [chartDataForAnnotation, rangeWindow, showBrush])
+    return new Set(unifiedPoints.slice(start, end + 1).map((p) => p.sample_id))
+  }, [unifiedPoints, rangeWindow, showBrush])
 
   // Visible time range for filtering time-based period annotations
   const visibleTimeRange = useMemo<[string, string] | null>(() => {
-    if (!chartDataForAnnotation?.data_points?.length) return null
-    const pts = chartDataForAnnotation.data_points
+    if (!unifiedPoints?.length) return null
     if (!showBrush || !rangeWindow) {
-      return [pts[0].timestamp, pts[pts.length - 1].timestamp]
+      return [unifiedPoints[0].timestamp, unifiedPoints[unifiedPoints.length - 1].timestamp]
     }
     const [start, end] = rangeWindow
-    const slice = pts.slice(start, end + 1)
+    const slice = unifiedPoints.slice(start, end + 1)
     if (slice.length === 0) return null
     return [slice[0].timestamp, slice[slice.length - 1].timestamp]
-  }, [chartDataForAnnotation, rangeWindow, showBrush])
+  }, [unifiedPoints, rangeWindow, showBrush])
 
   // Compute visible unacknowledged violation IDs for bulk acknowledge
   const visibleViolationIds = useMemo(() => {
-    if (!chartDataForAnnotation?.data_points?.length) return []
-    const pts = chartDataForAnnotation.data_points
-    const visible = !showBrush || !rangeWindow ? pts : pts.slice(rangeWindow[0], rangeWindow[1] + 1)
+    if (!unifiedPoints?.length) return []
+    const visible = !showBrush || !rangeWindow ? unifiedPoints : unifiedPoints.slice(rangeWindow[0], rangeWindow[1] + 1)
     return visible.flatMap((p) => p.unacknowledged_violation_ids ?? p.violation_ids)
-  }, [chartDataForAnnotation, rangeWindow, showBrush])
+  }, [unifiedPoints, rangeWindow, showBrush])
 
   const { role } = useAuth()
   const canBulkAck =
     canPerformAction(role, 'violations:acknowledge') && visibleViolationIds.length > 0
+
+  // Persist attribute chart type changes to backend so limits are recomputed
+  const queryClient = useQueryClient()
+  const handleAttributeChartTypeChange = useCallback(
+    (chartType: string) => {
+      if (!selectedId) return
+      characteristicApi
+        .update(selectedId, { attribute_chart_type: chartType as 'p' | 'np' | 'c' | 'u' })
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['characteristics', 'chartData', selectedId] })
+          queryClient.invalidateQueries({ queryKey: ['characteristics', 'detail', selectedId] })
+        })
+    },
+    [selectedId, queryClient],
+  )
 
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
@@ -274,17 +323,6 @@ export function OperatorDashboard() {
     setRangeWindow(null)
   }, [selectedId, setRangeWindow])
 
-  // Sync annotations toolbar toggle → open drawer to annotations tab
-  // Use ref to skip initial mount (avoid forcing drawer open on page load)
-  const prevShowAnnotations = useRef(showAnnotations)
-  useEffect(() => {
-    if (showAnnotations && !prevShowAnnotations.current) {
-      setDrawerTab('annotations')
-      setDrawerOpen(true)
-    }
-    prevShowAnnotations.current = showAnnotations
-  }, [showAnnotations, setDrawerTab, setDrawerOpen])
-
   const characteristicIds = characteristicsData?.items.map((c) => c.id) ?? []
   const characteristicIdsKey = characteristicIds.join(',')
 
@@ -357,11 +395,9 @@ export function OperatorDashboard() {
               <ChartToolbar
                 characteristicId={selectedId}
                 subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
-                overrideChartType={
-                  charChartType && ['cusum', 'ewma'].includes(charChartType)
-                    ? (charChartType as ChartTypeId)
-                    : undefined
-                }
+                isAttributeData={isAttribute}
+                overrideChartType={effectiveOverride}
+                onAttributeChartTypeChange={handleAttributeChartTypeChange}
                 onChangeSecondary={() => setShowComparisonSelector(true)}
               />
 
@@ -426,6 +462,7 @@ export function OperatorDashboard() {
                   )
                 ) : isDualChart ? (
                   <DualChartPanel
+                    key={`dual-${currentChartType}`}
                     characteristicId={selectedId}
                     chartType={currentChartType}
                     chartOptions={chartOptions}
@@ -440,7 +477,9 @@ export function OperatorDashboard() {
                   />
                 ) : (
                   <ChartPanel
+                    key={`single-${currentChartType}`}
                     characteristicId={selectedId}
+                    chartType={currentChartType}
                     chartOptions={chartOptions}
                     label={comparisonMode ? (t('comparison.primary') as 'Primary') : undefined}
                     histogramPosition={histogramPosition}
