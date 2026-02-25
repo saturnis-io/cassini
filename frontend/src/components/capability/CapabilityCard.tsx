@@ -1,4 +1,4 @@
-import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability } from '@/api/hooks'
+import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability, useCharacteristic } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { useECharts } from '@/hooks/useECharts'
@@ -182,7 +182,9 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const { role } = useAuth()
   const { data: capability, isLoading, error } = useCapability(characteristicId)
   const { data: history } = useCapabilityHistory(characteristicId)
-  const { data: nnCapability } = useNonNormalCapability(characteristicId)
+  const { data: charData } = useCharacteristic(characteristicId)
+  const storedMethod = charData?.distribution_method ?? 'auto'
+  const { data: nnCapability } = useNonNormalCapability(characteristicId, storedMethod)
   const saveSnapshot = useSaveCapabilitySnapshot()
   const [showDistAnalysis, setShowDistAnalysis] = useState(false)
 
@@ -283,9 +285,9 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
 
           const colsClass =
             indices.length >= 5 ? 'grid-cols-5' :
-            indices.length === 4 ? 'grid-cols-4' :
-            indices.length === 3 ? 'grid-cols-3' :
-            indices.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
+              indices.length === 4 ? 'grid-cols-4' :
+                indices.length === 3 ? 'grid-cols-3' :
+                  indices.length === 2 ? 'grid-cols-2' : 'grid-cols-1'
 
           return (
             <div className={cn('grid gap-3', colsClass)}>

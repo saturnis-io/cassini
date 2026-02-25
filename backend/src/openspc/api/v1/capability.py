@@ -150,9 +150,17 @@ async def get_capability(
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
         )
 
-    # Dispatch to non-normal calculation when distribution_method is configured
     dist_method = getattr(characteristic, 'distribution_method', None)
     if dist_method and dist_method != "normal":
+        import json
+        
+        dist_params = None
+        if characteristic.distribution_params:
+            try:
+                dist_params = json.loads(characteristic.distribution_params)
+            except json.JSONDecodeError:
+                pass
+
         nn_result = calculate_capability_nonnormal(
             values=values,
             usl=characteristic.usl,
@@ -160,6 +168,7 @@ async def get_capability(
             target=characteristic.target_value,
             sigma_within=sigma_within,
             method=dist_method,
+            distribution_params=dist_params,
         )
         return CapabilityResponse(
             cp=nn_result.cp,

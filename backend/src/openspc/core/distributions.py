@@ -285,6 +285,52 @@ def _get_scipy_dist(family: str):
     return mapping.get(family)
 
 
+def compute_qq_points(
+    sorted_data: list[float],
+    family: str,
+    parameters: dict[str, float],
+) -> dict[str, list[float]] | None:
+    """Compute Q-Q plot points using Blom plotting positions.
+
+    Uses the Blom formula p_i = (i - 3/8) / (n + 1/4) for i = 1..n,
+    which is recommended for normal probability plots and generalizes
+    well to other distributions.
+
+    Args:
+        sorted_data: Sample values sorted in ascending order.
+        family: Distribution family name (e.g., "normal", "weibull").
+        parameters: Fitted distribution parameters (family-specific dict).
+
+    Returns:
+        Dict with "sample_quantiles" and "theoretical_quantiles" lists,
+        or None if computation fails.
+    """
+    dist = _get_scipy_dist(family)
+    if dist is None:
+        return None
+
+    params = _dict_to_params(family, parameters)
+    n = len(sorted_data)
+    if n < 2:
+        return None
+
+    try:
+        # Blom plotting positions: p_i = (i - 3/8) / (n + 1/4)
+        positions = [(i - 0.375) / (n + 0.25) for i in range(1, n + 1)]
+        theoretical = [float(dist.ppf(p, *params)) for p in positions]
+
+        # Validate: no infinities or NaNs
+        if any(not math.isfinite(t) for t in theoretical):
+            return None
+
+        return {
+            "sample_quantiles": sorted_data,
+            "theoretical_quantiles": theoretical,
+        }
+    except Exception:
+        return None
+
+
 def calculate_percentile_capability(
     values: np.ndarray,
     usl: float | None,
@@ -317,16 +363,14 @@ def calculate_percentile_capability(
     if usl is not None and lsl is not None:
         pp = (usl - lsl) / spread
 
-    # Ppk: one-sided possible
+    # Ppk: symmetric spread formula (half_spread = spread / 2)
+    half_spread = spread / 2.0
     ppk_values = []
-    if usl is not None:
-        upper_spread = p99_865 - p50
-        if upper_spread > 0:
-            ppk_values.append((usl - p50) / upper_spread)
-    if lsl is not None:
-        lower_spread = p50 - p0_135
-        if lower_spread > 0:
-            ppk_values.append((p50 - lsl) / lower_spread)
+    if half_spread > 0:
+        if usl is not None:
+            ppk_values.append((usl - p50) / half_spread)
+        if lsl is not None:
+            ppk_values.append((p50 - lsl) / half_spread)
 
     if ppk_values:
         ppk = min(ppk_values)
@@ -501,6 +545,7 @@ def calculate_capability_nonnormal(
     target: float | None = None,
     sigma_within: float | None = None,
     method: str = "auto",
+    distribution_params: dict[str, str | float] | None = None,
 ) -> NonNormalCapabilityResult:
     """Calculate process capability using non-normal methods.
 
@@ -517,6 +562,7 @@ def calculate_capability_nonnormal(
         target: Process target value.
         sigma_within: Within-subgroup sigma.
         method: "auto", "normal", "box_cox", "percentile", or "distribution_fit".
+        distribution_params: Optional dict to force a specific family (e.g., {"family": "weibull"}).
 
     Returns:
         NonNormalCapabilityResult with all computed indices.
@@ -638,13 +684,48 @@ def calculate_capability_nonnormal(
             )
 
     if method == "distribution_fit" or (method == "auto" and not is_normal):
+        # If the user explicitly saved a specific family (e.g., {"family": "weibull"}), 
+        # force the fit to that exact family, ignoring AIC ranking for others.
+        target_family = distribution_params.get("family") if distribution_params else None
+
         if n >= 8:
-            best = DistributionFitter.best_fit(arr)
-            if best is not None and best.is_adequate_fit:
+            requested_fits = []
+            if target_family:
+                # Force fit only the requested family
+                for name, dist, n_params in DistributionFitter.FAMILIES:
+                    if name == target_family:
+                        try:
+                            # MLE fit
+                            params = dist.fit(arr)
+                            ad_stat, ad_p, is_adequate = _anderson_darling_test(dist, params, arr)
+                            ll = _log_likelihood(dist, params, arr)
+                            aic = _compute_aic(len(arr), n_params, ll)
+                            param_dict = _params_to_dict(name, params)
+                            
+                            forced_fit = DistributionFitResult(
+                                family=name,
+                                parameters=param_dict,
+                                ad_statistic=round(ad_stat, 6),
+                                ad_p_value=_round_or_none(ad_p, 6),
+                                aic=round(aic, 2),
+                                is_adequate_fit=is_adequate,
+                            )
+                            requested_fits.append(forced_fit)
+                        except Exception:
+                            pass
+                        break
+                best = requested_fits[0] if requested_fits else None
+            else:
+                # Normal auto-cascade (pick best by AIC)
+                best = DistributionFitter.best_fit(arr)
+
+            if best is not None:
                 fitted_dist = best
                 pp, ppk = _distribution_fit_capability(best, usl, lsl)
                 if pp is not None or ppk is not None:
-                    method_detail = f"{best.family.replace('_', ' ').title()} fit (AIC={best.aic:.1f})"
+                    # Provide clearer detail if a fit was explicitly forced vs auto-selected
+                    prefix = "Forced" if target_family else "Auto-selected"
+                    method_detail = f"{prefix} {best.family.replace('_', ' ').title()} fit (AIC={best.aic:.1f})"
                     return NonNormalCapabilityResult(
                         cp=None, cpk=None, pp=pp, ppk=ppk, cpm=None,
                         method="distribution_fit", method_detail=method_detail,
@@ -657,11 +738,12 @@ def calculate_capability_nonnormal(
                     )
 
         if method == "distribution_fit":
-            # Specifically requested but no adequate fit found
+            # Specifically requested but no fit could be generated
+            reason = f"for requested family '{target_family}'" if target_family else "found"
             return NonNormalCapabilityResult(
                 cp=None, cpk=None, pp=pct_pp, ppk=pct_ppk, cpm=None,
                 method="percentile",
-                method_detail="Percentile (no adequate distribution fit found)",
+                method_detail=f"Percentile (no adequate distribution fit {reason})",
                 normality_p_value=_round_or_none(normality_p, 6),
                 normality_test=normality_test, is_normal=is_normal,
                 fitted_distribution=fitted_dist,

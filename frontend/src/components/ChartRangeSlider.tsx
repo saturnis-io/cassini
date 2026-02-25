@@ -96,7 +96,7 @@ export function ChartRangeSlider({
     (e: React.PointerEvent, type: 'left' | 'right' | 'window') => {
       e.preventDefault()
       e.stopPropagation()
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+        ; (e.target as HTMLElement).setPointerCapture(e.pointerId)
       setDragging(type)
       dragStart.current = { x: e.clientX, startVal: start, endVal: end }
     },
@@ -171,11 +171,31 @@ export function ChartRangeSlider({
     [dragging, pxToIndex, windowSize, totalPoints, setRangeWindow],
   )
 
-  // Reset when total points change
+  // Track previous total points to detect when new data arrives
+  const prevTotalRef = useRef(totalPoints)
+
+  // Auto-advance or clamp when total points change
   useEffect(() => {
-    if (rangeWindow && rangeWindow[1] >= totalPoints) {
-      setRangeWindow([Math.max(0, totalPoints - windowSize), totalPoints - 1])
+    const prevTotal = prevTotalRef.current
+    prevTotalRef.current = totalPoints
+
+    if (!rangeWindow) return
+
+    const [wStart, wEnd] = rangeWindow
+    const currentWindowSize = wEnd - wStart + 1
+
+    if (totalPoints > prevTotal) {
+      // Data grew. If the user was scrolled all the way to the right edge,
+      // auto-slide the window forward to reveal the new data points.
+      if (wEnd >= prevTotal - 1) {
+        setRangeWindow([Math.max(0, totalPoints - currentWindowSize), totalPoints - 1])
+      }
+    } else if (wEnd >= totalPoints) {
+      // Data shrank or window is invalidly large, clamp it
+      setRangeWindow([Math.max(0, totalPoints - currentWindowSize), totalPoints - 1])
     }
+    // Intentionally omitting rangeWindow from dependencies so manual slider drags don't trigger this
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalPoints])
 
   // Compute positions as percentages

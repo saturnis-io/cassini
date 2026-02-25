@@ -18,10 +18,12 @@ from openspc.api.schemas.distributions import (
     DistributionFitResultSchema,
     NonNormalCapabilityRequest,
     NonNormalCapabilityResponse,
+    QQPointsSchema,
 )
 from openspc.core.distributions import (
     DistributionFitter,
     calculate_capability_nonnormal,
+    compute_qq_points,
 )
 from openspc.db.models.characteristic import Characteristic
 from openspc.db.models.user import User
@@ -99,6 +101,15 @@ async def calculate_nonnormal_capability(
             detail="At least one specification limit (USL or LSL) must be set",
         )
 
+    import json
+
+    dist_params = None
+    if characteristic.distribution_params:
+        try:
+            dist_params = json.loads(characteristic.distribution_params)
+        except json.JSONDecodeError:
+            pass
+
     result = calculate_capability_nonnormal(
         values=values,
         usl=characteristic.usl,
@@ -106,6 +117,7 @@ async def calculate_nonnormal_capability(
         target=characteristic.target_value,
         sigma_within=sigma_within,
         method=body.method,
+        distribution_params=dist_params,
     )
 
     fitted = None
@@ -160,19 +172,32 @@ async def fit_distribution(
     import numpy as np
 
     arr = np.asarray(values, dtype=np.float64)
+    sorted_values = sorted(values)
     fits = DistributionFitter.fit_all(arr)
 
-    fit_schemas = [
-        DistributionFitResultSchema(
-            family=f.family,
-            parameters=f.parameters,
-            ad_statistic=f.ad_statistic,
-            ad_p_value=f.ad_p_value,
-            aic=f.aic,
-            is_adequate_fit=f.is_adequate_fit,
+    fit_schemas: list[DistributionFitResultSchema] = []
+    for f in fits:
+        # Compute Q-Q points using Blom plotting positions
+        qq = compute_qq_points(sorted_values, f.family, f.parameters)
+        qq_schema = (
+            QQPointsSchema(
+                sample_quantiles=qq["sample_quantiles"],
+                theoretical_quantiles=qq["theoretical_quantiles"],
+            )
+            if qq is not None
+            else None
         )
-        for f in fits
-    ]
+        fit_schemas.append(
+            DistributionFitResultSchema(
+                family=f.family,
+                parameters=f.parameters,
+                ad_statistic=f.ad_statistic,
+                ad_p_value=f.ad_p_value,
+                aic=f.aic,
+                is_adequate_fit=f.is_adequate_fit,
+                qq_points=qq_schema,
+            )
+        )
 
     best = fit_schemas[0] if fit_schemas else None
 

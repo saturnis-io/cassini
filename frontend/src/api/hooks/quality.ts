@@ -203,6 +203,7 @@ export function useUpdateDistributionConfig() {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['nonnormal-capability', variables.charId] })
       qc.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.charId) })
+      qc.invalidateQueries({ queryKey: queryKeys.capability.current(variables.charId) })
       toast.success('Distribution configuration saved')
     },
     onError: (error: Error) => {
