@@ -8,18 +8,20 @@ flowchart TD
         C1[LoginPage.tsx] --> H1[useLogin]
         C2[AuthProvider.tsx] --> H2[useRefreshToken]
         C3[UserManagementPage.tsx] --> H3[useUsers]
+        C4[SSOSettings.tsx] --> H4[useOIDCConfig]
     end
     subgraph API
-        H1 --> E1[POST /api/v1/auth/login]
-        H2 --> E2[POST /api/v1/auth/refresh]
-        H3 --> E3[GET /api/v1/users/]
+        H1 --> E1[POST /auth/login]
+        H2 --> E2[POST /auth/refresh]
+        H3 --> E3[GET /users]
+        H4 --> E4[GET /oidc/config]
     end
     subgraph Backend
-        E1 --> S1[verify_password + create_tokens]
-        S1 --> M1[(User)]
-        E2 --> S2[verify_refresh_token]
-        E3 --> R1[UserRepository]
-        R1 --> M1
+        E1 --> S1[JWT create access+refresh]
+        S1 --> R1[UserRepository]
+        R1 --> M1[(User)]
+        E3 --> R1
+        E4 --> M2[(OIDCConfig)]
     end
 ```
 
@@ -28,16 +30,16 @@ flowchart TD
 ```mermaid
 erDiagram
     User ||--o{ UserPlantRole : "has roles"
-    UserPlantRole }o--|| Plant : "for plant"
-    User ||--o{ APIKey : "owns"
     User {
         int id PK
         string username
         string email
-        string password_hash
+        string hashed_password
         bool is_active
         bool must_change_password
-        datetime password_changed_at
+        string full_name
+        int failed_login_count
+        datetime locked_until
     }
     UserPlantRole {
         int id PK
@@ -45,27 +47,33 @@ erDiagram
         int plant_id FK
         string role
     }
+    UserPlantRole }o--|| Plant : "for plant"
     APIKey {
         int id PK
         int user_id FK
-        string name
         string key_hash
-        datetime expires_at
-        int rate_limit_per_minute
+        string name
         bool is_active
     }
-    Plant {
-        int id PK
-        string name
-        string code
-    }
+    APIKey }o--|| User : "belongs to"
     OIDCConfig {
         int id PK
+        int plant_id FK
         string provider_name
         string client_id
-        string client_secret
-        string discovery_url
-        bool is_active
+        string authority
+    }
+    OIDCConfig }o--|| Plant : "per plant"
+    OIDCState {
+        int id PK
+        string state
+        string nonce
+        datetime expires_at
+    }
+    AccountLinking {
+        int id PK
+        int user_id FK
+        string oidc_subject
     }
 ```
 
@@ -74,90 +82,89 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| User | `db/models/user.py` | id, username, email, password_hash, is_active, must_change_password, password_changed_at | 001, 031 |
-| UserPlantRole | `db/models/user.py` | id, user_id FK, plant_id FK, role (operator/supervisor/engineer/admin) | 001 |
-| APIKey | `db/models/api_key.py` | id, user_id FK, name, key_hash, expires_at, rate_limit_per_minute, is_active, characteristic_ids JSON | 001 |
-| OIDCConfig | `db/models/oidc_config.py` | id, provider_name, client_id, client_secret, discovery_url, is_active | Sprint 8 |
+| User | db/models/user.py | id, username (unique), email (unique), hashed_password, is_active, must_change_password, full_name, password_changed_at, failed_login_count, locked_until, password_history, last_signature_auth_at | 001+031 |
+| UserPlantRole | db/models/user.py | id, user_id FK, plant_id FK, role (operator/supervisor/engineer/admin), unique(user_id, plant_id) | 001 |
+| APIKey | db/models/api_key.py | id, user_id FK, key_hash (SHA-256), name, is_active | 001 |
+| OIDCConfig | db/models/oidc_config.py | id, plant_id FK, provider_name, client_id, client_secret, authority, claim_mapping | 001+036 |
+| OIDCState | db/models/oidc_state.py | id, state, nonce, plant_id, expires_at (DB-backed state store) | 036 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| POST | /api/v1/auth/login | LoginRequest body (username, password) | LoginResponse (access_token, user) + refresh cookie | none (rate limited) |
-| POST | /api/v1/auth/refresh | refresh_token cookie | TokenResponse (access_token) | refresh cookie |
-| POST | /api/v1/auth/logout | - | {message} + clear cookie | get_current_user |
-| GET | /api/v1/auth/me | - | UserWithRolesResponse | get_current_user |
-| POST | /api/v1/auth/change-password | ChangePasswordRequest body | {message} | get_current_user |
-| GET | /api/v1/users/ | is_active, limit, offset | list[UserResponse] | get_current_admin |
-| POST | /api/v1/users/ | UserCreate body | UserResponse | get_current_admin |
-| GET | /api/v1/users/{id} | id path | UserResponse | get_current_admin |
-| PATCH | /api/v1/users/{id} | UserUpdate body | UserResponse | get_current_admin |
-| DELETE | /api/v1/users/{id} | id path | 204 | get_current_admin |
-| POST | /api/v1/users/{id}/roles | RoleAssignment body | UserResponse | get_current_admin |
-| DELETE | /api/v1/users/{id}/roles/{role_id} | role_id path | 204 | get_current_admin |
-| GET | /api/v1/api-keys/ | - | list[APIKeyResponse] | get_current_user |
-| POST | /api/v1/api-keys/ | APIKeyCreate body | APIKeyCreateResponse (includes plaintext key) | get_current_engineer |
-| DELETE | /api/v1/api-keys/{id} | id path | 204 | get_current_user |
-| GET | /api/v1/oidc/config | - | OIDCConfigResponse | get_current_admin |
-| PUT | /api/v1/oidc/config | OIDCConfigSet body | OIDCConfigResponse | get_current_admin |
-| GET | /api/v1/oidc/login | provider | RedirectResponse | none |
-| GET | /api/v1/oidc/callback | code, state | LoginResponse | none |
+| POST | /auth/login | username, password body | {access_token, token_type} + Set-Cookie refresh | none |
+| POST | /auth/refresh | Cookie refresh_token | {access_token, token_type} + Set-Cookie refresh | cookie |
+| POST | /auth/logout | - | 200 + Clear-Cookie | get_current_user |
+| GET | /auth/me | - | UserResponse | get_current_user |
+| POST | /auth/change-password | old_password, new_password body | 200 | get_current_user |
+| GET | /users | plant_id, page, limit | PaginatedResponse[UserResponse] | get_current_engineer |
+| POST | /users | UserCreate body | UserResponse | admin only |
+| GET | /users/{id} | path id | UserResponse | get_current_engineer |
+| PUT | /users/{id} | path id, body | UserResponse | admin only |
+| DELETE | /users/{id} | path id | 204 | admin only |
+| POST | /users/{id}/assign-role | user_id, plant_id, role body | 200 | admin only |
+| GET | /api-keys | - | list[APIKeyResponse] | get_current_user |
+| POST | /api-keys | name body | APIKeyCreated (key shown once) | get_current_user |
+| DELETE | /api-keys/{id} | path id | 204 | get_current_user |
+| GET | /oidc/config | plant_id query | OIDCConfigResponse | get_current_engineer |
+| PUT | /oidc/config | OIDCConfigUpdate body | OIDCConfigResponse | admin only |
+| GET | /oidc/login | plant_id query | redirect to IdP | none |
+| POST | /oidc/callback | code, state body | {access_token} + Set-Cookie | none |
+| POST | /oidc/logout | - | redirect to IdP logout | get_current_user |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| JWT | `core/auth/jwt.py` | create_access_token(user_id, exp=15min), create_refresh_token(user_id, exp=7d), verify_refresh_token() |
-| Passwords | `core/auth/passwords.py` | hash_password(), verify_password() |
-| APIKey | `core/auth/api_key.py` | validate_api_key(), hash_api_key() |
-| Bootstrap | `core/auth/bootstrap.py` | bootstrap_admin_user() -- creates admin if no users exist |
-| OIDCService | `core/oidc_service.py` | initiate_login(), handle_callback() |
+| JWT | core/auth/jwt.py | create_access_token(), create_refresh_token(), verify_token() |
+| Passwords | core/auth/passwords.py | hash_password(), verify_password() |
+| APIKeyAuth | core/auth/api_key.py | verify_api_key() |
+| Bootstrap | core/auth/bootstrap.py | create_default_admin() (on first startup) |
+| OIDCService | core/oidc_service.py | initiate_login(), handle_callback(), claim_mapping, account_linking, RP-initiated logout |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| UserRepository | `db/repositories/user.py` | get_by_username, get_by_id, create, update, list_all |
-| OIDCConfigRepository | `db/repositories/oidc_config_repo.py` | get_active, create_or_update |
+| UserRepository | db/repositories/user.py | get_by_username, get_by_id, create, update, assign_plant_role, get_by_plant |
+| OIDCConfigRepository | db/repositories/oidc_config_repo.py | get_by_plant, upsert |
+| OIDCStateRepository | db/repositories/oidc_state_repo.py | create_state, pop_state (DB-backed, replaces in-memory dict) |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| AuthProvider | `providers/AuthProvider.tsx` | children | useAuth context (isAuthenticated, login, logout, user) |
-| LoginPage | `pages/LoginPage.tsx` | - | useLogin |
-| ChangePasswordPage | `pages/ChangePasswordPage.tsx` | - | useChangePassword |
-| UserManagementPage | `pages/UserManagementPage.tsx` | - | useUsers |
-| UserTable | `components/users/UserTable.tsx` | users | - |
-| UserFormDialog | `components/users/UserFormDialog.tsx` | user, onSave | useCreateUser, useUpdateUser |
-| SSOSettings | `components/SSOSettings.tsx` | - | useOIDCConfig |
+| AuthProvider | providers/AuthProvider.tsx | children | useRefreshToken, token state |
+| LoginPage | pages/LoginPage.tsx | - | useLogin |
+| UserTable | components/users/UserTable.tsx | users | useDeleteUser |
+| UserFormDialog | components/users/UserFormDialog.tsx | user, onSave | useCreateUser, useUpdateUser |
+| SSOSettings | components/SSOSettings.tsx | plantId | useOIDCConfig, useUpdateOIDCConfig |
+| AccountLinkingPanel | components/AccountLinkingPanel.tsx | - | useAccountLinks |
+| ApiKeysSettings | components/ApiKeysSettings.tsx | - | useApiKeys |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
 | useLogin | authApi | POST /auth/login | - |
 | useRefreshToken | authApi | POST /auth/refresh | - |
-| useCurrentUser | authApi | GET /auth/me | ['auth', 'me'] |
-| useUsers | usersApi | GET /users/ | ['users'] |
-| useCreateUser | usersApi | POST /users/ | invalidates users |
-| useOIDCConfig | oidcApi | GET /oidc/config | ['oidc', 'config'] |
+| useCurrentUser | authApi | GET /auth/me | ['currentUser'] |
+| useUsers | authApi | GET /users | ['users'] |
+| useOIDCConfig | authApi | GET /oidc/config | ['oidcConfig'] |
+| useApiKeys | authApi | GET /api-keys | ['apiKeys'] |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /login | LoginPage | LoginForm |
-| /change-password | ChangePasswordPage | ChangePasswordForm |
-| /admin/users | UserManagementPage | UserTable, UserFormDialog |
-| /settings/sso | SettingsPage > SSOSettings | SSOSettings |
+| /login | LoginPage | CassiniLogo, SaturnScene, login form |
+| /change-password | ChangePasswordPage | password form |
+| /users | UserManagementPage | UserTable, UserFormDialog |
 
 ## Migrations
 - 001: user, user_plant_role tables
-- 031: password_changed_at, must_change_password on user (for 21 CFR Part 11)
-- Sprint 8: oidc_config, oidc_state tables
+- 031: User columns for Part 11 (full_name, password_changed_at, failed_login_count, locked_until, password_history)
+- 036: OIDC hardening (DB-backed state store, nonce validation, claim mapping)
 
 ## Known Issues / Gotchas
-- JWT access tokens are 15 min, refresh cookies are 7 days with httpOnly, path="/api/v1/auth"
-- Token refresh uses shared promise queue in client.ts to prevent race conditions
-- Admin bootstrap: first user is auto-created as admin with must_change_password=true
-- 4-tier role hierarchy: operator < supervisor < engineer < admin; per-plant via user_plant_role
-- Admin users need access to ALL plants; auto-assign admin role on new plant creation
-- Cookie secure flag controlled by OPENSPC_COOKIE_SECURE setting
-- API key auth is separate from JWT auth (X-API-Key header)
+- **Token refresh race condition**: Uses shared Promise queue in client.ts -- never use boolean flag for concurrent 401 handling
+- **Cookie path**: Refresh token cookie uses path="/api/v1/auth"
+- **Admin bootstrap**: Admin users need ALL plants. Auto-assign admin role on new plant creation
+- **OIDC pop_state race**: Fixed -- DB-backed state store replaces in-memory dict to prevent race conditions
+- **localStorage keys**: Use cassini- prefix (migration from openspc- in main.tsx)

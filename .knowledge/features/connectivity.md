@@ -6,24 +6,24 @@
 flowchart TD
     subgraph Frontend
         C1[ServerSelector.tsx] --> H1[useOPCUAServers]
-        C2[NodeTreeBrowser.tsx] --> H2[useBrowseNode]
+        C2[NodeTreeBrowser.tsx] --> H2[useBrowseNodes]
         C3[MappingTable.tsx] --> H3[useTagMappings]
         C4[GageBridgeList.tsx] --> H4[useGageBridges]
+        C5[ConnectivityPage.tsx] --> C1 & C2 & C3 & C4
     end
     subgraph API
-        H1 --> E1[GET /api/v1/opcua-servers/]
-        H2 --> E2[POST /api/v1/opcua-servers/:id/browse]
-        H3 --> E3[GET /api/v1/tags/mappings]
-        H4 --> E4[GET /api/v1/gage-bridges/]
+        H1 --> E1[GET /opcua-servers]
+        H2 --> E2[GET /opcua-servers/:id/browse]
+        H3 --> E3[GET /tags/mappings]
+        H4 --> E4[GET /gage-bridges]
     end
     subgraph Backend
         E1 --> R1[OPCUAServerRepository]
         R1 --> M1[(OPCUAServer)]
-        E2 --> S1[opcua_manager.browse_node]
+        E2 --> S1[OPCUABrowsing.browse]
         E3 --> R2[DataSourceRepository]
         R2 --> M2[(DataSource)]
-        E4 --> R3[GageBridgeRepository]
-        R3 --> M3[(GageBridge)]
+        E4 --> R3[(GageBridge)]
     end
 ```
 
@@ -32,51 +32,55 @@ flowchart TD
 ```mermaid
 erDiagram
     Characteristic ||--o| DataSource : "mapped to"
-    DataSource ||--|| MQTTDataSource : "is-a JTI"
-    DataSource ||--|| OPCUADataSource : "is-a JTI"
-    MQTTDataSource }o--|| MQTTBroker : "connects to"
-    OPCUADataSource }o--|| OPCUAServer : "connects to"
-    GageBridge ||--o{ GagePort : "has ports"
-    GagePort }o--o| MQTTDataSource : "auto-mapped"
     DataSource {
         int id PK
-        int characteristic_id FK
         string type
+        int characteristic_id FK
+        string trigger_strategy
         bool is_active
     }
+    DataSource ||--|| MQTTDataSource : "is-a JTI"
+    DataSource ||--|| OPCUADataSource : "is-a JTI"
     MQTTDataSource {
         int id PK
         int broker_id FK
         string topic
+        string metric_name
+    }
+    MQTTDataSource }o--|| MQTTBroker : "connects to"
+    MQTTBroker {
+        int id PK
+        string host
+        int port
+        bool use_tls
     }
     OPCUADataSource {
         int id PK
         int server_id FK
         string node_id
     }
-    MQTTBroker {
-        int id PK
-        string host
-        int port
-        bool is_active
-    }
+    OPCUADataSource }o--|| OPCUAServer : "connects to"
     OPCUAServer {
         int id PK
         string endpoint_url
-        bool is_active
+        string security_mode
     }
+    GageBridge ||--o{ GagePort : "has ports"
     GageBridge {
         int id PK
+        int plant_id FK
         string name
-        string api_key_hash
         string status
     }
     GagePort {
         int id PK
         int bridge_id FK
         string port_name
+        int baud_rate
+        string protocol_profile
         int characteristic_id FK
     }
+    GagePort }o--o| MQTTDataSource : "auto-mapped"
 ```
 
 ## Backend
@@ -84,111 +88,104 @@ erDiagram
 ### Models
 | Model | File | Key Columns/Relations | Migration |
 |-------|------|-----------------------|-----------|
-| DataSource | `db/models/data_source.py` | id, characteristic_id FK, type (polymorphic), is_active | 001, 017 |
-| MQTTDataSource | `db/models/data_source.py` | id FK(data_source), broker_id FK, topic | 001 |
-| OPCUADataSource | `db/models/data_source.py` | id FK(data_source), server_id FK, node_id | 015 |
-| MQTTBroker | `db/models/broker.py` | id, host, port, is_active, encrypted_password | 001, 020 |
-| OPCUAServer | `db/models/opcua_server.py` | id, endpoint_url, is_active, security_mode | 015 |
-| GageBridge | `db/models/gage.py` | id, name, api_key_hash, status, plant_id FK | 034 |
-| GagePort | `db/models/gage.py` | id, bridge_id FK, port_name, characteristic_id FK | 034, 035 |
+| DataSource | db/models/data_source.py | id, type (polymorphic), characteristic_id FK (unique), trigger_strategy, is_active | 001 |
+| MQTTDataSource | db/models/data_source.py | id FK, broker_id FK, topic, metric_name, trigger_tag | 001 |
+| OPCUADataSource | db/models/data_source.py | id FK, server_id FK, node_id, sampling_interval, publishing_interval | Phase 2 |
+| MQTTBroker | db/models/broker.py | id, host, port, use_tls, username, encrypted_password | 001 |
+| OPCUAServer | db/models/opcua_server.py | id, endpoint_url, security_mode, security_policy | Phase 2 |
+| GageBridge | db/models/gage.py | id, plant_id FK, name, api_key_hash, status, last_heartbeat_at | 034 |
+| GagePort | db/models/gage.py | id, bridge_id FK, port_name, baud_rate, protocol_profile, characteristic_id FK, mqtt_topic | 034+035 |
 
 ### Endpoints
 | Method | Path | Params | Response Shape | Auth |
 |--------|------|--------|----------------|------|
-| GET | /api/v1/opcua-servers/ | plant_id | list[OPCUAServerResponse] | get_current_engineer |
-| POST | /api/v1/opcua-servers/ | OPCUAServerCreate body | OPCUAServerResponse | get_current_engineer |
-| GET | /api/v1/opcua-servers/{id} | id path | OPCUAServerResponse | get_current_engineer |
-| PATCH | /api/v1/opcua-servers/{id} | OPCUAServerUpdate body | OPCUAServerResponse | get_current_engineer |
-| DELETE | /api/v1/opcua-servers/{id} | id path | 204 | get_current_engineer |
-| POST | /api/v1/opcua-servers/{id}/test | - | TestResult | get_current_engineer |
-| POST | /api/v1/opcua-servers/{id}/browse | node_id, depth | list[BrowseNode] | get_current_engineer |
-| POST | /api/v1/opcua-servers/{id}/read | node_id | ReadValueResponse | get_current_engineer |
-| GET | /api/v1/tags/mappings | plant_id, char_id | list[TagMappingResponse] | get_current_user |
-| POST | /api/v1/tags/mappings | TagMappingCreate body | TagMappingResponse | get_current_engineer |
-| DELETE | /api/v1/tags/mappings/{id} | id path | 204 | get_current_engineer |
-| GET | /api/v1/brokers/ | plant_id | list[BrokerResponse] | get_current_engineer |
-| POST | /api/v1/brokers/ | BrokerCreate body | BrokerResponse | get_current_engineer |
-| PATCH | /api/v1/brokers/{id} | BrokerUpdate body | BrokerResponse | get_current_engineer |
-| DELETE | /api/v1/brokers/{id} | id path | 204 | get_current_engineer |
-| POST | /api/v1/brokers/{id}/test | - | TestResult | get_current_engineer |
-| GET | /api/v1/providers/status | - | ProviderStatusResponse | get_current_user |
-| GET | /api/v1/gage-bridges/ | plant_id | list[GageBridgeResponse] | get_current_engineer |
-| POST | /api/v1/gage-bridges/register | GageBridgeRegister body | GageBridgeRegisterResponse (includes plaintext API key) | get_current_engineer |
-| GET | /api/v1/gage-bridges/{id} | id path | GageBridgeDetailResponse | get_current_engineer |
-| PATCH | /api/v1/gage-bridges/{id} | update body | GageBridgeResponse | get_current_engineer |
-| DELETE | /api/v1/gage-bridges/{id} | id path | 204 | get_current_engineer |
-| POST | /api/v1/gage-bridges/{id}/heartbeat | status, ports | HeartbeatResponse | api_key_auth |
-| GET | /api/v1/gage-bridges/my-config | - | GageBridgeConfigResponse | api_key_auth |
+| GET | /opcua-servers | plant_id | list[OPCUAServerResponse] | get_current_user |
+| POST | /opcua-servers | OPCUAServerCreate body | OPCUAServerResponse | get_current_engineer |
+| GET | /opcua-servers/{id} | path id | OPCUAServerResponse | get_current_user |
+| PUT | /opcua-servers/{id} | path id, body | OPCUAServerResponse | get_current_engineer |
+| DELETE | /opcua-servers/{id} | path id | 204 | get_current_engineer |
+| POST | /opcua-servers/{id}/test | path id | TestResult | get_current_engineer |
+| GET | /opcua-servers/{id}/browse | path id, node_id query | list[NodeInfo] | get_current_user |
+| GET | /tags/mappings | plant_id, char_id | list[TagMappingResponse] | get_current_user |
+| POST | /tags/mappings | TagMappingCreate body | TagMappingResponse | get_current_engineer |
+| DELETE | /tags/mappings/{id} | path id | 204 | get_current_engineer |
+| GET | /brokers | plant_id | list[BrokerResponse] | get_current_user |
+| POST | /brokers | BrokerCreate body | BrokerResponse | get_current_engineer |
+| PUT | /brokers/{id} | path id, body | BrokerResponse | get_current_engineer |
+| DELETE | /brokers/{id} | path id | 204 | get_current_engineer |
+| POST | /brokers/{id}/test | path id | TestResult | get_current_engineer |
+| GET | /providers/status | plant_id | list[ProviderStatus] | get_current_user |
+| GET | /gage-bridges | plant_id | list[GageBridgeResponse] | get_current_user |
+| POST | /gage-bridges | GageBridgeCreate body | GageBridgeRegistration | get_current_engineer |
+| GET | /gage-bridges/{id} | path id | GageBridgeResponse | get_current_user |
+| PUT | /gage-bridges/{id} | path id, body | GageBridgeResponse | get_current_engineer |
+| DELETE | /gage-bridges/{id} | path id | 204 | get_current_engineer |
+| POST | /gage-bridges/{id}/heartbeat | path id | 200 | api_key auth |
+| GET | /gage-bridges/my-config | api_key header | BridgeConfig | api_key auth |
+| GET | /gage-bridges/{id}/ports | path id | list[GagePortResponse] | get_current_user |
+| PUT | /gage-bridges/{id}/ports/{port_id} | path ids, body | GagePortResponse | get_current_engineer |
 
 ### Services
 | Module | File | Key Functions |
 |--------|------|---------------|
-| TagProviderManager | `core/providers/manager.py` | start(), stop(), subscribe_characteristic(), on_message_callback() |
-| OPCUAProviderManager | `core/providers/opcua_manager.py` | start(), stop(), subscribe_characteristic() |
-| OPCUAManager | `opcua/manager.py` | browse_node(), read_value(), subscribe_data_change() |
-| OPCUAClient | `opcua/client.py` | connect(), disconnect(), browse(), read() |
-| ManualProvider | `core/providers/manual.py` | submit_sample() |
+| ProviderManager | core/providers/manager.py | start_all(), stop_all(), get_status() |
+| OPCUAManager | core/providers/opcua_manager.py | connect(), subscribe(), browse_nodes() |
+| OPCUAProvider | core/providers/opcua_provider.py | on_data_change() -> submits to SPC engine |
+| OPCUABrowsing | opcua/browsing.py | browse(), get_node_attributes() |
+| OPCUAClient | opcua/client.py | connect(), disconnect(), read_value(), subscribe() |
+| ManualProvider | core/providers/manual.py | submit_sample() |
+| TagProvider | core/providers/tag.py | process_tag_data() |
+| BufferService | core/providers/buffer.py | add_to_buffer(), flush_buffer() |
 
 ### Repositories
 | Class | File | Key Methods |
 |-------|------|-------------|
-| DataSourceRepository | `db/repositories/data_source.py` | get_by_characteristic, create_mqtt, create_opcua, delete |
-| OPCUAServerRepository | `db/repositories/opcua_server.py` | get_by_id, list_by_plant, create |
-| BrokerRepository | `db/repositories/broker.py` | get_by_id, list_by_plant, create |
+| DataSourceRepository | db/repositories/data_source.py | get_by_characteristic, create_mqtt, create_opcua, delete |
+| OPCUAServerRepository | db/repositories/opcua_server.py | get_by_plant, create, update, delete |
+| BrokerRepository | db/repositories/broker.py | get_by_plant, create, update, delete |
 
 ## Frontend
 
 ### Components
 | Component | File | Key Props | Hooks Used |
 |-----------|------|-----------|------------|
-| ServerSelector | `components/connectivity/ServerSelector.tsx` | protocol, onSelect | useOPCUAServers, useMQTTBrokers |
-| NodeTreeBrowser | `components/connectivity/NodeTreeBrowser.tsx` | serverId | useBrowseNode |
-| MappingTable | `components/connectivity/MappingTable.tsx` | mappings | useTagMappings |
-| MappingRow | `components/connectivity/MappingRow.tsx` | mapping | useDeleteMapping |
-| MappingTab | `components/connectivity/MappingTab.tsx` | - | useTagMappings |
-| CharacteristicPicker | `components/connectivity/CharacteristicPicker.tsx` | onSelect | useCharacteristics |
-| GageBridgeList | `components/connectivity/GageBridgeList.tsx` | - | useGageBridges |
-| GageBridgeRegisterDialog | `components/connectivity/GageBridgeRegisterDialog.tsx` | onRegister | useRegisterGageBridge |
-| GagePortConfig | `components/connectivity/GagePortConfig.tsx` | port | useUpdateGagePort |
-| GageProfileSelector | `components/connectivity/GageProfileSelector.tsx` | onSelect | - |
-| ServersTab | `components/connectivity/ServersTab.tsx` | - | useOPCUAServers, useMQTTBrokers |
-| MonitorTab | `components/connectivity/MonitorTab.tsx` | - | useProviderStatus |
-| BrowseTab | `components/connectivity/BrowseTab.tsx` | - | useBrowseNode |
-| GagesTab | `components/connectivity/GagesTab.tsx` | - | useGageBridges |
+| ServerSelector | components/connectivity/ServerSelector.tsx | protocol, onSelect | useOPCUAServers, useBrokers |
+| NodeTreeBrowser | components/connectivity/NodeTreeBrowser.tsx | serverId | useBrowseNodes |
+| MappingTable | components/connectivity/MappingTable.tsx | plantId | useTagMappings |
+| MappingRow | components/connectivity/MappingRow.tsx | mapping | useDeleteMapping |
+| MappingTab | components/connectivity/MappingTab.tsx | - | useTagMappings |
+| MonitorTab | components/connectivity/MonitorTab.tsx | - | useProviderStatus |
+| GageBridgeList | components/connectivity/GageBridgeList.tsx | plantId | useGageBridges |
+| GageBridgeRegisterDialog | components/connectivity/GageBridgeRegisterDialog.tsx | onRegister | useRegisterGageBridge |
+| GagePortConfig | components/connectivity/GagePortConfig.tsx | bridgeId, port | useUpdateGagePort |
+| GageProfileSelector | components/connectivity/GageProfileSelector.tsx | value, onChange | - |
+| GagesTab | components/connectivity/GagesTab.tsx | - | useGageBridges |
+| CharacteristicPicker | components/connectivity/CharacteristicPicker.tsx | onSelect | useCharacteristics |
 
 ### Hooks / API
 | Hook/Method | Namespace | Endpoint | Cache Key |
 |-------------|-----------|----------|-----------|
-| useOPCUAServers | connectivityApi | GET /opcua-servers/ | ['opcua-servers'] |
-| useMQTTBrokers | connectivityApi | GET /brokers/ | ['brokers'] |
-| useBrowseNode | connectivityApi | POST /opcua-servers/:id/browse | ['opcua', 'browse', id, nodeId] |
-| useTagMappings | connectivityApi | GET /tags/mappings | ['tags', 'mappings'] |
-| useGageBridges | connectivityApi | GET /gage-bridges/ | ['gage-bridges'] |
-| useProviderStatus | connectivityApi | GET /providers/status | ['providers', 'status'] |
+| useOPCUAServers | connectivityApi | GET /opcua-servers | ['opcuaServers'] |
+| useBrowseNodes | connectivityApi | GET /opcua-servers/:id/browse | ['opcuaNodes', serverId] |
+| useTagMappings | connectivityApi | GET /tags/mappings | ['tagMappings'] |
+| useBrokers | connectivityApi | GET /brokers | ['brokers'] |
+| useProviderStatus | connectivityApi | GET /providers/status | ['providerStatus'] |
+| useGageBridges | connectivityApi | GET /gage-bridges | ['gageBridges'] |
+| useRegisterGageBridge | connectivityApi | POST /gage-bridges | invalidates gageBridges |
 
 ### Pages / Routes
 | Route | Page | Key Components |
 |-------|------|----------------|
-| /connectivity | ConnectivityPage | Tab router with 6 sub-routes |
-| /connectivity/monitor | MonitorTab | ConnectionMetrics, DataFlowPipeline |
-| /connectivity/servers | ServersTab | ServerSelector, OPCUAServerForm, MQTTServerForm |
-| /connectivity/browse | BrowseTab | NodeTreeBrowser, TopicTreeBrowser |
-| /connectivity/mapping | MappingTab | MappingTable, MappingRow |
-| /connectivity/gages | GagesTab | GageBridgeList, GagePortConfig |
-| /connectivity/integrations | IntegrationsTab | ERP connector config |
+| /connectivity | ConnectivityPage | ServerSelector, NodeTreeBrowser, MappingTable, GagesTab |
 
 ## Migrations
-- 001: mqtt_broker, data_source, mqtt_data_source
-- 015: opcua_server, opcua_data_source
-- 017: Remove provider_type column (use JTI polymorphic type instead)
-- 020: broker encrypted_password, CASCADE FKs
+- 001: data_source, mqtt_data_source, mqtt_broker
+- Phase 2: opcua_data_source, opcua_server
 - 034: gage_bridge, gage_port tables
-- 035: unique constraint on gage_port
+- 035: unique constraint on gage_port (bridge_id, port_name)
 
 ## Known Issues / Gotchas
-- No provider_type column on Characteristic since migration 017. Use `char.data_source is None` (manual) or `char.data_source.type` (protocol)
-- Never explicitly `.join(DataSource)` when querying JTI subclasses -- SQLAlchemy auto-joins; explicit join causes "ambiguous column name" on SQLite
-- DataSource JTI: Base table `data_source` + sub-tables `mqtt_data_source`, `opcua_data_source`. Polymorphic on `type` column. No `polymorphic_identity` on base class
-- Gage bridge uses API key auth (SHA-256 hashed, shown once at registration)
-- Dual mapping bug fixed: simultaneous char+port update must not create duplicate MQTTDataSource
-- Do NOT add @property for provider_type on Characteristic -- lazy-loading trap in async context
+- **JTI query pattern**: NEVER explicitly .join(DataSource) when querying subclasses -- SQLAlchemy auto-joins. Explicit join causes "ambiguous column" on SQLite
+- **No provider_type column**: Removed in migration 017. Check char.data_source is None (manual) or char.data_source.type
+- **Broker password encryption**: Uses Fernet encryption from .db_encryption_key, separate from JWT secret
+- **Gage bridge dual-mapping**: Fixed race condition when char+port are updated simultaneously
