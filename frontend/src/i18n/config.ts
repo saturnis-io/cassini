@@ -32,7 +32,7 @@ i18n
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      lookupLocalStorage: 'openspc-language',
+      lookupLocalStorage: 'cassini-language',
     },
   })
 

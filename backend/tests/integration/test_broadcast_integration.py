@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openspc.core.alerts.manager import AlertManager, ViolationAcknowledged, ViolationCreated
-from openspc.core.broadcast import WebSocketBroadcaster
-from openspc.core.engine.nelson_rules import RuleResult, Severity
-from openspc.core.events import (
+from cassini.core.alerts.manager import AlertManager, ViolationAcknowledged, ViolationCreated
+from cassini.core.broadcast import WebSocketBroadcaster
+from cassini.core.engine.nelson_rules import RuleResult, Severity
+from cassini.core.events import (
     ControlLimitsUpdatedEvent,
     EventBus,
     SampleProcessedEvent,
@@ -128,7 +128,7 @@ class TestBroadcastIntegration:
         )
 
         # Mock sample for violation creation
-        from openspc.db.models.sample import Sample
+        from cassini.db.models.sample import Sample
 
         sample = Sample(id=1, char_id=1, timestamp=datetime(2024, 1, 15, 10, 0, 0))
         mock_sample_repo.get_by_id.return_value = sample
@@ -169,7 +169,7 @@ class TestBroadcastIntegration:
         )
 
         # Mock violation
-        from openspc.db.models.violation import Violation
+        from cassini.db.models.violation import Violation
 
         violation = Violation(
             id=1,
@@ -182,7 +182,7 @@ class TestBroadcastIntegration:
         mock_violation_repo.get_by_id.return_value = violation
 
         # Mock sample
-        from openspc.db.models.sample import Sample
+        from cassini.db.models.sample import Sample
 
         sample = Sample(id=1, char_id=1, timestamp=datetime(2024, 1, 15, 10, 0, 0))
         mock_sample_repo.get_by_id.return_value = sample
@@ -268,7 +268,7 @@ class TestBroadcastIntegration:
         )
 
         # Mock sample
-        from openspc.db.models.sample import Sample
+        from cassini.db.models.sample import Sample
 
         sample = Sample(id=1, char_id=1, timestamp=datetime(2024, 1, 15, 10, 0, 0))
         mock_sample_repo.get_by_id.return_value = sample

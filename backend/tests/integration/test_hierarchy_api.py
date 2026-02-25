@@ -9,11 +9,11 @@ import pytest_asyncio
 from fastapi import FastAPI, status
 from httpx import AsyncClient
 
-from openspc.api.v1.hierarchy import router as hierarchy_router
-from openspc.db.models.characteristic import Characteristic, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.repositories.characteristic import CharacteristicRepository
-from openspc.db.repositories.hierarchy import HierarchyRepository
+from cassini.api.v1.hierarchy import router as hierarchy_router
+from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.repositories.characteristic import CharacteristicRepository
+from cassini.db.repositories.hierarchy import HierarchyRepository
 
 
 @pytest_asyncio.fixture
@@ -23,7 +23,7 @@ async def app(async_session):
     app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
 
     # Override dependencies to use test session
-    from openspc.api.deps import get_db_session
+    from cassini.api.deps import get_db_session
 
     async def override_get_db():
         yield async_session

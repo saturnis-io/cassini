@@ -29,7 +29,7 @@ export function FAIForm1({ report, readonly }: FAIForm1Props) {
     organization_name: report.organization_name ?? '',
     supplier: report.supplier ?? '',
     purchase_order: report.purchase_order ?? '',
-    reason: report.reason ?? '',
+    reason_for_inspection: report.reason_for_inspection ?? '',
   })
 
   const handleBlur = useCallback(
@@ -195,10 +195,10 @@ export function FAIForm1({ report, readonly }: FAIForm1Props) {
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium">Reason for Inspection</label>
           <select
-            value={fields.reason}
+            value={fields.reason_for_inspection}
             onChange={(e) => {
-              handleChange('reason', e.target.value)
-              handleBlur('reason', e.target.value)
+              handleChange('reason_for_inspection', e.target.value)
+              handleBlur('reason_for_inspection', e.target.value)
             }}
             disabled={readonly}
             className={inputClass}

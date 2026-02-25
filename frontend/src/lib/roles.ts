@@ -1,7 +1,7 @@
 /**
  * Role-Based Access Control Definitions
  *
- * Defines user roles, their hierarchy, and view permissions for the OpenSPC application.
+ * Defines user roles, their hierarchy, and view permissions for the Cassini application.
  * Used throughout the app for navigation filtering and route protection.
  */
 

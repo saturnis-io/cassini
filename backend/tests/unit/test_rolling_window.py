@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openspc.core.engine.rolling_window import (
+from cassini.core.engine.rolling_window import (
     RollingWindow,
     RollingWindowManager,
     WindowSample,

@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
-name = "openspc-bridge"
+name = "cassini-bridge"
 version = "0.1.0"
-description = "OpenSPC gage bridge agent — RS-232/USB serial to MQTT"
+description = "Cassini SPC gage bridge agent — RS-232/USB serial to MQTT"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,4 +16,4 @@ dependencies = [
 ]
 
 [project.scripts]
-openspc-bridge = "openspc_bridge.cli:main"
+cassini-bridge = "cassini_bridge.cli:main"

@@ -172,7 +172,7 @@ export const erpApi = {
 
   // Logs
   getLogs: (connectorId: number, limit = 20, offset = 0) =>
-    fetchApi<{ items: ERPSyncLog[]; total: number }>(
+    fetchApi<ERPSyncLog[]>(
       `/erp/connectors/${connectorId}/logs?limit=${limit}&offset=${offset}`,
     ),
 }

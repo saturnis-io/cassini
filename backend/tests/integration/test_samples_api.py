@@ -14,22 +14,22 @@ import pytest_asyncio
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.schemas.sample import SampleCreate, SampleExclude
-from openspc.api.v1.samples import (
+from cassini.api.schemas.sample import SampleCreate, SampleExclude
+from cassini.api.v1.samples import (
     batch_import,
     get_sample,
     list_samples,
     submit_sample,
     toggle_exclude,
 )
-from openspc.core.engine.nelson_rules import NelsonRuleLibrary
-from openspc.core.engine.rolling_window import RollingWindowManager
-from openspc.core.engine.spc_engine import SPCEngine
-from openspc.core.providers.manual import ManualProvider
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.repositories import (
+from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.providers.manual import ManualProvider
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.repositories import (
     CharacteristicRepository,
     SampleRepository,
     ViolationRepository,

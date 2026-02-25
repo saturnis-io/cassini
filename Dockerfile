@@ -23,9 +23,9 @@ COPY backend/alembic/ ./backend/alembic/
 
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
-ENV OPENSPC_HOST=0.0.0.0
-ENV OPENSPC_PORT=8000
-ENV OPENSPC_DATABASE_URL=sqlite+aiosqlite:///./data/openspc.db
+ENV CASSINI_HOST=0.0.0.0
+ENV CASSINI_PORT=8000
+ENV CASSINI_DATABASE_URL=sqlite+aiosqlite:///./data/cassini.db
 
 RUN mkdir -p /app/data
 
@@ -34,4 +34,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" || exit 1
 
-CMD ["uvicorn", "openspc.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "cassini.main:app", "--host", "0.0.0.0", "--port", "8000"]

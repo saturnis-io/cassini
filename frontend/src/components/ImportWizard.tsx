@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { FieldError } from '@/components/FieldError'
+import { CharacteristicPicker } from '@/components/CharacteristicPicker'
 import { inputErrorClass } from '@/lib/validation'
 import {
   useUploadFile,
@@ -287,6 +288,7 @@ export function ImportWizard({ onClose }: ImportWizardProps) {
 
           {step === 'map' && uploadResult && (
             <MapStep
+              plantId={selectedPlant?.id ?? 0}
               columns={uploadResult.columns}
               characteristics={characteristics}
               selectedCharId={selectedCharId}
@@ -487,6 +489,7 @@ function UploadStep({
 }
 
 function MapStep({
+  plantId,
   columns,
   characteristics,
   selectedCharId,
@@ -496,6 +499,7 @@ function MapStep({
   selectedChar,
   getMappingError,
 }: {
+  plantId: number
   columns: ImportUploadResponse['columns']
   characteristics: Characteristic[]
   selectedCharId: number
@@ -510,18 +514,12 @@ function MapStep({
       {/* Characteristic picker */}
       <div>
         <label className="mb-1.5 block text-sm font-medium">Target Characteristic</label>
-        <select
-          value={selectedCharId}
-          onChange={(e) => onCharSelect(Number(e.target.value))}
-          className={cn('bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none', inputErrorClass(getMappingError('characteristicId')))}
-        >
-          <option value={0}>Select a characteristic...</option>
-          {characteristics.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} (subgroup: {c.subgroup_size})
-            </option>
-          ))}
-        </select>
+        <CharacteristicPicker
+          plantId={plantId}
+          value={selectedCharId || null}
+          onChange={(id) => onCharSelect(id ?? 0)}
+          characteristics={characteristics}
+        />
         <FieldError error={getMappingError('characteristicId')} />
         {selectedChar && (
           <p className="text-muted-foreground mt-1 text-xs">

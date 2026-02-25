@@ -1,5 +1,5 @@
 /**
- * Push notification manager for OpenSPC PWA.
+ * Push notification manager for Cassini PWA.
  *
  * Handles browser permission requests, PushManager subscription,
  * and server-side subscription registration via the Push API.
@@ -113,12 +113,12 @@ export async function unsubscribeFromPush(): Promise<boolean> {
     const subscription = await registration.pushManager.getSubscription()
 
     if (subscription) {
-      // Unsubscribe from browser
-      await subscription.unsubscribe()
-
-      // Remove from server
+      // Extract keys before unsubscribing (keys unavailable after unsubscribe)
       const rawKey = subscription.getKey('p256dh')
       const rawAuth = subscription.getKey('auth')
+
+      // Unsubscribe from browser
+      await subscription.unsubscribe()
 
       if (rawKey && rawAuth) {
         await fetchApi(`${PUSH_API_BASE}/unsubscribe`, {

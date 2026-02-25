@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 
 type Theme = 'light' | 'dark' | 'system'
+export type VisualStyle = 'retro' | 'glass'
 
 /**
  * Brand customization configuration
@@ -12,7 +13,7 @@ export interface BrandConfig {
   accentColor: string
   /** Custom logo URL or data URI */
   logoUrl: string | null
-  /** Custom app name to override 'OpenSPC' */
+  /** Custom app name to override 'Cassini' */
   appName: string
 }
 
@@ -22,6 +23,10 @@ interface ThemeContextValue {
   setTheme: (theme: Theme) => void
   resolvedTheme: 'light' | 'dark'
 
+  // Visual style
+  visualStyle: VisualStyle
+  setVisualStyle: (style: VisualStyle) => void
+
   // Brand customization
   brandConfig: BrandConfig
   setBrandConfig: (config: Partial<BrandConfig>) => void
@@ -30,17 +35,18 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-const THEME_STORAGE_KEY = 'openspc-theme'
-const BRAND_STORAGE_KEY = 'openspc-brand'
+const THEME_STORAGE_KEY = 'cassini-theme'
+const BRAND_STORAGE_KEY = 'cassini-brand'
+const VISUAL_STYLE_KEY = 'cassini-visual-style'
 
 /**
  * Default brand configuration
  */
 const DEFAULT_BRAND_CONFIG: BrandConfig = {
-  primaryColor: '#004A98', // OpenSPC Blue — matches @theme --color-primary
-  accentColor: '#62CBC9', // OpenSPC Teal — matches @theme --color-accent
+  primaryColor: '#D4AF37', // Cassini Gold
+  accentColor: '#080C16', // Deep Space Navy
   logoUrl: null,
-  appName: 'OpenSPC',
+  appName: 'Cassini',
 }
 
 function getStoredTheme(): Theme {
@@ -64,6 +70,15 @@ function getStoredBrandConfig(): BrandConfig {
     // Invalid JSON, use defaults
   }
   return DEFAULT_BRAND_CONFIG
+}
+
+function getStoredVisualStyle(): VisualStyle {
+  if (typeof window === 'undefined') return 'retro'
+  const stored = localStorage.getItem(VISUAL_STYLE_KEY)
+  if (stored === 'retro' || stored === 'glass') {
+    return stored
+  }
+  return 'retro'
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -141,10 +156,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     theme === 'system' ? getSystemTheme() : theme,
   )
   const [brandConfig, setBrandConfigState] = useState<BrandConfig>(getStoredBrandConfig)
+  const [visualStyle, setVisualStyleState] = useState<VisualStyle>(getStoredVisualStyle)
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme)
     localStorage.setItem(THEME_STORAGE_KEY, newTheme)
+  }, [])
+
+  const setVisualStyle = useCallback((style: VisualStyle) => {
+    setVisualStyleState(style)
+    localStorage.setItem(VISUAL_STYLE_KEY, style)
   }, [])
 
   const setBrandConfig = useCallback((config: Partial<BrandConfig>) => {
@@ -166,7 +187,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         newConfig.logoUrl = config.logoUrl
       }
       if (config.appName !== undefined) {
-        newConfig.appName = config.appName || 'OpenSPC'
+        newConfig.appName = config.appName || 'Cassini'
       }
 
       // Persist to localStorage
@@ -204,6 +225,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     applyBrandColors(brandConfig)
   }, [brandConfig])
 
+  // Apply visual style class to document
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.remove('retro', 'glass')
+    root.classList.add(visualStyle)
+  }, [visualStyle])
+
   // Listen for system theme changes when in 'system' mode
   useEffect(() => {
     if (theme !== 'system') return
@@ -226,6 +254,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         theme,
         setTheme,
         resolvedTheme,
+        visualStyle,
+        setVisualStyle,
         brandConfig,
         setBrandConfig,
         resetBrandConfig,

@@ -27,8 +27,8 @@ sys.path.insert(0, str(src_dir))
 
 from sqlalchemy import select
 
-from openspc.core.auth.passwords import hash_password
-from openspc.db import (
+from cassini.core.auth.passwords import hash_password
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
@@ -36,13 +36,13 @@ from openspc.db import (
     HierarchyType,
     MQTTDataSource,
 )
-from openspc.db.models.broker import MQTTBroker
-from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401 — registers model
-from openspc.db.models.plant import Plant
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.models.user import User, UserPlantRole, UserRole
-from openspc.db.models.violation import Violation
-from openspc.db.models.api_key import APIKey  # noqa: F401 — registers model
+from cassini.db.models.broker import MQTTBroker
+from cassini.db.models.characteristic_config import CharacteristicConfig  # noqa: F401 — registers model
+from cassini.db.models.plant import Plant
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.violation import Violation
+from cassini.db.models.api_key import APIKey  # noqa: F401 — registers model
 
 
 # ---------------------------------------------------------------------------
@@ -776,7 +776,7 @@ BATCH_PREFIXES = {
 # ---------------------------------------------------------------------------
 
 async def seed(keep_existing: bool = False) -> None:
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,

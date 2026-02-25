@@ -51,7 +51,7 @@ export const SEPARATOR_OPTIONS: { value: SeparatorOption; label: string }[] = [
 
 export const NUMBER_DIGITS_OPTIONS = [2, 3, 4] as const
 
-const STORAGE_KEY = 'openspc-display-key-format'
+const STORAGE_KEY = 'cassini-display-key-format'
 const MONTH_NAMES = [
   'Jan',
   'Feb',

@@ -1,11 +1,11 @@
-# OpenSPC Gage Bridge
+# Cassini Gage Bridge
 
-RS-232/USB serial gage to MQTT bridge agent for OpenSPC.
+RS-232/USB serial gage to MQTT bridge agent for Cassini SPC.
 
 ## Installation
 
 ```bash
-pip install openspc-bridge
+pip install cassini-bridge
 ```
 
 Or install from source:
@@ -20,25 +20,25 @@ pip install -e .
 ### List available serial ports
 
 ```bash
-openspc-bridge list-ports
+cassini-bridge list-ports
 ```
 
 ### Test a specific port
 
 ```bash
-openspc-bridge test-port COM3 --baud 9600 --profile mitutoyo_digimatic
+cassini-bridge test-port COM3 --baud 9600 --profile mitutoyo_digimatic
 ```
 
 ### Run the bridge (server mode)
 
 ```bash
-openspc-bridge run --server https://openspc.local --api-key YOUR_API_KEY
+cassini-bridge run --server https://cassini.local --api-key YOUR_API_KEY
 ```
 
 ### Run with local config
 
 ```bash
-openspc-bridge run --config bridge-config.yaml
+cassini-bridge run --config bridge-config.yaml
 ```
 
 ## Supported Gage Protocols

@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from openspc.core.providers.protocol import SampleEvent
-from openspc.core.providers.tag import SubgroupBuffer, TagConfig, TagProvider, TriggerStrategy
-from openspc.db.models.characteristic import Characteristic
+from cassini.core.providers.protocol import SampleEvent
+from cassini.core.providers.tag import SubgroupBuffer, TagConfig, TagProvider, TriggerStrategy
+from cassini.db.models.characteristic import Characteristic
 
 
 @pytest.fixture

@@ -164,7 +164,7 @@ export function AIConfigSettings() {
             type={showApiKey ? 'text' : 'password'}
             value={form.api_key}
             onChange={(e) => updateField('api_key', e.target.value)}
-            placeholder={config?.api_key_set ? '(key is set -- enter new value to change)' : 'Enter API key'}
+            placeholder={config?.has_api_key ? '(key is set -- enter new value to change)' : 'Enter API key'}
             className="border-input bg-background text-foreground w-full rounded-md border px-3 py-2 pr-10 text-sm"
           />
           <button
@@ -175,7 +175,7 @@ export function AIConfigSettings() {
             {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {config?.api_key_set && !form.api_key && (
+        {config?.has_api_key && !form.api_key && (
           <p className="text-muted-foreground mt-1 text-xs">API key is configured.</p>
         )}
       </div>

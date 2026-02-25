@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Violation } from '@/types'
+import type { Violation, WSViolationSummary } from '@/types'
 import type { ChartTypeId } from '@/types/charts'
 
 export type TimeRangeType = 'points' | 'duration' | 'custom'
@@ -52,9 +52,9 @@ interface DashboardState {
   openAckDialog: (violation: Violation) => void
   closeAckDialog: () => void
 
-  // Toast notifications
-  pendingViolations: Violation[]
-  addPendingViolation: (violation: Violation) => void
+  // Toast notifications (may receive full Violation from REST or sparse summary from WS)
+  pendingViolations: (Violation | WSViolationSummary)[]
+  addPendingViolation: (violation: Violation | WSViolationSummary) => void
   removePendingViolation: (id: number) => void
   clearPendingViolations: () => void
 
@@ -263,7 +263,7 @@ export const useDashboardStore = create<DashboardState>()(
       setDrawerTab: (tab) => set({ drawerTab: tab }),
     }),
     {
-      name: 'openspc-dashboard',
+      name: 'cassini-dashboard',
       // Only persist plain-object fields. Map/Set fields (latestSamples,
       // selectedCharacteristicIds, chartTypes) are excluded because
       // JSON.stringify cannot serialize Map/Set — they would be stored as

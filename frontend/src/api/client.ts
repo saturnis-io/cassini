@@ -330,7 +330,7 @@ export interface FAIReport {
   organization_name: string | null
   supplier: string | null
   purchase_order: string | null
-  reason: string | null
+  reason_for_inspection: string | null
   material_supplier: string | null
   material_spec: string | null
   special_processes: string | null
@@ -377,7 +377,7 @@ export interface FAIReportCreate {
   organization_name?: string | null
   supplier?: string | null
   purchase_order?: string | null
-  reason?: string | null
+  reason_for_inspection?: string | null
   material_supplier?: string | null
   material_spec?: string | null
   special_processes?: string | null

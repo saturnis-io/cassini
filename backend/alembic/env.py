@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Import models to ensure they are registered with metadata
-from openspc.db.models import Base
+from cassini.db.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -32,7 +32,7 @@ def _get_database_url() -> str:
 
     Resolution order (same as database.py):
     1. db_config.json (encrypted credentials)
-    2. OPENSPC_DATABASE_URL environment variable
+    2. CASSINI_DATABASE_URL environment variable
     3. alembic.ini sqlalchemy.url
     4. SQLite default
 
@@ -40,7 +40,7 @@ def _get_database_url() -> str:
     """
     # 1. Try db_config.json
     try:
-        from openspc.db.dialects import build_database_url, get_encryption_key, load_db_config
+        from cassini.db.dialects import build_database_url, get_encryption_key, load_db_config
 
         db_config = load_db_config()
         if db_config is not None:
@@ -50,7 +50,7 @@ def _get_database_url() -> str:
         pass  # Fall through to other methods
 
     # 2. Environment variable
-    url = os.environ.get("OPENSPC_DATABASE_URL")
+    url = os.environ.get("CASSINI_DATABASE_URL")
 
     # 3. alembic.ini fallback
     if not url:
@@ -58,7 +58,7 @@ def _get_database_url() -> str:
 
     # 4. SQLite default
     if not url:
-        url = "sqlite:///./openspc.db"
+        url = "sqlite:///./cassini.db"
 
     # Ensure async driver for SQLite using make_url for proper URL parsing
     parsed = make_url(url)

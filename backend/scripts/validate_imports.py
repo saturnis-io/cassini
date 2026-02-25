@@ -20,7 +20,7 @@ def validate_imports() -> bool:
     # Test 1: Import Base and models
     print("\n1. Testing model imports...")
     try:
-        from openspc.db.models import (
+        from cassini.db.models import (
             Base,
             Characteristic,
             CharacteristicRule,
@@ -44,7 +44,7 @@ def validate_imports() -> bool:
     # Test 2: Import enums
     print("\n2. Testing enum imports...")
     try:
-        from openspc.db.models import DataSourceType, HierarchyType, Severity, TriggerStrategy
+        from cassini.db.models import DataSourceType, HierarchyType, Severity, TriggerStrategy
 
         print("   ✓ HierarchyType imported")
         print(f"     Values: {[t.value for t in HierarchyType]}")
@@ -64,7 +64,7 @@ def validate_imports() -> bool:
     # Test 3: Import database configuration
     print("\n3. Testing database configuration imports...")
     try:
-        from openspc.db.database import DatabaseConfig, get_database, set_database
+        from cassini.db.database import DatabaseConfig, get_database, set_database
 
         print("   ✓ DatabaseConfig imported")
         print("   ✓ get_database imported")
@@ -76,7 +76,7 @@ def validate_imports() -> bool:
     # Test 4: Import from main db module
     print("\n4. Testing main db module imports...")
     try:
-        from openspc.db import (
+        from cassini.db import (
             Base,
             Characteristic,
             CharacteristicRule,
@@ -97,7 +97,7 @@ def validate_imports() -> bool:
             set_database,
         )
 
-        print("   ✓ All exports accessible from openspc.db")
+        print("   ✓ All exports accessible from cassini.db")
     except Exception as e:
         errors.append(f"Main db module imports failed: {e}")
         print(f"   ✗ Error: {e}")
@@ -118,7 +118,7 @@ def validate_imports() -> bool:
     # Test 6: Check model metadata
     print("\n6. Testing model metadata...")
     try:
-        from openspc.db.models import Base
+        from cassini.db.models import Base
 
         tables = Base.metadata.tables.keys()
         print(f"   ✓ Found {len(tables)} tables in metadata:")
@@ -150,7 +150,7 @@ def validate_imports() -> bool:
     # Test 7: Check model relationships
     print("\n7. Testing model relationships...")
     try:
-        from openspc.db.models import Characteristic, Hierarchy, Sample
+        from cassini.db.models import Characteristic, Hierarchy, Sample
 
         # Check Hierarchy relationships
         hierarchy_attrs = dir(Hierarchy)

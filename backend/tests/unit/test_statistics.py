@@ -9,7 +9,7 @@ Tests verify:
 """
 
 import pytest
-from openspc.utils import (
+from cassini.utils import (
     # Constants
     get_constants,
     get_d2,

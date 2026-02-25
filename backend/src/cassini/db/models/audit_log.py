@@ -1,0 +1,59 @@
+"""Audit log model for tracking all user and system actions."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, func, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from cassini.db.models.hierarchy import Base
+
+if TYPE_CHECKING:
+    from cassini.db.models.user import User
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class AuditLog(Base):
+    """Audit log entry for tracking user actions and system events.
+
+    Stores a denormalized record of every significant action (login,
+    CRUD operations, recalculations, exports) for compliance and
+    security auditing.
+    """
+
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_timestamp", text("timestamp DESC")),
+        Index("ix_audit_log_user_id_timestamp", "user_id", "timestamp"),
+        Index("ix_audit_log_resource", "resource_type", "resource_id"),
+        Index("ix_audit_log_action", "action"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
+    username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    resource_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
+    )
+
+    # Optional relationship to User (for joining)
+    user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id], lazy="select")
+
+    def __repr__(self) -> str:
+        return (
+            f"<AuditLog(id={self.id}, action={self.action!r}, "
+            f"user={self.username!r}, resource={self.resource_type}/{self.resource_id})>"
+        )

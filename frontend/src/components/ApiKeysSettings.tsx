@@ -265,7 +265,7 @@ export function ApiKeysSettings() {
         </p>
         <pre className="bg-background overflow-x-auto rounded-lg p-3 text-xs">
           {`curl -X POST /api/v1/data-entry/submit \\
-  -H "X-API-Key: openspc_your_key_here" \\
+  -H "X-API-Key: cassini_your_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{"characteristic_id": 1, "measurements": [10.5, 10.3, 10.4]}'`}
         </pre>

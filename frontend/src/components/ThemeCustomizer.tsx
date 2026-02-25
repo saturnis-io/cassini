@@ -130,10 +130,10 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
   const handleReset = useCallback(() => {
     resetBrandConfig()
     setLocalConfig({
-      primaryColor: '#004A98',
-      accentColor: '#62CBC9',
+      primaryColor: '#D4AF37',
+      accentColor: '#080C16',
       logoUrl: null,
-      appName: 'OpenSPC',
+      appName: 'Cassini',
     })
     setIsDirty(false)
   }, [resetBrandConfig])
@@ -188,7 +188,7 @@ export function ThemeCustomizer({ className }: ThemeCustomizerProps) {
             value={localConfig.appName}
             onChange={(e) => updateLocalConfig({ appName: e.target.value })}
             className="border-border bg-background w-full max-w-xs rounded border px-3 py-2"
-            placeholder="OpenSPC"
+            placeholder="Cassini"
           />
         </div>
       </div>

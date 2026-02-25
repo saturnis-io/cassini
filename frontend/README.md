@@ -1,4 +1,4 @@
-# OpenSPC Frontend
+# Cassini Frontend
 
 Single-page application for Statistical Process Control built with React 19, TypeScript 5.9, and Vite 7. Provides real-time control charts, equipment hierarchy management, industrial connectivity configuration (MQTT and OPC-UA), database administration, and reporting.
 

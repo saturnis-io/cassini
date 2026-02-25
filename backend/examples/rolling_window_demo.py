@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 # Add src to path for demo purposes
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from openspc.core.engine.rolling_window import (
+from cassini.core.engine.rolling_window import (
     RollingWindow,
     RollingWindowManager,
     WindowSample,

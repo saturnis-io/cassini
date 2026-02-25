@@ -3,8 +3,8 @@
 > **Read this file first at the start of every session.**
 > It tells you where we are, what's done, and what to do next.
 
-**Last updated:** 2026-02-23
-**Active sprint:** Sprint 8 (Phase D — Enterprise Integration)
+**Last updated:** 2026-02-25
+**Active sprint:** Post-Sprint 9 — Skeptic Audit Complete
 **Branch:** `main`
 
 ---
@@ -16,8 +16,9 @@
 | 5 | A | Statistical Credibility | **COMPLETE** | 5 commits, skeptic-reviewed, 3 BLOCKERs fixed |
 | 6 | B | Automotive/Aerospace | **COMPLETE** | 10 commits, skeptic-reviewed, 3 BLOCKERs fixed |
 | 7 | C | Shop Floor Connectivity | **COMPLETE** | 7 commits, skeptic-reviewed, 3 BLOCKERs fixed |
-| 8 | D | Enterprise Integration | **NOT STARTED** | 3 features: ERP connectors, LIMS/MES, mobile. Needs arch decision. |
-| 9 | E | Advanced Analytics | **NOT STARTED** | 5 features: multivariate, predictive, gen AI, correlation, DOE |
+| 8 | D | Enterprise Integration | **COMPLETE** | Merged with Sprint 3 (SSO). 3 migrations (036-038), ~40 new/modified files, skeptic-reviewed (6 BLOCKERs + 10 WARNINGs fixed) |
+| 9 | E | Advanced Analytics | **COMPLETE** | Migration 039, multivariate T²/MEWMA, predictive ARIMA, gen AI analysis, correlation, DOE factorial |
+| Audit | — | Cross-Sprint Skeptic Review | **COMPLETE** | 8 parallel agents, 19 confirmed BLOCKERs fixed, 47 WARNINGs (30+ fixed), 2 new migrations (040-041) |
 
 ---
 
@@ -38,6 +39,8 @@
 | Test Seeds + DevTools | 6 | 7349655 | 5 seed scripts (sprints 5-9), testing READMEs, DevTools two-section layout |
 | C1: RS-232/USB Gage Integration | 7 | bb97fc6..b77961b | Python bridge agent (serial→MQTT), migration 034+035, 12 API endpoints, bridge package (parsers/CLI/runner), Gages tab in Connectivity Hub |
 | Sprint 7 Skeptic Fixes | 7 | b77961b | 3 BLOCKERs (config URL mismatch, JSON keys mismatch, dual-mapping bug) + 5 WARNINGs fixed |
+| Sprint 3/8 Merged: SSO + PWA + ERP | 8 | (uncommitted) | SSO/OIDC hardening (DB-backed state, claim mapping, account linking, RP-initiated logout), PWA-lite (push notifications, offline queue, mobile nav), ERP/LIMS (4 adapters, 16 endpoints, webhook HMAC, sync engine) |
+| Sprint 8 Skeptic Fixes | 8 | (uncommitted) | 6 BLOCKERs (pop_state race, 4× str(e) leaks, push SSRF) + 10 WARNINGs (nonce validation, HMAC bypass, OData injection, offline queue hardening, etc.) |
 
 ---
 
@@ -46,7 +49,7 @@
 | ID | Question | Options | Status |
 |----|----------|---------|--------|
 | D-002 | RS-232 gage architecture | WebSerial vs Python bridge vs Electron | **DECIDED** — Python bridge agent |
-| D-003 | Mobile architecture | PWA vs React Native vs responsive-only | Not started |
+| D-003 | Mobile architecture | PWA vs React Native vs responsive-only | **DECIDED** — PWA-lite (Sprint 8) |
 
 ---
 
@@ -68,9 +71,19 @@
 | 2026-02-22 | Sprint 6 Seeds | Updated seed_test_sprint6.py to populate actual MSA/FAI tables. Updated testing README to "Complete". |
 | 2026-02-23 | Sprint 7 Design | Architecture decision D-002 (Python bridge agent). 3-component design: bridge package, backend API, Gages tab. Design doc + 9-task implementation plan. |
 | 2026-02-23 | Sprint 7 Execute | 6 implementation commits + 1 skeptic fix. Migration 034+035, 12 API endpoints (incl /my-config), bridge package (parsers, CLI, runner), frontend API layer + 5 Gages tab components, test seed updated. Skeptic found 3 BLOCKERs + 7 WARNINGs — all critical issues fixed. |
+| 2026-02-24 | Sprint 3/8 Design | Merged Sprint 3 (SSO/OIDC) + Sprint 8 (ERP/LIMS/Mobile) into single sprint. Detailed plan: 3 workstreams (WS-A SSO hardening, WS-B PWA-lite, WS-C ERP/LIMS), 3 migrations (036-038), 4 execution waves. |
+| 2026-02-24 | Sprint 3/8 Execute | 4-wave subagent execution. Wave 1: migrations + models. Wave 2: 4 parallel backend agents (OIDC service, Push+OIDC API, ERP adapters, ERP engine+API). Wave 3: 4 parallel frontend agents (SSO UI, PWA core, offline+mobile, ERP UI). Wave 4: integration wiring + skeptic review. |
+| 2026-02-24 | Sprint 8 Skeptic | Full security review: 6 BLOCKERs fixed (pop_state race condition, 4× str(e) leaks, push SSRF), 10 WARNINGs fixed (nonce validation, HMAC bypass, OData injection, __new__ hack, offline queue hardening). 263 routes, 0 TS errors. |
+| 2026-02-25 | Cross-Sprint Skeptic Audit | 8 parallel skeptic agents (Stats, Security, API, State, Data, Bridge, Signatures, Audit) + 1 validator. 106 raw findings → 22 BLOCKERs (19 confirmed), 47 WARNINGs. 4 parallel fix streams. See `.planning/gap-closure/SKEPTIC-REVIEW-REPORT.md`. |
+| 2026-02-25 | Deferred Items Closure | All 10 deferred items resolved in 4 parallel streams. Stream A: SIG-006/007/008/009 (content hashing, workflow enforcement, expiration sweep, password policy). Stream B: SIG-001/002/003 (signature integration in FAI/MSA/retention — backend + SignatureDialog frontend). Stream C: BRIDGE-002/004/005 (MQTT reconnection, sync overlap lock, push retry). Stream D: STAT-005 + AUDIT-005 (Blom Q-Q quantiles, event bus audit subscribers). |
 
 ---
 
 ## Next Action
 
-**Sprint 8 (Phase D — Enterprise Integration)**: 3 features — D1: ERP connectors, D2: LIMS/MES middleware, D3: Native mobile apps. Architecture decisions needed (esp. D-003 for mobile). Then design + implementation plan.
+**All sprints and deferred items complete.** CLAUDE.md updated with cross-cutting requirements (audit trail, electronic signatures, API contracts).
+
+Remaining:
+1. **Commit all changes** and tag release.
+2. **Regenerate knowledge graph** (`/knowledge-graph`) — stale after Sprint 8/9 + deferred items.
+3. **Consider additional WARNING items** from skeptic review that were not addressed (see SKEPTIC-REVIEW-REPORT.md WARNING section for items like SEC-005 redirect_uri validation, BRIDGE-003 serial port unplug, etc.).

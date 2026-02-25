@@ -1,31 +1,34 @@
 #!/bin/bash
-# OpenSPC Frontend Startup Script (Unix/Mac/Git Bash)
+# Cassini Frontend Startup Script (Unix/Mac/Git Bash)
 
-# Colors
-BLUE='\033[38;5;25m'
-TEAL='\033[38;5;80m'
+# Colors — Cassini Aerospace palette
+GOLD='\033[38;2;212;175;55m'
+CREAM='\033[38;2;244;241;222m'
 DIM='\033[2m'
 BOLD='\033[1m'
 GREEN='\033[32m'
 GRAY='\033[90m'
+ORANGE='\033[38;2;224;90;61m'
 RESET='\033[0m'
 
 echo ""
-echo -e "${BOLD}${BLUE}  ██████╗ ██████╗ ███████╗███╗   ██╗███████╗██████╗  ██████╗${RESET}"
-echo -e "${BOLD}${BLUE} ██╔═══██╗██╔══██╗██╔════╝████╗  ██║██╔════╝██╔══██╗██╔════╝${RESET}"
-echo -e "${BOLD}${BLUE} ██║   ██║██████╔╝█████╗  ██╔██╗ ██║███████╗██████╔╝██║     ${RESET}"
-echo -e "${BOLD}${BLUE} ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║╚════██║██╔═══╝ ██║     ${RESET}"
-echo -e "${BOLD}${BLUE} ╚██████╔╝██║     ███████╗██║ ╚████║███████║██║     ╚██████╗${RESET}"
-echo -e "${BOLD}${BLUE}  ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝      ╚═════╝${RESET}"
+echo -e "${BOLD}${GOLD}  ██████╗  █████╗  ██████╗ ██████╗ ██╗███╗   ██╗██╗${RESET}"
+echo -e "${BOLD}${GOLD} ██╔════╝ ██╔══██╗██╔════╝██╔════╝ ██║████╗  ██║██║${RESET}"
+echo -e "${BOLD}${GOLD} ██║      ███████║╚█████╗ ╚█████╗  ██║██╔██╗ ██║██║${RESET}"
+echo -e "${BOLD}${GOLD} ██║      ██╔══██║ ╚═══██╗ ╚═══██╗ ██║██║╚██╗██║██║${RESET}"
+echo -e "${BOLD}${GOLD} ╚██████╗ ██║  ██║██████╔╝██████╔╝ ██║██║ ╚████║██║${RESET}"
+echo -e "${BOLD}${GOLD}  ╚═════╝ ╚═╝  ╚═╝╚═════╝ ╚═════╝  ╚═╝╚═╝  ╚═══╝╚═╝${RESET}"
 echo ""
-echo -e " ${DIM}─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─${RESET}${GRAY} UCL${RESET}"
-echo -e " ${TEAL}      ●            ●                       ●${RESET}"
-echo -e " ${TEAL}● ─ ─ ─ ─ ● ─ ─ ─ ─ ─ ● ─ ─ ─ ● ─ ─ ─ ─ ─ ● ─ ●${RESET}${GRAY}  CL${RESET}"
-echo -e " ${TEAL}                ●              ●${RESET}"
-echo -e " ${DIM}─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─${RESET}${GRAY} LCL${RESET}"
+echo -e "${CREAM}         by ${BOLD}Saturnis${RESET}${CREAM} LLC${RESET}"
 echo ""
-echo -e " ${DIM}Statistical Process Control Platform${RESET}"
-echo -e " ${DIM}Frontend Application${RESET}"
+echo -e " ${DIM}╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌${RESET} ${ORANGE}UCL${RESET}"
+echo -e " ${GOLD}       ●            ●                          ●${RESET}"
+echo -e " ${GOLD} ● ╌╌╌╌╌╌╌ ● ╌╌╌╌╌╌╌╌ ● ╌╌╌╌╌ ● ╌╌╌╌╌╌╌╌ ● ╌ ●${RESET}  ${CREAM}CL${RESET}"
+echo -e " ${GOLD}                 ●               ●${RESET}"
+echo -e " ${DIM}╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌${RESET} ${ORANGE}LCL${RESET}"
+echo ""
+echo -e " ${DIM}SPC Platform ${CREAM}// ${DIM}Frontend Application${RESET}"
+echo -e " ${DIM}\"In-control, like the Cassini Division\"${RESET}"
 echo ""
 
 # Check if node_modules exists

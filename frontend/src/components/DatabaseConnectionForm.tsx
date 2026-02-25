@@ -143,7 +143,7 @@ export function DatabaseConnectionForm() {
               setTestResult(null)
               setHasTestedSuccessfully(false)
             }}
-            placeholder="./openspc.db"
+            placeholder="./cassini.db"
             className={cn(
               'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
               inputErrorClass(getError('database')),
@@ -205,7 +205,7 @@ export function DatabaseConnectionForm() {
                 setTestResult(null)
                 setHasTestedSuccessfully(false)
               }}
-              placeholder="openspc"
+              placeholder="cassini"
               className={cn(
                 'bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2',
                 inputErrorClass(getError('database')),
@@ -225,7 +225,7 @@ export function DatabaseConnectionForm() {
                   setTestResult(null)
                   setHasTestedSuccessfully(false)
                 }}
-                placeholder="openspc"
+                placeholder="cassini"
                 className="bg-background border-border focus:ring-primary/20 focus:border-primary w-full rounded-lg border px-3 py-2 text-sm focus:ring-2"
               />
             </div>

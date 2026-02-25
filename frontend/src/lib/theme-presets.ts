@@ -44,44 +44,44 @@ export interface ChartColors {
 }
 
 /**
- * OpenSPC Brand Colors Reference:
- * - Blue:   #004A98 → hsl(212, 100%, 30%)
+ * Cassini Brand Colors Reference:
+ * - Gold:   #D4AF37 → hsl(46, 65%, 52%)
  * - Green:  #4C9C2E → hsl(104, 55%, 40%)
- * - Teal:   #62CBC9 → hsl(179, 50%, 59%)
+ * - Navy:   #080C16 → hsl(220, 80%, 8%)
  * - Orange: #D48232 → hsl(32, 63%, 51%)
  * - Yellow: #FFCD00 → hsl(48, 100%, 50%)
  * - Red:    #EC1C24 → hsl(357, 80%, 52%)
  * - Purple: #7473C0 → hsl(241, 33%, 60%)
- * - Dark:   #2D2A26 → hsl(30, 9%, 16%)
+ * - Cream:  #F0E8D0 → hsl(45, 30%, 95%)
  */
 export const defaultChartColors: ChartColors = {
-  // Primary chart - Blue to Teal gradient
-  lineGradientStart: 'hsl(212, 100%, 35%)', // OpenSPC Blue (lighter)
-  lineGradientEnd: 'hsl(179, 50%, 55%)', // OpenSPC Teal
-  centerLine: 'hsl(212, 100%, 30%)', // OpenSPC Blue
-  uclLine: 'hsl(357, 80%, 52%)', // OpenSPC Red
-  lclLine: 'hsl(357, 80%, 52%)', // OpenSPC Red
-  zoneA: 'hsl(32, 63%, 51%)', // OpenSPC Orange
-  zoneB: 'hsl(48, 100%, 50%)', // OpenSPC Yellow
-  zoneC: 'hsl(104, 55%, 40%)', // OpenSPC Green
-  normalPoint: 'hsl(212, 100%, 30%)', // OpenSPC Blue
-  violationPoint: 'hsl(357, 80%, 52%)', // OpenSPC Red
-  undersizedPoint: 'hsl(32, 63%, 51%)', // OpenSPC Orange
+  // Primary chart - Gold to Warm Cream gradient
+  lineGradientStart: 'hsl(46, 70%, 55%)', // Cassini Gold (lighter)
+  lineGradientEnd: 'hsl(45, 30%, 85%)', // Warm Cream
+  centerLine: 'hsl(46, 65%, 52%)', // Cassini Gold
+  uclLine: 'hsl(357, 80%, 52%)', // Cassini Red
+  lclLine: 'hsl(357, 80%, 52%)', // Cassini Red
+  zoneA: 'hsl(32, 63%, 51%)', // Cassini Orange
+  zoneB: 'hsl(48, 100%, 50%)', // Cassini Yellow
+  zoneC: 'hsl(104, 55%, 40%)', // Cassini Green
+  normalPoint: 'hsl(46, 65%, 52%)', // Cassini Gold
+  violationPoint: 'hsl(357, 80%, 52%)', // Cassini Red
+  undersizedPoint: 'hsl(32, 63%, 51%)', // Cassini Orange
   excludedPoint: 'hsl(210, 8%, 46%)', // Muted gray
-  outOfControl: 'hsl(357, 80%, 52%)', // OpenSPC Red
-  annotationColor: 'hsl(212, 100%, 30%)', // OpenSPC Blue (brand primary)
+  outOfControl: 'hsl(357, 80%, 52%)', // Cassini Red
+  annotationColor: 'hsl(46, 65%, 52%)', // Cassini Gold (brand primary)
 
-  // Secondary/comparison chart - Purple to Teal gradient (OpenSPC brand)
-  secondaryLineGradientStart: 'hsl(241, 33%, 60%)', // OpenSPC Purple #7473C0
-  secondaryLineGradientEnd: 'hsl(179, 50%, 59%)', // OpenSPC Teal #62CBC9
-  secondaryNormalPoint: 'hsl(241, 33%, 55%)', // OpenSPC Purple (darker)
+  // Secondary/comparison chart - Navy gradient (Cassini brand)
+  secondaryLineGradientStart: 'hsl(220, 60%, 20%)', // Deep Navy
+  secondaryLineGradientEnd: 'hsl(220, 40%, 30%)', // Navy lighter
+  secondaryNormalPoint: 'hsl(220, 60%, 18%)', // Deep Navy (darker)
 }
 
 export const chartPresets: ChartColorPreset[] = [
   {
     id: 'classic',
     name: 'Classic',
-    description: 'Default brand colors - professional and clean',
+    description: 'Default Cassini colors',
     colors: defaultChartColors,
   },
   {
@@ -175,15 +175,15 @@ export const chartPresets: ChartColorPreset[] = [
       excludedPoint: 'hsl(0, 0%, 55%)',
       outOfControl: 'hsl(0, 90%, 60%)',
       annotationColor: 'hsl(212, 100%, 55%)',
-      secondaryLineGradientStart: 'hsl(241, 50%, 70%)', // Brightened OpenSPC Purple
-      secondaryLineGradientEnd: 'hsl(179, 60%, 65%)', // Brightened OpenSPC Teal
+      secondaryLineGradientStart: 'hsl(241, 50%, 70%)', // Brightened Cassini Purple
+      secondaryLineGradientEnd: 'hsl(45, 30%, 85%)', // Brightened Warm Cream
       secondaryNormalPoint: 'hsl(241, 50%, 65%)',
     },
   },
 ]
 
-const STORAGE_KEY = 'openspc-chart-colors'
-const PRESET_STORAGE_KEY = 'openspc-chart-preset'
+const STORAGE_KEY = 'cassini-chart-colors'
+const PRESET_STORAGE_KEY = 'cassini-chart-preset'
 
 export function getStoredChartColors(): ChartColors {
   if (typeof window === 'undefined') return defaultChartColors

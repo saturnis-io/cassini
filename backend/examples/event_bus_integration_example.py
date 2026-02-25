@@ -11,7 +11,7 @@ event bus, we can decouple this further.
 import asyncio
 from datetime import datetime
 
-from openspc.core.events import (
+from cassini.core.events import (
     ViolationAcknowledgedEvent,
     ViolationCreatedEvent,
     event_bus,

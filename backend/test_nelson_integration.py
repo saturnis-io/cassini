@@ -1,7 +1,7 @@
 """Integration test for Nelson Rules with existing RollingWindow.
 
 This test verifies that the Nelson Rules work correctly with the existing
-RollingWindow implementation from openspc.core.engine.rolling_window.
+RollingWindow implementation from cassini.core.engine.rolling_window.
 """
 
 import sys
@@ -9,7 +9,7 @@ sys.path.insert(0, 'src')
 
 from datetime import datetime
 
-from openspc.core.engine import (
+from cassini.core.engine import (
     NelsonRuleLibrary,
     RollingWindow,
     WindowSample,

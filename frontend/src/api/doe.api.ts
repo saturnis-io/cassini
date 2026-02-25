@@ -120,7 +120,7 @@ export const doeApi = {
     fetchApi<void>(`/doe/studies/${id}`, { method: 'DELETE' }),
 
   generateDesign: (id: number) =>
-    fetchApi<{ runs: DOERun[] }>(`/doe/studies/${id}/generate`, { method: 'POST' }),
+    fetchApi<DOERun[]>(`/doe/studies/${id}/generate`, { method: 'POST' }),
 
   getRuns: (id: number) =>
     fetchApi<DOERun[]>(`/doe/studies/${id}/runs`),

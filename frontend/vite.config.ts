@@ -13,11 +13,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
-        name: 'OpenSPC',
-        short_name: 'OpenSPC',
+        name: 'Cassini',
+        short_name: 'Cassini',
         description: 'Event-Driven Statistical Process Control',
-        theme_color: '#1e293b',
-        background_color: '#0f172a',
+        theme_color: '#D4AF37',
+        background_color: '#080C16',
         display: 'standalone',
         start_url: '/',
         icons: [

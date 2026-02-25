@@ -169,7 +169,7 @@ if __name__ == "__main__":
     print("OpenSPC WebSocket Client Examples")
     print("=" * 70)
     print("\nMake sure the OpenSPC server is running:")
-    print("  uvicorn openspc.main:app --reload")
+    print("  uvicorn cassini.main:app --reload")
     print("\nAvailable examples:")
     print("  1. Basic client (default)")
     print("  2. Multiple clients")
@@ -187,6 +187,6 @@ if __name__ == "__main__":
     except ConnectionRefusedError:
         print("\n\nError: Could not connect to server.")
         print("Make sure the OpenSPC server is running:")
-        print("  uvicorn openspc.main:app --reload")
+        print("  uvicorn cassini.main:app --reload")
     except Exception as e:
         print(f"\n\nError: {e}")

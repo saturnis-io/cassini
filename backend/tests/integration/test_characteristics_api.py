@@ -11,12 +11,12 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from openspc.api.v1.characteristics import router
-from openspc.db.database import get_session
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.repositories import CharacteristicRepository, HierarchyRepository
+from cassini.api.v1.characteristics import router
+from cassini.db.database import get_session
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.repositories import CharacteristicRepository, HierarchyRepository
 
 
 @pytest_asyncio.fixture

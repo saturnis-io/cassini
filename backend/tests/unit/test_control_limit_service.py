@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from openspc.core.engine.control_limits import ControlLimitService
-from openspc.db.models.sample import Measurement, Sample
+from cassini.core.engine.control_limits import ControlLimitService
+from cassini.db.models.sample import Measurement, Sample
 
 
 def _make_service() -> ControlLimitService:
@@ -235,7 +235,7 @@ class TestCrossValidation:
         ranges = [float(np.ptp(sg)) for sg in subgroups]
         expected_center = float(np.mean(means))
         expected_r_bar = float(np.mean(ranges))
-        from openspc.utils.constants import get_d2
+        from cassini.utils.constants import get_d2
         expected_sigma = expected_r_bar / get_d2(n)
         expected_sigma_xbar = expected_sigma / math.sqrt(n)
 
@@ -260,7 +260,7 @@ class TestCrossValidation:
         stds = [float(np.std(sg, ddof=1)) for sg in subgroups]
         expected_center = float(np.mean(means))
         expected_s_bar = float(np.mean(stds))
-        from openspc.utils.constants import get_c4
+        from cassini.utils.constants import get_c4
         expected_sigma = expected_s_bar / get_c4(n)
         expected_sigma_xbar = expected_sigma / math.sqrt(n)
 

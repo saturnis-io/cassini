@@ -12,6 +12,7 @@ import {
   Loader2,
   Timer,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { usePlant } from '@/providers/PlantProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -26,7 +27,9 @@ import {
   useDeleteHierarchyRetention,
   useSetCharacteristicRetention,
   useDeleteCharacteristicRetention,
+  useWorkflows,
 } from '@/api/hooks'
+import { SignatureDialog } from '@/components/signatures/SignatureDialog'
 import { RetentionPolicyForm } from './retention/RetentionPolicyForm'
 import { RetentionTreeBrowser, type SelectedNode } from './retention/RetentionTreeBrowser'
 import { RetentionOverridePanel } from './retention/RetentionOverridePanel'
@@ -408,16 +411,42 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
   const { data: activity = [], isLoading: activityLoading } = useRetentionActivity(plantId)
   const { data: nextPurge, isLoading: nextLoading } = useNextPurge(plantId)
   const triggerMutation = useTriggerPurge()
+  const { data: workflows } = useWorkflows()
+  const signatureRequired = (workflows ?? []).some(
+    (w) => w.resource_type === 'retention_purge' && w.is_active && w.is_required,
+  )
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false)
 
   const isAdmin = user?.plant_roles?.some((pr) => pr.plant_id === plantId && pr.role === 'admin')
 
   const handleTrigger = useCallback(() => {
+    if (signatureRequired) {
+      setShowConfirm(false)
+      setShowSignatureDialog(true)
+      return
+    }
+    executePurge()
+  }, [plantId, signatureRequired]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const executePurge = useCallback(() => {
     triggerMutation.mutate(plantId, {
-      onSuccess: () => setShowConfirm(false),
+      onSuccess: (result) => {
+        setShowConfirm(false)
+        // Handle signature_required response from backend (may differ from PurgeHistory type)
+        const raw = result as unknown as Record<string, unknown>
+        if (raw?.status === 'signature_required') {
+          toast.info('Electronic signature required before purge can execute')
+        }
+      },
       onError: () => setShowConfirm(false),
     })
   }, [plantId, triggerMutation])
+
+  const handleSignatureComplete = useCallback(() => {
+    setShowSignatureDialog(false)
+    executePurge()
+  }, [executePurge])
 
   return (
     <div className="space-y-5">
@@ -550,6 +579,16 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
           </div>
         </div>
       )}
+
+      {/* Signature dialog for purge */}
+      <SignatureDialog
+        open={showSignatureDialog}
+        onClose={() => setShowSignatureDialog(false)}
+        onSigned={handleSignatureComplete}
+        resourceType="retention_purge"
+        resourceId={plantId}
+        resourceSummary={`Execute data purge for plant #${plantId}`}
+      />
     </div>
   )
 }

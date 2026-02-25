@@ -200,7 +200,7 @@ export function FieldMappingEditor({ connectorId }: { connectorId: number }) {
               ))}
             </select>
             <input
-              placeholder="OpenSPC Field (e.g. value)"
+              placeholder="Cassini Field (e.g. value)"
               value={form.openspc_field}
               onChange={(e) =>
                 setForm((f) => ({ ...f, openspc_field: e.target.value }))

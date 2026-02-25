@@ -20,7 +20,7 @@ export default function globalSetup() {
       cwd: BACKEND_DIR,
       env: {
         ...process.env,
-        OPENSPC_DATABASE_URL: 'sqlite+aiosqlite:///./test-e2e.db',
+        CASSINI_DATABASE_URL: 'sqlite+aiosqlite:///./test-e2e.db',
       },
       stdio: 'pipe',
     })

@@ -137,7 +137,9 @@ export function ConnectorWizard({ plantId, onClose }: Props) {
               <label className="text-xs font-medium">Authentication</label>
               <select
                 value={form.auth_type}
-                onChange={(e) => setForm((f) => ({ ...f, auth_type: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, auth_type: e.target.value, auth_config: {} }))
+                }
                 className="border-input bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
               >
                 {AUTH_TYPES.map((a) => (

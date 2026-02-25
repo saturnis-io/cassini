@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
-from openspc.core.alerts.manager import ViolationAcknowledged, ViolationCreated
-from openspc.core.broadcast import WebSocketBroadcaster
-from openspc.core.events import (
+from cassini.core.alerts.manager import ViolationAcknowledged, ViolationCreated
+from cassini.core.broadcast import WebSocketBroadcaster
+from cassini.core.events import (
     ControlLimitsUpdatedEvent,
     EventBus,
     SampleProcessedEvent,

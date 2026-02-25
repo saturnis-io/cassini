@@ -23,7 +23,7 @@ const GRID_CONFIGS: Record<GridSize, GridConfig> = {
   '3x2': { cols: 3, rows: 2 },
 }
 
-const STORAGE_KEY = 'openspc-wall-dashboard-presets'
+const STORAGE_KEY = 'cassini-wall-dashboard-presets'
 
 interface DashboardPreset {
   name: string

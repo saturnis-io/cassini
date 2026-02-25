@@ -50,7 +50,7 @@ function useChartColors(): ChartColors {
 
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'openspc-chart-colors' || e.key === 'openspc-chart-preset') {
+      if (e.key === 'cassini-chart-colors' || e.key === 'cassini-chart-preset') {
         updateColors()
       }
     }

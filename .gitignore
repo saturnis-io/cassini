@@ -66,3 +66,4 @@ frontend/test-envs/
 # Windows artifacts
 nul
 NUL
+.decipher/

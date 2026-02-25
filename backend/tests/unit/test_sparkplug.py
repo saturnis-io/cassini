@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from openspc.mqtt.sparkplug import (
+from cassini.mqtt.sparkplug import (
     SparkplugAdapter,
     SparkplugDecoder,
     SparkplugEncoder,

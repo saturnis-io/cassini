@@ -10,8 +10,8 @@ import math
 import numpy as np
 import pytest
 
-from openspc.utils.constants import get_A2, get_D3, get_D4, get_c4, get_d2
-from openspc.utils.statistics import (
+from cassini.utils.constants import get_A2, get_D3, get_D4, get_c4, get_d2
+from cassini.utils.statistics import (
     calculate_imr_limits,
     calculate_xbar_r_limits,
     calculate_zones,

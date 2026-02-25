@@ -1,6 +1,6 @@
 /**
- * OpenSPC - Event-Driven Statistical Process Control System
- * Copyright (c) 2026 OpenSPC Contributors
+ * Cassini - Event-Driven Statistical Process Control System
+ * Copyright (c) 2026 Cassini Contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 

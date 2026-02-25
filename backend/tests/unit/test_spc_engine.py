@@ -4,29 +4,29 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-from openspc.core.engine.nelson_rules import (
+from cassini.core.engine.nelson_rules import (
     NelsonRuleLibrary,
     Rule1Outlier,
     Rule2Shift,
     RuleResult,
     Severity,
 )
-from openspc.core.engine.rolling_window import (
+from cassini.core.engine.rolling_window import (
     RollingWindow,
     RollingWindowManager,
     WindowSample,
     Zone,
     ZoneBoundaries,
 )
-from openspc.core.engine.spc_engine import (
+from cassini.core.engine.spc_engine import (
     ProcessingResult,
     SampleContext,
     SPCEngine,
     ViolationInfo,
 )
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.models.violation import Violation
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.violation import Violation
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def spc_engine(
     mock_sample_repo, mock_char_repo, mock_violation_repo, mock_window_manager, rule_library
 ):
     """Create SPC engine with mocked dependencies."""
-    from openspc.core.events import EventBus
+    from cassini.core.events import EventBus
 
     # Create a test event bus
     event_bus = EventBus()

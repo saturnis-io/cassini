@@ -78,8 +78,8 @@ export function ChangePasswordPage() {
       <div className="w-full max-w-sm">
         {/* Branding */}
         <div className="mb-8 text-center">
-          <img src={logoSrc} alt="OpenSPC logo" className="mx-auto mb-3 h-16 w-16 object-contain" />
-          <h1 className="text-foreground text-3xl font-bold tracking-tight">OpenSPC</h1>
+          <img src={logoSrc} alt="Cassini logo" className="mx-auto mb-3 h-16 w-16 object-contain" />
+          <h1 className="text-foreground text-3xl font-bold tracking-tight">Cassini</h1>
           <p className="text-muted-foreground mt-1 text-sm">Statistical Process Control</p>
         </div>
 
@@ -179,7 +179,7 @@ export function ChangePasswordPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-muted-foreground mt-4 text-center text-xs">OpenSPC v0.4.0</p>
+        <p className="text-muted-foreground mt-4 text-center text-xs">Cassini v0.5.0</p>
       </div>
     </div>
   )

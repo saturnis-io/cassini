@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from openspc.api.deps import ROLE_HIERARCHY
-from openspc.db.models.user import UserRole
+from cassini.api.deps import ROLE_HIERARCHY
+from cassini.db.models.user import UserRole
 
 
 def _make_user(
@@ -37,7 +37,7 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_missing_auth_header_raises_401(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(authorization=None, session=AsyncMock())
@@ -46,7 +46,7 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_malformed_auth_header_raises_401(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(authorization="Token abc123", session=AsyncMock())
@@ -54,9 +54,9 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_invalid_token_raises_401(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
-        with patch("openspc.core.auth.jwt.verify_access_token", return_value=None):
+        with patch("cassini.core.auth.jwt.verify_access_token", return_value=None):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(
                     authorization="Bearer invalid_token", session=AsyncMock()
@@ -66,7 +66,7 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_inactive_user_raises_401(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
         inactive_user = _make_user(is_active=False)
         mock_repo = MagicMock()
@@ -74,10 +74,10 @@ class TestGetCurrentUser:
 
         with (
             patch(
-                "openspc.core.auth.jwt.verify_access_token",
+                "cassini.core.auth.jwt.verify_access_token",
                 return_value={"sub": "1"},
             ),
-            patch("openspc.api.deps.UserRepository", return_value=mock_repo),
+            patch("cassini.api.deps.UserRepository", return_value=mock_repo),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(
@@ -87,17 +87,17 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_nonexistent_user_raises_401(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
         mock_repo = MagicMock()
         mock_repo.get_by_id = AsyncMock(return_value=None)
 
         with (
             patch(
-                "openspc.core.auth.jwt.verify_access_token",
+                "cassini.core.auth.jwt.verify_access_token",
                 return_value={"sub": "1"},
             ),
-            patch("openspc.api.deps.UserRepository", return_value=mock_repo),
+            patch("cassini.api.deps.UserRepository", return_value=mock_repo),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(
@@ -107,7 +107,7 @@ class TestGetCurrentUser:
 
     @pytest.mark.asyncio
     async def test_valid_token_returns_user(self):
-        from openspc.api.deps import get_current_user
+        from cassini.api.deps import get_current_user
 
         active_user = _make_user(user_id=42, is_active=True, plant_roles=[(1, "operator")])
         mock_repo = MagicMock()
@@ -115,10 +115,10 @@ class TestGetCurrentUser:
 
         with (
             patch(
-                "openspc.core.auth.jwt.verify_access_token",
+                "cassini.core.auth.jwt.verify_access_token",
                 return_value={"sub": "42"},
             ),
-            patch("openspc.api.deps.UserRepository", return_value=mock_repo),
+            patch("cassini.api.deps.UserRepository", return_value=mock_repo),
         ):
             user = await get_current_user(
                 authorization="Bearer valid_token", session=AsyncMock()
@@ -131,7 +131,7 @@ class TestRequireRole:
 
     @pytest.mark.asyncio
     async def test_sufficient_role_passes(self):
-        from openspc.api.deps import require_role
+        from cassini.api.deps import require_role
 
         user = _make_user(plant_roles=[(1, "admin")])
         check_fn = require_role("supervisor")
@@ -140,7 +140,7 @@ class TestRequireRole:
 
     @pytest.mark.asyncio
     async def test_insufficient_role_raises_403(self):
-        from openspc.api.deps import require_role
+        from cassini.api.deps import require_role
 
         user = _make_user(plant_roles=[(1, "operator")])
         check_fn = require_role("engineer")
@@ -150,7 +150,7 @@ class TestRequireRole:
 
     @pytest.mark.asyncio
     async def test_no_roles_raises_403(self):
-        from openspc.api.deps import require_role
+        from cassini.api.deps import require_role
 
         user = _make_user(plant_roles=[])
         check_fn = require_role("operator")
@@ -160,7 +160,7 @@ class TestRequireRole:
 
     @pytest.mark.asyncio
     async def test_exact_role_passes(self):
-        from openspc.api.deps import require_role
+        from cassini.api.deps import require_role
 
         user = _make_user(plant_roles=[(1, "supervisor")])
         check_fn = require_role("supervisor")
@@ -173,7 +173,7 @@ class TestGetCurrentAdmin:
 
     @pytest.mark.asyncio
     async def test_admin_passes(self):
-        from openspc.api.deps import get_current_admin
+        from cassini.api.deps import get_current_admin
 
         user = _make_user(plant_roles=[(1, "admin")])
         result = await get_current_admin(user=user)
@@ -181,7 +181,7 @@ class TestGetCurrentAdmin:
 
     @pytest.mark.asyncio
     async def test_non_admin_raises_403(self):
-        from openspc.api.deps import get_current_admin
+        from cassini.api.deps import get_current_admin
 
         user = _make_user(plant_roles=[(1, "engineer")])
         with pytest.raises(HTTPException) as exc_info:
@@ -194,7 +194,7 @@ class TestGetCurrentEngineer:
 
     @pytest.mark.asyncio
     async def test_engineer_passes(self):
-        from openspc.api.deps import get_current_engineer
+        from cassini.api.deps import get_current_engineer
 
         user = _make_user(plant_roles=[(1, "engineer")])
         result = await get_current_engineer(user=user)
@@ -202,7 +202,7 @@ class TestGetCurrentEngineer:
 
     @pytest.mark.asyncio
     async def test_operator_raises_403(self):
-        from openspc.api.deps import get_current_engineer
+        from cassini.api.deps import get_current_engineer
 
         user = _make_user(plant_roles=[(1, "operator")])
         with pytest.raises(HTTPException) as exc_info:

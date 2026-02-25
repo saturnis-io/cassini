@@ -18,7 +18,7 @@ sys.path.insert(0, str(src_dir))
 
 from sqlalchemy import select
 
-from openspc.db import (
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
@@ -31,7 +31,7 @@ from openspc.db import (
 async def seed_database() -> None:
     """Seed the database with initial development data."""
     # Configure database
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=True,
@@ -152,7 +152,7 @@ async def seed_database() -> None:
 
 async def clear_database() -> None:
     """Clear all data from the database."""
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=True,

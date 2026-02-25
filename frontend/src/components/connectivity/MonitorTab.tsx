@@ -54,7 +54,7 @@ export function MonitorTab() {
           </div>
           <h3 className="mb-2 text-lg font-semibold">No data sources configured</h3>
           <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
-            Add your first server to start collecting industrial data. OpenSPC supports MQTT brokers
+            Add your first server to start collecting industrial data. Cassini supports MQTT brokers
             and OPC-UA servers.
           </p>
           <button

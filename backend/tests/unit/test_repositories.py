@@ -5,11 +5,11 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.models.violation import Violation
-from openspc.db.repositories import (
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.violation import Violation
+from cassini.db.repositories import (
     CharacteristicRepository,
     HierarchyRepository,
     SampleRepository,

@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from openspc.core.providers.manual import ManualProvider
-from openspc.core.providers.protocol import SampleEvent
-from openspc.db.models.characteristic import Characteristic
+from cassini.core.providers.manual import ManualProvider
+from cassini.core.providers.protocol import SampleEvent
+from cassini.db.models.characteristic import Characteristic
 
 
 @pytest.fixture

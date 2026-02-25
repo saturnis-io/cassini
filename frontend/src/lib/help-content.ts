@@ -203,7 +203,7 @@ export const helpContent: Record<string, HelpContent> = {
     title: 'MQTT Connection',
     description: 'Real-time connection to MQTT broker for automated data collection.',
     details:
-      'MQTT is a lightweight messaging protocol used for machine-to-machine communication. When connected, OpenSPC subscribes to topics configured for TAG-type characteristics and automatically processes incoming data.',
+      'MQTT is a lightweight messaging protocol used for machine-to-machine communication. When connected, Cassini subscribes to topics configured for TAG-type characteristics and automatically processes incoming data.',
   },
   mqtt_broker: {
     title: 'MQTT Broker',

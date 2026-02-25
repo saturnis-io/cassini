@@ -4,22 +4,22 @@
 @import 'tailwindcss';
 
 @theme {
-  /* OpenSPC Brand Theme
-   * Industrial SPC aesthetic - Professional, Clean, Trustworthy
+  /* Cassini Aerospace Theme
+   * Retro aerospace aesthetic - Cassini Gold + Deep Space Navy
    */
 
-  /* Base - Clean white with OpenSPC Dark Gray text */
-  --color-background: hsl(210 20% 98%);
-  --color-foreground: hsl(30 9% 16%); /* #2D2A26 OpenSPC Dark Gray */
+  /* Base - Warm cream with Deep Navy text */
+  --color-background: hsl(45 30% 95%);
+  --color-foreground: hsl(220 80% 8%); /* Deep Space Navy */
 
   /* Card surfaces - Clean white */
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(30 9% 16%);
+  --color-card-foreground: hsl(220 80% 8%);
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(30 9% 16%);
+  --color-popover-foreground: hsl(220 80% 8%);
 
-  /* Primary - OpenSPC Blue */
-  --color-primary: hsl(212 100% 30%); /* #004A98 */
+  /* Primary - Cassini Gold */
+  --color-primary: hsl(46 65% 52%); /* Cassini Gold */
   --color-primary-foreground: hsl(0 0% 100%);
 
   /* Secondary - Soft neutral */
@@ -30,35 +30,35 @@
   --color-muted: hsl(210 10% 96%);
   --color-muted-foreground: hsl(210 8% 46%);
 
-  /* Accent - OpenSPC Teal */
-  --color-accent: hsl(179 50% 59%); /* #62CBC9 */
-  --color-accent-foreground: hsl(30 9% 16%);
+  /* Accent - Deep Navy */
+  --color-accent: hsl(220 80% 8%); /* Deep Space Navy */
+  --color-accent-foreground: hsl(45 30% 95%);
 
-  /* Semantic colors - OpenSPC palette */
-  --color-destructive: hsl(357 80% 52%); /* #EC1C24 OpenSPC Red */
+  /* Semantic colors - Cassini palette */
+  --color-destructive: hsl(357 80% 52%); /* Cassini Red */
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-warning: hsl(32 63% 51%); /* #D48232 OpenSPC Orange */
+  --color-warning: hsl(32 63% 51%); /* Cassini Orange */
   --color-warning-foreground: hsl(0 0% 100%);
-  --color-success: hsl(104 55% 40%); /* #4C9C2E OpenSPC Green */
+  --color-success: hsl(104 55% 40%); /* Cassini Green */
   --color-success-foreground: hsl(0 0% 100%);
 
   /* Borders and inputs */
   --color-border: hsl(210 15% 90%);
   --color-input: hsl(210 15% 90%);
-  --color-ring: hsl(212 100% 30% / 0.4);
+  --color-ring: hsl(46 65% 52% / 0.4);
   --radius: 0.75rem;
 
-  /* SPC Zone colors - OpenSPC palette mapping */
-  --color-zone-c: hsl(104 55% 40%); /* OpenSPC Green - in control */
-  --color-zone-b: hsl(48 100% 50%); /* #FFCD00 OpenSPC Yellow - caution */
-  --color-zone-a: hsl(32 63% 51%); /* OpenSPC Orange - warning */
-  --color-violation: hsl(357 80% 52%); /* OpenSPC Red - out of control */
+  /* SPC Zone colors - Cassini palette mapping */
+  --color-zone-c: hsl(104 55% 40%); /* Cassini Green - in control */
+  --color-zone-b: hsl(48 100% 50%); /* Cassini Yellow - caution */
+  --color-zone-a: hsl(32 63% 51%); /* Cassini Orange - warning */
+  --color-violation: hsl(357 80% 52%); /* Cassini Red - out of control */
 
-  /* Chart colors - OpenSPC harmonious palette */
-  --color-chart-primary: hsl(212 100% 30%); /* OpenSPC Blue */
-  --color-chart-secondary: hsl(179 50% 59%); /* OpenSPC Teal */
-  --color-chart-tertiary: hsl(248 33% 59%); /* #7473C0 OpenSPC Purple */
-  --color-chart-quaternary: hsl(32 63% 51%); /* OpenSPC Orange */
+  /* Chart colors - Cassini harmonious palette */
+  --color-chart-primary: hsl(46 65% 52%); /* Cassini Gold */
+  --color-chart-secondary: hsl(220 80% 8%); /* Deep Navy */
+  --color-chart-tertiary: hsl(248 33% 59%); /* #7473C0 Cassini Purple */
+  --color-chart-quaternary: hsl(32 63% 51%); /* Cassini Orange */
 
   /* Chart styling variables */
   --chart-line-width: 2.5;
@@ -68,8 +68,8 @@
   --chart-zone-opacity: 0.15;
   --chart-center-line-width: 2.5;
   --chart-limit-line-width: 1.5;
-  --chart-line-gradient-start: hsl(212 100% 35%);
-  --chart-line-gradient-end: hsl(179 50% 55%);
+  --chart-line-gradient-start: hsl(46 70% 55%);
+  --chart-line-gradient-end: hsl(45 30% 90%);
 
   /* Zone gradient styling */
   --chart-zone-gradient-opacity-top: 0.08;
@@ -89,9 +89,9 @@
 body {
   background: linear-gradient(
     145deg,
-    hsl(210 20% 98%) 0%,
-    hsl(212 25% 96%) 50%,
-    hsl(210 20% 97%) 100%
+    hsl(45 30% 95%) 0%,
+    hsl(45 25% 93%) 50%,
+    hsl(45 30% 94%) 100%
   );
   background-attachment: fixed;
   color: var(--color-foreground);
@@ -257,7 +257,7 @@ button:not(:disabled):active {
   fill: color-mix(in srgb, var(--color-zone-a) 12%, transparent);
 }
 
-/* Violation pulse animation - OpenSPC Red glow */
+/* Violation pulse animation - Cassini Red glow */
 @keyframes pulse-violation {
   0%,
   100% {
@@ -295,15 +295,15 @@ button:not(:disabled):active {
   animation: point-enter 300ms ease-out;
 }
 
-/* Card status indicators - Subtle left border accent (OpenSPC colors) */
+/* Card status indicators - Subtle left border accent (Cassini colors) */
 .card-ok {
   border-color: var(--color-border);
 }
 .card-due {
-  border-left: 3px solid hsl(32 63% 51%); /* OpenSPC Orange */
+  border-left: 3px solid hsl(32 63% 51%); /* Cassini Orange */
 }
 .card-ooc {
-  border-left: 3px solid hsl(357 80% 52%); /* OpenSPC Red */
+  border-left: 3px solid hsl(357 80% 52%); /* Cassini Red */
 }
 
 /* Scrollbar styling - Minimal, refined */
@@ -388,32 +388,32 @@ h6 {
   letter-spacing: 0;
 }
 .stat-badge-success {
-  background: hsl(104 55% 40% / 0.1); /* OpenSPC Green */
+  background: hsl(104 55% 40% / 0.1); /* Cassini Green */
   color: hsl(104 55% 32%);
 }
 .stat-badge-warning {
-  background: hsl(32 63% 51% / 0.1); /* OpenSPC Orange */
+  background: hsl(32 63% 51% / 0.1); /* Cassini Orange */
   color: hsl(32 63% 41%);
 }
 .stat-badge-danger {
-  background: hsl(357 80% 52% / 0.1); /* OpenSPC Red */
+  background: hsl(357 80% 52% / 0.1); /* Cassini Red */
   color: hsl(357 80% 45%);
 }
 
 /* Dark theme overrides */
 .dark {
-  /* Base - Dark background with light text */
-  --color-background: hsl(220 15% 10%);
+  /* Base - Deep navy background with light text */
+  --color-background: hsl(220 80% 7%);
   --color-foreground: hsl(0 0% 95%);
 
   /* Card surfaces - Elevated dark */
-  --color-card: hsl(220 15% 13%);
+  --color-card: hsl(220 40% 10%);
   --color-card-foreground: hsl(0 0% 95%);
   --color-popover: hsl(220 15% 15%);
   --color-popover-foreground: hsl(0 0% 95%);
 
-  /* Primary - Brightened OpenSPC Blue */
-  --color-primary: hsl(212 100% 50%);
+  /* Primary - Bright Cassini Gold */
+  --color-primary: hsl(46 70% 58%);
   --color-primary-foreground: hsl(0 0% 100%);
 
   /* Secondary - Dark elevated */
@@ -424,8 +424,8 @@ h6 {
   --color-muted: hsl(220 10% 20%);
   --color-muted-foreground: hsl(220 5% 60%);
 
-  /* Accent - Brightened OpenSPC Teal */
-  --color-accent: hsl(179 55% 65%);
+  /* Accent - Deep Navy elevated */
+  --color-accent: hsl(220 40% 15%);
   --color-accent-foreground: hsl(220 15% 10%);
 
   /* Semantic colors - Brightened for dark mode */
@@ -439,7 +439,7 @@ h6 {
   /* Borders and inputs */
   --color-border: hsl(220 10% 20%);
   --color-input: hsl(220 10% 18%);
-  --color-ring: hsl(212 100% 50% / 0.4);
+  --color-ring: hsl(46 70% 58% / 0.4);
 
   /* SPC Zone colors - Brightened for dark mode */
   --color-zone-c: hsl(104 60% 50%);
@@ -447,9 +447,9 @@ h6 {
   --color-zone-a: hsl(32 70% 55%);
   --color-violation: hsl(357 85% 60%);
 
-  /* Chart colors - Brightened */
-  --color-chart-primary: hsl(212 100% 55%);
-  --color-chart-secondary: hsl(179 55% 65%);
+  /* Chart colors - Cassini Gold + Warm Cream */
+  --color-chart-primary: hsl(46 70% 58%);
+  --color-chart-secondary: hsl(45 30% 85%);
   --color-chart-tertiary: hsl(248 40% 70%);
   --color-chart-quaternary: hsl(32 70% 55%);
 
@@ -457,20 +457,20 @@ h6 {
   --chart-zone-gradient-opacity-top: 0.1;
   --chart-zone-gradient-opacity-bottom: 0.25;
   --chart-control-line-glow: 0 0 6px hsl(357 85% 60% / 0.4);
-  --chart-center-line-glow: 0 0 4px hsl(212 100% 50% / 0.3);
+  --chart-center-line-glow: 0 0 4px hsl(46 70% 58% / 0.3);
 
   /* Dark mode chart line gradient */
-  --chart-line-gradient-start: hsl(212 100% 50%);
-  --chart-line-gradient-end: hsl(179 55% 60%);
+  --chart-line-gradient-start: hsl(46 70% 58%);
+  --chart-line-gradient-end: hsl(45 30% 80%);
 }
 
 /* Dark mode body background */
 .dark body {
   background: linear-gradient(
     145deg,
-    hsl(220 15% 8%) 0%,
-    hsl(220 18% 10%) 50%,
-    hsl(220 15% 9%) 100%
+    hsl(220 80% 5%) 0%,
+    hsl(220 60% 7%) 50%,
+    hsl(220 80% 6%) 100%
   );
 }
 
@@ -519,6 +519,148 @@ h6 {
   background: hsl(220 10% 45% / 0.6);
 }
 
+/* ========== Visual Style: Retro ========== */
+.retro {
+  --radius: 0;
+}
+
+.retro .bg-card,
+.retro .bg-popover {
+  border-radius: 0;
+  border-width: 2px;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+}
+
+.retro .bg-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--color-primary);
+  border-left: 2px solid var(--color-primary);
+  pointer-events: none;
+}
+
+.retro .bg-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid var(--color-primary);
+  border-right: 2px solid var(--color-primary);
+  pointer-events: none;
+}
+
+.retro button:not(.stat-badge) {
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.retro button:not(:disabled):hover {
+  transform: none;
+  box-shadow: inset 2px 2px 0 rgba(255,255,255,0.1), 3px 3px 0 rgba(0,0,0,0.4);
+}
+
+.retro button:not(:disabled):active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.retro h1, .retro h2, .retro h3, .retro h4, .retro h5, .retro h6 {
+  letter-spacing: -0.01em;
+}
+
+.retro label,
+.retro .text-xs,
+.retro .text-muted-foreground {
+  font-family: 'Courier New', 'Consolas', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@layer base {
+  .retro input,
+  .retro select,
+  .retro textarea {
+    border-radius: 0;
+    font-family: 'Courier New', 'Consolas', monospace;
+    border-width: 2px;
+  }
+
+  .retro input:focus,
+  .retro select:focus,
+  .retro textarea:focus {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ========== Visual Style: Glass ========== */
+.glass {
+  --radius: 1rem;
+}
+
+.glass .bg-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.glass .bg-popover {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.glass button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  .glass input,
+  .glass select,
+  .glass textarea {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(8px);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* Glass dark mode overrides */
+.dark.glass .bg-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.dark.glass .bg-popover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+@layer base {
+  .dark.glass input,
+  .dark.glass select,
+  .dark.glass textarea {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
 /* Theme transition */
 html {
   transition:
@@ -544,4 +686,88 @@ input[type='number'] {
 /* Safe area for notch devices */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Cassini Login Styles */
+.cassini-login .control-panel {
+  background: rgba(17, 24, 39, 0.95);
+  border: 2px solid #4B5563;
+  box-shadow: 12px 12px 0px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.cassini-login .control-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-top: 2px solid #D4AF37;
+  border-left: 2px solid #D4AF37;
+  pointer-events: none;
+}
+
+.cassini-login .control-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  border-bottom: 2px solid #D4AF37;
+  border-right: 2px solid #D4AF37;
+  pointer-events: none;
+}
+
+.cassini-login .input-field {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #4B5563;
+  border-radius: 0;
+  color: #F4F1DE;
+  font-family: 'Courier New', monospace;
+}
+
+.cassini-login .input-field:focus {
+  border-color: #D4AF37;
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.3);
+}
+
+.cassini-login .input-field::placeholder {
+  color: #4B5563;
+}
+
+.cassini-login .btn-primary {
+  background: #D4AF37;
+  color: #080C16;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 0;
+  box-shadow:
+    inset 2px 2px 0px rgba(255, 255, 255, 0.3),
+    4px 4px 0px rgba(0, 0, 0, 0.6);
+}
+
+.cassini-login .btn-primary:hover:not(:disabled) {
+  background: #E0C050;
+}
+
+.cassini-login .btn-primary:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: inset 2px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.cassini-login .cassini-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #4B5563;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.cassini-login .cassini-checkbox:checked {
+  background: #D4AF37;
+  border-color: #D4AF37;
 }

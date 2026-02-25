@@ -96,7 +96,7 @@ export const useUIStore = create<UIState>()(
       setOfflineQueueCount: (count) => set({ offlineQueueCount: count }),
     }),
     {
-      name: 'openspc-ui',
+      name: 'cassini-ui',
       partialize: (state) => ({
         sidebarState: state.sidebarState,
         navSectionCollapsed: state.navSectionCollapsed,

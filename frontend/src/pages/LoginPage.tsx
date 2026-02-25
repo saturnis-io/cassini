@@ -1,13 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import React, { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/providers/AuthProvider'
 import { useOIDCProviders } from '@/api/hooks'
 import { oidcApi } from '@/api/client'
 import { setAccessToken } from '@/api/client'
+import { CassiniLogo } from '@/components/login/CassiniLogo'
+
+const SaturnScene = React.lazy(() => import('@/components/login/SaturnScene'))
 
 /**
- * Login page with username/password form and SSO buttons.
+ * Cassini-branded login page with animated Three.js Saturn background.
  *
  * Displayed outside the main Layout (no sidebar).
  * On successful login, redirects to the previously attempted URL or /dashboard.
@@ -19,7 +22,6 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const logoSrc = '/header-logo.svg'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -47,16 +49,10 @@ export function LoginPage() {
         .handleCallback(code, state)
         .then((result) => {
           setAccessToken(result.access_token)
-          // The OIDC provider ID was stored in sessionStorage before the IdP redirect.
-          // AuthProvider reads it from sessionStorage on mount, so it persists across
-          // the full page reload below. No need to remove it here — AuthProvider's
-          // setOidcProviderId(null) during logout will clean it up.
-          // Force a page reload to let AuthProvider pick up the new session
           window.location.href = from
         })
         .catch((err) => {
-          // Clean up the stored provider ID on failed callback
-          sessionStorage.removeItem('openspc_oidc_provider_id')
+          sessionStorage.removeItem('cassini_oidc_provider_id')
           setError((err as Error).message || t('errors.ssoFailed'))
           setSsoLoading(null)
         })
@@ -90,12 +86,9 @@ export function LoginPage() {
     setSsoLoading(providerId)
 
     try {
-      // Build the callback URL pointing back to this login page
       const callbackUrl = `${window.location.origin}/login`
       const result = await oidcApi.getAuthorizationUrl(providerId, callbackUrl)
-      // Persist provider ID across the redirect so we can set it after callback
-      sessionStorage.setItem('openspc_oidc_provider_id', String(providerId))
-      // Redirect to the OIDC provider
+      sessionStorage.setItem('cassini_oidc_provider_id', String(providerId))
       window.location.href = result.authorization_url
     } catch (err) {
       setError((err as Error).message || t('errors.ssoFailed'))
@@ -106,126 +99,197 @@ export function LoginPage() {
   const hasProviders = oidcProviders && oidcProviders.length > 0
 
   return (
-    <div className="bg-background flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Branding */}
-        <div className="mb-8 text-center">
-          <img src={logoSrc} alt="OpenSPC logo" className="mx-auto mb-3 h-16 w-16 object-contain" />
-          <h1 className="text-foreground text-3xl font-bold tracking-tight">OpenSPC</h1>
-          <p className="text-muted-foreground mt-1 text-sm">{tCommon('statisticalProcessControl')}</p>
-        </div>
+    <div className="cassini-login relative min-h-screen overflow-hidden">
+      {/* Three.js Saturn background */}
+      <Suspense fallback={<div className="fixed inset-0 bg-[#080C16]" />}>
+        <SaturnScene />
+      </Suspense>
 
-        {/* Login Card */}
-        <div className="bg-card rounded-lg border p-6 shadow-sm">
-          <h2 className="text-foreground mb-4 text-lg font-semibold">{t('signIn')}</h2>
+      {/* Login form overlay */}
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          {/* Login Card */}
+          <div className="control-panel p-8">
+            {/* Mission Patch Emblem */}
+            <div className="mb-8 flex select-none flex-col items-center text-center">
+              <CassiniLogo size={164} className="mb-2" />
+            </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Error message */}
-            {error && (
-              <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
-                {error}
+            {/* Divider */}
+            <div className="mb-6 h-0.5 w-full opacity-50" style={{ backgroundColor: '#4B5563' }} />
+
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold tracking-widest uppercase" style={{ color: '#F4F1DE', fontFamily: 'monospace' }}>
+                Sign In
+              </h2>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Error message */}
+              {error && (
+                <div
+                  className="p-3 text-sm"
+                  style={{
+                    backgroundColor: 'rgba(224, 90, 61, 0.15)',
+                    color: '#E05A3D',
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+
+              {/* Username */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="username"
+                  className="block text-xs font-mono tracking-widest uppercase"
+                  style={{ color: '#D4AF37' }}
+                >
+                  {t('username')}
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  autoComplete="username"
+                  autoFocus
+                  className="input-field w-full px-4 py-3 text-sm focus:outline-none"
+                  placeholder={t('enterUsername')}
+                />
               </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label
+                    htmlFor="password"
+                    className="block text-xs font-mono tracking-widest uppercase"
+                    style={{ color: '#D4AF37' }}
+                  >
+                    {t('password')}
+                  </label>
+                  <a
+                    href="#"
+                    className="text-[10px] font-mono uppercase transition-colors hover:text-[#F4F1DE]"
+                    style={{ color: '#4B5563' }}
+                    tabIndex={-1}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    Forgot Password?
+                  </a>
+                </div>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="input-field w-full px-4 py-3 text-sm focus:outline-none"
+                  placeholder={t('enterPassword')}
+                />
+              </div>
+
+              {/* Remember Me */}
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="cassini-checkbox h-4 w-4"
+                    tabIndex={-1}
+                  />
+                  <label
+                    htmlFor="remember-me"
+                    className="cursor-pointer select-none text-xs font-mono tracking-wider uppercase"
+                    style={{ color: '#4B5563' }}
+                  >
+                    {t('rememberMe')}
+                  </label>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting || !username || !password}
+                className="btn-primary mt-4 w-full px-4 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? t('signingIn') : 'Log In'}
+              </button>
+            </form>
+
+            {/* SSO Providers */}
+            {hasProviders && (
+              <>
+                {/* Divider */}
+                <div className="my-5 flex items-center gap-3">
+                  <div className="h-px flex-1" style={{ backgroundColor: 'rgba(212, 175, 55, 0.2)' }} />
+                  <span
+                    className="text-xs font-mono tracking-wider uppercase"
+                    style={{ color: '#4B5563' }}
+                  >
+                    {tCommon('or')}
+                  </span>
+                  <div className="h-px flex-1" style={{ backgroundColor: 'rgba(212, 175, 55, 0.2)' }} />
+                </div>
+
+                {/* SSO Buttons */}
+                <div className="space-y-2">
+                  {oidcProviders.map((provider) => (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onClick={() => handleSSOLogin(provider.id)}
+                      disabled={ssoLoading !== null}
+                      className="w-full px-4 py-2.5 text-sm font-mono tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        border: '1px solid rgba(212, 175, 55, 0.3)',
+                        color: '#D4AF37',
+                        background: 'transparent',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(212, 175, 55, 0.1)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      {ssoLoading === provider.id
+                        ? t('redirecting')
+                        : t('signInWithProvider', { provider: provider.name })}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
 
-            {/* Username */}
-            <div className="space-y-1.5">
-              <label htmlFor="username" className="text-foreground block text-sm font-medium">
-                {t('username')}
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-                autoFocus
-                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                placeholder={t('enterUsername')}
-              />
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-foreground block text-sm font-medium">
-                {t('password')}
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                placeholder={t('enterPassword')}
-              />
-            </div>
-
-            {/* Remember Me */}
-            <div className="flex items-center gap-2">
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="border-border text-primary focus:ring-ring h-4 w-4 rounded"
-              />
-              <label htmlFor="remember-me" className="text-muted-foreground text-sm">
-                {t('rememberMe')}
-              </label>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting || !username || !password}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? t('signingIn') : t('signIn')}
-            </button>
-          </form>
-
-          {/* SSO Providers */}
-          {hasProviders && (
-            <>
-              {/* Divider */}
-              <div className="my-5 flex items-center gap-3">
-                <div className="bg-border h-px flex-1" />
-                <span className="text-muted-foreground text-xs font-medium uppercase">{tCommon('or')}</span>
-                <div className="bg-border h-px flex-1" />
+            {/* OIDC callback loading indicator */}
+            {ssoLoading === -1 && (
+              <div className="mt-4 text-center">
+                <div
+                  className="mx-auto h-6 w-6 animate-spin rounded-full border-4 border-t-transparent"
+                  style={{ borderColor: '#D4AF37', borderTopColor: 'transparent' }}
+                />
+                <p className="mt-2 text-sm" style={{ color: '#4B5563' }}>
+                  {t('completingSso')}
+                </p>
               </div>
+            )}
+          </div>
 
-              {/* SSO Buttons */}
-              <div className="space-y-2">
-                {oidcProviders.map((provider) => (
-                  <button
-                    key={provider.id}
-                    type="button"
-                    onClick={() => handleSSOLogin(provider.id)}
-                    disabled={ssoLoading !== null}
-                    className="border-border text-foreground hover:bg-muted w-full rounded-md border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {ssoLoading === provider.id
-                      ? t('redirecting')
-                      : t('signInWithProvider', { provider: provider.name })}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* OIDC callback loading indicator */}
-          {ssoLoading === -1 && (
-            <div className="mt-4 text-center">
-              <div className="border-primary mx-auto h-6 w-6 animate-spin rounded-full border-4 border-t-transparent" />
-              <p className="text-muted-foreground mt-2 text-sm">{t('completingSso')}</p>
-            </div>
-          )}
+          {/* Footer */}
+          <p
+            className="mt-6 text-center font-mono tracking-widest uppercase"
+            style={{ fontSize: '10px', color: '#4B5563' }}
+          >
+            Cassini v0.4.0 &bull; Saturnis
+          </p>
         </div>
-
-        {/* Footer */}
-        <p className="text-muted-foreground mt-4 text-center text-xs">OpenSPC v0.4.0</p>
       </div>
     </div>
   )

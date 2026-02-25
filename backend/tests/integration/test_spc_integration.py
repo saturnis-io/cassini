@@ -8,13 +8,13 @@ import pytest
 import pytest_asyncio
 from datetime import datetime
 
-from openspc.core.engine.nelson_rules import NelsonRuleLibrary
-from openspc.core.engine.rolling_window import RollingWindowManager
-from openspc.core.engine.spc_engine import SPCEngine
-from openspc.core.providers.protocol import SampleContext
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.repositories import (
+from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.providers.protocol import SampleContext
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.repositories import (
     CharacteristicRepository,
     HierarchyRepository,
     SampleRepository,

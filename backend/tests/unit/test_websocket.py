@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import WebSocket
 
-from openspc.api.v1.websocket import (
+from cassini.api.v1.websocket import (
     ConnectionManager,
     WSConnection,
     notify_acknowledgment,
@@ -381,7 +381,7 @@ class TestNotificationHelpers:
         """Test notify_sample helper."""
         mock_manager = AsyncMock()
 
-        with patch("openspc.api.v1.websocket.manager", mock_manager):
+        with patch("cassini.api.v1.websocket.manager", mock_manager):
             timestamp = datetime.now(timezone.utc)
             await notify_sample(
                 char_id=1,
@@ -410,7 +410,7 @@ class TestNotificationHelpers:
         """Test notify_violation helper."""
         mock_manager = AsyncMock()
 
-        with patch("openspc.api.v1.websocket.manager", mock_manager):
+        with patch("cassini.api.v1.websocket.manager", mock_manager):
             await notify_violation(
                 char_id=1,
                 violation_id=200,
@@ -437,7 +437,7 @@ class TestNotificationHelpers:
         """Test notify_acknowledgment helper."""
         mock_manager = AsyncMock()
 
-        with patch("openspc.api.v1.websocket.manager", mock_manager):
+        with patch("cassini.api.v1.websocket.manager", mock_manager):
             await notify_acknowledgment(
                 char_id=1,
                 violation_id=200,
@@ -462,7 +462,7 @@ class TestNotificationHelpers:
         """Test notify_acknowledgment for un-acknowledging."""
         mock_manager = AsyncMock()
 
-        with patch("openspc.api.v1.websocket.manager", mock_manager):
+        with patch("cassini.api.v1.websocket.manager", mock_manager):
             await notify_acknowledgment(
                 char_id=1,
                 violation_id=200,

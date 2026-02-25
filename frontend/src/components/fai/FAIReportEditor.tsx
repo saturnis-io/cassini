@@ -19,7 +19,9 @@ import {
   useSubmitFAIReport,
   useApproveFAIReport,
   useRejectFAIReport,
+  useWorkflows,
 } from '@/api/hooks'
+import { SignatureDialog } from '@/components/signatures/SignatureDialog'
 import { FAIForm1 } from './FAIForm1'
 import { FAIForm2 } from './FAIForm2'
 import { FAIForm3 } from './FAIForm3'
@@ -52,10 +54,16 @@ export function FAIReportEditor() {
   const rejectReport = useRejectFAIReport()
   const { validate: validateGuard } = useFormValidation(faiReportGuardSchema)
 
+  const { data: workflows } = useWorkflows()
+  const signatureRequired = (workflows ?? []).some(
+    (w) => w.resource_type === 'fai_report' && w.is_active && w.is_required,
+  )
+
   const [activeTab, setActiveTab] = useState<TabKey>('form1')
   const [showPrint, setShowPrint] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectDialog, setShowRejectDialog] = useState(false)
+  const [signatureAction, setSignatureAction] = useState<'submit' | 'approve' | null>(null)
 
   if (isLoading) {
     return (
@@ -93,6 +101,10 @@ export function FAIReportEditor() {
       toast.error('Please ensure all FAI items have characteristic name, actual value, and result filled in before submitting.')
       return
     }
+    if (signatureRequired) {
+      setSignatureAction('submit')
+      return
+    }
     try {
       await submitReport.mutateAsync(id)
     } catch {
@@ -110,10 +122,28 @@ export function FAIReportEditor() {
       toast.error('Cannot approve: FAI items are missing required fields (characteristic name, actual value, or result).')
       return
     }
+    if (signatureRequired) {
+      setSignatureAction('approve')
+      return
+    }
     try {
       await approveReport.mutateAsync(id)
     } catch {
       // Error handled by mutation hook
+    }
+  }
+
+  const handleSignatureComplete = async () => {
+    try {
+      if (signatureAction === 'submit') {
+        await submitReport.mutateAsync(id)
+      } else if (signatureAction === 'approve') {
+        await approveReport.mutateAsync(id)
+      }
+    } catch {
+      // Error handled by mutation hook
+    } finally {
+      setSignatureAction(null)
     }
   }
 
@@ -309,6 +339,16 @@ export function FAIReportEditor() {
           </div>
         </div>
       )}
+
+      {/* Signature dialog for submit/approve */}
+      <SignatureDialog
+        open={signatureAction !== null}
+        onClose={() => setSignatureAction(null)}
+        onSigned={handleSignatureComplete}
+        resourceType="fai_report"
+        resourceId={id}
+        resourceSummary={`${signatureAction === 'submit' ? 'Submit' : 'Approve'} FAI Report: ${report.part_number}${report.revision ? ` Rev ${report.revision}` : ''}`}
+      />
     </div>
   )
 }

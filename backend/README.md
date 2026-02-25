@@ -1,11 +1,11 @@
-# OpenSPC Backend
+# Cassini Backend
 
 Event-driven Statistical Process Control system built with FastAPI and SQLAlchemy. The backend provides a REST API for managing equipment hierarchies, control charts, Nelson rules evaluation, industrial data ingestion (MQTT/Sparkplug B, OPC-UA), outbound SPC event publishing, and multi-database administration.
 
 ## Project Structure
 
 ```
-src/openspc/
+src/cassini/
   main.py              # FastAPI app, lifespan, router registration
   api/
     deps.py            # Shared dependencies (auth, DB session, rate limiter)
@@ -18,7 +18,7 @@ src/openspc/
       providers.py         samples.py           tags.py
       users.py             violations.py        websocket.py
   core/
-    config.py          # Pydantic-settings (OPENSPC_ env prefix)
+    config.py          # Pydantic-settings (CASSINI_ env prefix)
     broadcast.py       # WebSocket event broadcaster
     publish.py         # MQTT outbound publisher (violations, stats, Nelson)
     rate_limit.py      # SlowAPI rate limiting
@@ -84,7 +84,7 @@ pip install -e .
 alembic upgrade head
 
 # Start the server
-uvicorn openspc.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 For development dependencies (pytest, ruff, mypy):
@@ -95,27 +95,27 @@ pip install -e ".[dev]"
 
 ## Environment Variables
 
-All variables use the `OPENSPC_` prefix and can be set in a `.env` file.
+All variables use the `CASSINI_` prefix and can be set in a `.env` file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENSPC_DATABASE_URL` | `sqlite+aiosqlite:///./openspc.db` | SQLAlchemy async connection string |
-| `OPENSPC_JWT_SECRET` | *(auto-generated)* | Secret key for JWT signing |
-| `OPENSPC_COOKIE_SECURE` | `false` | Set `true` for HTTPS-only refresh cookies |
-| `OPENSPC_ADMIN_USERNAME` | `admin` | Bootstrap admin username |
-| `OPENSPC_ADMIN_PASSWORD` | *(auto-generated)* | Bootstrap admin password |
-| `OPENSPC_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated allowed origins |
-| `OPENSPC_RATE_LIMIT_LOGIN` | `5/minute` | Login endpoint rate limit |
-| `OPENSPC_RATE_LIMIT_DEFAULT` | `60/minute` | Default API rate limit |
-| `OPENSPC_LOG_FORMAT` | `console` | `console` or `json` (structured logging) |
-| `OPENSPC_SANDBOX` | `false` | Enable sandbox/devtools mode |
-| `OPENSPC_DEV_MODE` | `false` | Disable enterprise enforcement (forced password change) |
+| `CASSINI_DATABASE_URL` | `sqlite+aiosqlite:///./cassini.db` | SQLAlchemy async connection string |
+| `CASSINI_JWT_SECRET` | *(auto-generated)* | Secret key for JWT signing |
+| `CASSINI_COOKIE_SECURE` | `false` | Set `true` for HTTPS-only refresh cookies |
+| `CASSINI_ADMIN_USERNAME` | `admin` | Bootstrap admin username |
+| `CASSINI_ADMIN_PASSWORD` | *(auto-generated)* | Bootstrap admin password |
+| `CASSINI_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated allowed origins |
+| `CASSINI_RATE_LIMIT_LOGIN` | `5/minute` | Login endpoint rate limit |
+| `CASSINI_RATE_LIMIT_DEFAULT` | `60/minute` | Default API rate limit |
+| `CASSINI_LOG_FORMAT` | `console` | `console` or `json` (structured logging) |
+| `CASSINI_SANDBOX` | `false` | Enable sandbox/devtools mode |
+| `CASSINI_DEV_MODE` | `false` | Disable enterprise enforcement (forced password change) |
 
 ## Database Support
 
 | Database | Driver | Connection String Example |
 |----------|--------|--------------------------|
-| SQLite | aiosqlite | `sqlite+aiosqlite:///./openspc.db` |
+| SQLite | aiosqlite | `sqlite+aiosqlite:///./cassini.db` |
 | PostgreSQL | asyncpg | `postgresql+asyncpg://user:pass@host/dbname` |
 | MySQL | aiomysql | `mysql+aiomysql://user:pass@host/dbname` |
 | MSSQL | aioodbc | `mssql+aioodbc://user:pass@host/dbname?driver=ODBC+Driver+17+for+SQL+Server` |
@@ -127,7 +127,7 @@ Database credentials configured through the admin UI are encrypted at rest using
 ```bash
 pip install -e ".[dev]"
 pytest
-pytest --cov=openspc     # with coverage
+pytest --cov=cassini     # with coverage
 ```
 
 The test suite uses pytest-asyncio for async tests and httpx for API integration tests.

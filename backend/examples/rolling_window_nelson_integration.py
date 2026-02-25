@@ -10,13 +10,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from openspc.core.engine.rolling_window import (
+from cassini.core.engine.rolling_window import (
     RollingWindow,
     WindowSample,
     Zone,
     ZoneBoundaries,
 )
-from openspc.core.engine.nelson_rules import (
+from cassini.core.engine.nelson_rules import (
     NelsonRuleLibrary,
     Rule1Outlier,
     Rule2Shift,

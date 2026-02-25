@@ -26,8 +26,8 @@ backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / "src"
 sys.path.insert(0, str(src_dir))
 
-from openspc.core.auth.passwords import hash_password
-from openspc.db import (
+from cassini.core.auth.passwords import hash_password
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
@@ -36,10 +36,10 @@ from openspc.db import (
     Sample,
     Violation,
 )
-from openspc.db.models.anomaly import AnomalyDetectorConfig, AnomalyEvent
-from openspc.db.models.api_key import APIKey  # noqa: F401 — registers model
-from openspc.db.models.plant import Plant
-from openspc.db.models.signature import (
+from cassini.db.models.anomaly import AnomalyDetectorConfig, AnomalyEvent
+from cassini.db.models.api_key import APIKey  # noqa: F401 — registers model
+from cassini.db.models.plant import Plant
+from cassini.db.models.signature import (
     ElectronicSignature,
     PasswordPolicy,
     SignatureMeaning,
@@ -47,7 +47,7 @@ from openspc.db.models.signature import (
     SignatureWorkflowInstance,
     SignatureWorkflowStep,
 )
-from openspc.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.user import User, UserPlantRole, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -411,7 +411,7 @@ class InlineNelsonChecker:
 
 
 async def seed() -> None:
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,

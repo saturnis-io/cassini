@@ -105,7 +105,7 @@ export function FAIPrintView({ report, onClose }: FAIPrintViewProps) {
                   <td className={labelClass}>Purchase Order</td>
                   <td className={valueClass}>{report.purchase_order || '--'}</td>
                   <td className={labelClass}>Reason for Inspection</td>
-                  <td className={valueClass}>{report.reason || '--'}</td>
+                  <td className={valueClass}>{report.reason_for_inspection || '--'}</td>
                 </tr>
                 <tr>
                   <td className={labelClass}>Status</td>

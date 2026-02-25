@@ -5,12 +5,11 @@ import {
   Trash2,
   Loader2,
   Users,
-  Check,
-  ChevronDown,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { characteristicApi } from '@/api/client'
+import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
 import {
   useMultivariateGroups,
   useCreateMultivariateGroup,
@@ -189,7 +188,6 @@ function CreateGroupDialog({
   const [description, setDescription] = useState('')
   const [chartType, setChartType] = useState('t2')
   const [selectedCharIds, setSelectedCharIds] = useState<number[]>([])
-  const [pickerOpen, setPickerOpen] = useState(false)
 
   const createMutation = useCreateMultivariateGroup()
 
@@ -206,12 +204,6 @@ function CreateGroupDialog({
     for (const c of characteristics) map.set(c.id, c.name)
     return map
   }, [characteristics])
-
-  const toggleChar = (id: number) => {
-    setSelectedCharIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }
 
   const handleCreate = () => {
     if (!name.trim() || selectedCharIds.length < 2) return
@@ -288,64 +280,11 @@ function CreateGroupDialog({
               )}
             </label>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setPickerOpen(!pickerOpen)}
-                className={cn(
-                  'bg-background border-border flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm',
-                  selectedCharIds.length === 0 && 'text-muted-foreground',
-                )}
-              >
-                <span className="truncate">
-                  {selectedCharIds.length === 0
-                    ? 'Select at least 2 characteristics...'
-                    : selectedCharIds.map((id) => charNameMap.get(id)).filter(Boolean).join(', ')}
-                </span>
-                <ChevronDown
-                  className={cn('h-4 w-4 shrink-0 transition-transform', pickerOpen && 'rotate-180')}
-                />
-              </button>
-
-              {pickerOpen && (
-                <div className="bg-popover border-border absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border shadow-lg">
-                  {characteristics.length === 0 ? (
-                    <p className="text-muted-foreground px-3 py-4 text-center text-sm">
-                      No characteristics found
-                    </p>
-                  ) : (
-                    <div className="p-1">
-                      {characteristics.map((c) => {
-                        const isSelected = selectedCharIds.includes(c.id)
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => toggleChar(c.id)}
-                            className={cn(
-                              'flex w-full items-center gap-2.5 rounded px-3 py-1.5 text-left text-sm',
-                              isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                                isSelected
-                                  ? 'bg-primary border-primary text-primary-foreground'
-                                  : 'border-border',
-                              )}
-                            >
-                              {isSelected && <Check className="h-3 w-3" />}
-                            </div>
-                            <span className="truncate">{c.name}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <HierarchyMultiSelector
+              selectedIds={selectedCharIds}
+              onSelectionChange={setSelectedCharIds}
+              className="border-border max-h-48 rounded-lg border"
+            />
 
             {/* Selection tags */}
             {selectedCharIds.length > 0 && (
@@ -356,7 +295,13 @@ function CreateGroupDialog({
                     className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
                   >
                     {charNameMap.get(id)}
-                    <button type="button" onClick={() => toggleChar(id)} className="hover:text-primary/70">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedCharIds((prev) => prev.filter((x) => x !== id))
+                      }
+                      className="hover:text-primary/70"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </span>

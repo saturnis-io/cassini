@@ -1,10 +1,10 @@
-# OpenSPC — CLAUDE.md
+# Cassini — CLAUDE.md
 
 ## Project Overview
-Open-source Statistical Process Control (SPC) platform. Monorepo with three packages:
+Statistical Process Control (SPC) platform by Saturnis. Monorepo with three packages:
 - **Backend**: `backend/` — FastAPI, SQLAlchemy async, Alembic, Python 3.11+
 - **Frontend**: `frontend/` — React 19, TypeScript 5.9, Vite 7, TanStack Query v5, Zustand v5, ECharts 6
-- **Bridge**: `bridge/` — `openspc-bridge` pip package, serial gage → MQTT translator
+- **Bridge**: `bridge/` — `cassini-bridge` pip package, serial gage → MQTT translator
 
 ## Commands
 ```bash
@@ -15,19 +15,19 @@ cd frontend && npx tsc --noEmit     # Type check only (faster, no project refs)
 cd frontend && npx tsc -b           # Full build check (strict, noUnusedLocals)
 
 # Backend
-cd backend && uvicorn openspc.main:app --reload   # Dev server
+cd backend && uvicorn cassini.main:app --reload   # Dev server
 cd backend && alembic upgrade head                 # Run migrations
 cd backend && alembic revision --autogenerate -m "description"  # New migration
 
 # Bridge
 cd bridge && pip install -e .       # Dev install
-openspc-bridge run                  # Run bridge agent
+cassini-bridge run                  # Run bridge agent
 ```
 
 ## Architecture
 
 ### Backend
-- **API**: FastAPI routers in `src/openspc/api/v1/`, Pydantic schemas in `api/schemas/`
+- **API**: FastAPI routers in `src/cassini/api/v1/`, Pydantic schemas in `api/schemas/`
 - **DB**: SQLAlchemy async models in `db/models/`, repositories in `db/repositories/`
 - **Multi-dialect**: SQLite (dev), PostgreSQL, MySQL, MSSQL via `db/dialects.py`
 - **Auth**: JWT access (15min) + refresh cookie (7d httpOnly, path `/api/v1/auth`)
@@ -42,6 +42,7 @@ openspc-bridge run                  # Run bridge agent
 - **Charts**: ECharts 6 via tree-shaken `lib/echarts.ts`, lifecycle via `useECharts` hook
 - **Validation**: Zod v4 schemas in `schemas/`, hook in `hooks/useFormValidation.ts`
 - **Styling**: Tailwind CSS v4, Prettier with `prettier-plugin-tailwindcss`
+- **Visual styles**: Retro (default, sharp corners, monospace) or Glass (frosted, rounded) — independent of light/dark
 
 ### Key Conventions
 - **Prettier**: No semicolons, single quotes, trailing commas, 100 char width
@@ -49,6 +50,28 @@ openspc-bridge run                  # Run bridge agent
 - **Imports**: Use `@/` alias, never relative paths crossing directories
 - **Components**: Function components, named exports, one component per file
 - **Hooks**: Custom hooks in `hooks/`, React Query hooks in `api/hooks/`
+
+## Cross-Cutting Requirements (ALL New Features)
+
+### Audit Trail
+Every new feature MUST have audit log coverage:
+1. Add a `_RESOURCE_PATTERNS` regex entry in `core/audit.py` for each new URL prefix
+2. Add domain-specific action keywords to `_method_to_action()` (e.g., "submit", "approve", "analyze")
+3. Add `RESOURCE_LABELS` and `ACTION_LABELS` entries in `frontend/src/components/AuditLogViewer.tsx`
+4. For background/event-bus-driven operations, add explicit `audit_service.log()` calls (HTTP middleware only captures HTTP requests)
+
+### Electronic Signatures
+Every approval/sign-off workflow SHOULD integrate with the signature system (`core/signature_engine.py`):
+1. Regulatory-required workflows (FAI approval, MSA sign-off, data purge): call `initiate_workflow()` + `sign()` — MUST block the action if `check_workflow_required()` returns True
+2. Optional workflows (DOE analysis, ERP config, capability snapshots): call `sign_standalone()` — configurable per plant
+3. On resource modification after signing: call `invalidate_signatures_for_resource()`
+4. Frontend: embed `<SignatureDialog>` component in approval buttons (not just the Settings page)
+5. Resource hashes MUST include actual content, not just type+id
+
+### API Contract Consistency
+- **fetchApi paths**: NEVER include `/api/v1/` prefix — `fetchApi` prepends it automatically
+- **TypeScript types**: Must match Pydantic schemas field-for-field (run `npx tsc --noEmit` to verify)
+- **Error responses**: NEVER pass `str(e)` to API clients — log server-side, return generic messages
 
 ## Critical Pitfalls
 
@@ -60,6 +83,7 @@ openspc-bridge run                  # Run bridge agent
 - **SQLite FK recreation**: Use naming convention dict in `batch_alter_table`. Always `drop_constraint` before `create_foreign_key`
 - **DB encryption key**: `.db_encryption_key` is separate from `.jwt_secret` — JWT rotation must not brick stored credentials
 - **Config validation**: `short_run_mode` incompatible with attribute data or CUSUM/EWMA. `use_laney_correction` only for p/u charts
+- **Legacy shim**: `backend/src/openspc/__init__.py` redirects `openspc.*` imports to `cassini.*` for old Alembic migrations
 
 ### Frontend
 - **ECharts container**: Container div MUST always be in DOM. Use `visibility: hidden`, not conditional rendering
@@ -68,6 +92,7 @@ openspc-bridge run                  # Run bridge agent
 - **Provider ordering**: PlantProvider, WebSocketProvider must be inside RequireAuth
 - **Query invalidation**: `useUpdateCharacteristic` must invalidate `['characteristics', 'chartData', id]` — doesn't match `['characteristics', 'detail', id]`
 - **CharacteristicForm onChange**: Type is `(field: string, value: string | boolean)` — checkboxes pass booleans
+- **localStorage keys**: Use `cassini-` prefix (migration from `openspc-` in main.tsx)
 
 ## Data Model Notes
 - **DataSource**: Polymorphic JTI — base `data_source` + `mqtt_data_source`, `opcua_data_source`. No `provider_type` column. Check `char.data_source is None` for manual

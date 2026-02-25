@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from aiomqtt import MqttError
 
-from openspc.mqtt.client import MQTTClient, MQTTConfig
+from cassini.mqtt.client import MQTTClient, MQTTConfig
 
 
 class TestMQTTConfig:
@@ -85,7 +85,7 @@ class TestMQTTClientConnection:
         mock_mqtt_client.__aexit__ = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             assert client.is_connected is True
@@ -110,7 +110,7 @@ class TestMQTTClientConnection:
         mock_mqtt_client.__aexit__ = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client") as mock_client_class:
+        with patch("cassini.mqtt.client.Client") as mock_client_class:
             mock_client_class.return_value = mock_mqtt_client
 
             await client.connect()
@@ -149,7 +149,7 @@ class TestMQTTClientConnection:
                 return mock_mqtt_client
 
         with (
-            patch("openspc.mqtt.client.Client", side_effect=failing_client),
+            patch("cassini.mqtt.client.Client", side_effect=failing_client),
             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
         ):
                 await client.connect()
@@ -177,7 +177,7 @@ class TestMQTTClientConnection:
         mock_mqtt_client.__aexit__ = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             assert client.is_connected is True
 
@@ -198,7 +198,7 @@ class TestMQTTClientConnection:
         mock_mqtt_client.__aexit__ = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             # Disconnect multiple times
@@ -227,7 +227,7 @@ class TestMQTTClientSubscription:
 
         callback = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.subscribe("test/topic", callback)
 
@@ -265,7 +265,7 @@ class TestMQTTClientSubscription:
 
         callback = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             # Subscribe before connecting
             await client.subscribe("test/topic", callback)
             await client.subscribe("another/topic", callback)
@@ -295,7 +295,7 @@ class TestMQTTClientSubscription:
 
         callback = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.subscribe("test/topic", callback)
             await client.unsubscribe("test/topic")
@@ -344,7 +344,7 @@ class TestMQTTClientPublishing:
         mock_mqtt_client.publish = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.publish("test/topic", b"test payload", qos=1)
 
@@ -367,7 +367,7 @@ class TestMQTTClientPublishing:
         mock_mqtt_client.publish = AsyncMock()
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             await client.publish("test/topic", b"payload", qos=0)
@@ -401,7 +401,7 @@ class TestMQTTClientPublishing:
         mock_mqtt_client.publish = AsyncMock(side_effect=MqttError("Publish failed"))
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             with pytest.raises(MqttError, match="Publish failed"):
@@ -447,7 +447,7 @@ class TestMQTTClientMessageHandling:
 
         mock_mqtt_client.messages = message_generator()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.subscribe("test/topic", callback)
 
@@ -506,7 +506,7 @@ class TestMQTTClientMessageHandling:
 
         mock_mqtt_client.messages = message_generator()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.subscribe("test/topic", tracking_callback)
 
@@ -608,7 +608,7 @@ class TestMQTTClientReconnection:
             return mock_mqtt_client
 
         with (
-            patch("openspc.mqtt.client.Client", side_effect=mock_client_factory),
+            patch("cassini.mqtt.client.Client", side_effect=mock_client_factory),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
                 # This should retry and eventually succeed
@@ -638,7 +638,7 @@ class TestMQTTClientReconnection:
         )
 
         with (
-            patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client),
+            patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client),
             patch("asyncio.sleep", side_effect=mock_sleep),
             contextlib.suppress(Exception),
         ):
@@ -671,7 +671,7 @@ class TestMQTTClientEdgeCases:
 
         callback = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             with pytest.raises(MqttError, match="Subscribe failed"):
@@ -696,7 +696,7 @@ class TestMQTTClientEdgeCases:
 
         callback = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
             await client.subscribe("test/topic", callback)
 
@@ -718,7 +718,7 @@ class TestMQTTClientEdgeCases:
         )
         mock_mqtt_client.messages = AsyncMock()
 
-        with patch("openspc.mqtt.client.Client", return_value=mock_mqtt_client):
+        with patch("cassini.mqtt.client.Client", return_value=mock_mqtt_client):
             await client.connect()
 
             # Should not raise error

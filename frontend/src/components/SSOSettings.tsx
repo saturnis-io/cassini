@@ -419,7 +419,7 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
             />
             {jsonError && <p className="text-destructive text-xs">{jsonError}</p>}
             <p className="text-muted-foreground text-xs">
-              Map OIDC groups to OpenSPC roles. Flat format:{' '}
+              Map OIDC groups to Cassini roles. Flat format:{' '}
               <code className="bg-muted rounded px-1">{'"group": "role"'}</code>. Plant-scoped:{' '}
               <code className="bg-muted rounded px-1">{'"group": {"plant_id": "role"}'}</code> (use{' '}
               <code className="bg-muted rounded px-1">"*"</code> for all plants).
@@ -531,7 +531,7 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
             {showLogoutConfig && (
               <div className="border-border space-y-3 border-t px-4 py-3">
                 <p className="text-muted-foreground text-xs">
-                  Configure RP-initiated logout to sign users out of both OpenSPC and the
+                  Configure RP-initiated logout to sign users out of both Cassini and the
                   identity provider. Leave blank to auto-discover from the IdP.
                 </p>
                 <div className="space-y-1.5">

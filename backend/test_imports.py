@@ -4,11 +4,11 @@
 import sys
 sys.path.insert(0, 'src')
 
-print("Testing imports from openspc.utils...")
+print("Testing imports from cassini.utils...")
 
 try:
     # Test constants imports
-    from openspc.utils import (
+    from cassini.utils import (
         SpcConstants,
         get_constants,
         get_d2,
@@ -20,7 +20,7 @@ try:
     print("✓ Constants imports successful")
 
     # Test statistics imports
-    from openspc.utils import (
+    from cassini.utils import (
         ControlLimits,
         XbarRLimits,
         ZoneBoundaries,

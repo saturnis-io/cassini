@@ -325,11 +325,22 @@ export interface ViolationStats {
 }
 
 // WebSocket message types
+
+/** Sparse violation summary sent over WebSocket (not the full Violation shape) */
+export interface WSViolationSummary {
+  id: number
+  sample_id: number
+  characteristic_id: number
+  rule_id: number
+  rule_name: string
+  severity: string
+}
+
 export interface WSSampleMessage {
   type: 'sample'
   characteristic_id: number
   sample: Sample
-  violations: Violation[]
+  violations: WSViolationSummary[]
 }
 
 export interface WSViolationMessage {

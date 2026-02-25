@@ -155,7 +155,7 @@ const SUB_TABS: { id: AppearanceSubTab; label: string }[] = [
 ]
 
 export function AppearanceSettings() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, visualStyle, setVisualStyle } = useTheme()
   const [subTab, setSubTab] = useState<AppearanceSubTab>('theme')
   const [selectedPreset, setSelectedPreset] = useState(getStoredPresetId())
   const [colors, setColors] = useState<ChartColors>(getStoredChartColors())
@@ -269,6 +269,52 @@ export function AppearanceSettings() {
                 {theme === option.value && <Check className="text-primary h-4 w-4" />}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Visual Style */}
+      {subTab === 'theme' && (
+        <div className="bg-muted rounded-xl p-6">
+          <h3 className="mb-2 font-semibold">Visual Style</h3>
+          <p className="text-muted-foreground mb-4 text-sm">
+            Choose between a retro control-panel aesthetic or a modern glassmorphism look.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setVisualStyle('retro')}
+              className={cn(
+                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                visualStyle === 'retro'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Retro</span>
+                {visualStyle === 'retro' && <Check className="text-primary h-4 w-4" />}
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Sharp edges, monospace accents, industrial control-panel feel
+              </p>
+            </button>
+            <button
+              onClick={() => setVisualStyle('glass')}
+              className={cn(
+                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                visualStyle === 'glass'
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Glass</span>
+                {visualStyle === 'glass' && <Check className="text-primary h-4 w-4" />}
+              </div>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Frosted panels, blur effects, rounded and luminous
+              </p>
+            </button>
           </div>
         </div>
       )}

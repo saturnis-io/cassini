@@ -1,1 +1,0 @@
-"""OpenSPC API module."""

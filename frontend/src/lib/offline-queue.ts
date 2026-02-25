@@ -6,7 +6,7 @@
  * Zustand store mirrors the count for UI display.
  */
 
-const DB_NAME = 'openspc-offline'
+const DB_NAME = 'cassini-offline'
 const DB_VERSION = 1
 const STORE_NAME = 'mutations'
 const MAX_QUEUE_SIZE = 1000
@@ -24,6 +24,7 @@ interface QueuedMutation {
 }
 
 let db: IDBDatabase | null = null
+let flushInProgress: Promise<number> | null = null
 
 function openDB(): Promise<IDBDatabase> {
   if (db) return Promise.resolve(db)
@@ -127,7 +128,15 @@ export async function remove(id: number): Promise<void> {
  * Skips stale items (older than 24h) and retries failed items up to MAX_FLUSH_RETRIES times.
  * Returns the number of successfully flushed items.
  */
-export async function flush(): Promise<number> {
+export function flush(): Promise<number> {
+  if (flushInProgress) return flushInProgress
+  flushInProgress = doFlush().finally(() => {
+    flushInProgress = null
+  })
+  return flushInProgress
+}
+
+async function doFlush(): Promise<number> {
   const { fetchApi } = await import('@/api/client')
   const items = await getAll()
   let flushed = 0
@@ -150,12 +159,29 @@ export async function flush(): Promise<number> {
       flushed++
     } catch (error) {
       console.warn(`[offline-queue] Failed to flush mutation ${item.id}:`, error)
-      // Increment retry count; remove if exceeded max retries
-      if (item.retries >= MAX_FLUSH_RETRIES) {
-        console.warn(`[offline-queue] Removing mutation ${item.id} after ${MAX_FLUSH_RETRIES} failed retries`)
+      const newRetries = (item.retries || 0) + 1
+      if (newRetries > MAX_FLUSH_RETRIES) {
+        console.warn(
+          `[offline-queue] Removing mutation ${item.id} after ${MAX_FLUSH_RETRIES} failed retries`,
+        )
         await remove(item.id!)
+      } else {
+        const database = await openDB()
+        const tx = database.transaction(STORE_NAME, 'readwrite')
+        const store = tx.objectStore(STORE_NAME)
+        const getReq = store.get(item.id!)
+        await new Promise<void>((resolve, reject) => {
+          getReq.onsuccess = () => {
+            const record = getReq.result
+            if (record) {
+              record.retries = newRetries
+              store.put(record)
+            }
+            resolve()
+          }
+          getReq.onerror = () => reject(getReq.error)
+        })
       }
-      // Leave it for next attempt (retries incremented on next load)
     }
   }
 

@@ -6,12 +6,12 @@ This script demonstrates and verifies all 8 Nelson Rules with known test cases.
 import sys
 sys.path.insert(0, 'src')
 
-from openspc.core.engine.nelson_rules import (
+from cassini.core.engine.nelson_rules import (
     NelsonRuleLibrary,
     RollingWindow,
     Severity,
 )
-from openspc.utils.statistics import calculate_zones
+from cassini.utils.statistics import calculate_zones
 
 
 def print_header(title: str):

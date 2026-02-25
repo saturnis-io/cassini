@@ -1,11 +1,11 @@
 {
-  "name": "OpenSPC",
-  "short_name": "OpenSPC",
+  "name": "Cassini",
+  "short_name": "Cassini",
   "description": "Statistical Process Control Platform",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#004A98",
-  "theme_color": "#004A98",
+  "background_color": "#080C16",
+  "theme_color": "#D4AF37",
   "icons": [
     {
       "src": "/android-chrome-192.png",

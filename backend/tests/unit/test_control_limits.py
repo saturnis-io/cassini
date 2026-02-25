@@ -17,9 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openspc.core.engine.control_limits import CalculationResult, ControlLimitService
-from openspc.db.models.characteristic import Characteristic
-from openspc.db.models.sample import Measurement, Sample
+from cassini.core.engine.control_limits import CalculationResult, ControlLimitService
+from cassini.db.models.characteristic import Characteristic
+from cassini.db.models.sample import Measurement, Sample
 
 
 class TestMethodSelection:

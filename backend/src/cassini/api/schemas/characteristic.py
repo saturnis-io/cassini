@@ -1,0 +1,488 @@
+"""Pydantic schemas for Characteristic operations.
+
+Schemas for SPC characteristic configuration and chart data.
+"""
+
+from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing_extensions import Self
+
+from cassini.api.schemas.data_source import DataSourceResponse
+
+
+class SubgroupModeEnum(str, Enum):
+    """Subgroup size handling modes for API schemas."""
+
+    STANDARDIZED = "STANDARDIZED"
+    VARIABLE_LIMITS = "VARIABLE_LIMITS"
+    NOMINAL_TOLERANCE = "NOMINAL_TOLERANCE"
+
+
+class CharacteristicCreate(BaseModel):
+    """Schema for creating a new characteristic.
+
+    Data source (MQTT, OPC-UA) is configured separately via the tag mapping API.
+    """
+
+    hierarchy_id: int
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = None
+    subgroup_size: int = Field(default=1, ge=1, le=25)
+    target_value: float | None = None
+    usl: float | None = None
+    lsl: float | None = None
+
+    # Attribute chart configuration
+    data_type: str = Field(default="variable", pattern="^(variable|attribute)$")
+    attribute_chart_type: str | None = Field(
+        None, pattern="^(p|np|c|u)$", description="Chart type for attribute data"
+    )
+    default_sample_size: int | None = Field(
+        None, ge=1, description="Default sample size for attribute charts"
+    )
+
+    # Advanced chart type (CUSUM/EWMA)
+    chart_type: str | None = Field(
+        None, pattern="^(cusum|ewma)$",
+        description="Advanced chart type: cusum, ewma, or null for standard"
+    )
+    cusum_target: float | None = Field(None, description="CUSUM target value (process mean)")
+    cusum_k: float | None = Field(None, ge=0, description="CUSUM slack value, typical 0.5")
+    cusum_h: float | None = Field(None, gt=0, description="CUSUM decision interval, typical 4 or 5")
+    ewma_lambda: float | None = Field(None, gt=0, le=1, description="EWMA smoothing constant (0-1), typical 0.2")
+    ewma_l: float | None = Field(None, gt=0, description="EWMA control limit multiplier, typical 2.7")
+
+    # Subgroup mode configuration
+    subgroup_mode: SubgroupModeEnum = Field(
+        default=SubgroupModeEnum.NOMINAL_TOLERANCE,
+        description="How to handle variable subgroup sizes",
+    )
+    min_measurements: int = Field(
+        default=1, ge=1, description="Minimum measurements required per sample"
+    )
+    warn_below_count: int | None = Field(
+        default=None, description="Warn when sample has fewer than this many measurements"
+    )
+    decimal_precision: int = Field(
+        default=3, ge=0, le=10, description="Decimal places for display formatting"
+    )
+    short_run_mode: str | None = Field(
+        None, pattern=r"^(deviation|standardized)$",
+        description="Short-run chart mode: deviation (subtract target) or standardized (Z-score)"
+    )
+
+    @model_validator(mode="after")
+    def validate_subgroup_config(self) -> Self:
+        """Validate subgroup mode configuration."""
+        if self.min_measurements > self.subgroup_size:
+            raise ValueError("min_measurements cannot exceed subgroup_size")
+        if self.warn_below_count is not None:
+            if self.warn_below_count < self.min_measurements:
+                raise ValueError("warn_below_count must be >= min_measurements")
+            if self.warn_below_count > self.subgroup_size:
+                raise ValueError("warn_below_count cannot exceed subgroup_size")
+        return self
+
+
+class CharacteristicUpdate(BaseModel):
+    """Schema for updating an existing characteristic.
+
+    All fields are optional to support partial updates.
+    Control limits (UCL/LCL) can be updated after initial control limit calculation.
+
+    Attributes:
+        name: New display name
+        description: New description
+        target_value: New target value
+        usl: New Upper Specification Limit
+        lsl: New Lower Specification Limit
+        ucl: New Upper Control Limit (calculated from data)
+        lcl: New Lower Control Limit (calculated from data)
+        subgroup_mode: How to handle variable subgroup sizes
+        min_measurements: Minimum measurements required per sample
+        warn_below_count: Warn when sample has fewer than this many measurements
+    """
+
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    target_value: float | None = None
+    usl: float | None = None
+    lsl: float | None = None
+    ucl: float | None = None
+    lcl: float | None = None
+    data_type: str | None = Field(None, pattern="^(variable|attribute)$")
+    attribute_chart_type: str | None = Field(None, pattern="^(p|np|c|u)$")
+    default_sample_size: int | None = Field(None, ge=1)
+    chart_type: str | None = Field(None, pattern="^(cusum|ewma)$")
+    cusum_target: float | None = None
+    cusum_k: float | None = Field(None, ge=0)
+    cusum_h: float | None = Field(None, gt=0)
+    ewma_lambda: float | None = Field(None, gt=0, le=1)
+    ewma_l: float | None = Field(None, gt=0)
+    subgroup_mode: SubgroupModeEnum | None = None
+    min_measurements: int | None = Field(None, ge=1)
+    warn_below_count: int | None = None
+    decimal_precision: int | None = Field(None, ge=0, le=10)
+    use_laney_correction: bool | None = None
+    short_run_mode: str | None = Field(None, pattern=r"^(deviation|standardized)$")
+
+
+class CharacteristicResponse(BaseModel):
+    """Schema for characteristic response."""
+
+    id: int
+    hierarchy_id: int
+    name: str
+    description: str | None
+    subgroup_size: int
+    target_value: float | None
+    usl: float | None
+    lsl: float | None
+    ucl: float | None
+    lcl: float | None
+    data_source: DataSourceResponse | None = None
+    data_type: str = "variable"
+    attribute_chart_type: str | None = None
+    default_sample_size: int | None = None
+    chart_type: str | None = None
+    cusum_target: float | None = None
+    cusum_k: float | None = None
+    cusum_h: float | None = None
+    ewma_lambda: float | None = None
+    ewma_l: float | None = None
+    subgroup_mode: str
+    min_measurements: int
+    warn_below_count: int | None
+    stored_sigma: float | None
+    stored_center_line: float | None
+    decimal_precision: int
+    use_laney_correction: bool = False
+    short_run_mode: str | None = None
+    distribution_method: str | None = None
+    # Computed status fields (populated by list/hierarchy endpoints)
+    sample_count: int | None = None
+    unacknowledged_violations: int | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CharacteristicSummary(BaseModel):
+    """Schema for characteristic summary in list views."""
+
+    id: int
+    name: str
+    data_source_type: str | None = None
+    subgroup_size: int = 1
+    min_measurements: int = 1
+    in_control: bool = True
+    unacknowledged_violations: int = 0
+
+
+class ControlLimits(BaseModel):
+    """Schema for control chart limits.
+
+    Attributes:
+        center_line: Process mean (X-bar), None if not yet calculated
+        ucl: Upper Control Limit, None if not yet calculated
+        lcl: Lower Control Limit, None if not yet calculated
+    """
+
+    center_line: float | None = None
+    ucl: float | None = None
+    lcl: float | None = None
+
+
+class ZoneBoundaries(BaseModel):
+    """Schema for Nelson Rules zone boundaries.
+
+    Zones are defined by standard deviations from the center line.
+    Used for visualization and Nelson Rules detection.
+    All values are None if control limits have not been calculated.
+
+    Attributes:
+        plus_1_sigma: +1 standard deviation boundary
+        plus_2_sigma: +2 standard deviation boundary
+        plus_3_sigma: +3 standard deviation boundary (UCL)
+        minus_1_sigma: -1 standard deviation boundary
+        minus_2_sigma: -2 standard deviation boundary
+        minus_3_sigma: -3 standard deviation boundary (LCL)
+    """
+
+    plus_1_sigma: float | None = None
+    plus_2_sigma: float | None = None
+    plus_3_sigma: float | None = None
+    minus_1_sigma: float | None = None
+    minus_2_sigma: float | None = None
+    minus_3_sigma: float | None = None
+
+
+class ChartSample(BaseModel):
+    """Schema for a single sample point on a control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken
+        mean: Subgroup mean (plotted value for X-bar chart)
+        range: Subgroup range value for R chart (max - min)
+        std_dev: Sample standard deviation for S chart (ddof=1)
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: List of violation IDs for this sample
+        unacknowledged_violation_ids: Subset of violation_ids that require acknowledgement and are not yet acknowledged
+        violation_rules: List of Nelson rule numbers (1-8) that were violated
+        zone: Which control zone the point falls in
+        actual_n: Actual number of measurements in this sample
+        is_undersized: Whether sample has fewer measurements than expected
+        effective_ucl: Per-point UCL for Mode B (variable limits)
+        effective_lcl: Per-point LCL for Mode B (variable limits)
+        z_score: Z-score for Mode A (standardized)
+        display_value: Value to plot (z_score for Mode A, mean for others)
+    """
+
+    sample_id: int
+    timestamp: str  # ISO format datetime string
+    mean: float
+    range: float | None
+    std_dev: float | None = None
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    zone: str
+    actual_n: int = 1
+    is_undersized: bool = False
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    z_score: float | None = None
+    display_value: float | None = None
+    display_key: str = ""
+
+
+class AttributeChartSample(BaseModel):
+    """Schema for a single sample point on an attribute control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        plotted_value: Computed statistic (p, np, c, or u value)
+        defect_count: Raw defect/defective count
+        sample_size: Items inspected (p/np charts)
+        units_inspected: Inspection units (u chart)
+        effective_ucl: Per-point UCL (varies for p/u with variable n)
+        effective_lcl: Per-point LCL (varies for p/u with variable n)
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+    """
+
+    sample_id: int
+    timestamp: str
+    plotted_value: float
+    defect_count: int
+    sample_size: int | None = None
+    units_inspected: int | None = None
+    effective_ucl: float | None = None
+    effective_lcl: float | None = None
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
+class CUSUMChartSample(BaseModel):
+    """Schema for a single sample point on a CUSUM control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        measurement: Raw measurement value
+        cusum_high: Running CUSUM+ value
+        cusum_low: Running CUSUM- value
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+        display_key: Display key for X-axis label
+    """
+
+    sample_id: int
+    timestamp: str
+    measurement: float
+    cusum_high: float
+    cusum_low: float
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
+class EWMAChartSample(BaseModel):
+    """Schema for a single sample point on an EWMA control chart.
+
+    Attributes:
+        sample_id: Unique identifier of the sample
+        timestamp: When the sample was taken (ISO format)
+        measurement: Raw measurement value
+        ewma_value: Running EWMA value
+        excluded: Whether this sample is excluded from calculations
+        violation_ids: Violation IDs for this sample
+        unacknowledged_violation_ids: Unacknowledged violation IDs
+        violation_rules: Nelson rule numbers that were violated
+        display_key: Display key for X-axis label
+    """
+
+    sample_id: int
+    timestamp: str
+    measurement: float
+    ewma_value: float
+    excluded: bool = False
+    violation_ids: list[int] = []
+    unacknowledged_violation_ids: list[int] = []
+    violation_rules: list[int] = []
+    display_key: str = ""
+
+
+class SpecLimits(BaseModel):
+    """Schema for specification limits (Voice of Customer).
+
+    Attributes:
+        usl: Upper Specification Limit
+        lsl: Lower Specification Limit
+        target: Target/nominal value
+    """
+
+    usl: float | None = None
+    lsl: float | None = None
+    target: float | None = None
+
+
+class ChartDataResponse(BaseModel):
+    """Schema for complete control chart data.
+
+    Contains all information needed to render a control chart.
+
+    Attributes:
+        characteristic_id: ID of the characteristic
+        characteristic_name: Display name of the characteristic
+        data_points: List of sample points for chart rendering
+        control_limits: UCL, CL, LCL values
+        spec_limits: USL, LSL, target values
+        zone_boundaries: Zone boundaries for visualization
+        subgroup_mode: Subgroup handling mode for this characteristic
+        nominal_subgroup_size: Expected/nominal subgroup size
+        decimal_precision: Number of decimal places for display formatting
+    """
+
+    characteristic_id: int
+    characteristic_name: str
+    data_points: list[ChartSample] = []
+    control_limits: ControlLimits
+    spec_limits: SpecLimits
+    zone_boundaries: ZoneBoundaries
+    subgroup_mode: str = "NOMINAL_TOLERANCE"
+    nominal_subgroup_size: int = 1
+    decimal_precision: int = 3
+    stored_sigma: float | None = None
+    data_type: str = "variable"
+    attribute_chart_type: str | None = None
+    attribute_data_points: list[AttributeChartSample] = []
+    chart_type: str | None = None
+    cusum_data_points: list[CUSUMChartSample] = []
+    cusum_h: float | None = None
+    cusum_target: float | None = None
+    ewma_data_points: list[EWMAChartSample] = []
+    ewma_target: float | None = None
+    sigma_z: float | None = None
+    short_run_mode: str | None = None
+
+
+class NelsonRuleConfig(BaseModel):
+    """Schema for configuring Nelson Rules per characteristic.
+
+    Attributes:
+        rule_id: Nelson Rule number (1-8)
+        is_enabled: Whether this rule is active
+        require_acknowledgement: Whether violations of this rule require acknowledgement
+        parameters: Optional custom parameters for the rule
+    """
+
+    rule_id: int = Field(..., ge=1, le=8, description="Nelson Rule ID (1-8)")
+    is_enabled: bool = True
+    require_acknowledgement: bool = Field(
+        default=True,
+        description="Whether violations of this rule require acknowledgement"
+    )
+    parameters: dict | None = Field(
+        default=None,
+        description="Custom parameters for this rule (e.g., consecutive_count, sigma_multiplier)"
+    )
+
+
+class ControlLimitsResponse(BaseModel):
+    """Schema for control limit recalculation response.
+
+    Contains before/after values and calculation metadata.
+
+    Attributes:
+        before: Control limits before recalculation
+        after: Control limits after recalculation
+        calculation: Metadata about the calculation process
+    """
+
+    before: dict
+    after: dict
+    calculation: dict
+
+
+class SetLimitsRequest(BaseModel):
+    """Schema for manually setting control limits from an external study.
+
+    Attributes:
+        ucl: Upper Control Limit
+        lcl: Lower Control Limit
+        center_line: Process center line (X-bar)
+        sigma: Process standard deviation (must be > 0)
+    """
+
+    ucl: float
+    lcl: float
+    center_line: float
+    sigma: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_limits(self) -> Self:
+        """Validate that UCL > LCL and center_line is between them."""
+        if self.ucl <= self.lcl:
+            raise ValueError("UCL must be greater than LCL")
+        if not (self.lcl <= self.center_line <= self.ucl):
+            raise ValueError("center_line must be between LCL and UCL")
+        return self
+
+
+class ChangeModeRequest(BaseModel):
+    """Schema for changing subgroup mode with historical sample migration.
+
+    Attributes:
+        new_mode: The new subgroup handling mode
+    """
+
+    new_mode: SubgroupModeEnum = Field(..., description="New subgroup handling mode")
+
+
+class ChangeModeResponse(BaseModel):
+    """Schema for mode change response.
+
+    Attributes:
+        previous_mode: Mode before the change
+        new_mode: Mode after the change
+        samples_migrated: Number of samples recalculated
+        characteristic: Updated characteristic
+    """
+
+    previous_mode: str
+    new_mode: str
+    samples_migrated: int
+    characteristic: CharacteristicResponse

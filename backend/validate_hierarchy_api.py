@@ -11,7 +11,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from openspc.api.v1.hierarchy import router
+from cassini.api.v1.hierarchy import router
 
 
 def validate_endpoints():
@@ -86,7 +86,7 @@ def validate_endpoints():
     print("=" * 60)
 
     # Import and validate dependencies
-    from openspc.api.deps import (
+    from cassini.api.deps import (
         get_characteristic_repo,
         get_db_session,
         get_hierarchy_repo,
@@ -100,8 +100,8 @@ def validate_endpoints():
     print("Schemas")
     print("=" * 60)
 
-    from openspc.api.schemas.characteristic import CharacteristicSummary
-    from openspc.api.schemas.hierarchy import (
+    from cassini.api.schemas.characteristic import CharacteristicSummary
+    from cassini.api.schemas.hierarchy import (
         HierarchyCreate,
         HierarchyResponse,
         HierarchyTreeNode,

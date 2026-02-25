@@ -3,7 +3,7 @@ import { fetchApi } from './client'
 // Multivariate SPC API
 export const multivariateApi = {
   listGroups: (plantId: number) =>
-    fetchApi(`/api/v1/multivariate/groups?plant_id=${plantId}`),
+    fetchApi(`/multivariate/groups?plant_id=${plantId}`),
 
   createGroup: (data: {
     name: string
@@ -14,25 +14,25 @@ export const multivariateApi = {
     alpha?: number
     description?: string
   }) =>
-    fetchApi('/api/v1/multivariate/groups', {
+    fetchApi('/multivariate/groups', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getGroup: (id: number) =>
-    fetchApi(`/api/v1/multivariate/groups/${id}`),
+    fetchApi(`/multivariate/groups/${id}`),
 
   updateGroup: (id: number, data: Record<string, unknown>) =>
-    fetchApi(`/api/v1/multivariate/groups/${id}`, {
+    fetchApi(`/multivariate/groups/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   deleteGroup: (id: number) =>
-    fetchApi(`/api/v1/multivariate/groups/${id}`, { method: 'DELETE' }),
+    fetchApi(`/multivariate/groups/${id}`, { method: 'DELETE' }),
 
   computeChart: (id: number) =>
-    fetchApi(`/api/v1/multivariate/groups/${id}/compute`, { method: 'POST' }),
+    fetchApi(`/multivariate/groups/${id}/compute`, { method: 'POST' }),
 
   getChartData: (
     id: number,
@@ -43,11 +43,11 @@ export const multivariateApi = {
     if (params?.start_date) sp.set('start_date', params.start_date)
     if (params?.end_date) sp.set('end_date', params.end_date)
     const query = sp.toString()
-    return fetchApi(`/api/v1/multivariate/groups/${id}/chart-data${query ? `?${query}` : ''}`)
+    return fetchApi(`/multivariate/groups/${id}/chart-data${query ? `?${query}` : ''}`)
   },
 
   freezePhaseI: (id: number) =>
-    fetchApi(`/api/v1/multivariate/groups/${id}/freeze`, { method: 'POST' }),
+    fetchApi(`/multivariate/groups/${id}/freeze`, { method: 'POST' }),
 }
 
 // Correlation API
@@ -58,21 +58,21 @@ export const correlationApi = {
     include_pca?: boolean
     plant_id: number
   }) =>
-    fetchApi('/api/v1/multivariate/correlation/compute', {
+    fetchApi('/multivariate/correlation/compute', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   listResults: (plantId: number, limit?: number) =>
     fetchApi(
-      `/api/v1/multivariate/correlation/results?plant_id=${plantId}&limit=${limit ?? 10}`,
+      `/multivariate/correlation/results?plant_id=${plantId}&limit=${limit ?? 10}`,
     ),
 
   getResult: (id: number) =>
-    fetchApi(`/api/v1/multivariate/correlation/results/${id}`),
+    fetchApi(`/multivariate/correlation/results/${id}`),
 
   computePCA: (data: { characteristic_ids: number[]; plant_id: number }) =>
-    fetchApi('/api/v1/multivariate/correlation/compute-pca', {
+    fetchApi('/multivariate/correlation/compute-pca', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

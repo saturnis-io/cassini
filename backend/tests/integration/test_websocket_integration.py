@@ -10,16 +10,16 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, patch
 
-from openspc.api.v1.websocket import (
+from cassini.api.v1.websocket import (
     manager,
     notify_sample,
     notify_violation,
     notify_acknowledgment,
 )
-from openspc.db.models.characteristic import Characteristic, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Sample, Measurement
-from openspc.db.models.violation import Violation
+from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Sample, Measurement
+from cassini.db.models.violation import Violation
 
 
 @pytest_asyncio.fixture

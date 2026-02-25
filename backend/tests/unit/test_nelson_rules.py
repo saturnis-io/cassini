@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from openspc.core.engine.nelson_rules import (
+from cassini.core.engine.nelson_rules import (
     NelsonRuleLibrary,
     Rule1Outlier,
     Rule2Shift,
@@ -30,7 +30,7 @@ from openspc.core.engine.nelson_rules import (
     Rule8Mixture,
     Severity,
 )
-from openspc.core.engine.rolling_window import (
+from cassini.core.engine.rolling_window import (
     RollingWindow,
     WindowSample,
     Zone,

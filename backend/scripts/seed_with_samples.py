@@ -17,20 +17,20 @@ sys.path.insert(0, str(src_dir))
 
 from sqlalchemy import select
 
-from openspc.db import (
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
 )
-from openspc.db.models.sample import Sample, Measurement
+from cassini.db.models.sample import Sample, Measurement
 
 
 async def seed_database_with_samples() -> None:
     """Seed the database with hierarchy, characteristics, and sample data."""
     # Configure database
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,  # Reduce noise

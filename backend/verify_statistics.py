@@ -8,7 +8,7 @@ key calculations match the specification requirements.
 import sys
 sys.path.insert(0, 'src')
 
-from openspc.utils import (
+from cassini.utils import (
     get_d2, get_c4, get_A2, get_D3, get_D4,
     estimate_sigma_rbar, estimate_sigma_sbar, estimate_sigma_moving_range,
     calculate_xbar_r_limits, calculate_imr_limits, calculate_zones,
@@ -181,7 +181,7 @@ def main():
     """Run all verification tests."""
     print("\n")
     print("╔" + "═" * 68 + "╗")
-    print("║" + " OPENSPC STATISTICAL UTILITIES VERIFICATION ".center(68) + "║")
+    print("║" + " CASSINI STATISTICAL UTILITIES VERIFICATION ".center(68) + "║")
     print("╚" + "═" * 68 + "╝")
 
     results = []

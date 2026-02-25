@@ -7,7 +7,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.v1.violations import (
+from cassini.api.v1.violations import (
     acknowledge_violation,
     batch_acknowledge,
     get_reason_codes,
@@ -15,14 +15,14 @@ from openspc.api.v1.violations import (
     get_violation_stats,
     list_violations,
 )
-from openspc.api.schemas.violation import BatchAcknowledgeRequest, ViolationAcknowledge
-from openspc.core.alerts.manager import AlertManager
-from openspc.db.models.characteristic import Characteristic, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.models.violation import Violation
-from openspc.db.repositories.sample import SampleRepository
-from openspc.db.repositories.violation import ViolationRepository
+from cassini.api.schemas.violation import BatchAcknowledgeRequest, ViolationAcknowledge
+from cassini.core.alerts.manager import AlertManager
+from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.violation import Violation
+from cassini.db.repositories.sample import SampleRepository
+from cassini.db.repositories.violation import ViolationRepository
 
 
 @pytest_asyncio.fixture

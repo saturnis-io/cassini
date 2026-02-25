@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-from openspc.core.events import (
+from cassini.core.events import (
     CharacteristicUpdatedEvent,
     ControlLimitsUpdatedEvent,
     Event,

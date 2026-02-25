@@ -5,8 +5,8 @@
  *   1. Run `python backend/scripts/seed_test_sprint5.py` to create test data
  *   2. Start backend with dev mode to disable rate limiting:
  *        cd backend
- *        set OPENSPC_DEV_MODE=true
- *        python -m uvicorn openspc.main:app --port 8000
+ *        set CASSINI_DEV_MODE=true
+ *        python -m uvicorn cassini.main:app --port 8000
  *   3. Start frontend: cd frontend && npm run dev
  *
  * Covers three tracks:

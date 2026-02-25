@@ -18,7 +18,7 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir / "src"))
 
-from openspc.core.auth.passwords import hash_password
+from cassini.core.auth.passwords import hash_password
 
 DB_PATH = backend_dir / "test-e2e.db"
 

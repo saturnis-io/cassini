@@ -50,12 +50,11 @@ export interface PredictionDashboardItem {
 }
 
 export interface PredictionHistoryEntry {
-  id: number
   characteristic_id: number
   model_type: string
-  aic: number | null
-  trained_at: string
-  training_samples: number
+  generated_at: string
+  points: ForecastPoint[]
+  predicted_ooc_step: number | null
 }
 
 // ---- AI Types ----
@@ -63,7 +62,7 @@ export interface PredictionHistoryEntry {
 export interface AIConfig {
   plant_id: number
   provider_type: string
-  api_key_set: boolean
+  has_api_key: boolean
   model_name: string
   max_tokens: number
   is_enabled: boolean
@@ -86,8 +85,7 @@ export interface AIInsight {
 export interface AITestResult {
   success: boolean
   message: string
-  provider: string
-  model: string
+  latency_ms: number | null
 }
 
 // ---- Prediction API ----
@@ -144,9 +142,8 @@ export const aiApi = {
   }),
 
   test: (plantId: number) =>
-    fetchApi<AITestResult>('/ai/test', {
+    fetchApi<AITestResult>(`/ai/test?plant_id=${plantId}`, {
       method: 'POST',
-      body: JSON.stringify({ plant_id: plantId }),
     }),
 
   analyze: (charId: number) =>

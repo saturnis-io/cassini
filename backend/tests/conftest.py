@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-from openspc.db.models import Base
+from cassini.db.models import Base
 
 
 @pytest.fixture(scope="session")

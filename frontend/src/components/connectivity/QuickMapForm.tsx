@@ -1,14 +1,12 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Link2, Loader2, Pencil } from 'lucide-react'
-import { characteristicApi, tagApi } from '@/api/client'
-import { useUIStore } from '@/stores/uiStore'
+import { tagApi } from '@/api/client'
+import { CharacteristicPicker } from './CharacteristicPicker'
 import { quickMapSchema } from '@/schemas/connectivity'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { FieldError } from '@/components/FieldError'
-import { inputErrorClass } from '@/lib/validation'
-import { cn } from '@/lib/utils'
 import type { SelectedServer } from './ServerSelector'
 import type { OPCUABrowsedNode } from '@/types'
 
@@ -33,7 +31,6 @@ export function QuickMapForm({
   selectedMetric,
 }: QuickMapFormProps) {
   const queryClient = useQueryClient()
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
   const [characteristicId, setCharacteristicId] = useState<number | null>(null)
   const [triggerStrategy, setTriggerStrategy] = useState('on_change')
   const [triggerTag, setTriggerTag] = useState('')
@@ -41,14 +38,6 @@ export function QuickMapForm({
   const [metricEditing, setMetricEditing] = useState(false)
 
   const { validate, getError, clearErrors } = useFormValidation(quickMapSchema)
-
-  // Fetch characteristics for the dropdown
-  const { data: charData } = useQuery({
-    queryKey: ['characteristics-for-mapping', selectedPlantId],
-    queryFn: () =>
-      characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
-  })
-  const characteristics = charData?.items ?? []
 
   // MQTT mapping mutation
   const createMQTTMapping = useMutation({
@@ -206,18 +195,12 @@ export function QuickMapForm({
       {/* Characteristic selector */}
       <div>
         <label className="text-muted-foreground text-[11px]">Characteristic</label>
-        <select
-          value={characteristicId ?? ''}
-          onChange={(e) => setCharacteristicId(e.target.value ? Number(e.target.value) : null)}
-          className={cn("bg-background border-border text-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 text-sm focus:outline-none", inputErrorClass(getError('characteristicId')))}
-        >
-          <option value="">Select characteristic...</option>
-          {characteristics.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="mt-0.5">
+          <CharacteristicPicker
+            value={characteristicId}
+            onChange={setCharacteristicId}
+          />
+        </div>
         <FieldError error={getError('characteristicId')} />
       </div>
 

@@ -12,7 +12,10 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add screenshots and remove internal analysis files\n\nAdd 8 application screenshots \\(login, dashboard, connectivity, user\nmanagement, settings, violations, configuration, data entry\\) and\nembed the dashboard screenshot in README. Remove internal analysis\nfiles from tracking and add docs/internal/ to .gitignore.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
       "Bash(tasklist:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "WebFetch(domain:datacenters.lbl.gov)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

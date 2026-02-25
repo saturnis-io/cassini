@@ -28,8 +28,8 @@ export function SyncLogViewer({ connectorId }: { connectorId: number }) {
     page * PAGE_SIZE,
   )
 
-  const logs = data?.items ?? []
-  const total = data?.total ?? 0
+  const logs = data ?? []
+  const total = logs.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   if (isLoading) {

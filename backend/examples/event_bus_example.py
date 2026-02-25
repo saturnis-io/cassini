@@ -11,7 +11,7 @@ This example demonstrates:
 import asyncio
 from datetime import datetime
 
-from openspc.core.events import (
+from cassini.core.events import (
     ControlLimitsUpdatedEvent,
     SampleProcessedEvent,
     ViolationAcknowledgedEvent,

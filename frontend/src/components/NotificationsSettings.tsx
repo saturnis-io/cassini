@@ -108,7 +108,7 @@ function PushSection() {
 
   const handleTestNotification = () => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('OpenSPC Test', {
+      new Notification('Cassini Test', {
         body: 'Push notifications are working correctly.',
         icon: '/icons/icon-192.png',
       })
@@ -144,7 +144,7 @@ function PushSection() {
                   ? 'Notifications blocked by browser. Update your browser settings to allow notifications for this site.'
                   : isEnabled
                     ? 'You will receive push alerts for SPC violations and limit updates.'
-                    : 'Enable to receive real-time alerts even when OpenSPC is not open.'}
+                    : 'Enable to receive real-time alerts even when Cassini is not open.'}
               </div>
             </div>
             <button

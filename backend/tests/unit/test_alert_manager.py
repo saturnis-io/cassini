@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.core.alerts.manager import (
+from cassini.core.alerts.manager import (
     REASON_CODES,
     AlertManager,
     AlertNotifier,
@@ -14,12 +14,12 @@ from openspc.core.alerts.manager import (
     ViolationCreated,
     ViolationStats,
 )
-from openspc.core.engine.nelson_rules import RuleResult, Severity
-from openspc.db.models.characteristic import Characteristic
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.models.sample import Sample
-from openspc.db.models.violation import Violation
-from openspc.db.repositories import SampleRepository, ViolationRepository
+from cassini.core.engine.nelson_rules import RuleResult, Severity
+from cassini.db.models.characteristic import Characteristic
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Sample
+from cassini.db.models.violation import Violation
+from cassini.db.repositories import SampleRepository, ViolationRepository
 
 
 class MockNotifier:

@@ -25,8 +25,8 @@ backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / "src"
 sys.path.insert(0, str(src_dir))
 
-from openspc.core.auth.passwords import hash_password
-from openspc.db import (
+from cassini.core.auth.passwords import hash_password
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
@@ -35,14 +35,14 @@ from openspc.db import (
     Sample,
     Violation,
 )
-from openspc.db.models.api_key import APIKey  # noqa: F401
-from openspc.db.models.broker import MQTTBroker  # noqa: F401
-from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
-from openspc.db.models.doe import DOEFactor, DOERun, DOEStudy
-from openspc.db.models.multivariate import MultivariateGroup, MultivariateGroupMember
-from openspc.db.models.plant import Plant
-from openspc.db.models.prediction import PredictionConfig
-from openspc.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.api_key import APIKey  # noqa: F401
+from cassini.db.models.broker import MQTTBroker  # noqa: F401
+from cassini.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from cassini.db.models.doe import DOEFactor, DOERun, DOEStudy
+from cassini.db.models.multivariate import MultivariateGroup, MultivariateGroupMember
+from cassini.db.models.plant import Plant
+from cassini.db.models.prediction import PredictionConfig
+from cassini.db.models.user import User, UserPlantRole, UserRole
 
 logger = logging.getLogger(__name__)
 RANDOM_SEED = 42
@@ -208,7 +208,7 @@ def multivariate_normal(rng: random.Random, mean: list[float], cov: list[list[fl
 
 
 async def seed() -> None:
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,

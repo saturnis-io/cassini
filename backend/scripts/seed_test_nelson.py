@@ -22,21 +22,21 @@ backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / "src"
 sys.path.insert(0, str(src_dir))
 
-from openspc.core.auth.passwords import hash_password
-from openspc.db import (
+from cassini.core.auth.passwords import hash_password
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,
     Hierarchy,
     HierarchyType,
 )
-from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
-from openspc.db.models.plant import Plant
-from openspc.db.models.sample import Measurement, Sample
-from openspc.db.models.user import User, UserPlantRole, UserRole
-from openspc.db.models.violation import Violation
-from openspc.db.models.broker import MQTTBroker  # noqa: F401
-from openspc.db.models.api_key import APIKey  # noqa: F401
+from cassini.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from cassini.db.models.plant import Plant
+from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.violation import Violation
+from cassini.db.models.broker import MQTTBroker  # noqa: F401
+from cassini.db.models.api_key import APIKey  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -271,7 +271,7 @@ def generate_baseline(mean: float, std: float, rng: random.Random) -> float:
 # ---------------------------------------------------------------------------
 
 async def seed() -> None:
-    db_path = backend_dir / "openspc.db"
+    db_path = backend_dir / "cassini.db"
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,

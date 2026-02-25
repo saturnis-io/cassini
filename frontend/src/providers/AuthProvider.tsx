@@ -47,16 +47,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [oidcProviderId, setOidcProviderIdRaw] = useState<number | null>(() => {
     // Restore OIDC provider ID from sessionStorage (survives page reloads during SSO flow)
-    const stored = sessionStorage.getItem('openspc_oidc_provider_id')
+    const stored = sessionStorage.getItem('cassini_oidc_provider_id')
     return stored ? Number(stored) : null
   })
   // Wrapper that syncs OIDC provider ID to sessionStorage for cross-reload persistence
   const setOidcProviderId = useCallback((id: number | null) => {
     setOidcProviderIdRaw(id)
     if (id !== null) {
-      sessionStorage.setItem('openspc_oidc_provider_id', String(id))
+      sessionStorage.setItem('cassini_oidc_provider_id', String(id))
     } else {
-      sessionStorage.removeItem('openspc_oidc_provider_id')
+      sessionStorage.removeItem('cassini_oidc_provider_id')
     }
   }, [])
 

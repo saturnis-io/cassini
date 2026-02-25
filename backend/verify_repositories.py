@@ -60,7 +60,7 @@ def main():
     print()
 
     base_dir = Path(__file__).parent
-    repo_dir = base_dir / "src" / "openspc" / "db" / "repositories"
+    repo_dir = base_dir / "src" / "cassini" / "db" / "repositories"
     test_dir = base_dir / "tests" / "unit"
 
     all_passed = True

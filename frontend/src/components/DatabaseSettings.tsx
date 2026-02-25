@@ -124,7 +124,7 @@ export function DatabaseSettings() {
 
       if (format === 'json') {
         content = JSON.stringify(exportData, null, 2)
-        filename = `openspc-export-${new Date().toISOString().split('T')[0]}.json`
+        filename = `cassini-export-${new Date().toISOString().split('T')[0]}.json`
         mimeType = 'application/json'
       } else {
         // Simple CSV export for samples
@@ -140,7 +140,7 @@ export function DatabaseSettings() {
           [s.id, s.characteristic_id, s.timestamp, s.mean, s.range_value, s.is_excluded].join(','),
         )
         content = [headers.join(','), ...rows].join('\n')
-        filename = `openspc-samples-${new Date().toISOString().split('T')[0]}.csv`
+        filename = `cassini-samples-${new Date().toISOString().split('T')[0]}.csv`
         mimeType = 'text/csv'
       }
 

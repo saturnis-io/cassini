@@ -11,7 +11,7 @@ sys.path.insert(0, str(src_dir))
 
 from sqlalchemy import select
 
-from openspc.db import (
+from cassini.db import (
     Characteristic,
     CharacteristicRule,
     DatabaseConfig,

@@ -8,12 +8,12 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from openspc.api.deps import (
+from cassini.api.deps import (
     ROLE_HIERARCHY,
     check_plant_role,
     get_user_role_level_for_plant,
 )
-from openspc.db.models.user import UserRole
+from cassini.db.models.user import UserRole
 
 
 def _make_user(plant_roles: list[tuple[int, str]]) -> MagicMock:

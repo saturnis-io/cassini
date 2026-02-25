@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Link2, Trash2, Loader2, Pencil } from 'lucide-react'
-import { tagApi, characteristicApi } from '@/api/client'
+import { tagApi } from '@/api/client'
+import { CharacteristicPicker } from './CharacteristicPicker'
 import { LiveValuePreview } from './LiveValuePreview'
 import type { TagMappingResponse } from '@/types'
 
@@ -43,13 +44,11 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
     enabled: brokerId !== null,
   })
 
-  // Fetch characteristics for the dropdown (scoped to plant)
-  const { data: charData } = useQuery({
-    queryKey: ['characteristics-for-mapping', plantId],
-    queryFn: () => characteristicApi.list({ per_page: 1000, plant_id: plantId ?? undefined }),
-  })
-
-  const characteristics = charData?.items ?? []
+  // Build mapped characteristic IDs from existing mappings
+  const mappedCharIds = useMemo(
+    () => new Set(mappings?.map((m: TagMappingResponse) => m.characteristic_id) ?? []),
+    [mappings],
+  )
 
   // Create mapping mutation
   const createMappingMutation = useMutation({
@@ -181,20 +180,13 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
 
               <div>
                 <label className="text-muted-foreground text-xs">Characteristic</label>
-                <select
-                  value={characteristicId ?? ''}
-                  onChange={(e) =>
-                    setCharacteristicId(e.target.value ? Number(e.target.value) : null)
-                  }
-                  className="bg-background border-border mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm"
-                >
-                  <option value="">Select characteristic...</option>
-                  {characteristics.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-0.5">
+                  <CharacteristicPicker
+                    value={characteristicId}
+                    onChange={setCharacteristicId}
+                    mappedCharacteristicIds={mappedCharIds}
+                  />
+                </div>
               </div>
 
               <div>

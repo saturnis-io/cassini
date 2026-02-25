@@ -23,6 +23,7 @@ import {
   useMSAResults,
   useMSAMeasurements,
   useCharacteristics,
+  useWorkflows,
 } from '@/api/hooks'
 import type {
   MSAStudyCreate,
@@ -34,6 +35,7 @@ import type {
   AttributeMSAResult,
 } from '@/api/client'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { SignatureDialog } from '@/components/signatures/SignatureDialog'
 import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'
@@ -449,11 +451,16 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   const { data: results } = useMSAResults(
     study?.status === 'complete' ? studyId : 0,
   )
+  const { data: workflows } = useWorkflows()
+  const signatureRequired = (workflows ?? []).some(
+    (w) => w.resource_type === 'msa_study' && w.is_active && w.is_required,
+  )
 
   const [activeTab, setActiveTab] = useState<TabKey>('data')
   const [gridData, setGridData] = useState<Record<string, number | null>>({})
   const [attrGridData, setAttrGridData] = useState<Record<string, string>>({})
   const [showMeasurementData, setShowMeasurementData] = useState(false)
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false)
 
   const submitMeasurements = useSubmitMSAMeasurements()
   const submitAttributeMeasurements = useSubmitMSAAttributeMeasurements()
@@ -571,6 +578,14 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   }
 
   const handleCalculate = async () => {
+    if (signatureRequired) {
+      setShowSignatureDialog(true)
+      return
+    }
+    await executeCalculation()
+  }
+
+  const executeCalculation = async () => {
     try {
       if (isAttribute) {
         await calculateAttributeMSA.mutateAsync(study.id)
@@ -581,6 +596,11 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     } catch {
       // Error handled by mutation hooks
     }
+  }
+
+  const handleSignatureComplete = async () => {
+    setShowSignatureDialog(false)
+    await executeCalculation()
   }
 
   const handleExportData = () => {
@@ -842,6 +862,16 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
           </div>
         )}
       </div>
+
+      {/* Signature dialog for MSA study completion */}
+      <SignatureDialog
+        open={showSignatureDialog}
+        onClose={() => setShowSignatureDialog(false)}
+        onSigned={handleSignatureComplete}
+        resourceType="msa_study"
+        resourceId={studyId}
+        resourceSummary={`Complete MSA Study: ${study.name}`}
+      />
     </div>
   )
 }

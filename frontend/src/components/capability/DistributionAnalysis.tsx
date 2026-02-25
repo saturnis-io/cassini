@@ -750,25 +750,56 @@ interface QQPlotProps {
 
 function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
   const option = useMemo(() => {
-    const p0 = result.p0_135
-    const p50 = result.p50
-    const p99 = result.p99_865
-    if (p0 === null || p50 === null || p99 === null) return null
+    // Determine which fit to display: selected family takes priority, then best fit
+    const displayFit = selectedFamily
+      ? fits.find((f) => f.family === selectedFamily) ?? bestFit
+      : bestFit
 
-    const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
-    const sigma = (p99 - p0) / 6
-    if (sigma <= 0) return null
+    // Prefer backend-computed Q-Q points (Blom plotting positions) from the display fit
+    const qqSource = displayFit?.qq_points
 
-    const qqData = percentiles.map((pct) => {
-      const zTheory = normalQuantile(pct / 100)
-      const dataQ = p0 + ((pct - 0.135) / (99.865 - 0.135)) * (p99 - p0)
-      const zData = (dataQ - p50) / sigma
-      return [+zTheory.toFixed(4), +zData.toFixed(4)]
-    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let qqData: [number, number][]
+    let xLabel: string
+    let yLabel: string
 
-    const allZ = qqData.flatMap(([a, b]) => [a, b])
-    let minZ = Math.min(...allZ) - 0.5
-    let maxZ = Math.max(...allZ) + 0.5
+    if (qqSource && qqSource.theoretical_quantiles.length > 0) {
+      // Backend provides proper Blom-position Q-Q points in the distribution's native scale
+      qqData = qqSource.theoretical_quantiles.map((tq, i) => [
+        +tq.toFixed(4),
+        +qqSource.sample_quantiles[i].toFixed(4),
+      ])
+      xLabel = `Theoretical Quantiles (${displayFit?.family.replace('_', ' ') ?? 'fitted'})`
+      yLabel = 'Sample Quantiles'
+    } else {
+      // Fallback: compute Q-Q from percentile summary (legacy behavior)
+      const p0 = result.p0_135
+      const p50 = result.p50
+      const p99 = result.p99_865
+      if (p0 === null || p50 === null || p99 === null) return null
+
+      const sigma = (p99 - p0) / 6
+      if (sigma <= 0) return null
+
+      const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
+      qqData = percentiles.map((pct) => {
+        const zTheory = normalQuantile(pct / 100)
+        const dataQ = p0! + ((pct - 0.135) / (99.865 - 0.135)) * (p99! - p0!)
+        const zData = (dataQ - p50!) / sigma
+        return [+zTheory.toFixed(4), +zData.toFixed(4)]
+      })
+      xLabel = 'Theoretical Quantiles'
+      yLabel = 'Sample Quantiles'
+    }
+
+    if (qqData.length === 0) return null
+
+    const allVals = qqData.flatMap(([a, b]) => [a, b])
+    let minVal = Math.min(...allVals)
+    let maxVal = Math.max(...allVals)
+    const pad = (maxVal - minVal) * 0.1 || 0.5
+    minVal -= pad
+    maxVal += pad
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const series: any[] = [
@@ -780,57 +811,62 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
         itemStyle: { color: '#3b82f6' },
       },
       {
-        name: 'Normal Reference',
+        name: 'Reference Line',
         type: 'line',
         data: [
-          [minZ, minZ],
-          [maxZ, maxZ],
+          [minVal, minVal],
+          [maxVal, maxVal],
         ],
         lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
         symbol: 'none',
       },
     ]
 
-    // Determine which fit to overlay: selected family takes priority, then best fit
-    const displayFit = selectedFamily
-      ? fits.find((f) => f.family === selectedFamily) ?? bestFit
-      : bestFit
+    // If we have a non-normal fit with backend Q-Q points, overlay the fit line
+    // using the theoretical quantiles mapped against themselves (perfect fit line)
+    // The scatter already shows sample vs theoretical, so the reference line is the
+    // 45-degree line (perfect fit). For an additional non-normal overlay when the
+    // fallback path is active, use the client-side evaluateQuantile.
+    if (!qqSource && displayFit && displayFit.family !== 'normal') {
+      const p0 = result.p0_135
+      const p50 = result.p50
+      const p99 = result.p99_865
+      if (p0 !== null && p50 !== null && p99 !== null) {
+        const sigma = (p99 - p0) / 6
+        if (sigma > 0) {
+          const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
+          const fitQQData: [number, number][] = []
+          for (const pct of percentiles) {
+            const zTheory = normalQuantile(pct / 100)
+            const fitQuantile = evaluateQuantile(displayFit.family, displayFit.parameters, pct / 100)
+            if (fitQuantile !== null) {
+              const zFit = (fitQuantile - p50) / sigma
+              fitQQData.push([+zTheory.toFixed(4), +zFit.toFixed(4)])
+            }
+          }
 
-    // Overlay selected/best-fit quantile line if available and non-normal
-    if (displayFit && displayFit.family !== 'normal') {
-      const fitQQData: [number, number][] = []
-      for (const pct of percentiles) {
-        const zTheory = normalQuantile(pct / 100)
-        const fitQuantile = evaluateQuantile(displayFit.family, displayFit.parameters, pct / 100)
-        if (fitQuantile !== null) {
-          // Standardize the fitted quantile to same scale as the Q-Q plot
-          const zFit = (fitQuantile - p50) / sigma
-          fitQQData.push([+zTheory.toFixed(4), +zFit.toFixed(4)])
+          if (fitQQData.length > 0) {
+            const fitVals = fitQQData.flatMap(([a, b]) => [a, b])
+            minVal = Math.min(minVal, ...fitVals) - 0.2
+            maxVal = Math.max(maxVal, ...fitVals) + 0.2
+
+            const fitColor = FAMILY_COLORS[displayFit.family] ?? '#888'
+            series.push({
+              name: `${displayFit.family.replace('_', ' ')} fit`,
+              type: 'line',
+              data: fitQQData,
+              smooth: true,
+              symbol: 'none',
+              lineStyle: { color: fitColor, width: 2, type: 'solid' },
+              itemStyle: { color: fitColor },
+            })
+
+            series[1].data = [
+              [minVal, minVal],
+              [maxVal, maxVal],
+            ]
+          }
         }
-      }
-
-      if (fitQQData.length > 0) {
-        // Expand axis bounds if the fit line extends beyond
-        const fitZ = fitQQData.flatMap(([a, b]) => [a, b])
-        minZ = Math.min(minZ, ...fitZ) - 0.2
-        maxZ = Math.max(maxZ, ...fitZ) + 0.2
-
-        const fitColor = FAMILY_COLORS[displayFit.family] ?? '#888'
-        series.push({
-          name: `${displayFit.family.replace('_', ' ')} fit`,
-          type: 'line',
-          data: fitQQData,
-          smooth: true,
-          symbol: 'none',
-          lineStyle: { color: fitColor, width: 2, type: 'solid' },
-          itemStyle: { color: fitColor },
-        })
-
-        // Update the reference line endpoints to new bounds
-        series[1].data = [
-          [minZ, minZ],
-          [maxZ, maxZ],
-        ]
       }
     }
 
@@ -851,20 +887,20 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
         : undefined,
       xAxis: {
         type: 'value' as const,
-        min: minZ,
-        max: maxZ,
+        min: minVal,
+        max: maxVal,
         axisLabel: { fontSize: 9 },
-        name: 'Theoretical Quantiles',
+        name: xLabel,
         nameLocation: 'middle' as const,
         nameGap: 28,
         nameTextStyle: { fontSize: 10 },
       },
       yAxis: {
         type: 'value' as const,
-        min: minZ,
-        max: maxZ,
+        min: minVal,
+        max: maxVal,
         axisLabel: { fontSize: 9 },
-        name: 'Sample Quantiles',
+        name: yLabel,
         nameTextStyle: { fontSize: 10 },
       },
       series,

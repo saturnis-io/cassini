@@ -21,11 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from openspc.api.v1.hierarchy import router as hierarchy_router
+from cassini.api.v1.hierarchy import router as hierarchy_router
 
 # Create FastAPI application
 app = FastAPI(
-    title="OpenSPC Hierarchy API",
+    title="Cassini Hierarchy API",
     description="ISA-95 Equipment Hierarchy Management",
     version="0.1.0",
 )
@@ -43,14 +43,14 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "openspc-hierarchy"}
+    return {"status": "healthy", "service": "cassini-hierarchy"}
 
 
 if __name__ == "__main__":
     import uvicorn
 
     print("=" * 60)
-    print("OpenSPC Hierarchy API Example")
+    print("Cassini Hierarchy API Example")
     print("=" * 60)
     print("\nStarting server...")
     print("\nAvailable endpoints:")

@@ -10,15 +10,15 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from openspc.core.engine.nelson_rules import NelsonRuleLibrary
-from openspc.core.engine.rolling_window import RollingWindowManager
-from openspc.core.engine.spc_engine import SPCEngine
-from openspc.core.providers.manual import ManualProvider
-from openspc.core.providers.protocol import SampleEvent
-from openspc.db.models import Base
-from openspc.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
-from openspc.db.models.hierarchy import Hierarchy
-from openspc.db.repositories import (
+from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.providers.manual import ManualProvider
+from cassini.core.providers.protocol import SampleEvent
+from cassini.db.models import Base
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.repositories import (
     CharacteristicRepository,
     HierarchyRepository,
     SampleRepository,
