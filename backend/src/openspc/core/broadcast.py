@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 from openspc.core.alerts.manager import ViolationAcknowledged, ViolationCreated
 from openspc.core.events import (
+    AnomalyDetectedEvent,
+    CharacteristicUpdatedEvent,
     ControlLimitsUpdatedEvent,
     EventBus,
     SampleProcessedEvent,
@@ -79,8 +81,11 @@ class WebSocketBroadcaster:
         self._event_bus.subscribe(
             ControlLimitsUpdatedEvent, self._on_limits_updated
         )
+        self._event_bus.subscribe(AnomalyDetectedEvent, self._on_anomaly_detected)
+        self._event_bus.subscribe(CharacteristicUpdatedEvent, self._on_characteristic_updated)
         logger.debug(
-            "Subscribed to SampleProcessedEvent and ControlLimitsUpdatedEvent"
+            "Subscribed to SampleProcessedEvent, ControlLimitsUpdatedEvent, "
+            "AnomalyDetectedEvent, and CharacteristicUpdatedEvent"
         )
 
     async def _on_sample_processed(self, event: SampleProcessedEvent) -> None:
@@ -118,7 +123,7 @@ class WebSocketBroadcaster:
                 "zone": event.zone,
                 "in_control": event.in_control,
             },
-            "violations": [],
+            "violations": event.violations,
         }
 
         logger.debug(
@@ -162,6 +167,41 @@ class WebSocketBroadcaster:
             characteristic_id=event.characteristic_id,
         )
 
+        await self._manager.broadcast_to_characteristic(
+            event.characteristic_id, message
+        )
+
+    async def _on_anomaly_detected(self, event: AnomalyDetectedEvent) -> None:
+        message = {
+            "type": "anomaly",
+            "characteristic_id": event.characteristic_id,
+            "event": {
+                "id": event.anomaly_event_id,
+                "detector_type": event.detector_type,
+                "event_type": event.event_type,
+                "severity": event.severity,
+                "summary": event.summary,
+            },
+        }
+        logger.debug(
+            "broadcasting_anomaly",
+            anomaly_event_id=event.anomaly_event_id,
+            characteristic_id=event.characteristic_id,
+        )
+        await self._manager.broadcast_to_characteristic(
+            event.characteristic_id, message
+        )
+
+    async def _on_characteristic_updated(self, event: CharacteristicUpdatedEvent) -> None:
+        message = {
+            "type": "characteristic_update",
+            "characteristic_id": event.characteristic_id,
+            "changes": event.changes,
+        }
+        logger.debug(
+            "broadcasting_characteristic_update",
+            characteristic_id=event.characteristic_id,
+        )
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )

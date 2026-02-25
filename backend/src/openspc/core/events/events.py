@@ -46,6 +46,7 @@ class SampleProcessedEvent(Event):
     range_value: float | None
     zone: str
     in_control: bool
+    violations: list[dict] = field(default_factory=list)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 

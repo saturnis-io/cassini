@@ -287,6 +287,8 @@ export function useUpdateNelsonRules() {
     }) => characteristicApi.updateRules(id, ruleConfigs),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', variables.id] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(variables.id) })
       toast.success('Nelson rules updated')
     },
     onError: (error: Error) => {
@@ -312,6 +314,9 @@ export function useUpdateCharacteristicConfig() {
       characteristicApi.updateConfig(id, config),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.config(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', variables.id] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(variables.id) })
       toast.success('Configuration saved')
     },
     onError: (error: Error) => {

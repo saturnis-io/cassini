@@ -34,6 +34,8 @@ export function useUpdateAnomalyConfig() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.config(variables.charId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.status(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.events(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.summary(variables.charId) })
       toast.success('Anomaly detection configuration saved')
     },
     onError: (error: Error) => {
@@ -50,6 +52,8 @@ export function useResetAnomalyConfig() {
     onSuccess: (_, charId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.config(charId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.status(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.events(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.anomaly.summary(charId) })
       toast.success('Anomaly detection config reset to defaults')
     },
     onError: (error: Error) => {
@@ -173,6 +177,7 @@ export function useNonNormalCapability(charId: number | undefined, method = 'aut
     queryKey: ['nonnormal-capability', charId, method],
     queryFn: () => distributionApi.calculateNonNormal(charId!, method),
     enabled: !!charId,
+    staleTime: 10_000,
   })
 }
 
@@ -219,6 +224,7 @@ export function useCapability(charId: number) {
     queryKey: queryKeys.capability.current(charId),
     queryFn: () => capabilityApi.getCapability(charId),
     enabled: charId > 0,
+    staleTime: 10_000,
   })
 }
 
@@ -264,6 +270,8 @@ export function useApplyPreset() {
     onSuccess: (_, { charId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.characteristics.detail(charId) })
       qc.invalidateQueries({ queryKey: queryKeys.characteristics.rules(charId) })
+      qc.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', charId] })
+      qc.invalidateQueries({ queryKey: queryKeys.capability.current(charId) })
       toast.success('Rule preset applied')
     },
     onError: (error: Error) => {
@@ -346,6 +354,7 @@ export function useSetMSAOperators() {
       msaApi.setOperators(studyId, operators),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
     },
     onError: (error: Error) => {
       toast.error(`Failed to set operators: ${error.message}`)
@@ -366,6 +375,7 @@ export function useSetMSAParts() {
     }) => msaApi.setParts(studyId, parts),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
     },
     onError: (error: Error) => {
       toast.error(`Failed to set parts: ${error.message}`)
@@ -387,6 +397,7 @@ export function useSubmitMSAMeasurements() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit measurements: ${error.message}`)
@@ -425,6 +436,7 @@ export function useSubmitMSAAttributeMeasurements() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit attribute measurements: ${error.message}`)

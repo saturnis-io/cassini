@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
 import { useViolationStats, useDevToolsStatus } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { useAuth } from '@/providers/AuthProvider'
 import { canAccessView, type Role } from '@/lib/roles'
 import { HierarchyTodoList } from './HierarchyTodoList'
@@ -98,7 +99,10 @@ export function Sidebar({ className }: SidebarProps) {
     characteristicsPanelOpen,
     setCharacteristicsPanelOpen,
   } = useUIStore()
-  const { data: stats } = useViolationStats()
+  const wsConnected = useDashboardStore((state) => state.wsConnected)
+  const { data: stats } = useViolationStats({
+    refetchInterval: wsConnected ? false : undefined,
+  })
   const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
   const location = useLocation()

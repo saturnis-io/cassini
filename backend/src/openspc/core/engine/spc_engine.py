@@ -481,7 +481,7 @@ class SPCEngine:
         rule_results = self._rule_library.check_all(window, enabled_rules)
 
         # Step 6: Create violations for triggered rules
-        violations = await self._create_violations(
+        violations, violation_dicts = await self._create_violations(
             sample.id, rule_results, rule_require_ack, characteristic_id
         )
 
@@ -511,6 +511,7 @@ class SPCEngine:
             range_value=range_value,
             zone=window_sample.zone.value,
             in_control=len(violations) == 0,
+            violations=violation_dicts,
             timestamp=sample.timestamp,
         )
 
@@ -590,7 +591,7 @@ class SPCEngine:
         rule_results: list["RuleResult"],
         rule_require_ack: dict[int, bool] | None = None,
         characteristic_id: int | None = None,
-    ) -> list[ViolationInfo]:
+    ) -> tuple[list[ViolationInfo], list[dict]]:
         """Create violation records for triggered rules.
 
         Args:
@@ -600,9 +601,10 @@ class SPCEngine:
             characteristic_id: ID of the characteristic (for event publishing)
 
         Returns:
-            List of ViolationInfo objects
+            Tuple of (ViolationInfo list, violation dicts for event publishing)
         """
         violations = []
+        violation_dicts: list[dict] = []
         if rule_require_ack is None:
             rule_require_ack = {}
 
@@ -635,6 +637,15 @@ class SPCEngine:
                     severity=result.severity.value,
                 ))
 
+            violation_dicts.append({
+                "id": violation_record.id,
+                "sample_id": violation_record.sample_id,
+                "characteristic_id": violation_record.char_id,
+                "rule_id": violation_record.rule_id,
+                "rule_name": violation_record.rule_name,
+                "severity": violation_record.severity,
+            })
+
             # Create ViolationInfo for result
             violations.append(
                 ViolationInfo(
@@ -646,7 +657,7 @@ class SPCEngine:
                 )
             )
 
-        return violations
+        return violations, violation_dicts
 
     async def recalculate_limits(
         self,

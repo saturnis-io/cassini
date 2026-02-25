@@ -354,7 +354,31 @@ export interface WSLimitsMessage {
   center_line: number | null
 }
 
-export type WSMessage = WSSampleMessage | WSViolationMessage | WSAckMessage | WSLimitsMessage
+export interface WSAnomalyMessage {
+  type: 'anomaly'
+  characteristic_id: number
+  event: {
+    id: number
+    detector_type: string
+    event_type: string
+    severity: string
+    summary: string
+  }
+}
+
+export interface WSCharacteristicUpdateMessage {
+  type: 'characteristic_update'
+  characteristic_id: number
+  changes: Record<string, unknown>
+}
+
+export type WSMessage =
+  | WSSampleMessage
+  | WSViolationMessage
+  | WSAckMessage
+  | WSLimitsMessage
+  | WSAnomalyMessage
+  | WSCharacteristicUpdateMessage
 
 // API response types
 export interface PaginatedResponse<T> {
@@ -879,6 +903,11 @@ export interface NonNormalCapabilityResult extends CapabilityResult {
   p99_865: number | null
 }
 
+export interface QQPoints {
+  sample_quantiles: number[]
+  theoretical_quantiles: number[]
+}
+
 export interface DistributionFitResultData {
   family: string
   parameters: Record<string, number>
@@ -886,6 +915,7 @@ export interface DistributionFitResultData {
   ad_p_value: number | null
   aic: number
   is_adequate_fit: boolean
+  qq_points: QQPoints | null
 }
 
 export interface DistributionFitResponse {

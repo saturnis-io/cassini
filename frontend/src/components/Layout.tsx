@@ -31,7 +31,9 @@ export function Layout() {
   const { t } = useTranslation('common')
   const { t: tNav } = useTranslation('navigation')
   const wsConnected = useDashboardStore((state) => state.wsConnected)
-  const { data: stats } = useViolationStats()
+  const { data: stats } = useViolationStats({
+    refetchInterval: wsConnected ? false : undefined,
+  })
   const { isOffline, setIsOffline, offlineQueueCount, setOfflineQueueCount } = useUIStore()
 
   // Set up offline queue auto-flush

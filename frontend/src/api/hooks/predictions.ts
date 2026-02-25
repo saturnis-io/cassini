@@ -59,6 +59,8 @@ export function useUpdatePredictionConfig() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: predictionKeys.config(variables.charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.all })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.model(variables.charId) })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.forecast(variables.charId) })
       toast.success('Prediction configuration saved')
     },
     onError: (error: Error) => {
@@ -152,6 +154,7 @@ export function useUpdateAIConfig() {
     }) => aiApi.updateConfig(plantId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: aiKeys.config(variables.plantId) })
+      queryClient.invalidateQueries({ queryKey: aiKeys.all })
       toast.success('AI configuration saved')
     },
     onError: (error: Error) => {
@@ -165,7 +168,7 @@ export function useTestAIConnection() {
     mutationFn: (plantId: number) => aiApi.test(plantId),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success(`Connection successful (${data.provider} / ${data.model})`)
+        toast.success(data.message)
       } else {
         toast.error(`Connection test failed: ${data.message}`)
       }

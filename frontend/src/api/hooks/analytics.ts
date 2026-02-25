@@ -71,6 +71,7 @@ export function useUpdateMultivariateGroup() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: mvKeys.group(variables.id) })
       queryClient.invalidateQueries({ queryKey: mvKeys.all })
+      queryClient.invalidateQueries({ queryKey: mvKeys.chartData(variables.id) })
       toast.success('Multivariate group updated')
     },
     onError: (error: Error) => {

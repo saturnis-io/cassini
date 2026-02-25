@@ -7,6 +7,7 @@ import type { WSMessage } from '@/types'
 
 const WS_RECONNECT_DELAY_BASE = 1000
 const WS_RECONNECT_DELAY_MAX = 30000
+const WS_INVALIDATION_DEBOUNCE_MS = 500
 
 interface WebSocketContextValue {
   isConnected: boolean
@@ -27,6 +28,46 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { wsConnected, setWsConnected, addPendingViolation, updateLatestSample } =
     useDashboardStore()
 
+  // Debounced query invalidation — batches rapid-fire sample messages (e.g. MQTT 10+/sec)
+  // into a single invalidation flush every 500ms to prevent UI flicker
+  const pendingCharIdsRef = useRef<Set<number>>(new Set())
+  const pendingViolationStatsRef = useRef(false)
+  const flushTimerRef = useRef<number | null>(null)
+
+  const flushInvalidations = useCallback(() => {
+    flushTimerRef.current = null
+    pendingCharIdsRef.current.forEach((charId) => {
+      queryClient.invalidateQueries({
+        queryKey: [...queryKeys.characteristics.all, 'chartData', charId],
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.characteristics.detail(charId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.capability.current(charId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['nonnormal-capability', charId],
+      })
+    })
+    pendingCharIdsRef.current.clear()
+    if (pendingViolationStatsRef.current) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.violations.stats() })
+      pendingViolationStatsRef.current = false
+    }
+  }, [queryClient])
+
+  const scheduleSampleInvalidation = useCallback(
+    (charId: number) => {
+      pendingCharIdsRef.current.add(charId)
+      pendingViolationStatsRef.current = true
+      if (flushTimerRef.current === null) {
+        flushTimerRef.current = window.setTimeout(flushInvalidations, WS_INVALIDATION_DEBOUNCE_MS)
+      }
+    },
+    [flushInvalidations],
+  )
+
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
@@ -39,15 +80,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
               message.sample.mean,
               message.sample.timestamp,
             )
-            queryClient.invalidateQueries({
-              queryKey: [...queryKeys.characteristics.all, 'chartData', message.characteristic_id],
-            })
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.characteristics.detail(message.characteristic_id),
-            })
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.violations.stats(),
-            })
+            scheduleSampleInvalidation(message.characteristic_id)
             message.violations.forEach((violation) => {
               addPendingViolation(violation)
             })
@@ -77,12 +110,42 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             })
             break
           }
+
+          case 'anomaly': {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.anomaly.events(message.characteristic_id),
+            })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.anomaly.summary(message.characteristic_id),
+            })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.anomaly.status(message.characteristic_id),
+            })
+            break
+          }
+
+          case 'characteristic_update': {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.characteristics.detail(message.characteristic_id),
+            })
+            queryClient.invalidateQueries({
+              queryKey: [
+                ...queryKeys.characteristics.all,
+                'chartData',
+                message.characteristic_id,
+              ],
+            })
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.capability.current(message.characteristic_id),
+            })
+            break
+          }
         }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error)
       }
     },
-    [queryClient, updateLatestSample, addPendingViolation],
+    [queryClient, updateLatestSample, addPendingViolation, scheduleSampleInvalidation],
   )
 
   const connect = useCallback(() => {
@@ -172,6 +235,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current)
       }
       reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
       wsRef.current?.close()

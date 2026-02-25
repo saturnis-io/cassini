@@ -263,6 +263,7 @@ export function useUpdateWorkflow() {
       signatureApi.updateWorkflow(plantId!, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.pending() })
       toast.success('Workflow updated')
     },
     onError: (error: Error) => {
@@ -367,6 +368,7 @@ export function useCreateMeaning() {
     mutationFn: (data: MeaningCreate) => signatureApi.createMeaning(plantId!, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success(`Meaning "${data.display_name}" created`)
     },
     onError: (error: Error) => {
@@ -384,6 +386,7 @@ export function useUpdateMeaning() {
       signatureApi.updateMeaning(plantId!, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Meaning updated')
     },
     onError: (error: Error) => {

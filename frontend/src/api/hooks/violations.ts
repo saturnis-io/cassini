@@ -11,11 +11,11 @@ export function useViolations(params?: Parameters<typeof violationApi.list>[0]) 
   })
 }
 
-export function useViolationStats() {
+export function useViolationStats(config?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.violations.stats(),
     queryFn: violationApi.getStats,
-    refetchInterval: VIOLATION_STATS_REFETCH_MS,
+    refetchInterval: config?.refetchInterval ?? VIOLATION_STATS_REFETCH_MS,
   })
 }
 
