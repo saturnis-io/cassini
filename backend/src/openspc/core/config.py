@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
 
+    # Web Push (VAPID)
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_contact_email: str = ""
+
     # Rate limiting
     rate_limit_login: str = "5/minute"
     rate_limit_default: str = "60/minute"

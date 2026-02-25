@@ -1,0 +1,260 @@
+import { useState } from 'react'
+import { TrendingUp, Loader2, ChevronDown, ChevronRight, AlertTriangle, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { usePlantContext } from '@/providers/PlantProvider'
+import { usePredictionDashboard, useUpdatePredictionConfig } from '@/api/hooks'
+import { PredictionConfig } from './PredictionConfig'
+import { PredictionOverlay } from './PredictionOverlay'
+import { useForecast } from '@/api/hooks'
+import type { PredictionDashboardItem } from '@/api/predictions.api'
+
+/**
+ * PredictionsTab -- dashboard list of characteristics with active predictions.
+ * Each card shows model info and can expand to show forecast data.
+ */
+export function PredictionsTab() {
+  const { selectedPlant } = usePlantContext()
+  const plantId = selectedPlant?.id ?? 0
+
+  const { data: dashboard, isLoading } = usePredictionDashboard(plantId)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [configId, setConfigId] = useState<number | null>(null)
+
+  if (!selectedPlant) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <TrendingUp className="text-muted-foreground/40 h-12 w-12" />
+        <p className="text-muted-foreground mt-3 text-sm">Select a plant to view predictions.</p>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <span className="text-muted-foreground ml-2 text-sm">Loading predictions...</span>
+      </div>
+    )
+  }
+
+  const items = dashboard ?? []
+
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <TrendingUp className="text-muted-foreground/40 h-16 w-16" />
+        <h2 className="text-foreground mt-4 text-lg font-semibold">No Predictions Configured</h2>
+        <p className="text-muted-foreground mt-1 max-w-md text-center text-sm">
+          Enable predictions on individual characteristics from the Configuration page to start
+          forecasting process trends.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Summary */}
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">
+          {items.filter((i) => i.is_enabled).length} of {items.length} characteristics with
+          predictions enabled
+        </p>
+      </div>
+
+      {/* Card list */}
+      <div className="space-y-2">
+        {items.map((item) => (
+          <PredictionCard
+            key={item.characteristic_id}
+            item={item}
+            isExpanded={expandedId === item.characteristic_id}
+            isConfigOpen={configId === item.characteristic_id}
+            onToggleExpand={() =>
+              setExpandedId(expandedId === item.characteristic_id ? null : item.characteristic_id)
+            }
+            onToggleConfig={() =>
+              setConfigId(configId === item.characteristic_id ? null : item.characteristic_id)
+            }
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// PredictionCard
+// ---------------------------------------------------------------------------
+
+interface PredictionCardProps {
+  item: PredictionDashboardItem
+  isExpanded: boolean
+  isConfigOpen: boolean
+  onToggleExpand: () => void
+  onToggleConfig: () => void
+}
+
+function PredictionCard({
+  item,
+  isExpanded,
+  isConfigOpen,
+  onToggleExpand,
+  onToggleConfig,
+}: PredictionCardProps) {
+  const updateConfig = useUpdatePredictionConfig()
+
+  const handleToggleEnabled = () => {
+    updateConfig.mutate({
+      charId: item.characteristic_id,
+      data: { is_enabled: !item.is_enabled },
+    })
+  }
+
+  return (
+    <div className="bg-card text-card-foreground rounded-lg border">
+      {/* Header row */}
+      <div className="flex items-center gap-3 p-4">
+        <button
+          onClick={onToggleExpand}
+          className="text-muted-foreground hover:text-foreground shrink-0"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-foreground truncate text-sm font-medium">
+              {item.characteristic_name}
+            </h3>
+            {item.predicted_ooc && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                <AlertTriangle className="h-3 w-3" />
+                OOC Predicted
+              </span>
+            )}
+          </div>
+          <div className="text-muted-foreground mt-0.5 flex items-center gap-3 text-xs">
+            {item.model_type && (
+              <span>
+                Model: <span className="text-foreground font-medium">{item.model_type}</span>
+              </span>
+            )}
+            {item.aic != null && (
+              <span>
+                AIC: <span className="text-foreground font-medium">{item.aic.toFixed(1)}</span>
+              </span>
+            )}
+            {item.last_trained && (
+              <span>Trained: {new Date(item.last_trained).toLocaleDateString()}</span>
+            )}
+            {item.training_samples > 0 && <span>{item.training_samples} samples</span>}
+          </div>
+        </div>
+
+        {/* Enable toggle */}
+        <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={item.is_enabled}
+            onChange={handleToggleEnabled}
+            disabled={updateConfig.isPending}
+          />
+          <div className="bg-muted peer-checked:bg-primary h-5 w-9 rounded-full transition-colors after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-4" />
+        </label>
+
+        {/* Config button */}
+        <button
+          onClick={onToggleConfig}
+          className={cn(
+            'text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-xs transition-colors',
+            isConfigOpen && 'bg-muted text-foreground',
+          )}
+        >
+          Configure
+        </button>
+      </div>
+
+      {/* Expanded forecast view */}
+      {isExpanded && (
+        <div className="border-border border-t px-4 py-3">
+          <ExpandedForecast charId={item.characteristic_id} hasForecast={item.has_forecast} />
+        </div>
+      )}
+
+      {/* Config panel */}
+      {isConfigOpen && (
+        <div className="border-border border-t px-4 py-3">
+          <PredictionConfig characteristicId={item.characteristic_id} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ExpandedForecast
+// ---------------------------------------------------------------------------
+
+function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast: boolean }) {
+  const { data: forecastResult, isLoading } = useForecast(charId)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-4">
+        <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
+        <span className="text-muted-foreground text-xs">Loading forecast...</span>
+      </div>
+    )
+  }
+
+  if (!forecastResult || !forecastResult.forecast || forecastResult.forecast.length === 0) {
+    return (
+      <p className="text-muted-foreground py-4 text-center text-xs">
+        {hasForecast
+          ? 'Forecast data unavailable.'
+          : 'No forecast generated yet. Train a model and generate a forecast.'}
+      </p>
+    )
+  }
+
+  const forecast = forecastResult.forecast
+  const oocPoints = forecast.filter((p) => p.predicted_ooc)
+
+  return (
+    <div className="space-y-3">
+      {/* Summary stats */}
+      <div className="flex items-center gap-4 text-xs">
+        <span className="text-muted-foreground">
+          {forecast.length} steps forecasted
+        </span>
+        <span className="text-muted-foreground">
+          Model: {forecastResult.model_type}
+        </span>
+        <span className="text-muted-foreground">
+          Generated: {new Date(forecastResult.generated_at).toLocaleString()}
+        </span>
+        {oocPoints.length > 0 ? (
+          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3 w-3" />
+            {oocPoints.length} predicted OOC
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3 w-3" />
+            All in control
+          </span>
+        )}
+      </div>
+
+      {/* Forecast chart */}
+      <PredictionOverlay forecast={forecast} />
+    </div>
+  )
+}

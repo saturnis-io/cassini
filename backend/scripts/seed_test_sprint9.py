@@ -38,7 +38,10 @@ from openspc.db import (
 from openspc.db.models.api_key import APIKey  # noqa: F401
 from openspc.db.models.broker import MQTTBroker  # noqa: F401
 from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from openspc.db.models.doe import DOEFactor, DOERun, DOEStudy
+from openspc.db.models.multivariate import MultivariateGroup, MultivariateGroupMember
 from openspc.db.models.plant import Plant
+from openspc.db.models.prediction import PredictionConfig
 from openspc.db.models.user import User, UserPlantRole, UserRole
 
 logger = logging.getLogger(__name__)
@@ -558,6 +561,122 @@ async def seed() -> None:
         await session.flush()
         print(f"    Generated 2^3 factorial: 8 runs x 5 reps x 2 responses = 80 samples")
 
+        # ===============================================================
+        # Sprint 9 Model Data: Multivariate Groups, DOE Studies, Predictions
+        # ===============================================================
+        print("\n--- Sprint 9 Model Data ---")
+
+        # ── Multivariate Group (E1 plant) ──────────────────────────────
+        mv_group = MultivariateGroup(
+            plant_id=p_mvar.id,
+            name="Reactor Conditions",
+            description="Temperature × Pressure × Flow Rate multivariate monitoring",
+            chart_type="t_squared",
+            lambda_param=0.1,
+            alpha=0.0027,
+            phase="phase_i",
+            min_samples=100,
+            is_active=True,
+        )
+        session.add(mv_group)
+        await session.flush()
+        stats.setdefault("mv_groups", 0)
+        stats["mv_groups"] = stats.get("mv_groups", 0) + 1
+
+        for order, char_obj in enumerate([char_temp, char_pres, char_flow]):
+            session.add(MultivariateGroupMember(
+                group_id=mv_group.id,
+                characteristic_id=char_obj.id,
+                display_order=order,
+            ))
+            stats.setdefault("mv_members", 0)
+            stats["mv_members"] = stats.get("mv_members", 0) + 1
+
+        await session.flush()
+        print(f"  [MV] Group '{mv_group.name}' — 3 members (E1 plant)")
+
+        # ── DOE Study (E5 plant) ───────────────────────────────────────
+        doe_study = DOEStudy(
+            plant_id=p_doe.id,
+            name="Process Optimization — 2^3 Factorial",
+            design_type="full_factorial",
+            status="collecting",
+            response_name="Yield",
+            response_unit="%",
+            notes="Full factorial design: Temperature, Pressure, Feed Rate",
+        )
+        session.add(doe_study)
+        await session.flush()
+        stats.setdefault("doe_studies", 0)
+        stats["doe_studies"] = stats.get("doe_studies", 0) + 1
+
+        # Factors
+        doe_factor_defs = [
+            {"name": "Temperature", "low": 160.0, "high": 200.0, "unit": "°C"},
+            {"name": "Pressure",    "low": 400.0, "high": 500.0, "unit": "kPa"},
+            {"name": "Feed Rate",   "low": 20.0,  "high": 30.0,  "unit": "L/min"},
+        ]
+        for order, f_cfg in enumerate(doe_factor_defs):
+            session.add(DOEFactor(
+                study_id=doe_study.id,
+                name=f_cfg["name"],
+                low_level=f_cfg["low"],
+                high_level=f_cfg["high"],
+                center_point=(f_cfg["low"] + f_cfg["high"]) / 2.0,
+                unit=f_cfg["unit"],
+                display_order=order,
+            ))
+            stats.setdefault("doe_factors", 0)
+            stats["doe_factors"] = stats.get("doe_factors", 0) + 1
+
+        await session.flush()
+
+        # 8 runs for 2^3 factorial with response values
+        import json as _json
+        doe_runs = [
+            (-1, -1, -1), (1, -1, -1), (-1, 1, -1), (1, 1, -1),
+            (-1, -1,  1), (1, -1,  1), (-1, 1,  1), (1, 1,  1),
+        ]
+        doe_run_time = now - timedelta(hours=16)
+        for idx, (a, b, c) in enumerate(doe_runs):
+            t_val = 160.0 if a == -1 else 200.0
+            p_val = 400.0 if b == -1 else 500.0
+            f_val = 20.0 if c == -1 else 30.0
+            factor_vals = {"Temperature": t_val, "Pressure": p_val, "Feed Rate": f_val}
+            response = 85.0 + 3.0 * a + 1.5 * b + 0.8 * a * b + 2.0 * c + rng.gauss(0, 0.5)
+            session.add(DOERun(
+                study_id=doe_study.id,
+                run_order=idx + 1,
+                standard_order=idx + 1,
+                factor_values=_json.dumps(factor_vals),
+                factor_actuals=_json.dumps(factor_vals),
+                response_value=round(response, 2),
+                is_center_point=False,
+                replicate=1,
+                completed_at=doe_run_time,
+            ))
+            stats.setdefault("doe_runs", 0)
+            stats["doe_runs"] = stats.get("doe_runs", 0) + 1
+            doe_run_time += timedelta(hours=2)
+
+        await session.flush()
+        print(f"  [DOE] Study '{doe_study.name}' — 3 factors, 8 runs (E5 plant)")
+
+        # ── Prediction Config (E2 plant, fill weight char) ─────────────
+        pred_config = PredictionConfig(
+            characteristic_id=char_fill.id,
+            is_enabled=True,
+            model_type="auto",
+            forecast_horizon=20,
+            refit_interval=50,
+            confidence_levels="[0.8, 0.95]",
+        )
+        session.add(pred_config)
+        stats.setdefault("prediction_configs", 0)
+        stats["prediction_configs"] = stats.get("prediction_configs", 0) + 1
+        await session.flush()
+        print(f"  [PRED] Config for '{char_fill.name}' — auto model, horizon=20 (E2 plant)")
+
         print("\nCommitting to database...")
         await session.commit()
 
@@ -573,7 +692,12 @@ async def seed() -> None:
     print(f"  Samples:         {stats['samples']:,}")
     print(f"  Measurements:    {stats['measurements']:,}")
     print(f"  Violations:      {stats['violations']:,}")
-    print(f"  Estimated:       ~1,400")
+    print(f"  MV Groups:       {stats.get('mv_groups', 0)}")
+    print(f"  MV Members:      {stats.get('mv_members', 0)}")
+    print(f"  DOE Studies:     {stats.get('doe_studies', 0)}")
+    print(f"  DOE Factors:     {stats.get('doe_factors', 0)}")
+    print(f"  DOE Runs:        {stats.get('doe_runs', 0)}")
+    print(f"  Pred Configs:    {stats.get('prediction_configs', 0)}")
     print(f"  DB File:         {db_path}")
     print("=" * 60)
     print("\nAll users have password: 'password'")

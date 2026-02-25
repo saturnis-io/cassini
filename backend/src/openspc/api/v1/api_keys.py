@@ -156,7 +156,7 @@ async def update_api_key(
     return APIKeyResponse.model_validate(api_key)
 
 
-@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_api_key(
     key_id: str,
     session: AsyncSession = Depends(get_db_session),

@@ -239,6 +239,7 @@ async def update_annotation(
 @router.delete(
     "/{characteristic_id}/annotations/{annotation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_annotation(
     characteristic_id: int,

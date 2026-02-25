@@ -5,7 +5,13 @@ Creates 3 plants scaffolding ERP/LIMS/mobile integration scenarios:
   - D2: LIMS Lab Data      (5 chars, ~400 samples)
   - D3: Mobile Entry        (4 chars, ~120 samples, ~180 measurements)
 
-Estimated total: ~880 samples
+Also seeds Sprint 8-specific models:
+  - 2 ERP connectors (SAP OData on D1, Generic Webhook on D2)
+  - 4 field mappings (3 on SAP, 1 on webhook)
+  - 1 sync schedule (inbound every 15 min on SAP)
+  - 1 sync log (simulated failed attempt)
+
+Users: admin, engineer, operator (password: 'password')
 
 Run:
     python backend/scripts/seed_test_sprint8.py
@@ -36,6 +42,14 @@ from openspc.db import (
 from openspc.db.models.api_key import APIKey  # noqa: F401
 from openspc.db.models.broker import MQTTBroker  # noqa: F401
 from openspc.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from openspc.db.models.erp_connector import (
+    ERPConnector,
+    ERPFieldMapping,
+    ERPSyncLog,
+    ERPSyncSchedule,
+)
+from openspc.db.models.oidc_state import OIDCAccountLink, OIDCState  # noqa: F401
+from openspc.db.models.push_subscription import PushSubscription  # noqa: F401
 from openspc.db.models.plant import Plant
 from openspc.db.models.user import User, UserPlantRole, UserRole
 
@@ -44,6 +58,7 @@ RANDOM_SEED = 42
 
 USERS = [
     ("admin",    "admin@openspc.local",    "admin"),
+    ("engineer", "engineer@openspc.local", "engineer"),
     ("operator", "operator@openspc.local", "operator"),
 ]
 
@@ -618,6 +633,126 @@ async def seed() -> None:
             print(f"\n--- {plant_def['name']} ---")
             await create_tree(plant_def["hierarchy"], None, plant_obj.id, 0)
 
+        # 4. ERP/LIMS connectors on D1 plant
+        erp_plant = plant_objs[0]  # D1: ERP Integration
+        print(f"\nCreating ERP connectors on {erp_plant.name}...")
+
+        # SAP OData connector (typical ERP integration)
+        sap_connector = ERPConnector(
+            plant_id=erp_plant.id,
+            name="SAP Quality Notifications",
+            connector_type="sap_odata",
+            base_url="https://sap-dev.example.com/sap/opu/odata/sap/API_QUALITYNOTIFICATION",
+            auth_type="oauth2_client_credentials",
+            auth_config="{}",
+            headers='{"sap-client": "100"}',
+            is_active=True,
+            status="disconnected",
+        )
+        session.add(sap_connector)
+        await session.flush()
+        stats["erp_connectors"] = 1
+        print(f"  Connector: {sap_connector.name} ({sap_connector.connector_type})")
+
+        # Field mappings for SAP connector
+        sap_mappings = [
+            ERPFieldMapping(
+                connector_id=sap_connector.id,
+                name="Part Number → Characteristic",
+                direction="inbound",
+                erp_entity="QualityNotification",
+                erp_field_path="$.MaterialNumber",
+                openspc_entity="characteristic",
+                openspc_field="name",
+                is_active=True,
+            ),
+            ERPFieldMapping(
+                connector_id=sap_connector.id,
+                name="Inspection Value → Measurement",
+                direction="inbound",
+                erp_entity="QualityNotification",
+                erp_field_path="$.InspectionResultValue",
+                openspc_entity="sample",
+                openspc_field="value",
+                transform='{"multiply": 1.0}',
+                is_active=True,
+            ),
+            ERPFieldMapping(
+                connector_id=sap_connector.id,
+                name="Violation → Notification",
+                direction="outbound",
+                erp_entity="QualityNotification",
+                erp_field_path="$.NotificationText",
+                openspc_entity="violation",
+                openspc_field="rule_name",
+                is_active=True,
+            ),
+        ]
+        for fm in sap_mappings:
+            session.add(fm)
+        stats["field_mappings"] = len(sap_mappings)
+        print(f"  Field mappings: {len(sap_mappings)} (2 inbound, 1 outbound)")
+
+        # Sync schedule for SAP connector
+        sap_schedule = ERPSyncSchedule(
+            connector_id=sap_connector.id,
+            direction="inbound",
+            cron_expression="*/15 * * * *",
+            is_active=True,
+        )
+        session.add(sap_schedule)
+        stats["sync_schedules"] = 1
+        print("  Sync schedule: inbound every 15 min")
+
+        # Generic webhook connector on D2 (LIMS) plant
+        lims_plant = plant_objs[1]  # D2: LIMS Lab Data
+        webhook_connector = ERPConnector(
+            plant_id=lims_plant.id,
+            name="LIMS Results Webhook",
+            connector_type="generic_webhook",
+            base_url="http://localhost:8000",
+            auth_type="api_key",
+            auth_config="{}",
+            is_active=True,
+            status="disconnected",
+        )
+        session.add(webhook_connector)
+        await session.flush()
+        stats["erp_connectors"] += 1
+        print(f"  Connector: {webhook_connector.name} ({webhook_connector.connector_type})")
+
+        # Field mapping for webhook
+        webhook_mapping = ERPFieldMapping(
+            connector_id=webhook_connector.id,
+            name="Lab Result → Measurement",
+            direction="inbound",
+            erp_entity="LabResult",
+            erp_field_path="$.result.value",
+            openspc_entity="sample",
+            openspc_field="value",
+            is_active=True,
+        )
+        session.add(webhook_mapping)
+        stats["field_mappings"] += 1
+        print(f"  Field mappings: 1 (inbound)")
+
+        # Sync log entry (simulated past sync attempt)
+        sap_log = ERPSyncLog(
+            connector_id=sap_connector.id,
+            direction="inbound",
+            status="failed",
+            records_processed=0,
+            records_failed=0,
+            started_at=now - timedelta(hours=2),
+            completed_at=now - timedelta(hours=2, seconds=-5),
+            error_message="Connection refused: unable to reach SAP endpoint",
+        )
+        session.add(sap_log)
+        stats["sync_logs"] = 1
+        print("  Sync log: 1 failed attempt (simulated)")
+
+        await session.flush()
+
         print("\nCommitting to database...")
         await session.commit()
 
@@ -633,11 +768,15 @@ async def seed() -> None:
     print(f"  Samples:         {stats['samples']:,}")
     print(f"  Measurements:    {stats['measurements']:,}")
     print(f"  Violations:      {stats['violations']:,}")
-    print(f"  Estimated:       ~880")
+    print(f"  ERP Connectors:  {stats.get('erp_connectors', 0)}")
+    print(f"  Field Mappings:  {stats.get('field_mappings', 0)}")
+    print(f"  Sync Schedules:  {stats.get('sync_schedules', 0)}")
+    print(f"  Sync Logs:       {stats.get('sync_logs', 0)}")
     print(f"  DB File:         {db_path}")
     print("=" * 60)
     print("\nAll users have password: 'password'")
-    print("Admin: admin / password")
+    print("Admin:    admin / password")
+    print("Engineer: engineer / password")
     print("Operator: operator / password")
 
 

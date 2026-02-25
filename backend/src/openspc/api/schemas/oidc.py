@@ -1,7 +1,7 @@
 """Pydantic schemas for OIDC SSO configuration endpoints."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,9 +26,9 @@ class OIDCConfigCreate(BaseModel):
         default=["openid", "profile", "email"],
         description="OIDC scopes to request",
     )
-    role_mapping: dict[str, str] = Field(
+    role_mapping: dict[str, Any] = Field(
         default={},
-        description="Mapping of OIDC group/claim -> OpenSPC role",
+        description="Mapping of OIDC group/claim -> OpenSPC role (string) or plant-scoped dict",
     )
     auto_provision: bool = Field(
         default=True,
@@ -37,6 +37,20 @@ class OIDCConfigCreate(BaseModel):
     default_role: str = Field(
         default="operator",
         description="Default role for auto-provisioned users",
+    )
+    claim_mapping: dict[str, str] = Field(
+        default={},
+        description='Map provider claim names to standard ones: {"email": "mail", "groups": "memberOf"}',
+    )
+    end_session_endpoint: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Override for RP-initiated logout endpoint",
+    )
+    post_logout_redirect_uri: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Redirect after IdP logout",
     )
 
 
@@ -48,10 +62,13 @@ class OIDCConfigUpdate(BaseModel):
     client_id: Optional[str] = Field(None, min_length=1, max_length=255)
     client_secret: Optional[str] = Field(None, min_length=1, description="New client secret (will be encrypted)")
     scopes: Optional[list[str]] = None
-    role_mapping: Optional[dict[str, str]] = None
+    role_mapping: Optional[dict[str, Any]] = None
     auto_provision: Optional[bool] = None
     default_role: Optional[str] = None
     is_active: Optional[bool] = None
+    claim_mapping: Optional[dict[str, str]] = None
+    end_session_endpoint: Optional[str] = Field(None, max_length=500)
+    post_logout_redirect_uri: Optional[str] = Field(None, max_length=500)
 
 
 class OIDCConfigResponse(BaseModel):
@@ -63,12 +80,15 @@ class OIDCConfigResponse(BaseModel):
     client_id: str
     client_secret_masked: str = Field(description="Masked client secret (e.g. '****abcd')")
     scopes: list[str]
-    role_mapping: dict[str, str]
+    role_mapping: dict[str, Any]
     auto_provision: bool
     default_role: str
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    claim_mapping: dict[str, str] = {}
+    end_session_endpoint: Optional[str] = None
+    post_logout_redirect_uri: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -86,3 +106,29 @@ class OIDCCallbackResponse(BaseModel):
     token_type: str = "bearer"
     user_id: int
     username: str
+
+
+class AccountLinkResponse(BaseModel):
+    """Response for an OIDC account link."""
+
+    id: int
+    user_id: int
+    provider_id: int
+    provider_name: str
+    oidc_subject: str
+    linked_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountLinkCreate(BaseModel):
+    """Request to manually link an OIDC account."""
+
+    provider_id: int
+
+
+class OIDCLogoutResponse(BaseModel):
+    """Response for RP-initiated logout."""
+
+    logout_url: Optional[str] = None
+    message: str

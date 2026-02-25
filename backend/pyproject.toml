@@ -3,6 +3,7 @@ name = "openspc"
 version = "0.4.0"
 description = "Event-Driven Statistical Process Control System"
 readme = "README.md"
+license = "AGPL-3.0-only"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.109.0",
@@ -34,6 +35,10 @@ dependencies = [
     "authlib>=1.3.0",
     "xhtml2pdf>=0.2.16",
     "ruptures>=1.1.9",
+    "pywebpush>=2.0.0",
+    "jsonpath-ng>=1.6.0",
+    "croniter>=1.4.0",
+    "statsmodels>=0.14.0",
 ]
 
 [project.optional-dependencies]

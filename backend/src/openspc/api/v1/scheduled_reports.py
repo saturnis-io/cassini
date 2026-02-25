@@ -144,7 +144,7 @@ async def update_schedule(
     return _schedule_to_response(updated)
 
 
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_schedule(
     schedule_id: int,
     repo: ReportScheduleRepository = Depends(get_schedule_repo),

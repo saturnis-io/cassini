@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useECharts } from '@/hooks/useECharts'
 import { useCharacteristic, useFitDistribution, useNonNormalCapability, useUpdateDistributionConfig } from '@/api/hooks'
 import { cn } from '@/lib/utils'
 import type { DistributionFitResultData, NonNormalCapabilityResult } from '@/types'
-import { X, BarChart3, CheckCircle, ArrowDownUp, Save, AlertTriangle } from 'lucide-react'
+import { X, BarChart3, CheckCircle, ArrowDownUp, Save, AlertTriangle, HelpCircle } from 'lucide-react'
 
 const METHOD_OPTIONS = [
   { value: 'auto', label: 'Auto (cascade)' },
@@ -12,6 +13,251 @@ const METHOD_OPTIONS = [
   { value: 'percentile', label: 'Percentile' },
   { value: 'distribution_fit', label: 'Distribution Fit' },
 ]
+
+/** Colors for each distribution family in chart overlays */
+const FAMILY_COLORS: Record<string, string> = {
+  normal: '#3b82f6',
+  lognormal: '#f59e0b',
+  weibull: '#10b981',
+  gamma: '#8b5cf6',
+  johnson_su: '#ec4899',
+  johnson_sb: '#06b6d4',
+}
+
+/** Tooltip descriptions for table header metrics */
+const METRIC_TOOLTIPS: Record<string, string> = {
+  aic: 'Akaike Information Criterion \u2014 lower is better. Measures relative quality of fit; the best distribution has the lowest AIC.',
+  ad_stat: 'Anderson-Darling test statistic \u2014 lower is better. Measures how well the data fits the distribution.',
+  p_value: 'Statistical significance \u2014 higher is better (\u22650.05 means adequate fit). Probability the data came from this distribution.',
+}
+
+// ---------------------------------------------------------------------------
+// PDF evaluation helpers (client-side approximations)
+// ---------------------------------------------------------------------------
+
+/**
+ * Evaluate the probability density function for a given distribution family
+ * at value x using the fitted parameters.
+ */
+function evaluatePDF(family: string, params: Record<string, number>, x: number): number {
+  const TWO_PI = 2 * Math.PI
+
+  switch (family) {
+    case 'normal': {
+      const mu = params.loc
+      const sigma = params.scale
+      if (sigma <= 0) return 0
+      const z = (x - mu) / sigma
+      return (1 / (sigma * Math.sqrt(TWO_PI))) * Math.exp(-0.5 * z * z)
+    }
+
+    case 'lognormal': {
+      const s = params.s
+      const loc = params.loc
+      const scale = params.scale
+      const y = x - loc
+      if (y <= 0 || s <= 0 || scale <= 0) return 0
+      const lnY = Math.log(y) - Math.log(scale)
+      return (1 / (y * s * Math.sqrt(TWO_PI))) * Math.exp(-0.5 * (lnY / s) ** 2)
+    }
+
+    case 'weibull': {
+      const c = params.c
+      const loc = params.loc
+      const scale = params.scale
+      const y = x - loc
+      if (y <= 0 || c <= 0 || scale <= 0) return 0
+      const yNorm = y / scale
+      return (c / scale) * Math.pow(yNorm, c - 1) * Math.exp(-Math.pow(yNorm, c))
+    }
+
+    case 'gamma': {
+      const a = params.a
+      const loc = params.loc
+      const scale = params.scale
+      const y = x - loc
+      if (y <= 0 || a <= 0 || scale <= 0) return 0
+      // Use Stirling's approximation for the gamma function:
+      // ln(Gamma(a)) approximated via Lanczos
+      const lnPdf = (a - 1) * Math.log(y) - y / scale - a * Math.log(scale) - lnGamma(a)
+      return Math.exp(lnPdf)
+    }
+
+    case 'johnson_su': {
+      // Johnson SU: f(x) = (b / (scale * sqrt(2pi) * sqrt(z^2 + 1))) * exp(-0.5 * (a + b * asinh(z))^2)
+      // where z = (x - loc) / scale
+      const a = params.a
+      const b = params.b
+      const loc = params.loc
+      const scale = params.scale
+      if (scale <= 0 || b <= 0) return 0
+      const z = (x - loc) / scale
+      const w = a + b * Math.asinh(z)
+      return (b / (scale * Math.sqrt(TWO_PI) * Math.sqrt(z * z + 1))) * Math.exp(-0.5 * w * w)
+    }
+
+    case 'johnson_sb': {
+      // Johnson SB: f(x) = (b / (scale * sqrt(2pi))) * (1 / (z * (1 - z))) * exp(-0.5 * (a + b * ln(z/(1-z)))^2)
+      // where z = (x - loc) / scale, 0 < z < 1
+      const a = params.a
+      const b = params.b
+      const loc = params.loc
+      const scale = params.scale
+      if (scale <= 0 || b <= 0) return 0
+      const z = (x - loc) / scale
+      if (z <= 0 || z >= 1) return 0
+      const w = a + b * Math.log(z / (1 - z))
+      return (b / (scale * Math.sqrt(TWO_PI) * z * (1 - z))) * Math.exp(-0.5 * w * w)
+    }
+
+    default:
+      return 0
+  }
+}
+
+/**
+ * Compute the quantile (inverse CDF) for a fitted distribution at probability p.
+ * Uses bisection search since we don't have closed-form inverses for all families.
+ * Falls back to numeric integration of the PDF.
+ */
+function evaluateQuantile(family: string, params: Record<string, number>, p: number): number | null {
+  // For normal, we have a direct formula
+  if (family === 'normal') {
+    return params.loc + params.scale * normalQuantile(p)
+  }
+
+  // For others, use bisection on the CDF (numerically integrated from PDF)
+  // First, find reasonable bounds
+  const mu = params.loc ?? 0
+  const scale = params.scale ?? 1
+  let lo = mu - 10 * scale
+  let hi = mu + 10 * scale
+
+  // For positive-support distributions, clamp lo
+  if (family === 'lognormal' || family === 'weibull' || family === 'gamma') {
+    lo = Math.max(lo, (params.loc ?? 0) + 1e-10)
+  }
+  if (family === 'johnson_sb') {
+    lo = Math.max(lo, (params.loc ?? 0) + 1e-10)
+    hi = Math.min(hi, (params.loc ?? 0) + (params.scale ?? 1) - 1e-10)
+  }
+
+  // Bisection: find x such that CDF(x) ~ p
+  // CDF is estimated by trapezoidal integration of the PDF
+  const numericCDF = (x: number): number => {
+    const steps = 200
+    const start = lo
+    const dx = (x - start) / steps
+    if (dx <= 0) return 0
+    let sum = 0
+    for (let i = 0; i < steps; i++) {
+      const x0 = start + i * dx
+      const x1 = x0 + dx
+      sum += (evaluatePDF(family, params, x0) + evaluatePDF(family, params, x1)) * 0.5 * dx
+    }
+    return Math.min(1, Math.max(0, sum))
+  }
+
+  // 30 iterations of bisection gives ~1e-9 precision
+  for (let iter = 0; iter < 30; iter++) {
+    const mid = (lo + hi) / 2
+    const cdfMid = numericCDF(mid)
+    if (cdfMid < p) {
+      lo = mid
+    } else {
+      hi = mid
+    }
+  }
+  return (lo + hi) / 2
+}
+
+/**
+ * Lanczos approximation for ln(Gamma(z)) for z > 0.
+ */
+function lnGamma(z: number): number {
+  if (z <= 0) return Infinity
+  const g = 7
+  const c = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7,
+  ]
+  if (z < 0.5) {
+    // Reflection formula
+    return Math.log(Math.PI / Math.sin(Math.PI * z)) - lnGamma(1 - z)
+  }
+  z -= 1
+  let x = c[0]
+  for (let i = 1; i < g + 2; i++) {
+    x += c[i] / (z + i)
+  }
+  const t = z + g + 0.5
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x)
+}
+
+// ---------------------------------------------------------------------------
+// InfoTooltip component (fixed positioning, no clipping)
+// ---------------------------------------------------------------------------
+
+function InfoTooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const iconRef = useRef<HTMLSpanElement>(null)
+
+  const show = useCallback(() => {
+    if (!iconRef.current) return
+    const rect = iconRef.current.getBoundingClientRect()
+    // Position tooltip below the icon, centered
+    setPos({
+      top: rect.bottom + 6,
+      left: rect.left + rect.width / 2,
+    })
+    setVisible(true)
+  }, [])
+
+  const hide = useCallback(() => {
+    setVisible(false)
+  }, [])
+
+  return (
+    <>
+      <span
+        ref={iconRef}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        className="text-muted-foreground hover:text-foreground ml-1 inline-flex cursor-help transition-colors"
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+      </span>
+      {visible &&
+        createPortal(
+          <div
+            onMouseEnter={show}
+            onMouseLeave={hide}
+            className="bg-popover text-popover-foreground border-border fixed z-[100] max-w-[260px] rounded-lg border px-3 py-2 text-xs shadow-lg"
+            style={{
+              top: pos.top,
+              left: pos.left,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            {text}
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 interface DistributionAnalysisProps {
   characteristicId: number
@@ -75,7 +321,7 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
 
   return (
     <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-      <div className="bg-card border-border relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border shadow-xl">
+      <div className="bg-card border-border relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border shadow-xl">
         {/* Unsaved changes confirmation */}
         {showUnsavedWarning && (
           <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">
@@ -172,60 +418,80 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
                   <thead>
                     <tr className="bg-muted/30 border-border border-b">
                       <th className="px-3 py-2 text-left font-medium">Distribution</th>
-                      <th className="px-3 py-2 text-right font-medium">AIC</th>
-                      <th className="px-3 py-2 text-right font-medium">AD Stat</th>
-                      <th className="px-3 py-2 text-right font-medium">p-value</th>
+                      <th className="px-3 py-2 text-right font-medium">
+                        <span className="inline-flex items-center">
+                          AIC
+                          <InfoTooltip text={METRIC_TOOLTIPS.aic} />
+                        </span>
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium">
+                        <span className="inline-flex items-center">
+                          AD Stat
+                          <InfoTooltip text={METRIC_TOOLTIPS.ad_stat} />
+                        </span>
+                      </th>
+                      <th className="px-3 py-2 text-right font-medium">
+                        <span className="inline-flex items-center">
+                          p-value
+                          <InfoTooltip text={METRIC_TOOLTIPS.p_value} />
+                        </span>
+                      </th>
                       <th className="px-3 py-2 text-center font-medium">Adequate</th>
-                      <th className="px-3 py-2 text-center font-medium">Select</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {fits.map((fit, idx) => (
-                      <tr
-                        key={fit.family}
-                        className={cn(
-                          'border-border border-b last:border-0',
-                          bestFit?.family === fit.family && 'bg-primary/5',
-                          selectedFamily === fit.family && 'ring-primary ring-1 ring-inset',
-                        )}
-                      >
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5">
-                            {idx === 0 && (
-                              <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium">
-                                BEST
-                              </span>
-                            )}
-                            <span className="font-mono text-xs">
-                              {fit.family.replace('_', ' ')}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fit.aic.toFixed(1)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {fit.ad_statistic.toFixed(4)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {fit.ad_p_value?.toFixed(4) ?? '--'}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {fit.is_adequate_fit ? (
-                            <CheckCircle className="text-success mx-auto h-4 w-4" />
-                          ) : (
-                            <span className="text-muted-foreground">--</span>
+                    {fits.map((fit, idx) => {
+                      const isSelected = selectedFamily === fit.family
+                      const isBest = bestFit?.family === fit.family
+                      return (
+                        <tr
+                          key={fit.family}
+                          onClick={() => setSelectedFamily(isSelected ? null : fit.family)}
+                          className={cn(
+                            'border-border cursor-pointer border-b transition-colors last:border-0',
+                            isSelected
+                              ? 'bg-primary/10'
+                              : isBest
+                                ? 'bg-primary/5 hover:bg-primary/8'
+                                : 'hover:bg-muted/50',
                           )}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="radio"
-                            name="dist-select"
-                            checked={selectedFamily === fit.family}
-                            onChange={() => setSelectedFamily(fit.family)}
-                            className="accent-primary h-3.5 w-3.5"
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                        >
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  'inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-transparent',
+                                  isSelected ? 'ring-primary' : 'ring-transparent',
+                                )}
+                                style={{ backgroundColor: FAMILY_COLORS[fit.family] ?? '#888' }}
+                              />
+                              {idx === 0 && (
+                                <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium">
+                                  BEST
+                                </span>
+                              )}
+                              <span className={cn('font-mono text-xs', isSelected && 'text-primary font-medium')}>
+                                {fit.family.replace('_', ' ')}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{fit.aic.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {fit.ad_statistic.toFixed(4)}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {fit.ad_p_value?.toFixed(4) ?? '--'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {fit.is_adequate_fit ? (
+                              <CheckCircle className="text-success mx-auto h-4 w-4" />
+                            ) : (
+                              <span className="text-muted-foreground">--</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -235,18 +501,18 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
             </div>
           )}
 
-          {/* Charts: Histogram + Q-Q Plot side by side */}
+          {/* Charts: Histogram + Q-Q Plot — full width, side by side */}
           {nnResult && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="text-foreground mb-2 text-sm font-semibold">
                   Distribution Histogram
                 </h3>
-                <HistogramChart result={nnResult} />
+                <HistogramChart result={nnResult} fits={fits} bestFit={bestFit} selectedFamily={selectedFamily} />
               </div>
               <div>
                 <h3 className="text-foreground mb-2 text-sm font-semibold">Q-Q Plot</h3>
-                <QQPlot result={nnResult} />
+                <QQPlot result={nnResult} bestFit={bestFit} selectedFamily={selectedFamily} fits={fits} />
               </div>
             </div>
           )}
@@ -312,15 +578,24 @@ function IndexMini({ label, value }: { label: string; value: number | null }) {
   )
 }
 
-function HistogramChart({ result }: { result: NonNormalCapabilityResult }) {
+// ---------------------------------------------------------------------------
+// Histogram chart with PDF overlays
+// ---------------------------------------------------------------------------
+
+interface HistogramChartProps {
+  result: NonNormalCapabilityResult
+  fits: DistributionFitResultData[]
+  bestFit: DistributionFitResultData | null
+  selectedFamily: string | null
+}
+
+function HistogramChart({ result, fits, bestFit, selectedFamily }: HistogramChartProps) {
   const option = useMemo(() => {
-    // We don't have raw data on the frontend, so show percentile info as reference lines
     const p0 = result.p0_135
     const p50 = result.p50
     const p99 = result.p99_865
     if (p0 === null || p50 === null || p99 === null) return null
 
-    // Create approximate histogram bins from percentile info
     const range = p99 - p0
     if (range <= 0) return null
     const nBins = 20
@@ -343,9 +618,81 @@ function HistogramChart({ result }: { result: NonNormalCapabilityResult }) {
     const maxH = Math.max(...heights)
     const normalizedHeights = heights.map((h) => +(h / maxH).toFixed(3))
 
+    // Build series array: histogram bar + PDF overlay lines
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const series: any[] = [
+      {
+        name: 'Distribution',
+        type: 'bar',
+        data: normalizedHeights,
+        itemStyle: { color: 'rgba(59, 130, 246, 0.4)' },
+        barWidth: '90%',
+        z: 1,
+      },
+    ]
+
+    // PDF overlays for each fitted distribution
+    if (fits.length > 0) {
+      // Compute raw PDF values for each fit at bin centers
+      const fitPdfArrays = fits.map((fit) =>
+        binCenters.map((x) => evaluatePDF(fit.family, fit.parameters, x)),
+      )
+
+      // Scale PDF values to match the histogram's normalized heights.
+      // The histogram heights are normalized so max=1. For each PDF, we scale
+      // so its max aligns with the histogram max (1.0). This gives a visual
+      // overlay that matches the shape comparison.
+      for (let fi = 0; fi < fits.length; fi++) {
+        const fit = fits[fi]
+        const pdfVals = fitPdfArrays[fi]
+        const pdfMax = Math.max(...pdfVals)
+        if (pdfMax <= 0) continue
+
+        const scaledPdf = pdfVals.map((v) => +(v / pdfMax).toFixed(4))
+        const isSelected = selectedFamily === fit.family
+        const isBest = bestFit?.family === fit.family
+        const color = FAMILY_COLORS[fit.family] ?? '#888'
+
+        // When a family is selected, highlight it and dim others
+        const hasSelection = selectedFamily !== null
+        const lineOpacity = hasSelection
+          ? (isSelected ? 1 : 0.15)
+          : (isBest ? 1 : 0.6)
+        const lineWidth = isSelected ? 3 : (isBest && !hasSelection ? 2.5 : 1.5)
+
+        series.push({
+          name: fit.family.replace('_', ' '),
+          type: 'line',
+          data: scaledPdf,
+          smooth: true,
+          symbol: 'none',
+          lineStyle: {
+            color,
+            width: lineWidth,
+            opacity: lineOpacity,
+          },
+          itemStyle: { color },
+          z: isSelected ? 4 : (isBest ? 3 : 2),
+        })
+      }
+    }
+
     return {
       grid: { top: 30, right: 20, bottom: 40, left: 50 },
-      tooltip: { trigger: 'axis' as const, textStyle: { fontSize: 11 } },
+      tooltip: {
+        trigger: 'axis' as const,
+        textStyle: { fontSize: 11 },
+        confine: true,
+      },
+      legend: fits.length > 0
+        ? {
+            bottom: 0,
+            textStyle: { fontSize: 9 },
+            itemWidth: 14,
+            itemHeight: 8,
+            data: fits.map((f) => f.family.replace('_', ' ')),
+          }
+        : undefined,
       xAxis: {
         type: 'category' as const,
         data: bins,
@@ -361,15 +708,7 @@ function HistogramChart({ result }: { result: NonNormalCapabilityResult }) {
         name: 'Density',
         nameTextStyle: { fontSize: 10 },
       },
-      series: [
-        {
-          name: 'Distribution',
-          type: 'bar' as const,
-          data: normalizedHeights,
-          itemStyle: { color: 'rgba(59, 130, 246, 0.5)' },
-          barWidth: '90%',
-        },
-      ],
+      series,
       graphic: [
         {
           type: 'text' as const,
@@ -383,42 +722,133 @@ function HistogramChart({ result }: { result: NonNormalCapabilityResult }) {
         },
       ],
     }
-  }, [result])
+  }, [result, fits, bestFit, selectedFamily])
 
-  const { containerRef } = useECharts({ option })
-  return <div ref={containerRef} className="h-64 w-full" style={{ visibility: option ? 'visible' : 'hidden' }} />
+  const { containerRef } = useECharts({ option, notMerge: true })
+  return (
+    <div
+      ref={containerRef}
+      className="w-full"
+      style={{
+        height: fits.length > 0 ? 300 : 256,
+        visibility: option ? 'visible' : 'hidden',
+      }}
+    />
+  )
 }
 
-function QQPlot({ result }: { result: NonNormalCapabilityResult }) {
+// ---------------------------------------------------------------------------
+// Q-Q plot with best fit quantile overlay
+// ---------------------------------------------------------------------------
+
+interface QQPlotProps {
+  result: NonNormalCapabilityResult
+  bestFit: DistributionFitResultData | null
+  selectedFamily: string | null
+  fits: DistributionFitResultData[]
+}
+
+function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
   const option = useMemo(() => {
     const p0 = result.p0_135
     const p50 = result.p50
     const p99 = result.p99_865
     if (p0 === null || p50 === null || p99 === null) return null
 
-    // Generate approximate Q-Q points from percentile data
-    // Using standard normal quantiles vs estimated data quantiles
     const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
     const sigma = (p99 - p0) / 6
     if (sigma <= 0) return null
 
     const qqData = percentiles.map((pct) => {
-      // Theoretical normal quantile
       const zTheory = normalQuantile(pct / 100)
-      // Estimated data quantile (linear interpolation from percentiles)
       const dataQ = p0 + ((pct - 0.135) / (99.865 - 0.135)) * (p99 - p0)
-      // Standardized data quantile
       const zData = (dataQ - p50) / sigma
       return [+zTheory.toFixed(4), +zData.toFixed(4)]
     })
 
     const allZ = qqData.flatMap(([a, b]) => [a, b])
-    const minZ = Math.min(...allZ) - 0.5
-    const maxZ = Math.max(...allZ) + 0.5
+    let minZ = Math.min(...allZ) - 0.5
+    let maxZ = Math.max(...allZ) + 0.5
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const series: any[] = [
+      {
+        name: 'Q-Q',
+        type: 'scatter',
+        data: qqData,
+        symbolSize: 6,
+        itemStyle: { color: '#3b82f6' },
+      },
+      {
+        name: 'Normal Reference',
+        type: 'line',
+        data: [
+          [minZ, minZ],
+          [maxZ, maxZ],
+        ],
+        lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
+        symbol: 'none',
+      },
+    ]
+
+    // Determine which fit to overlay: selected family takes priority, then best fit
+    const displayFit = selectedFamily
+      ? fits.find((f) => f.family === selectedFamily) ?? bestFit
+      : bestFit
+
+    // Overlay selected/best-fit quantile line if available and non-normal
+    if (displayFit && displayFit.family !== 'normal') {
+      const fitQQData: [number, number][] = []
+      for (const pct of percentiles) {
+        const zTheory = normalQuantile(pct / 100)
+        const fitQuantile = evaluateQuantile(displayFit.family, displayFit.parameters, pct / 100)
+        if (fitQuantile !== null) {
+          // Standardize the fitted quantile to same scale as the Q-Q plot
+          const zFit = (fitQuantile - p50) / sigma
+          fitQQData.push([+zTheory.toFixed(4), +zFit.toFixed(4)])
+        }
+      }
+
+      if (fitQQData.length > 0) {
+        // Expand axis bounds if the fit line extends beyond
+        const fitZ = fitQQData.flatMap(([a, b]) => [a, b])
+        minZ = Math.min(minZ, ...fitZ) - 0.2
+        maxZ = Math.max(maxZ, ...fitZ) + 0.2
+
+        const fitColor = FAMILY_COLORS[displayFit.family] ?? '#888'
+        series.push({
+          name: `${displayFit.family.replace('_', ' ')} fit`,
+          type: 'line',
+          data: fitQQData,
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { color: fitColor, width: 2, type: 'solid' },
+          itemStyle: { color: fitColor },
+        })
+
+        // Update the reference line endpoints to new bounds
+        series[1].data = [
+          [minZ, minZ],
+          [maxZ, maxZ],
+        ]
+      }
+    }
 
     return {
       grid: { top: 20, right: 20, bottom: 40, left: 50 },
-      tooltip: { trigger: 'item' as const, textStyle: { fontSize: 11 } },
+      tooltip: {
+        trigger: 'item' as const,
+        textStyle: { fontSize: 11 },
+        confine: true,
+      },
+      legend: displayFit && displayFit.family !== 'normal'
+        ? {
+            bottom: 0,
+            textStyle: { fontSize: 9 },
+            itemWidth: 14,
+            itemHeight: 8,
+          }
+        : undefined,
       xAxis: {
         type: 'value' as const,
         min: minZ,
@@ -437,30 +867,25 @@ function QQPlot({ result }: { result: NonNormalCapabilityResult }) {
         name: 'Sample Quantiles',
         nameTextStyle: { fontSize: 10 },
       },
-      series: [
-        {
-          name: 'Q-Q',
-          type: 'scatter' as const,
-          data: qqData,
-          symbolSize: 6,
-          itemStyle: { color: '#3b82f6' },
-        },
-        {
-          name: 'Reference',
-          type: 'line' as const,
-          data: [
-            [minZ, minZ],
-            [maxZ, maxZ],
-          ],
-          lineStyle: { color: '#ef4444', type: 'dashed' as const, width: 1 },
-          symbol: 'none',
-        },
-      ],
+      series,
     }
-  }, [result])
+  }, [result, bestFit, selectedFamily, fits])
 
-  const { containerRef } = useECharts({ option })
-  return <div ref={containerRef} className="h-64 w-full" style={{ visibility: option ? 'visible' : 'hidden' }} />
+  const displayFit = selectedFamily
+    ? fits.find((f) => f.family === selectedFamily) ?? bestFit
+    : bestFit
+
+  const { containerRef } = useECharts({ option, notMerge: true })
+  return (
+    <div
+      ref={containerRef}
+      className="w-full"
+      style={{
+        height: displayFit && displayFit.family !== 'normal' ? 300 : 256,
+        visibility: option ? 'visible' : 'hidden',
+      }}
+    />
+  )
 }
 
 /**

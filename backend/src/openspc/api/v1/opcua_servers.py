@@ -309,7 +309,7 @@ async def update_opcua_server(
     return OPCUAServerResponse.model_validate(server)
 
 
-@router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_opcua_server(
     server_id: int,
     repo: OPCUAServerRepository = Depends(get_opcua_server_repository),

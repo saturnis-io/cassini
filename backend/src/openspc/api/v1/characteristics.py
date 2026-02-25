@@ -62,36 +62,14 @@ async def get_control_limit_service(
     return ControlLimitService(sample_repo, char_repo, window_manager)
 
 
-@router.get("/", response_model=PaginatedResponse[CharacteristicResponse])
-async def list_characteristics(
-    hierarchy_id: int | None = Query(None, description="Filter by hierarchy node ID"),
-    provider_type: str | None = Query(None, description="Filter by provider type (MANUAL, MQTT, TAG)"),
-    plant_id: int | None = Query(None, description="Filter by plant ID"),
-    in_control: bool | None = Query(None, description="Filter by in-control status of latest sample"),
-    offset: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
-    page: int | None = Query(None, ge=1, description="Page number (1-indexed, alternative to offset)"),
-    per_page: int | None = Query(None, ge=1, le=1000, description="Items per page (alternative to limit)"),
-    session: AsyncSession = Depends(get_db_session),
-    _user: User = Depends(get_current_user),
-) -> PaginatedResponse[CharacteristicResponse]:
-    """List characteristics with filtering and pagination.
-
-    Supports filtering by hierarchy node, provider type, plant, and in_control status.
-    Returns paginated results with total count.
-
-    Accepts both offset/limit and page/per_page pagination styles.
-    If page/per_page are provided, they take precedence over offset/limit.
-    """
-    # Convert page/per_page to offset/limit if provided
-    if per_page is not None:
-        limit = per_page
-    if page is not None:
-        offset = (page - 1) * limit
-
-    repo = CharacteristicRepository(session)
-
-    # Build query with filters
+def _build_list_query(
+    *,
+    plant_id: int | None = None,
+    hierarchy_id: int | None = None,
+    provider_type: str | None = None,
+    in_control: bool | None = None,
+):
+    """Build a filtered SELECT for the characteristic list endpoint."""
     stmt = select(Characteristic)
 
     if plant_id is not None:
@@ -141,11 +119,48 @@ async def list_characteristics(
         )
 
         if in_control:
-            # Want in-control: exclude characteristics with violations on latest sample
             stmt = stmt.where(Characteristic.id.notin_(select(has_violations.c.char_id)))
         else:
-            # Want out-of-control: only characteristics with violations on latest sample
             stmt = stmt.where(Characteristic.id.in_(select(has_violations.c.char_id)))
+
+    return stmt
+
+
+@router.get("/", response_model=PaginatedResponse[CharacteristicResponse])
+async def list_characteristics(
+    hierarchy_id: int | None = Query(None, description="Filter by hierarchy node ID"),
+    provider_type: str | None = Query(None, description="Filter by provider type (MANUAL, MQTT, TAG)"),
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
+    in_control: bool | None = Query(None, description="Filter by in-control status of latest sample"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
+    page: int | None = Query(None, ge=1, description="Page number (1-indexed, alternative to offset)"),
+    per_page: int | None = Query(None, ge=1, le=1000, description="Items per page (alternative to limit)"),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
+) -> PaginatedResponse[CharacteristicResponse]:
+    """List characteristics with filtering and pagination.
+
+    Supports filtering by hierarchy node, provider type, plant, and in_control status.
+    Returns paginated results with total count.
+
+    Accepts both offset/limit and page/per_page pagination styles.
+    If page/per_page are provided, they take precedence over offset/limit.
+    """
+    # Convert page/per_page to offset/limit if provided
+    if per_page is not None:
+        limit = per_page
+    if page is not None:
+        offset = (page - 1) * limit
+
+    repo = CharacteristicRepository(session)
+
+    stmt = _build_list_query(
+        plant_id=plant_id,
+        hierarchy_id=hierarchy_id,
+        provider_type=provider_type,
+        in_control=in_control,
+    )
 
     # Get total count for pagination
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -335,7 +350,7 @@ async def update_characteristic(
 
 # TODO: Consider adding soft-delete (deleted_at column) instead of hard delete
 # to support audit trails and accidental deletion recovery.
-@router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_characteristic(
     char_id: int,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),

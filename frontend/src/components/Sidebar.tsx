@@ -11,6 +11,8 @@ import {
   Network,
   Microscope,
   ClipboardCheck,
+  TrendingUp,
+  FlaskConical,
   Users,
   Wrench,
   ChevronsLeft,
@@ -169,6 +171,18 @@ export function Sidebar({ className }: SidebarProps) {
       requiredRole: 'engineer',
     },
     {
+      path: '/analytics',
+      labelKey: 'analytics',
+      icon: <TrendingUp className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
+      path: '/doe',
+      labelKey: 'doe',
+      icon: <FlaskConical className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
       path: '/settings',
       labelKey: 'settings',
       icon: <Settings className="h-5 w-5" />,
@@ -202,9 +216,11 @@ export function Sidebar({ className }: SidebarProps) {
         onClick={forMobile ? () => setMobileSidebarOpen(false) : undefined}
         className={({ isActive }) =>
           cn(
-            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-            'hover:bg-accent hover:text-accent-foreground',
-            isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground',
+            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
+            'hover:transition-colors hover:duration-150',
+            isActive
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
             !forMobile && isCollapsed && 'justify-center px-2',
             forMobile && 'min-h-[44px]',
           )

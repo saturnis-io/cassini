@@ -164,7 +164,7 @@ export function UnmappedRow({
       <td className="px-3 py-2.5">
         <button
           onClick={onMap}
-          className="rounded bg-indigo-500/10 px-2 py-1 text-[10px] font-medium text-indigo-400 transition-colors hover:bg-indigo-500/20"
+          className="rounded bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
         >
           Map
         </button>

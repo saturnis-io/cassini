@@ -10,6 +10,13 @@ Admin-only endpoints:
 - POST /config — create provider config
 - PUT /config/{id} — update config
 - DELETE /config/{id} — delete config
+
+Account linking endpoints (authenticated users):
+- GET /links — list OIDC account links for current user
+- DELETE /links/{link_id} — unlink an OIDC account
+
+Logout endpoints (authenticated users):
+- GET /logout/{provider_id} — get IdP logout URL for RP-initiated logout
 """
 
 import json
@@ -18,13 +25,15 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from openspc.api.deps import get_current_admin, get_db_session
+from openspc.api.deps import get_current_admin, get_current_user, get_db_session
 from openspc.api.schemas.oidc import (
+    AccountLinkResponse,
     OIDCAuthorizationResponse,
     OIDCCallbackResponse,
     OIDCConfigCreate,
     OIDCConfigResponse,
     OIDCConfigUpdate,
+    OIDCLogoutResponse,
     OIDCProviderPublic,
 )
 from openspc.core.config import get_settings
@@ -53,6 +62,12 @@ def _mask_secret(encrypted_secret: str) -> str:
 
 def _build_config_response(config: OIDCConfig) -> OIDCConfigResponse:
     """Build an OIDCConfigResponse from a model instance."""
+    claim_mapping = {}
+    if config.claim_mapping:
+        try:
+            claim_mapping = json.loads(config.claim_mapping) if isinstance(config.claim_mapping, str) else config.claim_mapping
+        except (json.JSONDecodeError, TypeError):
+            pass
     return OIDCConfigResponse(
         id=config.id,
         name=config.name,
@@ -66,6 +81,9 @@ def _build_config_response(config: OIDCConfig) -> OIDCConfigResponse:
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at,
+        claim_mapping=claim_mapping,
+        end_session_endpoint=config.end_session_endpoint,
+        post_logout_redirect_uri=config.post_logout_redirect_uri,
     )
 
 
@@ -101,9 +119,10 @@ async def authorize(
         url = await service.get_authorization_url(provider_id, redirect_uri)
         return OIDCAuthorizationResponse(authorization_url=url)
     except ValueError as e:
+        logger.warning("oidc_authorize_not_found", provider_id=provider_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="Provider not found or inactive",
         )
     except Exception as e:
         logger.error("oidc_authorize_failed", provider_id=provider_id, error=str(e))
@@ -167,7 +186,7 @@ async def callback(
         logger.warning("oidc_callback_value_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="OIDC authentication failed",
         )
     except Exception as e:
         logger.error("oidc_callback_failed", error=str(e), exc_info=True)
@@ -204,7 +223,7 @@ async def create_config(
     encrypted_secret = encrypt_password(data.client_secret, enc_key)
 
     repo = OIDCConfigRepository(session)
-    config = await repo.create(
+    create_kwargs = dict(
         name=data.name,
         issuer_url=data.issuer_url,
         client_id=data.client_id,
@@ -214,6 +233,15 @@ async def create_config(
         auto_provision=data.auto_provision,
         default_role=data.default_role,
     )
+    # Handle optional new fields
+    if hasattr(data, "claim_mapping") and data.claim_mapping is not None:
+        create_kwargs["claim_mapping"] = json.dumps(data.claim_mapping)
+    if hasattr(data, "end_session_endpoint") and data.end_session_endpoint is not None:
+        create_kwargs["end_session_endpoint"] = data.end_session_endpoint
+    if hasattr(data, "post_logout_redirect_uri") and data.post_logout_redirect_uri is not None:
+        create_kwargs["post_logout_redirect_uri"] = data.post_logout_redirect_uri
+
+    config = await repo.create(**create_kwargs)
     await session.commit()
 
     logger.info("oidc_config_created", config_id=config.id, name=config.name)
@@ -251,6 +279,8 @@ async def update_config(
         update_data["scopes"] = json.dumps(update_data["scopes"])
     if "role_mapping" in update_data:
         update_data["role_mapping"] = json.dumps(update_data["role_mapping"])
+    if "claim_mapping" in update_data:
+        update_data["claim_mapping"] = json.dumps(update_data["claim_mapping"])
 
     updated = await repo.update(config_id, **update_data)
     await session.commit()
@@ -259,7 +289,7 @@ async def update_config(
     return _build_config_response(updated)
 
 
-@router.delete("/config/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/config/{config_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_config(
     config_id: int,
     session: AsyncSession = Depends(get_db_session),
@@ -276,6 +306,64 @@ async def delete_config(
 
     await session.commit()
     logger.info("oidc_config_deleted", config_id=config_id)
+
+
+# -------------------------------------------------------------------------
+# Account linking endpoints (authenticated users)
+# -------------------------------------------------------------------------
+
+@router.get("/links", response_model=list[AccountLinkResponse])
+async def get_account_links(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> list[AccountLinkResponse]:
+    """List all OIDC account links for the current user."""
+    from openspc.db.repositories.oidc_state_repo import OIDCStateRepository
+    from openspc.db.repositories.oidc_config_repo import OIDCConfigRepository
+    repo = OIDCStateRepository(session)
+    config_repo = OIDCConfigRepository(session)
+    links = await repo.get_account_links(current_user.id)
+    result = []
+    for link in links:
+        config = await config_repo.get_by_id(link.provider_id)
+        provider_name = config.name if config else "Unknown"
+        result.append(AccountLinkResponse(
+            id=link.id, user_id=link.user_id, provider_id=link.provider_id,
+            provider_name=provider_name, oidc_subject=link.oidc_subject,
+            linked_at=link.linked_at,
+        ))
+    return result
+
+
+@router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def delete_account_link(
+    link_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Unlink an OIDC account from the current user."""
+    from openspc.db.repositories.oidc_state_repo import OIDCStateRepository
+    repo = OIDCStateRepository(session)
+    # Verify link belongs to current user
+    links = await repo.get_account_links(current_user.id)
+    if not any(l.id == link_id for l in links):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account link not found")
+    await repo.delete_account_link(link_id)
+    await session.commit()
+
+
+@router.get("/logout/{provider_id}", response_model=OIDCLogoutResponse)
+async def oidc_logout(
+    provider_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> OIDCLogoutResponse:
+    """Get the IdP logout URL for RP-initiated logout."""
+    service = OIDCService(session)
+    logout_url = await service.initiate_logout(provider_id)
+    if logout_url:
+        return OIDCLogoutResponse(logout_url=logout_url, message="Redirect to IdP for logout")
+    return OIDCLogoutResponse(logout_url=None, message="Provider does not support RP-initiated logout")
 
 
 def _get_client_ip(request: Request) -> str:

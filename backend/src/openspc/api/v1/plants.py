@@ -136,7 +136,7 @@ async def update_plant(
         )
 
 
-@router.delete("/{plant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{plant_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_plant(
     plant_id: int,
     repo: PlantRepository = Depends(get_plant_repo),

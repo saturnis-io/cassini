@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { REPORT_TEMPLATES } from '@/lib/report-templates'
 import type { ReportTemplate } from '@/lib/report-templates'
 import { ReportPreview } from '@/components/ReportPreview'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ExportDropdown } from '@/components/ExportDropdown'
 import { CharacteristicContextBar } from '@/components/CharacteristicContextBar'
 import { NoCharacteristicState } from '@/components/NoCharacteristicState'
@@ -145,11 +146,13 @@ export function ReportsView() {
         </div>
       ) : (
         <div ref={reportContentRef} className="flex-1 overflow-auto">
-          <ReportPreview
-            template={selectedTemplate}
-            characteristicIds={[selectedCharId]}
-            chartOptions={chartOptions}
-          />
+          <ErrorBoundary>
+            <ReportPreview
+              template={selectedTemplate}
+              characteristicIds={[selectedCharId]}
+              chartOptions={chartOptions}
+            />
+          </ErrorBoundary>
         </div>
       )}
     </div>

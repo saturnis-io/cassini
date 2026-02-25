@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Trash2, Plus, Pencil, Shield, X } from 'lucide-react'
+import { Trash2, Plus, Pencil, Shield, X, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   useOIDCConfigs,
   useCreateOIDCConfig,
@@ -174,6 +174,18 @@ export function SSOSettings() {
 }
 
 // -------------------------------------------------------------------
+// Standard claim names for the claim mapping editor
+// -------------------------------------------------------------------
+
+const STANDARD_CLAIMS = [
+  { key: 'email', label: 'Email', placeholder: 'mail' },
+  { key: 'groups', label: 'Groups', placeholder: 'memberOf' },
+  { key: 'roles', label: 'Roles', placeholder: 'roles' },
+  { key: 'name', label: 'Name', placeholder: 'displayName' },
+  { key: 'preferred_username', label: 'Preferred Username', placeholder: 'upn' },
+] as const
+
+// -------------------------------------------------------------------
 // OIDC Config Form (Create / Edit)
 // -------------------------------------------------------------------
 
@@ -201,6 +213,39 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
   const [isActive, setIsActive] = useState(config?.is_active ?? true)
   const [jsonError, setJsonError] = useState<string | null>(null)
 
+  // New fields: claim mapping
+  const [claimMapping, setClaimMapping] = useState<Record<string, string>>(
+    config?.claim_mapping ?? {},
+  )
+
+  // New fields: logout endpoints
+  const [endSessionEndpoint, setEndSessionEndpoint] = useState(
+    config?.end_session_endpoint ?? '',
+  )
+  const [postLogoutRedirectUri, setPostLogoutRedirectUri] = useState(
+    config?.post_logout_redirect_uri ?? '',
+  )
+
+  // Collapsible advanced sections
+  const [showClaimMapping, setShowClaimMapping] = useState(
+    config?.claim_mapping ? Object.keys(config.claim_mapping).length > 0 : false,
+  )
+  const [showLogoutConfig, setShowLogoutConfig] = useState(
+    !!(config?.end_session_endpoint || config?.post_logout_redirect_uri),
+  )
+
+  function updateClaimMapping(key: string, value: string) {
+    setClaimMapping((prev) => {
+      const next = { ...prev }
+      if (value.trim()) {
+        next[key] = value.trim()
+      } else {
+        delete next[key]
+      }
+      return next
+    })
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
 
@@ -219,6 +264,12 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
       .map((s) => s.trim())
       .filter(Boolean)
 
+    // Build claim mapping — only include non-empty entries
+    const claimMappingClean: Record<string, string> = {}
+    for (const [k, v] of Object.entries(claimMapping)) {
+      if (v.trim()) claimMappingClean[k] = v.trim()
+    }
+
     if (isEdit && config) {
       const updateData: OIDCConfigUpdate = {
         name,
@@ -229,6 +280,9 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
         auto_provision: autoProvision,
         default_role: defaultRole,
         is_active: isActive,
+        claim_mapping: claimMappingClean,
+        end_session_endpoint: endSessionEndpoint.trim() || null,
+        post_logout_redirect_uri: postLogoutRedirectUri.trim() || null,
       }
       // Only send client_secret if it was changed
       if (clientSecret) {
@@ -246,14 +300,20 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
         role_mapping: roleMapping,
         auto_provision: autoProvision,
         default_role: defaultRole,
+        claim_mapping: claimMappingClean,
+        end_session_endpoint: endSessionEndpoint.trim() || null,
+        post_logout_redirect_uri: postLogoutRedirectUri.trim() || null,
       }
       onCreate(createData)
     }
   }
 
+  const inputClass =
+    'bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none'
+
   return (
     <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-      <div className="bg-card border-border w-full max-w-lg rounded-lg border shadow-lg">
+      <div className="bg-card border-border w-full max-w-2xl rounded-lg border shadow-lg">
         <div className="border-border flex items-center justify-between border-b px-6 py-4">
           <h3 className="text-foreground text-lg font-semibold">
             {isEdit ? 'Edit SSO Provider' : 'Add SSO Provider'}
@@ -266,7 +326,7 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[70vh] space-y-4 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="max-h-[75vh] space-y-4 overflow-y-auto p-6">
           {/* Name */}
           <div className="space-y-1.5">
             <label className="text-foreground block text-sm font-medium">Display Name</label>
@@ -276,7 +336,7 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
               onChange={(e) => setName(e.target.value)}
               required
               placeholder="e.g. Azure AD, Okta, Keycloak"
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={inputClass}
             />
           </div>
 
@@ -289,43 +349,43 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
               onChange={(e) => setIssuerUrl(e.target.value)}
               required
               placeholder="https://login.microsoftonline.com/tenant-id/v2.0"
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={inputClass}
             />
             <p className="text-muted-foreground text-xs">
               Must support .well-known/openid-configuration
             </p>
           </div>
 
-          {/* Client ID */}
-          <div className="space-y-1.5">
-            <label className="text-foreground block text-sm font-medium">Client ID</label>
-            <input
-              type="text"
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              required
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-          </div>
-
-          {/* Client Secret */}
-          <div className="space-y-1.5">
-            <label className="text-foreground block text-sm font-medium">
-              Client Secret
-              {isEdit && (
-                <span className="text-muted-foreground ml-1 font-normal">
-                  (leave empty to keep current)
-                </span>
-              )}
-            </label>
-            <input
-              type="password"
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              required={!isEdit}
-              placeholder={isEdit ? '****' : 'Enter client secret'}
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
+          {/* Client ID + Secret — side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-foreground block text-sm font-medium">Client ID</label>
+              <input
+                type="text"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                required
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-foreground block text-sm font-medium">
+                Client Secret
+                {isEdit && (
+                  <span className="text-muted-foreground ml-1 font-normal">
+                    (leave empty to keep)
+                  </span>
+                )}
+              </label>
+              <input
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                required={!isEdit}
+                placeholder={isEdit ? '****' : 'Enter client secret'}
+                className={inputClass}
+              />
+            </div>
           </div>
 
           {/* Scopes */}
@@ -335,12 +395,12 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
               type="text"
               value={scopes}
               onChange={(e) => setScopes(e.target.value)}
-              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              className={inputClass}
             />
             <p className="text-muted-foreground text-xs">Comma-separated list of OIDC scopes</p>
           </div>
 
-          {/* Role Mapping */}
+          {/* Role Mapping (JSON) */}
           <div className="space-y-1.5">
             <label className="text-foreground block text-sm font-medium">Role Mapping (JSON)</label>
             <textarea
@@ -351,44 +411,158 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
               }}
               rows={4}
               className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-              placeholder='{"oidc_group": "openspc_role"}'
+              placeholder={`{
+  "spc-admins": {"*": "admin"},
+  "spc-engineers": {"1": "engineer", "2": "supervisor"},
+  "spc-operators": "operator"
+}`}
             />
             {jsonError && <p className="text-destructive text-xs">{jsonError}</p>}
             <p className="text-muted-foreground text-xs">
-              Map OIDC groups to OpenSPC roles: operator, supervisor, engineer, admin
+              Map OIDC groups to OpenSPC roles. Flat format:{' '}
+              <code className="bg-muted rounded px-1">{'"group": "role"'}</code>. Plant-scoped:{' '}
+              <code className="bg-muted rounded px-1">{'"group": {"plant_id": "role"}'}</code> (use{' '}
+              <code className="bg-muted rounded px-1">"*"</code> for all plants).
             </p>
           </div>
 
-          {/* Auto Provision */}
-          <div className="flex items-center gap-2">
-            <input
-              id="auto-provision"
-              type="checkbox"
-              checked={autoProvision}
-              onChange={(e) => setAutoProvision(e.target.checked)}
-              className="border-border text-primary focus:ring-ring h-4 w-4 rounded"
-            />
-            <label htmlFor="auto-provision" className="text-foreground text-sm">
-              Auto-provision new users on first SSO login
-            </label>
+          {/* Auto Provision + Default Role — side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-2 pt-5">
+              <input
+                id="auto-provision"
+                type="checkbox"
+                checked={autoProvision}
+                onChange={(e) => setAutoProvision(e.target.checked)}
+                className="border-border text-primary focus:ring-ring h-4 w-4 rounded"
+              />
+              <label htmlFor="auto-provision" className="text-foreground text-sm">
+                Auto-provision users
+              </label>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-foreground block text-sm font-medium">Default Role</label>
+              <select
+                value={defaultRole}
+                onChange={(e) => setDefaultRole(e.target.value)}
+                className="bg-background text-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              >
+                <option value="operator">Operator</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="engineer">Engineer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
-          {/* Default Role */}
-          <div className="space-y-1.5">
-            <label className="text-foreground block text-sm font-medium">Default Role</label>
-            <select
-              value={defaultRole}
-              onChange={(e) => setDefaultRole(e.target.value)}
-              className="bg-background text-foreground focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          {/* ---- Claim Mapping (collapsible) ---- */}
+          <div className="border-border rounded-lg border">
+            <button
+              type="button"
+              onClick={() => setShowClaimMapping(!showClaimMapping)}
+              className="text-foreground hover:bg-muted/50 flex w-full items-center justify-between px-4 py-3 text-sm font-medium transition-colors"
             >
-              <option value="operator">Operator</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="engineer">Engineer</option>
-              <option value="admin">Admin</option>
-            </select>
-            <p className="text-muted-foreground text-xs">
-              Role assigned when no role mapping matches
-            </p>
+              <span>Claim Mapping</span>
+              {showClaimMapping ? (
+                <ChevronUp className="text-muted-foreground h-4 w-4" />
+              ) : (
+                <ChevronDown className="text-muted-foreground h-4 w-4" />
+              )}
+            </button>
+            {showClaimMapping && (
+              <div className="border-border space-y-3 border-t px-4 py-3">
+                <p className="text-muted-foreground text-xs">
+                  Override default OIDC claim names if your IdP uses non-standard names.
+                  Leave blank to use defaults.
+                </p>
+                <div className="overflow-hidden rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 border-border border-b">
+                        <th className="text-muted-foreground px-3 py-2 text-left text-xs font-medium">
+                          Standard Claim
+                        </th>
+                        <th className="text-muted-foreground px-3 py-2 text-left text-xs font-medium">
+                          Provider Claim Name
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {STANDARD_CLAIMS.map((claim) => (
+                        <tr key={claim.key} className="border-border border-b last:border-b-0">
+                          <td className="text-foreground px-3 py-2 text-xs font-medium">
+                            {claim.label}
+                            <span className="text-muted-foreground ml-1 font-normal">
+                              ({claim.key})
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="text"
+                              value={claimMapping[claim.key] ?? ''}
+                              onChange={(e) => updateClaimMapping(claim.key, e.target.value)}
+                              placeholder={claim.placeholder}
+                              className="bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring w-full rounded border px-2 py-1 text-xs focus:ring-1 focus:outline-none"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ---- Logout Configuration (collapsible) ---- */}
+          <div className="border-border rounded-lg border">
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfig(!showLogoutConfig)}
+              className="text-foreground hover:bg-muted/50 flex w-full items-center justify-between px-4 py-3 text-sm font-medium transition-colors"
+            >
+              <span>Logout Configuration</span>
+              {showLogoutConfig ? (
+                <ChevronUp className="text-muted-foreground h-4 w-4" />
+              ) : (
+                <ChevronDown className="text-muted-foreground h-4 w-4" />
+              )}
+            </button>
+            {showLogoutConfig && (
+              <div className="border-border space-y-3 border-t px-4 py-3">
+                <p className="text-muted-foreground text-xs">
+                  Configure RP-initiated logout to sign users out of both OpenSPC and the
+                  identity provider. Leave blank to auto-discover from the IdP.
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-foreground block text-xs font-medium">
+                    End Session Endpoint
+                  </label>
+                  <input
+                    type="url"
+                    value={endSessionEndpoint}
+                    onChange={(e) => setEndSessionEndpoint(e.target.value)}
+                    placeholder="https://idp.example.com/logout (auto-discovered if blank)"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-foreground block text-xs font-medium">
+                    Post-Logout Redirect URI
+                  </label>
+                  <input
+                    type="url"
+                    value={postLogoutRedirectUri}
+                    onChange={(e) => setPostLogoutRedirectUri(e.target.value)}
+                    placeholder={`${window.location.origin}/login`}
+                    className={inputClass}
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Where the IdP redirects after logout. Defaults to the login page.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Active (edit only) */}

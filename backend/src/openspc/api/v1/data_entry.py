@@ -152,7 +152,8 @@ async def submit_sample(
             ],
         )
 
-    except ValueError:
+    except ValueError as e:
+        logger.warning("validation_error", detail=str(e))
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid input")
     except Exception:
@@ -234,6 +235,7 @@ async def submit_attribute_sample(
         )
 
     except ValueError as e:
+        logger.warning("validation_error", detail=str(e))
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception:
@@ -300,6 +302,7 @@ async def submit_cusum_sample(
         )
 
     except ValueError as e:
+        logger.warning("validation_error", detail=str(e))
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception:
@@ -366,6 +369,7 @@ async def submit_ewma_sample(
         )
 
     except ValueError as e:
+        logger.warning("validation_error", detail=str(e))
         await session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception:

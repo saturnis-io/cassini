@@ -36,7 +36,10 @@ from openspc.core.events.events import (
     CharacteristicDeletedEvent,
     CharacteristicUpdatedEvent,
     ControlLimitsUpdatedEvent,
+    CorrelationAlertEvent,
+    ERPSyncCompletedEvent,
     Event,
+    PredictedOOCEvent,
     SampleProcessedEvent,
     SignatureCreatedEvent,
     SignatureInvalidatedEvent,
@@ -75,4 +78,10 @@ __all__ = [
     "WorkflowCompletedEvent",
     "WorkflowExpiredEvent",
     "SignatureInvalidatedEvent",
+    # ERP events
+    "ERPSyncCompletedEvent",
+    # Prediction events
+    "PredictedOOCEvent",
+    # Correlation events
+    "CorrelationAlertEvent",
 ]

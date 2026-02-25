@@ -407,7 +407,7 @@ async def update_workflow(
     return WorkflowResponse.model_validate(workflow)
 
 
-@router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_workflow(
     workflow_id: int,
     plant_id: int = Query(...),
@@ -495,7 +495,7 @@ async def update_workflow_step(
     return StepResponse.model_validate(step)
 
 
-@router.delete("/workflows/steps/{step_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/workflows/steps/{step_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_workflow_step(
     step_id: int,
     plant_id: int = Query(...),

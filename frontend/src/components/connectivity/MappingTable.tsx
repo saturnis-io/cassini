@@ -199,11 +199,11 @@ function SortButton({
     <button
       onClick={onClick}
       className={`flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase transition-colors ${
-        active ? 'text-indigo-400' : 'text-muted-foreground hover:text-muted-foreground'
+        active ? 'text-primary' : 'text-muted-foreground hover:text-muted-foreground'
       }`}
     >
       {label}
-      <ArrowUpDown className={`h-3 w-3 ${active ? 'text-indigo-400' : 'text-muted-foreground'}`} />
+      <ArrowUpDown className={`h-3 w-3 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
     </button>
   )
 }

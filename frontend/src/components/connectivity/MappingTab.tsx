@@ -142,7 +142,7 @@ export function MappingTab() {
         </div>
         <button
           onClick={handleNewMapping}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />
           New Mapping
@@ -159,7 +159,7 @@ export function MappingTab() {
               onClick={() => setFilter(opt.value)}
               className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                 filter === opt.value
-                  ? 'bg-indigo-500/15 font-medium text-indigo-300'
+                  ? 'bg-primary/15 font-medium text-primary'
                   : 'text-muted-foreground hover:text-muted-foreground hover:bg-muted'
               }`}
             >
@@ -203,7 +203,7 @@ export function MappingTab() {
           </p>
           <button
             onClick={handleNewMapping}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-500"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
             New Mapping

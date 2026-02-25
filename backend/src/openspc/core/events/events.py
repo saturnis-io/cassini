@@ -286,3 +286,40 @@ class SignatureInvalidatedEvent(Event):
     invalidated_signature_ids: list[int]
     reason: str
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class ERPSyncCompletedEvent(Event):
+    """Emitted when an ERP sync operation completes."""
+
+    connector_id: int
+    connector_name: str
+    direction: str  # 'inbound' or 'outbound'
+    status: str  # 'success', 'partial', 'failed'
+    records_processed: int
+    records_failed: int
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class PredictedOOCEvent(Event):
+    """Emitted when a forecast predicts out-of-control condition."""
+
+    characteristic_id: int
+    forecast_step: int
+    predicted_value: float
+    limit_type: str  # 'ucl' or 'lcl'
+    limit_value: float
+    model_type: str
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class CorrelationAlertEvent(Event):
+    """Emitted when a significant correlation change is detected."""
+
+    plant_id: int
+    characteristic_ids: list[int]
+    method: str
+    max_correlation: float
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

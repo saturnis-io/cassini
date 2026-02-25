@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
 import { PlantSelector } from '@/components/PlantSelector'
+import { MobileNav } from '@/components/MobileNav'
 
 /**
  * Main application layout with sidebar navigation
@@ -31,7 +32,16 @@ export function Layout() {
   const { t: tNav } = useTranslation('navigation')
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { data: stats } = useViolationStats()
-  const { isOffline, setIsOffline } = useUIStore()
+  const { isOffline, setIsOffline, offlineQueueCount, setOfflineQueueCount } = useUIStore()
+
+  // Set up offline queue auto-flush
+  useEffect(() => {
+    let cleanup: (() => void) | undefined
+    import('@/lib/offline-queue').then(({ setupAutoFlush }) => {
+      cleanup = setupAutoFlush(setOfflineQueueCount)
+    })
+    return () => cleanup?.()
+  }, [setOfflineQueueCount])
 
   // Listen for online/offline events
   useEffect(() => {
@@ -64,7 +74,7 @@ export function Layout() {
         <Sidebar />
 
         {/* Content area */}
-        <main className="flex-1 overflow-auto px-2 py-2 md:px-4 md:py-3">
+        <main className="flex-1 overflow-auto px-2 py-2 pb-16 md:px-4 md:py-3 md:pb-3">
           <Outlet />
         </main>
       </div>
@@ -83,6 +93,9 @@ export function Layout() {
                 <WifiOff className="text-destructive h-4 w-4" />
                 <span className="text-destructive hidden sm:inline">{tNav('disconnected')}</span>
               </>
+            )}
+            {offlineQueueCount > 0 && (
+              <span className="text-warning text-xs font-medium">({offlineQueueCount} pending)</span>
             )}
           </div>
           <div className="text-muted-foreground flex items-center gap-3 md:gap-6">
@@ -112,6 +125,9 @@ export function Layout() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile bottom navigation */}
+      <MobileNav />
     </div>
   )
 }

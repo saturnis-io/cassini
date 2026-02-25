@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Activity, Server, Search, Link2, Usb } from 'lucide-react'
+import { Activity, Server, Search, Link2, Usb, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
 
@@ -28,6 +28,12 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
     label: 'Instruments',
     tabs: [
       { to: 'gages', label: 'Gages', icon: Usb },
+    ],
+  },
+  {
+    label: 'Integrations',
+    tabs: [
+      { to: 'integrations', label: 'ERP/LIMS', icon: Building2 },
     ],
   },
 ]
@@ -67,10 +73,11 @@ export function ConnectivityPage() {
                     end={tab.to === 'monitor'}
                     className={({ isActive }) =>
                       cn(
-                        'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                        'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium',
+                        'hover:transition-colors hover:duration-150',
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                       )
                     }
                   >

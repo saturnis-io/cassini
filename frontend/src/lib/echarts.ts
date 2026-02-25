@@ -6,8 +6,8 @@
  */
 
 import { use as registerECharts, graphic, init } from 'echarts/core'
-import { LineChart, BarChart, CustomChart, ScatterChart } from 'echarts/charts'
-import type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption } from 'echarts/charts'
+import { LineChart, BarChart, CustomChart, ScatterChart, HeatmapChart } from 'echarts/charts'
+import type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption, HeatmapSeriesOption } from 'echarts/charts'
 import {
   GridComponent,
   TooltipComponent,
@@ -17,6 +17,7 @@ import {
   DataZoomComponent,
   DatasetComponent,
   GraphicComponent,
+  VisualMapContinuousComponent,
 } from 'echarts/components'
 import type {
   GridComponentOption,
@@ -27,6 +28,7 @@ import type {
   DataZoomComponentOption,
   DatasetComponentOption,
   GraphicComponentOption,
+  VisualMapComponentOption,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ComposeOption } from 'echarts/core'
@@ -38,6 +40,7 @@ registerECharts([
   BarChart,
   CustomChart,
   ScatterChart,
+  HeatmapChart,
   GridComponent,
   TooltipComponent,
   MarkLineComponent,
@@ -46,6 +49,7 @@ registerECharts([
   DataZoomComponent,
   DatasetComponent,
   GraphicComponent,
+  VisualMapContinuousComponent,
 ])
 
 // Compose the option type for our charts
@@ -54,6 +58,7 @@ export type ECOption = ComposeOption<
   | BarSeriesOption
   | CustomSeriesOption
   | ScatterSeriesOption
+  | HeatmapSeriesOption
   | GridComponentOption
   | TooltipComponentOption
   | MarkLineComponentOption
@@ -62,8 +67,9 @@ export type ECOption = ComposeOption<
   | DataZoomComponentOption
   | DatasetComponentOption
   | GraphicComponentOption
+  | VisualMapComponentOption
 >
 
 // Re-export what chart components need
 export { init, graphic }
-export type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption }
+export type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption, HeatmapSeriesOption }

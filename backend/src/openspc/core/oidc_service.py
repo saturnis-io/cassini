@@ -6,11 +6,14 @@ Handles the OIDC authorization code flow:
 3. Extract user info from ID token / userinfo endpoint
 4. Auto-provision local users from OIDC claims
 5. Map OIDC groups/claims to OpenSPC roles
+6. DB-backed CSRF state tokens and account linking
+7. RP-initiated logout
 """
 
 import json
 import secrets
 import structlog
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -21,8 +24,10 @@ from openspc.core.auth.jwt import create_access_token, create_refresh_token
 from openspc.core.auth.passwords import hash_password
 from openspc.db.dialects import decrypt_password, get_encryption_key
 from openspc.db.models.oidc_config import OIDCConfig
+from openspc.db.models.oidc_state import OIDCState, OIDCAccountLink
 from openspc.db.models.user import User, UserPlantRole, UserRole
 from openspc.db.repositories.oidc_config_repo import OIDCConfigRepository
+from openspc.db.repositories.oidc_state_repo import OIDCStateRepository
 from openspc.db.repositories.user import UserRepository
 
 from sqlalchemy import select
@@ -30,11 +35,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 logger = structlog.get_logger(__name__)
-
-# In-memory state store for CSRF protection during OIDC flow.
-# Maps state -> {provider_id, redirect_uri, nonce}
-# In production, this should use a cache (Redis) or encrypted cookie.
-_pending_states: dict[str, dict[str, Any]] = {}
 
 
 class OIDCService:
@@ -44,6 +44,7 @@ class OIDCService:
         self.session = session
         self.repo = OIDCConfigRepository(session)
         self.user_repo = UserRepository(session)
+        self.state_repo = OIDCStateRepository(session)
 
     def _decrypt_client_secret(self, encrypted: str) -> str:
         """Decrypt the client secret using the database encryption key."""
@@ -95,12 +96,17 @@ class OIDCService:
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
 
-        # Store state for verification in callback
-        _pending_states[state] = {
-            "provider_id": provider_id,
-            "redirect_uri": redirect_uri,
-            "nonce": nonce,
-        }
+        # Store state in DB for verification in callback
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+        await self.state_repo.create_state(
+            state=state,
+            nonce=nonce,
+            provider_id=provider_id,
+            redirect_uri=redirect_uri,
+            expires_at=expires_at,
+        )
+        # Opportunistic cleanup of expired states
+        await self.state_repo.cleanup_expired()
 
         url, _ = oauth_client.create_authorization_url(
             authorization_endpoint,
@@ -134,14 +140,14 @@ class OIDCService:
         Raises:
             ValueError: If state is invalid or callback processing fails.
         """
-        # Validate state
-        pending = _pending_states.pop(state, None)
-        if pending is None:
+        # Validate state from DB (atomically pop to prevent reuse)
+        pending_state = await self.state_repo.pop_state(state)
+        if pending_state is None:
             raise ValueError("Invalid or expired OIDC state parameter")
 
-        provider_id = pending["provider_id"]
-        redirect_uri = pending["redirect_uri"]
-        nonce = pending["nonce"]
+        provider_id = pending_state.provider_id
+        redirect_uri = pending_state.redirect_uri
+        nonce = pending_state.nonce
 
         config = await self.repo.get_by_id(provider_id)
         if config is None:
@@ -204,6 +210,7 @@ class OIDCService:
         """Extract user information from the OIDC token response.
 
         Tries the ID token first, then falls back to the userinfo endpoint.
+        Applies claim mapping from provider config to normalize claim names.
         """
         user_info: dict[str, Any] = {}
 
@@ -221,6 +228,9 @@ class OIDCService:
                     # Add padding
                     payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
                     payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+                    # Validate nonce to prevent replay attacks (OIDC Core 3.1.3.7)
+                    if payload.get("nonce") != nonce:
+                        raise ValueError("ID token nonce mismatch — possible replay")
                     user_info = payload
             except Exception as e:
                 logger.warning("oidc_id_token_decode_failed", error=str(e))
@@ -239,6 +249,28 @@ class OIDCService:
         if not user_info.get("sub"):
             raise ValueError("OIDC response did not include a subject (sub) claim")
 
+        # Apply claim mapping from provider config
+        claim_mapping: dict[str, str] = {}
+        if hasattr(config, "claim_mapping") and config.claim_mapping:
+            try:
+                claim_mapping = (
+                    json.loads(config.claim_mapping)
+                    if isinstance(config.claim_mapping, str)
+                    else config.claim_mapping
+                )
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Map provider-specific claim names to standard ones
+        mapped_info: dict[str, Any] = {}
+        for standard_claim, provider_claim in claim_mapping.items():
+            if provider_claim in user_info:
+                mapped_info[standard_claim] = user_info[provider_claim]
+        # Merge: mapped claims fill in missing standard claims without overriding
+        for key, value in mapped_info.items():
+            if key not in user_info:
+                user_info[key] = value
+
         return user_info
 
     async def provision_user(
@@ -246,8 +278,11 @@ class OIDCService:
     ) -> User:
         """Find or create a local user from OIDC user info.
 
-        If the user exists (by email or username), returns the existing user.
-        If auto_provision is enabled and the user doesn't exist, creates a new one.
+        Lookup order:
+        1. Account link (provider_id + sub) -- fastest, most reliable
+        2. Email match
+        3. Username match
+        4. Auto-provision (if enabled)
 
         Args:
             user_info: OIDC claims dict (must include 'sub', may include 'email', 'name', etc.)
@@ -263,7 +298,21 @@ class OIDCService:
         preferred_username = user_info.get("preferred_username") or user_info.get("name")
         oidc_sub = user_info.get("sub", "")
 
-        # Try to find existing user by email
+        # 1. Try to find existing user via account link first
+        account_link = await self.state_repo.get_by_subject(config.id, oidc_sub)
+        if account_link is not None:
+            existing_user = await self.user_repo.get_by_id(account_link.user_id)
+            if existing_user is not None:
+                logger.info(
+                    "oidc_user_found_via_link",
+                    user_id=existing_user.id,
+                    username=existing_user.username,
+                    provider_id=config.id,
+                )
+                await self._apply_role_mapping(existing_user, user_info, config)
+                return existing_user
+
+        # 2. Try to find existing user by email
         existing_user: Optional[User] = None
         if email:
             stmt = (
@@ -274,7 +323,7 @@ class OIDCService:
             result = await self.session.execute(stmt)
             existing_user = result.scalar_one_or_none()
 
-        # Try to find by username if not found by email
+        # 3. Try to find by username if not found by email
         if existing_user is None and preferred_username:
             existing_user = await self.user_repo.get_by_username(preferred_username)
 
@@ -284,11 +333,17 @@ class OIDCService:
                 user_id=existing_user.id,
                 username=existing_user.username,
             )
+            # Create account link for future fast lookups
+            await self.state_repo.create_account_link(
+                user_id=existing_user.id,
+                provider_id=config.id,
+                oidc_subject=oidc_sub,
+            )
             # Map roles from OIDC claims on each login
             await self._apply_role_mapping(existing_user, user_info, config)
             return existing_user
 
-        # User not found — check if auto-provisioning is enabled
+        # User not found -- check if auto-provisioning is enabled
         if not config.auto_provision:
             raise ValueError(
                 f"User not found and auto-provisioning is disabled for provider '{config.name}'"
@@ -310,6 +365,13 @@ class OIDCService:
             user_id=new_user.id,
             username=username,
             provider=config.name,
+        )
+
+        # Create account link for the new user
+        await self.state_repo.create_account_link(
+            user_id=new_user.id,
+            provider_id=config.id,
+            oidc_subject=oidc_sub,
         )
 
         # Apply role mapping for the new user
@@ -339,19 +401,22 @@ class OIDCService:
     ) -> None:
         """Map OIDC groups/claims to OpenSPC roles.
 
-        The role_mapping config is a JSON dict like:
-        {
-            "admin_group": "admin",
-            "engineers": "engineer",
-            "quality_team": "supervisor"
-        }
+        The role_mapping config supports two formats:
 
-        Where keys are OIDC group names (from the 'groups' claim)
-        and values are OpenSPC role names.
+        Legacy (all-plant):
+            {"admin_group": "admin", "engineers": "engineer"}
+
+        Plant-scoped:
+            {"admin_group": {"*": "admin"}}
+            {"team_a": {"1": "engineer", "2": "operator"}}
+
+        Where keys are OIDC group names (from the 'groups' or 'roles' claim)
+        and values are either a role string or a dict mapping plant IDs to roles.
+        The special key "*" means all plants.
         """
         role_mapping = config.role_mapping_dict
         if not role_mapping:
-            # No role mapping configured — assign default role to all plants
+            # No role mapping configured -- assign default role to all plants
             await self._assign_default_role(user, config)
             return
 
@@ -367,33 +432,64 @@ class OIDCService:
 
         all_claims = set(oidc_groups + oidc_roles)
 
-        # Find the highest matching role
+        # Find the highest matching role (for all-plant / wildcard assignment)
         role_hierarchy = {"operator": 1, "supervisor": 2, "engineer": 3, "admin": 4}
         best_role = config.default_role
         best_level = role_hierarchy.get(best_role, 1)
 
-        for claim_value, openspc_role in role_mapping.items():
+        for claim_value, role_config in role_mapping.items():
             if claim_value in all_claims:
-                level = role_hierarchy.get(openspc_role, 0)
-                if level > best_level:
-                    best_role = openspc_role
-                    best_level = level
+                if isinstance(role_config, str):
+                    # Legacy format: treat as all-plant assignment
+                    level = role_hierarchy.get(role_config, 0)
+                    if level > best_level:
+                        best_role = role_config
+                        best_level = level
+                elif isinstance(role_config, dict):
+                    # Plant-scoped format -- "*" key means all plants
+                    wildcard_role = role_config.get("*")
+                    if wildcard_role:
+                        level = role_hierarchy.get(wildcard_role, 0)
+                        if level > best_level:
+                            best_role = wildcard_role
+                            best_level = level
 
-        # Assign the role at all plants
-        try:
-            role_enum = UserRole(best_role)
-        except ValueError:
-            role_enum = UserRole.operator
+        # Collect per-plant role assignments from scoped config
+        per_plant_roles: dict[int, str] = {}
+        for claim_value, role_config in role_mapping.items():
+            if claim_value in all_claims and isinstance(role_config, dict):
+                for plant_key, role_val in role_config.items():
+                    if plant_key != "*":
+                        try:
+                            pid = int(plant_key)
+                            per_plant_roles[pid] = role_val
+                        except (ValueError, TypeError):
+                            pass
 
-        # Get all plants and assign role
+        # Get all plants
         from openspc.db.models.plant import Plant
 
         stmt = select(Plant).where(Plant.is_active == True)  # noqa: E712
         result = await self.session.execute(stmt)
         plants = result.scalars().all()
 
-        for plant in plants:
-            await self.user_repo.assign_plant_role(user.id, plant.id, role_enum)
+        if per_plant_roles:
+            # Assign per-plant roles where specified, fall back to best_role
+            for plant in plants:
+                plant_role = per_plant_roles.get(plant.id, best_role)
+                try:
+                    role_enum = UserRole(plant_role)
+                except ValueError:
+                    role_enum = UserRole.operator
+                await self.user_repo.assign_plant_role(user.id, plant.id, role_enum)
+        else:
+            # Assign best_role to all plants (existing behavior)
+            try:
+                role_enum = UserRole(best_role)
+            except ValueError:
+                role_enum = UserRole.operator
+            for plant in plants:
+                await self.user_repo.assign_plant_role(user.id, plant.id, role_enum)
 
         await self.session.flush()
 
@@ -418,6 +514,36 @@ class OIDCService:
             await self.user_repo.assign_plant_role(user.id, plant.id, role_enum)
 
         await self.session.flush()
+
+    async def initiate_logout(self, provider_id: int) -> Optional[str]:
+        """Get the IdP end_session_endpoint URL for RP-initiated logout.
+
+        Returns the full logout URL with post_logout_redirect_uri, or None
+        if the provider doesn't support RP-initiated logout.
+        """
+        config = await self.repo.get_by_id(provider_id)
+        if config is None:
+            return None
+
+        end_session_url = getattr(config, "end_session_endpoint", None)
+        if not end_session_url:
+            # Try discovery
+            try:
+                metadata = await self._get_oidc_metadata(config.issuer_url)
+                end_session_url = metadata.get("end_session_endpoint")
+            except Exception:
+                pass
+
+        if not end_session_url:
+            return None
+
+        # Append post_logout_redirect_uri if configured
+        post_logout_uri = getattr(config, "post_logout_redirect_uri", None)
+        if post_logout_uri:
+            separator = "&" if "?" in end_session_url else "?"
+            end_session_url = f"{end_session_url}{separator}post_logout_redirect_uri={post_logout_uri}"
+
+        return end_session_url
 
     @staticmethod
     def map_roles(oidc_claims: dict[str, Any], role_mapping_config: dict[str, str]) -> str:

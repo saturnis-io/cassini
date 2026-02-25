@@ -1,4 +1,9 @@
-"""OpenSPC FastAPI Application."""
+"""
+OpenSPC FastAPI Application.
+
+Copyright (c) 2026 OpenSPC Contributors
+SPDX-License-Identifier: AGPL-3.0-only
+"""
 
 import structlog
 from contextlib import asynccontextmanager
@@ -29,6 +34,8 @@ from openspc.api.v1.msa import router as msa_router
 from openspc.api.v1.hierarchy import router as hierarchy_router
 from openspc.api.v1.notifications import router as notifications_router
 from openspc.api.v1.oidc import router as oidc_router
+from openspc.api.v1.push import router as push_router
+from openspc.api.v1.erp_connectors import router as erp_router
 from openspc.api.v1.hierarchy import plant_hierarchy_router
 from openspc.api.v1.plants import router as plants_router
 from openspc.api.v1.providers import router as providers_router
@@ -39,6 +46,10 @@ from openspc.api.v1.samples import router as samples_router
 from openspc.api.v1.signatures import router as signatures_router
 from openspc.api.v1.users import router as users_router
 from openspc.api.v1.tags import router as tags_router
+from openspc.api.v1.multivariate import router as multivariate_router
+from openspc.api.v1.predictions import router as predictions_router
+from openspc.api.v1.ai_analysis import router as ai_analysis_router
+from openspc.api.v1.doe import router as doe_router
 from openspc.api.v1.violations import router as violations_router
 from openspc.api.v1.websocket import manager as ws_manager
 from openspc.api.v1.websocket import router as websocket_router
@@ -170,6 +181,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.anomaly_detector = anomaly_detector
     logger.info("Anomaly detector initialized")
 
+    # Initialize forecasting engine (subscribes to SampleProcessedEvent)
+    try:
+        from openspc.core.forecasting import ForecastingEngine
+        forecasting_engine = ForecastingEngine(event_bus, db.session)
+        forecasting_engine.setup_subscriptions()
+        app.state.forecasting_engine = forecasting_engine
+        logger.info("Forecasting engine initialized")
+    except ImportError:
+        logger.info("Forecasting engine unavailable (statsmodels not installed)")
+
     # Initialize signature workflow engine
     from openspc.core.signature_engine import SignatureWorkflowEngine
     signature_engine = SignatureWorkflowEngine(db.session, event_bus)
@@ -180,6 +201,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     notification_dispatcher = NotificationDispatcher(event_bus, db.session)
     app.state.notification_dispatcher = notification_dispatcher
     logger.info("Notification dispatcher initialized")
+
+    # Initialize Push notification service (subscribes to events)
+    from openspc.core.push_service import PushNotificationService
+    push_service = PushNotificationService(event_bus, db.session)
+    app.state.push_service = push_service
+
+    # Initialize ERP sync engine (background scheduler)
+    from openspc.core.erp.sync_engine import ERPSyncEngine
+    erp_sync_engine = ERPSyncEngine(event_bus)
+    await erp_sync_engine.start()
+    app.state.erp_sync_engine = erp_sync_engine
+
+    # Initialize ERP outbound publisher (subscribes to events)
+    from openspc.core.erp.outbound_publisher import ERPOutboundPublisher
+    erp_outbound_publisher = ERPOutboundPublisher(event_bus, db.session)
+    app.state.erp_outbound_publisher = erp_outbound_publisher
+    logger.info("ERP integration services initialized")
 
     # Initialize audit trail service and event bus subscriptions
     audit_service = AuditService(db.session)
@@ -270,6 +308,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown MQTT manager
     await mqtt_manager.shutdown()
 
+    # Shutdown ERP sync engine
+    if hasattr(app.state, 'erp_sync_engine'):
+        await app.state.erp_sync_engine.stop()
+
     # Wait for pending event handlers to complete
     await event_bus.shutdown()
 
@@ -339,6 +381,12 @@ app.include_router(scheduled_reports_router)
 app.include_router(samples_router)
 app.include_router(signatures_router)
 app.include_router(tags_router)
+app.include_router(push_router)
+app.include_router(erp_router)
+app.include_router(multivariate_router)
+app.include_router(predictions_router)
+app.include_router(ai_analysis_router)
+app.include_router(doe_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)
 app.include_router(health_router, prefix="/api/v1")

@@ -156,7 +156,7 @@ async def get_study(
     return resp
 
 
-@router.delete("/studies/{study_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/studies/{study_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_study(
     study_id: int,
     session: AsyncSession = Depends(get_db_session),

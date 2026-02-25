@@ -195,7 +195,7 @@ async def update_config(
     return AnomalyConfigResponse.model_validate(config)
 
 
-@router.delete("/{char_id}/config", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{char_id}/config", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def reset_config(
     char_id: int,
     session: AsyncSession = Depends(get_db_session),

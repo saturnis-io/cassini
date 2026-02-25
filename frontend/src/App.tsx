@@ -1,3 +1,9 @@
+/**
+ * OpenSPC - Event-Driven Statistical Process Control System
+ * Copyright (c) 2026 OpenSPC Contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
 import './i18n/config'
 import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
@@ -27,12 +33,17 @@ import { ServersTab } from '@/components/connectivity/ServersTab'
 import { BrowseTab } from '@/components/connectivity/BrowseTab'
 import { MappingTab } from '@/components/connectivity/MappingTab'
 import { GagesTab } from '@/components/connectivity/GagesTab'
+import { IntegrationsTab } from '@/components/erp/IntegrationsTab'
 import { ViolationsView } from '@/pages/ViolationsView'
 import { ReportsView } from '@/pages/ReportsView'
 import { MSAPage } from '@/pages/MSAPage'
 import { FAIPage } from '@/pages/FAIPage'
 import { FAIReportEditor } from '@/components/fai/FAIReportEditor'
 import { MSAStudyEditor } from '@/components/msa/MSAStudyEditor'
+import { AnalyticsPage } from '@/pages/AnalyticsPage'
+import { DOEPage } from '@/pages/DOEPage'
+import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
+import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { LoginPage } from '@/pages/LoginPage'
@@ -214,6 +225,7 @@ function App() {
                   <Route path="browse" element={<BrowseTab />} />
                   <Route path="mapping" element={<MappingTab />} />
                   <Route path="gages" element={<GagesTab />} />
+                  <Route path="integrations" element={<IntegrationsTab />} />
                 </Route>
                 <Route
                   path="configuration"
@@ -252,6 +264,38 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole="engineer">
                       <FAIReportEditor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="analytics"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <AnalyticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="doe"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <DOEPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="doe/new"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <DOEStudyEditor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="doe/:studyId"
+                  element={
+                    <ProtectedRoute requiredRole="engineer">
+                      <DOEStudyEditor />
                     </ProtectedRoute>
                   }
                 />
@@ -302,6 +346,14 @@ function App() {
                     }
                   />
                   <Route path="signatures" element={<SignatureSettingsPage />} />
+                  <Route
+                    path="ai"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <AIConfigSettings />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="database" element={<DatabaseSettings />} />
                 </Route>
                 <Route

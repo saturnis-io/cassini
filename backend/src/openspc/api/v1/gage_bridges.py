@@ -327,7 +327,7 @@ async def update_bridge(
     return GageBridgeResponse.model_validate(bridge)
 
 
-@router.delete("/{bridge_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{bridge_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_bridge(
     bridge_id: int,
     session: AsyncSession = Depends(get_db_session),
@@ -426,7 +426,7 @@ async def get_my_config(
     }
 
 
-@router.post("/{bridge_id}/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{bridge_id}/heartbeat", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def bridge_heartbeat(
     bridge_id: int,
     body: BridgeHeartbeat,
@@ -659,6 +659,7 @@ async def update_port(
 @router.delete(
     "/{bridge_id}/ports/{port_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_port(
     bridge_id: int,

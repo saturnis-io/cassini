@@ -175,7 +175,7 @@ async def set_hierarchy_policy(
     return RetentionPolicyResponse.model_validate(policy)
 
 
-@router.delete("/hierarchy/{hierarchy_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/hierarchy/{hierarchy_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_hierarchy_policy(
     hierarchy_id: int,
     repo: RetentionRepository = Depends(get_retention_repo),
@@ -270,6 +270,7 @@ async def set_characteristic_policy(
 @router.delete(
     "/characteristic/{characteristic_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def delete_characteristic_policy(
     characteristic_id: int,

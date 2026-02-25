@@ -116,7 +116,7 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
                     onClick={() => handleSelect(server)}
                     className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition-colors ${
                       isSelected
-                        ? 'bg-indigo-500/10 text-indigo-300'
+                        ? 'bg-primary/10 text-primary'
                         : server.isConnected
                           ? 'text-foreground hover:bg-muted'
                           : 'text-muted-foreground hover:bg-muted/50'

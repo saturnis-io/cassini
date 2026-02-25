@@ -177,7 +177,7 @@ async def update_report(
     return FAIReportResponse.model_validate(report)
 
 
-@router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_report(
     report_id: int,
     session: AsyncSession = Depends(get_db_session),
@@ -289,7 +289,7 @@ async def update_item(
     return FAIItemResponse.model_validate(item)
 
 
-@router.delete("/reports/{report_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/reports/{report_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_item(
     report_id: int,
     item_id: int,

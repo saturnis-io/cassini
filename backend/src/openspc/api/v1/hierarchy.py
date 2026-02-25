@@ -291,7 +291,7 @@ async def update_hierarchy_node(
         )
 
 
-@router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_hierarchy_node(
     node_id: int,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),

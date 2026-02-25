@@ -360,7 +360,7 @@ async def seed() -> None:
         stats["nodes"] += 1
 
         for letter, nom, num_s, sr_mode in SHORT_RUNS:
-            sigma = nom * 0.0002  # 0.02% of nominal
+            sigma = nom * 0.002  # 0.2% of nominal → Cp ≈ 1.67
             char = Characteristic(
                 hierarchy_id=cell2.id,
                 name=f"Run-{letter} (Nom={nom}mm)",

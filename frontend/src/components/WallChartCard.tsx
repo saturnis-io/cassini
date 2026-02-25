@@ -3,6 +3,7 @@ import { Maximize2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristic, useChartData } from '@/api/hooks'
 import { ControlChart } from '@/components/ControlChart'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 interface WallChartCardProps {
   characteristicId: number
@@ -113,7 +114,9 @@ export function WallChartCard({ characteristicId, onExpand, className }: WallCha
             Loading...
           </div>
         ) : (
-          <ControlChart characteristicId={characteristicId} chartOptions={{ limit: 30 }} />
+          <ErrorBoundary>
+            <ControlChart characteristicId={characteristicId} chartOptions={{ limit: 30 }} />
+          </ErrorBoundary>
         )}
       </div>
 

@@ -21,6 +21,23 @@ from openspc.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from openspc.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
 from openspc.db.models.notification import NotificationPreference, SmtpConfig, WebhookConfig
 from openspc.db.models.oidc_config import OIDCConfig
+from openspc.db.models.oidc_state import OIDCAccountLink, OIDCState
+from openspc.db.models.push_subscription import PushSubscription
+from openspc.db.models.erp_connector import (
+    ERPConnector,
+    ERPFieldMapping,
+    ERPSyncLog,
+    ERPSyncSchedule,
+)
+from openspc.db.models.ai_config import AIInsight, AIProviderConfig
+from openspc.db.models.doe import DOEAnalysis, DOEFactor, DOERun, DOEStudy
+from openspc.db.models.multivariate import (
+    CorrelationResult,
+    MultivariateGroup,
+    MultivariateGroupMember,
+    MultivariateSample,
+)
+from openspc.db.models.prediction import Forecast, PredictionConfig, PredictionModel
 from openspc.db.models.opcua_server import OPCUAServer
 from openspc.db.models.plant import Plant
 from openspc.db.models.purge_history import PurgeHistory
@@ -89,6 +106,30 @@ __all__ = [
     "SignatureWorkflowStep",
     "SignatureWorkflowInstance",
     "PasswordPolicy",
+    # OIDC
+    "OIDCState",
+    "OIDCAccountLink",
+    # Push notifications
+    "PushSubscription",
+    # ERP connectors
+    "ERPConnector",
+    "ERPFieldMapping",
+    "ERPSyncSchedule",
+    "ERPSyncLog",
+    # Sprint 9: Advanced analytics
+    "AIInsight",
+    "AIProviderConfig",
+    "CorrelationResult",
+    "DOEAnalysis",
+    "DOEFactor",
+    "DOERun",
+    "DOEStudy",
+    "Forecast",
+    "MultivariateGroup",
+    "MultivariateGroupMember",
+    "MultivariateSample",
+    "PredictionConfig",
+    "PredictionModel",
     # Enums
     "DataSourceType",
     "HierarchyType",

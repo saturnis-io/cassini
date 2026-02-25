@@ -4,6 +4,7 @@ import { Pause, Play, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristics, useChartData } from '@/api/hooks'
 import { ControlChart } from '@/components/ControlChart'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 /**
  * Status indicator based on control status
@@ -229,7 +230,9 @@ export function KioskView() {
       {/* Chart area - use calc for explicit height that ResponsiveContainer needs */}
       <div className="bg-card relative rounded-lg p-4" style={{ height: 'calc(100vh - 220px)' }}>
         {currentChar && (
-          <ControlChart characteristicId={currentChar.id} chartOptions={{ limit: 50 }} />
+          <ErrorBoundary>
+            <ControlChart characteristicId={currentChar.id} chartOptions={{ limit: 50 }} />
+          </ErrorBoundary>
         )}
 
         {/* Navigation arrows */}

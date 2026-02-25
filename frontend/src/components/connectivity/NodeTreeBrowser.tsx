@@ -178,7 +178,7 @@ function NodeItem({
       {/* Node row */}
       <div
         className={`group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors ${
-          isSelected ? 'bg-indigo-500/15 text-indigo-300' : 'text-foreground hover:bg-muted'
+          isSelected ? 'bg-primary/15 text-primary' : 'text-foreground hover:bg-muted'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {

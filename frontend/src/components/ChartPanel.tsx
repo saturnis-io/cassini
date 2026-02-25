@@ -6,6 +6,7 @@ import { AttributeChart } from './AttributeChart'
 import { CUSUMChart } from './CUSUMChart'
 import { EWMAChart } from './EWMAChart'
 import { DistributionHistogram } from './DistributionHistogram'
+import { ErrorBoundary } from './ErrorBoundary'
 import { useChartData } from '@/api/hooks'
 import type { HistogramPosition } from '@/stores/dashboardStore'
 import type { RegionSelection } from '@/components/RegionActionModal'
@@ -145,26 +146,28 @@ export function ChartPanel({
     >
       {/* Control Chart, Attribute Chart, CUSUM Chart, or EWMA Chart */}
       <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
-        {chartData?.data_type === 'attribute' ? (
-          <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
-        ) : chartData?.chart_type === 'cusum' ? (
-          <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} />
-        ) : chartData?.chart_type === 'ewma' ? (
-          <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} />
-        ) : (
-          <ControlChart
-            characteristicId={characteristicId}
-            chartOptions={chartOptions}
-            label={label}
-            showSpecLimits={showSpecLimits}
-            colorScheme={colorScheme}
-            yAxisDomain={showHistogram ? yAxisDomain : undefined}
-            onHoverValue={showHistogram ? setHoveredValue : undefined}
-            highlightedRange={hoveredBinRange}
-            onPointAnnotation={onPointAnnotation}
-            onRegionSelect={onRegionSelect}
-          />
-        )}
+        <ErrorBoundary>
+          {chartData?.data_type === 'attribute' ? (
+            <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} />
+          ) : chartData?.chart_type === 'cusum' ? (
+            <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} />
+          ) : chartData?.chart_type === 'ewma' ? (
+            <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} />
+          ) : (
+            <ControlChart
+              characteristicId={characteristicId}
+              chartOptions={chartOptions}
+              label={label}
+              showSpecLimits={showSpecLimits}
+              colorScheme={colorScheme}
+              yAxisDomain={showHistogram ? yAxisDomain : undefined}
+              onHoverValue={showHistogram ? setHoveredValue : undefined}
+              highlightedRange={hoveredBinRange}
+              onPointAnnotation={onPointAnnotation}
+              onRegionSelect={onRegionSelect}
+            />
+          )}
+        </ErrorBoundary>
       </div>
 
       {/* Histogram */}

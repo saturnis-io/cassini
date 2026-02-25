@@ -41,6 +41,10 @@ interface UIState {
   // Language / i18n
   language: string
   setLanguage: (lang: string) => void
+
+  // Offline mutation queue count
+  offlineQueueCount: number
+  setOfflineQueueCount: (count: number) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -86,6 +90,10 @@ export const useUIStore = create<UIState>()(
       // Language / i18n
       language: 'en',
       setLanguage: (lang) => set({ language: lang }),
+
+      // Offline queue count (not persisted — derived from IndexedDB)
+      offlineQueueCount: 0,
+      setOfflineQueueCount: (count) => set({ offlineQueueCount: count }),
     }),
     {
       name: 'openspc-ui',

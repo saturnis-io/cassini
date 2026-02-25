@@ -138,7 +138,7 @@ async def update_user(
         )
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def deactivate_user(
     user_id: int,
     current_user: User = Depends(get_current_admin),
@@ -162,7 +162,7 @@ async def deactivate_user(
         )
 
 
-@router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user_permanent(
     user_id: int,
     current_user: User = Depends(get_current_admin),
@@ -227,7 +227,7 @@ async def assign_plant_role(
     return _build_user_with_roles(user)  # type: ignore[arg-type]
 
 
-@router.delete("/{user_id}/roles/{plant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}/roles/{plant_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def remove_plant_role(
     user_id: int,
     plant_id: int,

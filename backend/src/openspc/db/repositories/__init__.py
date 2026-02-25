@@ -14,12 +14,23 @@ Repositories:
     - OPCUAServerRepository: OPC-UA server configuration management
 """
 
+from openspc.db.repositories.ai_config_repo import AIInsightRepository, AIProviderConfigRepository
 from openspc.db.repositories.base import BaseRepository
 from openspc.db.repositories.broker import BrokerRepository
 from openspc.db.repositories.capability import CapabilityHistoryRepository
 from openspc.db.repositories.characteristic import CharacteristicRepository
 from openspc.db.repositories.data_source import DataSourceRepository
+from openspc.db.repositories.doe_repo import DOEAnalysisRepository, DOERunRepository, DOEStudyRepository
 from openspc.db.repositories.hierarchy import HierarchyNode, HierarchyRepository
+from openspc.db.repositories.multivariate_repo import (
+    CorrelationResultRepository,
+    MultivariateGroupRepository,
+)
+from openspc.db.repositories.prediction_repo import (
+    ForecastRepository,
+    PredictionConfigRepository,
+    PredictionModelRepository,
+)
 from openspc.db.repositories.oidc_config_repo import OIDCConfigRepository
 from openspc.db.repositories.opcua_server import OPCUAServerRepository
 from openspc.db.repositories.plant import PlantRepository
@@ -33,13 +44,23 @@ __all__ = [
     # Base
     "BaseRepository",
     # Repositories
+    "AIInsightRepository",
+    "AIProviderConfigRepository",
     "BrokerRepository",
     "CapabilityHistoryRepository",
+    "CorrelationResultRepository",
     "DataSourceRepository",
+    "DOEAnalysisRepository",
+    "DOERunRepository",
+    "DOEStudyRepository",
+    "ForecastRepository",
     "HierarchyRepository",
+    "MultivariateGroupRepository",
     "OIDCConfigRepository",
     "OPCUAServerRepository",
     "PlantRepository",
+    "PredictionConfigRepository",
+    "PredictionModelRepository",
     "PurgeHistoryRepository",
     "RetentionRepository",
     "UserRepository",

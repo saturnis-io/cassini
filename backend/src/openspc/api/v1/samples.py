@@ -604,7 +604,7 @@ async def toggle_exclude(
         )
 
 
-@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_sample(
     sample_id: int,
     session: AsyncSession = Depends(get_db_session),

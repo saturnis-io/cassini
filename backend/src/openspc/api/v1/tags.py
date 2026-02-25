@@ -155,7 +155,7 @@ async def create_mapping(
     )
 
 
-@router.delete("/map/{characteristic_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/map/{characteristic_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_mapping(
     characteristic_id: int,
     session: AsyncSession = Depends(get_db_session),

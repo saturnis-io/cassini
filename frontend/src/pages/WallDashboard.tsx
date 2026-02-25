@@ -6,6 +6,7 @@ import { useCharacteristics, useChartData } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { WallChartCard } from '@/components/WallChartCard'
 import { ControlChart } from '@/components/ControlChart'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 type GridSize = '2x2' | '3x3' | '4x4' | '2x3' | '3x2'
 
@@ -122,7 +123,9 @@ function ExpandedChartModal({
 
         {/* Chart area */}
         <div className="min-h-0 flex-1 p-6">
-          <ControlChart characteristicId={characteristicId} chartOptions={{ limit: 100 }} />
+          <ErrorBoundary>
+            <ControlChart characteristicId={characteristicId} chartOptions={{ limit: 100 }} />
+          </ErrorBoundary>
         </div>
 
         {/* Stats footer */}

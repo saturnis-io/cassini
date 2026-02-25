@@ -6,7 +6,7 @@ Uses JWT access tokens (in response body) and refresh tokens (in httpOnly cookie
 
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from openspc.core.rate_limit import limiter
@@ -192,8 +192,13 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response) -> dict:
-    """Clear the refresh token cookie."""
+async def logout(
+    request: Request,
+    response: Response,
+    oidc_provider_id: Optional[int] = Query(None, description="OIDC provider ID for RP-initiated logout"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Clear the refresh token cookie. Optionally return OIDC logout URL."""
     response.delete_cookie(
         key=REFRESH_COOKIE_KEY,
         path=REFRESH_COOKIE_PATH,
@@ -209,7 +214,18 @@ async def logout(request: Request, response: Response) -> dict:
             username=username,
             ip_address=_get_client_ip(request),
         )
-    return {"message": "Logged out successfully"}
+
+    result = {"message": "Logged out successfully"}
+
+    # If OIDC provider specified, get IdP logout URL
+    if oidc_provider_id is not None:
+        from openspc.core.oidc_service import OIDCService
+        service = OIDCService(session)
+        logout_url = await service.initiate_logout(oidc_provider_id)
+        if logout_url:
+            result["oidc_logout_url"] = logout_url
+
+    return result
 
 
 @router.get("/me", response_model=UserWithRolesResponse)

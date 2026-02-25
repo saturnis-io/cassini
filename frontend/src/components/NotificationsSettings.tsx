@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bell, Globe, Mail, Plus, TestTube, Trash2, Check, Loader2 } from 'lucide-react'
+import { Bell, Globe, Mail, Plus, Smartphone, TestTube, Trash2, Check, Loader2, BellRing, BellOff, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { inputErrorClass } from '@/lib/validation'
 import { useAuth } from '@/providers/AuthProvider'
@@ -46,6 +46,9 @@ export function NotificationsSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Push notifications — always visible */}
+      <PushSection />
+
       {/* User Preferences — always visible */}
       <PreferencesSection />
 
@@ -55,6 +58,159 @@ export function NotificationsSettings() {
           <SmtpSection />
           <WebhookSection />
         </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Push notifications (browser)
+// ---------------------------------------------------------------------------
+
+function PushSection() {
+  const [isEnabled, setIsEnabled] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [supported, setSupported] = useState(true)
+  const [permState, setPermState] = useState<NotificationPermission>('default')
+  const [testSent, setTestSent] = useState(false)
+
+  useEffect(() => {
+    async function checkStatus() {
+      const { isPushSupported, isSubscribed, getPermissionState } = await import('@/lib/push-manager')
+      if (!isPushSupported()) {
+        setSupported(false)
+        setIsLoading(false)
+        return
+      }
+      setPermState(getPermissionState())
+      const subscribed = await isSubscribed()
+      setIsEnabled(subscribed)
+      setIsLoading(false)
+    }
+    checkStatus()
+  }, [])
+
+  const handleToggle = async () => {
+    const { subscribeToPush, unsubscribeFromPush } = await import('@/lib/push-manager')
+    setIsLoading(true)
+    if (isEnabled) {
+      const ok = await unsubscribeFromPush()
+      if (ok) setIsEnabled(false)
+    } else {
+      const ok = await subscribeToPush()
+      if (ok) {
+        setIsEnabled(true)
+        setPermState('granted')
+      }
+    }
+    setIsLoading(false)
+  }
+
+  const handleTestNotification = () => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('OpenSPC Test', {
+        body: 'Push notifications are working correctly.',
+        icon: '/icons/icon-192.png',
+      })
+      setTestSent(true)
+      setTimeout(() => setTestSent(false), 3000)
+    }
+  }
+
+  return (
+    <div className="bg-muted rounded-xl p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <Smartphone className="text-muted-foreground h-5 w-5" />
+        <h3 className="font-semibold">Push Notifications</h3>
+      </div>
+
+      {!supported ? (
+        <div className="flex items-center gap-2 text-sm text-amber-600">
+          <AlertTriangle className="h-4 w-4" />
+          Push notifications are not supported in this browser.
+        </div>
+      ) : isLoading ? (
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking push status...
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium">Browser Push Notifications</div>
+              <div className="text-muted-foreground text-xs">
+                {permState === 'denied'
+                  ? 'Notifications blocked by browser. Update your browser settings to allow notifications for this site.'
+                  : isEnabled
+                    ? 'You will receive push alerts for SPC violations and limit updates.'
+                    : 'Enable to receive real-time alerts even when OpenSPC is not open.'}
+              </div>
+            </div>
+            <button
+              onClick={handleToggle}
+              disabled={permState === 'denied'}
+              className={cn(
+                'relative h-6 w-11 rounded-full transition-colors disabled:opacity-50',
+                isEnabled ? 'bg-primary' : 'bg-muted-foreground/20',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform',
+                  isEnabled && 'translate-x-5',
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Status badges */}
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
+                isEnabled
+                  ? 'bg-success/10 text-success'
+                  : 'bg-muted-foreground/10 text-muted-foreground',
+              )}
+            >
+              {isEnabled ? (
+                <BellRing className="h-3 w-3" />
+              ) : (
+                <BellOff className="h-3 w-3" />
+              )}
+              {isEnabled ? 'Subscribed' : 'Not subscribed'}
+            </span>
+            <span
+              className={cn(
+                'rounded px-2 py-0.5 text-xs font-medium',
+                permState === 'granted'
+                  ? 'bg-success/10 text-success'
+                  : permState === 'denied'
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-muted-foreground/10 text-muted-foreground',
+              )}
+            >
+              Permission: {permState}
+            </span>
+          </div>
+
+          {/* Test button */}
+          {isEnabled && (
+            <button
+              onClick={handleTestNotification}
+              disabled={testSent}
+              className="hover:bg-muted flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:opacity-50"
+            >
+              {testSent ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <TestTube className="h-4 w-4" />
+              )}
+              {testSent ? 'Sent' : 'Send Test Notification'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

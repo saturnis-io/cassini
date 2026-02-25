@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { useChartData, useViolations, useCharacteristic, useAnnotations } from '@/api/hooks'
+import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
 import { CUSUMChart } from '@/components/CUSUMChart'
@@ -16,18 +16,15 @@ import type { ChartData, Violation, Annotation } from '@/types'
  */
 function getChartMeasurements(chartData: ChartData): number[] {
   if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
-    console.log('[Report] Using CUSUM data points:', chartData.cusum_data_points.length)
     return chartData.cusum_data_points
       .filter((p) => !p.excluded)
       .map((p) => p.measurement)
   }
   if (chartData.chart_type === 'ewma' && chartData.ewma_data_points?.length) {
-    console.log('[Report] Using EWMA data points:', chartData.ewma_data_points.length)
     return chartData.ewma_data_points
       .filter((p) => !p.excluded)
       .map((p) => p.measurement)
   }
-  console.log('[Report] Using standard data points:', chartData.data_points.length)
   return chartData.data_points.filter((p) => !p.excluded).map((p) => p.mean)
 }
 
@@ -166,6 +163,7 @@ export function ReportPreview({
             violations={violations?.items || []}
             annotations={annotations || []}
             characteristicIds={characteristicIds}
+            characteristicId={primaryCharId}
             chartOptions={chartOptions}
           />
         ))}
@@ -182,6 +180,7 @@ interface SectionProps {
   violations: Violation[]
   annotations: Annotation[]
   characteristicIds: number[]
+  characteristicId?: number
   chartOptions?: {
     limit?: number
     startDate?: string
@@ -197,6 +196,7 @@ function ReportSectionComponent({
   violations,
   annotations,
   characteristicIds,
+  characteristicId,
   chartOptions,
 }: SectionProps) {
   switch (section) {
@@ -224,7 +224,6 @@ function ReportSectionComponent({
 
     case 'controlChart':
       if (!chartData || characteristicIds.length === 0) return null
-      console.log('[Report] controlChart section — chart_type:', chartData.chart_type, 'data_type:', chartData.data_type)
       return (
         <div className="border-border rounded-lg border p-4">
           <h2 className="mb-4 text-lg font-semibold">
@@ -370,11 +369,10 @@ function ReportSectionComponent({
 
     case 'histogram':
       if (!chartData) return null
-      return <ReportHistogramSection chartData={chartData} />
+      return <ReportHistogramSection chartData={chartData} characteristicId={characteristicId} />
 
     case 'capabilityMetrics':
-      if (!chartData) return null
-      return <ReportCapabilitySection chartData={chartData} />
+      return <ReportCapabilitySection characteristicId={characteristicId} chartData={chartData} />
 
     case 'interpretation':
       if (!chartData) return null
@@ -576,26 +574,54 @@ function calculateStatistics(chartData: ChartData) {
 }
 
 /**
- * Histogram section for reports (ECharts)
+ * Histogram section for reports (ECharts).
+ * Always uses RAW measurement values (not Z-score transformed) so the
+ * histogram is in natural units. Spec limits come from the capability API
+ * (raw) rather than chartData (which may be Z-score transformed for
+ * short-run standardized mode).
  */
-function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
+function ReportHistogramSection({
+  chartData,
+  characteristicId,
+}: {
+  chartData: ChartData
+  characteristicId?: number
+}) {
+  // Always use raw measurements for the histogram
   const values = getChartMeasurements(chartData)
+
+  // Get raw spec limits and sigma from the capability API
+  const { data: capability } = useCapability(characteristicId ?? 0)
 
   const option = useMemo(() => {
     if (values.length === 0) return null
 
-    const { spec_limits, control_limits } = chartData
+    const mean = values.reduce((a, b) => a + b, 0) / values.length
+    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
 
-    // Calculate domain including all limits so they're always visible
-    const allValues = [
-      ...values,
-      ...(spec_limits.lsl != null ? [spec_limits.lsl] : []),
-      ...(spec_limits.usl != null ? [spec_limits.usl] : []),
-      ...(control_limits.lcl != null ? [control_limits.lcl] : []),
-      ...(control_limits.ucl != null ? [control_limits.ucl] : []),
-    ]
-    const domainMin = Math.min(...allValues)
-    const domainMax = Math.max(...allValues)
+    // Use raw limits from capability API (unaffected by short-run transforms)
+    const rawLSL = capability?.lsl ?? null
+    const rawUSL = capability?.usl ?? null
+    const sigmaWithin = capability?.sigma_within ?? stdDev
+
+    // Compute raw control limits: mean ± 3*sigma_within
+    const rawLCL = mean - 3 * sigmaWithin
+    const rawUCL = mean + 3 * sigmaWithin
+
+    // Domain: data + control limits + spec limits (when within reasonable range)
+    const domainValues = [...values, rawLCL, rawUCL]
+    const dataSpread = Math.max(...values) - Math.min(...values) || 1
+    const specThreshold = dataSpread * 4
+    if (rawLSL != null && rawLSL >= Math.min(...values) - specThreshold) {
+      domainValues.push(rawLSL)
+    }
+    if (rawUSL != null && rawUSL <= Math.max(...values) + specThreshold) {
+      domainValues.push(rawUSL)
+    }
+
+    const domainMin = Math.min(...domainValues)
+    const domainMax = Math.max(...domainValues)
     const domainPadding = (domainMax - domainMin) * 0.1
 
     // Calculate histogram bins
@@ -614,7 +640,6 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
       bins[binIndex].count++
     })
 
-    const mean = values.reduce((a, b) => a + b, 0) / values.length
     const maxCount = Math.max(...bins.map((b) => b.count))
 
     // Build reference markLines
@@ -628,28 +653,26 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
         lineStyle: { color: 'hsl(212 100% 35%)', width: 2, type: 'dashed' },
         label: { show: false },
       },
+      {
+        xAxis: rawLCL,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      },
+      {
+        xAxis: rawUCL,
+        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
+        label: { show: false },
+      },
     ]
-    if (control_limits.lcl != null)
+    if (rawLSL != null)
       markLineData.push({
-        xAxis: control_limits.lcl,
-        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
-        label: { show: false },
-      })
-    if (control_limits.ucl != null)
-      markLineData.push({
-        xAxis: control_limits.ucl,
-        lineStyle: { color: 'hsl(179 50% 59%)', width: 1.5, type: 'dashed' },
-        label: { show: false },
-      })
-    if (spec_limits.lsl != null)
-      markLineData.push({
-        xAxis: spec_limits.lsl,
+        xAxis: rawLSL,
         lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' },
         label: { show: false },
       })
-    if (spec_limits.usl != null)
+    if (rawUSL != null)
       markLineData.push({
-        xAxis: spec_limits.usl,
+        xAxis: rawUSL,
         lineStyle: { color: 'hsl(357 80% 52%)', width: 2, type: 'solid' },
         label: { show: false },
       })
@@ -688,14 +711,16 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
         },
       ],
     }
-  }, [values, chartData])
+  }, [values, capability])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
   if (values.length === 0) return null
 
   const mean = values.reduce((a, b) => a + b, 0) / values.length
-  const { spec_limits, control_limits } = chartData
+  const rawLSL = capability?.lsl ?? null
+  const rawUSL = capability?.usl ?? null
+  const sigmaWithin = capability?.sigma_within ?? null
 
   return (
     <div className="border-border rounded-lg border p-4">
@@ -715,19 +740,19 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
           />
         )}
       </div>
-      <div className="text-muted-foreground mt-2 flex justify-center gap-6 text-xs">
+      <div className="text-muted-foreground mt-2 flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs">
         <span>Mean: {mean.toFixed(4)}</span>
-        {control_limits.lcl != null && (
-          <span className="text-teal-600">LCL: {control_limits.lcl.toFixed(4)}</span>
+        {sigmaWithin != null && (
+          <>
+            <span className="text-accent">LCL: {(mean - 3 * sigmaWithin).toFixed(4)}</span>
+            <span className="text-accent">UCL: {(mean + 3 * sigmaWithin).toFixed(4)}</span>
+          </>
         )}
-        {control_limits.ucl != null && (
-          <span className="text-teal-600">UCL: {control_limits.ucl.toFixed(4)}</span>
+        {rawLSL != null && (
+          <span className="text-destructive">LSL: {rawLSL}</span>
         )}
-        {spec_limits.lsl != null && (
-          <span className="text-destructive">LSL: {spec_limits.lsl}</span>
-        )}
-        {spec_limits.usl != null && (
-          <span className="text-destructive">USL: {spec_limits.usl}</span>
+        {rawUSL != null && (
+          <span className="text-destructive">USL: {rawUSL}</span>
         )}
       </div>
     </div>
@@ -735,53 +760,49 @@ function ReportHistogramSection({ chartData }: { chartData: ChartData }) {
 }
 
 /**
- * Capability metrics section for reports
+ * Capability metrics section for reports.
+ * Uses the backend capability API (stored_sigma) instead of client-side
+ * zone_boundary arithmetic, which produces wrong values for short-run modes.
  */
-function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
-  const values = getChartMeasurements(chartData)
-  if (values.length < 2) return null
+function ReportCapabilitySection({
+  characteristicId,
+  chartData,
+}: {
+  characteristicId?: number
+  chartData?: ChartData
+}) {
+  const { data: capability, isLoading, error } = useCapability(characteristicId ?? 0)
 
-  const mean = values.reduce((a, b) => a + b, 0) / values.length
-  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (values.length - 1)
-  const stdDev = Math.sqrt(variance)
+  // Compute overall sigma from chart data for the footer (sample std dev)
+  const sigmaOverall = useMemo(() => {
+    if (!chartData) return null
+    const values = getChartMeasurements(chartData)
+    if (values.length < 2) return null
+    const mean = values.reduce((a, b) => a + b, 0) / values.length
+    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (values.length - 1)
+    return Math.sqrt(variance)
+  }, [chartData])
 
-  const { spec_limits, control_limits, zone_boundaries } = chartData
-  const usl = spec_limits.usl
-  const lsl = spec_limits.lsl
-  const centerLine = control_limits.center_line
-
-  let cp = 0,
-    cpk = 0,
-    pp = 0,
-    ppk = 0
-
-  if (usl !== null && lsl !== null && stdDev > 0) {
-    // Within sigma (from control chart)
-    const withinSigma =
-      zone_boundaries.plus_1_sigma && centerLine
-        ? zone_boundaries.plus_1_sigma - centerLine
-        : stdDev
-
-    // Cp/Cpk (potential capability)
-    cp = (usl - lsl) / (6 * withinSigma)
-    const cpu = (usl - mean) / (3 * withinSigma)
-    const cpl = (mean - lsl) / (3 * withinSigma)
-    cpk = Math.min(cpu, cpl)
-
-    // Pp/Ppk (overall performance)
-    pp = (usl - lsl) / (6 * stdDev)
-    const ppu = (usl - mean) / (3 * stdDev)
-    const ppl = (mean - lsl) / (3 * stdDev)
-    ppk = Math.min(ppu, ppl)
-  }
-
-  const getCapabilityStatus = (value: number) => {
+  const getCapabilityStatus = (value: number | null) => {
+    if (value == null) return { text: '-', color: 'text-muted-foreground' }
     if (value >= 1.33) return { text: 'Capable', color: 'text-success' }
     if (value >= 1.0) return { text: 'Marginal', color: 'text-warning' }
     return { text: 'Not Capable', color: 'text-destructive' }
   }
 
-  if (!usl || !lsl) {
+  if (!characteristicId) return null
+
+  if (isLoading) {
+    return (
+      <div className="border-border rounded-lg border p-4">
+        <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
+        <p className="text-muted-foreground text-sm">Loading capability data...</p>
+      </div>
+    )
+  }
+
+  if (error || !capability) {
+    // API returned an error — likely no spec limits defined
     return (
       <div className="border-border rounded-lg border p-4">
         <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
@@ -792,33 +813,55 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
     )
   }
 
+  const { cp, cpk, pp, ppk, sample_count, sigma_within, usl, lsl, short_run_mode } = capability
+
+  if (usl == null && lsl == null) {
+    return (
+      <div className="border-border rounded-lg border p-4">
+        <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
+        <p className="text-muted-foreground text-sm">
+          Capability metrics require specification limits (USL/LSL) to be defined.
+        </p>
+      </div>
+    )
+  }
+
+  const formatValue = (v: number | null) => (v != null ? v.toFixed(2) : '-')
+
   return (
     <div className="border-border rounded-lg border p-4">
-      <h2 className="mb-4 text-lg font-semibold">Process Capability</h2>
+      <h2 className="mb-4 text-lg font-semibold">
+        Process Capability
+        {short_run_mode && (
+          <span className="text-muted-foreground ml-2 text-sm font-normal">
+            ({short_run_mode === 'deviation' ? 'Deviation' : 'Standardized'} mode)
+          </span>
+        )}
+      </h2>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="bg-muted/50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold">{cp.toFixed(2)}</div>
+          <div className="text-2xl font-bold">{formatValue(cp)}</div>
           <div className="text-muted-foreground text-sm">Cp</div>
           <div className={cn('text-xs', getCapabilityStatus(cp).color)}>
             {getCapabilityStatus(cp).text}
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold">{cpk.toFixed(2)}</div>
+          <div className="text-2xl font-bold">{formatValue(cpk)}</div>
           <div className="text-muted-foreground text-sm">Cpk</div>
           <div className={cn('text-xs', getCapabilityStatus(cpk).color)}>
             {getCapabilityStatus(cpk).text}
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold">{pp.toFixed(2)}</div>
+          <div className="text-2xl font-bold">{formatValue(pp)}</div>
           <div className="text-muted-foreground text-sm">Pp</div>
           <div className={cn('text-xs', getCapabilityStatus(pp).color)}>
             {getCapabilityStatus(pp).text}
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold">{ppk.toFixed(2)}</div>
+          <div className="text-2xl font-bold">{formatValue(ppk)}</div>
           <div className="text-muted-foreground text-sm">Ppk</div>
           <div className={cn('text-xs', getCapabilityStatus(ppk).color)}>
             {getCapabilityStatus(ppk).text}
@@ -827,15 +870,9 @@ function ReportCapabilitySection({ chartData }: { chartData: ChartData }) {
       </div>
       <div className="text-muted-foreground mt-4 text-sm">
         <div className="flex gap-4">
-          <span>
-            σ (within):{' '}
-            {(zone_boundaries.plus_1_sigma && centerLine
-              ? zone_boundaries.plus_1_sigma - centerLine
-              : stdDev
-            ).toFixed(4)}
-          </span>
-          <span>σ (overall): {stdDev.toFixed(4)}</span>
-          <span>n = {values.length}</span>
+          <span>σ (within): {sigma_within != null ? sigma_within.toFixed(4) : '-'}</span>
+          <span>σ (overall): {sigmaOverall != null ? sigmaOverall.toFixed(4) : '-'}</span>
+          <span>n = {sample_count}</span>
         </div>
       </div>
     </div>

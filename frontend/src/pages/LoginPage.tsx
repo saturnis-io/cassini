@@ -15,7 +15,7 @@ import { setAccessToken } from '@/api/client'
 export function LoginPage() {
   const { t } = useTranslation('auth')
   const { t: tCommon } = useTranslation('common')
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, setOidcProviderId } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -47,15 +47,21 @@ export function LoginPage() {
         .handleCallback(code, state)
         .then((result) => {
           setAccessToken(result.access_token)
+          // The OIDC provider ID was stored in sessionStorage before the IdP redirect.
+          // AuthProvider reads it from sessionStorage on mount, so it persists across
+          // the full page reload below. No need to remove it here — AuthProvider's
+          // setOidcProviderId(null) during logout will clean it up.
           // Force a page reload to let AuthProvider pick up the new session
           window.location.href = from
         })
         .catch((err) => {
+          // Clean up the stored provider ID on failed callback
+          sessionStorage.removeItem('openspc_oidc_provider_id')
           setError((err as Error).message || t('errors.ssoFailed'))
           setSsoLoading(null)
         })
     }
-  }, [searchParams, isAuthenticated, from, t])
+  }, [searchParams, isAuthenticated, from, t, setOidcProviderId])
 
   // If already authenticated, redirect via effect (not during render)
   useEffect(() => {
@@ -87,6 +93,8 @@ export function LoginPage() {
       // Build the callback URL pointing back to this login page
       const callbackUrl = `${window.location.origin}/login`
       const result = await oidcApi.getAuthorizationUrl(providerId, callbackUrl)
+      // Persist provider ID across the redirect so we can set it after callback
+      sessionStorage.setItem('openspc_oidc_provider_id', String(providerId))
       // Redirect to the OIDC provider
       window.location.href = result.authorization_url
     } catch (err) {

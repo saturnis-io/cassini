@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useUIStore } from '@/stores/uiStore'
 import { authApi, setAccessToken } from '@/api/client'
+import { oidcApi } from '@/api/auth.api'
 import type { AuthUser } from '@/types'
 import type { Role } from '@/lib/roles'
 
@@ -21,9 +22,11 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   mustChangePassword: boolean
+  oidcProviderId: number | null
   login: (username: string, password: string, rememberMe?: boolean) => Promise<void>
   logout: () => Promise<void>
   clearMustChangePassword: () => void
+  setOidcProviderId: (id: number | null) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -42,6 +45,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [mustChangePassword, setMustChangePassword] = useState(false)
+  const [oidcProviderId, setOidcProviderIdRaw] = useState<number | null>(() => {
+    // Restore OIDC provider ID from sessionStorage (survives page reloads during SSO flow)
+    const stored = sessionStorage.getItem('openspc_oidc_provider_id')
+    return stored ? Number(stored) : null
+  })
+  // Wrapper that syncs OIDC provider ID to sessionStorage for cross-reload persistence
+  const setOidcProviderId = useCallback((id: number | null) => {
+    setOidcProviderIdRaw(id)
+    if (id !== null) {
+      sessionStorage.setItem('openspc_oidc_provider_id', String(id))
+    } else {
+      sessionStorage.removeItem('openspc_oidc_provider_id')
+    }
+  }, [])
+
   const selectedPlantId = useUIStore((s) => s.selectedPlantId)
 
   // Restore session on mount via refresh token cookie
@@ -81,11 +99,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     function handleLogout() {
       setUser(null)
       setAccessToken(null)
+      setOidcProviderId(null)
     }
 
     window.addEventListener('auth:logout', handleLogout)
     return () => window.removeEventListener('auth:logout', handleLogout)
-  }, [])
+  }, [setOidcProviderId])
 
   const login = useCallback(async (username: string, password: string, rememberMe?: boolean) => {
     const data = await authApi.login(username, password, rememberMe)
@@ -96,14 +115,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(async () => {
     try {
-      await authApi.logout()
+      let oidcLogoutUrl: string | null = null
+
+      // If user logged in via OIDC, get the IdP logout URL
+      if (oidcProviderId) {
+        try {
+          const result = await oidcApi.logout(oidcProviderId)
+          oidcLogoutUrl = result.logout_url
+        } catch {
+          // Ignore — proceed with local logout
+        }
+      }
+
+      await authApi.logout(oidcProviderId)
+      setAccessToken(null)
+      setUser(null)
+      setMustChangePassword(false)
+      setOidcProviderId(null)
+
+      // Redirect to IdP logout if available
+      if (oidcLogoutUrl) {
+        window.location.href = oidcLogoutUrl
+      }
     } catch {
-      // Ignore logout errors
+      // Ensure we clear state even if API call fails
+      setAccessToken(null)
+      setUser(null)
+      setMustChangePassword(false)
+      setOidcProviderId(null)
     }
-    setAccessToken(null)
-    setUser(null)
-    setMustChangePassword(false)
-  }, [])
+  }, [oidcProviderId])
 
   const clearMustChangePassword = useCallback(() => setMustChangePassword(false), [])
 
@@ -150,9 +191,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: user !== null,
         isLoading,
         mustChangePassword,
+        oidcProviderId,
         login,
         logout,
         clearMustChangePassword,
+        setOidcProviderId,
       }}
     >
       {children}

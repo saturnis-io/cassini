@@ -1,84 +1,8 @@
 import i18n from 'i18next'
-import type {
-  ElectronicSignature,
-  SignatureMeaning,
-  SignatureWorkflow,
-  SignatureWorkflowStep,
-  PasswordPolicy,
-  SignResponse,
-  VerifyResponse,
-  PendingApproval,
-} from '@/types/signature'
-import type {
-  Annotation,
-  AnnotationCreate,
-  AnnotationType,
-  AnnotationUpdate,
-  AuditLogListResponse,
-  AuditStats,
-  AuthUser,
-  BrokerConnectionStatus,
-  BrokerTestResult,
-  Characteristic,
-  ChartData,
-  ConnectionTestResult,
-  CreateReportSchedule,
-  DatabaseConfig,
-  DatabaseDialect,
-  DatabaseStatus,
-  DiscoveredTopic,
-  EffectiveRetention,
-  HierarchyNode,
-  LoginResponse,
-  MigrationInfo,
-  MQTTBroker,
-  NextPurgeInfo,
-  OPCUABrowsedNode,
-  OPCUANodeValue,
-  OPCUAServer,
-  OPCUAServerCreate,
-  OPCUAServerStatus,
-  OPCUAServerUpdate,
-  OPCUATestResult,
-  PaginatedResponse,
-  Plant,
-  PlantCreate,
-  PlantUpdate,
-  ProviderStatus,
-  PurgeHistory,
-  RefreshResponse,
-  ReportRun,
-  ReportSchedule,
-  RetentionOverride,
-  RetentionPolicy,
-  RetentionPolicySet,
-  RuleConfig,
-  RulePreset,
-  Sample,
-  SampleEditHistory,
-  SampleProcessingResult,
-  TagMappingCreate,
-  TagMappingResponse,
-  TagPreviewResponse,
-  TagProviderStatus,
-  TopicTreeNode,
-  UpdateReportSchedule,
-  CapabilityResult,
-  CapabilityHistoryItem,
-  CapabilitySnapshotResponse,
-  NonNormalCapabilityResult,
-  DistributionFitResponse,
-  Violation,
-  ViolationStats,
-} from '@/types'
-import type {
-  AnomalyDashboardStats,
-  AnomalyDetectorConfig,
-  AnomalyEvent,
-  AnomalySummary,
-  DetectorStatus,
-} from '@/types/anomaly'
+import type { RefreshResponse } from '@/types'
 import type { ScheduleConfig } from '@/components/ScheduleConfigSection'
+
+// ---- Exported types (used by domain API files and consumers) ----
 
 // Characteristic configuration response type
 export interface CharacteristicConfigResponse {
@@ -102,730 +26,6 @@ export interface CharacteristicConfigResponse {
   is_active: boolean
 }
 
-const API_BASE = '/api/v1'
-
-/** Minimum seconds before token expiry to trigger proactive refresh */
-const TOKEN_EXPIRY_BUFFER_SEC = 120
-
-/** Cooldown period (ms) after a refresh completes before allowing another */
-const REFRESH_COOLDOWN_MS = 5_000
-
-// Access token stored in memory only (not localStorage).
-// Module-scope is acceptable here: this runs in a single browser JS context
-// and the token is never persisted to storage. Only fetchApi and auth hooks
-// access it via the exported getter/setter.
-let accessToken: string | null = null
-let refreshPromise: Promise<string | null> | null = null
-let lastRefreshTime = 0
-
-export function setAccessToken(token: string | null) {
-  accessToken = token
-}
-
-export function getAccessToken(): string | null {
-  return accessToken
-}
-
-/**
- * Decode JWT payload without signature verification (just base64).
- * Returns the exp timestamp in seconds, or null if unparseable.
- */
-function getTokenExpiry(token: string): number | null {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-    return typeof payload.exp === 'number' ? payload.exp : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * Check if the access token is about to expire (within 2 minutes).
- */
-function isTokenExpiringSoon(): boolean {
-  if (!accessToken) return false
-  const exp = getTokenExpiry(accessToken)
-  if (exp === null) return false
-  const nowSec = Math.floor(Date.now() / 1000)
-  return exp - nowSec < TOKEN_EXPIRY_BUFFER_SEC
-}
-
-/**
- * Perform a token refresh. If a refresh is already in flight, return the
- * existing promise so all concurrent 401 callers wait on the same refresh.
- */
-function doRefresh(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise
-
-  // If a refresh just completed within the cooldown window, skip to avoid overlap
-  // between proactive refresh and 401-triggered refresh
-  if (Date.now() - lastRefreshTime < REFRESH_COOLDOWN_MS && accessToken) {
-    return Promise.resolve(accessToken)
-  }
-
-  refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
-    .then(async (res) => {
-      if (res.ok) {
-        const data: RefreshResponse = await res.json()
-        accessToken = data.access_token
-        return accessToken
-      }
-      // Refresh failed — force logout
-      accessToken = null
-      window.dispatchEvent(new CustomEvent('auth:logout'))
-      return null
-    })
-    .catch(() => {
-      accessToken = null
-      window.dispatchEvent(new CustomEvent('auth:logout'))
-      return null
-    })
-    .finally(() => {
-      lastRefreshTime = Date.now()
-      refreshPromise = null
-    })
-
-  return refreshPromise
-}
-
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  // Proactively refresh token before it expires to avoid 401 round-trips
-  if (accessToken && isTokenExpiringSoon() && !endpoint.startsWith('/auth/')) {
-    await doRefresh()
-  }
-
-  const buildHeaders = () => {
-    const h: Record<string, string> = {
-      ...((options?.headers as Record<string, string>) || {}),
-    }
-    // Only set Content-Type for requests that have a body.
-    // Skip for FormData — browser must set multipart boundary automatically.
-    if (options?.body && !(options.body instanceof FormData)) {
-      h['Content-Type'] = h['Content-Type'] || 'application/json'
-    }
-    if (accessToken) {
-      h['Authorization'] = `Bearer ${accessToken}`
-    }
-    h['Accept-Language'] = i18n.language || 'en'
-    return h
-  }
-
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: buildHeaders(),
-    credentials: 'include',
-  })
-
-  // Handle 401 with automatic token refresh (skip for auth endpoints)
-  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
-    const newToken = await doRefresh()
-    if (newToken) {
-      // Retry with the refreshed token
-      const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: buildHeaders(),
-        credentials: 'include',
-      })
-      if (!retryResponse.ok) {
-        const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
-        throw new Error(
-          typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`,
-        )
-      }
-      if (retryResponse.status === 204) return undefined as T
-      return retryResponse.json()
-    }
-    throw new Error('Session expired')
-  }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
-    // Handle Pydantic validation errors (array of errors) and standard errors
-    let message = 'Unknown error'
-    if (typeof error.detail === 'string') {
-      message = error.detail
-    } else if (Array.isArray(error.detail)) {
-      // Pydantic validation error format: [{loc: [...], msg: "...", type: "..."}]
-      message = error.detail
-        .map((e: { msg: string; loc?: string[] }) =>
-          e.loc ? `${e.loc.join('.')}: ${e.msg}` : e.msg,
-        )
-        .join('; ')
-    } else if (error.detail) {
-      message = JSON.stringify(error.detail)
-    }
-    throw new Error(message || `HTTP ${response.status}`)
-  }
-
-  // Handle 204 No Content responses (e.g., DELETE operations)
-  if (response.status === 204) {
-    return undefined as T
-  }
-
-  return response.json()
-}
-
-// Auth API
-export const authApi = {
-  login: (username: string, password: string, rememberMe?: boolean) =>
-    fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, remember_me: rememberMe ?? false }),
-      credentials: 'include',
-    }).then(async (res) => {
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ detail: 'Login failed' }))
-        throw new Error(typeof error.detail === 'string' ? error.detail : 'Login failed')
-      }
-      return res.json() as Promise<LoginResponse>
-    }),
-
-  refresh: () =>
-    fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    }).then(async (res) => {
-      if (!res.ok) throw new Error('Refresh failed')
-      return res.json() as Promise<RefreshResponse>
-    }),
-
-  logout: () =>
-    fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).then(async (res) => {
-      if (!res.ok) throw new Error('Logout failed')
-      return res.json()
-    }),
-
-  me: () => fetchApi<AuthUser>('/auth/me'),
-
-  changePassword: (currentPassword: string, newPassword: string) =>
-    fetchApi<{ message: string }>('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    }),
-}
-
-// Plant API
-export const plantApi = {
-  list: (activeOnly?: boolean) => {
-    const params = activeOnly ? '?active_only=true' : ''
-    return fetchApi<Plant[]>(`/plants/${params}`)
-  },
-
-  get: (id: number) => fetchApi<Plant>(`/plants/${id}`),
-
-  create: (data: PlantCreate) =>
-    fetchApi<Plant>('/plants/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: PlantUpdate) =>
-    fetchApi<Plant>(`/plants/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) => fetchApi<void>(`/plants/${id}`, { method: 'DELETE' }),
-}
-
-// Hierarchy API
-export const hierarchyApi = {
-  // Global endpoints (backward compatibility)
-  getTree: () => fetchApi<HierarchyNode[]>('/hierarchy/'),
-
-  getNode: (id: number) => fetchApi<HierarchyNode>(`/hierarchy/${id}`),
-
-  createNode: (data: { name: string; type: string; parent_id: number | null }) =>
-    fetchApi<HierarchyNode>('/hierarchy/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateNode: (id: number, data: { name?: string }) =>
-    fetchApi<HierarchyNode>(`/hierarchy/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  deleteNode: (id: number) => fetchApi<void>(`/hierarchy/${id}`, { method: 'DELETE' }),
-
-  getCharacteristics: (id: number) =>
-    fetchApi<Characteristic[]>(`/hierarchy/${id}/characteristics`),
-
-  // Plant-scoped endpoints
-  getTreeByPlant: (plantId: number) => fetchApi<HierarchyNode[]>(`/plants/${plantId}/hierarchies/`),
-
-  createNodeInPlant: (
-    plantId: number,
-    data: { name: string; type: string; parent_id: number | null },
-  ) =>
-    fetchApi<HierarchyNode>(`/plants/${plantId}/hierarchies/`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-}
-
-// Characteristic API
-export const characteristicApi = {
-  list: (params?: {
-    hierarchy_id?: number
-    in_control?: boolean
-    plant_id?: number
-    page?: number
-    per_page?: number
-  }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.hierarchy_id) searchParams.set('hierarchy_id', String(params.hierarchy_id))
-    if (params?.in_control !== undefined) searchParams.set('in_control', String(params.in_control))
-    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
-    if (params?.page) searchParams.set('page', String(params.page))
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
-
-    const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Characteristic>>(
-      `/characteristics/${query ? `?${query}` : ''}`,
-    )
-  },
-
-  get: (id: number) => fetchApi<Characteristic>(`/characteristics/${id}`),
-
-  create: (data: Partial<Characteristic>) =>
-    fetchApi<Characteristic>('/characteristics/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: Partial<Characteristic>) =>
-    fetchApi<Characteristic>(`/characteristics/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) => fetchApi<void>(`/characteristics/${id}`, { method: 'DELETE' }),
-
-  getChartData: (
-    id: number,
-    options?: {
-      limit?: number
-      startDate?: string
-      endDate?: string
-    },
-  ) => {
-    const params = new URLSearchParams()
-    if (options?.limit) params.set('limit', String(options.limit))
-    if (options?.startDate) params.set('start_date', options.startDate)
-    if (options?.endDate) params.set('end_date', options.endDate)
-    const query = params.toString()
-    return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
-  },
-
-  recalculateLimits: (
-    id: number,
-    options?: {
-      excludeOoc?: boolean
-      startDate?: string
-      endDate?: string
-      lastN?: number
-    },
-  ) => {
-    const params = new URLSearchParams()
-    if (options?.excludeOoc !== undefined) params.set('exclude_ooc', String(options.excludeOoc))
-    if (options?.startDate) params.set('start_date', options.startDate)
-    if (options?.endDate) params.set('end_date', options.endDate)
-    if (options?.lastN) params.set('last_n', String(options.lastN))
-    const query = params.toString()
-    return fetchApi<{ before: object; after: object; calculation: object }>(
-      `/characteristics/${id}/recalculate-limits${query ? `?${query}` : ''}`,
-      { method: 'POST' },
-    )
-  },
-
-  setManualLimits: (
-    id: number,
-    data: { ucl: number; lcl: number; center_line: number; sigma: number },
-  ) =>
-    fetchApi<{ before: object; after: object; calculation: object }>(
-      `/characteristics/${id}/set-limits`,
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      },
-    ),
-
-  getRules: async (id: number) => {
-    // Backend returns [{rule_id, is_enabled, require_acknowledgement, parameters}, ...]
-    const rules = await fetchApi<
-      { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters: Record<string, number> | null }[]
-    >(`/characteristics/${id}/rules`)
-    return {
-      enabled_rules: rules.filter((r) => r.is_enabled).map((r) => r.rule_id),
-      rule_configs: rules,
-    }
-  },
-
-  updateRules: (
-    id: number,
-    ruleConfigs: { rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters?: Record<string, number> | null }[],
-  ) => {
-    // Backend expects array of {rule_id, is_enabled, require_acknowledgement, parameters} for all 8 rules
-    // Fill in any missing rules with defaults
-    const allRules = Array.from({ length: 8 }, (_, i) => {
-      const config = ruleConfigs.find((r) => r.rule_id === i + 1)
-      return config || { rule_id: i + 1, is_enabled: true, require_acknowledgement: true, parameters: null }
-    })
-    return fetchApi<{ rule_id: number; is_enabled: boolean; require_acknowledgement: boolean; parameters: Record<string, number> | null }[]>(
-      `/characteristics/${id}/rules`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(allRules),
-      },
-    )
-  },
-
-  changeMode: (id: number, newMode: string) =>
-    fetchApi<{
-      previous_mode: string
-      new_mode: string
-      samples_migrated: number
-      characteristic: Characteristic
-    }>(`/characteristics/${id}/change-mode`, {
-      method: 'POST',
-      body: JSON.stringify({ new_mode: newMode }),
-    }),
-
-  getConfig: (id: number) =>
-    fetchApi<CharacteristicConfigResponse | null>(`/characteristics/${id}/config`),
-
-  updateConfig: (id: number, config: object) =>
-    fetchApi<CharacteristicConfigResponse>(`/characteristics/${id}/config`, {
-      method: 'PUT',
-      body: JSON.stringify({ config }),
-    }),
-}
-
-// Sample API
-export const sampleApi = {
-  list: (params?: {
-    characteristic_id?: number
-    start_date?: string
-    end_date?: string
-    /** Include excluded samples in results */
-    include_excluded?: boolean
-    /** Page number (1-indexed, converted to offset internally) */
-    page?: number
-    /** Items per page (maps to backend limit) */
-    per_page?: number
-    /** Sort direction for timestamp ordering */
-    sort_dir?: 'asc' | 'desc'
-  }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.characteristic_id)
-      searchParams.set('characteristic_id', String(params.characteristic_id))
-    if (params?.start_date) searchParams.set('start_date', params.start_date)
-    if (params?.end_date) searchParams.set('end_date', params.end_date)
-    if (params?.include_excluded) searchParams.set('include_excluded', 'true')
-    // Convert page/per_page to offset/limit for the backend
-    const perPage = params?.per_page ?? 100
-    const page = params?.page ?? 1
-    searchParams.set('offset', String((page - 1) * perPage))
-    searchParams.set('limit', String(perPage))
-    if (params?.sort_dir) searchParams.set('sort_dir', params.sort_dir)
-
-    const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Sample>>(`/samples/${query ? `?${query}` : ''}`)
-  },
-
-  get: (id: number) => fetchApi<Sample>(`/samples/${id}`),
-
-  submit: (data: {
-    characteristic_id: number
-    measurements: number[]
-    batch_number?: string
-    operator_id?: string
-  }) =>
-    fetchApi<SampleProcessingResult>('/samples/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  exclude: (id: number, excluded: boolean) =>
-    fetchApi<Sample>(`/samples/${id}/exclude`, {
-      method: 'PATCH',
-      body: JSON.stringify({ is_excluded: excluded }),
-    }),
-
-  batchImport: (data: {
-    characteristic_id: number
-    samples: { measurements: number[]; timestamp?: string }[]
-    skip_rule_evaluation?: boolean
-  }) =>
-    fetchApi<{ imported: number; errors: string[] }>('/samples/batch', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) => fetchApi<void>(`/samples/${id}`, { method: 'DELETE' }),
-
-  update: (id: number, data: { measurements: number[]; reason: string; edited_by?: string }) =>
-    fetchApi<SampleProcessingResult>(`/samples/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  getEditHistory: (id: number) => fetchApi<SampleEditHistory[]>(`/samples/${id}/history`),
-}
-
-// Data Entry API — attribute chart data submission
-export const dataEntryApi = {
-  submitAttribute: (data: {
-    characteristic_id: number
-    defect_count: number
-    sample_size?: number
-    units_inspected?: number
-    batch_number?: string
-    operator_id?: string
-  }) =>
-    fetchApi<{
-      sample_id: number
-      characteristic_id: number
-      timestamp: string
-      plotted_value: number
-      defect_count: number
-      sample_size: number | null
-      in_control: boolean
-      center_line: number
-      ucl: number
-      lcl: number
-      violations: { violation_id: number; rule_id: number; rule_name: string; severity: string }[]
-    }>('/data-entry/submit-attribute', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-}
-
-// Violation API
-export const violationApi = {
-  list: (params?: {
-    acknowledged?: boolean
-    requires_acknowledgement?: boolean
-    severity?: string
-    rule_id?: number
-    characteristic_id?: number
-    sample_id?: number
-    start_date?: string
-    end_date?: string
-    page?: number
-    per_page?: number
-  }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.acknowledged !== undefined)
-      searchParams.set('acknowledged', String(params.acknowledged))
-    if (params?.requires_acknowledgement !== undefined)
-      searchParams.set('requires_acknowledgement', String(params.requires_acknowledgement))
-    if (params?.severity) searchParams.set('severity', params.severity)
-    if (params?.rule_id) searchParams.set('rule_id', String(params.rule_id))
-    if (params?.characteristic_id)
-      searchParams.set('characteristic_id', String(params.characteristic_id))
-    if (params?.sample_id) searchParams.set('sample_id', String(params.sample_id))
-    if (params?.start_date) searchParams.set('start_date', params.start_date)
-    if (params?.end_date) searchParams.set('end_date', params.end_date)
-    // Convert page/per_page to offset/limit for the backend
-    const perPage = params?.per_page ?? 50
-    const page = params?.page ?? 1
-    searchParams.set('offset', String((page - 1) * perPage))
-    searchParams.set('limit', String(perPage))
-
-    const query = searchParams.toString()
-    return fetchApi<PaginatedResponse<Violation>>(`/violations/${query ? `?${query}` : ''}`)
-  },
-
-  get: (id: number) => fetchApi<Violation>(`/violations/${id}`),
-
-  getStats: () => fetchApi<ViolationStats>('/violations/stats'),
-
-  acknowledge: (id: number, data: { reason: string; user: string }) =>
-    fetchApi<Violation>(`/violations/${id}/acknowledge`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  batchAcknowledge: (data: {
-    violation_ids: number[]
-    reason: string
-    user: string
-    exclude_sample?: boolean
-  }) =>
-    fetchApi<{
-      total: number
-      successful: number
-      failed: number
-      acknowledged: number[]
-      errors: Record<number, string>
-    }>('/violations/batch-acknowledge', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getReasonCodes: () => fetchApi<string[]>('/violations/reason-codes'),
-}
-
-// MQTT Broker API
-export const brokerApi = {
-  list: (opts?: { activeOnly?: boolean; plantId?: number }) => {
-    const params = new URLSearchParams()
-    if (opts?.activeOnly) params.set('active_only', 'true')
-    if (opts?.plantId != null) params.set('plant_id', String(opts.plantId))
-    const qs = params.toString()
-    return fetchApi<PaginatedResponse<MQTTBroker>>(`/brokers/${qs ? `?${qs}` : ''}`)
-  },
-
-  get: (id: number) => fetchApi<MQTTBroker>(`/brokers/${id}`),
-
-  create: (data: {
-    name: string
-    host: string
-    port?: number
-    username?: string
-    password?: string
-    client_id?: string
-    keepalive?: number
-    use_tls?: boolean
-    is_active?: boolean
-    plant_id?: number | null
-    outbound_enabled?: boolean
-    outbound_topic_prefix?: string
-    outbound_format?: string
-    outbound_rate_limit?: number
-  }) =>
-    fetchApi<MQTTBroker>('/brokers/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: Partial<MQTTBroker & { password?: string }>) =>
-    fetchApi<MQTTBroker>(`/brokers/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) => fetchApi<void>(`/brokers/${id}`, { method: 'DELETE' }),
-
-  activate: (id: number) => fetchApi<MQTTBroker>(`/brokers/${id}/activate`, { method: 'POST' }),
-
-  getStatus: (id: number) => fetchApi<BrokerConnectionStatus>(`/brokers/${id}/status`),
-
-  getCurrentStatus: () => fetchApi<BrokerConnectionStatus>('/brokers/current/status'),
-
-  connect: (id: number) =>
-    fetchApi<BrokerConnectionStatus>(`/brokers/${id}/connect`, { method: 'POST' }),
-
-  disconnect: () => fetchApi<{ message: string }>('/brokers/disconnect', { method: 'POST' }),
-
-  test: (data: {
-    host: string
-    port?: number
-    username?: string
-    password?: string
-    use_tls?: boolean
-  }) =>
-    fetchApi<BrokerTestResult>('/brokers/test', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  // Multi-broker status
-  getAllStatus: (plantId?: number) => {
-    const params = plantId ? `?plant_id=${plantId}` : ''
-    return fetchApi<{ states: BrokerConnectionStatus[] }>(`/brokers/all/status${params}`)
-  },
-
-  // Topic discovery
-  startDiscovery: (id: number) =>
-    fetchApi<{ message: string }>(`/brokers/${id}/discover`, { method: 'POST' }),
-
-  stopDiscovery: (id: number) =>
-    fetchApi<{ message: string }>(`/brokers/${id}/discover`, { method: 'DELETE' }),
-
-  getTopics: (id: number, format: 'flat' | 'tree' = 'flat', search?: string) => {
-    const params = new URLSearchParams({ format })
-    if (search) params.set('search', search)
-    return fetchApi<DiscoveredTopic[] | TopicTreeNode>(`/brokers/${id}/topics?${params}`)
-  },
-}
-
-// Provider Status API
-export const providerApi = {
-  getStatus: () => fetchApi<ProviderStatus>('/providers/status'),
-
-  restartTagProvider: () =>
-    fetchApi<TagProviderStatus>('/providers/tag/restart', { method: 'POST' }),
-
-  refreshTagSubscriptions: () =>
-    fetchApi<{ message: string; characteristics_count: number }>('/providers/tag/refresh', {
-      method: 'POST',
-    }),
-}
-
-// OPC-UA Server API
-export const opcuaApi = {
-  list: (plantId?: number) =>
-    fetchApi<PaginatedResponse<OPCUAServer>>(
-      `/opcua-servers/${plantId ? `?plant_id=${plantId}` : ''}`,
-    ),
-
-  get: (id: number) => fetchApi<OPCUAServer>(`/opcua-servers/${id}`),
-
-  create: (data: OPCUAServerCreate) =>
-    fetchApi<OPCUAServer>('/opcua-servers/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: OPCUAServerUpdate) =>
-    fetchApi<OPCUAServer>(`/opcua-servers/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) => fetchApi<void>(`/opcua-servers/${id}`, { method: 'DELETE' }),
-
-  connect: (id: number) =>
-    fetchApi<{ status: string }>(`/opcua-servers/${id}/connect`, { method: 'POST' }),
-
-  disconnect: (id: number) =>
-    fetchApi<{ status: string }>(`/opcua-servers/${id}/disconnect`, { method: 'POST' }),
-
-  test: (data: OPCUAServerCreate) =>
-    fetchApi<OPCUATestResult>('/opcua-servers/test', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getStatus: (id: number) => fetchApi<OPCUAServerStatus>(`/opcua-servers/${id}/status`),
-
-  getAllStatus: (plantId?: number) =>
-    fetchApi<{ states: OPCUAServerStatus[] }>(
-      `/opcua-servers/all/status${plantId ? `?plant_id=${plantId}` : ''}`,
-    ),
-
-  browse: (id: number, nodeId?: string) =>
-    fetchApi<OPCUABrowsedNode[]>(
-      `/opcua-servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`,
-    ),
-
-  readValue: (id: number, nodeId: string) =>
-    fetchApi<OPCUANodeValue>(`/opcua-servers/${id}/read?node_id=${encodeURIComponent(nodeId)}`),
-}
-
 // API Key types
 export interface APIKeyResponse {
   id: string
@@ -839,138 +39,6 @@ export interface APIKeyResponse {
 
 export interface APIKeyCreateResponse extends APIKeyResponse {
   key: string // Only returned on creation
-}
-
-// API Keys API
-export const apiKeysApi = {
-  list: () => fetchApi<APIKeyResponse[]>('/api-keys/'),
-
-  get: (id: string) => fetchApi<APIKeyResponse>(`/api-keys/${id}`),
-
-  create: (data: { name: string; expires_at?: string | null; rate_limit_per_minute?: number }) =>
-    fetchApi<APIKeyCreateResponse>('/api-keys/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (
-    id: string,
-    data: { name?: string; is_active?: boolean; rate_limit_per_minute?: number },
-  ) =>
-    fetchApi<APIKeyResponse>(`/api-keys/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: string) => fetchApi<void>(`/api-keys/${id}`, { method: 'DELETE' }),
-
-  revoke: (id: string) => fetchApi<APIKeyResponse>(`/api-keys/${id}/revoke`, { method: 'POST' }),
-}
-
-// Tag Mapping API
-export const tagApi = {
-  getMappings: (plantId?: number, brokerId?: number) => {
-    const params = new URLSearchParams()
-    if (plantId) params.set('plant_id', String(plantId))
-    if (brokerId) params.set('broker_id', String(brokerId))
-    const query = params.toString()
-    return fetchApi<TagMappingResponse[]>(`/tags/mappings${query ? `?${query}` : ''}`)
-  },
-
-  createMapping: (data: TagMappingCreate) =>
-    fetchApi<TagMappingResponse>('/tags/map', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  deleteMapping: (characteristicId: number) =>
-    fetchApi<void>(`/tags/map/${characteristicId}`, { method: 'DELETE' }),
-
-  preview: (data: { broker_id: number; topic: string; duration_seconds?: number }) =>
-    fetchApi<TagPreviewResponse>('/tags/preview', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-}
-
-// Annotation API
-export const annotationApi = {
-  list: (characteristicId: number, type?: AnnotationType) =>
-    fetchApi<Annotation[]>(
-      `/characteristics/${characteristicId}/annotations${type ? `?annotation_type=${type}` : ''}`,
-    ),
-
-  create: (characteristicId: number, data: AnnotationCreate) =>
-    fetchApi<Annotation>(`/characteristics/${characteristicId}/annotations`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (characteristicId: number, annotationId: number, data: AnnotationUpdate) =>
-    fetchApi<Annotation>(`/characteristics/${characteristicId}/annotations/${annotationId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (characteristicId: number, annotationId: number) =>
-    fetchApi<void>(`/characteristics/${characteristicId}/annotations/${annotationId}`, {
-      method: 'DELETE',
-    }),
-}
-
-// Database Admin API
-export const databaseApi = {
-  getConfig: () => fetchApi<DatabaseConfig>('/database/config'),
-
-  updateConfig: (data: {
-    dialect: DatabaseDialect
-    host?: string
-    port?: number
-    database?: string
-    username?: string
-    password?: string
-    options?: Record<string, string | number | boolean>
-  }) =>
-    fetchApi<DatabaseConfig>('/database/config', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  testConnection: (data: {
-    dialect: DatabaseDialect
-    host?: string
-    port?: number
-    database?: string
-    username?: string
-    password?: string
-    options?: Record<string, string | number | boolean>
-  }) =>
-    fetchApi<ConnectionTestResult>('/database/test', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getStatus: () => fetchApi<DatabaseStatus>('/database/status'),
-
-  backup: (backupDir?: string) => {
-    const params = backupDir ? `?backup_dir=${encodeURIComponent(backupDir)}` : ''
-    return fetchApi<{
-      message: string
-      path?: string
-      directory?: string
-      size_mb?: number
-      command?: string
-    }>(`/database/backup${params}`, {
-      method: 'POST',
-    })
-  },
-
-  vacuum: () =>
-    fetchApi<{ message: string }>('/database/vacuum', {
-      method: 'POST',
-    }),
-
-  getMigrationStatus: () => fetchApi<MigrationInfo>('/database/migrations'),
 }
 
 // User Management types
@@ -989,99 +57,7 @@ export interface UserResponse {
   }[]
 }
 
-// User Management API
-export const userApi = {
-  list: (params?: { search?: string; active_only?: boolean }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.search) searchParams.set('search', params.search)
-    if (params?.active_only) searchParams.set('active_only', 'true')
-    const query = searchParams.toString()
-    return fetchApi<UserResponse[]>(`/users/${query ? `?${query}` : ''}`)
-  },
-
-  get: (id: number) => fetchApi<UserResponse>(`/users/${id}`),
-
-  create: (data: { username: string; password: string; email?: string }) =>
-    fetchApi<UserResponse>('/users/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (
-    id: number,
-    data: { username?: string; email?: string; password?: string; is_active?: boolean },
-  ) =>
-    fetchApi<UserResponse>(`/users/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  deactivate: (id: number) => fetchApi<void>(`/users/${id}`, { method: 'DELETE' }),
-
-  deletePermanent: (id: number) => fetchApi<void>(`/users/${id}/permanent`, { method: 'DELETE' }),
-
-  assignRole: (userId: number, data: { plant_id: number; role: string }) =>
-    fetchApi<UserResponse>(`/users/${userId}/roles`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  removeRole: (userId: number, plantId: number) =>
-    fetchApi<void>(`/users/${userId}/roles/${plantId}`, { method: 'DELETE' }),
-}
-
-// Retention Policy API
-export const retentionApi = {
-  getDefault: (plantId: number) =>
-    fetchApi<RetentionPolicy | null>(`/retention/default?plant_id=${plantId}`),
-
-  setDefault: (plantId: number, policy: RetentionPolicySet) =>
-    fetchApi<RetentionPolicy>(`/retention/default?plant_id=${plantId}`, {
-      method: 'PUT',
-      body: JSON.stringify(policy),
-    }),
-
-  getHierarchyPolicy: (hierarchyId: number) =>
-    fetchApi<RetentionPolicy | null>(`/retention/hierarchy/${hierarchyId}`),
-
-  setHierarchyPolicy: (hierarchyId: number, policy: RetentionPolicySet) =>
-    fetchApi<RetentionPolicy>(`/retention/hierarchy/${hierarchyId}`, {
-      method: 'PUT',
-      body: JSON.stringify(policy),
-    }),
-
-  deleteHierarchyPolicy: (hierarchyId: number) =>
-    fetchApi<void>(`/retention/hierarchy/${hierarchyId}`, { method: 'DELETE' }),
-
-  getCharacteristicPolicy: (charId: number) =>
-    fetchApi<RetentionPolicy | null>(`/retention/characteristic/${charId}`),
-
-  setCharacteristicPolicy: (charId: number, policy: RetentionPolicySet) =>
-    fetchApi<RetentionPolicy>(`/retention/characteristic/${charId}`, {
-      method: 'PUT',
-      body: JSON.stringify(policy),
-    }),
-
-  deleteCharacteristicPolicy: (charId: number) =>
-    fetchApi<void>(`/retention/characteristic/${charId}`, { method: 'DELETE' }),
-
-  getEffectivePolicy: (charId: number) =>
-    fetchApi<EffectiveRetention>(`/retention/characteristic/${charId}/effective`),
-
-  listOverrides: (plantId: number) =>
-    fetchApi<RetentionOverride[]>(`/retention/overrides?plant_id=${plantId}`),
-
-  getActivity: (plantId: number) =>
-    fetchApi<PurgeHistory[]>(`/retention/activity?plant_id=${plantId}`),
-
-  getNextPurge: (plantId: number) =>
-    fetchApi<NextPurgeInfo>(`/retention/next-purge?plant_id=${plantId}`),
-
-  triggerPurge: (plantId: number) =>
-    fetchApi<PurgeHistory>(`/retention/purge?plant_id=${plantId}`, { method: 'POST' }),
-}
-
-// Notification API
+// Notification types
 export interface SmtpConfigResponse {
   id: number
   server: string
@@ -1148,186 +124,7 @@ export interface NotificationPreferenceItem {
   is_enabled: boolean
 }
 
-export const notificationApi = {
-  // SMTP
-  getSmtp: () => fetchApi<SmtpConfigResponse | null>('/notifications/smtp'),
-
-  updateSmtp: (data: SmtpConfigUpdate) =>
-    fetchApi<SmtpConfigResponse>('/notifications/smtp', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  testSmtp: () => fetchApi<{ message: string }>('/notifications/smtp/test', { method: 'POST' }),
-
-  // Webhooks
-  listWebhooks: () => fetchApi<WebhookConfigResponse[]>('/notifications/webhooks'),
-
-  createWebhook: (data: WebhookConfigCreate) =>
-    fetchApi<WebhookConfigResponse>('/notifications/webhooks', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateWebhook: (id: number, data: WebhookConfigUpdate) =>
-    fetchApi<WebhookConfigResponse>(`/notifications/webhooks/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteWebhook: (id: number) =>
-    fetchApi<void>(`/notifications/webhooks/${id}`, { method: 'DELETE' }),
-
-  testWebhook: (id: number) =>
-    fetchApi<{ message: string }>(`/notifications/webhooks/${id}/test`, { method: 'POST' }),
-
-  // Preferences
-  getPreferences: () => fetchApi<NotificationPreference[]>('/notifications/preferences'),
-
-  updatePreferences: (preferences: NotificationPreferenceItem[]) =>
-    fetchApi<NotificationPreference[]>('/notifications/preferences', {
-      method: 'PUT',
-      body: JSON.stringify({ preferences }),
-    }),
-}
-
-// Dev Tools API (sandbox mode only)
-export const devtoolsApi = {
-  getStatus: () =>
-    fetchApi<{
-      sandbox: boolean
-      scripts: { key: string; name: string; description: string; estimated_samples: string }[]
-    }>('/devtools/status'),
-
-  runSeed: (data: { script: string }) =>
-    fetchApi<{ status: string; output: string }>('/devtools/reset-and-seed', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-}
-
-// Import API — CSV/Excel file import
-export interface ImportColumn {
-  name: string
-  index: number
-  sample_values: string[]
-  detected_type: string
-}
-
-export interface ImportUploadResponse {
-  columns: ImportColumn[]
-  row_count: number
-  preview_rows: string[][]
-}
-
-export interface ImportValidateResponse {
-  valid_rows: {
-    measurements: number[]
-    timestamp?: string
-    batch_number?: string
-    operator_id?: string
-  }[]
-  warnings: string[]
-  error_rows: { row: number; error: string }[]
-  total_rows: number
-  valid_count: number
-}
-
-export interface ImportConfirmResponse {
-  imported: number
-  errors: number
-  error_details: { row: number; error: string }[]
-  total_rows: number
-}
-
-export const importApi = {
-  upload: (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return fetchApi<ImportUploadResponse>('/import/upload', {
-      method: 'POST',
-      body: formData,
-    })
-  },
-
-  validate: (
-    file: File,
-    characteristicId: number,
-    columnMapping: Record<string, number | null>,
-  ) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('characteristic_id', String(characteristicId))
-    formData.append('column_mapping', JSON.stringify(columnMapping))
-    return fetchApi<ImportValidateResponse>('/import/validate', {
-      method: 'POST',
-      body: formData,
-    })
-  },
-
-  confirm: (file: File, characteristicId: number, columnMapping: Record<string, number | null>) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('characteristic_id', String(characteristicId))
-    formData.append('column_mapping', JSON.stringify(columnMapping))
-    return fetchApi<ImportConfirmResponse>('/import/confirm', {
-      method: 'POST',
-      body: formData,
-    })
-  },
-}
-
-// Audit Log API
-export interface AuditLogParams {
-  user_id?: number
-  action?: string
-  resource_type?: string
-  start_date?: string
-  end_date?: string
-  limit?: number
-  offset?: number
-}
-
-export const auditApi = {
-  getLogs: (params?: AuditLogParams) => {
-    const searchParams = new URLSearchParams()
-    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
-    if (params?.action) searchParams.set('action', params.action)
-    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
-    if (params?.start_date) searchParams.set('start_date', params.start_date)
-    if (params?.end_date) searchParams.set('end_date', params.end_date)
-    searchParams.set('limit', String(params?.limit ?? 50))
-    searchParams.set('offset', String(params?.offset ?? 0))
-    const query = searchParams.toString()
-    return fetchApi<AuditLogListResponse>(`/audit/logs?${query}`)
-  },
-
-  getStats: () => fetchApi<AuditStats>('/audit/stats'),
-
-  exportLogs: async (params?: AuditLogParams) => {
-    const searchParams = new URLSearchParams()
-    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
-    if (params?.action) searchParams.set('action', params.action)
-    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
-    if (params?.start_date) searchParams.set('start_date', params.start_date)
-    if (params?.end_date) searchParams.set('end_date', params.end_date)
-    const query = searchParams.toString()
-    const response = await fetch(`/api/v1/audit/logs/export?${query}`, {
-      headers: { Authorization: `Bearer ${getAccessToken()}` },
-      credentials: 'include',
-    })
-    if (!response.ok) throw new Error('Export failed')
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'audit_log.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  },
-}
-
-// ---- OIDC SSO API ----
+// ---- OIDC SSO Types ----
 
 export interface OIDCProviderPublic {
   id: number
@@ -1347,6 +144,9 @@ export interface OIDCConfigResponse {
   is_active: boolean
   created_at: string
   updated_at: string | null
+  claim_mapping: Record<string, string>
+  end_session_endpoint: string | null
+  post_logout_redirect_uri: string | null
 }
 
 export interface OIDCConfigCreate {
@@ -1358,6 +158,9 @@ export interface OIDCConfigCreate {
   role_mapping?: Record<string, string>
   auto_provision?: boolean
   default_role?: string
+  claim_mapping?: Record<string, string>
+  end_session_endpoint?: string | null
+  post_logout_redirect_uri?: string | null
 }
 
 export interface OIDCConfigUpdate {
@@ -1370,6 +173,9 @@ export interface OIDCConfigUpdate {
   auto_provision?: boolean
   default_role?: string
   is_active?: boolean
+  claim_mapping?: Record<string, string>
+  end_session_endpoint?: string | null
+  post_logout_redirect_uri?: string | null
 }
 
 export interface OIDCAuthorizationResponse {
@@ -1383,169 +189,7 @@ export interface OIDCCallbackResponse {
   username: string
 }
 
-export const oidcApi = {
-  /** List active OIDC providers (public, no auth) */
-  getProviders: () =>
-    fetch(`${API_BASE}/auth/oidc/providers`)
-      .then(async (res) => {
-        if (!res.ok) return [] as OIDCProviderPublic[]
-        return res.json() as Promise<OIDCProviderPublic[]>
-      })
-      .catch(() => [] as OIDCProviderPublic[]),
-
-  /** Get authorization URL for a provider */
-  getAuthorizationUrl: (providerId: number, redirectUri: string) =>
-    fetch(
-      `${API_BASE}/auth/oidc/authorize/${providerId}?redirect_uri=${encodeURIComponent(redirectUri)}`,
-    ).then(async (res) => {
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ detail: 'Failed to start SSO' }))
-        throw new Error(typeof error.detail === 'string' ? error.detail : 'Failed to start SSO')
-      }
-      return res.json() as Promise<OIDCAuthorizationResponse>
-    }),
-
-  /** Handle OIDC callback (exchange code for tokens) */
-  handleCallback: (code: string, state: string) =>
-    fetch(
-      `${API_BASE}/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
-      {
-        credentials: 'include',
-      },
-    ).then(async (res) => {
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ detail: 'SSO callback failed' }))
-        throw new Error(typeof error.detail === 'string' ? error.detail : 'SSO callback failed')
-      }
-      return res.json() as Promise<OIDCCallbackResponse>
-    }),
-
-  /** List all OIDC configs (admin only) */
-  getConfigs: () => fetchApi<OIDCConfigResponse[]>('/auth/oidc/config'),
-
-  /** Create a new OIDC config (admin only) */
-  createConfig: (data: OIDCConfigCreate) =>
-    fetchApi<OIDCConfigResponse>('/auth/oidc/config', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  /** Update an OIDC config (admin only) */
-  updateConfig: (id: number, data: OIDCConfigUpdate) =>
-    fetchApi<OIDCConfigResponse>(`/auth/oidc/config/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  /** Delete an OIDC config (admin only) */
-  deleteConfig: (id: number) => fetchApi<void>(`/auth/oidc/config/${id}`, { method: 'DELETE' }),
-}
-
-// ---- Capability API ----
-
-export const capabilityApi = {
-  getCapability: (charId: number, windowSize?: number) => {
-    const params = new URLSearchParams()
-    if (windowSize) params.set('window_size', String(windowSize))
-    const query = params.toString()
-    return fetchApi<CapabilityResult>(
-      `/characteristics/${charId}/capability${query ? `?${query}` : ''}`,
-    )
-  },
-
-  getHistory: (charId: number, limit?: number) => {
-    const params = new URLSearchParams()
-    if (limit) params.set('limit', String(limit))
-    const query = params.toString()
-    return fetchApi<CapabilityHistoryItem[]>(
-      `/characteristics/${charId}/capability/history${query ? `?${query}` : ''}`,
-    )
-  },
-
-  saveSnapshot: (charId: number, windowSize?: number) => {
-    const params = new URLSearchParams()
-    if (windowSize) params.set('window_size', String(windowSize))
-    const query = params.toString()
-    return fetchApi<CapabilitySnapshotResponse>(
-      `/characteristics/${charId}/capability/snapshot${query ? `?${query}` : ''}`,
-      { method: 'POST' },
-    )
-  },
-}
-
-// Distribution Analysis API (Sprint 5 - A1)
-export const distributionApi = {
-  calculateNonNormal: (charId: number, method = 'auto') =>
-    fetchApi<NonNormalCapabilityResult>(
-      `/characteristics/${charId}/capability/nonnormal`,
-      { method: 'POST', body: JSON.stringify({ method }) },
-    ),
-
-  fitDistribution: (charId: number) =>
-    fetchApi<DistributionFitResponse>(
-      `/characteristics/${charId}/capability/fit-distribution`,
-      { method: 'POST' },
-    ),
-
-  updateConfig: (
-    charId: number,
-    config: {
-      distribution_method?: string
-      box_cox_lambda?: number
-      distribution_params?: Record<string, unknown>
-    },
-  ) =>
-    fetchApi<void>(`/characteristics/${charId}/distribution-config`, {
-      method: 'PUT',
-      body: JSON.stringify(config),
-    }),
-}
-
-// Report Schedule API
-export const reportScheduleApi = {
-  list: (plantId: number) =>
-    fetchApi<ReportSchedule[]>(`/reports/schedules/?plant_id=${plantId}`),
-
-  get: (id: number) => fetchApi<ReportSchedule>(`/reports/schedules/${id}`),
-
-  create: (data: CreateReportSchedule) =>
-    fetchApi<ReportSchedule>('/reports/schedules/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: UpdateReportSchedule) =>
-    fetchApi<ReportSchedule>(`/reports/schedules/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) =>
-    fetchApi<void>(`/reports/schedules/${id}`, { method: 'DELETE' }),
-
-  trigger: (id: number) =>
-    fetchApi<ReportRun>(`/reports/schedules/${id}/trigger`, { method: 'POST' }),
-
-  runs: (id: number) => fetchApi<ReportRun[]>(`/reports/schedules/${id}/runs`),
-}
-
-// Rule Preset API (Sprint 5 - A2)
-export const rulePresetApi = {
-  list: (plantId?: number) => {
-    const params = plantId ? `?plant_id=${plantId}` : ''
-    return fetchApi<RulePreset[]>(`/rule-presets${params}`)
-  },
-  get: (id: number) => fetchApi<RulePreset>(`/rule-presets/${id}`),
-  create: (data: { name: string; description?: string; rules_config: RuleConfig[]; plant_id?: number }) =>
-    fetchApi<RulePreset>('/rule-presets', { method: 'POST', body: JSON.stringify(data) }),
-  applyToCharacteristic: (charId: number, presetId: number) =>
-    fetchApi<void>(`/characteristics/${charId}/rules/preset`, {
-      method: 'PUT',
-      body: JSON.stringify({ preset_id: presetId }),
-    }),
-}
-
-// ---- Electronic Signature API ----
+// ---- Signature Types ----
 
 export interface SignRequest {
   resource_type: string
@@ -1625,200 +269,54 @@ export interface StepUpdate {
   timeout_hours?: number | null
 }
 
-/** Append plant_id query param to a path */
-function _pq(path: string, plantId: number): string {
-  const sep = path.includes('?') ? '&' : '?'
-  return `${path}${sep}plant_id=${plantId}`
+// ---- Import Types ----
+
+export interface ImportColumn {
+  name: string
+  index: number
+  sample_values: string[]
+  detected_type: string
 }
 
-export const signatureApi = {
-  // Core signing
-  sign: (plantId: number, data: SignRequest) =>
-    fetchApi<SignResponse>(_pq('/signatures/sign', plantId), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  reject: (plantId: number, data: RejectRequest) =>
-    fetchApi<{ message: string }>(_pq('/signatures/reject', plantId), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getResourceSignatures: (plantId: number, resourceType: string, resourceId: number) =>
-    fetchApi<ElectronicSignature[]>(_pq(`/signatures/resource/${resourceType}/${resourceId}`, plantId)),
-
-  verify: (plantId: number, signatureId: number) =>
-    fetchApi<VerifyResponse>(_pq(`/signatures/verify/${signatureId}`, plantId)),
-
-  getPending: (plantId: number) =>
-    fetchApi<{ items: PendingApproval[]; total: number }>(`/signatures/pending?plant_id=${plantId}`),
-
-  getHistory: (plantId: number, params?: SignatureHistoryParams) => {
-    const searchParams = new URLSearchParams()
-    searchParams.set('plant_id', String(plantId))
-    if (params?.resource_type) searchParams.set('resource_type', params.resource_type)
-    if (params?.user_id) searchParams.set('user_id', String(params.user_id))
-    if (params?.start_date) searchParams.set('start_date', params.start_date)
-    if (params?.end_date) searchParams.set('end_date', params.end_date)
-    searchParams.set('limit', String(params?.limit ?? 50))
-    searchParams.set('offset', String(params?.offset ?? 0))
-    const query = searchParams.toString()
-    return fetchApi<{ items: ElectronicSignature[]; total: number }>(`/signatures/history?${query}`)
-  },
-
-  // Workflow configuration
-  getWorkflows: (plantId: number) =>
-    fetchApi<SignatureWorkflow[]>(_pq('/signatures/workflows', plantId)),
-
-  createWorkflow: (plantId: number, data: WorkflowCreate) =>
-    fetchApi<SignatureWorkflow>(_pq('/signatures/workflows', plantId), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateWorkflow: (plantId: number, id: number, data: WorkflowUpdate) =>
-    fetchApi<SignatureWorkflow>(_pq(`/signatures/workflows/${id}`, plantId), {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteWorkflow: (plantId: number, id: number) =>
-    fetchApi<void>(_pq(`/signatures/workflows/${id}`, plantId), { method: 'DELETE' }),
-
-  getSteps: (plantId: number, workflowId: number) =>
-    fetchApi<SignatureWorkflowStep[]>(_pq(`/signatures/workflows/${workflowId}/steps`, plantId)),
-
-  createStep: (plantId: number, workflowId: number, data: StepCreate) =>
-    fetchApi<SignatureWorkflowStep>(_pq(`/signatures/workflows/${workflowId}/steps`, plantId), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateStep: (plantId: number, stepId: number, data: StepUpdate) =>
-    fetchApi<SignatureWorkflowStep>(_pq(`/signatures/workflows/steps/${stepId}`, plantId), {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteStep: (plantId: number, stepId: number) =>
-    fetchApi<void>(_pq(`/signatures/workflows/steps/${stepId}`, plantId), { method: 'DELETE' }),
-
-  // Meanings
-  getMeanings: (plantId: number) =>
-    fetchApi<SignatureMeaning[]>(_pq('/signatures/meanings', plantId)),
-
-  createMeaning: (plantId: number, data: MeaningCreate) =>
-    fetchApi<SignatureMeaning>(_pq('/signatures/meanings', plantId), {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateMeaning: (plantId: number, id: number, data: MeaningUpdate) =>
-    fetchApi<SignatureMeaning>(_pq(`/signatures/meanings/${id}`, plantId), {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteMeaning: (plantId: number, id: number) =>
-    fetchApi<void>(_pq(`/signatures/meanings/${id}`, plantId), { method: 'DELETE' }),
-
-  // Password policy
-  getPasswordPolicy: (plantId: number) =>
-    fetchApi<PasswordPolicy | null>(_pq('/signatures/password-policy', plantId)),
-
-  updatePasswordPolicy: (plantId: number, data: Partial<Omit<PasswordPolicy, 'id' | 'plant_id' | 'updated_at'>>) =>
-    fetchApi<PasswordPolicy>(_pq('/signatures/password-policy', plantId), {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+export interface ImportUploadResponse {
+  columns: ImportColumn[]
+  row_count: number
+  preview_rows: string[][]
 }
 
-// Anomaly Detection API
-export const anomalyApi = {
-  // Dashboard
-  getDashboard: (params?: {
-    plant_id?: number
-    severity?: string
-    limit?: number
-    offset?: number
-  }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
-    if (params?.severity) searchParams.set('severity', params.severity)
-    if (params?.limit) searchParams.set('limit', String(params.limit))
-    if (params?.offset) searchParams.set('offset', String(params.offset))
-    const query = searchParams.toString()
-    return fetchApi<{ events: AnomalyEvent[]; total: number }>(
-      `/anomaly/dashboard${query ? `?${query}` : ''}`,
-    )
-  },
-
-  getDashboardStats: (plantId?: number) => {
-    const params = plantId ? `?plant_id=${plantId}` : ''
-    return fetchApi<AnomalyDashboardStats>(`/anomaly/dashboard/stats${params}`)
-  },
-
-  // Config
-  getConfig: (charId: number) =>
-    fetchApi<AnomalyDetectorConfig>(`/anomaly/${charId}/config`),
-
-  updateConfig: (charId: number, data: Partial<AnomalyDetectorConfig>) =>
-    fetchApi<AnomalyDetectorConfig>(`/anomaly/${charId}/config`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  resetConfig: (charId: number) =>
-    fetchApi<void>(`/anomaly/${charId}/config`, { method: 'DELETE' }),
-
-  // Events
-  getEvents: (
-    charId: number,
-    params?: {
-      severity?: string
-      detector_type?: string
-      limit?: number
-      offset?: number
-    },
-  ) => {
-    const searchParams = new URLSearchParams()
-    if (params?.severity) searchParams.set('severity', params.severity)
-    if (params?.detector_type) searchParams.set('detector_type', params.detector_type)
-    if (params?.limit) searchParams.set('limit', String(params.limit))
-    if (params?.offset) searchParams.set('offset', String(params.offset))
-    const query = searchParams.toString()
-    return fetchApi<{ events: AnomalyEvent[]; total: number }>(
-      `/anomaly/${charId}/events${query ? `?${query}` : ''}`,
-    )
-  },
-
-  getEvent: (charId: number, eventId: number) =>
-    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}`),
-
-  acknowledgeEvent: (charId: number, eventId: number) =>
-    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}/acknowledge`, {
-      method: 'POST',
-    }),
-
-  dismissEvent: (charId: number, eventId: number, reason: string) =>
-    fetchApi<AnomalyEvent>(`/anomaly/${charId}/events/${eventId}/dismiss`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-
-  // Summary & Analysis
-  getSummary: (charId: number) =>
-    fetchApi<AnomalySummary>(`/anomaly/${charId}/summary`),
-
-  triggerAnalysis: (charId: number) =>
-    fetchApi<{ message: string }>(`/anomaly/${charId}/analyze`, { method: 'POST' }),
-
-  getStatus: (charId: number) =>
-    fetchApi<DetectorStatus[]>(`/anomaly/${charId}/status`),
+export interface ImportValidateResponse {
+  valid_rows: {
+    measurements: number[]
+    timestamp?: string
+    batch_number?: string
+    operator_id?: string
+  }[]
+  warnings: string[]
+  error_rows: { row: number; error: string }[]
+  total_rows: number
+  valid_count: number
 }
 
-// ---- FAI (First Article Inspection) Types ----
+export interface ImportConfirmResponse {
+  imported: number
+  errors: number
+  error_details: { row: number; error: string }[]
+  total_rows: number
+}
+
+// ---- Audit Types ----
+
+export interface AuditLogParams {
+  user_id?: number
+  action?: string
+  resource_type?: string
+  start_date?: string
+  end_date?: string
+  limit?: number
+  offset?: number
+}
+
+// ---- FAI Types ----
 
 export interface FAIReport {
   id: number
@@ -1901,66 +399,7 @@ export interface FAIItemCreate {
   characteristic_id?: number | null
 }
 
-// ---- FAI API ----
-
-export const faiApi = {
-  listReports: (params?: { plant_id?: number; status?: string }) => {
-    const searchParams = new URLSearchParams()
-    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
-    if (params?.status) searchParams.set('status', params.status)
-    const query = searchParams.toString()
-    return fetchApi<FAIReport[]>(`/fai/reports${query ? `?${query}` : ''}`)
-  },
-
-  getReport: (id: number) => fetchApi<FAIReportDetail>(`/fai/reports/${id}`),
-
-  createReport: (data: FAIReportCreate) =>
-    fetchApi<FAIReport>('/fai/reports', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateReport: (id: number, data: Partial<FAIReportCreate>) =>
-    fetchApi<FAIReport>(`/fai/reports/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteReport: (id: number) =>
-    fetchApi<void>(`/fai/reports/${id}`, { method: 'DELETE' }),
-
-  addItem: (reportId: number, data: FAIItemCreate) =>
-    fetchApi<FAIItem>(`/fai/reports/${reportId}/items`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updateItem: (reportId: number, itemId: number, data: Partial<FAIItemCreate>) =>
-    fetchApi<FAIItem>(`/fai/reports/${reportId}/items/${itemId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deleteItem: (reportId: number, itemId: number) =>
-    fetchApi<void>(`/fai/reports/${reportId}/items/${itemId}`, { method: 'DELETE' }),
-
-  submit: (reportId: number) =>
-    fetchApi<FAIReport>(`/fai/reports/${reportId}/submit`, { method: 'POST' }),
-
-  approve: (reportId: number) =>
-    fetchApi<FAIReport>(`/fai/reports/${reportId}/approve`, { method: 'POST' }),
-
-  reject: (reportId: number, reason: string) =>
-    fetchApi<FAIReport>(`/fai/reports/${reportId}/reject`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-
-  getForms: (reportId: number) =>
-    fetchApi<FAIReportDetail>(`/fai/reports/${reportId}/forms`),
-}
-
-// ---- MSA (Measurement System Analysis) Types ----
+// ---- MSA Types ----
 
 export interface MSAStudy {
   id: number
@@ -2130,104 +569,189 @@ export interface GagePortCreate {
   is_active?: boolean
 }
 
-// ---- MSA API ----
+// ---- Core API infrastructure ----
 
-export const msaApi = {
-  listStudies: (plantId: number, status?: string) =>
-    fetchApi<MSAStudy[]>(`/msa/studies?plant_id=${plantId}${status ? `&status=${status}` : ''}`),
+export const API_BASE = '/api/v1'
 
-  getStudy: (id: number) =>
-    fetchApi<MSAStudyDetail>(`/msa/studies/${id}`),
+/** Minimum seconds before token expiry to trigger proactive refresh */
+const TOKEN_EXPIRY_BUFFER_SEC = 120
 
-  createStudy: (data: MSAStudyCreate) =>
-    fetchApi<MSAStudy>('/msa/studies', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+/** Cooldown period (ms) after a refresh completes before allowing another */
+const REFRESH_COOLDOWN_MS = 5_000
 
-  deleteStudy: (id: number) =>
-    fetchApi<void>(`/msa/studies/${id}`, { method: 'DELETE' }),
+// Access token stored in memory only (not localStorage).
+// Module-scope is acceptable here: this runs in a single browser JS context
+// and the token is never persisted to storage. Only fetchApi and auth hooks
+// access it via the exported getter/setter.
+let accessToken: string | null = null
+let refreshPromise: Promise<string | null> | null = null
+let lastRefreshTime = 0
 
-  setOperators: (studyId: number, operators: string[]) =>
-    fetchApi<MSAOperator[]>(`/msa/studies/${studyId}/operators`, {
-      method: 'POST',
-      body: JSON.stringify({ operators }),
-    }),
-
-  setParts: (studyId: number, parts: { name: string; reference_value?: number | null }[]) =>
-    fetchApi<MSAPart[]>(`/msa/studies/${studyId}/parts`, {
-      method: 'POST',
-      body: JSON.stringify({ parts }),
-    }),
-
-  submitMeasurements: (studyId: number, measurements: MSAMeasurementInput[]) =>
-    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/measurements`, {
-      method: 'POST',
-      body: JSON.stringify({ measurements }),
-    }),
-
-  getMeasurements: (studyId: number) =>
-    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/measurements`),
-
-  calculate: (studyId: number) =>
-    fetchApi<GageRRResult>(`/msa/studies/${studyId}/calculate`, {
-      method: 'POST',
-    }),
-
-  submitAttributeMeasurements: (studyId: number, measurements: MSAAttributeInput[]) =>
-    fetchApi<MSAMeasurement[]>(`/msa/studies/${studyId}/attribute-measurements`, {
-      method: 'POST',
-      body: JSON.stringify({ measurements }),
-    }),
-
-  calculateAttribute: (studyId: number) =>
-    fetchApi<AttributeMSAResult>(`/msa/studies/${studyId}/attribute-calculate`, {
-      method: 'POST',
-    }),
-
-  getResults: (studyId: number) =>
-    fetchApi<GageRRResult | AttributeMSAResult>(`/msa/studies/${studyId}/results`),
+export function setAccessToken(token: string | null) {
+  accessToken = token
 }
 
-// ---- Gage Bridge API ----
-
-export const gageBridgeApi = {
-  list: (plantId: number) =>
-    fetchApi<GageBridge[]>(`/gage-bridges?plant_id=${plantId}`),
-
-  get: (id: number) =>
-    fetchApi<GageBridgeDetail>(`/gage-bridges/${id}`),
-
-  register: (data: GageBridgeCreate) =>
-    fetchApi<GageBridgeRegistered>('/gage-bridges', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (id: number, data: Partial<GageBridgeCreate>) =>
-    fetchApi<GageBridge>(`/gage-bridges/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (id: number) =>
-    fetchApi<void>(`/gage-bridges/${id}`, { method: 'DELETE' }),
-
-  addPort: (bridgeId: number, data: GagePortCreate) =>
-    fetchApi<GagePort>(`/gage-bridges/${bridgeId}/ports`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  updatePort: (bridgeId: number, portId: number, data: Partial<GagePortCreate>) =>
-    fetchApi<GagePort>(`/gage-bridges/${bridgeId}/ports/${portId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  deletePort: (bridgeId: number, portId: number) =>
-    fetchApi<void>(`/gage-bridges/${bridgeId}/ports/${portId}`, { method: 'DELETE' }),
-
-  profiles: () =>
-    fetchApi<GageProfile[]>('/gage-bridges/profiles'),
+export function getAccessToken(): string | null {
+  return accessToken
 }
+
+/**
+ * Decode JWT payload without signature verification (just base64).
+ * Returns the exp timestamp in seconds, or null if unparseable.
+ */
+function getTokenExpiry(token: string): number | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if the access token is about to expire (within 2 minutes).
+ */
+function isTokenExpiringSoon(): boolean {
+  if (!accessToken) return false
+  const exp = getTokenExpiry(accessToken)
+  if (exp === null) return false
+  const nowSec = Math.floor(Date.now() / 1000)
+  return exp - nowSec < TOKEN_EXPIRY_BUFFER_SEC
+}
+
+/**
+ * Perform a token refresh. If a refresh is already in flight, return the
+ * existing promise so all concurrent 401 callers wait on the same refresh.
+ */
+function doRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+
+  // If a refresh just completed within the cooldown window, skip to avoid overlap
+  // between proactive refresh and 401-triggered refresh
+  if (Date.now() - lastRefreshTime < REFRESH_COOLDOWN_MS && accessToken) {
+    return Promise.resolve(accessToken)
+  }
+
+  refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+    .then(async (res) => {
+      if (res.ok) {
+        const data: RefreshResponse = await res.json()
+        accessToken = data.access_token
+        return accessToken
+      }
+      // Refresh failed — force logout
+      accessToken = null
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      return null
+    })
+    .catch(() => {
+      accessToken = null
+      window.dispatchEvent(new CustomEvent('auth:logout'))
+      return null
+    })
+    .finally(() => {
+      lastRefreshTime = Date.now()
+      refreshPromise = null
+    })
+
+  return refreshPromise
+}
+
+export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // Proactively refresh token before it expires to avoid 401 round-trips
+  if (accessToken && isTokenExpiringSoon() && !endpoint.startsWith('/auth/')) {
+    await doRefresh()
+  }
+
+  const buildHeaders = () => {
+    const h: Record<string, string> = {
+      ...((options?.headers as Record<string, string>) || {}),
+    }
+    // Only set Content-Type for requests that have a body.
+    // Skip for FormData — browser must set multipart boundary automatically.
+    if (options?.body && !(options.body instanceof FormData)) {
+      h['Content-Type'] = h['Content-Type'] || 'application/json'
+    }
+    if (accessToken) {
+      h['Authorization'] = `Bearer ${accessToken}`
+    }
+    h['Accept-Language'] = i18n.language || 'en'
+    return h
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: buildHeaders(),
+    credentials: 'include',
+  })
+
+  // Handle 401 with automatic token refresh (skip for auth endpoints)
+  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+    const newToken = await doRefresh()
+    if (newToken) {
+      // Retry with the refreshed token
+      const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: buildHeaders(),
+        credentials: 'include',
+      })
+      if (!retryResponse.ok) {
+        const error = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(
+          typeof error.detail === 'string' ? error.detail : `HTTP ${retryResponse.status}`,
+        )
+      }
+      if (retryResponse.status === 204) return undefined as T
+      return retryResponse.json()
+    }
+    throw new Error('Session expired')
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
+    // Handle Pydantic validation errors (array of errors) and standard errors
+    let message = 'Unknown error'
+    if (typeof error.detail === 'string') {
+      message = error.detail
+    } else if (Array.isArray(error.detail)) {
+      // Pydantic validation error format: [{loc: [...], msg: "...", type: "..."}]
+      message = error.detail
+        .map((e: { msg: string; loc?: string[] }) =>
+          e.loc ? `${e.loc.join('.')}: ${e.msg}` : e.msg,
+        )
+        .join('; ')
+    } else if (error.detail) {
+      message = JSON.stringify(error.detail)
+    }
+    throw new Error(message || `HTTP ${response.status}`)
+  }
+
+  // Handle 204 No Content responses (e.g., DELETE operations)
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  return response.json()
+}
+
+// ---- Re-export all domain API namespaces for backward compatibility ----
+
+export { authApi, oidcApi } from './auth.api'
+export { plantApi, hierarchyApi } from './plants.api'
+export { characteristicApi, sampleApi, dataEntryApi, annotationApi } from './characteristics.api'
+export { violationApi, anomalyApi, distributionApi, capabilityApi, rulePresetApi } from './quality.api'
+export { brokerApi, providerApi, opcuaApi, tagApi, gageBridgeApi } from './connectivity.api'
+export { databaseApi, userApi, auditApi, retentionApi, importApi, devtoolsApi, apiKeysApi } from './admin.api'
+export { notificationApi } from './notifications.api'
+export { signatureApi } from './signatures.api'
+export { reportScheduleApi } from './reports.api'
+export { msaApi } from './msa.api'
+export { faiApi } from './fai.api'
+export { pushApi } from './push.api'
+export { erpApi } from './erp.api'
+export { predictionApi, aiApi } from './predictions.api'

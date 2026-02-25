@@ -126,6 +126,8 @@ export function ViolationsView() {
   const [bulkAckDialogOpen, setBulkAckDialogOpen] = useState(false)
   const [bulkIds, setBulkIds] = useState<number[]>([])
   const [fetchingBulkIds, setFetchingBulkIds] = useState(false)
+  const [ackViolationId, setAckViolationId] = useState<number | null>(null)
+  const [ackReason, setAckReason] = useState('')
 
   // Convert date range to API params + effective page size
   // "Last N" (points) → fetch N most recent, single page
@@ -243,15 +245,18 @@ export function ViolationsView() {
     }
   }
 
-  const handleAcknowledge = (violationId: number) => {
+  const handleAcknowledge = () => {
+    if (!ackViolationId || !ackReason.trim()) return
     acknowledgeMutation.mutate(
       {
-        id: violationId,
-        reason: 'Acknowledged from violations view',
+        id: ackViolationId,
+        reason: ackReason.trim(),
         user: user?.username ?? 'Unknown',
       },
       {
         onSuccess: () => {
+          setAckViolationId(null)
+          setAckReason('')
           refetch()
           refetchStats()
         },
@@ -400,7 +405,8 @@ export function ViolationsView() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Desktop table layout */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[700px]">
             <thead className="bg-muted/50 border-border border-b">
               <tr>
@@ -501,9 +507,24 @@ export function ViolationsView() {
                       </td>
                       <td className="px-4 py-3">
                         {violation.acknowledged ? (
-                          <div className="text-success flex items-center gap-1 text-sm">
-                            <Check className="h-4 w-4" />
-                            <span>{tCommon('status.acknowledged')}</span>
+                          <div>
+                            <div className="text-success flex items-center gap-1 text-sm">
+                              <Check className="h-4 w-4" />
+                              <span>{tCommon('status.acknowledged')}</span>
+                            </div>
+                            <div className="text-muted-foreground mt-1 space-y-0.5 text-xs">
+                              {violation.ack_user && (
+                                <div>By: <span className="text-foreground">{violation.ack_user}</span></div>
+                              )}
+                              {violation.ack_timestamp && (
+                                <div>{new Date(violation.ack_timestamp).toLocaleString()}</div>
+                              )}
+                              {violation.ack_reason && (
+                                <div className="bg-muted/50 mt-1 rounded px-2 py-1 italic">
+                                  {violation.ack_reason}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         ) : isInformational ? (
                           <div className="text-primary flex items-center gap-1 text-sm">
@@ -519,13 +540,46 @@ export function ViolationsView() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {!violation.acknowledged && violation.requires_acknowledgement && (
-                          <button
-                            onClick={() => handleAcknowledge(violation.id)}
-                            disabled={acknowledgeMutation.isPending}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                          >
-                            {tCommon('buttons.acknowledge')}
-                          </button>
+                          ackViolationId === violation.id ? (
+                            <div className="space-y-2 text-left">
+                              <textarea
+                                placeholder="Reason for acknowledgment..."
+                                value={ackReason}
+                                onChange={(e) => setAckReason(e.target.value)}
+                                className="bg-background border-border focus:ring-primary w-full min-w-[200px] resize-none rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+                                rows={2}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleAcknowledge}
+                                  disabled={!ackReason.trim() || acknowledgeMutation.isPending}
+                                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                                >
+                                  {tCommon('buttons.confirm')}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setAckViolationId(null)
+                                    setAckReason('')
+                                  }}
+                                  className="border-border hover:bg-muted rounded border px-3 py-1.5 text-xs font-medium transition-colors"
+                                >
+                                  {tCommon('buttons.cancel')}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setAckViolationId(violation.id)
+                                setAckReason('')
+                              }}
+                              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-3 py-1.5 text-xs font-medium transition-colors"
+                            >
+                              {tCommon('buttons.acknowledge')}
+                            </button>
+                          )
                         )}
                       </td>
                     </tr>
@@ -534,6 +588,70 @@ export function ViolationsView() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile card layout */}
+        <div className="space-y-2 p-3 md:hidden">
+          {isLoading ? (
+            <div className="text-muted-foreground py-8 text-center text-sm">
+              {t('loadingViolations')}
+            </div>
+          ) : !violations?.items || violations?.items.length === 0 ? (
+            <div className="text-muted-foreground py-8 text-center text-sm">
+              {t('noViolationsFound')}
+            </div>
+          ) : (
+            violations?.items.map((violation) => (
+              <div key={violation.id} className="border-border rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {NELSON_RULES[violation.rule_id]?.name || violation.rule_name}
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-xs font-medium',
+                      violation.severity === 'CRITICAL'
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-yellow-500/10 text-yellow-600',
+                    )}
+                  >
+                    {violation.severity}
+                  </span>
+                </div>
+                <div className="text-muted-foreground mt-1 text-xs">
+                  {violation.characteristic_name || 'Unknown'}
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-muted-foreground text-xs">
+                    {violation.created_at
+                      ? new Date(violation.created_at).toLocaleString()
+                      : '-'}
+                  </span>
+                  {violation.acknowledged ? (
+                    <span className="text-success flex items-center gap-1 text-xs">
+                      <Check className="h-3 w-3" />
+                      {tCommon('status.acknowledged')}
+                    </span>
+                  ) : !violation.requires_acknowledgement ? (
+                    <span className="text-primary flex items-center gap-1 text-xs">
+                      <Info className="h-3 w-3" />
+                      {tCommon('status.informational')}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setAckViolationId(violation.id)
+                        setAckReason('')
+                      }}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-2 py-1 text-xs font-medium transition-colors"
+                    >
+                      {tCommon('buttons.acknowledge')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Bottom Pager */}

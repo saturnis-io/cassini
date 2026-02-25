@@ -13,6 +13,7 @@ import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
 import { AnnotationListPanel } from '@/components/AnnotationListPanel'
 import { SampleInspectorModal } from '@/components/SampleInspectorModal'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
@@ -555,11 +556,13 @@ export function OperatorDashboard() {
 
       {/* Sample Inspector Modal */}
       {sampleInspectorOpen && selectedId && sampleInspectorSampleId > 0 && (
-        <SampleInspectorModal
-          sampleId={sampleInspectorSampleId}
-          characteristicId={selectedId}
-          onClose={() => setSampleInspectorOpen(false)}
-        />
+        <ErrorBoundary>
+          <SampleInspectorModal
+            sampleId={sampleInspectorSampleId}
+            characteristicId={selectedId}
+            onClose={() => setSampleInspectorOpen(false)}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Bulk Acknowledge Dialog */}

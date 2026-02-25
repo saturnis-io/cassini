@@ -341,7 +341,7 @@ async def update_broker(
     return BrokerResponse.model_validate(broker)
 
 
-@router.delete("/{broker_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{broker_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_broker(
     broker_id: int,
     repo: BrokerRepository = Depends(get_broker_repository),

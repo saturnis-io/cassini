@@ -93,6 +93,7 @@ class AuditService:
 
     def __init__(self, session_factory):
         self._session_factory = session_factory
+        self._failure_count = 0
 
     async def log(
         self,
@@ -121,7 +122,8 @@ class AuditService:
                 session.add(entry)
                 await session.commit()
         except Exception:
-            logger.warning("audit_log_failed", action=action, exc_info=True)
+            self._failure_count += 1
+            logger.warning("audit_log_failed", action=action, failure_count=self._failure_count, exc_info=True)
 
     async def log_login(
         self,
