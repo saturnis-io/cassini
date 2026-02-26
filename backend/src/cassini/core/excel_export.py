@@ -346,43 +346,38 @@ def _build_summary_sheet(
         f"AVERAGE of Range column ({range_letter})",
     )
 
-    # Std Dev (of subgroup means)
-    stddev_row = _write_stat(
-        "Std Dev (of means)",
-        f"=STDEV.S({data_range_mean})",
-        f"STDEV of Mean column ({mean_letter})",
+    # Within-subgroup sigma (R-bar/d2) — from backend's stored_sigma.
+    # This is the correct sigma for Cp/Cpk (within-subgroup capability).
+    # For n=1 subgroups, stored_sigma uses moving range / d2.
+    within_sigma_row = _write_stat(
+        "Within-Subgroup Sigma",
+        char.stored_sigma,
+        "R-bar / d2 (from SPC engine)",
     )
 
-    # Overall Std Dev (of all individual measurements)
+    # Overall Std Dev (of all individual measurements) — for Pp/Ppk
     if n == 1:
-        # Single measurements — same as mean column
         meas_letter = get_column_letter(meas_start_col)
         overall_range = f"Measurements!{meas_letter}{_DATA_START_ROW}:{meas_letter}{last_data_row}"
-        _write_stat(
-            "Overall Std Dev",
-            f"=STDEV.S({overall_range})",
-            "STDEV of all individual measurements",
-        )
     else:
-        # Multiple measurements per subgroup — build a range across all measurement columns
         first_meas_letter = get_column_letter(meas_start_col)
         last_meas_letter = get_column_letter(meas_end_col)
         overall_range = (
             f"Measurements!{first_meas_letter}{_DATA_START_ROW}"
             f":{last_meas_letter}{last_data_row}"
         )
-        _write_stat(
-            "Overall Std Dev",
-            f"=STDEV.S({overall_range})",
-            f"STDEV of all measurements ({first_meas_letter}-{last_meas_letter})",
-        )
+    overall_sd_row = _write_stat(
+        "Overall Std Dev",
+        f"=STDEV.S({overall_range})",
+        "STDEV of all individual measurements",
+    )
 
     # Blank separator
     row += 1
 
     # Specification limits (static)
-    _write_stat("USL", char.usl, "Upper Specification Limit")
-    _write_stat("LSL", char.lsl, "Lower Specification Limit")
+    usl_row = _write_stat("USL", char.usl, "Upper Specification Limit")
+    lsl_row = _write_stat("LSL", char.lsl, "Lower Specification Limit")
     _write_stat("Target", char.target_value, "Target Value")
 
     # Blank separator
@@ -394,27 +389,30 @@ def _build_summary_sheet(
         row += 1
 
         xbar_cell = f"B{xbar_row}"
-        stddev_cell = f"B{stddev_row}"
+        within_sigma_cell = f"B{within_sigma_row}"
+        overall_sd_cell = f"B{overall_sd_row}"
+        usl_cell = f"B{usl_row}"
+        lsl_cell = f"B{lsl_row}"
 
-        # Cp = (USL - LSL) / (6 * StdDev)
+        # Cp = (USL - LSL) / (6 * within_sigma)
         _write_stat(
             "Cp",
-            f"=({char.usl}-{char.lsl})/(6*{stddev_cell})",
-            "(USL - LSL) / (6 * StdDev)",
+            f"=({usl_cell}-{lsl_cell})/(6*{within_sigma_cell})",
+            "(USL - LSL) / (6 * Within σ)",
         )
 
-        # Cpu = (USL - X-bar) / (3 * StdDev)
+        # Cpu = (USL - X-bar) / (3 * within_sigma)
         cpu_row = _write_stat(
             "Cpu",
-            f"=({char.usl}-{xbar_cell})/(3*{stddev_cell})",
-            "(USL - X-bar) / (3 * StdDev)",
+            f"=({usl_cell}-{xbar_cell})/(3*{within_sigma_cell})",
+            "(USL - X̄) / (3 * Within σ)",
         )
 
-        # Cpl = (X-bar - LSL) / (3 * StdDev)
+        # Cpl = (X-bar - LSL) / (3 * within_sigma)
         cpl_row = _write_stat(
             "Cpl",
-            f"=({xbar_cell}-{char.lsl})/(3*{stddev_cell})",
-            "(X-bar - LSL) / (3 * StdDev)",
+            f"=({xbar_cell}-{lsl_cell})/(3*{within_sigma_cell})",
+            "(X̄ - LSL) / (3 * Within σ)",
         )
 
         # Cpk = MIN(Cpu, Cpl)
@@ -424,44 +422,25 @@ def _build_summary_sheet(
             "MIN(Cpu, Cpl)",
         )
 
-        # Pp and Ppk use Overall StdDev — we need to build a cell reference
-        # Overall Std Dev is a formula cell. Find its row.
-        # It was written 2 rows after stddev_row (stddev_row is Std Dev of means,
-        # then next row is Overall Std Dev). But we need the exact row.
-        # Re-derive: xbar_row=3, rbar_row=4, stddev_row=5, overall_row=6,
-        # then blank=7, USL=8, LSL=9, Target=10, blank=11, header=12,
-        # Cp=13, Cpu=14, Cpl=15, Cpk=16
-        # Instead of guessing, let's use a direct formula with the overall range.
-        if n == 1:
-            meas_letter = get_column_letter(meas_start_col)
-            overall_range_ref = f"Measurements!{meas_letter}{_DATA_START_ROW}:{meas_letter}{last_data_row}"
-        else:
-            first_meas_letter = get_column_letter(meas_start_col)
-            last_meas_letter = get_column_letter(meas_end_col)
-            overall_range_ref = (
-                f"Measurements!{first_meas_letter}{_DATA_START_ROW}"
-                f":{last_meas_letter}{last_data_row}"
-            )
-
         # Pp = (USL - LSL) / (6 * overall_stddev)
         _write_stat(
             "Pp",
-            f"=({char.usl}-{char.lsl})/(6*STDEV.S({overall_range_ref}))",
-            "(USL - LSL) / (6 * Overall StdDev)",
+            f"=({usl_cell}-{lsl_cell})/(6*{overall_sd_cell})",
+            "(USL - LSL) / (6 * Overall σ)",
         )
 
-        # Ppu
+        # Ppu = (USL - X-bar) / (3 * overall_stddev)
         ppu_row = _write_stat(
             "Ppu",
-            f"=({char.usl}-{xbar_cell})/(3*STDEV.S({overall_range_ref}))",
-            "(USL - X-bar) / (3 * Overall StdDev)",
+            f"=({usl_cell}-{xbar_cell})/(3*{overall_sd_cell})",
+            "(USL - X̄) / (3 * Overall σ)",
         )
 
-        # Ppl
+        # Ppl = (X-bar - LSL) / (3 * overall_stddev)
         ppl_row = _write_stat(
             "Ppl",
-            f"=({xbar_cell}-{char.lsl})/(3*STDEV.S({overall_range_ref}))",
-            "(X-bar - LSL) / (3 * Overall StdDev)",
+            f"=({xbar_cell}-{lsl_cell})/(3*{overall_sd_cell})",
+            "(X̄ - LSL) / (3 * Overall σ)",
         )
 
         # Ppk = MIN(Ppu, Ppl)
