@@ -353,6 +353,7 @@ async def update_preferences(
             event_type=item.event_type,
             channel=item.channel,
             is_enabled=item.is_enabled,
+            severity_filter=item.severity_filter,
         )
         session.add(pref)
         new_prefs.append(pref)

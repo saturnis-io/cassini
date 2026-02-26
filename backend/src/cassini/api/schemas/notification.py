@@ -79,6 +79,7 @@ class NotificationPreferenceItem(BaseModel):
     event_type: str
     channel: str
     is_enabled: bool = True
+    severity_filter: str = "all"
 
 
 class NotificationPreferenceResponse(BaseModel):
@@ -87,6 +88,7 @@ class NotificationPreferenceResponse(BaseModel):
     event_type: str
     channel: str
     is_enabled: bool
+    severity_filter: str = "all"
 
     model_config = {"from_attributes": True}
 
