@@ -21,6 +21,8 @@
     "database": "Database",
     "retention": "Retention",
     "reports": "Reports",
-    "ai": "AI Config"
+    "ai": "AI Config",
+    "account": "Account",
+    "emailWebhooks": "Email & Webhooks"
   }
 }

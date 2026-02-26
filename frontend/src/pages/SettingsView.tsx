@@ -14,6 +14,8 @@ import {
   PenLine,
   Globe,
   Brain,
+  CircleUser,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -36,6 +38,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
   {
     labelKey: 'groups.personal',
     tabs: [
+      { to: 'account', labelKey: 'tabs.account', icon: CircleUser },
       { to: 'appearance', labelKey: 'tabs.appearance', icon: Palette },
       { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell },
     ],
@@ -46,6 +49,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
       { to: 'sites', labelKey: 'tabs.sites', icon: Factory, minRole: 'admin' },
       { to: 'branding', labelKey: 'tabs.branding', icon: Building2, minRole: 'admin' },
       { to: 'localization', labelKey: 'tabs.localization', icon: Globe, minRole: 'admin' },
+      { to: 'email-webhooks', labelKey: 'tabs.emailWebhooks', icon: Mail, minRole: 'admin' },
     ],
   },
   {
@@ -114,7 +118,7 @@ export function SettingsPage() {
                     <NavLink
                       key={tab.to}
                       to={tab.to}
-                      end={tab.to === 'appearance'}
+                      end={tab.to === 'account'}
                       className={({ isActive }) =>
                         cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',

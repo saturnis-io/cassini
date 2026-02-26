@@ -45,9 +45,13 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { DOEPage } from '@/pages/DOEPage'
 import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
 import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
+import { AccountSettings } from '@/components/AccountSettings'
+import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { LoginPage } from '@/pages/LoginPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage'
 import { KioskLayout } from '@/components/KioskLayout'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
@@ -183,6 +187,8 @@ function App() {
             <Routes>
               {/* Login page - outside auth gate, no providers needed */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Force password change - outside main layout, user has token but must change password */}
               <Route path="/change-password" element={<ChangePasswordPage />} />
@@ -300,15 +306,9 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="settings"
-                  element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <SettingsPage />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<Navigate to="appearance" replace />} />
+                <Route path="settings" element={<SettingsPage />}>
+                  <Route index element={<Navigate to="account" replace />} />
+                  <Route path="account" element={<AccountSettings />} />
                   <Route path="appearance" element={<AppearanceSettings />} />
                   <Route path="notifications" element={<NotificationsSettings />} />
                   <Route
@@ -335,9 +335,38 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="api-keys" element={<ApiKeysSettings />} />
-                  <Route path="retention" element={<RetentionSettings />} />
-                  <Route path="reports" element={<ScheduledReports />} />
+                  <Route
+                    path="email-webhooks"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <EmailWebhookSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="api-keys"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <ApiKeysSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="retention"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <RetentionSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="reports"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <ScheduledReports />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="sso"
                     element={
@@ -354,7 +383,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="signatures" element={<SignatureSettingsPage />} />
+                  <Route
+                    path="signatures"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <SignatureSettingsPage />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="ai"
                     element={
@@ -363,7 +399,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="database" element={<DatabaseSettings />} />
+                  <Route
+                    path="database"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <DatabaseSettings />
+                      </ProtectedRoute>
+                    }
+                  />
                 </Route>
                 <Route
                   path="admin/users"
