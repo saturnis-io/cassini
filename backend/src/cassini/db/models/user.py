@@ -68,6 +68,7 @@ class User(Base):
     last_signature_auth_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    pending_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
     plant_roles: Mapped[list["UserPlantRole"]] = relationship(

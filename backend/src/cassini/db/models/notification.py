@@ -84,6 +84,9 @@ class NotificationPreference(Base):
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    severity_filter: Mapped[str] = mapped_column(
+        String(30), default="all", server_default="all", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
