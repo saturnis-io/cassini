@@ -14,7 +14,6 @@ import type { PredictionDashboardItem } from '@/api/predictions.api'
  * Each card shows model info and can expand to show forecast data.
  */
 export function PredictionsTab() {
-  const { formatDate, formatDateTime } = useDateFormat()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
@@ -105,6 +104,7 @@ function PredictionCard({
   onToggleExpand,
   onToggleConfig,
 }: PredictionCardProps) {
+  const { formatDate } = useDateFormat()
   const updateConfig = useUpdatePredictionConfig()
 
   const handleToggleEnabled = () => {
@@ -205,6 +205,7 @@ function PredictionCard({
 // ---------------------------------------------------------------------------
 
 function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast: boolean }) {
+  const { formatDateTime } = useDateFormat()
   const { data: forecastResult, isLoading } = useForecast(charId)
 
   if (isLoading) {

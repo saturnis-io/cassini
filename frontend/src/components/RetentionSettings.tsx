@@ -597,6 +597,7 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
 }
 
 function PurgeHistoryRow({ run }: { run: PurgeHistory }) {
+  const { dateFormat } = useDateFormat()
   const duration = run.completed_at
     ? `${Math.max(1, Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000))}s`
     : run.status === 'running'

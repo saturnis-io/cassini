@@ -78,7 +78,6 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 export function ScheduledReports() {
-  const { dateFormat } = useDateFormat()
   const { selectedPlant } = usePlant()
   const plantId = selectedPlant?.id ?? 0
 
@@ -293,6 +292,7 @@ function ScheduleCard({
   onTrigger: () => void
   isTriggering: boolean
 }) {
+  const { dateFormat } = useDateFormat()
   const template = REPORT_TEMPLATES.find((t) => t.id === schedule.template_id)
 
   const frequencyLabel = FREQUENCY_LABELS[schedule.frequency] ?? schedule.frequency
@@ -441,6 +441,7 @@ function RunHistoryPanel({
 }
 
 function RunRow({ run }: { run: ReportRun }) {
+  const { dateFormat } = useDateFormat()
   const duration = run.completed_at
     ? `${Math.max(1, Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000))}s`
     : run.status === 'running'

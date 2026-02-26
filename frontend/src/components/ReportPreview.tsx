@@ -90,7 +90,7 @@ export function ReportPreview({
 }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
   const { brandConfig } = useTheme()
-  const { formatDate, formatDateTime, dateFormat, datetimeFormat } = useDateFormat()
+  const { formatDateTime } = useDateFormat()
 
   // Fetch data for primary characteristic using the provided chart options
   const { data: chartData, isLoading: chartLoading } = useChartData(
@@ -202,6 +202,8 @@ function ReportSectionComponent({
   characteristicId,
   chartOptions,
 }: SectionProps) {
+  const { formatDate, formatDateTime } = useDateFormat()
+
   switch (section) {
     case 'header':
       return (
@@ -958,6 +960,8 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
  * Trend chart section for reports (ECharts)
  */
 function ReportTrendSection({ chartData }: { chartData: ChartData }) {
+  const { dateFormat, datetimeFormat } = useDateFormat()
+
   // Build a unified array of {timestamp, value} from whichever data source is populated
   const trendPoints = useMemo(() => {
     if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
