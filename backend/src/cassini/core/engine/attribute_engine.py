@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from cassini.core.explain import ExplanationCollector
+from cassini.core.events.events import ViolationCreatedEvent
+from cassini.core.events.bus import event_bus as global_event_bus
 
 if TYPE_CHECKING:
     from cassini.db.repositories import (
@@ -871,6 +873,7 @@ async def process_attribute_sample(
     sample_repo: "SampleRepository",
     char_repo: "CharacteristicRepository",
     violation_repo: "ViolationRepository",
+    event_bus=None,
 ) -> AttributeProcessingResult:
     """Full attribute sample processing pipeline.
 
@@ -1061,6 +1064,18 @@ async def process_attribute_sample(
             requires_acknowledgement=requires_ack,
         )
         violations.append(result)
+
+        # Publish event for notification dispatch
+        bus = event_bus or global_event_bus
+        if bus:
+            await bus.publish(ViolationCreatedEvent(
+                violation_id=violation_record.id,
+                sample_id=sample.id,
+                characteristic_id=char_id,
+                rule_id=result.rule_id,
+                rule_name=result.rule_name,
+                severity=result.severity,
+            ))
 
     # Get the effective limits for this point
     if ucl_values and lcl_values:
