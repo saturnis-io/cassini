@@ -103,18 +103,27 @@ export function FAIPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <select
-          value={statusFilter ?? ''}
-          onChange={(e) => setStatusFilter(e.target.value || undefined)}
-          className="border-border bg-card text-foreground rounded-lg border px-3 py-2 text-sm"
-        >
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="submitted">Submitted</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+      <div className="flex items-center gap-2">
+        {[
+          { value: undefined, label: 'All' },
+          { value: 'draft', label: 'Draft' },
+          { value: 'submitted', label: 'Submitted' },
+          { value: 'approved', label: 'Approved' },
+          { value: 'rejected', label: 'Rejected' },
+        ].map((opt) => (
+          <button
+            key={opt.label}
+            onClick={() => setStatusFilter(opt.value)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              statusFilter === opt.value
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* Reports table */}

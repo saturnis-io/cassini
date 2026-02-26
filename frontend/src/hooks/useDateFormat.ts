@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useSystemSettings } from '@/api/hooks'
-import { applyFormat } from '@/lib/date-format'
+import { applyFormat, deriveAxisFormats } from '@/lib/date-format'
 
 const DEFAULT_DATE = 'YYYY-MM-DD'
 const DEFAULT_DATETIME = 'YYYY-MM-DD HH:mm:ss'
@@ -46,5 +46,10 @@ export function useDateFormat() {
     [datetimeFormat],
   )
 
-  return { formatDate, formatDateTime, dateFormat, datetimeFormat }
+  const axisFormats = useMemo(
+    () => deriveAxisFormats(dateFormat, datetimeFormat),
+    [dateFormat, datetimeFormat],
+  )
+
+  return { formatDate, formatDateTime, dateFormat, datetimeFormat, axisFormats }
 }

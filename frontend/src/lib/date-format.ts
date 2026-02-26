@@ -140,6 +140,45 @@ export function validateFormatString(format: string): boolean {
 }
 
 /**
+ * Derive compact axis-label formats from the user's configured date/datetime formats.
+ * Charts need shorter formats for x-axis labels that still respect the user's
+ * regional preference (e.g. MM/DD vs DD/MM, 12h vs 24h).
+ *
+ * Returns three tiers for adaptive axis formatting:
+ * - `short` — date only, no year (for wide time ranges, e.g. "02/14" or "14 Feb")
+ * - `medium` — date + time, no year (for multi-day ranges, e.g. "02/14 14:30")
+ * - `timeOnly` — time only (for intra-day ranges, e.g. "14:30" or "02:30 PM")
+ *
+ * @example
+ * deriveAxisFormats('MM/DD/YYYY', 'MM/DD/YYYY hh:mm a')
+ * // => { short: 'MM/DD', medium: 'MM/DD hh:mm a', timeOnly: 'hh:mm a' }
+ *
+ * deriveAxisFormats('DD MMM YYYY', 'DD MMM YYYY HH:mm')
+ * // => { short: 'DD MMM', medium: 'DD MMM HH:mm', timeOnly: 'HH:mm' }
+ */
+export function deriveAxisFormats(
+  dateFormat: string,
+  datetimeFormat: string,
+): { short: string; medium: string; timeOnly: string } {
+  // Strip year tokens and surrounding separators from the date format
+  const short = dateFormat
+    .replace(/[/\-.\s]*YYYY[/\-.\s]*/g, '')
+    .replace(/[/\-.\s]*YY[/\-.\s]*/g, '')
+    .trim()
+    .replace(/^[/\-.\s]+|[/\-.\s]+$/g, '') || 'MM-DD'
+
+  // Extract time portion from datetime format (everything after the date tokens)
+  const timeMatch = datetimeFormat.match(/((?:HH|hh):mm(?::ss)?(?:\s*a)?)/)
+  const timePart = timeMatch ? timeMatch[1] : 'HH:mm'
+
+  return {
+    short,
+    medium: `${short} ${timePart}`,
+    timeOnly: timePart,
+  }
+}
+
+/**
  * Reference table of all supported format tokens.
  * Useful for building a token reference panel in the UI.
  */

@@ -2,11 +2,13 @@ import { useMemo, useState, useRef, useCallback } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
+import { Explainable } from '@/components/Explainable'
 import type { ECOption } from '@/lib/echarts'
 import type { GageRRResult } from '@/api/client'
 
 interface MSAResultsProps {
   result: GageRRResult
+  studyId: number
 }
 
 const VERDICT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -96,7 +98,7 @@ function pctBg(pct: number): string {
   return 'bg-red-500/10'
 }
 
-export function MSAResults({ result }: MSAResultsProps) {
+export function MSAResults({ result, studyId }: MSAResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.unacceptable
 
   // Variance components bar chart
@@ -161,20 +163,25 @@ export function MSAResults({ result }: MSAResultsProps) {
             {METHOD_LABELS[result.method] ?? result.method}
           </span>
           <span className="text-muted-foreground text-xs">
-            %Study GRR = {result.pct_study_grr.toFixed(1)}%
+            %Study GRR ={' '}
+            <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
+              {result.pct_study_grr.toFixed(1)}%
+            </Explainable>
             {result.pct_study_grr < 10 ? ' (\u226410%)' : result.pct_study_grr <= 30 ? ' (10-30%)' : ' (>30%)'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">ndc =</span>
-          <span
-            className={cn(
-              'rounded-full px-3 py-1 text-sm font-bold',
-              result.ndc >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
-            )}
-          >
-            {result.ndc}
-          </span>
+          <Explainable metric="ndc" resourceId={studyId} resourceType="msa">
+            <span
+              className={cn(
+                'rounded-full px-3 py-1 text-sm font-bold',
+                result.ndc >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
+              )}
+            >
+              {result.ndc}
+            </span>
+          </Explainable>
           <Tip id="ndc" />
         </div>
       </div>
@@ -222,7 +229,9 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_ev.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_ev))}>
-                {result.pct_study_ev.toFixed(2)}%
+                <Explainable metric="pct_study_ev" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_ev.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
@@ -236,7 +245,9 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_av.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_av))}>
-                {result.pct_study_av.toFixed(2)}%
+                <Explainable metric="pct_study_av" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_av.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
@@ -266,11 +277,15 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_grr.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_study_grr))}>
-                {result.pct_study_grr.toFixed(2)}%
+                <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_grr.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && (
                 <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_tolerance_grr))}>
-                  {result.pct_tolerance_grr.toFixed(2)}%
+                  <Explainable metric="pct_tolerance_grr" resourceId={studyId} resourceType="msa">
+                    {result.pct_tolerance_grr.toFixed(2)}%
+                  </Explainable>
                 </td>
               )}
             </tr>
@@ -337,7 +352,11 @@ export function MSAResults({ result }: MSAResultsProps) {
                   <td className="px-4 py-2 text-right tabular-nums">{row.df ?? '-'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{row.MS != null ? row.MS.toFixed(6) : '-'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {row.F != null ? row.F.toFixed(4) : '-'}
+                    {row.F != null && ['operator', 'part', 'interaction'].includes(source) ? (
+                      <Explainable metric={`f_${source}`} resourceId={studyId} resourceType="msa">
+                        {row.F.toFixed(4)}
+                      </Explainable>
+                    ) : row.F != null ? row.F.toFixed(4) : '-'}
                   </td>
                   <td
                     className={cn(

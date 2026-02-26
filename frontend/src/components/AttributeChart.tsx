@@ -6,6 +6,7 @@ import { getStoredChartColors } from '@/lib/theme-presets'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
+import { Explainable } from '@/components/Explainable'
 import { cn } from '@/lib/utils'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { AttributeChartSample } from '@/types'
@@ -471,16 +472,18 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
                 {chartTypeName}
               </span>
               {chartData?.sigma_z != null && (
-                <span className={cn(
-                  "flex-shrink-0 rounded-full border px-2 py-0.5 font-mono text-xs",
-                  chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
-                  chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
-                  "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
-                )}>
-                  <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
-                  {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
-                   chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
-                </span>
+                <Explainable metric="sigma_z" resourceId={characteristicId} resourceType="attribute">
+                  <span className={cn(
+                    "flex-shrink-0 rounded-full border px-2 py-0.5 font-mono text-xs",
+                    chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
+                    chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
+                    "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
+                  )}>
+                    <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
+                    {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
+                     chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                  </span>
+                </Explainable>
               )}
               <h3
                 className="text-foreground truncate text-sm leading-5 font-semibold"

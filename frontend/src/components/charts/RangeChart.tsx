@@ -13,6 +13,7 @@ import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { formatDisplayKey } from '@/lib/display-key'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 
 interface RangeChartProps {
@@ -87,6 +88,7 @@ export function RangeChart({
     chartOptions ?? { limit: 50 },
   )
   const chartColors = useChartColors()
+  const { axisFormats } = useDateFormat()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
@@ -394,14 +396,11 @@ export function RangeChart({
             formatter: (value: number) => {
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
-                // > 30 days: "Feb 14"
-                return applyFormat(d, 'MMM DD')
+                return applyFormat(d, axisFormats.short)
               } else if (dataTimeRangeMs > 86400000) {
-                // > 1 day: "Feb 14 09:00"
-                return applyFormat(d, 'MMM DD HH:mm')
+                return applyFormat(d, axisFormats.medium)
               }
-              // < 1 day: "09:15"
-              return applyFormat(d, 'HH:mm')
+              return applyFormat(d, axisFormats.timeOnly)
             },
           },
           splitLine: { show: false },
@@ -537,6 +536,7 @@ export function RangeChart({
     highlightedIndex,
     rangeWindow,
     showBrush,
+    axisFormats,
   ])
 
   // Mouse event handlers

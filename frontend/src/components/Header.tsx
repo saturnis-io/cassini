@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Sigma } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -7,6 +7,8 @@ import { useAuth } from '@/providers/AuthProvider'
 import { ROLE_LABELS } from '@/lib/roles'
 import { useUIStore } from '@/stores/uiStore'
 import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
+import { CassiniLogo } from '@/components/login/CassiniLogo'
+import { deriveLogoColors } from '@/lib/brand-engine'
 
 interface HeaderProps {
   className?: string
@@ -26,10 +28,11 @@ interface HeaderProps {
 export function Header({ className, plantSelector }: HeaderProps) {
   const { t } = useTranslation('auth')
   const { t: tNav } = useTranslation('navigation')
-  const { theme, setTheme, brandConfig } = useTheme()
+  const { theme, setTheme, brandConfig, fullBrandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
-  const defaultLogo = '/header-logo.svg'
+
+  const derivedLogoColors = useMemo(() => deriveLogoColors(fullBrandConfig), [fullBrandConfig])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
@@ -85,14 +88,18 @@ export function Header({ className, plantSelector }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <img
-          src={logoUrl || defaultLogo}
-          alt={`${appName} logo`}
-          className="h-9 w-9 object-contain"
-        />
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={`${appName} logo`}
+            className="h-9 w-9 object-contain"
+          />
+        ) : (
+          <CassiniLogo variant="icon" size={36} brandColors={derivedLogoColors} />
+        )}
         <span
           className="hidden text-lg font-bold sm:inline"
-          style={{ fontFamily: "'Sansation', sans-serif" }}
+          style={{ fontFamily: 'var(--font-heading)' }}
         >
           {appName}
         </span>

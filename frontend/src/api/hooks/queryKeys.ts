@@ -135,10 +135,14 @@ export const queryKeys = {
   },
   explain: {
     all: ['explain'] as const,
-    capability: (metric: string, charId: string | number) =>
-      ['explain', 'capability', metric, charId] as const,
+    capability: (metric: string, charId: string | number, chartOptions?: object) =>
+      ['explain', 'capability', metric, charId, chartOptions] as const,
     msa: (metric: string, studyId: string | number) =>
       ['explain', 'msa', metric, studyId] as const,
+    controlLimits: (metric: string, charId: string | number) =>
+      ['explain', 'control-limits', metric, charId] as const,
+    attribute: (metric: string, charId: string | number) =>
+      ['explain', 'attribute', metric, charId] as const,
   },
 }
 

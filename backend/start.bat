@@ -44,15 +44,15 @@ echo  %GOLD% ● ╌╌╌╌╌╌╌ ● ╌╌╌╌╌╌╌╌ ● ╌╌�
 echo  %GOLD%                 ●               ●%R%
 echo  %DIM%╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌%R% %ORANGE%LCL%R%
 echo.
-echo  %GRAY%                 .  *  .     .   *   .%R%
-echo  %GRAY%              .        %GOLD%____%GRAY%         .%R%
-echo  %GRAY%          *        %GOLD%,o88888o.%GRAY%     *%R%
-echo  %GRAY%               %GOLD%,o8888888888o.%R%
-echo  %GOLD%        ~~~~~ o888888888888888o ~~~~~%R%
-echo  %GOLD%        ===== O888888888888888O =====%R%
-echo  %GOLD%        ~~~~~ `o8888888888888' ~~~~~%R%
-echo  %GRAY%               %GOLD%`o88888888o'%R%
-echo  %GRAY%          *        %GOLD%`""""'%GRAY%     *%R%
+echo  %GRAY%            .  *  .     .   *   .%R%
+echo  %GRAY%              .  +%GOLD%_____%GRAY%         .%R%
+echo  %GRAY%          *    %GOLD%,o8888888o⹁%GRAY%     *%R%
+echo  %GRAY%              %GOLD%,o888888888o⹁%R%
+echo  %GRAY%         %GOLD% ~~~~O88888888888O~~~~ %R%
+echo  %GRAY%        %GOLD%===== O88888888888O =====%R%
+echo  %GRAY%         %GOLD% ~~~~`o888888888o´~~~~ %R%
+echo  %GRAY%               %GOLD%`o8888888o´%R%
+echo  %GRAY%          *      %GOLD%`"""""'     %GRAY%*%R%
 echo  %GRAY%              .               .%R%
 echo.
 echo  %DIM%SPC Platform %CREAM%// %DIM%Backend API Server%R%

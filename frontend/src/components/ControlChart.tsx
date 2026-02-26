@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { graphic } from '@/lib/echarts'
 // ECharts tree-shaken imports are registered in @/lib/echarts
@@ -16,10 +16,11 @@ import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
+import { Explainable } from '@/components/Explainable'
 import type { Annotation } from '@/types'
 import type { AnomalyEvent } from '@/types/anomaly'
 import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
-import { Sparkles, ChevronUp } from 'lucide-react'
+import { Sparkles, ChevronUp, X, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ControlChartProps {
@@ -96,6 +97,12 @@ interface ChartPoint {
   z_score: number | null
 }
 
+/** Parse a timestamp string as UTC even when the backend omits the Z suffix. */
+function parseUtc(ts: string): number {
+  if (ts.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(ts)) return new Date(ts).getTime()
+  return new Date(ts + 'Z').getTime()
+}
+
 const ANOMALY_SEVERITY_STYLES: Record<string, string> = {
   CRITICAL: 'bg-red-500/15 text-red-600 border-red-500/30',
   WARNING: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
@@ -112,6 +119,223 @@ const ANOMALY_DETECTOR_LABELS: Record<string, string> = {
   pelt: 'PELT',
   ks_test: 'K-S Test',
   isolation_forest: 'Isolation Forest',
+}
+
+/** Persistent click-to-stay tooltip with Explainable metric values. */
+function PinnedChartTooltip({
+  point,
+  screenX,
+  screenY,
+  characteristicId,
+  controlLimits,
+  shortRunMode,
+  isModeA,
+  isModeB,
+  decimalPrecision,
+  onViewSample,
+  onClose,
+}: {
+  point: ChartPoint
+  screenX: number
+  screenY: number
+  characteristicId: number
+  controlLimits: { ucl: number | null; lcl: number | null; center_line: number | null }
+  shortRunMode: string | null
+  isModeA: boolean
+  isModeB: boolean
+  decimalPrecision: number
+  onViewSample?: (sampleId: number) => void
+  onClose: () => void
+}) {
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ x: screenX + 14, y: screenY - 14 })
+
+  const fmt = (v: number | null | undefined) => {
+    if (v == null) return 'N/A'
+    return v.toFixed(decimalPrecision)
+  }
+
+  // Adjust position to stay within viewport
+  useEffect(() => {
+    if (!tooltipRef.current) return
+    const rect = tooltipRef.current.getBoundingClientRect()
+    let x = screenX + 14
+    let y = screenY - 14
+    if (x + rect.width > window.innerWidth - 8) x = screenX - rect.width - 14
+    if (y + rect.height > window.innerHeight - 8) y = window.innerHeight - rect.height - 8
+    if (y < 8) y = 8
+    if (x < 8) x = 8
+    setPos({ x, y })
+  }, [screenX, screenY])
+
+  // Click-outside + Escape to dismiss
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscape)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
+  // Build the value label based on chart mode
+  let valueLabel: string
+  let valueDisplay: number
+  if (isModeA) {
+    valueLabel = 'Z-Score'
+    valueDisplay = point.z_score ?? point.mean
+  } else if (shortRunMode === 'deviation') {
+    valueLabel = 'Deviation'
+    valueDisplay = point.mean
+  } else if (shortRunMode === 'standardized') {
+    valueLabel = 'Z-Value'
+    valueDisplay = point.mean
+  } else {
+    valueLabel = 'Value'
+    valueDisplay = point.displayValue ?? point.mean
+  }
+
+  return createPortal(
+    <div
+      ref={tooltipRef}
+      className="bg-popover text-popover-foreground border-border fixed z-[55] min-w-[200px] max-w-[280px] rounded-lg border shadow-lg"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      {/* Header */}
+      <div className="border-border flex items-center justify-between border-b px-3 py-2">
+        <span className="text-xs font-semibold">
+          Sample {formatDisplayKey(point.displayKey)}
+        </span>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground -mr-1 rounded p-0.5 transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Metrics */}
+      <div className="space-y-1.5 px-3 py-2 text-xs">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">n</span>
+          <span className="tabular-nums">{point.actual_n}</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">{valueLabel}</span>
+          <span className="font-medium tabular-nums">{fmt(valueDisplay)}</span>
+        </div>
+
+        {/* Control limits — with Explainable */}
+        {!isModeB && controlLimits.ucl != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">UCL</span>
+            <Explainable
+              metric="ucl"
+              resourceId={characteristicId}
+              resourceType="control-limits"
+            >
+              <span className="tabular-nums">{fmt(controlLimits.ucl)}</span>
+            </Explainable>
+          </div>
+        )}
+
+        {/* Per-point limits for variable-limits mode */}
+        {isModeB && point.effective_ucl != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">UCL</span>
+            <span className="tabular-nums">{fmt(point.effective_ucl)}</span>
+          </div>
+        )}
+
+        {!isModeB && controlLimits.center_line != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">CL</span>
+            <Explainable
+              metric="center_line"
+              resourceId={characteristicId}
+              resourceType="control-limits"
+            >
+              <span className="tabular-nums">{fmt(controlLimits.center_line)}</span>
+            </Explainable>
+          </div>
+        )}
+
+        {!isModeB && controlLimits.lcl != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">LCL</span>
+            <Explainable
+              metric="lcl"
+              resourceId={characteristicId}
+              resourceType="control-limits"
+            >
+              <span className="tabular-nums">{fmt(controlLimits.lcl)}</span>
+            </Explainable>
+          </div>
+        )}
+
+        {isModeB && point.effective_lcl != null && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">LCL</span>
+            <span className="tabular-nums">{fmt(point.effective_lcl)}</span>
+          </div>
+        )}
+
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Time</span>
+          <span className="text-muted-foreground">{point.timestampLabel}</span>
+        </div>
+
+        {point.is_undersized && (
+          <div className="text-warning text-[11px] font-medium">Undersized sample</div>
+        )}
+
+        {/* Violations */}
+        {point.hasViolation && point.violationRules.length > 0 && (
+          <div className="border-border mt-1 border-t pt-1.5">
+            <div
+              className={cn(
+                'mb-1 text-[11px] font-medium',
+                point.allAcknowledged ? 'text-muted-foreground' : 'text-destructive',
+              )}
+            >
+              {point.allAcknowledged ? 'Violations (acknowledged):' : 'Violations:'}
+            </div>
+            {point.violationRules.map((ruleId) => (
+              <div key={ruleId} className="text-muted-foreground text-[11px]">
+                {ruleId}: {NELSON_RULES[ruleId]?.name || `Rule ${ruleId}`}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer — View Sample action */}
+      {onViewSample && (
+        <div className="border-border border-t px-3 py-2">
+          <button
+            onClick={() => onViewSample(point.sample_id)}
+            className="text-primary hover:text-primary/80 flex items-center gap-1 text-xs font-medium transition-colors"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View Sample Details
+          </button>
+        </div>
+      )}
+    </div>,
+    document.body,
+  )
 }
 
 function AnomalyInsightsOverlay({ events }: { events: AnomalyEvent[] }) {
@@ -170,38 +394,17 @@ function AnomalyInsightsOverlay({ events }: { events: AnomalyEvent[] }) {
   )
 }
 
-/**
- * Renders the drag-selection rectangle as a fixed-position portal at <body>.
- * This avoids z-index/compositing fights with the ECharts <canvas>.
- */
-function DragOverlayPortal({
-  wrapperRef,
-  dragRect,
-}: {
-  wrapperRef: React.RefObject<HTMLDivElement | null>
-  dragRect: { left: number; width: number }
-}) {
-  const [box, setBox] = useState<DOMRect | null>(null)
-
-  useLayoutEffect(() => {
-    if (wrapperRef.current) setBox(wrapperRef.current.getBoundingClientRect())
-  }, [wrapperRef, dragRect])
-
-  if (!box) return null
-
-  return createPortal(
-    <div
-      className="pointer-events-none fixed z-[100]"
-      style={{ top: box.top, left: box.left, width: box.width, height: box.height }}
-    >
+/** Renders the drag-selection rectangle as an absolute overlay within the chart wrapper. */
+function DragOverlay({ dragRect }: { dragRect: { left: number; width: number } }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[100]">
       <div
         className="bg-primary/20 border-primary absolute top-0 bottom-0 border-x-2"
         style={{ left: dragRect.left, width: dragRect.width }}
       >
         <div className="bg-primary/10 absolute inset-0 animate-pulse" />
       </div>
-    </div>,
-    document.body,
+    </div>
   )
 }
 
@@ -225,7 +428,7 @@ export function ControlChart({
   const chartColors = useChartColors()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
-  const { datetimeFormat } = useDateFormat()
+  const { datetimeFormat, axisFormats } = useDateFormat()
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
@@ -240,6 +443,12 @@ export function ControlChart({
     x: 0,
     y: 0,
   })
+  // Pinned tooltip state — shown on data point click with Explainable values
+  const [pinnedPoint, setPinnedPoint] = useState<{
+    point: ChartPoint
+    screenX: number
+    screenY: number
+  } | null>(null)
   const chartWrapperRef = useRef<HTMLDivElement>(null)
 
   // Store annotations in a ref for ECharts event handlers
@@ -309,7 +518,7 @@ export function ControlChart({
       effective_lcl: point.effective_lcl,
       z_score: point.z_score,
     }))
-  }, [chartData?.data_points, isModeA, nominalN])
+  }, [chartData?.data_points, isModeA, nominalN, datetimeFormat])
 
   // Store data in ref for event handlers (datazoom, click, hover)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
@@ -534,8 +743,11 @@ export function ControlChart({
 
           if (ann.start_time && ann.end_time) {
             // Time-based period annotation
-            const startMs = new Date(ann.start_time).getTime()
-            const endMs = new Date(ann.end_time).getTime()
+            // Backend returns UTC timestamps that may lack the Z suffix
+            // (e.g., "2026-02-22T05:11:03.235000" instead of "...Z").
+            // Without Z, JS parses as local time — force UTC to match chart data.
+            const startMs = parseUtc(ann.start_time)
+            const endMs = parseUtc(ann.end_time)
             if (useTimeCoords) {
               x1 = startMs
               x2 = endMs
@@ -559,6 +771,14 @@ export function ControlChart({
                 x1 = bestStartIdx
                 x2 = bestEndIdx
               }
+            }
+
+            // Find which data indices these timestamps match for logging
+            let matchStartIdx = -1
+            let matchEndIdx = -1
+            for (let i = 0; i < data.length; i++) {
+              if (matchStartIdx < 0 && data[i].timestampMs >= startMs) matchStartIdx = i
+              if (data[i].timestampMs <= endMs) matchEndIdx = i
             }
           } else if (ann.start_sample_id != null && ann.end_sample_id != null) {
             // Legacy sample-based period annotation
@@ -743,9 +963,11 @@ export function ControlChart({
       // Acknowledged violations use a desaturated color
       const ackedColor = 'hsl(357, 30%, 55%)'
 
-      const fillColor = isHighlighted
-        ? 'hsl(45, 100%, 50%)'
-        : isExcluded
+      const fillColor = isInspected
+        ? 'hsl(180, 100%, 50%)'
+        : isHighlighted
+          ? 'hsl(45, 100%, 50%)'
+          : isExcluded
           ? localChartColors.excludedPoint
           : isViolation && isAcked
             ? ackedColor
@@ -918,14 +1140,11 @@ export function ControlChart({
             formatter: (value: number) => {
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
-                // > 30 days: "Feb 14"
-                return applyFormat(d, 'MMM DD')
+                return applyFormat(d, axisFormats.short)
               } else if (dataTimeRangeMs > 86400000) {
-                // > 1 day: "Feb 14 09:00"
-                return applyFormat(d, 'MMM DD HH:mm')
+                return applyFormat(d, axisFormats.medium)
               }
-              // < 1 day: "09:15"
-              return applyFormat(d, 'HH:mm')
+              return applyFormat(d, axisFormats.timeOnly)
             },
           },
           axisLine: { lineStyle: { color: axisLineColor } },
@@ -1238,6 +1457,7 @@ export function ControlChart({
     shortRunMode,
     anomalyOverlay,
     isDark,
+    axisFormats,
   ])
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
@@ -1279,16 +1499,22 @@ export function ControlChart({
           }
         }
       }
-      // Data point click — read sample_id from the series data directly
-      // to guarantee consistency with the rendered chart (prevents stale
-      // dataRef from opening the wrong sample after a data refresh)
+      // Data point click — show pinned tooltip with Explainable values
       const pointData = params.data as unknown as number[]
-      const sampleId = pointData?.[3]
-      if (sampleId && onPointAnnotation) {
-        onPointAnnotation(sampleId)
+      const dataIndex = pointData?.[2]
+      const chartPoint = dataRef.current[dataIndex]
+      if (chartPoint && chartWrapperRef.current) {
+        const rect = chartWrapperRef.current.getBoundingClientRect()
+        setPinnedPoint({
+          point: chartPoint,
+          screenX: rect.left + (params.event?.offsetX ?? 0),
+          screenY: rect.top + (params.event?.offsetY ?? 0),
+        })
+        // Hide native ECharts tooltip when pinned tooltip opens
+        chartRef.current?.dispatchAction({ type: 'hideTip' })
       }
     },
-    [onPointAnnotation],
+    [],
   )
 
   // DataZoom handler: maps zoom percentages back to rangeWindow indices
@@ -1331,6 +1557,7 @@ export function ControlChart({
   // (happens when new samples arrive and old ones drop off due to the limit)
   useEffect(() => {
     chartRef.current?.dispatchAction({ type: 'hideTip' })
+    setPinnedPoint(null)
   }, [data, chartRef])
 
   // Drag-to-select region overlay — callback is called directly by the hook (no intermediate state)
@@ -1432,11 +1659,10 @@ export function ControlChart({
           <AnomalyInsightsOverlay events={anomalyData.events} />
         )}
 
-        {/* Drag-to-select region overlay — rendered via portal at body level
-             to reliably paint above the ECharts canvas (which has its own
-             hardware-accelerated compositing layer). pointer-events-none so
+        {/* Drag-to-select region overlay — absolute within wrapper, z-[100]
+             to paint above the ECharts canvas. pointer-events-none so
              mouse events still reach the window listeners in useChartDragSelect. */}
-        {dragRect && <DragOverlayPortal wrapperRef={chartWrapperRef} dragRect={dragRect} />}
+        {dragRect && <DragOverlay dragRect={dragRect} />}
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-muted-foreground text-sm">Loading chart data...</div>
@@ -1458,6 +1684,26 @@ export function ControlChart({
           />
         )}
       </div>
+
+      {/* Pinned tooltip with Explainable metric values */}
+      {pinnedPoint && chartData && (
+        <PinnedChartTooltip
+          point={pinnedPoint.point}
+          screenX={pinnedPoint.screenX}
+          screenY={pinnedPoint.screenY}
+          characteristicId={characteristicId}
+          controlLimits={chartData.control_limits}
+          shortRunMode={shortRunMode}
+          isModeA={isModeA}
+          isModeB={chartData.subgroup_mode === 'VARIABLE_LIMITS'}
+          decimalPrecision={chartData.decimal_precision ?? 3}
+          onViewSample={onPointAnnotation ? (sampleId) => {
+            setPinnedPoint(null)
+            onPointAnnotation(sampleId)
+          } : undefined}
+          onClose={() => setPinnedPoint(null)}
+        />
+      )}
     </div>
   )
 }

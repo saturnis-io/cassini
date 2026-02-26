@@ -16,7 +16,8 @@
       "WebFetch(domain:datacenters.lbl.gov)",
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ls:*)"
     ]
   }
 }

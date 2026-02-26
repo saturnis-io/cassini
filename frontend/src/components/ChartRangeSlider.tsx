@@ -32,14 +32,17 @@ interface ChartRangeSliderProps {
  * Uses the configured datetime format when the range spans multiple days,
  * short time-only (HH:mm) otherwise.
  */
-function formatSliderTimestamp(isoString: string, spanMs: number, dtFormat: string): string {
+function formatSliderTimestamp(
+  isoString: string,
+  spanMs: number,
+  dtFormat: string,
+  timeOnlyFormat: string,
+): string {
   const date = new Date(isoString)
   if (spanMs > 86400000) {
-    // More than 1 day: show date + time
     return applyFormat(date, dtFormat)
   }
-  // Within a day: show time only
-  return applyFormat(date, 'HH:mm')
+  return applyFormat(date, timeOnlyFormat)
 }
 
 export function ChartRangeSlider({
@@ -48,7 +51,7 @@ export function ChartRangeSlider({
   labels,
   timestamps,
 }: ChartRangeSliderProps) {
-  const { datetimeFormat } = useDateFormat()
+  const { datetimeFormat, axisFormats } = useDateFormat()
   const { rangeWindow, setRangeWindow } = useDashboardStore()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -208,8 +211,8 @@ export function ChartRangeSlider({
       if (startTs && endTs) {
         const spanMs = new Date(endTs).getTime() - new Date(startTs).getTime()
         return {
-          startLabel: formatSliderTimestamp(startTs, spanMs, datetimeFormat),
-          endLabel: formatSliderTimestamp(endTs, spanMs, datetimeFormat),
+          startLabel: formatSliderTimestamp(startTs, spanMs, datetimeFormat, axisFormats.timeOnly),
+          endLabel: formatSliderTimestamp(endTs, spanMs, datetimeFormat, axisFormats.timeOnly),
         }
       }
     }
@@ -217,7 +220,7 @@ export function ChartRangeSlider({
       startLabel: labels?.[start] ?? `#${start + 1}`,
       endLabel: labels?.[end] ?? `#${end + 1}`,
     }
-  }, [isTimestampMode, timestamps, labels, start, end])
+  }, [isTimestampMode, timestamps, labels, start, end, datetimeFormat, axisFormats])
 
   return (
     <div className="w-full select-none">

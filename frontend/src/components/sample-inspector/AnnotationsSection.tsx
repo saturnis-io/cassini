@@ -220,13 +220,14 @@ export function AnnotationsSection({
 
       {/* Add annotation — only if no existing annotation for this sample */}
       {!hasExisting && (
-        <div className="border-border/60 focus-within:border-primary/40 rounded-lg border border-dashed transition-colors">
+        <div className="bg-muted/40 focus-within:border-primary/50 rounded-lg border border-border transition-colors">
           <textarea
             placeholder="Write a note about this sample..."
             value={annotationText}
             onChange={(e) => setAnnotationText(e.target.value)}
             maxLength={500}
-            className="placeholder:text-muted-foreground/50 w-full resize-none border-0 bg-transparent px-3 pt-3 pb-1 text-sm focus:shadow-none focus:outline-none"
+            className="placeholder:text-muted-foreground/50 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-sm"
+            style={{ border: 'none', boxShadow: 'none', outline: 'none', background: 'transparent' }}
             rows={2}
           />
           <div className="flex items-center justify-between px-3 pb-2.5">

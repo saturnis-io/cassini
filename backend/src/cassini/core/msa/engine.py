@@ -12,6 +12,7 @@ from collections.abc import Sequence
 
 from scipy.stats import f as f_dist
 
+from cassini.core.explain import ExplanationCollector
 from cassini.core.msa.models import D2_STAR, D2_STAR_TABLE, GageRRResult
 
 
@@ -90,6 +91,7 @@ def _build_result(
     sigma2_part: float,
     tolerance: float | None,
     anova_table: dict | None,
+    collector: ExplanationCollector | None = None,
 ) -> GageRRResult:
     """Assemble a GageRRResult from variance components."""
     ev = math.sqrt(sigma2_equipment)
@@ -98,6 +100,39 @@ def _build_result(
     grr = math.sqrt(ev**2 + av**2)
     pv = math.sqrt(sigma2_part)
     tv = math.sqrt(grr**2 + pv**2)
+
+    if collector:
+        collector.step(
+            label="EV (Repeatability)",
+            formula_latex=r"\text{EV} = \sqrt{\sigma^2_{\text{equipment}}}",
+            substitution_latex=r"\text{EV} = \sqrt{" + str(round(sigma2_equipment, 6)) + r"}",
+            result=ev,
+        )
+        av_sigma2 = sigma2_operator + (sigma2_interaction or 0.0)
+        collector.step(
+            label="AV (Reproducibility)",
+            formula_latex=r"\text{AV} = \sqrt{\sigma^2_{\text{operator}} + \sigma^2_{\text{interaction}}}",
+            substitution_latex=r"\text{AV} = \sqrt{" + str(round(av_sigma2, 6)) + r"}",
+            result=av,
+        )
+        collector.step(
+            label="GRR (Gage R&R)",
+            formula_latex=r"\text{GRR} = \sqrt{\text{EV}^2 + \text{AV}^2}",
+            substitution_latex=r"\text{GRR} = \sqrt{" + str(round(ev**2, 6)) + r" + " + str(round(av**2, 6)) + r"}",
+            result=grr,
+        )
+        collector.step(
+            label="PV (Part Variation)",
+            formula_latex=r"\text{PV} = \sqrt{\sigma^2_{\text{part}}}",
+            substitution_latex=r"\text{PV} = \sqrt{" + str(round(sigma2_part, 6)) + r"}",
+            result=pv,
+        )
+        collector.step(
+            label="TV (Total Variation)",
+            formula_latex=r"\text{TV} = \sqrt{\text{GRR}^2 + \text{PV}^2}",
+            substitution_latex=r"\text{TV} = \sqrt{" + str(round(grr**2, 6)) + r" + " + str(round(pv**2, 6)) + r"}",
+            result=tv,
+        )
 
     # Avoid division by zero
     tv2 = tv**2 if tv > 0 else 1e-30
@@ -118,14 +153,49 @@ def _build_result(
     pct_study_grr = (grr / tv_safe) * 100.0
     pct_study_pv = (pv / tv_safe) * 100.0
 
+    if collector:
+        collector.step(
+            label="%Study GRR",
+            formula_latex=r"\%\text{Study GRR} = \frac{\text{GRR}}{\text{TV}} \times 100",
+            substitution_latex=r"\%\text{Study GRR} = \frac{" + str(round(grr, 6)) + r"}{" + str(round(tv_safe, 6)) + r"} \times 100",
+            result=pct_study_grr,
+        )
+        collector.step(
+            label="%Study EV",
+            formula_latex=r"\%\text{Study EV} = \frac{\text{EV}}{\text{TV}} \times 100",
+            substitution_latex=r"\%\text{Study EV} = \frac{" + str(round(ev, 6)) + r"}{" + str(round(tv_safe, 6)) + r"} \times 100",
+            result=pct_study_ev,
+        )
+        collector.step(
+            label="%Study AV",
+            formula_latex=r"\%\text{Study AV} = \frac{\text{AV}}{\text{TV}} \times 100",
+            substitution_latex=r"\%\text{Study AV} = \frac{" + str(round(av, 6)) + r"}{" + str(round(tv_safe, 6)) + r"} \times 100",
+            result=pct_study_av,
+        )
+
     # %Tolerance
     pct_tolerance_grr: float | None = None
     if tolerance is not None and tolerance > 0:
         pct_tolerance_grr = (5.15 * grr / tolerance) * 100.0
+        if collector:
+            collector.step(
+                label="%Tolerance GRR",
+                formula_latex=r"\%\text{Tol GRR} = \frac{5.15 \times \text{GRR}}{\text{USL} - \text{LSL}} \times 100",
+                substitution_latex=r"\%\text{Tol GRR} = \frac{5.15 \times " + str(round(grr, 6)) + r"}{" + str(round(tolerance, 6)) + r"} \times 100",
+                result=pct_tolerance_grr,
+            )
 
     # Number of distinct categories (ndc >= 1)
     grr_safe = grr if grr > 0 else 1e-30
     ndc = max(1, math.floor(1.41 * pv / grr_safe))
+
+    if collector:
+        collector.step(
+            label="ndc (Number of Distinct Categories)",
+            formula_latex=r"\text{ndc} = \lfloor 1.41 \times \frac{\text{PV}}{\text{GRR}} \rfloor",
+            substitution_latex=r"\text{ndc} = \lfloor 1.41 \times \frac{" + str(round(pv, 6)) + r"}{" + str(round(grr_safe, 6)) + r"} \rfloor",
+            result=float(ndc),
+        )
 
     verdict = _build_verdict(pct_study_grr)
 
@@ -164,6 +234,7 @@ class GageRREngine:
         self,
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
+        collector: ExplanationCollector | None = None,
     ) -> GageRRResult:
         """Two-way crossed ANOVA with interaction.
 
@@ -171,6 +242,7 @@ class GageRREngine:
             measurements_3d: ``[operator][part][replicate]`` measurement array.
                 All operators measure the same parts.
             tolerance: USL - LSL for %Tolerance calculation.
+            collector: Optional explanation collector for Show Your Work.
 
         Returns:
             GageRRResult with full ANOVA table.
@@ -186,8 +258,22 @@ class GageRREngine:
         if n_reps < 2:
             raise ValueError("Crossed ANOVA requires at least 2 replicates")
 
+        if collector:
+            collector.input("n_operators", n_ops)
+            collector.input("n_parts", n_parts)
+            collector.input("n_replicates", n_reps)
+            collector.input("N_total", n_ops * n_parts * n_reps)
+
         all_values = _flatten_3d(measurements_3d)
         grand_mean = _mean(all_values)
+
+        if collector:
+            collector.step(
+                label="Grand Mean",
+                formula_latex=r"\bar{x}_{...} = \frac{\sum x_{ijk}}{N}",
+                substitution_latex=r"\bar{x}_{...} = \frac{" + str(round(sum(all_values), 6)) + r"}{" + str(len(all_values)) + r"}",
+                result=grand_mean,
+            )
 
         # Operator means
         op_means = []
@@ -228,6 +314,32 @@ class GageRREngine:
 
         ss_equipment = max(0.0, ss_total - ss_operator - ss_part - ss_interaction)
 
+        if collector:
+            collector.step(
+                label="SS_operator",
+                formula_latex=r"SS_{\text{operator}} = n_p \cdot n_r \sum_{i} (\bar{x}_{i..} - \bar{x}_{...})^2",
+                substitution_latex=str(n_parts) + r" \cdot " + str(n_reps) + r" \cdot \sum (\bar{x}_{i..} - " + str(round(grand_mean, 6)) + r")^2",
+                result=ss_operator,
+            )
+            collector.step(
+                label="SS_part",
+                formula_latex=r"SS_{\text{part}} = n_o \cdot n_r \sum_{j} (\bar{x}_{.j.} - \bar{x}_{...})^2",
+                substitution_latex=str(n_ops) + r" \cdot " + str(n_reps) + r" \cdot \sum (\bar{x}_{.j.} - " + str(round(grand_mean, 6)) + r")^2",
+                result=ss_part,
+            )
+            collector.step(
+                label="SS_interaction",
+                formula_latex=r"SS_{\text{int}} = n_r \sum_{i,j} (\bar{x}_{ij.} - \bar{x}_{i..} - \bar{x}_{.j.} + \bar{x}_{...})^2",
+                substitution_latex=str(n_reps) + r" \cdot \sum_{i,j} (\bar{x}_{ij.} - \bar{x}_{i..} - \bar{x}_{.j.} + " + str(round(grand_mean, 6)) + r")^2",
+                result=ss_interaction,
+            )
+            collector.step(
+                label="SS_equipment",
+                formula_latex=r"SS_{\text{equip}} = SS_{\text{total}} - SS_{\text{op}} - SS_{\text{part}} - SS_{\text{int}}",
+                substitution_latex=str(round(ss_total, 6)) + r" - " + str(round(ss_operator, 6)) + r" - " + str(round(ss_part, 6)) + r" - " + str(round(ss_interaction, 6)),
+                result=ss_equipment,
+            )
+
         # Degrees of freedom
         df_operator = n_ops - 1
         df_part = n_parts - 1
@@ -240,6 +352,32 @@ class GageRREngine:
         ms_interaction = ss_interaction / df_interaction if df_interaction > 0 else 0.0
         ms_equipment = ss_equipment / df_equipment if df_equipment > 0 else 0.0
 
+        if collector:
+            collector.step(
+                label="MS_operator",
+                formula_latex=r"MS_{\text{operator}} = \frac{SS_{\text{operator}}}{df_{\text{operator}}}",
+                substitution_latex=r"\frac{" + str(round(ss_operator, 6)) + r"}{" + str(df_operator) + r"}",
+                result=ms_operator,
+            )
+            collector.step(
+                label="MS_part",
+                formula_latex=r"MS_{\text{part}} = \frac{SS_{\text{part}}}{df_{\text{part}}}",
+                substitution_latex=r"\frac{" + str(round(ss_part, 6)) + r"}{" + str(df_part) + r"}",
+                result=ms_part,
+            )
+            collector.step(
+                label="MS_interaction",
+                formula_latex=r"MS_{\text{int}} = \frac{SS_{\text{int}}}{df_{\text{int}}}",
+                substitution_latex=r"\frac{" + str(round(ss_interaction, 6)) + r"}{" + str(df_interaction) + r"}",
+                result=ms_interaction,
+            )
+            collector.step(
+                label="MS_equipment",
+                formula_latex=r"MS_{\text{equip}} = \frac{SS_{\text{equip}}}{df_{\text{equip}}}",
+                substitution_latex=r"\frac{" + str(round(ss_equipment, 6)) + r"}{" + str(df_equipment) + r"}",
+                result=ms_equipment,
+            )
+
         # F-tests
         ms_int_safe = ms_interaction if ms_interaction > 0 else 1e-30
         ms_eq_safe = ms_equipment if ms_equipment > 0 else 1e-30
@@ -251,6 +389,29 @@ class GageRREngine:
         p_operator = float(f_dist.sf(f_operator, df_operator, df_interaction))
         p_part = float(f_dist.sf(f_part, df_part, df_interaction))
         p_interaction = float(f_dist.sf(f_interaction, df_interaction, df_equipment))
+
+        if collector:
+            collector.step(
+                label="F-stat (Operator)",
+                formula_latex=r"F_{\text{operator}} = \frac{MS_{\text{operator}}}{MS_{\text{interaction}}}",
+                substitution_latex=r"\frac{" + str(round(ms_operator, 6)) + r"}{" + str(round(ms_int_safe, 6)) + r"}",
+                result=f_operator,
+                note=f"p = {round(p_operator, 6)}",
+            )
+            collector.step(
+                label="F-stat (Part)",
+                formula_latex=r"F_{\text{part}} = \frac{MS_{\text{part}}}{MS_{\text{interaction}}}",
+                substitution_latex=r"\frac{" + str(round(ms_part, 6)) + r"}{" + str(round(ms_int_safe, 6)) + r"}",
+                result=f_part,
+                note=f"p = {round(p_part, 6)}",
+            )
+            collector.step(
+                label="F-stat (Interaction)",
+                formula_latex=r"F_{\text{interaction}} = \frac{MS_{\text{interaction}}}{MS_{\text{equipment}}}",
+                substitution_latex=r"\frac{" + str(round(ms_interaction, 6)) + r"}{" + str(round(ms_eq_safe, 6)) + r"}",
+                result=f_interaction,
+                note=f"p = {round(p_interaction, 6)}",
+            )
 
         # Check if interaction is significant (p <= 0.25)
         interaction_significant = p_interaction <= 0.25
@@ -268,6 +429,32 @@ class GageRREngine:
             sigma2_part = max(
                 0.0, (ms_part - ms_interaction) / (n_ops * n_reps)
             )
+            if collector:
+                collector.step(
+                    label="Variance: sigma2_equipment",
+                    formula_latex=r"\sigma^2_{\text{equip}} = MS_{\text{equip}}",
+                    substitution_latex=str(round(ms_equipment, 6)),
+                    result=sigma2_equipment,
+                    note="Interaction significant (p <= 0.25)",
+                )
+                collector.step(
+                    label="Variance: sigma2_interaction",
+                    formula_latex=r"\sigma^2_{\text{int}} = \frac{MS_{\text{int}} - MS_{\text{equip}}}{n_r}",
+                    substitution_latex=r"\frac{" + str(round(ms_interaction, 6)) + r" - " + str(round(ms_equipment, 6)) + r"}{" + str(n_reps) + r"}",
+                    result=sigma2_interaction,
+                )
+                collector.step(
+                    label="Variance: sigma2_operator",
+                    formula_latex=r"\sigma^2_{\text{op}} = \frac{MS_{\text{op}} - MS_{\text{int}}}{n_p \cdot n_r}",
+                    substitution_latex=r"\frac{" + str(round(ms_operator, 6)) + r" - " + str(round(ms_interaction, 6)) + r"}{" + str(n_parts * n_reps) + r"}",
+                    result=sigma2_operator,
+                )
+                collector.step(
+                    label="Variance: sigma2_part",
+                    formula_latex=r"\sigma^2_{\text{part}} = \frac{MS_{\text{part}} - MS_{\text{int}}}{n_o \cdot n_r}",
+                    substitution_latex=r"\frac{" + str(round(ms_part, 6)) + r" - " + str(round(ms_interaction, 6)) + r"}{" + str(n_ops * n_reps) + r"}",
+                    result=sigma2_part,
+                )
         else:
             # Pool interaction with equipment
             sigma2_interaction = None
@@ -281,6 +468,26 @@ class GageRREngine:
             sigma2_part = max(
                 0.0, (ms_part - ms_pooled) / (n_ops * n_reps)
             )
+            if collector:
+                collector.step(
+                    label="Variance: sigma2_equipment (pooled)",
+                    formula_latex=r"\sigma^2_{\text{equip}} = MS_{\text{pooled}} = \frac{SS_{\text{int}} + SS_{\text{equip}}}{df_{\text{int}} + df_{\text{equip}}}",
+                    substitution_latex=r"\frac{" + str(round(ss_pooled, 6)) + r"}{" + str(df_pooled) + r"}",
+                    result=sigma2_equipment,
+                    note="Interaction not significant (p > 0.25) — pooled with equipment",
+                )
+                collector.step(
+                    label="Variance: sigma2_operator",
+                    formula_latex=r"\sigma^2_{\text{op}} = \frac{MS_{\text{op}} - MS_{\text{pooled}}}{n_p \cdot n_r}",
+                    substitution_latex=r"\frac{" + str(round(ms_operator, 6)) + r" - " + str(round(ms_pooled, 6)) + r"}{" + str(n_parts * n_reps) + r"}",
+                    result=sigma2_operator,
+                )
+                collector.step(
+                    label="Variance: sigma2_part",
+                    formula_latex=r"\sigma^2_{\text{part}} = \frac{MS_{\text{part}} - MS_{\text{pooled}}}{n_o \cdot n_r}",
+                    substitution_latex=r"\frac{" + str(round(ms_part, 6)) + r" - " + str(round(ms_pooled, 6)) + r"}{" + str(n_ops * n_reps) + r"}",
+                    result=sigma2_part,
+                )
 
         # Build ANOVA table
         anova_table = {
@@ -324,6 +531,7 @@ class GageRREngine:
             sigma2_part=sigma2_part,
             tolerance=tolerance,
             anova_table=anova_table,
+            collector=collector,
         )
 
     # ------------------------------------------------------------------
@@ -334,12 +542,14 @@ class GageRREngine:
         self,
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
+        collector: ExplanationCollector | None = None,
     ) -> GageRRResult:
         """Simplified range-based Gage R&R estimator.
 
         Args:
             measurements_3d: ``[operator][part][replicate]`` measurement array.
             tolerance: USL - LSL for %Tolerance calculation.
+            collector: Optional explanation collector for Show Your Work.
 
         Returns:
             GageRRResult (no ANOVA table).
@@ -352,6 +562,11 @@ class GageRREngine:
             raise ValueError("Range method requires at least 2 operators")
         if n_reps < 2:
             raise ValueError("Range method requires at least 2 replicates")
+
+        if collector:
+            collector.input("n_operators", n_ops)
+            collector.input("n_parts", n_parts)
+            collector.input("n_replicates", n_reps)
 
         # Number of ranges (cells) for EV d2* lookup
         g_ev = n_ops * n_parts
@@ -368,6 +583,27 @@ class GageRREngine:
         ev = r_bar / d2_reps
         sigma2_equipment = ev**2
 
+        if collector:
+            collector.step(
+                label="R-bar (average range)",
+                formula_latex=r"\bar{R} = \frac{\sum R_{ij}}{n_o \cdot n_p}",
+                substitution_latex=r"\bar{R} = \frac{" + str(round(sum(ranges), 6)) + r"}{" + str(g_ev) + r"}",
+                result=r_bar,
+            )
+            collector.step(
+                label="d2* lookup (EV)",
+                formula_latex=r"d_2^*(m=" + str(n_reps) + r", g=" + str(g_ev) + r")",
+                substitution_latex=str(round(d2_reps, 6)),
+                result=d2_reps,
+                note=f"AIAG MSA 4th Ed., Appendix C (m={n_reps}, g={g_ev})",
+            )
+            collector.step(
+                label="EV (Repeatability)",
+                formula_latex=r"\text{EV} = \frac{\bar{R}}{d_2^*}",
+                substitution_latex=r"\frac{" + str(round(r_bar, 6)) + r"}{" + str(round(d2_reps, 6)) + r"}",
+                result=ev,
+            )
+
         # --- Appraiser Variation (AV) ---
         # Difference between max and min operator averages
         op_means = []
@@ -382,6 +618,27 @@ class GageRREngine:
         av_squared = max(0.0, (x_bar_diff * k1) ** 2 - sigma2_equipment / (n_parts * n_reps))
         sigma2_operator = av_squared
 
+        if collector:
+            collector.step(
+                label="Operator range (X-bar diff)",
+                formula_latex=r"\bar{X}_{\text{diff}} = \max(\bar{X}_{i.}) - \min(\bar{X}_{i.})",
+                substitution_latex=str(round(max(op_means), 6)) + r" - " + str(round(min(op_means), 6)),
+                result=x_bar_diff,
+            )
+            collector.step(
+                label="K1 factor",
+                formula_latex=r"K_1 = \frac{1}{d_2^*(m=" + str(n_ops) + r", g=1)}",
+                substitution_latex=r"\frac{1}{" + str(round(d2_ops, 6)) + r"}",
+                result=k1,
+            )
+            collector.step(
+                label="AV (Reproducibility)",
+                formula_latex=r"\text{AV}^2 = (\bar{X}_{\text{diff}} \cdot K_1)^2 - \frac{\text{EV}^2}{n_p \cdot n_r}",
+                substitution_latex=r"(" + str(round(x_bar_diff, 6)) + r" \cdot " + str(round(k1, 6)) + r")^2 - \frac{" + str(round(sigma2_equipment, 6)) + r"}{" + str(n_parts * n_reps) + r"}",
+                result=math.sqrt(av_squared),
+                note="Clamped to 0 if negative" if av_squared == 0.0 and (x_bar_diff * k1) ** 2 - sigma2_equipment / (n_parts * n_reps) < 0 else None,
+            )
+
         # --- Part Variation (PV) ---
         # Range of part averages
         part_means = []
@@ -395,6 +652,26 @@ class GageRREngine:
         k3 = 1.0 / d2_parts
         sigma2_part = (rp * k3) ** 2
 
+        if collector:
+            collector.step(
+                label="Part range (Rp)",
+                formula_latex=r"R_p = \max(\bar{X}_{.j}) - \min(\bar{X}_{.j})",
+                substitution_latex=str(round(max(part_means), 6)) + r" - " + str(round(min(part_means), 6)),
+                result=rp,
+            )
+            collector.step(
+                label="K3 factor",
+                formula_latex=r"K_3 = \frac{1}{d_2^*(m=" + str(n_parts) + r", g=1)}",
+                substitution_latex=r"\frac{1}{" + str(round(d2_parts, 6)) + r"}",
+                result=k3,
+            )
+            collector.step(
+                label="PV (Part Variation)",
+                formula_latex=r"\text{PV} = R_p \times K_3",
+                substitution_latex=str(round(rp, 6)) + r" \times " + str(round(k3, 6)),
+                result=rp * k3,
+            )
+
         return _build_result(
             method="range",
             sigma2_equipment=sigma2_equipment,
@@ -403,6 +680,7 @@ class GageRREngine:
             sigma2_part=sigma2_part,
             tolerance=tolerance,
             anova_table=None,
+            collector=collector,
         )
 
     # ------------------------------------------------------------------
@@ -413,6 +691,7 @@ class GageRREngine:
         self,
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
+        collector: ExplanationCollector | None = None,
     ) -> GageRRResult:
         """Nested ANOVA for destructive or non-reproducible tests.
 
@@ -424,6 +703,7 @@ class GageRREngine:
             measurements_3d: ``[operator][part][replicate]`` measurement array.
                 Parts for different operators are distinct physical parts.
             tolerance: USL - LSL for %Tolerance calculation.
+            collector: Optional explanation collector for Show Your Work.
 
         Returns:
             GageRRResult (no interaction term).
@@ -439,8 +719,21 @@ class GageRREngine:
         if n_reps < 2:
             raise ValueError("Nested ANOVA requires at least 2 replicates")
 
+        if collector:
+            collector.input("n_operators", n_ops)
+            collector.input("n_parts_per_operator", n_parts)
+            collector.input("n_replicates", n_reps)
+
         all_values = _flatten_3d(measurements_3d)
         grand_mean = _mean(all_values)
+
+        if collector:
+            collector.step(
+                label="Grand Mean",
+                formula_latex=r"\bar{x}_{...} = \frac{\sum x_{ijk}}{N}",
+                substitution_latex=r"\bar{x}_{...} = \frac{" + str(round(sum(all_values), 6)) + r"}{" + str(len(all_values)) + r"}",
+                result=grand_mean,
+            )
 
         # Operator means
         op_means = []
@@ -462,6 +755,20 @@ class GageRREngine:
         ms_within = ss_within / df_within if df_within > 0 else 0.0
         sigma2_equipment = ms_within
 
+        if collector:
+            collector.step(
+                label="SS_within (repeatability)",
+                formula_latex=r"SS_{\text{within}} = \sum_{i,j} \sum_k (x_{ijk} - \bar{x}_{ij.})^2",
+                substitution_latex=r"SS_{\text{within}} = " + str(round(ss_within, 6)) + r", \quad df = " + str(df_within),
+                result=ss_within,
+            )
+            collector.step(
+                label="MS_within",
+                formula_latex=r"MS_{\text{within}} = \frac{SS_{\text{within}}}{df_{\text{within}}}",
+                substitution_latex=r"\frac{" + str(round(ss_within, 6)) + r"}{" + str(df_within) + r"}",
+                result=ms_within,
+            )
+
         # --- Between-part (within operator) variance ---
         # Parts are nested within operators
         ss_parts_within_ops = 0.0
@@ -477,6 +784,20 @@ class GageRREngine:
         ms_parts = ss_parts_within_ops / df_parts_within_ops if df_parts_within_ops > 0 else 0.0
         sigma2_part = max(0.0, (ms_parts - ms_within) / n_reps)
 
+        if collector:
+            collector.step(
+                label="SS_parts(within operators)",
+                formula_latex=r"SS_{\text{parts(op)}} = n_r \sum_{i,j} (\bar{x}_{ij.} - \bar{x}_{i..})^2",
+                substitution_latex=r"SS_{\text{parts(op)}} = " + str(round(ss_parts_within_ops, 6)) + r", \quad df = " + str(df_parts_within_ops),
+                result=ss_parts_within_ops,
+            )
+            collector.step(
+                label="MS_parts(within operators)",
+                formula_latex=r"MS_{\text{parts}} = \frac{SS_{\text{parts(op)}}}{df_{\text{parts(op)}}}",
+                substitution_latex=r"\frac{" + str(round(ss_parts_within_ops, 6)) + r"}{" + str(df_parts_within_ops) + r"}",
+                result=ms_parts,
+            )
+
         # --- Between-operator variance ---
         ss_operator = n_parts * n_reps * sum(
             (om - grand_mean) ** 2 for om in op_means
@@ -487,6 +808,38 @@ class GageRREngine:
             0.0, (ms_operator - ms_parts) / (n_parts * n_reps)
         )
 
+        if collector:
+            collector.step(
+                label="SS_operator",
+                formula_latex=r"SS_{\text{op}} = n_p \cdot n_r \sum_{i} (\bar{x}_{i..} - \bar{x}_{...})^2",
+                substitution_latex=str(n_parts) + r" \cdot " + str(n_reps) + r" \cdot \sum (\bar{x}_{i..} - " + str(round(grand_mean, 6)) + r")^2",
+                result=ss_operator,
+            )
+            collector.step(
+                label="MS_operator",
+                formula_latex=r"MS_{\text{op}} = \frac{SS_{\text{op}}}{df_{\text{op}}}",
+                substitution_latex=r"\frac{" + str(round(ss_operator, 6)) + r"}{" + str(df_operator) + r"}",
+                result=ms_operator,
+            )
+            collector.step(
+                label="Variance: sigma2_equipment",
+                formula_latex=r"\sigma^2_{\text{equip}} = MS_{\text{within}}",
+                substitution_latex=str(round(ms_within, 6)),
+                result=sigma2_equipment,
+            )
+            collector.step(
+                label="Variance: sigma2_part",
+                formula_latex=r"\sigma^2_{\text{part}} = \frac{MS_{\text{parts}} - MS_{\text{within}}}{n_r}",
+                substitution_latex=r"\frac{" + str(round(ms_parts, 6)) + r" - " + str(round(ms_within, 6)) + r"}{" + str(n_reps) + r"}",
+                result=sigma2_part,
+            )
+            collector.step(
+                label="Variance: sigma2_operator",
+                formula_latex=r"\sigma^2_{\text{op}} = \frac{MS_{\text{op}} - MS_{\text{parts}}}{n_p \cdot n_r}",
+                substitution_latex=r"\frac{" + str(round(ms_operator, 6)) + r" - " + str(round(ms_parts, 6)) + r"}{" + str(n_parts * n_reps) + r"}",
+                result=sigma2_operator,
+            )
+
         return _build_result(
             method="nested_anova",
             sigma2_equipment=sigma2_equipment,
@@ -495,4 +848,5 @@ class GageRREngine:
             sigma2_part=sigma2_part,
             tolerance=tolerance,
             anova_table=None,
+            collector=collector,
         )

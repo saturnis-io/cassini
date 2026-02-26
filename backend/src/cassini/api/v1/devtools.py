@@ -109,6 +109,13 @@ AVAILABLE_SCRIPTS = {
         "script_file": "scripts/seed_test_sprint9.py",
         "category": "test",
     },
+    "distillery": {
+        "name": "Alcohol Distillery",
+        "description": "5 plants (Whiskey, Vodka/Gin, Rum, Tequila/Mezcal, QC Lab) with ~50 characteristics covering variable, attribute, CUSUM, EWMA, non-normal distributions, Laney p'/u', short-run, and correlated multivariate data. Exercises Sprints 5-9.",
+        "estimated_samples": "~9,500",
+        "script_file": "scripts/seed_distillery.py",
+        "category": "demo",
+    },
 }
 
 

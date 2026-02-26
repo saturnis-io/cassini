@@ -57,6 +57,22 @@ export function ViolationContextModal({
 
   const precision = characteristic?.decimal_precision ?? 4
 
+  // Build chart options to ensure the violation's sample is visible.
+  // Center a time window around the violation timestamp so the chart
+  // includes the inspected point rather than just the 50 most recent.
+  const chartOptions = useMemo(() => {
+    const ts = createdAt ?? sample?.timestamp
+    if (!ts) return { limit: 50 }
+    const violationTime = new Date(ts).getTime()
+    // Show ±4 hours around the violation, capped at 200 points
+    const buffer = 4 * 60 * 60 * 1000
+    return {
+      startDate: new Date(violationTime - buffer).toISOString(),
+      endDate: new Date(violationTime + buffer).toISOString(),
+      limit: 200,
+    }
+  }, [createdAt, sample?.timestamp])
+
   const measurementValues = useMemo(() => (sample ? getMeasurementValues(sample) : []), [sample])
   const measurementStats = useMemo(() => {
     if (measurementValues.length === 0) return null
@@ -194,7 +210,7 @@ export function ViolationContextModal({
             {characteristicId > 0 && (
               <ChartPanel
                 characteristicId={characteristicId}
-                chartOptions={{ limit: 50 }}
+                chartOptions={chartOptions}
                 histogramPosition="hidden"
                 highlightSampleId={sampleId}
               />

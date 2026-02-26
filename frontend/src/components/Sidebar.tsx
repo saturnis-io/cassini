@@ -77,6 +77,8 @@ export function Sidebar({ className }: SidebarProps) {
   const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(
     location.pathname,
   )
+  // Multi-select (for report generation) only on the dashboard
+  const allowMultiSelect = ['/', '/dashboard'].includes(location.pathname)
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -112,19 +114,7 @@ export function Sidebar({ className }: SidebarProps) {
     },
   ]
 
-  const secondaryNavItems: NavItem[] = [
-    {
-      path: '/connectivity',
-      labelKey: 'connectivity',
-      icon: <Network className="h-5 w-5" />,
-      requiredRole: 'engineer',
-    },
-    {
-      path: '/configuration',
-      labelKey: 'configuration',
-      icon: <ListTree className="h-5 w-5" />,
-      requiredRole: 'engineer',
-    },
+  const studyNavItems: NavItem[] = [
     {
       path: '/msa',
       labelKey: 'msa',
@@ -138,15 +128,30 @@ export function Sidebar({ className }: SidebarProps) {
       requiredRole: 'engineer',
     },
     {
+      path: '/doe',
+      labelKey: 'doe',
+      icon: <FlaskConical className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+  ]
+
+  const systemNavItems: NavItem[] = [
+    {
       path: '/analytics',
       labelKey: 'analytics',
       icon: <TrendingUp className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
-      path: '/doe',
-      labelKey: 'doe',
-      icon: <FlaskConical className="h-5 w-5" />,
+      path: '/connectivity',
+      labelKey: 'connectivity',
+      icon: <Network className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
+      path: '/configuration',
+      labelKey: 'configuration',
+      icon: <ListTree className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
     {
@@ -155,6 +160,9 @@ export function Sidebar({ className }: SidebarProps) {
       icon: <Settings className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
+  ]
+
+  const adminNavItems: NavItem[] = [
     {
       path: '/admin/users',
       labelKey: 'users',
@@ -170,7 +178,13 @@ export function Sidebar({ className }: SidebarProps) {
   const visibleMainItems = mainNavItems.filter(
     (item) => !item.requiredRole || canAccessView(role, item.path),
   )
-  const visibleSecondaryItems = secondaryNavItems.filter(
+  const visibleStudyItems = studyNavItems.filter(
+    (item) => !item.requiredRole || canAccessView(role, item.path),
+  )
+  const visibleSystemItems = systemNavItems.filter(
+    (item) => !item.requiredRole || canAccessView(role, item.path),
+  )
+  const visibleAdminItems = adminNavItems.filter(
     (item) => !item.requiredRole || canAccessView(role, item.path),
   )
 
@@ -212,14 +226,41 @@ export function Sidebar({ className }: SidebarProps) {
     )
   }
 
+  const sectionLabel = (text: string, forMobile: boolean) =>
+    (!forMobile && isCollapsed) ? null : (
+      <div className="text-muted-foreground px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+        {text}
+      </div>
+    )
+
   const navContent = (forMobile = false) => (
     <>
       {visibleMainItems.map((item) => renderNavItem(item, forMobile))}
 
-      {/* Divider - only show if there are secondary items */}
-      {visibleSecondaryItems.length > 0 && <div className="my-2 border-t" />}
+      {/* Studies section */}
+      {visibleStudyItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {sectionLabel('Studies', forMobile)}
+          {visibleStudyItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
 
-      {visibleSecondaryItems.map((item) => renderNavItem(item, forMobile))}
+      {/* System section */}
+      {visibleSystemItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {visibleSystemItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
+
+      {/* Admin section */}
+      {visibleAdminItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {visibleAdminItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
 
       {/* Dev Tools — sandbox mode only */}
       {showDevTools && (
@@ -272,7 +313,7 @@ export function Sidebar({ className }: SidebarProps) {
                 <div className="text-muted-foreground px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
                   Characteristics
                 </div>
-                <HierarchyTodoList embedded className="min-h-0 flex-1" />
+                <HierarchyTodoList embedded allowMultiSelect={allowMultiSelect} className="min-h-0 flex-1" />
               </div>
             )}
           </aside>
@@ -345,7 +386,7 @@ export function Sidebar({ className }: SidebarProps) {
 
                   {characteristicsPanelOpen && (
                     <div className="min-h-0 flex-1">
-                      <HierarchyTodoList embedded className="h-full" />
+                      <HierarchyTodoList embedded allowMultiSelect={allowMultiSelect} className="h-full" />
                     </div>
                   )}
                 </div>

@@ -16,7 +16,7 @@ import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsPage } from '@/pages/SettingsView'
 import { AppearanceSettings } from '@/components/AppearanceSettings'
 import { NotificationsSettings } from '@/components/NotificationsSettings'
-import { ThemeCustomizer } from '@/components/ThemeCustomizer'
+import { BrandingSettings } from '@/components/settings/BrandingSettings'
 import { PlantSettings } from '@/components/PlantSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
@@ -315,7 +315,7 @@ function App() {
                     path="branding"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <ThemeCustomizer />
+                        <BrandingSettings />
                       </ProtectedRoute>
                     }
                   />

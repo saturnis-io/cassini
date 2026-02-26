@@ -110,6 +110,7 @@ export function ExplanationPanel() {
     activeMetric?.type ?? null,
     activeMetric?.resourceId ?? null,
     activeMetric?.resourceType,
+    activeMetric?.chartOptions,
   )
 
   if (!activeMetric) return null
@@ -117,7 +118,7 @@ export function ExplanationPanel() {
   return (
     <div
       className={cn(
-        'border-border bg-card fixed top-12 right-0 bottom-0 z-40 w-[360px] border-l shadow-lg',
+        'border-border bg-card fixed top-12 right-0 bottom-0 z-[60] w-[360px] border-l shadow-lg',
         'explanation-panel-slide-in',
         'flex flex-col overflow-hidden',
         'max-md:top-auto max-md:right-0 max-md:bottom-0 max-md:left-0 max-md:h-[60vh] max-md:w-full max-md:rounded-t-xl max-md:border-t max-md:border-l-0',

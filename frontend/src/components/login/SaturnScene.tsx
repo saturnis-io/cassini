@@ -15,12 +15,6 @@ import { ringVertexShader, ringFragmentShader } from '@/components/login/saturn-
  * - Stars with exponential fog
  */
 
-const COLOR_NAVY = new THREE.Color('#080C16')
-const COLOR_GOLD = new THREE.Color('#D4AF37')
-const COLOR_CREAM = new THREE.Color('#F4F1DE')
-const COLOR_ORANGE = new THREE.Color('#E05A3D')
-const COLOR_MUTED = new THREE.Color('#4B5563')
-
 const RING_PARTICLE_COUNT = 180000
 const PLANET_PARTICLE_COUNT = 6000
 const STAR_COUNT = 1000
@@ -50,12 +44,29 @@ const gaps = [
   { in: 27.0, out: 28.5, center: 27.75 },
 ]
 
-function SaturnScene() {
+interface SaturnSceneProps {
+  brandColors?: {
+    navy?: string
+    gold?: string
+    cream?: string
+    orange?: string
+    muted?: string
+  }
+}
+
+function SaturnScene({ brandColors }: SaturnSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    // Resolve colors from brand props with hardcoded defaults
+    const navy = new THREE.Color(brandColors?.navy ?? '#080C16')
+    const gold = new THREE.Color(brandColors?.gold ?? '#D4AF37')
+    const cream = new THREE.Color(brandColors?.cream ?? '#F4F1DE')
+    const orange = new THREE.Color(brandColors?.orange ?? '#E05A3D')
+    const muted = new THREE.Color(brandColors?.muted ?? '#4B5563')
 
     // --- Renderer ---
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -65,7 +76,7 @@ function SaturnScene() {
 
     // --- Scene & Camera ---
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(COLOR_NAVY.getHex(), 0.003)
+    scene.fog = new THREE.FogExp2(navy.getHex(), 0.003)
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -93,8 +104,8 @@ function SaturnScene() {
       pPositions[i * 3 + 1] = y * PLANET_RADIUS
       pPositions[i * 3 + 2] = Math.sin(theta) * r * PLANET_RADIUS
 
-      const mixedColor = COLOR_CREAM.clone().lerp(
-        COLOR_GOLD,
+      const mixedColor = cream.clone().lerp(
+        gold,
         (y + 1) / 2 + (Math.random() * 0.2 - 0.1),
       )
       pColors[i * 3] = mixedColor.r
@@ -118,7 +129,7 @@ function SaturnScene() {
 
     // Solid core to occlude ring particles behind planet
     const coreGeo = new THREE.SphereGeometry(10.2, 32, 32)
-    const coreMat = new THREE.MeshBasicMaterial({ color: COLOR_NAVY })
+    const coreMat = new THREE.MeshBasicMaterial({ color: navy })
     const core = new THREE.Mesh(coreGeo, coreMat)
     saturnSystem.add(core)
 
@@ -143,7 +154,7 @@ function SaturnScene() {
       rPositions[ringIdx * 3 + 1] = (Math.random() - 0.5) * 0.04
       rPositions[ringIdx * 3 + 2] = Math.sin(theta) * radius
 
-      const ringCol = COLOR_CREAM.clone().lerp(COLOR_MUTED, (radius - 12.0) / 20.0)
+      const ringCol = cream.clone().lerp(muted, (radius - 12.0) / 20.0)
       rColors[ringIdx * 3] = ringCol.r
       rColors[ringIdx * 3 + 1] = ringCol.g
       rColors[ringIdx * 3 + 2] = ringCol.b
@@ -169,7 +180,7 @@ function SaturnScene() {
         uMoons: { value: uMoonsArray },
         uMoonStatus: { value: uMoonStatusArray },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
-        uAlertColor: { value: COLOR_ORANGE },
+        uAlertColor: { value: orange },
         uTime: { value: 0 },
       },
       transparent: true,
@@ -186,7 +197,7 @@ function SaturnScene() {
 
     for (let i = 0; i < NUM_MOONS; i++) {
       const gap = gaps[i % gaps.length]
-      const mat = new THREE.MeshBasicMaterial({ color: COLOR_CREAM.clone() })
+      const mat = new THREE.MeshBasicMaterial({ color: cream.clone() })
       const mesh = new THREE.Mesh(moonGeo, mat)
       saturnSystem.add(mesh)
 
@@ -226,7 +237,7 @@ function SaturnScene() {
     }
     starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3))
     const starsMat = new THREE.PointsMaterial({
-      color: COLOR_MUTED.getHex(),
+      color: muted.getHex(),
       size: 0.2,
       transparent: true,
       opacity: 0.4,
@@ -278,7 +289,9 @@ function SaturnScene() {
           moon.currentRotation = currentRot
         }
 
+        // 3-State Machine: 0 = Normal, 1 = Anomaly Spike, 2 = Recovering
         if (moon.anomalyState === 0) {
+          // Normal variance within the gap
           moon.targetRadius =
             moon.gap.center +
             Math.sin(time * moon.noiseFreq + moon.noiseOffset) *
@@ -301,18 +314,32 @@ function SaturnScene() {
             moon.anomalyTarget =
               moon.gap.center + dir * ((moon.gap.out - moon.gap.in) * 0.5 + 1.2)
 
+            // Transition to Recovery State (2) after holding the anomaly
             moon.anomalyTimeout = setTimeout(
               () => {
-                moon.anomalyState = 0
+                if (moon.anomalyState === 1) moon.anomalyState = 2
               },
               4000 + Math.random() * 3000,
             )
           }
-        } else {
+        } else if (moon.anomalyState === 1) {
+          // Hold the anomaly position
           moon.targetRadius = moon.anomalyTarget
+        } else if (moon.anomalyState === 2) {
+          // Recovering: slowly return to baseline variance
+          moon.targetRadius =
+            moon.gap.center +
+            Math.sin(time * moon.noiseFreq + moon.noiseOffset) *
+              ((moon.gap.out - moon.gap.in) * 0.25)
+
+          // Once safely back near the center, reset to Normal (0)
+          if (Math.abs(moon.currentRadius - moon.targetRadius) < 0.3) {
+            moon.anomalyState = 0
+          }
         }
 
-        const transitionSpeed = moon.anomalyState === 1 ? 0.015 : 0.004
+        // Fast outward spike, very slow lazy drift back
+        const transitionSpeed = moon.anomalyState === 1 ? 0.015 : 0.003
         moon.currentRadius += (moon.targetRadius - moon.currentRadius) * transitionSpeed
 
         let status = 0
@@ -330,8 +357,8 @@ function SaturnScene() {
         )
 
         ;(moon.mesh.material as THREE.MeshBasicMaterial).color.lerpColors(
-          COLOR_CREAM,
-          COLOR_ORANGE,
+          cream,
+          orange,
           status,
         )
         moon.mesh.scale.setScalar(1.0 + status * 0.6)
@@ -382,13 +409,13 @@ function SaturnScene() {
         container.removeChild(renderer.domElement)
       }
     }
-  }, [])
+  }, [brandColors])
 
   return (
     <div
       ref={containerRef}
       className="fixed inset-0 z-0"
-      style={{ background: '#080C16', pointerEvents: 'none' }}
+      style={{ background: brandColors?.navy ?? '#080C16', pointerEvents: 'none' }}
       aria-hidden="true"
     />
   )

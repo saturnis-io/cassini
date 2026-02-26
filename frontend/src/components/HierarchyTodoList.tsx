@@ -190,6 +190,8 @@ interface HierarchyTodoListProps {
   className?: string
   /** When true, renders without card wrapper for sidebar embedding */
   embedded?: boolean
+  /** When true, shows the multi-select button for report generation */
+  allowMultiSelect?: boolean
 }
 
 /**
@@ -207,7 +209,7 @@ function findPathToNode(tree: HierarchyNode[], targetNodeId: number): number[] {
   return []
 }
 
-export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProps) {
+export function HierarchyTodoList({ className, embedded, allowMultiSelect = false }: HierarchyTodoListProps) {
   const { selectedPlant, isLoading: plantLoading } = usePlant()
   const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(
     selectedPlant?.id ?? 0,
@@ -300,18 +302,20 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
             <div className="min-w-0 flex-1">
               <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
             </div>
-            <button
-              onClick={() => setMultiSelectMode(!isMultiSelectMode)}
-              className={cn(
-                'flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
-                isMultiSelectMode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted text-muted-foreground',
-              )}
-              title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
-            >
-              <ListChecks className="h-3.5 w-3.5" />
-            </button>
+            {allowMultiSelect && (
+              <button
+                onClick={() => setMultiSelectMode(!isMultiSelectMode)}
+                className={cn(
+                  'flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
+                  isMultiSelectMode
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted text-muted-foreground',
+                )}
+                title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto px-1">
             <div className="space-y-0.5">
@@ -329,7 +333,7 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
             </div>
           </div>
         </div>
-        {isMultiSelectMode && <SelectionToolbar />}
+        {allowMultiSelect && isMultiSelectMode && <SelectionToolbar />}
       </>
     )
   }
@@ -374,19 +378,21 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
         <div className="space-y-2 border-b px-3 py-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Characteristics</h2>
-            <button
-              onClick={() => setMultiSelectMode(!isMultiSelectMode)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors',
-                isMultiSelectMode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted text-muted-foreground',
-              )}
-              title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
-            >
-              <ListChecks className="h-3.5 w-3.5" />
-              {isMultiSelectMode ? 'Done' : 'Select'}
-            </button>
+            {allowMultiSelect && (
+              <button
+                onClick={() => setMultiSelectMode(!isMultiSelectMode)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors',
+                  isMultiSelectMode
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted text-muted-foreground',
+                )}
+                title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                {isMultiSelectMode ? 'Done' : 'Select'}
+              </button>
+            )}
           </div>
           <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
         </div>
@@ -407,7 +413,7 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
       </div>
 
       {/* Selection toolbar */}
-      {isMultiSelectMode && <SelectionToolbar />}
+      {allowMultiSelect && isMultiSelectMode && <SelectionToolbar />}
     </>
   )
 }

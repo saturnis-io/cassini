@@ -8,7 +8,6 @@ import {
   Beaker,
   BarChart3,
   ClipboardList,
-  Check,
   Shuffle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,8 +28,11 @@ import { ANOVATable } from './ANOVATable'
 import { MainEffectsPlot } from './MainEffectsPlot'
 import { InteractionPlot } from './InteractionPlot'
 import { ParetoChart } from './ParetoChart'
+import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 
 // ── Constants ──
+
+type PhaseKey = 'define' | 'design' | 'collect' | 'analyze'
 
 const DESIGN_TYPES = [
   {
@@ -55,17 +57,19 @@ const DESIGN_TYPES = [
   },
 ] as const
 
-const PHASE_LABELS = [
+const PHASE_STEPS: StudyStep[] = [
   { key: 'define', label: 'Define', icon: ClipboardList },
   { key: 'design', label: 'Design', icon: FlaskConical },
   { key: 'collect', label: 'Collect', icon: Beaker },
   { key: 'analyze', label: 'Analyze', icon: BarChart3 },
-] as const
+]
 
-const STATUS_TO_PHASE: Record<string, number> = {
-  design: 1,
-  collecting: 2,
-  analyzed: 3,
+const PHASE_KEYS: PhaseKey[] = ['define', 'design', 'collect', 'analyze']
+
+const STATUS_TO_PHASE: Record<string, PhaseKey> = {
+  design: 'design',
+  collecting: 'collect',
+  analyzed: 'analyze',
 }
 
 // ── Main component (router entry point) ──
@@ -73,52 +77,8 @@ const STATUS_TO_PHASE: Record<string, number> = {
 export function DOEStudyEditor() {
   const { studyId } = useParams<{ studyId: string }>()
 
-  if (studyId === 'new') return <NewStudyForm />
+  if (!studyId) return <NewStudyForm />
   return <ExistingStudyView studyId={Number(studyId)} />
-}
-
-// ── Phase Indicator ──
-
-function PhaseIndicator({ currentPhase }: { currentPhase: number }) {
-  return (
-    <div className="flex items-center gap-1">
-      {PHASE_LABELS.map((phase, index) => {
-        const Icon = phase.icon
-        const isActive = index === currentPhase
-        const isCompleted = index < currentPhase
-
-        return (
-          <div key={phase.key} className="flex items-center">
-            {index > 0 && (
-              <div
-                className={cn(
-                  'mx-1 h-px w-6',
-                  isCompleted ? 'bg-primary' : 'bg-border',
-                )}
-              />
-            )}
-            <div
-              className={cn(
-                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : isCompleted
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-muted text-muted-foreground',
-              )}
-            >
-              {isCompleted ? (
-                <Check className="h-3.5 w-3.5" />
-              ) : (
-                <Icon className="h-3.5 w-3.5" />
-              )}
-              {phase.label}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
 }
 
 // ── New Study Form (Phase 1: Define) ──
@@ -228,7 +188,14 @@ function NewStudyForm() {
       </div>
 
       {/* Phase indicator */}
-      <PhaseIndicator currentPhase={0} />
+      <StudySteps
+        steps={PHASE_STEPS.map((s) => ({
+          ...s,
+          disabled: s.key !== 'define',
+        }))}
+        activeKey="define"
+        onStepClick={() => {}}
+      />
 
       {/* Form */}
       <div className="space-y-6">
@@ -365,11 +332,11 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   const analyzeStudy = useAnalyzeStudy()
 
   // Determine current phase from study status
-  const currentPhase = STATUS_TO_PHASE[study?.status ?? 'design'] ?? 1
-  const [activePhase, setActivePhase] = useState(currentPhase)
+  const currentPhaseKey: PhaseKey = STATUS_TO_PHASE[study?.status ?? 'design'] ?? 'design'
+  const [activePhaseKey, setActivePhaseKey] = useState<PhaseKey>(currentPhaseKey)
 
   useEffect(() => {
-    setActivePhase(STATUS_TO_PHASE[study?.status ?? 'design'] ?? 1)
+    setActivePhaseKey(STATUS_TO_PHASE[study?.status ?? 'design'] ?? 'design')
   }, [study?.status])
 
   const factorNames = useMemo(
@@ -444,57 +411,29 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
       </div>
 
       {/* Phase indicator (clickable for navigation) */}
-      <div className="flex items-center gap-1">
-        {PHASE_LABELS.map((phase, index) => {
-          const Icon = phase.icon
-          const isActive = index === activePhase
-          const isCompleted = index < currentPhase
-          const isAccessible = index <= currentPhase
-
-          return (
-            <div key={phase.key} className="flex items-center">
-              {index > 0 && (
-                <div
-                  className={cn(
-                    'mx-1 h-px w-6',
-                    isCompleted ? 'bg-primary' : 'bg-border',
-                  )}
-                />
-              )}
-              <button
-                onClick={() => isAccessible && setActivePhase(index)}
-                disabled={!isAccessible}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : isCompleted
-                      ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                      : 'bg-muted text-muted-foreground',
-                  !isAccessible && 'cursor-not-allowed opacity-50',
-                )}
-              >
-                {isCompleted && index !== activePhase ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <Icon className="h-3.5 w-3.5" />
-                )}
-                {phase.label}
-              </button>
-            </div>
-          )
+      <StudySteps
+        steps={PHASE_STEPS.map((s) => {
+          const idx = PHASE_KEYS.indexOf(s.key as PhaseKey)
+          const currentIdx = PHASE_KEYS.indexOf(currentPhaseKey)
+          return {
+            ...s,
+            completed: idx < currentIdx,
+            disabled: idx > currentIdx,
+          }
         })}
-      </div>
+        activeKey={activePhaseKey}
+        onStepClick={(key) => setActivePhaseKey(key as PhaseKey)}
+      />
 
       {/* Phase content */}
       <div className="min-h-[400px]">
         {/* Phase 1: Define (read-only overview for existing studies) */}
-        {activePhase === 0 && (
+        {activePhaseKey === 'define' && (
           <DefineOverview study={study} />
         )}
 
         {/* Phase 2: Design */}
-        {activePhase === 1 && (
+        {activePhaseKey === 'design' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -548,7 +487,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
         )}
 
         {/* Phase 3: Collect */}
-        {activePhase === 2 && (
+        {activePhaseKey === 'collect' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -597,7 +536,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
         )}
 
         {/* Phase 4: Analyze */}
-        {activePhase === 3 && (
+        {activePhaseKey === 'analyze' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>

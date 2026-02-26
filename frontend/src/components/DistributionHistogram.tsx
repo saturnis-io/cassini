@@ -2,12 +2,13 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
-import { Info } from 'lucide-react'
+import { Info, X } from 'lucide-react'
 import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { cn } from '@/lib/utils'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { Explainable } from '@/components/Explainable'
 
 interface DistributionHistogramProps {
   characteristicId: number
@@ -253,7 +254,33 @@ export function DistributionHistogram({
 
   const hasData = !!chartData && chartData.data_points.length > 0
 
+  // Click-toggle for the stats popover (replaces hover-only behavior)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const statsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!statsOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (statsRef.current && !statsRef.current.contains(e.target as Node)) {
+        setStatsOpen(false)
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setStatsOpen(false)
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscape)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [statsOpen])
+
   // Capability indices — computed before echartsOption so they're in scope for graphic overlays
+  // stored_sigma = R-bar/d2 process sigma from backend (matches explain API)
+  const storedSigma = (hasData && chartData?.stored_sigma) ? chartData.stored_sigma : null
   let cp = 0
   let cpk = 0
   let ppk = 0
@@ -261,7 +288,7 @@ export function DistributionHistogram({
     const outerUsl = chartData.spec_limits.usl
     const outerLsl = chartData.spec_limits.lsl
     if (outerUsl !== null && outerLsl !== null && stats.stdDev > 0) {
-      const processSigma = chartData.stored_sigma ?? stats.stdDev
+      const processSigma = storedSigma ?? stats.stdDev
       cp = (outerUsl - outerLsl) / (6 * processSigma)
       const cpu = (outerUsl - stats.mean) / (3 * processSigma)
       const cpl = (stats.mean - outerLsl) / (3 * processSigma)
@@ -711,77 +738,117 @@ export function DistributionHistogram({
             </h3>
             <div className="flex items-center gap-2 text-sm leading-5">
               {cpk > 0 && (
-                <span
-                  className={cn(
-                    'font-medium',
-                    cpk >= 1.33 ? 'text-success' : cpk >= 1.0 ? 'text-warning' : 'text-destructive',
-                  )}
-                >
-                  Cpk: {cpk.toFixed(2)}
-                </span>
+                <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+                  <span
+                    className={cn(
+                      'font-medium',
+                      cpk >= 1.33 ? 'text-success' : cpk >= 1.0 ? 'text-warning' : 'text-destructive',
+                    )}
+                  >
+                    Cpk: {cpk.toFixed(2)}
+                  </span>
+                </Explainable>
               )}
               <span className="text-muted-foreground">n={stats.n}</span>
-              <div className="group relative">
-                <button className="hover:bg-muted text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors">
+              <div ref={statsRef} className="relative">
+                <button
+                  onClick={() => setStatsOpen((v) => !v)}
+                  className={cn(
+                    'hover:bg-muted text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors',
+                    statsOpen && 'bg-muted text-foreground',
+                  )}
+                >
                   <Info className="h-3.5 w-3.5" />
                 </button>
-                <div className="absolute top-full right-0 z-50 mt-1 hidden group-hover:block">
-                  <div className="bg-popover border-border min-w-[140px] rounded-lg border p-3 text-xs shadow-lg">
-                    <div className="text-foreground mb-2 font-medium">Process Statistics</div>
-                    <div className="text-muted-foreground space-y-1">
-                      {cp > 0 && (
-                        <div className="flex justify-between">
-                          <span>Cp:</span>
-                          <span
-                            className={cn(
-                              'font-medium',
-                              cp >= 1.33
-                                ? 'text-success'
-                                : cp >= 1.0
-                                  ? 'text-warning'
-                                  : 'text-destructive',
-                            )}
-                          >
-                            {cp.toFixed(3)}
-                          </span>
-                        </div>
-                      )}
-                      {cpk > 0 && (
-                        <div className="flex justify-between">
-                          <span>Cpk:</span>
-                          <span
-                            className={cn(
-                              'font-medium',
-                              cpk >= 1.33
-                                ? 'text-success'
-                                : cpk >= 1.0
-                                  ? 'text-warning'
-                                  : 'text-destructive',
-                            )}
-                          >
-                            {cpk.toFixed(3)}
-                          </span>
-                        </div>
-                      )}
-                      {ppk > 0 && (
-                        <div className="flex justify-between">
-                          <span>Ppk:</span>
-                          <span className="text-foreground font-medium">{ppk.toFixed(3)}</span>
-                        </div>
-                      )}
-                      <div className="border-border mt-1 flex justify-between border-t pt-1">
-                        <span>sigma:</span>
-                        <span className="text-foreground font-medium">
-                          {stats.stdDev.toFixed(4)}
-                        </span>
+                {statsOpen && (
+                  <div className="absolute top-full right-0 z-50 mt-1">
+                    <div className="bg-popover border-border min-w-[160px] rounded-lg border p-3 text-xs shadow-lg">
+                      <div className="text-foreground mb-2 flex items-center justify-between font-medium">
+                        Process Statistics
+                        <button
+                          onClick={() => setStatsOpen(false)}
+                          className="text-muted-foreground hover:text-foreground -mr-1 rounded p-0.5 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Mean:</span>
-                        <span className="text-foreground font-medium">{stats.mean.toFixed(4)}</span>
+                      <div className="text-muted-foreground space-y-1">
+                        {cp > 0 && (
+                          <div className="flex justify-between gap-3">
+                            <span>Cp:</span>
+                            <Explainable metric="cp" resourceId={characteristicId} chartOptions={chartOptions}>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  cp >= 1.33
+                                    ? 'text-success'
+                                    : cp >= 1.0
+                                      ? 'text-warning'
+                                      : 'text-destructive',
+                                )}
+                              >
+                                {cp.toFixed(3)}
+                              </span>
+                            </Explainable>
+                          </div>
+                        )}
+                        {cpk > 0 && (
+                          <div className="flex justify-between gap-3">
+                            <span>Cpk:</span>
+                            <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  cpk >= 1.33
+                                    ? 'text-success'
+                                    : cpk >= 1.0
+                                      ? 'text-warning'
+                                      : 'text-destructive',
+                                )}
+                              >
+                                {cpk.toFixed(3)}
+                              </span>
+                            </Explainable>
+                          </div>
+                        )}
+                        {ppk > 0 && (
+                          <div className="flex justify-between gap-3">
+                            <span>Ppk:</span>
+                            <Explainable metric="ppk" resourceId={characteristicId} chartOptions={chartOptions}>
+                              <span className="text-foreground font-medium">{ppk.toFixed(3)}</span>
+                            </Explainable>
+                          </div>
+                        )}
+                        <div className="border-border mt-1 flex justify-between gap-3 border-t pt-1">
+                          <span>σ (process):</span>
+                          {storedSigma != null ? (
+                            <Explainable metric="sigma" resourceId={characteristicId} resourceType="control-limits">
+                              <span className="text-foreground font-medium">
+                                {storedSigma.toFixed(4)}
+                              </span>
+                            </Explainable>
+                          ) : (
+                            <span className="text-foreground font-medium">
+                              {stats.stdDev.toFixed(4)}
+                            </span>
+                          )}
+                        </div>
+                        {storedSigma != null && Math.abs(storedSigma - stats.stdDev) > 0.0001 && (
+                          <div className="flex justify-between gap-3">
+                            <span>σ (overall):</span>
+                            <span className="text-foreground font-medium">
+                              {stats.stdDev.toFixed(4)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between gap-3">
+                          <span>Mean:</span>
+                          <span className="text-foreground font-medium">{stats.mean.toFixed(4)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -818,12 +885,22 @@ export function DistributionHistogram({
             Process Capability
           </h3>
           <div className="flex items-center gap-2">
-            {cp > 0 && <span className={getCapabilityStyle(cp)}>Cp {cp.toFixed(2)}</span>}
-            {cpk > 0 && <span className={getCapabilityStyle(cpk)}>Cpk {cpk.toFixed(2)}</span>}
+            {cp > 0 && (
+              <Explainable metric="cp" resourceId={characteristicId} chartOptions={chartOptions}>
+                <span className={getCapabilityStyle(cp)}>Cp {cp.toFixed(2)}</span>
+              </Explainable>
+            )}
+            {cpk > 0 && (
+              <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+                <span className={getCapabilityStyle(cpk)}>Cpk {cpk.toFixed(2)}</span>
+              </Explainable>
+            )}
             {ppk > 0 && (
-              <span className="stat-badge bg-muted text-muted-foreground">
-                Ppk {ppk.toFixed(2)}
-              </span>
+              <Explainable metric="ppk" resourceId={characteristicId} chartOptions={chartOptions}>
+                <span className="stat-badge bg-muted text-muted-foreground">
+                  Ppk {ppk.toFixed(2)}
+                </span>
+              </Explainable>
             )}
             <span className="text-muted-foreground ml-2 text-xs">n={stats.n}</span>
           </div>

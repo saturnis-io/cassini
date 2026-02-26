@@ -51,6 +51,24 @@ export const SEPARATOR_OPTIONS: { value: SeparatorOption; label: string }[] = [
 
 export const NUMBER_DIGITS_OPTIONS = [2, 3, 4] as const
 
+/**
+ * Module-level cache for the server-provided display key format.
+ * Populated by ThemeProvider on mount from the /system-settings/resolved response.
+ * When set, this takes precedence over localStorage.
+ */
+let serverDisplayKeyFormat: DisplayKeyFormat | null = null
+
+/**
+ * Called by ThemeProvider to push the server-fetched display key format
+ * into this module's cache. All subsequent calls to getDisplayKeyFormat()
+ * will return this value.
+ */
+export function setServerDisplayKeyFormat(format: DisplayKeyFormat | null): void {
+  serverDisplayKeyFormat = format
+  // Dispatch event so any mounted components re-render
+  window.dispatchEvent(new Event('display-key-format-changed'))
+}
+
 const STORAGE_KEY = 'cassini-display-key-format'
 const MONTH_NAMES = [
   'Jan',
@@ -71,6 +89,11 @@ const MONTH_NAMES = [
 const DATE_TOKENS = ['YYYY', 'MMM', 'YY', 'MM', 'DD'] as const
 
 export function getDisplayKeyFormat(): DisplayKeyFormat {
+  // Server value takes precedence (site-wide setting)
+  if (serverDisplayKeyFormat) {
+    return serverDisplayKeyFormat
+  }
+  // Fall back to localStorage (legacy personal setting)
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {

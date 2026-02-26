@@ -1,8 +1,9 @@
 """System-wide settings (single-row table)."""
 
 from datetime import datetime, timezone
+from typing import Any, Optional
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, func
+from sqlalchemy import CheckConstraint, DateTime, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from cassini.db.models.hierarchy import Base
@@ -24,6 +25,12 @@ class SystemSettings(Base):
     )
     datetime_format: Mapped[str] = mapped_column(
         String(50), nullable=False, default="YYYY-MM-DD HH:mm:ss"
+    )
+    brand_config: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSON, nullable=True
+    )
+    display_key_format: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSON, nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

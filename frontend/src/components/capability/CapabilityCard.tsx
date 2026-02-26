@@ -254,7 +254,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   return (
     <div className="overflow-hidden">
       {/* Header */}
-      <div className="border-border flex items-center justify-between border-b px-4 py-3">
+      <div className="border-border flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-2">
           <TrendingUp className="text-primary h-4 w-4" />
           <h3 className="text-sm font-semibold">Process Capability</h3>
@@ -286,7 +286,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
       </div>
 
       {/* Index Cards — only show indices that have values */}
-      <div className="space-y-4 p-4">
+      <div className="space-y-3 px-4 py-3">
         {(() => {
           const indices = [
             { label: 'Cp', value: capability.cp },

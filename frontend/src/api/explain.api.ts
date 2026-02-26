@@ -26,7 +26,39 @@ export interface ExplanationResponse {
   warnings: string[]
 }
 
+export interface ExplainChartOptions {
+  limit?: number
+  startDate?: string
+  endDate?: string
+}
+
 export const explainApi = {
-  getCapabilityExplanation: (metricType: string, characteristicId: string | number) =>
-    fetchApi<ExplanationResponse>(`/explain/capability/${metricType}/${characteristicId}`),
+  getCapabilityExplanation: (
+    metricType: string,
+    characteristicId: string | number,
+    chartOptions?: ExplainChartOptions,
+  ) => {
+    const params = new URLSearchParams()
+    if (chartOptions?.limit) params.set('limit', String(chartOptions.limit))
+    if (chartOptions?.startDate) params.set('start_date', chartOptions.startDate)
+    if (chartOptions?.endDate) params.set('end_date', chartOptions.endDate)
+    const qs = params.toString()
+    const suffix = qs ? `?${qs}` : ''
+    return fetchApi<ExplanationResponse>(
+      `/explain/capability/${metricType}/${characteristicId}${suffix}`,
+    )
+  },
+
+  getMSAExplanation: (metricType: string, studyId: string | number) =>
+    fetchApi<ExplanationResponse>(`/explain/msa/${metricType}/${studyId}`),
+
+  getControlLimitsExplanation: (metricType: string, characteristicId: string | number) =>
+    fetchApi<ExplanationResponse>(
+      `/explain/control-limits/${metricType}/${characteristicId}`,
+    ),
+
+  getAttributeExplanation: (metricType: string, characteristicId: string | number) =>
+    fetchApi<ExplanationResponse>(
+      `/explain/attribute/${metricType}/${characteristicId}`,
+    ),
 }

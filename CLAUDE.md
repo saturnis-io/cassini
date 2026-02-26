@@ -44,6 +44,19 @@ cassini-bridge run                  # Run bridge agent
 - **Styling**: Tailwind CSS v4, Prettier with `prettier-plugin-tailwindcss`
 - **Visual styles**: Retro (default, sharp corners, monospace) or Glass (frosted, rounded) — independent of light/dark
 
+### Show Your Work (Explain API)
+A trust feature for regulated industries — lets users see exactly how every statistical value was computed.
+- **Toggle**: Header button enables "Show Your Work" mode. When on, all statistical values get dotted underlines via `<Explainable>` wrapper
+- **Click**: Clicking any underlined value opens a slide-out `<ExplanationPanel>` showing the formula (KaTeX-rendered), step-by-step computation, inputs, and AIAG citation
+- **Backend**: `api/v1/explain.py` router, `core/explain.py` (ExplanationCollector pattern), `api/schemas/explain.py`
+- **Frontend**: `stores/showYourWorkStore.ts` (Zustand toggle + active metric), `components/Explainable.tsx` (wrapper), `components/ExplanationPanel.tsx` (slide-out), `api/explain.api.ts` + `api/hooks/useExplanation.ts`
+- **ExplanationCollector**: Optional `collector` param on `calculate_capability()`. When provided, captures computation steps inline via `if collector:` guards. Zero overhead when None.
+- **Two data modes** in the explain API (CRITICAL — values must match what the caller displays):
+  1. **With chart options** (`start_date`/`end_date`/`limit`): Uses subgroup means + sigma from means — matches dashboard `quickStats`
+  2. **Without chart options**: Flattens individual measurements + uses `stored_sigma` (R-bar/d2) — matches capability GET endpoint / CapabilityCard
+- **Step filtering**: `METRIC_STEP_PREFIXES` dict filters the collector's full step list to only the computation chain for the requested metric (e.g. Cpk only shows Cpu/Cpl/Cpk steps, not Ppk)
+- **Wrapping new values**: Use `<Explainable metric="cpk" resourceId={charId} chartOptions={...}>` around any value that should be explainable. Pass `chartOptions` matching the data window so the explanation value matches the display
+
 ### Key Conventions
 - **Prettier**: No semicolons, single quotes, trailing commas, 100 char width
 - **TypeScript**: Strict mode, `noUnusedLocals`, `noUnusedParameters`
@@ -93,6 +106,8 @@ Every approval/sign-off workflow SHOULD integrate with the signature system (`co
 - **Query invalidation**: `useUpdateCharacteristic` must invalidate `['characteristics', 'chartData', id]` — doesn't match `['characteristics', 'detail', id]`
 - **CharacteristicForm onChange**: Type is `(field: string, value: string | boolean)` — checkboxes pass booleans
 - **localStorage keys**: Use `cassini-` prefix (migration from `openspc-` in main.tsx)
+- **Show Your Work value matching**: The explain API's returned value MUST exactly match what the caller displays. Dashboard quickStats uses subgroup means + sigma of means; CapabilityCard uses individual measurements + stored_sigma. Pass `chartOptions` (limit/startDate/endDate) through `<Explainable>` to select the correct mode. If you add a new `<Explainable>` wrapper, verify the explain API path matches the data source of the displayed value
+- **ExplanationPanel z-index**: Uses `z-[60]` to render above modals (modals are z-50). Do not lower this
 
 ## Data Model Notes
 - **DataSource**: Polymorphic JTI — base `data_source` + `mqtt_data_source`, `opcua_data_source`. No `provider_type` column. Check `char.data_source is None` for manual
