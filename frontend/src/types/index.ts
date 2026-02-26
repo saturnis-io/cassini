@@ -938,3 +938,15 @@ export interface DistributionFitResponse {
   best_fit: DistributionFitResultData | null
   recommendation: string
 }
+
+// System settings
+export interface SystemSettings {
+  date_format: string
+  datetime_format: string
+  updated_at: string
+}
+
+export interface SystemSettingsUpdate {
+  date_format?: string
+  datetime_format?: string
+}
