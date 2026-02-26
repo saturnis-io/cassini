@@ -44,6 +44,10 @@ const ACTION_LABELS: Record<string, string> = {
   purge: 'Purge',
   forecast: 'Forecast',
   test: 'Test',
+  password_reset_requested: 'Password Reset Requested',
+  password_reset_completed: 'Password Reset',
+  email_verified: 'Email Verified',
+  profile_updated: 'Profile Updated',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -77,6 +81,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   prediction: 'Prediction',
   ai_config: 'AI Config',
   doe_study: 'DOE Study',
+  auth: 'Authentication',
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -105,6 +110,10 @@ function ActionBadge({ action }: { action: string }) {
     connect: 'bg-primary/10 text-primary',
     dismiss: 'bg-destructive/10 text-destructive',
     purge: 'bg-destructive/10 text-destructive',
+    password_reset_requested: 'bg-warning/10 text-warning',
+    password_reset_completed: 'bg-warning/10 text-warning',
+    email_verified: 'bg-primary/10 text-primary',
+    profile_updated: 'bg-primary/10 text-primary',
   }
   return (
     <span
