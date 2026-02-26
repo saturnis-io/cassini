@@ -67,6 +67,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   gage_bridge: 'Gage Bridge',
   anomaly: 'Anomaly',
   signature: 'Signature',
+  system_settings: 'System Settings',
   oidc_config: 'OIDC Config',
   oidc_link: 'OIDC Link',
   push_subscription: 'Push Subscription',
