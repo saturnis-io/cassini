@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
@@ -20,6 +21,7 @@ import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
+import { exportApi } from '@/api/export.api'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -30,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, Activity, Hash, Gauge } from 'lucide-react'
 import { BottomDrawer } from '@/components/BottomDrawer'
 import type { DrawerTab } from '@/components/BottomDrawer'
+import { Explainable } from '@/components/Explainable'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
@@ -45,7 +48,7 @@ function StatPill({
 }: {
   icon: React.ElementType
   label: string
-  value: string | number
+  value: React.ReactNode
   variant?: 'default' | 'success' | 'warning' | 'danger'
 }) {
   const variantClasses = {
@@ -251,6 +254,20 @@ export function OperatorDashboard() {
     [selectedId, queryClient],
   )
 
+  const handleExportExcel = async () => {
+    if (!selectedCharacteristic) return
+    try {
+      await exportApi.downloadExcel(selectedCharacteristic.id, {
+        limit: chartOptions?.limit,
+        startDate: chartOptions?.startDate,
+        endDate: chartOptions?.endDate,
+      })
+      toast.success('Excel export downloaded')
+    } catch {
+      toast.error('Failed to export Excel file')
+    }
+  }
+
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
     if (!chartDataForAnnotation) return null
@@ -378,7 +395,11 @@ export function OperatorDashboard() {
             <StatPill
               icon={Gauge}
               label={t('stats.cpk')}
-              value={quickStats.cpk.toFixed(2)}
+              value={
+                <Explainable metric="cpk" resourceId={selectedId} chartOptions={chartOptions}>
+                  {quickStats.cpk.toFixed(2)}
+                </Explainable>
+              }
               variant={
                 quickStats.cpk >= 1.33 ? 'success' : quickStats.cpk >= 1.0 ? 'warning' : 'danger'
               }
@@ -399,6 +420,7 @@ export function OperatorDashboard() {
                 overrideChartType={effectiveOverride}
                 onAttributeChartTypeChange={handleAttributeChartTypeChange}
                 onChangeSecondary={() => setShowComparisonSelector(true)}
+                onExportExcel={selectedCharacteristic ? handleExportExcel : undefined}
               />
 
               {/* ── Range Slider ── */}
@@ -543,7 +565,9 @@ export function OperatorDashboard() {
                           'font-semibold tabular-nums',
                           quickStats.cpk >= 1.33 ? 'text-success' : quickStats.cpk >= 1.0 ? 'text-warning' : 'text-destructive',
                         )}>
-                          {quickStats.cpk.toFixed(2)}
+                          <Explainable metric="cpk" resourceId={selectedId} chartOptions={chartOptions}>
+                            {quickStats.cpk.toFixed(2)}
+                          </Explainable>
                         </span>
                       ) : undefined,
                     content: <CapabilityCard characteristicId={selectedId} />,
