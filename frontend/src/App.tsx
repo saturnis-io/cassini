@@ -21,6 +21,7 @@ import { PlantSettings } from '@/components/PlantSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { RetentionSettings } from '@/components/RetentionSettings'
+import { LocalizationSettings } from '@/components/LocalizationSettings'
 import { ScheduledReports } from '@/components/settings/ScheduledReports'
 import { AuditLogViewer } from '@/components/AuditLogViewer'
 import { SSOSettings } from '@/components/SSOSettings'
@@ -323,6 +324,14 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="admin">
                         <PlantSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="localization"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <LocalizationSettings />
                       </ProtectedRoute>
                     }
                   />
