@@ -4,16 +4,27 @@ Provides login, token refresh, logout, and current user endpoints.
 Uses JWT access tokens (in response body) and refresh tokens (in httpOnly cookies).
 """
 
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
+import structlog
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
 
 from cassini.api.deps import get_current_user, get_db_session, get_user_repo
+from cassini.api.schemas.auth import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    UpdateProfileRequest,
+    UpdateProfileResponse,
+)
 from cassini.api.schemas.user import (
     ChangePasswordRequest,
     LoginRequest,
@@ -25,9 +36,13 @@ from cassini.api.schemas.user import (
 from cassini.core.auth.jwt import create_access_token, create_refresh_token, verify_refresh_token
 from cassini.core.auth.passwords import verify_password
 from cassini.core.config import get_settings
+from cassini.db.models.auth_token import EmailVerificationToken, PasswordResetToken
+from cassini.db.models.notification import SmtpConfig
 from cassini.db.models.signature import PasswordPolicy
 from cassini.db.models.user import User
 from cassini.db.repositories.user import UserRepository
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -309,6 +324,361 @@ async def change_password(
     await session.commit()
 
     return {"message": "Password changed successfully"}
+
+
+# ---------------------------------------------------------------------------
+# Standalone email helper (used by forgot-password, verify-email flows)
+# ---------------------------------------------------------------------------
+
+async def _send_auth_email(
+    recipient: str,
+    subject: str,
+    body: str,
+    session: AsyncSession,
+) -> bool:
+    """Send a transactional email using the active SMTP config.
+
+    Returns True if the email was sent successfully, False otherwise.
+    Does NOT raise on failure — auth flows must always return success
+    to prevent user enumeration.
+    """
+    try:
+        smtp_result = await session.execute(
+            select(SmtpConfig).where(SmtpConfig.is_active == True)  # noqa: E712
+        )
+        smtp_config = smtp_result.scalar_one_or_none()
+        if not smtp_config:
+            logger.debug("auth_email_skip_no_smtp", recipient=recipient)
+            return False
+
+        import aiosmtplib
+        from cassini.db.dialects import decrypt_password, get_encryption_key
+
+        # Decrypt credentials
+        decrypted_username = None
+        decrypted_password = None
+        if smtp_config.username:
+            try:
+                key = get_encryption_key()
+                decrypted_username = decrypt_password(smtp_config.username, key)
+            except Exception:
+                decrypted_username = smtp_config.username
+        if smtp_config.password:
+            try:
+                key = get_encryption_key()
+                decrypted_password = decrypt_password(smtp_config.password, key)
+            except Exception:
+                decrypted_password = smtp_config.password
+
+        msg = MIMEMultipart()
+        msg["From"] = smtp_config.from_address
+        msg["To"] = recipient
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        await aiosmtplib.send(
+            msg,
+            hostname=smtp_config.server,
+            port=smtp_config.port,
+            username=decrypted_username,
+            password=decrypted_password,
+            start_tls=smtp_config.use_tls,
+        )
+        logger.debug("auth_email_sent", recipient=recipient, subject=subject)
+        return True
+
+    except Exception:
+        logger.warning("auth_email_failed", recipient=recipient, exc_info=True)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Forgot Password / Reset Password
+# ---------------------------------------------------------------------------
+
+@router.post("/forgot-password")
+async def forgot_password(
+    data: ForgotPasswordRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Request a password reset link. Always returns success to prevent user enumeration."""
+    # Constant response — never varies based on user existence
+    success_msg = "If an account with that identifier exists, a reset link has been sent."
+
+    # Look up user by username OR email
+    result = await session.execute(
+        select(User).where(
+            or_(User.username == data.identifier, User.email == data.identifier)
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None or not user.is_active:
+        # Return same message — prevent enumeration
+        return {"message": success_msg}
+
+    # Rate limit: max 3 tokens per user per hour
+    now = datetime.now(timezone.utc)
+    one_hour_ago = now - timedelta(hours=1)
+    count_result = await session.execute(
+        select(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.created_at >= one_hour_ago,
+        )
+    )
+    recent_tokens = count_result.scalars().all()
+    if len(recent_tokens) >= 3:
+        # Silently skip — still return success
+        return {"message": success_msg}
+
+    # Generate token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=now + timedelta(hours=1),
+    )
+    session.add(reset_token)
+    await session.flush()
+
+    # Send email if user has an email address
+    if user.email:
+        reset_url = f"/reset-password?token={raw_token}"
+        await _send_auth_email(
+            recipient=user.email,
+            subject="[Cassini] Password Reset Request",
+            body=(
+                f"You requested a password reset for your Cassini account.\n\n"
+                f"Use this link to reset your password:\n{reset_url}\n\n"
+                f"This link expires in 1 hour.\n\n"
+                f"If you did not request this, you can safely ignore this email."
+            ),
+            session=session,
+        )
+
+    # Audit log (only for found users — no log for not-found to prevent enumeration)
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        await audit_service.log(
+            action="password_reset_requested",
+            resource_type="auth",
+            user_id=user.id,
+            username=user.username,
+            ip_address=_get_client_ip(request),
+        )
+
+    await session.commit()
+    return {"message": success_msg}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Reset password using a valid token."""
+    now = datetime.now(timezone.utc)
+    token_hash = hashlib.sha256(data.token.encode()).hexdigest()
+
+    # Look up valid, unused, non-expired token
+    result = await session.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    reset_token = result.scalar_one_or_none()
+
+    if reset_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Validate password length
+    if len(data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters",
+        )
+
+    # Load user
+    user_result = await session.execute(
+        select(User).where(User.id == reset_token.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # Update password
+    from cassini.core.auth.passwords import hash_password
+    user.hashed_password = hash_password(data.new_password)
+    user.password_changed_at = now
+    user.must_change_password = False
+
+    # Consume token
+    reset_token.used_at = now
+
+    # Note: Refresh tokens are stateless JWTs — we cannot revoke them from the DB.
+    # The password_changed_at update ensures the user must re-authenticate.
+
+    # Audit log
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        await audit_service.log(
+            action="password_reset_completed",
+            resource_type="auth",
+            user_id=user.id,
+            username=user.username,
+            ip_address=_get_client_ip(request),
+        )
+
+    await session.commit()
+    return {"message": "Password has been reset successfully. Please log in with your new password."}
+
+
+# ---------------------------------------------------------------------------
+# Update Profile / Email Verification
+# ---------------------------------------------------------------------------
+
+@router.post("/update-profile", response_model=UpdateProfileResponse)
+async def update_profile(
+    data: UpdateProfileRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> UpdateProfileResponse:
+    """Update the current user's profile (display name, email)."""
+    email_verification_sent = False
+
+    if data.display_name is not None:
+        current_user.full_name = data.display_name
+
+    if data.email is not None and data.email != current_user.email:
+        # Generate email verification token
+        now = datetime.now(timezone.utc)
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        verification_token = EmailVerificationToken(
+            user_id=current_user.id,
+            token_hash=token_hash,
+            new_email=data.email,
+            expires_at=now + timedelta(hours=24),
+        )
+        session.add(verification_token)
+
+        # Store pending email
+        current_user.pending_email = data.email
+
+        # Send verification email to the NEW address
+        verify_url = f"/verify-email?token={raw_token}"
+        sent = await _send_auth_email(
+            recipient=data.email,
+            subject="[Cassini] Verify Your Email Address",
+            body=(
+                f"You requested to change your email address for your Cassini account.\n\n"
+                f"Use this link to verify your new email address:\n{verify_url}\n\n"
+                f"This link expires in 24 hours.\n\n"
+                f"If you did not request this, you can safely ignore this email."
+            ),
+            session=session,
+        )
+        email_verification_sent = sent
+
+    # Audit log
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        detail = {}
+        if data.display_name is not None:
+            detail["display_name"] = data.display_name
+        if data.email is not None:
+            detail["new_email"] = data.email
+        await audit_service.log(
+            action="profile_updated",
+            resource_type="auth",
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=_get_client_ip(request),
+            detail=detail,
+        )
+
+    await session.commit()
+    return UpdateProfileResponse(
+        message="Profile updated successfully",
+        email_verification_sent=email_verification_sent,
+    )
+
+
+@router.get("/verify-email")
+async def verify_email(
+    token: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Verify a new email address via token from email link."""
+    now = datetime.now(timezone.utc)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    # Look up valid, unused, non-expired token
+    result = await session.execute(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.token_hash == token_hash,
+            EmailVerificationToken.used_at.is_(None),
+            EmailVerificationToken.expires_at > now,
+        )
+    )
+    verification = result.scalar_one_or_none()
+
+    if verification is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token",
+        )
+
+    # Load user
+    user_result = await session.execute(
+        select(User).where(User.id == verification.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token",
+        )
+
+    old_email = user.email
+
+    # Update email
+    user.email = verification.new_email
+    user.pending_email = None
+
+    # Consume token
+    verification.used_at = now
+
+    # Audit log with old and new email
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        await audit_service.log(
+            action="email_verified",
+            resource_type="auth",
+            user_id=user.id,
+            username=user.username,
+            ip_address=_get_client_ip(request),
+            detail={"old_email": old_email, "new_email": verification.new_email},
+        )
+
+    await session.commit()
+    return {"message": "Email address verified successfully"}
 
 
 def _get_client_ip(request: Request) -> str:
