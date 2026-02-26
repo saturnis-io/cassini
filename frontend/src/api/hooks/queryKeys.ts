@@ -129,6 +129,13 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.gageBridges.all, 'detail', id] as const,
     profiles: ['gageBridges', 'profiles'] as const,
   },
+  explain: {
+    all: ['explain'] as const,
+    capability: (metric: string, charId: string | number) =>
+      ['explain', 'capability', metric, charId] as const,
+    msa: (metric: string, studyId: string | number) =>
+      ['explain', 'msa', metric, studyId] as const,
+  },
 }
 
 export const retentionKeys = {
