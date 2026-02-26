@@ -775,6 +775,35 @@ input[type='number'] {
   appearance: textfield !important;
 }
 
+/* Explanation panel slide-in animation */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.explanation-panel-slide-in {
+  animation: slide-in-from-right 200ms ease-out;
+}
+
+@media (max-width: 768px) {
+  @keyframes slide-in-from-bottom {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .explanation-panel-slide-in {
+    animation: slide-in-from-bottom 200ms ease-out;
+  }
+}
+
 /* Safe area for notch devices */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
