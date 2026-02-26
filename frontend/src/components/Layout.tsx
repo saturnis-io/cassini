@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
 import { PlantSelector } from '@/components/PlantSelector'
 import { MobileNav } from '@/components/MobileNav'
+import { ExplanationPanel } from '@/components/ExplanationPanel'
 
 /**
  * Main application layout with sidebar navigation
@@ -130,6 +131,9 @@ export function Layout() {
 
       {/* Mobile bottom navigation */}
       <MobileNav />
+
+      {/* Show Your Work explanation panel */}
+      <ExplanationPanel />
     </div>
   )
 }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu } from 'lucide-react'
+import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Sigma } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { ROLE_LABELS } from '@/lib/roles'
 import { useUIStore } from '@/stores/uiStore'
+import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
 
 interface HeaderProps {
   className?: string
@@ -32,6 +33,8 @@ export function Header({ className, plantSelector }: HeaderProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
+  const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
+  const toggleShowYourWork = useShowYourWorkStore((s) => s.toggle)
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -114,6 +117,23 @@ export function Header({ className, plantSelector }: HeaderProps) {
         >
           {getThemeIcon()}
           <span className="hidden sm:inline">{getThemeLabel()}</span>
+        </button>
+
+        {/* Show Your Work toggle */}
+        <button
+          onClick={toggleShowYourWork}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
+            showYourWorkEnabled
+              ? 'bg-primary/10 text-primary border-primary/30 border'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+          )}
+          title={showYourWorkEnabled ? 'Show Your Work: ON' : 'Show Your Work: OFF'}
+        >
+          <Sigma className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {showYourWorkEnabled ? 'Showing Work' : 'Show Work'}
+          </span>
         </button>
 
         {/* User menu */}
