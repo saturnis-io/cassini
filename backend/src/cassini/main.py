@@ -45,6 +45,7 @@ from cassini.api.v1.rule_presets import router as rule_presets_router
 from cassini.api.v1.scheduled_reports import router as scheduled_reports_router
 from cassini.api.v1.samples import router as samples_router
 from cassini.api.v1.signatures import router as signatures_router
+from cassini.api.v1.system_settings import router as system_settings_router
 from cassini.api.v1.users import router as users_router
 from cassini.api.v1.tags import router as tags_router
 from cassini.api.v1.multivariate import router as multivariate_router
@@ -414,6 +415,7 @@ app.include_router(rule_presets_router)
 app.include_router(scheduled_reports_router)
 app.include_router(samples_router)
 app.include_router(signatures_router)
+app.include_router(system_settings_router)
 app.include_router(tags_router)
 app.include_router(push_router)
 app.include_router(erp_router)

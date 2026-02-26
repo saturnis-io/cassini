@@ -58,6 +58,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/predictions(?:/(\d+))?"), "prediction"),
     (re.compile(r"/api/v1/ai/"), "ai_config"),
     (re.compile(r"/api/v1/doe/studies(?:/(\d+))?"), "doe_study"),
+    (re.compile(r"/api/v1/system-settings"), "system_settings"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
