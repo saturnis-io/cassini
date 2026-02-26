@@ -12,6 +12,8 @@ import {
   Fingerprint,
   FileText,
   PenLine,
+  Globe,
+  Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -39,17 +41,34 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
     ],
   },
   {
-    labelKey: 'groups.administration',
+    labelKey: 'groups.organization',
     tabs: [
-      { to: 'branding', labelKey: 'tabs.branding', icon: Building2, minRole: 'admin' },
       { to: 'sites', labelKey: 'tabs.sites', icon: Factory, minRole: 'admin' },
-      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer' },
-      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer' },
-      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer' },
+      { to: 'branding', labelKey: 'tabs.branding', icon: Building2, minRole: 'admin' },
+      { to: 'localization', labelKey: 'tabs.localization', icon: Globe, minRole: 'admin' },
+    ],
+  },
+  {
+    labelKey: 'groups.security',
+    tabs: [
       { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin' },
       { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer' },
+      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer' },
       { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin' },
+    ],
+  },
+  {
+    labelKey: 'groups.data',
+    tabs: [
       { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer' },
+      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer' },
+      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer' },
+    ],
+  },
+  {
+    labelKey: 'groups.integrations',
+    tabs: [
+      { to: 'ai', labelKey: 'tabs.ai', icon: Brain, minRole: 'admin' },
     ],
   },
 ]
