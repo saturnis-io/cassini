@@ -39,9 +39,12 @@ function FormatPicker({
   onChange: (format: string) => void
   includeSystemDefault?: boolean
 }) {
-  const selectedKey = value === '' ? '' : findPresetKey(presets, value)
-  const isCustom = selectedKey === CUSTOM_KEY
-  const [customValue, setCustomValue] = useState(isCustom ? value : '')
+  // Track mode explicitly so selecting "Custom" stays in custom mode
+  // even if the current value happens to match a preset
+  const initialKey = value === '' ? '' : findPresetKey(presets, value)
+  const [mode, setMode] = useState<string>(initialKey)
+  const isCustom = mode === CUSTOM_KEY
+  const [customValue, setCustomValue] = useState(initialKey === CUSTOM_KEY ? value : '')
 
   const preview = useMemo(() => {
     const fmt = isCustom ? customValue : value
@@ -54,11 +57,13 @@ function FormatPicker({
   }, [isCustom, customValue, value])
 
   const handleSelectChange = (key: string) => {
+    setMode(key)
     if (key === '') {
       onChange('')
       return
     }
     if (key === CUSTOM_KEY) {
+      // Seed custom input with current value so user can edit from there
       const initial = customValue || value || 'YYYY-MM-DD'
       setCustomValue(initial)
       onChange(initial)
@@ -79,7 +84,7 @@ function FormatPicker({
     <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
       <select
-        value={isCustom ? CUSTOM_KEY : value === '' ? '' : selectedKey}
+        value={mode}
         onChange={(e) => handleSelectChange(e.target.value)}
         className="border-border bg-card w-full rounded-lg border px-3 py-2 text-sm"
       >
@@ -97,7 +102,7 @@ function FormatPicker({
           type="text"
           value={customValue}
           onChange={(e) => handleCustomChange(e.target.value)}
-          placeholder="e.g. YYYY-MM-DD HH:mm"
+          placeholder="e.g. DD-MMM-YYYY HH:mm"
           className={cn(
             'border-border bg-card w-full rounded-lg border px-3 py-2 font-mono text-sm',
             customValue && !validateFormatString(customValue) && 'border-destructive',
