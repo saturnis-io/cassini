@@ -7,7 +7,10 @@ for SPC characteristics.
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -50,6 +53,23 @@ from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.repositories import CharacteristicRepository, SampleRepository
 
 router = APIRouter(prefix="/api/v1/characteristics", tags=["characteristics"])
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _build_hierarchy_path(hierarchy_repo, hierarchy_id: int) -> str:
+    """Build a display path string like 'Plant > Line > Machine' for a hierarchy node."""
+    path_parts: list[str] = []
+    current_id: int | None = hierarchy_id
+    while current_id is not None:
+        node = await hierarchy_repo.get_by_id(current_id)
+        if node is None:
+            break
+        path_parts.insert(0, node.name)
+        current_id = node.parent_id
+    return " > ".join(path_parts) if path_parts else ""
 
 
 # Dependency for ControlLimitService
@@ -1488,4 +1508,124 @@ async def change_subgroup_mode(
         new_mode=new_mode,
         samples_migrated=samples_migrated,
         characteristic=CharacteristicResponse.model_validate(characteristic),
+    )
+
+
+@router.get("/{char_id}/export/excel")
+async def export_characteristic_excel(
+    char_id: int,
+    request: Request,
+    limit: int = Query(500, ge=1, le=10000, description="Number of recent samples to export"),
+    start_date: datetime | None = Query(None, description="Start date for filtering samples"),
+    end_date: datetime | None = Query(None, description="End date for filtering samples"),
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """Export characteristic data as an Excel workbook.
+
+    Returns a 5-sheet .xlsx file: Measurements, Summary Statistics,
+    Control Limits, Violations, and Annotations.
+
+    All authenticated users can export (no engineer/admin requirement).
+    GET requests are not captured by audit middleware so this endpoint
+    logs explicitly.
+    """
+    # Load characteristic
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found",
+        )
+
+    # Load samples — include excluded samples so they appear in the export
+    if start_date or end_date:
+        samples = await sample_repo.get_by_characteristic(
+            char_id=char_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if len(samples) > limit:
+            samples = samples[-limit:]
+    else:
+        samples = await sample_repo.get_rolling_window(
+            char_id=char_id,
+            window_size=limit,
+            exclude_excluded=False,
+        )
+
+    # Batch-load violations for all samples (avoids N+1)
+    from cassini.db.repositories import ViolationRepository
+
+    violation_repo = ViolationRepository(session)
+    sample_ids = [s.id for s in samples]
+    violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
+
+    # Load annotations for the characteristic
+    from cassini.db.models.annotation import Annotation
+
+    ann_stmt = (
+        select(Annotation)
+        .where(Annotation.characteristic_id == char_id)
+        .order_by(Annotation.created_at)
+    )
+    ann_result = await session.execute(ann_stmt)
+    annotations = list(ann_result.scalars().all())
+
+    # Build hierarchy path (Plant > Line > ... > Machine > Characteristic name)
+    from cassini.db.repositories import HierarchyRepository
+
+    hierarchy_repo = HierarchyRepository(session)
+    hierarchy_path_prefix = ""
+    if characteristic.hierarchy_id is not None:
+        hierarchy_path_prefix = await _build_hierarchy_path(hierarchy_repo, characteristic.hierarchy_id)
+    hierarchy_path = (
+        f"{hierarchy_path_prefix} > {characteristic.name}"
+        if hierarchy_path_prefix
+        else characteristic.name
+    )
+
+    # Build data window description for metadata row
+    if start_date or end_date:
+        sd = start_date.isoformat() if start_date else "earliest"
+        ed = end_date.isoformat() if end_date else "latest"
+        data_window_description = f"{sd} to {ed} (up to {limit} samples)"
+    else:
+        data_window_description = f"Most recent {limit} samples"
+
+    # Build the workbook
+    from cassini.core.excel_export import build_export_workbook
+
+    buf = build_export_workbook(
+        characteristic=characteristic,
+        samples=samples,
+        violations_by_sample=violations_by_sample,
+        annotations=annotations,
+        hierarchy_path=hierarchy_path,
+        data_window_description=data_window_description,
+    )
+
+    # Safe filename: strip non-alphanumeric characters (keep hyphens/underscores)
+    safe_name = re.sub(r"[^\w\-]", "_", characteristic.name)
+    filename = f"cassini_char_{char_id}_{safe_name}.xlsx"
+
+    # Explicit audit log — GET requests are not captured by audit middleware
+    audit_service = getattr(request.app.state, "audit_service", None)
+    if audit_service:
+        await audit_service.log(
+            action="export",
+            resource_type="characteristic",
+            resource_id=char_id,
+            detail={"format": "excel", "samples": len(samples)},
+            user_id=user.id,
+            username=user.username,
+            ip_address=request.client.host if request.client else None,
+        )
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
