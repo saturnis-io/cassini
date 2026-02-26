@@ -35,6 +35,18 @@ from cassini.db.models.user import User
 
 logger = structlog.get_logger(__name__)
 
+# Nelson rule severity mapping
+RULE_SEVERITY: dict[int, str] = {
+    1: "critical",  # Beyond control limits
+    2: "warning",  # Run of 9 above/below
+    3: "warning",  # Run of 6 increasing/decreasing
+    4: "warning",  # 14 alternating
+    5: "info",  # 2 of 3 in Zone A
+    6: "info",  # 4 of 5 in Zone B
+    7: "info",  # 15 in Zone C
+    8: "info",  # 8 outside Zone C
+}
+
 
 class NotificationDispatcher:
     """Dispatches SPC event notifications via email and webhooks.
@@ -75,6 +87,8 @@ class NotificationDispatcher:
 
     async def _on_violation_created(self, event: ViolationCreatedEvent) -> None:
         """Handle ViolationCreatedEvent — send email + webhook notifications."""
+        rule_severity = RULE_SEVERITY.get(event.rule_id, "info")
+
         payload = {
             "event": "violation_created",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -99,6 +113,7 @@ class NotificationDispatcher:
             payload=payload,
             email_subject=subject,
             email_body=body,
+            rule_severity=rule_severity,
         )
 
     async def _on_limits_updated(self, event: ControlLimitsUpdatedEvent) -> None:
@@ -221,8 +236,18 @@ class NotificationDispatcher:
         payload: dict[str, Any],
         email_subject: str,
         email_body: str,
+        rule_severity: str | None = None,
     ) -> None:
-        """Dispatch notifications to all configured channels."""
+        """Dispatch notifications to all configured channels.
+
+        Args:
+            event_type: The event type string (e.g. "violation_created").
+            payload: JSON-serializable payload for webhooks.
+            email_subject: Subject line for email notifications.
+            email_body: Plain-text body for email notifications.
+            rule_severity: Optional severity level ("critical", "warning", "info")
+                for filtering violation notifications by user preference.
+        """
         try:
             async with self._session_factory() as session:
                 # Load SMTP config
@@ -240,14 +265,27 @@ class NotificationDispatcher:
                 # Load users who want email for this event
                 email_users: list[str] = []
                 if smtp_config:
-                    pref_result = await session.execute(
-                        select(NotificationPreference.user_id)
-                        .where(
-                            NotificationPreference.event_type == event_type,
-                            NotificationPreference.channel == "email",
-                            NotificationPreference.is_enabled == True,  # noqa: E712
-                        )
+                    pref_query = select(NotificationPreference.user_id).where(
+                        NotificationPreference.event_type == event_type,
+                        NotificationPreference.channel == "email",
+                        NotificationPreference.is_enabled == True,  # noqa: E712
                     )
+
+                    # Filter by severity if this is a violation event
+                    if rule_severity:
+                        if rule_severity == "info":
+                            pref_query = pref_query.where(
+                                NotificationPreference.severity_filter == "all"
+                            )
+                        elif rule_severity == "warning":
+                            pref_query = pref_query.where(
+                                NotificationPreference.severity_filter.in_(
+                                    ["all", "critical_and_warning"]
+                                )
+                            )
+                        # "critical" always passes all filters
+
+                    pref_result = await session.execute(pref_query)
                     user_ids = [row[0] for row in pref_result.all()]
 
                     if user_ids:
@@ -531,4 +569,4 @@ class NotificationDispatcher:
             return str(e)
 
 
-__all__ = ["NotificationDispatcher"]
+__all__ = ["NotificationDispatcher", "RULE_SEVERITY"]
