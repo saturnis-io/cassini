@@ -13,7 +13,7 @@ class SmtpConfigResponse(BaseModel):
     id: int
     server: str
     port: int
-    username: Optional[str] = None
+    username_set: bool = False
     password_set: bool = False
     use_tls: bool = True
     from_address: str
