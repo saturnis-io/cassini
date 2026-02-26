@@ -25,6 +25,7 @@ import { SampleEditModal } from './SampleEditModal'
 import { DeleteConfirmDialog } from './DeleteConfirmDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from './LocalTimeRangeSelector'
 import { EditHistoryTooltip } from './EditHistoryTooltip'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Sample } from '@/types'
 import { formatDisplayKey } from '@/lib/display-key'
 
@@ -69,6 +70,7 @@ function FilterChip({
 
 export function SampleHistoryPanel() {
   const { role } = useAuth()
+  const { formatDateTime } = useDateFormat()
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
@@ -436,7 +438,7 @@ export function SampleHistoryPanel() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            {new Date(sample.timestamp).toLocaleString()}
+                            {formatDateTime(sample.timestamp)}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-sm">
                             {sample.mean.toFixed(4)}

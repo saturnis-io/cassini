@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useAnomalyEvents, useAcknowledgeAnomaly, useDismissAnomaly } from '@/api/hooks'
 import type { AnomalyEvent } from '@/types/anomaly'
 import { AnomalyEventDetail } from './AnomalyEventDetail'
@@ -44,6 +45,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 type FilterStatus = 'all' | 'active' | 'acknowledged' | 'dismissed'
 
 export function AnomalyEventList({ characteristicId, className }: AnomalyEventListProps) {
+  const { formatDateTime } = useDateFormat()
   const [severityFilter, setSeverityFilter] = useState<string>('')
   const [detectorFilter, setDetectorFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
@@ -203,7 +205,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
 
                     {/* Timestamp */}
                     <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-                      {new Date(event.detected_at).toLocaleString()}
+                      {formatDateTime(event.detected_at)}
                     </span>
 
                     {/* Status indicators */}

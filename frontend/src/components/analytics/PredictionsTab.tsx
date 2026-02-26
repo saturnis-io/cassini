@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TrendingUp, Loader2, ChevronDown, ChevronRight, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { usePredictionDashboard, useUpdatePredictionConfig } from '@/api/hooks'
 import { PredictionConfig } from './PredictionConfig'
@@ -13,6 +14,7 @@ import type { PredictionDashboardItem } from '@/api/predictions.api'
  * Each card shows model info and can expand to show forecast data.
  */
 export function PredictionsTab() {
+  const { formatDate, formatDateTime } = useDateFormat()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
@@ -151,7 +153,7 @@ function PredictionCard({
               </span>
             )}
             {item.last_trained && (
-              <span>Trained: {new Date(item.last_trained).toLocaleDateString()}</span>
+              <span>Trained: {formatDate(item.last_trained)}</span>
             )}
             {item.training_samples > 0 && <span>{item.training_samples} samples</span>}
           </div>
@@ -238,7 +240,7 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
           Model: {forecastResult.model_type}
         </span>
         <span className="text-muted-foreground">
-          Generated: {new Date(forecastResult.generated_at).toLocaleString()}
+          Generated: {formatDateTime(forecastResult.generated_at)}
         </span>
         {oocPoints.length > 0 ? (
           <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">

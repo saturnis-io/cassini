@@ -1,6 +1,7 @@
 import { ShieldCheck, ShieldX, PenLine } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSignatures } from '@/api/hooks'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { ElectronicSignature } from '@/types/signature'
 
 interface SignatureManifestProps {
@@ -9,22 +10,13 @@ interface SignatureManifestProps {
   className?: string
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function SignatureManifest({
   resourceType,
   resourceId,
   className,
 }: SignatureManifestProps) {
   const { data: signatures, isLoading } = useSignatures(resourceType, resourceId)
+  const { formatDateTime } = useDateFormat()
 
   if (isLoading) {
     return null
@@ -59,7 +51,7 @@ export function SignatureManifest({
           <span className="text-muted-foreground">-</span>
           <span>{sig.meaning_display}</span>
           <span className="text-muted-foreground">-</span>
-          <span className="text-muted-foreground">{formatDate(sig.timestamp)}</span>
+          <span className="text-muted-foreground">{formatDateTime(sig.timestamp)}</span>
         </div>
       ))}
     </div>

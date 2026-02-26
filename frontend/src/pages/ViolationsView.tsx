@@ -15,6 +15,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useViolations, useViolationStats, useAcknowledgeViolation } from '@/api/hooks'
 import { violationApi } from '@/api/client'
 import { useAuth } from '@/providers/AuthProvider'
@@ -115,6 +116,7 @@ function Pager({
 export function ViolationsView() {
   const { t } = useTranslation('violations')
   const { t: tCommon } = useTranslation('common')
+  const { formatDate, formatDateTime } = useDateFormat()
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('required')
   const [selectedRule, setSelectedRule] = useState<number | null>(null)
   const [page, setPage] = useState(1)
@@ -462,7 +464,7 @@ export function ViolationsView() {
                       <td className="px-4 py-3 text-sm">
                         {violation.created_at ? (
                           <>
-                            <div>{new Date(violation.created_at).toLocaleDateString()}</div>
+                            <div>{formatDate(violation.created_at)}</div>
                             <div className="text-muted-foreground text-xs">
                               {new Date(violation.created_at).toLocaleTimeString()}
                             </div>
@@ -520,7 +522,7 @@ export function ViolationsView() {
                                 <div>By: <span className="text-foreground">{violation.ack_user}</span></div>
                               )}
                               {violation.ack_timestamp && (
-                                <div>{new Date(violation.ack_timestamp).toLocaleString()}</div>
+                                <div>{formatDateTime(violation.ack_timestamp)}</div>
                               )}
                               {violation.ack_reason && (
                                 <div className="bg-muted/50 mt-1 rounded px-2 py-1 italic">
@@ -636,7 +638,7 @@ export function ViolationsView() {
                 <div className="mt-1 flex items-center justify-between">
                   <span className="text-muted-foreground text-xs">
                     {violation.created_at
-                      ? new Date(violation.created_at).toLocaleString()
+                      ? formatDateTime(violation.created_at)
                       : '-'}
                   </span>
                   <div className="flex items-center gap-1.5">

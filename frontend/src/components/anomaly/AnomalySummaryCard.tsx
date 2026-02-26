@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useAnomalySummary, useTriggerAnalysis } from '@/api/hooks'
 import { Sparkles, Play, AlertTriangle, AlertCircle, Info, CheckCircle2 } from 'lucide-react'
 
@@ -28,6 +29,7 @@ function getDetectorStatusColor(
 }
 
 export function AnomalySummaryCard({ characteristicId, className }: AnomalySummaryCardProps) {
+  const { formatDateTime } = useDateFormat()
   const { data: summary, isLoading, isError } = useAnomalySummary(characteristicId)
   const triggerAnalysis = useTriggerAnalysis()
 
@@ -143,7 +145,7 @@ export function AnomalySummaryCard({ characteristicId, className }: AnomalySumma
       {summary.last_analysis_at && (
         <div className="border-t border-border/30 px-4 py-1">
           <span className="text-[10px] text-muted-foreground">
-            Last analysis: {new Date(summary.last_analysis_at).toLocaleString()}
+            Last analysis: {formatDateTime(summary.last_analysis_at)}
           </span>
         </div>
       )}

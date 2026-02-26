@@ -11,6 +11,8 @@ import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { useTheme } from '@/providers/ThemeProvider'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
@@ -40,6 +42,8 @@ interface ControlChartProps {
   onPointAnnotation?: (sampleId: number) => void
   /** Callback when a region is drag-selected on the chart */
   onRegionSelect?: (info: RegionSelection) => void
+  /** Highlight a specific sample on the chart (e.g. the inspected violation) */
+  highlightSampleId?: number
 }
 
 // Hook to subscribe to chart color changes
@@ -212,6 +216,7 @@ export function ControlChart({
   highlightedRange,
   onPointAnnotation,
   onRegionSelect,
+  highlightSampleId,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
@@ -220,6 +225,7 @@ export function ControlChart({
   const chartColors = useChartColors()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
+  const { datetimeFormat } = useDateFormat()
   const hierarchyPath = useHierarchyPath(characteristicId)
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
@@ -296,12 +302,7 @@ export function ControlChart({
       excluded: point.excluded,
       timestamp: new Date(point.timestamp).toLocaleTimeString(),
       timestampMs: new Date(point.timestamp).getTime(),
-      timestampLabel: new Date(point.timestamp).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      timestampLabel: applyFormat(new Date(point.timestamp), datetimeFormat),
       actual_n: point.actual_n ?? nominalN,
       is_undersized: point.is_undersized ?? false,
       effective_ucl: point.effective_ucl,
@@ -709,6 +710,7 @@ export function ControlChart({
     const localChartColors = chartColors
     const localHighlightedRange = highlightedRange
     const localHoveredSampleIds = hoveredSampleIds
+    const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: any, api: any) => {
@@ -735,7 +737,8 @@ export function ControlChart({
         pointValue >= localHighlightedRange[0] &&
         pointValue < localHighlightedRange[1]
       const isHighlightedFromCrossChart = localHoveredSampleIds?.has(point.sample_id) ?? false
-      const isHighlighted = isHighlightedFromHistogram || isHighlightedFromCrossChart
+      const isInspected = localHighlightSampleId != null && point.sample_id === localHighlightSampleId
+      const isHighlighted = isHighlightedFromHistogram || isHighlightedFromCrossChart || isInspected
 
       // Acknowledged violations use a desaturated color
       const ackedColor = 'hsl(357, 30%, 55%)'
@@ -757,11 +760,26 @@ export function ControlChart({
 
       // Highlight glow ring
       if (isHighlighted) {
+        const ringColor = isInspected ? 'hsl(180, 100%, 50%)' : 'hsl(45, 100%, 50%)'
         children.push({
           type: 'circle',
-          shape: { cx, cy, r: baseRadius + 4 },
-          style: { fill: 'none', stroke: 'hsl(45, 100%, 50%)', lineWidth: 2, opacity: 0.5 },
+          shape: { cx, cy, r: baseRadius + (isInspected ? 6 : 4) },
+          style: {
+            fill: 'none',
+            stroke: ringColor,
+            lineWidth: isInspected ? 2.5 : 2,
+            opacity: isInspected ? 0.8 : 0.5,
+            shadowBlur: isInspected ? 8 : 0,
+            shadowColor: isInspected ? ringColor : undefined,
+          },
         })
+        if (isInspected) {
+          children.push({
+            type: 'circle',
+            shape: { cx, cy, r: baseRadius + 10 },
+            style: { fill: 'none', stroke: ringColor, lineWidth: 1, opacity: 0.3 },
+          })
+        }
       }
 
       if (isViolation) {
@@ -901,14 +919,13 @@ export function ControlChart({
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
                 // > 30 days: "Feb 14"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                return applyFormat(d, 'MMM DD')
               } else if (dataTimeRangeMs > 86400000) {
                 // > 1 day: "Feb 14 09:00"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                return applyFormat(d, 'MMM DD HH:mm')
               }
               // < 1 day: "09:15"
-              return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              return applyFormat(d, 'HH:mm')
             },
           },
           axisLine: { lineStyle: { color: axisLineColor } },
@@ -949,6 +966,7 @@ export function ControlChart({
       },
       tooltip: {
         trigger: 'item',
+        appendTo: () => document.body,
         transitionDuration: 0,
         extraCssText: 'transition: none !important;',
         position: (point: number[]) => [point[0] + 10, point[1] - 10],
@@ -1214,6 +1232,7 @@ export function ControlChart({
     annotations,
     highlightedRange,
     hoveredSampleIds,
+    highlightSampleId,
     rangeWindow,
     showBrush,
     shortRunMode,

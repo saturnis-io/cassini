@@ -3,6 +3,8 @@ import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { CUSUMChartSample } from '@/types'
@@ -16,15 +18,18 @@ interface CUSUMChartProps {
   }
   /** Callback when a data point is clicked — opens Sample Inspector */
   onPointAnnotation?: (sampleId: number) => void
+  /** Highlight a specific sample on the chart (e.g. the inspected violation) */
+  highlightSampleId?: number
 }
 
-export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }: CUSUMChartProps) {
+export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, highlightSampleId }: CUSUMChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
+  const { datetimeFormat } = useDateFormat()
 
   const cusumPoints = chartData?.cusum_data_points ?? []
   const h = chartData?.cusum_h ?? 5
@@ -70,6 +75,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }
     // Custom renderItem for data points (violation markers)
     const localPoints = cusumPoints
     const localColors = chartColors
+    const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: any, api: any) => {
@@ -86,19 +92,39 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }
       const isViolation = point.violation_rules.length > 0
       const isAcked = isViolation && point.unacknowledged_violation_ids.length === 0
       const isExcluded = point.excluded
+      const isInspected = localHighlightSampleId != null && point.sample_id === localHighlightSampleId
       const primaryRule = getPrimaryViolationRule(point.violation_rules)
 
       const ackedColor = 'hsl(357, 30%, 55%)'
-      const fillColor = isExcluded
-        ? localColors.excludedPoint
-        : isViolation && isAcked
-          ? ackedColor
-          : isViolation
-            ? localColors.violationPoint
-            : localColors.normalPoint
+      const fillColor = isInspected
+        ? 'hsl(180, 100%, 50%)'
+        : isExcluded
+          ? localColors.excludedPoint
+          : isViolation && isAcked
+            ? ackedColor
+            : isViolation
+              ? localColors.violationPoint
+              : localColors.normalPoint
 
-      const baseRadius = isViolation ? 6 : 4
+      const baseRadius = isInspected ? 7 : isViolation ? 6 : 4
       const children: Record<string, unknown>[] = []
+
+      // Inspected point glow rings
+      if (isInspected) {
+        const ringColor = 'hsl(180, 100%, 50%)'
+        children.push(
+          {
+            type: 'circle',
+            shape: { cx, cy, r: baseRadius + 6 },
+            style: { fill: 'none', stroke: ringColor, lineWidth: 2.5, opacity: 0.8, shadowBlur: 8, shadowColor: ringColor },
+          },
+          {
+            type: 'circle',
+            shape: { cx, cy, r: baseRadius + 10 },
+            style: { fill: 'none', stroke: ringColor, lineWidth: 1, opacity: 0.3 },
+          },
+        )
+      }
 
       if (isViolation) {
         if (isAcked) {
@@ -201,6 +227,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }
       },
       tooltip: {
         trigger: 'item' as const,
+        appendTo: () => document.body,
         transitionDuration: 0,
         formatter: (params: unknown) => {
           const p = params as { dataIndex: number; seriesType: string; seriesName: string }
@@ -221,7 +248,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }
           html += `<div>CUSUM+: ${formatVal(point.cusum_high)}</div>`
           html += `<div>CUSUM-: ${formatVal(point.cusum_low)}</div>`
           html += `<div>H: ${formatVal(h)}</div>`
-          html += `<div style="opacity:0.7">${new Date(point.timestamp).toLocaleString()}</div>`
+          html += `<div style="opacity:0.7">${applyFormat(new Date(point.timestamp), datetimeFormat)}</div>`
 
           if (point.violation_rules.length > 0) {
             html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
@@ -353,7 +380,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation }
     }
 
     return option
-  }, [chartData, cusumPoints, h, chartColors])
+  }, [chartData, cusumPoints, h, chartColors, highlightSampleId])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

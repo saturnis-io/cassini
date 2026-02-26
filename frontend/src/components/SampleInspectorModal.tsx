@@ -32,6 +32,7 @@ import {
   useDeleteAnnotation,
 } from '@/api/hooks'
 import { formatDisplayKey } from '@/lib/display-key'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import {
   SidebarItem,
   MetaItem,
@@ -62,6 +63,7 @@ export function SampleInspectorModal({
   onClose,
 }: SampleInspectorModalProps) {
   const { user, role } = useAuth()
+  const { formatDateTime } = useDateFormat()
   const [activeSection, setActiveSection] = useState<SectionId>('measurements')
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -290,7 +292,7 @@ export function SampleInspectorModal({
                 Sample {sample.display_key ? formatDisplayKey(sample.display_key) : `#${sample.id}`}
               </div>
               <div className="text-muted-foreground mt-0.5 text-xs">
-                {new Date(sample.timestamp).toLocaleString()}
+                {formatDateTime(sample.timestamp)}
               </div>
             </div>
 
@@ -357,7 +359,7 @@ export function SampleInspectorModal({
                     <MetaItem
                       icon={Clock}
                       label="Timestamp"
-                      value={new Date(sample.timestamp).toLocaleString()}
+                      value={formatDateTime(sample.timestamp)}
                     />
                     <MetaItem
                       icon={Target}
@@ -411,7 +413,7 @@ export function SampleInspectorModal({
                     <MetaItem
                       icon={Clock}
                       label="Timestamp"
-                      value={new Date(sample.timestamp).toLocaleString()}
+                      value={formatDateTime(sample.timestamp)}
                     />
                     <MetaItem icon={Layers} label="Source" value={sample.source ?? 'Manual'} />
                     <MetaItem

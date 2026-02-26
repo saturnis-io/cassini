@@ -1,5 +1,6 @@
 import { X, CalendarRange, AlertTriangle } from 'lucide-react'
 import { formatDisplayKey } from '@/lib/display-key'
+import { useDateFormat } from '@/hooks/useDateFormat'
 
 export interface RegionSelection {
   startTime: string // ISO timestamp
@@ -18,15 +19,6 @@ interface RegionActionModalProps {
   onClose: () => void
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return (
-    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-    ' ' +
-    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  )
-}
-
 export function RegionActionModal({
   selection,
   canAcknowledge,
@@ -34,6 +26,7 @@ export function RegionActionModal({
   onAcknowledge,
   onClose,
 }: RegionActionModalProps) {
+  const { formatDateTime } = useDateFormat()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
@@ -64,7 +57,7 @@ export function RegionActionModal({
               </span>
             </div>
             <div className="text-muted-foreground text-xs">
-              {formatDate(selection.startTime)} — {formatDate(selection.endTime)}
+              {formatDateTime(selection.startTime)} — {formatDateTime(selection.endTime)}
             </div>
           </div>
 

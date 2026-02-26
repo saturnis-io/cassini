@@ -1,5 +1,7 @@
 import { useMemo, useCallback } from 'react'
 import { useECharts } from '@/hooks/useECharts'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 
 interface T2DataPoint {
@@ -31,6 +33,7 @@ interface T2ChartProps {
  * OOC points highlighted in red, and click handler for decomposition.
  */
 export function T2Chart({ data, onOOCClick }: T2ChartProps) {
+  const { datetimeFormat } = useDateFormat()
   const option = useMemo(() => {
     const points = data?.points ?? []
     if (points.length === 0) return null
@@ -38,15 +41,7 @@ export function T2Chart({ data, onOOCClick }: T2ChartProps) {
     const ucl = data?.ucl ?? points[0]?.ucl ?? 0
 
     // Categories (timestamps)
-    const xData = points.map((p) => {
-      const d = new Date(p.timestamp)
-      return d.toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    })
+    const xData = points.map((p) => applyFormat(new Date(p.timestamp), datetimeFormat))
 
     // T2 values
     const t2Values = points.map((p) => p.t2_value)
@@ -137,7 +132,7 @@ export function T2Chart({ data, onOOCClick }: T2ChartProps) {
         },
       ],
     }
-  }, [data])
+  }, [data, datetimeFormat])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

@@ -8,6 +8,7 @@ import {
   prepareChartDataForExport,
   prepareViolationsForExport,
 } from '@/lib/export-utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { toast } from 'sonner'
 
 type ExportFormat = 'pdf' | 'excel' | 'csv'
@@ -55,6 +56,7 @@ export function ExportDropdown({
   const [isOpen, setIsOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { datetimeFormat } = useDateFormat()
 
   const handleExport = async (format: ExportFormat) => {
     setIsOpen(false)
@@ -78,12 +80,12 @@ export function ExportDropdown({
         const data: Record<string, unknown>[] = []
 
         if (exportData?.chartData) {
-          const chartRows = prepareChartDataForExport(exportData.chartData)
+          const chartRows = prepareChartDataForExport(exportData.chartData, datetimeFormat)
           data.push(...chartRows)
         }
 
         if (exportData?.violations && exportData.violations.length > 0) {
-          const violationRows = prepareViolationsForExport(exportData.violations)
+          const violationRows = prepareViolationsForExport(exportData.violations, datetimeFormat)
           data.push(...violationRows)
         }
 

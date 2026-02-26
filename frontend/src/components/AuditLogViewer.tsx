@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useAuditLogs, useAuditStats, useExportAuditLogs } from '@/api/hooks'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { AuditLogEntry } from '@/types'
 import type { AuditLogParams } from '@/api/client'
 
@@ -142,6 +143,7 @@ function StatCard({
 
 function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
   const [expanded, setExpanded] = useState(false)
+  const { formatDateTime } = useDateFormat()
 
   return (
     <>
@@ -152,7 +154,7 @@ function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
         <td className="text-muted-foreground px-3 py-2 text-xs whitespace-nowrap">
           <div className="flex items-center gap-1">
             {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            {new Date(entry.timestamp).toLocaleString()}
+            {formatDateTime(entry.timestamp)}
           </div>
         </td>
         <td className="px-3 py-2 text-sm">{entry.username || '--'}</td>

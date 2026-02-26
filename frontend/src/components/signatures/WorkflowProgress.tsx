@@ -1,5 +1,6 @@
 import { Check, X, Clock, PenLine } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { SignatureWorkflowStep, ElectronicSignature } from '@/types/signature'
 
 interface WorkflowProgressProps {
@@ -10,15 +11,6 @@ interface WorkflowProgressProps {
   rejectionReason?: string | null
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function WorkflowProgress({
   steps,
   currentStep,
@@ -26,6 +18,7 @@ export function WorkflowProgress({
   signatures,
   rejectionReason,
 }: WorkflowProgressProps) {
+  const { formatDateTime } = useDateFormat()
   const sortedSteps = [...steps].sort((a, b) => a.step_order - b.step_order)
 
   return (
@@ -94,7 +87,7 @@ export function WorkflowProgress({
               {stepSig && (
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {stepSig.full_name || stepSig.username} - {stepSig.meaning_display} -{' '}
-                  {formatDate(stepSig.timestamp)}
+                  {formatDateTime(stepSig.timestamp)}
                 </p>
               )}
 

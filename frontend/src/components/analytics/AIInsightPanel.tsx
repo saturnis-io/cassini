@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useLatestInsight, useInsightHistory, useAnalyzeChart } from '@/api/hooks'
 
 interface AIInsightPanelProps {
@@ -25,6 +26,7 @@ interface AIInsightPanelProps {
  * Shows summary, collapsible sections for patterns/risks/recommendations, and metadata.
  */
 export function AIInsightPanel({ charId, onClose }: AIInsightPanelProps) {
+  const { formatDateTime } = useDateFormat()
   const { data: insight, isLoading } = useLatestInsight(charId)
   const { data: history } = useInsightHistory(charId)
   const analyzeMutation = useAnalyzeChart()
@@ -168,7 +170,7 @@ export function AIInsightPanel({ charId, onClose }: AIInsightPanelProps) {
           </span>
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            {new Date(insight.created_at).toLocaleString()}
+            {formatDateTime(insight.created_at)}
           </span>
           <span className="inline-flex items-center gap-1">
             <Zap className="h-3 w-3" />

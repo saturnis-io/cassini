@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Loader2, Save, Play, Clock, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import {
   usePredictionConfig,
   useUpdatePredictionConfig,
@@ -25,6 +26,7 @@ const MODEL_TYPES = [
  * Shows enable/disable, model type, horizon, refit interval, and model info.
  */
 export function PredictionConfig({ characteristicId, className }: PredictionConfigProps) {
+  const { formatDateTime } = useDateFormat()
   const { data: config, isLoading: configLoading } = usePredictionConfig(characteristicId)
   const { data: model, isLoading: modelLoading } = usePredictionModel(characteristicId)
   const updateConfig = useUpdatePredictionConfig()
@@ -234,7 +236,7 @@ export function PredictionConfig({ characteristicId, className }: PredictionConf
                 <div className="text-muted-foreground">Last Trained</div>
                 <div className="text-foreground flex items-center gap-1 font-medium">
                   <Clock className="h-3 w-3" />
-                  {new Date(model.trained_at).toLocaleString()}
+                  {formatDateTime(model.trained_at)}
                 </div>
               </>
             )}

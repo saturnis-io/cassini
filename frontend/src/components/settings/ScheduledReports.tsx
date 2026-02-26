@@ -15,6 +15,8 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { usePlant } from '@/providers/PlantProvider'
 import {
   useReportSchedules,
@@ -40,7 +42,7 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(dateStr: string, dateFmt: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -52,7 +54,7 @@ function formatRelativeTime(dateStr: string): string {
   if (diffMin < 60) return `${diffMin}m ago`
   if (diffHrs < 24) return `${diffHrs}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
+  return applyFormat(date, dateFmt)
 }
 
 function formatBytes(bytes: number | null): string {
@@ -76,6 +78,7 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 export function ScheduledReports() {
+  const { dateFormat } = useDateFormat()
   const { selectedPlant } = usePlant()
   const plantId = selectedPlant?.id ?? 0
 
@@ -340,7 +343,7 @@ function ScheduleCard({
             {schedule.last_run_at && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Last run: {formatRelativeTime(schedule.last_run_at)}
+                Last run: {formatRelativeTime(schedule.last_run_at, dateFormat)}
               </span>
             )}
           </div>
@@ -469,7 +472,7 @@ function RunRow({ run }: { run: ReportRun }) {
           </p>
         )}
       </td>
-      <td className="text-muted-foreground py-2">{formatRelativeTime(run.started_at)}</td>
+      <td className="text-muted-foreground py-2">{formatRelativeTime(run.started_at, dateFormat)}</td>
       <td className="py-2 text-right font-mono">{run.recipients_count}</td>
       <td className="py-2 text-right font-mono">{formatBytes(run.pdf_size_bytes)}</td>
       <td className="text-muted-foreground py-2">{duration}</td>

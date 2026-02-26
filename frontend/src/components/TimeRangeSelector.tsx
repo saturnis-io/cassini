@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Clock, ChevronDown, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import {
   useDashboardStore,
   type TimeRangeState,
@@ -19,6 +20,7 @@ function CustomDateRangePicker({
   onApply: (startDate: string, endDate: string) => void
   onBack: () => void
 }) {
+  const { formatDate: fmtDate } = useDateFormat()
   const now = new Date()
   const [startDate, setStartDate] = useState<Date>(new Date(now.getTime() - 24 * 60 * 60 * 1000)) // Yesterday
   const [endDate, setEndDate] = useState<Date>(now)
@@ -60,7 +62,7 @@ function CustomDateRangePicker({
   }
 
   const formatDateDisplay = (date: Date) => {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    return fmtDate(date)
   }
 
   const formatTimeDisplay = (date: Date) => {

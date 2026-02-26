@@ -28,5 +28,5 @@ export interface ExplanationResponse {
 
 export const explainApi = {
   getCapabilityExplanation: (metricType: string, characteristicId: string | number) =>
-    fetchApi<ExplanationResponse>(`explain/capability/${metricType}/${characteristicId}`),
+    fetchApi<ExplanationResponse>(`/explain/capability/${metricType}/${characteristicId}`),
 }

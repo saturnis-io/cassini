@@ -1,6 +1,7 @@
 import { ShieldCheck, ShieldX, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSignatures } from '@/api/hooks'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { SignatureVerifyBadge } from './SignatureVerifyBadge'
 import type { ElectronicSignature } from '@/types/signature'
 
@@ -9,18 +10,9 @@ interface SignatureHistoryProps {
   resourceId: number
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function SignatureHistory({ resourceType, resourceId }: SignatureHistoryProps) {
   const { data: signatures, isLoading } = useSignatures(resourceType, resourceId)
+  const { formatDateTime } = useDateFormat()
 
   if (isLoading) {
     return (
@@ -67,7 +59,7 @@ export function SignatureHistory({ resourceType, resourceId }: SignatureHistoryP
                   <span className="text-sm">{sig.meaning_display}</span>
                 </div>
               </div>
-              <span className="text-muted-foreground text-xs">{formatDate(sig.timestamp)}</span>
+              <span className="text-muted-foreground text-xs">{formatDateTime(sig.timestamp)}</span>
             </div>
 
             {sig.comment && (
@@ -80,7 +72,7 @@ export function SignatureHistory({ resourceType, resourceId }: SignatureHistoryP
             {!sig.is_valid && sig.invalidated_reason && (
               <p className="text-destructive mt-2 pl-6 text-xs">
                 Invalidated: {sig.invalidated_reason}
-                {sig.invalidated_at && ` (${formatDate(sig.invalidated_at)})`}
+                {sig.invalidated_at && ` (${formatDateTime(sig.invalidated_at)})`}
               </p>
             )}
 

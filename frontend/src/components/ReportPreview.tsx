@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
@@ -88,6 +90,7 @@ export function ReportPreview({
 }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
   const { brandConfig } = useTheme()
+  const { formatDate, formatDateTime, dateFormat, datetimeFormat } = useDateFormat()
 
   // Fetch data for primary characteristic using the provided chart options
   const { data: chartData, isLoading: chartLoading } = useChartData(
@@ -148,7 +151,7 @@ export function ReportPreview({
             </div>
           </div>
           <div className="text-muted-foreground text-right text-sm">
-            <div>Generated: {new Date().toLocaleString()}</div>
+            <div>Generated: {formatDateTime(new Date())}</div>
             {characteristic && <div>Characteristic: {characteristic.name}</div>}
           </div>
         </div>
@@ -217,7 +220,7 @@ function ReportSectionComponent({
             )}
           </div>
           <div className="text-muted-foreground mt-1 text-xs">
-            Generated: {new Date().toLocaleString()}
+            Generated: {formatDateTime(new Date())}
           </div>
         </div>
       )
@@ -291,7 +294,7 @@ function ReportSectionComponent({
                 {violations.slice(0, 10).map((v) => (
                   <tr key={v.id} className="border-border/50 border-b">
                     <td className="py-2">
-                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                      {v.created_at ? formatDate(v.created_at) : '-'}
                     </td>
                     <td className="py-2">
                       Rule {v.rule_id}: {v.rule_name}
@@ -353,7 +356,7 @@ function ReportSectionComponent({
                 {violations.map((v) => (
                   <tr key={v.id} className="border-border/50 border-b">
                     <td className="py-2">
-                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                      {v.created_at ? formatDate(v.created_at) : '-'}
                     </td>
                     <td className="py-2">{v.characteristic_name || '-'}</td>
                     <td className="py-2">Rule {v.rule_id}</td>
@@ -402,7 +405,7 @@ function ReportSectionComponent({
               <tbody>
                 {annotations.map((a) => (
                   <tr key={a.id} className="border-border/50 border-b">
-                    <td className="py-2">{new Date(a.created_at).toLocaleDateString()}</td>
+                    <td className="py-2">{formatDate(a.created_at)}</td>
                     <td className="py-2">
                       <span
                         className={cn(
@@ -421,19 +424,9 @@ function ReportSectionComponent({
                     <td className="text-muted-foreground py-2 text-xs">
                       {a.annotation_type === 'period' && a.start_time && a.end_time ? (
                         <>
-                          {new Date(a.start_time).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDateTime(a.start_time)}
                           {' — '}
-                          {new Date(a.end_time).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDateTime(a.end_time)}
                         </>
                       ) : a.annotation_type === 'point' ? (
                         <span>Sample #{a.sample_id}</span>
@@ -500,7 +493,7 @@ function ReportSectionComponent({
             <tbody>
               {sampleRows.map((dp) => (
                 <tr key={dp.sample_id} className="border-border/50 border-b">
-                  <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
+                  <td className="py-2">{formatDateTime(dp.timestamp)}</td>
                   <td className="py-2 text-right font-mono">{dp.value.toFixed(4)}</td>
                   <td className="py-2 text-right">{dp.extra}</td>
                   <td className="py-2 text-center">
@@ -992,7 +985,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
       const windowSlice = trendPoints.slice(windowStart, i + 1)
       const ma = windowSlice.reduce((sum, p) => sum + p.value, 0) / windowSlice.length
       return {
-        date: new Date(dp.timestamp).toLocaleDateString(),
+        date: applyFormat(new Date(dp.timestamp), dateFormat),
         timestamp: dp.timestamp,
         value: dp.value,
         ma: i >= windowSize - 1 ? ma : null,
@@ -1055,7 +1048,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
               params[0]?.axisValue ? trendData.findIndex((d) => d.date === params[0].axisValue) : 0
             ]
           if (!item) return ''
-          let html = `${new Date(item.timestamp).toLocaleString()}<br/>Value: ${item.value.toFixed(4)}`
+          let html = `${applyFormat(new Date(item.timestamp), datetimeFormat)}<br/>Value: ${item.value.toFixed(4)}`
           if (item.ma != null) html += `<br/>MA(${windowSize}): ${item.ma.toFixed(4)}`
           return html
         },

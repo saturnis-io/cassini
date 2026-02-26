@@ -13,6 +13,8 @@
 import { useCallback, useRef, useMemo, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 
 interface ChartRangeSliderProps {
   /** Total number of data points */
@@ -27,24 +29,17 @@ interface ChartRangeSliderProps {
 
 /**
  * Format a timestamp string for display in the range slider.
- * Uses short date+time when the range spans multiple days, time-only otherwise.
+ * Uses the configured datetime format when the range spans multiple days,
+ * short time-only (HH:mm) otherwise.
  */
-function formatSliderTimestamp(isoString: string, spanMs: number): string {
+function formatSliderTimestamp(isoString: string, spanMs: number, dtFormat: string): string {
   const date = new Date(isoString)
   if (spanMs > 86400000) {
     // More than 1 day: show date + time
-    return date.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return applyFormat(date, dtFormat)
   }
   // Within a day: show time only
-  return date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return applyFormat(date, 'HH:mm')
 }
 
 export function ChartRangeSlider({
@@ -53,6 +48,7 @@ export function ChartRangeSlider({
   labels,
   timestamps,
 }: ChartRangeSliderProps) {
+  const { datetimeFormat } = useDateFormat()
   const { rangeWindow, setRangeWindow } = useDashboardStore()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -212,8 +208,8 @@ export function ChartRangeSlider({
       if (startTs && endTs) {
         const spanMs = new Date(endTs).getTime() - new Date(startTs).getTime()
         return {
-          startLabel: formatSliderTimestamp(startTs, spanMs),
-          endLabel: formatSliderTimestamp(endTs, spanMs),
+          startLabel: formatSliderTimestamp(startTs, spanMs, datetimeFormat),
+          endLabel: formatSliderTimestamp(endTs, spanMs, datetimeFormat),
         }
       }
     }

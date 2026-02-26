@@ -9,6 +9,7 @@
 import { useState, useMemo } from 'react'
 import { X, MapPin, CalendarRange, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useCreateAnnotation } from '@/api/hooks'
 import { annotationSchema } from '@/schemas/characteristics'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -40,6 +41,7 @@ export function AnnotationDialog({
   prefillStartTime,
   prefillEndTime,
 }: AnnotationDialogProps) {
+  const { formatDate: fmtDate } = useDateFormat()
   const [text, setText] = useState('')
   const [color, setColor] = useState<string>('')
 
@@ -131,8 +133,7 @@ export function AnnotationDialog({
     setActiveDate(newDate)
   }
 
-  const formatDateDisplay = (date: Date) =>
-    date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const formatDateDisplay = (date: Date) => fmtDate(date)
 
   const formatTimeDisplay = (date: Date) =>
     date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })

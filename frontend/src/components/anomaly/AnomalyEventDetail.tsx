@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { AnomalyEvent } from '@/types/anomaly'
 import { CheckCircle2, XCircle, Clock, User } from 'lucide-react'
 
@@ -16,6 +17,7 @@ export function AnomalyEventDetail({
   onDismiss,
   className,
 }: AnomalyEventDetailProps) {
+  const { formatDateTime } = useDateFormat()
   const [dismissReason, setDismissReason] = useState('')
   const [showDismissInput, setShowDismissInput] = useState(false)
 
@@ -72,7 +74,7 @@ export function AnomalyEventDetail({
           <Clock className="h-3 w-3" />
           Sample ID: {event.sample_id}
           <span className="mx-1">|</span>
-          Detected: {new Date(event.detected_at).toLocaleString()}
+          Detected: {formatDateTime(event.detected_at)}
         </div>
       )}
 
@@ -82,7 +84,7 @@ export function AnomalyEventDetail({
           <User className="h-3 w-3" />
           Acknowledged by {event.acknowledged_by}
           {event.acknowledged_at && (
-            <span>at {new Date(event.acknowledged_at).toLocaleString()}</span>
+            <span>at {formatDateTime(event.acknowledged_at)}</span>
           )}
         </div>
       )}

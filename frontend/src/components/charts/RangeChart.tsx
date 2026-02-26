@@ -13,6 +13,7 @@ import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { formatDisplayKey } from '@/lib/display-key'
+import { applyFormat } from '@/lib/date-format'
 
 interface RangeChartProps {
   characteristicId: number
@@ -394,14 +395,13 @@ export function RangeChart({
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
                 // > 30 days: "Feb 14"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                return applyFormat(d, 'MMM DD')
               } else if (dataTimeRangeMs > 86400000) {
                 // > 1 day: "Feb 14 09:00"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                return applyFormat(d, 'MMM DD HH:mm')
               }
               // < 1 day: "09:15"
-              return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              return applyFormat(d, 'HH:mm')
             },
           },
           splitLine: { show: false },

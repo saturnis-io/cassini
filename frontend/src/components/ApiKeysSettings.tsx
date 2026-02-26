@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Key, Plus, Copy, Trash2, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { apiKeysApi, type APIKeyResponse, type APIKeyCreateResponse } from '@/api/client'
 import { toast } from 'sonner'
 
 export function ApiKeysSettings() {
+  const { formatDateTime } = useDateFormat()
   const queryClient = useQueryClient()
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
@@ -73,9 +75,9 @@ export function ApiKeysSettings() {
     }
   }
 
-  const formatDate = (dateStr: string | null) => {
+  const fmtDate = (dateStr: string | null) => {
     if (!dateStr) return 'Never'
-    return new Date(dateStr).toLocaleString()
+    return formatDateTime(dateStr)
   }
 
   if (isLoading) {
@@ -210,10 +212,10 @@ export function ApiKeysSettings() {
                     </span>
                   </td>
                   <td className="text-muted-foreground px-4 py-3 text-sm">
-                    {formatDate(key.created_at)}
+                    {fmtDate(key.created_at)}
                   </td>
                   <td className="text-muted-foreground px-4 py-3 text-sm">
-                    {formatDate(key.last_used_at)}
+                    {fmtDate(key.last_used_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">

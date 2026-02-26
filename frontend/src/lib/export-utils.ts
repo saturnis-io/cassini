@@ -2,6 +2,7 @@ import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
+import { applyFormat } from '@/lib/date-format'
 
 /**
  * Convert a CSS color string to RGB using Canvas 2D pixel readback.
@@ -205,16 +206,19 @@ export function exportToCsv(data: Record<string, unknown>[], filename: string) {
 /**
  * Prepare chart data for export
  */
-export function prepareChartDataForExport(chartData: {
-  data_points: Array<{
-    timestamp: string
-    mean: number
-    zone: string
-    violation_rules: number[]
-  }>
-}) {
+export function prepareChartDataForExport(
+  chartData: {
+    data_points: Array<{
+      timestamp: string
+      mean: number
+      zone: string
+      violation_rules: number[]
+    }>
+  },
+  datetimeFormat = 'YYYY-MM-DD HH:mm:ss',
+) {
   return chartData.data_points.map((point) => ({
-    Timestamp: new Date(point.timestamp).toLocaleString(),
+    Timestamp: applyFormat(new Date(point.timestamp), datetimeFormat),
     Mean: point.mean,
     Zone: point.zone.replace(/_/g, ' '),
     Violations:
@@ -239,10 +243,11 @@ export function prepareViolationsForExport(
     ack_user: string | null
     ack_reason: string | null
   }>,
+  datetimeFormat = 'YYYY-MM-DD HH:mm:ss',
 ) {
   return violations.map((v) => ({
     ID: v.id,
-    Date: v.created_at ? new Date(v.created_at).toLocaleString() : '-',
+    Date: v.created_at ? applyFormat(new Date(v.created_at), datetimeFormat) : '-',
     Characteristic: v.characteristic_name || '-',
     Rule: `Rule ${v.rule_id}: ${v.rule_name}`,
     Severity: v.severity,

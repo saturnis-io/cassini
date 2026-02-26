@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pencil, X, MessageSquare, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Annotation } from '@/types'
 import type { useCreateAnnotation, useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 
@@ -27,6 +28,7 @@ export function AnnotationsSection({
   deleteAnnotation,
   onAdd,
 }: AnnotationsSectionProps) {
+  const { formatDateTime } = useDateFormat()
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null)
@@ -167,12 +169,7 @@ export function AnnotationsSection({
                   )}
                   <span>
                     {wasEdited ? 'Edited ' : ''}
-                    {new Date(wasEdited ? a.updated_at : a.created_at).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatDateTime(wasEdited ? a.updated_at : a.created_at)}
                   </span>
                   {hasHistory && (
                     <button
@@ -197,12 +194,7 @@ export function AnnotationsSection({
                       <div key={entry.id} className="text-xs">
                         <div className="text-muted-foreground flex items-center gap-2">
                           <span>
-                            {new Date(entry.changed_at).toLocaleString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatDateTime(entry.changed_at)}
                           </span>
                           {entry.changed_by && (
                             <span className="text-muted-foreground/70">by {entry.changed_by}</span>

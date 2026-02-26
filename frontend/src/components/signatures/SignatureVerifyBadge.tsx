@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Shield, ShieldCheck, ShieldX, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useVerifySignature } from '@/api/hooks'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { ElectronicSignature } from '@/types/signature'
 import type { VerifyResponse } from '@/types/signature'
 
@@ -10,17 +11,8 @@ interface SignatureVerifyBadgeProps {
   compact?: boolean
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
 export function SignatureVerifyBadge({ signature, compact = false }: SignatureVerifyBadgeProps) {
+  const { formatDateTime } = useDateFormat()
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifyResponse | null>(null)
   const verifyMutation = useVerifySignature()
@@ -67,7 +59,7 @@ export function SignatureVerifyBadge({ signature, compact = false }: SignatureVe
         <span className="text-muted-foreground">-</span>
         <span>{signature.meaning_display}</span>
         <span className="text-muted-foreground">-</span>
-        <span>{formatDate(signature.timestamp)}</span>
+        <span>{formatDateTime(signature.timestamp)}</span>
       </button>
 
       {/* Popover */}
@@ -101,7 +93,7 @@ export function SignatureVerifyBadge({ signature, compact = false }: SignatureVe
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Date/Time</span>
-                <span className="text-foreground">{formatDate(signature.timestamp)}</span>
+                <span className="text-foreground">{formatDateTime(signature.timestamp)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Status</span>

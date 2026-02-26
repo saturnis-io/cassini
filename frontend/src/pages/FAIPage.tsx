@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useUIStore } from '@/stores/uiStore'
 import { usePlants } from '@/api/hooks'
 import {
@@ -26,6 +27,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
 }
 
 export function FAIPage() {
+  const { formatDate } = useDateFormat()
   const navigate = useNavigate()
   const selectedPlantId = useUIStore((s) => s.selectedPlantId)
   const { data: plants } = usePlants()
@@ -177,7 +179,7 @@ export function FAIPage() {
                       </span>
                     </td>
                     <td className="text-muted-foreground px-4 py-3">
-                      {new Date(report.created_at).toLocaleDateString()}
+                      {formatDate(report.created_at)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

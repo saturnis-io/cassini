@@ -1,5 +1,6 @@
 import { ArrowLeft, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { FAIReportDetail } from '@/api/client'
 
 interface FAIPrintViewProps {
@@ -18,6 +19,7 @@ const printStyles = `
 `
 
 export function FAIPrintView({ report, onClose }: FAIPrintViewProps) {
+  const { formatDate } = useDateFormat()
   const items = report.items ?? []
   const passCount = items.filter((i) => i.result === 'pass').length
   const failCount = items.filter((i) => i.result === 'fail').length
@@ -112,7 +114,7 @@ export function FAIPrintView({ report, onClose }: FAIPrintViewProps) {
                   <td className={valueClass}>{report.status.toUpperCase()}</td>
                   <td className={labelClass}>Created</td>
                   <td className={valueClass}>
-                    {new Date(report.created_at).toLocaleDateString()}
+                    {formatDate(report.created_at)}
                   </td>
                 </tr>
               </tbody>

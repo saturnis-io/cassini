@@ -1,7 +1,9 @@
 import { Shield, Unlink, Loader2 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useOIDCAccountLinks, useDeleteAccountLink } from '@/api/hooks'
 
 export function AccountLinkingPanel() {
+  const { formatDate } = useDateFormat()
   const { data: links, isLoading } = useOIDCAccountLinks()
   const unlinkMutation = useDeleteAccountLink()
 
@@ -35,7 +37,7 @@ export function AccountLinkingPanel() {
                 <div className="text-xs text-muted-foreground">
                   Subject: {link.oidc_subject.length > 20 ? `${link.oidc_subject.substring(0, 20)}...` : link.oidc_subject}
                   {' \u00b7 '}
-                  Linked {new Date(link.linked_at).toLocaleDateString()}
+                  Linked {formatDate(link.linked_at)}
                 </div>
               </div>
               <button
