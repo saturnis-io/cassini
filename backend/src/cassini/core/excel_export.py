@@ -158,7 +158,9 @@ def _build_measurements_sheet(
     annotations_col = violations_col + 1
     excluded_col = annotations_col + 1
 
-    # Build annotation lookup by sample_id for quick access
+    # Build annotation lookup by sample_id for quick access.
+    # Period annotations (start_sample_id/end_sample_id) are excluded from
+    # per-row display — they span many rows and appear on the Annotations sheet.
     annotation_map: dict[int, list[str]] = {}
     for ann in annotations:
         if ann.sample_id is not None:
@@ -173,7 +175,7 @@ def _build_measurements_sheet(
         ts = _naive_dt(sample.timestamp) if isinstance(sample.timestamp, datetime) else sample.timestamp
         if isinstance(ts, datetime):
             cell_ts = ws.cell(row=row, column=2, value=ts)
-            cell_ts.number_format = "YYYY-MM-DD HH:MM:SS"
+            cell_ts.number_format = "YYYY-MM-DD hh:mm:ss"
         else:
             ws.cell(row=row, column=2, value=str(ts) if ts else "")
         ws.cell(row=row, column=3, value=sample.operator_id or "")
@@ -226,7 +228,7 @@ def _build_measurements_sheet(
         if stddev_col is not None:
             cell_sd = ws.cell(
                 row=row, column=stddev_col,
-                value=f"=STDEV({meas_range})",
+                value=f"=STDEV.S({meas_range})",
             )
             cell_sd.number_format = num_fmt
 
@@ -347,7 +349,7 @@ def _build_summary_sheet(
     # Std Dev (of subgroup means)
     stddev_row = _write_stat(
         "Std Dev (of means)",
-        f"=STDEV({data_range_mean})",
+        f"=STDEV.S({data_range_mean})",
         f"STDEV of Mean column ({mean_letter})",
     )
 
@@ -358,7 +360,7 @@ def _build_summary_sheet(
         overall_range = f"Measurements!{meas_letter}{_DATA_START_ROW}:{meas_letter}{last_data_row}"
         _write_stat(
             "Overall Std Dev",
-            f"=STDEV({overall_range})",
+            f"=STDEV.S({overall_range})",
             "STDEV of all individual measurements",
         )
     else:
@@ -371,7 +373,7 @@ def _build_summary_sheet(
         )
         _write_stat(
             "Overall Std Dev",
-            f"=STDEV({overall_range})",
+            f"=STDEV.S({overall_range})",
             f"STDEV of all measurements ({first_meas_letter}-{last_meas_letter})",
         )
 
@@ -444,21 +446,21 @@ def _build_summary_sheet(
         # Pp = (USL - LSL) / (6 * overall_stddev)
         _write_stat(
             "Pp",
-            f"=({char.usl}-{char.lsl})/(6*STDEV({overall_range_ref}))",
+            f"=({char.usl}-{char.lsl})/(6*STDEV.S({overall_range_ref}))",
             "(USL - LSL) / (6 * Overall StdDev)",
         )
 
         # Ppu
         ppu_row = _write_stat(
             "Ppu",
-            f"=({char.usl}-{xbar_cell})/(3*STDEV({overall_range_ref}))",
+            f"=({char.usl}-{xbar_cell})/(3*STDEV.S({overall_range_ref}))",
             "(USL - X-bar) / (3 * Overall StdDev)",
         )
 
         # Ppl
         ppl_row = _write_stat(
             "Ppl",
-            f"=({xbar_cell}-{char.lsl})/(3*STDEV({overall_range_ref}))",
+            f"=({xbar_cell}-{char.lsl})/(3*STDEV.S({overall_range_ref}))",
             "(X-bar - LSL) / (3 * Overall StdDev)",
         )
 
@@ -552,7 +554,7 @@ def _build_violations_sheet(
             ts = _naive_dt(sample.timestamp) if isinstance(sample.timestamp, datetime) else sample.timestamp
             if isinstance(ts, datetime):
                 ts_cell = ws.cell(row=row, column=2, value=ts)
-                ts_cell.number_format = "YYYY-MM-DD HH:MM:SS"
+                ts_cell.number_format = "YYYY-MM-DD hh:mm:ss"
             else:
                 ws.cell(row=row, column=2, value=str(ts) if ts else "")
             ws.cell(row=row, column=3, value=f"Rule {v.rule_id}")
@@ -597,7 +599,7 @@ def _build_annotations_sheet(
         ts = _naive_dt(ann.created_at) if isinstance(ann.created_at, datetime) else ann.created_at
         if isinstance(ts, datetime):
             ts_cell = ws.cell(row=row_idx, column=5, value=ts)
-            ts_cell.number_format = "YYYY-MM-DD HH:MM:SS"
+            ts_cell.number_format = "YYYY-MM-DD hh:mm:ss"
         else:
             ws.cell(row=row_idx, column=5, value=str(ts) if ts else "")
 
