@@ -22,6 +22,8 @@ import math
 import numpy as np
 from scipy import stats as scipy_stats
 
+from cassini.core.explain import ExplanationCollector
+
 
 @dataclass
 class CapabilityResult:
@@ -45,6 +47,7 @@ def calculate_capability(
     lsl: float | None,
     target: float | None = None,
     sigma_within: float | None = None,
+    collector: ExplanationCollector | None = None,
 ) -> CapabilityResult:
     """Calculate process capability indices from measurement values.
 
@@ -74,6 +77,19 @@ def calculate_capability(
     n = len(values)
     now = datetime.now(timezone.utc)
 
+    if collector:
+        collector.input("n", n)
+        collector.input("x̄", round(mean, 6))
+        collector.input("σ_overall", round(sigma_overall, 6))
+        if sigma_within is not None:
+            collector.input("σ_within", round(sigma_within, 6))
+        if usl is not None:
+            collector.input("USL", usl)
+        if lsl is not None:
+            collector.input("LSL", lsl)
+        if target is not None:
+            collector.input("Target", target)
+
     # Normality test (Shapiro-Wilk, max 5000 samples)
     normality_p: float | None = None
     normality_test = "shapiro_wilk"
@@ -84,6 +100,15 @@ def calculate_capability(
             result = scipy_stats.shapiro(test_sample)
             normality_p = float(result.pvalue)
             is_normal = normality_p >= 0.05
+            if collector:
+                geq_sym = r"\geq" if is_normal else "<"
+                collector.step(
+                    label="Normality Test (Shapiro-Wilk)",
+                    formula_latex=r"H_0: \text{Data is normally distributed}",
+                    substitution_latex=rf"p = {normality_p:.6f} {geq_sym} 0.05",
+                    result=normality_p,
+                    note="Normal" if is_normal else "Non-normal distribution detected",
+                )
         except Exception:
             normality_test = "failed"
 
@@ -99,21 +124,64 @@ def calculate_capability(
     if sigma_within is not None and sigma_within > 0:
         if usl is not None and lsl is not None:
             cp = (usl - lsl) / (6.0 * sigma_within)
+            if collector:
+                collector.step(
+                    label="Cp (potential capability)",
+                    formula_latex=r"C_p = \frac{USL - LSL}{6\sigma_w}",
+                    substitution_latex=rf"\frac{{{usl} - {lsl}}}{{6 \times {sigma_within:.6f}}} = {cp:.4f}",
+                    result=cp,
+                )
 
         # Cpk: one-sided if only one limit
         cpk_values = []
         if usl is not None:
             cpk_values.append((usl - mean) / (3.0 * sigma_within))
+            if collector:
+                cpu = cpk_values[-1]
+                collector.step(
+                    label="Cpu (upper)",
+                    formula_latex=r"C_{pu} = \frac{USL - \bar{x}}{3\sigma_w}",
+                    substitution_latex=rf"\frac{{{usl} - {mean:.6f}}}{{3 \times {sigma_within:.6f}}} = {cpu:.4f}",
+                    result=cpu,
+                )
         if lsl is not None:
             cpk_values.append((mean - lsl) / (3.0 * sigma_within))
+            if collector:
+                cpl = cpk_values[-1]
+                collector.step(
+                    label="Cpl (lower)",
+                    formula_latex=r"C_{pl} = \frac{\bar{x} - LSL}{3\sigma_w}",
+                    substitution_latex=rf"\frac{{{mean:.6f} - {lsl}}}{{3 \times {sigma_within:.6f}}} = {cpl:.4f}",
+                    result=cpl,
+                )
         if cpk_values:
             cpk = min(cpk_values)
+        if cpk_values and collector:
+            collector.step(
+                label="Cpk (actual capability)",
+                formula_latex=r"C_{pk} = \min(C_{pu}, C_{pl})",
+                substitution_latex=rf"\min({', '.join(f'{v:.4f}' for v in cpk_values)}) = {cpk:.4f}",
+                result=cpk,
+            )
 
         # Cpm: requires target and both spec limits
         if cp is not None and target is not None:
             tau = math.sqrt(sigma_within**2 + (mean - target) ** 2)
             if tau > 0 and usl is not None and lsl is not None:
                 cpm = (usl - lsl) / (6.0 * tau)
+                if collector:
+                    collector.step(
+                        label="τ (Taguchi loss sigma)",
+                        formula_latex=r"\tau = \sqrt{\sigma_w^2 + (\bar{x} - T)^2}",
+                        substitution_latex=rf"\sqrt{{{sigma_within:.6f}^2 + ({mean:.6f} - {target})^2}} = {tau:.4f}",
+                        result=tau,
+                    )
+                    collector.step(
+                        label="Cpm (Taguchi index)",
+                        formula_latex=r"C_{pm} = \frac{USL - LSL}{6\tau}",
+                        substitution_latex=rf"\frac{{{usl} - {lsl}}}{{6 \times {tau:.4f}}} = {cpm:.4f}",
+                        result=cpm,
+                    )
 
     # --- Pp / Ppk (long-term, overall variation) ---
     pp: float | None = None
@@ -122,14 +190,44 @@ def calculate_capability(
     if sigma_overall > 0:
         if usl is not None and lsl is not None:
             pp = (usl - lsl) / (6.0 * sigma_overall)
+            if collector:
+                collector.step(
+                    label="Pp (overall performance)",
+                    formula_latex=r"P_p = \frac{USL - LSL}{6\sigma_{overall}}",
+                    substitution_latex=rf"\frac{{{usl} - {lsl}}}{{6 \times {sigma_overall:.6f}}} = {pp:.4f}",
+                    result=pp,
+                )
 
         ppk_values = []
         if usl is not None:
             ppk_values.append((usl - mean) / (3.0 * sigma_overall))
+            if collector:
+                ppu = ppk_values[-1]
+                collector.step(
+                    label="Ppu (upper)",
+                    formula_latex=r"P_{pu} = \frac{USL - \bar{x}}{3\sigma_{overall}}",
+                    substitution_latex=rf"\frac{{{usl} - {mean:.6f}}}{{3 \times {sigma_overall:.6f}}} = {ppu:.4f}",
+                    result=ppu,
+                )
         if lsl is not None:
             ppk_values.append((mean - lsl) / (3.0 * sigma_overall))
+            if collector:
+                ppl = ppk_values[-1]
+                collector.step(
+                    label="Ppl (lower)",
+                    formula_latex=r"P_{pl} = \frac{\bar{x} - LSL}{3\sigma_{overall}}",
+                    substitution_latex=rf"\frac{{{mean:.6f} - {lsl}}}{{3 \times {sigma_overall:.6f}}} = {ppl:.4f}",
+                    result=ppl,
+                )
         if ppk_values:
             ppk = min(ppk_values)
+        if ppk_values and collector:
+            collector.step(
+                label="Ppk (overall performance)",
+                formula_latex=r"P_{pk} = \min(P_{pu}, P_{pl})",
+                substitution_latex=rf"\min({', '.join(f'{v:.4f}' for v in ppk_values)}) = {ppk:.4f}",
+                result=ppk,
+            )
 
     return CapabilityResult(
         cp=_round_or_none(cp),
