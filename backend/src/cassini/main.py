@@ -36,6 +36,7 @@ from cassini.api.v1.notifications import router as notifications_router
 from cassini.api.v1.oidc import router as oidc_router
 from cassini.api.v1.push import router as push_router
 from cassini.api.v1.erp_connectors import router as erp_router
+from cassini.api.v1.explain import router as explain_router
 from cassini.api.v1.hierarchy import plant_hierarchy_router
 from cassini.api.v1.plants import router as plants_router
 from cassini.api.v1.providers import router as providers_router
@@ -416,6 +417,7 @@ app.include_router(signatures_router)
 app.include_router(tags_router)
 app.include_router(push_router)
 app.include_router(erp_router)
+app.include_router(explain_router)
 app.include_router(multivariate_router)
 app.include_router(predictions_router)
 app.include_router(ai_analysis_router)
