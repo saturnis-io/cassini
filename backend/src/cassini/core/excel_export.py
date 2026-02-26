@@ -346,19 +346,49 @@ def _build_summary_sheet(
         f"AVERAGE of Range column ({range_letter})",
     )
 
-    # Within-subgroup sigma (R-bar/d2) — from backend's stored_sigma.
-    # This is the correct sigma for Cp/Cpk (within-subgroup capability).
-    # For n=1 subgroups, stored_sigma uses moving range / d2.
-    within_sigma_row = _write_stat(
-        "Within-Subgroup Sigma",
-        char.stored_sigma,
-        "R-bar / d2 (from SPC engine)",
-    )
+    # ── d2 constant (for within-subgroup sigma estimation) ──
+    # d2 depends on subgroup size. For n=1, we use moving range (d2=1.128).
+    _d2_table = {
+        1: 1.128, 2: 1.128, 3: 1.693, 4: 2.059, 5: 2.326,
+        6: 2.534, 7: 2.704, 8: 2.847, 9: 2.970, 10: 3.078,
+        15: 3.472, 20: 3.735, 25: 3.931,
+    }
+    d2 = _d2_table.get(n, 3.078)  # fallback to n=10 for large subgroups
 
-    # Overall Std Dev (of all individual measurements) — for Pp/Ppk
+    # ── Within-subgroup sigma — formula-driven ──
+    # For n>=2: R-bar / d2 (estimated from range column)
+    # For n=1:  MR-bar / d2 where MR = moving range of consecutive means
+    #           Computed via SUMPRODUCT(ABS(shifted - original)) / count
+    rbar_cell = f"B{rbar_row}"
+    if n >= 2:
+        within_sigma_row = _write_stat(
+            "Within-Subgroup Sigma",
+            f"=IFERROR({rbar_cell}/{d2},\"\")",
+            f"R-bar / d2 (d2={d2} for n={n})",
+        )
+    else:
+        # n=1: Moving Range approach via SUMPRODUCT
+        # Uses Measurements!F7:F{last} - Measurements!F6:F{last-1} for consecutive diffs
+        ml = mean_letter
+        r1 = _DATA_START_ROW + 1  # first "current" row (row 7)
+        r0 = _DATA_START_ROW      # first "previous" row (row 6)
+        rl = last_data_row         # last data row
+        n_mr = rl - r0             # count of moving range values
+        mr_formula = (
+            f"SUMPRODUCT(ABS(Measurements!{ml}{r1}:{ml}{rl}"
+            f"-Measurements!{ml}{r0}:{ml}{rl - 1}))"
+            f"/{n_mr}"
+        )
+        within_sigma_row = _write_stat(
+            "Within-Subgroup Sigma",
+            f"=IFERROR({mr_formula}/{d2},\"\")",
+            f"MR-bar / d2 (d2={d2}, moving range method)",
+        )
+
+    # ── Overall Std Dev (of all individual measurements) — for Pp/Ppk ──
     if n == 1:
-        meas_letter = get_column_letter(meas_start_col)
-        overall_range = f"Measurements!{meas_letter}{_DATA_START_ROW}:{meas_letter}{last_data_row}"
+        meas_letter_col = get_column_letter(meas_start_col)
+        overall_range = f"Measurements!{meas_letter_col}{_DATA_START_ROW}:{meas_letter_col}{last_data_row}"
     else:
         first_meas_letter = get_column_letter(meas_start_col)
         last_meas_letter = get_column_letter(meas_end_col)
@@ -368,7 +398,7 @@ def _build_summary_sheet(
         )
     overall_sd_row = _write_stat(
         "Overall Std Dev",
-        f"=STDEV.S({overall_range})",
+        f"=IFERROR(STDEV.S({overall_range}),\"\")",
         "STDEV of all individual measurements",
     )
 
@@ -383,7 +413,8 @@ def _build_summary_sheet(
     # Blank separator
     row += 1
 
-    # Capability indices — only when both USL and LSL exist
+    # ── Capability indices — only when both USL and LSL exist ──
+    # All formulas wrapped in IFERROR to show blank instead of #DIV/0!
     if char.usl is not None and char.lsl is not None:
         ws.cell(row=row, column=1, value="Process Capability").font = _META_FONT
         row += 1
@@ -397,56 +428,56 @@ def _build_summary_sheet(
         # Cp = (USL - LSL) / (6 * within_sigma)
         _write_stat(
             "Cp",
-            f"=({usl_cell}-{lsl_cell})/(6*{within_sigma_cell})",
+            f"=IFERROR(({usl_cell}-{lsl_cell})/(6*{within_sigma_cell}),\"\")",
             "(USL - LSL) / (6 * Within σ)",
         )
 
         # Cpu = (USL - X-bar) / (3 * within_sigma)
         cpu_row = _write_stat(
             "Cpu",
-            f"=({usl_cell}-{xbar_cell})/(3*{within_sigma_cell})",
+            f"=IFERROR(({usl_cell}-{xbar_cell})/(3*{within_sigma_cell}),\"\")",
             "(USL - X̄) / (3 * Within σ)",
         )
 
         # Cpl = (X-bar - LSL) / (3 * within_sigma)
         cpl_row = _write_stat(
             "Cpl",
-            f"=({xbar_cell}-{lsl_cell})/(3*{within_sigma_cell})",
+            f"=IFERROR(({xbar_cell}-{lsl_cell})/(3*{within_sigma_cell}),\"\")",
             "(X̄ - LSL) / (3 * Within σ)",
         )
 
         # Cpk = MIN(Cpu, Cpl)
         _write_stat(
             "Cpk",
-            f"=MIN(B{cpu_row},B{cpl_row})",
+            f"=IFERROR(MIN(B{cpu_row},B{cpl_row}),\"\")",
             "MIN(Cpu, Cpl)",
         )
 
         # Pp = (USL - LSL) / (6 * overall_stddev)
         _write_stat(
             "Pp",
-            f"=({usl_cell}-{lsl_cell})/(6*{overall_sd_cell})",
+            f"=IFERROR(({usl_cell}-{lsl_cell})/(6*{overall_sd_cell}),\"\")",
             "(USL - LSL) / (6 * Overall σ)",
         )
 
         # Ppu = (USL - X-bar) / (3 * overall_stddev)
         ppu_row = _write_stat(
             "Ppu",
-            f"=({usl_cell}-{xbar_cell})/(3*{overall_sd_cell})",
+            f"=IFERROR(({usl_cell}-{xbar_cell})/(3*{overall_sd_cell}),\"\")",
             "(USL - X̄) / (3 * Overall σ)",
         )
 
         # Ppl = (X-bar - LSL) / (3 * overall_stddev)
         ppl_row = _write_stat(
             "Ppl",
-            f"=({xbar_cell}-{lsl_cell})/(3*{overall_sd_cell})",
+            f"=IFERROR(({xbar_cell}-{lsl_cell})/(3*{overall_sd_cell}),\"\")",
             "(X̄ - LSL) / (3 * Overall σ)",
         )
 
         # Ppk = MIN(Ppu, Ppl)
         _write_stat(
             "Ppk",
-            f"=MIN(B{ppu_row},B{ppl_row})",
+            f"=IFERROR(MIN(B{ppu_row},B{ppl_row}),\"\")",
             "MIN(Ppu, Ppl)",
         )
 
