@@ -1,11 +1,13 @@
 import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability, useCharacteristic } from '@/api/hooks'
+import { Explainable } from '@/components/Explainable'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { useECharts } from '@/hooks/useECharts'
 import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
 import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle, BarChart3 } from 'lucide-react'
-import { useState, useMemo, lazy, Suspense } from 'react'
+import { useState, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 
 const DistributionAnalysis = lazy(() =>
   import('./DistributionAnalysis').then((m) => ({ default: m.DistributionAnalysis })),
@@ -41,21 +43,40 @@ const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   Cpm: 'Taguchi capability. Measures how closely the process hits a specific target value, not just staying within spec limits.',
 }
 
-function IndexCard({ label, value }: { label: string; value: number | null }) {
+function IndexCard({
+  label,
+  value,
+  characteristicId,
+}: {
+  label: string
+  value: number | null
+  characteristicId: number
+}) {
   const [showTip, setShowTip] = useState(false)
+  const [tipPos, setTipPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
   const description = CAPABILITY_DESCRIPTIONS[label]
 
+  const openTip = useCallback(() => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setTipPos({ top: rect.top - 4, left: rect.left + rect.width / 2 })
+    }
+    setShowTip(true)
+  }, [])
+
   return (
-    <div className={cn('border-border relative rounded-lg border p-3 text-center', capabilityBg(value))}>
+    <div className={cn('border-border rounded-lg border p-3 text-center', capabilityBg(value))}>
       <div className="text-muted-foreground mb-1 flex items-center justify-center gap-1 text-xs">
         {label}
         {description && (
           <button
+            ref={btnRef}
             type="button"
             className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-            onMouseEnter={() => setShowTip(true)}
+            onMouseEnter={openTip}
             onMouseLeave={() => setShowTip(false)}
-            onClick={() => setShowTip((v) => !v)}
+            onClick={() => (showTip ? setShowTip(false) : openTip())}
             aria-label={`What is ${label}?`}
           >
             <HelpCircle className="h-3 w-3" />
@@ -63,15 +84,25 @@ function IndexCard({ label, value }: { label: string; value: number | null }) {
         )}
       </div>
       <div className={cn('text-lg font-bold tabular-nums', capabilityColor(value))}>
-        {value !== null ? value.toFixed(2) : '--'}
+        {value !== null ? (
+          <Explainable metric={label.toLowerCase()} resourceId={characteristicId}>
+            {value.toFixed(2)}
+          </Explainable>
+        ) : (
+          '--'
+        )}
       </div>
       <div className={cn('mt-0.5 text-[10px]', capabilityColor(value))}>
         {capabilityLabel(value)}
       </div>
-      {showTip && description && (
-        <div className="bg-popover text-popover-foreground border-border absolute -top-2 left-1/2 z-50 w-52 -translate-x-1/2 -translate-y-full rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
+      {showTip && description && createPortal(
+        <div
+          className="bg-popover text-popover-foreground border-border fixed z-50 w-52 -translate-x-1/2 -translate-y-full rounded-md border p-2 text-left text-[11px] leading-snug shadow-md"
+          style={{ top: tipPos.top, left: tipPos.left }}
+        >
           {description}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -292,7 +323,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           return (
             <div className={cn('grid gap-3', colsClass)}>
               {indices.map(({ label, value }) => (
-                <IndexCard key={label} label={label} value={value} />
+                <IndexCard key={label} label={label} value={value} characteristicId={characteristicId} />
               ))}
             </div>
           )
@@ -333,7 +364,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
                   <div key={key}>
                     <div className="text-muted-foreground">{label}</div>
                     <div className={cn('font-bold tabular-nums', capabilityColor(val ?? null))}>
-                      {val !== null && val !== undefined ? val.toFixed(2) : '--'}
+                      {val !== null && val !== undefined ? (
+                        <Explainable metric={key} resourceId={characteristicId}>
+                          {val.toFixed(2)}
+                        </Explainable>
+                      ) : (
+                        '--'
+                      )}
                     </div>
                   </div>
                 )
