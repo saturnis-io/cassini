@@ -3,6 +3,8 @@ export interface AuthUser {
   id: number
   username: string
   email: string | null
+  full_name: string | null
+  pending_email: string | null
   is_active: boolean
   plant_roles: PlantRole[]
 }

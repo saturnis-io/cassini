@@ -50,6 +50,35 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
+
+  forgotPassword: (identifier: string) =>
+    fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier }),
+    }).then(async (res) => {
+      if (!res.ok) throw new Error('Request failed')
+      return res.json() as Promise<{ message: string }>
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, new_password: newPassword }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ detail: 'Reset failed' }))
+        throw new Error(typeof error.detail === 'string' ? error.detail : 'Reset failed')
+      }
+      return res.json() as Promise<{ message: string }>
+    }),
+
+  updateProfile: (data: { display_name?: string; email?: string }) =>
+    fetchApi<{ message: string; email_verification_sent: boolean }>('/auth/update-profile', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 // ---- OIDC SSO API ----

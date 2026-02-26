@@ -67,6 +67,8 @@ def _build_user_response(user: User) -> UserWithRolesResponse:
         id=user.id,
         username=user.username,
         email=user.email,
+        full_name=user.full_name,
+        pending_email=user.pending_email,
         is_active=user.is_active,
         created_at=user.created_at,
         updated_at=user.updated_at,

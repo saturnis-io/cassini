@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/providers/AuthProvider'
 import { useTheme } from '@/providers/ThemeProvider'
@@ -224,15 +224,14 @@ export function LoginPage() {
                   >
                     {t('password')}
                   </label>
-                  <a
-                    href="#"
+                  <Link
+                    to="/forgot-password"
                     className="text-[10px] font-mono uppercase transition-colors hover:text-[#F4F1DE]"
                     style={{ color: '#4B5563' }}
                     tabIndex={-1}
-                    onClick={(e) => e.preventDefault()}
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
                 <input
                   id="password"
