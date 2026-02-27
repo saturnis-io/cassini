@@ -226,6 +226,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     audit_service = AuditService(db.session)
     app.state.audit_service = audit_service
 
+    # Wire audit service into background event subscribers
+    notification_dispatcher._audit_service = audit_service
+    anomaly_detector._audit_service = audit_service
+
     async def _audit_violation_created(event):
         await audit_service.log_event(
             action="violation_created",

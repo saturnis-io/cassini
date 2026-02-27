@@ -39,15 +39,19 @@ class AnomalyDetector:
     4. Persists anomaly events and publishes notifications
     """
 
-    def __init__(self, event_bus: Any, session_factory: Any) -> None:
+    def __init__(
+        self, event_bus: Any, session_factory: Any, audit_service: Any = None
+    ) -> None:
         """Initialize the anomaly detector.
 
         Args:
             event_bus: The application EventBus instance.
             session_factory: Async session factory for database access.
+            audit_service: Optional AuditService for logging detection events.
         """
         self._event_bus = event_bus
         self._session_factory = session_factory
+        self._audit_service = audit_service
         self._pelt = PELTDetector()
         self._iforest = IsolationForestDetector()
         self._ks = KSDetector()
@@ -236,6 +240,28 @@ class AnomalyDetector:
             detector=result.detector_type,
             severity=result.severity,
         )
+
+        # Audit log the anomaly detection
+        if self._audit_service:
+            try:
+                await self._audit_service.log_event(
+                    action="create",
+                    resource_type="anomaly",
+                    resource_id=event.id,
+                    detail={
+                        "summary": f"Anomaly detected on characteristic #{char_id}: {result.detector_type}",
+                        "detector_type": result.detector_type,
+                        "event_type": result.event_type,
+                        "severity": result.severity,
+                        "characteristic_id": char_id,
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "anomaly_audit_log_failed",
+                    event_id=event.id,
+                    exc_info=True,
+                )
 
         return event
 

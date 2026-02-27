@@ -58,15 +58,18 @@ class NotificationDispatcher:
     Args:
         event_bus: Event bus for subscribing to domain events
         session_factory: Callable returning an async context manager for DB sessions
+        audit_service: Optional AuditService for logging dispatch events
     """
 
     def __init__(
         self,
         event_bus: EventBus,
         session_factory: Any,
+        audit_service: Any = None,
     ) -> None:
         self._event_bus = event_bus
         self._session_factory = session_factory
+        self._audit_service = audit_service
         self._setup_subscriptions()
         logger.info("NotificationDispatcher initialized")
 
@@ -318,6 +321,9 @@ class NotificationDispatcher:
                     for wh in webhooks
                 ]
 
+            # Track which channels were used for audit logging
+            channels_used: list[str] = []
+
             # Send emails
             if smtp_server and email_users:
                 await self._send_emails(
@@ -331,8 +337,10 @@ class NotificationDispatcher:
                     smtp_use_tls=smtp_use_tls,
                     smtp_from=smtp_from,
                 )
+                channels_used.append("email")
 
             # Send webhooks
+            webhooks_sent = 0
             for wh in webhook_data:
                 # Check events_filter
                 if wh["events_filter"]:
@@ -350,6 +358,31 @@ class NotificationDispatcher:
                     retry_count=wh["retry_count"],
                     webhook_name=wh["name"],
                 )
+                webhooks_sent += 1
+
+            if webhooks_sent > 0:
+                channels_used.append("webhook")
+
+            # Audit log the dispatch
+            if self._audit_service and channels_used:
+                try:
+                    await self._audit_service.log_event(
+                        action="notify",
+                        resource_type="notification",
+                        detail={
+                            "summary": f"Notification dispatched for {event_type}",
+                            "event_type": event_type,
+                            "channels": channels_used,
+                            "email_recipients": len(email_users) if email_users else 0,
+                            "webhooks_sent": webhooks_sent,
+                        },
+                    )
+                except Exception:
+                    logger.warning(
+                        "notification_audit_log_failed",
+                        event_type=event_type,
+                        exc_info=True,
+                    )
 
         except Exception:
             logger.error(
