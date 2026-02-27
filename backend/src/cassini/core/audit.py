@@ -20,6 +20,7 @@ logger = structlog.get_logger(__name__)
 
 # Map URL path segments to resource types
 _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"/api/v1/characteristics/(\d+)/diagnose"), "ishikawa"),
     (re.compile(r"/api/v1/characteristics/(\d+)"), "characteristic"),
     (re.compile(r"/api/v1/characteristics/?$"), "characteristic"),
     (re.compile(r"/api/v1/samples/(\d+)"), "sample"),
@@ -63,6 +64,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/reset-password"), "auth"),
     (re.compile(r"/api/v1/auth/verify-email"), "auth"),
     (re.compile(r"/api/v1/auth/update-profile"), "auth"),
+    (re.compile(r"/api/v1/scheduled-reports(?:/(\d+))?"), "report_schedule"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -138,6 +140,17 @@ def _method_to_action(method: str, path: str) -> str:
         "DELETE": "delete",
     }
     return method_map.get(method, "unknown")
+
+
+_SENSITIVE_KEYS = frozenset({
+    "password", "secret", "api_key", "token", "credential",
+    "client_secret", "auth_config", "p256dh", "auth_key",
+})
+
+
+def _sanitize_body(body: dict) -> dict:
+    """Strip sensitive fields from a request body dict for audit logging."""
+    return {k: v for k, v in body.items() if k.lower() not in _SENSITIVE_KEYS}
 
 
 class AuditService:
@@ -224,10 +237,24 @@ class AuditMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Cache request body for Tier 2 auto-capture (only for mutating methods)
+        cached_body: dict | None = None
+        if request.method in ("POST", "PUT", "PATCH"):
+            try:
+                raw = await request.body()
+                if raw:
+                    import json as _json
+
+                    cached_body = _json.loads(raw)
+            except Exception:
+                cached_body = None
+
         response = await call_next(request)
 
         # Get audit service lazily from app state
-        audit_service: Optional[AuditService] = getattr(request.app.state, "audit_service", None)
+        audit_service: Optional[AuditService] = getattr(
+            request.app.state, "audit_service", None
+        )
         if audit_service is None:
             return response
 
@@ -238,15 +265,35 @@ class AuditMiddleware(BaseHTTPMiddleware):
             and request.url.path not in _SKIP_PATHS
             and not any(
                 seg in request.url.path
-                for seg in ("/auth/login", "/auth/logout", "/auth/refresh", "/auth/token")
+                for seg in (
+                    "/auth/login", "/auth/logout", "/auth/refresh", "/auth/token",
+                )
             )
         ):
             # Extract user info from JWT (best-effort, don't block on failure)
             user_id, username = _extract_user_from_request(request)
-            resource_type, resource_id = _parse_resource(request.url.path)
-            action = _method_to_action(request.method, request.url.path)
             ip = _get_client_ip(request)
             ua = (request.headers.get("user-agent") or "")[:512]
+
+            # Check for endpoint-injected audit context (Tier 1)
+            audit_ctx: dict | None = getattr(request.state, "audit_context", None)
+
+            if audit_ctx:
+                # Tier 1: endpoint set rich context
+                resource_type = audit_ctx.get("resource_type") or _parse_resource(request.url.path)[0]
+                resource_id = audit_ctx.get("resource_id") or _parse_resource(request.url.path)[1]
+                action = audit_ctx.get("action") or _method_to_action(request.method, request.url.path)
+                detail = {
+                    "summary": audit_ctx.get("summary"),
+                    **(audit_ctx.get("fields") or {}),
+                }
+            else:
+                # Tier 2: auto-capture sanitized request body
+                resource_type, resource_id = _parse_resource(request.url.path)
+                action = _method_to_action(request.method, request.url.path)
+                detail: dict = {"method": request.method, "path": request.url.path}
+                if cached_body and isinstance(cached_body, dict):
+                    detail["body"] = _sanitize_body(cached_body)
 
             # Fire and forget — don't block the response
             asyncio.create_task(
@@ -258,7 +305,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     username=username,
                     ip_address=ip,
                     user_agent=ua,
-                    detail={"method": request.method, "path": request.url.path},
+                    detail=detail,
                 )
             )
 
