@@ -5,7 +5,7 @@ Admin-only endpoints for user CRUD operations and plant role assignment.
 
 import structlog
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 
 from cassini.api.deps import get_current_admin, get_user_repo
@@ -62,6 +62,7 @@ async def list_users(
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
+    request: Request,
     data: UserCreate,
     current_user: User = Depends(get_current_admin),
     repo: UserRepository = Depends(get_user_repo),
@@ -74,6 +75,16 @@ async def create_user(
             email=data.email,
             hashed_password=hashed,
         )
+        request.state.audit_context = {
+            "resource_type": "user",
+            "resource_id": user.id,
+            "action": "create",
+            "summary": f"User '{data.username}' created",
+            "fields": {
+                "username": data.username,
+                "email": data.email,
+            },
+        }
         return UserResponse.model_validate(user)
     except IntegrityError:
         raise HTTPException(
@@ -140,6 +151,7 @@ async def update_user(
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def deactivate_user(
+    request: Request,
     user_id: int,
     current_user: User = Depends(get_current_admin),
     repo: UserRepository = Depends(get_user_repo),
@@ -160,6 +172,17 @@ async def deactivate_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User {user_id} not found",
         )
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "delete",
+        "summary": f"User '{user.username}' deactivated",
+        "fields": {
+            "target_username": user.username,
+            "deactivated_by": current_user.username,
+        },
+    }
 
 
 @router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -197,6 +220,7 @@ async def delete_user_permanent(
 
 @router.post("/{user_id}/roles", response_model=UserWithRolesResponse)
 async def assign_plant_role(
+    request: Request,
     user_id: int,
     data: PlantRoleAssign,
     current_user: User = Depends(get_current_admin),
@@ -220,7 +244,21 @@ async def assign_plant_role(
             detail=f"Invalid role: {data.role}. Must be one of: operator, supervisor, engineer, admin",
         )
 
+    target_username = user.username
     await repo.assign_plant_role(user_id, data.plant_id, role)
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "update",
+        "summary": f"Role '{data.role}' assigned to '{target_username}' at plant #{data.plant_id}",
+        "fields": {
+            "target_username": target_username,
+            "role": data.role,
+            "plant_id": data.plant_id,
+            "assigned_by": current_user.username,
+        },
+    }
 
     # Reload user with updated roles
     user = await repo.get_by_id(user_id)
@@ -229,6 +267,7 @@ async def assign_plant_role(
 
 @router.delete("/{user_id}/roles/{plant_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def remove_plant_role(
+    request: Request,
     user_id: int,
     plant_id: int,
     current_user: User = Depends(get_current_admin),
@@ -247,9 +286,24 @@ async def remove_plant_role(
                 detail="Cannot remove your own admin role",
             )
 
+    # Load target user for audit context
+    target_user = await repo.get_by_id(user_id)
+
     success = await repo.remove_plant_role(user_id, plant_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No role assignment found for user {user_id} at plant {plant_id}",
         )
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "delete",
+        "summary": f"Role revoked from '{target_user.username}' at plant #{plant_id}" if target_user else f"Role revoked from user #{user_id} at plant #{plant_id}",
+        "fields": {
+            "target_username": target_user.username if target_user else str(user_id),
+            "plant_id": plant_id,
+            "revoked_by": current_user.username,
+        },
+    }

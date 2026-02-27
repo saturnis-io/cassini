@@ -9,7 +9,7 @@ Provides a 3-step import workflow:
 import json
 
 import structlog
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,6 +199,7 @@ async def validate_mapping(
     status_code=status.HTTP_201_CREATED,
 )
 async def confirm_import(
+    request: Request,
     file: UploadFile,
     column_mapping: str = Form(...),
     characteristic_id: int = Form(...),
@@ -294,6 +295,19 @@ async def confirm_import(
         total_rows=validation["total_rows"],
         user_id=user.id,
     )
+
+    request.state.audit_context = {
+        "resource_type": "import",
+        "action": "create",
+        "summary": f"CSV import confirmed: {imported} samples imported",
+        "fields": {
+            "rows_imported": imported,
+            "rows_failed": len(import_errors),
+            "total_rows": validation["total_rows"],
+            "characteristic_id": characteristic_id,
+            "filename": filename,
+        },
+    }
 
     return {
         "imported": imported,
