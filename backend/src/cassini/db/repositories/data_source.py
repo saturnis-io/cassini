@@ -69,6 +69,7 @@ class DataSourceRepository(BaseRepository[DataSource]):
         topic: str,
         broker_id: int | None = None,
         metric_name: str | None = None,
+        json_path: str | None = None,
         trigger_tag: str | None = None,
         trigger_strategy: str = "on_change",
     ) -> MQTTDataSource:
@@ -80,6 +81,7 @@ class DataSourceRepository(BaseRepository[DataSource]):
             broker_id=broker_id,
             topic=topic,
             metric_name=metric_name,
+            json_path=json_path,
             trigger_tag=trigger_tag,
         )
         self.session.add(source)
