@@ -49,6 +49,7 @@ export function QuickMapForm({
         trigger_tag: triggerTag || null,
         broker_id: server!.id,
         metric_name: metricName,
+        json_path: null,
       }),
     onSuccess: () => {
       toast.success('Mapping created successfully')

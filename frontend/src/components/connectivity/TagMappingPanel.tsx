@@ -60,6 +60,7 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
         trigger_tag: triggerTag || null,
         broker_id: brokerId!,
         metric_name: selectedMetric,
+        json_path: null,
       }),
     onSuccess: () => {
       toast.success('Tag mapping created')
@@ -247,6 +248,9 @@ export function TagMappingPanel({ brokerId, selectedTopic, plantId }: TagMapping
                       {m.mqtt_topic}
                       {m.metric_name && (
                         <span className="text-accent-foreground ml-1">[{m.metric_name}]</span>
+                      )}
+                      {m.json_path && (
+                        <span className="text-accent-foreground ml-1">({m.json_path})</span>
                       )}
                     </p>
                     <p className="text-muted-foreground">

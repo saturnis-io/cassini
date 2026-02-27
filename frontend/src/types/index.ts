@@ -481,6 +481,7 @@ export interface TagMappingCreate {
   trigger_tag: string | null
   broker_id: number
   metric_name: string | null
+  json_path: string | null
 }
 
 export interface TagMappingResponse {
@@ -492,6 +493,7 @@ export interface TagMappingResponse {
   broker_id: number | null
   broker_name: string | null
   metric_name: string | null
+  json_path: string | null
   data_source_id: number
   is_active: boolean
 }

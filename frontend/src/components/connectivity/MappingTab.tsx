@@ -86,6 +86,12 @@ export function MappingTab() {
   const mappingRows: MappingRowData[] = useMemo(() => {
     const mqttRows: MappingRowData[] = (mqttMappings ?? []).map((m: TagMappingResponse) => {
       const hierarchyId = charHierarchyMap.get(m.characteristic_id)
+      const details = [
+        m.metric_name ? `metric: ${m.metric_name}` : '',
+        m.json_path ? `path: ${m.json_path}` : '',
+      ]
+        .filter(Boolean)
+        .join(' | ')
       return {
         id: m.data_source_id,
         characteristicId: m.characteristic_id,
@@ -93,11 +99,12 @@ export function MappingTab() {
         hierarchyPath: hierarchyId ? hierarchyPathMap.get(hierarchyId) : undefined,
         protocol: 'mqtt' as const,
         source: m.mqtt_topic,
-        sourceDetail: m.metric_name ? `metric: ${m.metric_name}` : undefined,
+        sourceDetail: details || undefined,
         serverName: m.broker_name,
         triggerStrategy: m.trigger_strategy,
         isActive: m.is_active,
         hasError: false,
+        jsonPath: m.json_path,
       }
     })
 
@@ -293,6 +300,7 @@ export function MappingTab() {
                 topic: editMapping.protocol === 'mqtt' ? editMapping.source : undefined,
                 brokerId: undefined,
                 metricName: editMapping.sourceDetail?.replace('metric: ', '') ?? undefined,
+                jsonPath: editMapping.jsonPath ?? undefined,
               }
             : null
         }

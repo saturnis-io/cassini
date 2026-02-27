@@ -9,6 +9,7 @@ interface MQTTFieldValues {
   broker_id: number | null
   metric_name: string
   trigger_tag: string
+  json_path: string
 }
 
 interface OPCUAFieldValues {
@@ -103,6 +104,25 @@ function MQTTFields({
           placeholder="e.g. spBv1.0/group/DDATA/node"
           className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 font-mono text-sm focus:outline-none"
         />
+      </div>
+
+      {/* JSON Path (optional, for JSON payloads) */}
+      <div>
+        <label className="text-muted-foreground text-[11px]">
+          JSON Path <span className="opacity-60">(optional, for JSON payloads)</span>
+        </label>
+        <input
+          type="text"
+          value={values.json_path}
+          onChange={(e) => update({ json_path: e.target.value })}
+          placeholder="e.g. $.sensor.readings.value"
+          className="bg-background border-border text-foreground placeholder-muted-foreground focus:border-primary/50 mt-0.5 w-full rounded border px-2 py-1.5 font-mono text-sm focus:outline-none"
+        />
+        {values.json_path && (
+          <p className="text-muted-foreground mt-1 text-[10px]">
+            Extracts a numeric value from JSON payloads using JSONPath syntax
+          </p>
+        )}
       </div>
 
       {/* Metric name (optional for SparkplugB) */}
