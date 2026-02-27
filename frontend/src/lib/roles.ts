@@ -56,8 +56,10 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   '/analytics': 'engineer',
   '/doe': 'engineer',
 
+  // Settings — accessible to all (personal tabs), role-guarded per sub-route
+  '/settings': 'operator',
+
   // Admin level
-  '/settings': 'engineer',
   '/admin/users': 'admin',
   '/dev-tools': 'admin',
 
@@ -111,7 +113,7 @@ export function hasAccess(userRole: Role, requiredRole: Role): boolean {
  *
  * @example
  * canAccessView('operator', '/dashboard') // true
- * canAccessView('operator', '/settings') // false
+ * canAccessView('operator', '/settings') // true
  */
 export function canAccessView(userRole: Role, viewPath: string): boolean {
   const requiredRole = VIEW_PERMISSIONS[viewPath]
