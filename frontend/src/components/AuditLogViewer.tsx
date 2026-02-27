@@ -6,7 +6,6 @@ import {
   Shield,
   LogIn,
   Settings,
-  Trash2,
   RefreshCw,
   Search,
   X,
@@ -18,34 +17,36 @@ import type { AuditLogEntry } from '@/types'
 import type { AuditLogParams } from '@/api/client'
 
 const ACTION_LABELS: Record<string, string> = {
-  login: 'Login',
-  login_failed: 'Login Failed',
-  logout: 'Logout',
   create: 'Create',
   update: 'Update',
   delete: 'Delete',
+  sign: 'Sign',
+  reject: 'Reject',
+  approve: 'Approve',
+  submit: 'Submit',
+  calculate: 'Calculate',
   recalculate: 'Recalculate',
   acknowledge: 'Acknowledge',
+  purge: 'Purge',
   export: 'Export',
   connect: 'Connect',
   disconnect: 'Disconnect',
-  violation_created: 'Violation',
-  submit: 'Submit',
-  approve: 'Approve',
-  reject: 'Reject',
-  calculate: 'Calculate',
+  activate: 'Activate',
+  discover: 'Discover',
   freeze: 'Freeze',
   train: 'Train',
   generate: 'Generate',
   analyze: 'Analyze',
-  sign: 'Sign',
   sync: 'Sync',
   dismiss: 'Dismiss',
-  purge: 'Purge',
   forecast: 'Forecast',
   test: 'Test',
+  notify: 'Notify',
+  login: 'Login',
+  login_failed: 'Login Failed',
+  logout: 'Logout',
   password_reset_requested: 'Password Reset Requested',
-  password_reset_completed: 'Password Reset',
+  password_reset_completed: 'Password Reset Completed',
   email_verified: 'Email Verified',
   profile_updated: 'Profile Updated',
 }
@@ -63,15 +64,14 @@ const RESOURCE_LABELS: Record<string, string> = {
   database: 'Database',
   api_key: 'API Key',
   tag_mapping: 'Tag Mapping',
-  annotation: 'Annotation',
   import: 'Import',
+  annotation: 'Annotation',
   rule_preset: 'Rule Preset',
   msa_study: 'MSA Study',
   fai_report: 'FAI Report',
   gage_bridge: 'Gage Bridge',
   anomaly: 'Anomaly',
   signature: 'Signature',
-  system_settings: 'System Settings',
   oidc_config: 'OIDC Config',
   oidc_link: 'OIDC Link',
   push_subscription: 'Push Subscription',
@@ -81,7 +81,11 @@ const RESOURCE_LABELS: Record<string, string> = {
   prediction: 'Prediction',
   ai_config: 'AI Config',
   doe_study: 'DOE Study',
-  auth: 'Authentication',
+  system_settings: 'System Settings',
+  auth: 'Auth',
+  ishikawa: 'Ishikawa',
+  report_schedule: 'Report Schedule',
+  notification: 'Notification',
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -151,6 +155,128 @@ function StatCard({
   )
 }
 
+/** Human-readable labels for known detail keys */
+const DETAIL_KEY_LABELS: Record<string, string> = {
+  resource_type: 'Resource',
+  resource_id: 'Resource ID',
+  meaning: 'Meaning',
+  workflow_step: 'Workflow Step',
+  workflow_status: 'Workflow Status',
+  comment: 'Comment',
+  plant_id: 'Plant',
+  signature_id: 'Signature ID',
+  workflow_instance_id: 'Workflow Instance',
+  reason: 'Reason',
+  method: 'HTTP Method',
+  path: 'Path',
+  characteristic_name: 'Characteristic',
+  study_name: 'Study',
+  report_name: 'Report',
+  part_number: 'Part Number',
+  chart_type: 'Chart Type',
+  ucl: 'UCL',
+  centerline: 'Center Line',
+  lcl: 'LCL',
+  measurements: 'Measurements',
+  operator_id: 'Operator',
+  rule_id: 'Rule',
+  rule_name: 'Rule Name',
+  severity: 'Severity',
+  acknowledged_by: 'Acknowledged By',
+  approved_by: 'Approved By',
+  submitted_by: 'Submitted By',
+  rejected_by: 'Rejected By',
+  target_username: 'Target User',
+  assigned_by: 'Assigned By',
+  revoked_by: 'Revoked By',
+  deactivated_by: 'Deactivated By',
+  triggered_by: 'Triggered By',
+  role: 'Role',
+  exclude_sample: 'Exclude Sample',
+  is_excluded: 'Excluded',
+  signer: 'Signer',
+  rows_imported: 'Rows Imported',
+  rows_failed: 'Rows Failed',
+  samples_deleted: 'Samples Deleted',
+  violations_deleted: 'Violations Deleted',
+  total_deleted: 'Total Deleted',
+  retention_days: 'Retention Days',
+  grr_percent: 'GRR %',
+  ndc: 'NDC',
+  study_type: 'Study Type',
+  detector_type: 'Detector',
+  successful: 'Successful',
+  failed: 'Failed',
+  violation_ids: 'Violation IDs',
+  body: 'Request Body',
+  characteristic_id: 'Characteristic ID',
+  serial_number: 'Serial Number',
+  subgroup_size: 'Subgroup Size',
+  new_measurements: 'New Measurements',
+  username: 'Username',
+  email: 'Email',
+  full_name: 'Full Name',
+  event_type: 'Event Type',
+  channels: 'Channels',
+  filename: 'Filename',
+  data_type: 'Data Type',
+}
+
+function DetailDisplay({ detail }: { detail: Record<string, unknown> }) {
+  const entries = Object.entries(detail).filter(
+    ([k, v]) => v != null && v !== '' && k !== 'summary',
+  )
+
+  if (entries.length === 0) return null
+
+  // Check if this is a simple middleware-only entry (just method + path)
+  const isSimple =
+    entries.length <= 2 && entries.every(([k]) => k === 'method' || k === 'path')
+  if (isSimple) {
+    return (
+      <span className="text-muted-foreground text-xs">
+        {detail.method as string} {detail.path as string}
+      </span>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+      {entries.map(([key, value]) => {
+        const label =
+          DETAIL_KEY_LABELS[key] ||
+          key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+        // Special handling for body (object) — render as JSON
+        if (key === 'body' && typeof value === 'object' && value !== null) {
+          return (
+            <div key={key} className="contents">
+              <span className="text-muted-foreground text-xs font-medium">{label}</span>
+              <pre className="text-foreground max-w-md overflow-x-auto font-mono text-xs whitespace-pre-wrap">
+                {JSON.stringify(value, null, 2)}
+              </pre>
+            </div>
+          )
+        }
+
+        // Arrays — join with commas
+        const displayValue = Array.isArray(value)
+          ? value.join(', ')
+          : typeof value === 'object' && value !== null
+            ? JSON.stringify(value)
+            : String(value)
+
+        return (
+          <div key={key} className="contents">
+            <span className="text-muted-foreground text-xs font-medium">{label}</span>
+            <span className="text-foreground text-xs">{displayValue}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
   const [expanded, setExpanded] = useState(false)
   const { formatDateTime } = useDateFormat()
@@ -171,6 +297,11 @@ function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
         <td className="px-3 py-2">
           <ActionBadge action={entry.action} />
         </td>
+        <td className="text-muted-foreground max-w-[300px] truncate px-3 py-2 text-xs">
+          {(entry.detail as Record<string, unknown>)?.summary
+            ? String((entry.detail as Record<string, unknown>).summary)
+            : '--'}
+        </td>
         <td className="text-muted-foreground px-3 py-2 text-sm">
           {entry.resource_type ? (
             <>
@@ -187,10 +318,8 @@ function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
       </tr>
       {expanded && entry.detail && (
         <tr className="border-border bg-muted/30 border-b">
-          <td colSpan={5} className="px-6 py-3">
-            <pre className="text-muted-foreground max-w-full overflow-x-auto font-mono text-xs whitespace-pre-wrap">
-              {JSON.stringify(entry.detail, null, 2)}
-            </pre>
+          <td colSpan={6} className="px-6 py-3">
+            <DetailDisplay detail={entry.detail as Record<string, unknown>} />
           </td>
         </tr>
       )}
@@ -354,12 +483,13 @@ export function AuditLogViewer() {
       {/* Table */}
       <div className="border-border bg-card overflow-hidden rounded-lg border">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-left">
+          <table className="w-full min-w-[800px] text-left">
             <thead>
               <tr className="border-border bg-muted/50 border-b">
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Timestamp</th>
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">User</th>
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Action</th>
+                <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Summary</th>
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Resource</th>
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">IP</th>
               </tr>
@@ -367,14 +497,14 @@ export function AuditLogViewer() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="text-muted-foreground px-3 py-8 text-center text-sm">
+                  <td colSpan={6} className="text-muted-foreground px-3 py-8 text-center text-sm">
                     <RefreshCw className="mr-2 inline h-4 w-4 animate-spin" />
                     Loading audit logs...
                   </td>
                 </tr>
               ) : logsData?.items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-muted-foreground px-3 py-8 text-center text-sm">
+                  <td colSpan={6} className="text-muted-foreground px-3 py-8 text-center text-sm">
                     No audit log entries found
                   </td>
                 </tr>
