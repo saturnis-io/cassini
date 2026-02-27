@@ -914,8 +914,9 @@ async def update_sample(
             "resource_type": "sample",
             "resource_id": sample_id,
             "action": "update",
-            "summary": f"Sample #{sample_id} updated",
+            "summary": f"Sample #{sample_id} updated for '{characteristic.name}'",
             "fields": {
+                "characteristic_name": characteristic.name,
                 "new_measurements": data.measurements,
             },
         }

@@ -262,20 +262,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             detail={"name": event.name},
         )
 
-    async def _audit_anomaly_detected(event):
-        await audit_service.log_event(
-            action="detect",
-            resource_type="anomaly",
-            resource_id=event.characteristic_id,
-            detail={
-                "source": "event_bus",
-                "anomaly_event_id": event.anomaly_event_id,
-                "detector_type": event.detector_type,
-                "event_type": event.event_type,
-                "severity": event.severity,
-            },
-        )
-
     async def _audit_erp_sync_completed(event):
         await audit_service.log_event(
             action="sync",
@@ -296,14 +282,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         ControlLimitsUpdatedEvent,
         CharacteristicCreatedEvent,
         CharacteristicDeletedEvent,
-        AnomalyDetectedEvent,
         ERPSyncCompletedEvent,
     )
     event_bus.subscribe(ViolationCreatedEvent, _audit_violation_created)
     event_bus.subscribe(ControlLimitsUpdatedEvent, _audit_limits_updated)
     event_bus.subscribe(CharacteristicCreatedEvent, _audit_char_created)
     event_bus.subscribe(CharacteristicDeletedEvent, _audit_char_deleted)
-    event_bus.subscribe(AnomalyDetectedEvent, _audit_anomaly_detected)
     event_bus.subscribe(ERPSyncCompletedEvent, _audit_erp_sync_completed)
     logger.info("Audit trail service initialized")
 

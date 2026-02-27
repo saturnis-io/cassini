@@ -471,6 +471,7 @@ async def trigger_purge(
 
     request.state.audit_context = {
         "resource_type": "retention",
+        "resource_id": plant_id,
         "action": "purge",
         "summary": f"Data purge completed: {latest.samples_deleted + latest.violations_deleted} records deleted",
         "fields": {

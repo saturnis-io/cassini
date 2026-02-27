@@ -299,12 +299,13 @@ async def confirm_import(
     request.state.audit_context = {
         "resource_type": "import",
         "action": "create",
-        "summary": f"CSV import confirmed: {imported} samples imported",
+        "summary": f"CSV import confirmed: {imported} samples for '{char.name}'",
         "fields": {
             "rows_imported": imported,
             "rows_failed": len(import_errors),
             "total_rows": validation["total_rows"],
             "characteristic_id": characteristic_id,
+            "characteristic_name": char.name,
             "filename": filename,
         },
     }

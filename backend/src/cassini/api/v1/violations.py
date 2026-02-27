@@ -418,6 +418,9 @@ async def acknowledge_violation(
                 "reason": data.reason,
                 "acknowledged_by": data.user,
                 "exclude_sample": data.exclude_sample,
+                "rule_id": violation_obj.rule_id,
+                "rule_name": violation_obj.rule_name,
+                "severity": violation_obj.severity,
             },
         }
 

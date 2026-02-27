@@ -114,6 +114,7 @@ function ActionBadge({ action }: { action: string }) {
     connect: 'bg-primary/10 text-primary',
     dismiss: 'bg-destructive/10 text-destructive',
     purge: 'bg-destructive/10 text-destructive',
+    notify: 'bg-primary/10 text-primary',
     password_reset_requested: 'bg-warning/10 text-warning',
     password_reset_completed: 'bg-warning/10 text-warning',
     email_verified: 'bg-primary/10 text-primary',
