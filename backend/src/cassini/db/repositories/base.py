@@ -43,11 +43,11 @@ class BaseRepository(Generic[ModelT]):
         Returns:
             The model instance if found, None otherwise
         """
+        stmt = select(self.model).where(self.model.id == id)
         if options:
-            stmt = select(self.model).where(self.model.id == id).options(*options)
-            result = await self.session.execute(stmt)
-            return result.scalar_one_or_none()
-        return await self.session.get(self.model, id)
+            stmt = stmt.options(*options)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_all(self, offset: int = 0, limit: int = 100) -> list[ModelT]:
         """Retrieve all records with pagination.

@@ -453,16 +453,22 @@ async def calculate_gage_rr(
 
     # Run engine
     engine = GageRREngine()
-    if study.study_type == "crossed_anova":
-        result = engine.calculate_crossed_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
-    elif study.study_type == "range_method":
-        result = engine.calculate_range_method(data_3d, study.tolerance)  # type: ignore[arg-type]
-    elif study.study_type == "nested_anova":
-        result = engine.calculate_nested_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
-    else:
+    try:
+        if study.study_type == "crossed_anova":
+            result = engine.calculate_crossed_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
+        elif study.study_type == "range_method":
+            result = engine.calculate_range_method(data_3d, study.tolerance)  # type: ignore[arg-type]
+        elif study.study_type == "nested_anova":
+            result = engine.calculate_nested_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown study type: {study.study_type}",
+            )
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown study type: {study.study_type}",
+            detail=str(exc),
         )
 
     # Store result

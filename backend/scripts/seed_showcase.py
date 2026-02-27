@@ -54,6 +54,12 @@ def ts_offset(base_dt: datetime, minutes: int = 0, hours: int = 0, days: int = 0
     return (base_dt + timedelta(minutes=minutes, hours=hours, days=days)).isoformat()
 
 
+def make_timestamps(n: int, span_days: int = 90) -> list[str]:
+    """Generate n timestamps spread over span_days, backdated from BASE_TIME."""
+    interval = (span_days * 24 * 60) / n  # minutes between samples
+    return [ts_offset(BASE_TIME, minutes=-(span_days * 24 * 60) + int(i * interval)) for i in range(n)]
+
+
 # ── Data generators ──────────────────────────────────────────────────────
 
 def gen_normal(n: int, mean: float, std: float, seed: int | None = None) -> list[float]:
@@ -711,6 +717,1572 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         insert_nelson_rules(cur, IDS[char_key])
 
 
+# ── Wave 2: Rules, Samples, Narratives ────────────────────────────────────
+
+def seed_rules(cur: sqlite3.Cursor) -> None:
+    """Create custom rule preset and assign preset-specific rules to characteristics."""
+    # Check existing built-in presets
+    cur.execute("SELECT id, name FROM rule_preset WHERE is_builtin = 1")
+    presets = {row[1]: row[0] for row in cur.fetchall()}
+
+    # Create custom pharma preset
+    pharma_rules = json.dumps({
+        "rules": [
+            {"rule_id": 1, "is_enabled": True, "require_acknowledgement": True,
+             "parameters": {"sigma_multiplier": 2.5}},
+            {"rule_id": 2, "is_enabled": True, "require_acknowledgement": True,
+             "parameters": {"consecutive_count": 7}},
+            {"rule_id": 3, "is_enabled": True, "require_acknowledgement": True},
+            {"rule_id": 4, "is_enabled": True, "require_acknowledgement": True},
+        ]
+    })
+    cur.execute(
+        """INSERT INTO rule_preset (name, description, is_builtin, rules_config, created_at, plant_id)
+        VALUES (?, ?, 0, ?, ?, ?)""",
+        ("BioVerde Pharma QC", "Custom pharma rules — tighter limits for 21 CFR Part 11",
+         pharma_rules, utcnow(), IDS["rtp_plant"]))
+
+    # Update characteristic rules for specific presets:
+    # Ply Thickness -> AIAG preset (rules 1-6 enabled)
+    if "AIAG" in presets:
+        cur.execute("DELETE FROM characteristic_rules WHERE char_id = ?", (IDS["ply_thickness"],))
+        for rule_id in range(1, 9):
+            is_enabled = rule_id <= 6  # AIAG enables rules 1-6
+            cur.execute(
+                """INSERT INTO characteristic_rules (char_id, rule_id, is_enabled, require_acknowledgement)
+                VALUES (?, ?, ?, ?)""",
+                (IDS["ply_thickness"], rule_id, 1 if is_enabled else 0, 1 if rule_id <= 4 else 0))
+
+    # Fastener Torque -> Wheeler preset (rules 1-4 only, conservative)
+    if "Wheeler" in presets:
+        cur.execute("DELETE FROM characteristic_rules WHERE char_id = ?", (IDS["fastener_torque"],))
+        for rule_id in range(1, 9):
+            is_enabled = rule_id <= 4  # Wheeler only enables rules 1-4
+            cur.execute(
+                """INSERT INTO characteristic_rules (char_id, rule_id, is_enabled, require_acknowledgement)
+                VALUES (?, ?, ?, ?)""",
+                (IDS["fastener_torque"], rule_id, 1 if is_enabled else 0, 1 if is_enabled else 0))
+
+    # Blend Uniformity -> custom pharma preset (tighter rule 1 and 2)
+    cur.execute("DELETE FROM characteristic_rules WHERE char_id = ?", (IDS["blend_unif"],))
+    cur.execute(
+        """INSERT INTO characteristic_rules (char_id, rule_id, is_enabled, require_acknowledgement, parameters)
+        VALUES (?, 1, 1, 1, ?)""",
+        (IDS["blend_unif"], json.dumps({"sigma_multiplier": 2.5})))
+    cur.execute(
+        """INSERT INTO characteristic_rules (char_id, rule_id, is_enabled, require_acknowledgement, parameters)
+        VALUES (?, 2, 1, 1, ?)""",
+        (IDS["blend_unif"], json.dumps({"consecutive_count": 7})))
+    for rule_id in range(3, 9):
+        cur.execute(
+            """INSERT INTO characteristic_rules (char_id, rule_id, is_enabled, require_acknowledgement)
+            VALUES (?, ?, ?, ?)""",
+            (IDS["blend_unif"], rule_id, 1 if rule_id <= 4 else 0, 1 if rule_id <= 4 else 0))
+
+
+def seed_variable_samples(cur: sqlite3.Cursor) -> None:
+    """Generate ~500 samples for each non-narrative variable characteristic."""
+
+    # ── Surface Finish Ra (I-MR, Weibull shape=2.5, scale=1.2) ────────
+    timestamps = make_timestamps(500, span_days=90)
+    values_all = gen_weibull(500, shape=2.5, scale=1.2)
+    for i in range(500):
+        insert_sample(cur, IDS["surface_finish"], timestamps[i], values=[values_all[i]])
+
+    # ── Bore Diameter (X-bar S, n=8, short-run standardized) ──────────
+    timestamps = make_timestamps(500, span_days=90)
+    targets = [49.990, 50.000, 50.010]
+    sigma = 0.010
+    n_sub = 8
+    for i in range(500):
+        target = targets[i % 3]
+        values = gen_normal(n_sub, target, sigma / 2)
+        mean_val = sum(values) / n_sub
+        z = (mean_val - 50.000) / (sigma / math.sqrt(n_sub))
+        insert_sample(cur, IDS["bore_dia"], timestamps[i], values=values, z_score=z)
+
+    # ── Pin Height (CUSUM, small shift at sample 300) ─────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    vals_phase1 = gen_normal(300, 12.700, 0.015)
+    vals_phase2 = gen_normal(200, 12.710, 0.015)
+    all_vals = vals_phase1 + vals_phase2
+    target = 12.700
+    k = 0.5 * 0.020  # 0.5 * sigma = 0.010
+    cusum_h = 0.0
+    cusum_l = 0.0
+    for i in range(500):
+        cusum_h = max(0.0, cusum_h + (all_vals[i] - target) - k)
+        cusum_l = min(0.0, cusum_l + (all_vals[i] - target) + k)
+        insert_sample(cur, IDS["pin_height"], timestamps[i], values=[all_vals[i]],
+                      cusum_high=cusum_h, cusum_low=cusum_l)
+
+    # ── Bolt Torque (EWMA, gradual trend) ─────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_drift(500, 45.0, 1.2, 0.003)
+    ewma = 45.0
+    lam = 0.2
+    for i in range(500):
+        ewma = lam * raw_vals[i] + (1 - lam) * ewma
+        insert_sample(cur, IDS["bolt_torque"], timestamps[i], values=[raw_vals[i]],
+                      ewma_value=ewma)
+
+    # ── Ply Thickness (X-bar R, n=5, variable subgroups) ──────────────
+    timestamps = make_timestamps(500, span_days=90)
+    undersized_indices = set(random.sample(range(500), 50))
+    for i in range(500):
+        if i in undersized_indices:
+            actual_n = random.choice([3, 4])
+            values = gen_normal(actual_n, 0.250, 0.004)
+            insert_sample(cur, IDS["ply_thickness"], timestamps[i], values=values,
+                          actual_n=actual_n, is_undersized=True)
+        else:
+            values = gen_normal(5, 0.250, 0.004)
+            insert_sample(cur, IDS["ply_thickness"], timestamps[i], values=values)
+
+    # ── Turbine Blade Profile (X-bar S, n=8, Gamma-ish) ──────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        values = [2.150 + (random.gammavariate(5, 0.04) - 0.20) for _ in range(8)]
+        insert_sample(cur, IDS["blade_profile"], timestamps[i], values=values)
+
+    # ── Rivet Grip Length (I-MR, deviation mode, multi-target) ────────
+    timestamps = make_timestamps(500, span_days=90)
+    rivet_targets = [6.200, 6.350, 6.500]
+    per_target = 500 // 3
+    for i in range(500):
+        if i < per_target:
+            t = rivet_targets[0]
+        elif i < 2 * per_target:
+            t = rivet_targets[1]
+        else:
+            t = rivet_targets[2]
+        val = random.gauss(t, 0.025)
+        insert_sample(cur, IDS["rivet_grip"], timestamps[i], values=[val])
+
+    # ── Fastener Torque (EWMA, Wheeler, stable) ──────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 25.0, 0.6)
+    ewma = 25.0
+    lam = 0.2
+    for i in range(500):
+        ewma = lam * raw_vals[i] + (1 - lam) * ewma
+        insert_sample(cur, IDS["fastener_torque"], timestamps[i], values=[raw_vals[i]],
+                      ewma_value=ewma)
+
+    # ── API Concentration (X-bar R, n=5, lognormal) ──────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        values = gen_lognormal(5, mu=4.6, sigma=0.05)
+        insert_sample(cur, IDS["api_conc"], timestamps[i], values=values)
+
+    # ── Moisture Content (I-MR, normal) ──────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 2.50, 0.20)
+    for i in range(500):
+        insert_sample(cur, IDS["moisture"], timestamps[i], values=[raw_vals[i]])
+
+    # ── Blend Uniformity (X-bar S, n=8, normal) ─────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    all_vals = gen_normal(500 * 8, 98.0, 1.0)
+    for i in range(500):
+        subgroup = all_vals[i * 8:(i + 1) * 8]
+        insert_sample(cur, IDS["blend_unif"], timestamps[i], values=subgroup)
+
+    # ── Fill Volume (CUSUM, tight pharma) ────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    target = 5.000
+    k = 0.5 * 0.015  # 0.0075
+    cusum_h = 0.0
+    cusum_l = 0.0
+    for i in range(500):
+        val = 5.000 + 0.005 * math.sin(2 * math.pi * i / 200) + random.gauss(0, 0.012)
+        cusum_h = max(0.0, cusum_h + (val - target) - k)
+        cusum_l = min(0.0, cusum_l + (val - target) + k)
+        insert_sample(cur, IDS["fill_volume"], timestamps[i], values=[val],
+                      cusum_high=cusum_h, cusum_low=cusum_l)
+
+    # ── Assay % (I-MR, exponential-ish) ─────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        val = 99.5 + random.expovariate(5.0)
+        val = min(val, 101.5)  # cap at reasonable range
+        insert_sample(cur, IDS["assay_pct"], timestamps[i], values=[val])
+
+    # ── Dissolution Rate (EWMA, gradual changes) ────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_drift(500, 85.0, 2.0, 0.002)
+    ewma = 85.0
+    lam = 0.2
+    for i in range(500):
+        ewma = lam * raw_vals[i] + (1 - lam) * ewma
+        insert_sample(cur, IDS["dissolution"], timestamps[i], values=[raw_vals[i]],
+                      ewma_value=ewma)
+
+
+def seed_attribute_samples(cur: sqlite3.Cursor) -> None:
+    """Generate ~500 samples for each attribute characteristic."""
+
+    # ── Solder Defects (p-chart, Laney p') ───────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        sample_size = random.randint(80, 120)  # overdispersed
+        p_actual = max(0.0, random.gauss(0.05, 0.02))
+        defects = max(0, int(random.gauss(p_actual * sample_size, 2)))
+        defects = min(defects, sample_size)
+        insert_sample(cur, IDS["solder_defects"], timestamps[i],
+                      defect_count=defects, sample_size=sample_size)
+
+    # ── Electrical Pass/Fail (np-chart) ──────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    defect_counts = gen_binomial(500, 100, 0.03)
+    for i in range(500):
+        insert_sample(cur, IDS["electrical_pf"], timestamps[i],
+                      defect_count=defect_counts[i], sample_size=100)
+
+    # ── Paint Defects per Panel (c-chart) ────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        lam = 4.0 + 1.5 * math.sin(2 * math.pi * i / 50)
+        defects = gen_poisson(1, max(0.1, lam))[0]
+        insert_sample(cur, IDS["paint_defects"], timestamps[i],
+                      defect_count=defects, sample_size=1)
+
+    # ── Blemishes per m^2 (u-chart) ──────────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        units = random.randint(5, 15)
+        defects = gen_poisson(1, 1.2 * units)[0]
+        insert_sample(cur, IDS["blemishes"], timestamps[i],
+                      defect_count=defects, units_inspected=units)
+
+    # ── Void Percentage (p-chart, aerospace) ─────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    defect_counts = gen_binomial(500, 50, 0.02)
+    for i in range(500):
+        insert_sample(cur, IDS["void_pct"], timestamps[i],
+                      defect_count=defect_counts[i], sample_size=50)
+
+    # ── Seal Failures (p-chart, pharma) ──────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    defect_counts = gen_binomial(500, 200, 0.01)
+    for i in range(500):
+        insert_sample(cur, IDS["seal_failures"], timestamps[i],
+                      defect_count=defect_counts[i], sample_size=200)
+
+    # ── Delamination Count (c-chart) ─────────────────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    defect_counts = gen_poisson(500, 1.5)
+    for i in range(500):
+        insert_sample(cur, IDS["delam_count"], timestamps[i],
+                      defect_count=defect_counts[i], sample_size=1)
+
+
+def seed_narrative_arcs(cur: sqlite3.Cursor) -> None:
+    """Create the 3 narrative story arcs with violations, annotations, and capabilities."""
+
+    # ══════════════════════════════════════════════════════════════════
+    # ARC 1: "Out-of-Control Crankshaft" (Bearing OD, X-bar R, n=5)
+    # ══════════════════════════════════════════════════════════════════
+    timestamps = make_timestamps(500, span_days=90)
+    samples = []
+
+    # Phase 1: Stable (samples 0-199) -- Cpk ~1.45
+    for i in range(200):
+        values = gen_normal(5, 25.000, 0.008)
+        sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Phase 2: Drifting (samples 200-279) -- tool wear
+    for i in range(200, 280):
+        drift = 0.0004 * (i - 200)  # gradual upward shift
+        values = gen_normal(5, 25.000 + drift, 0.009)
+        sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Violations during drift phase
+    insert_violation(cur, samples[240], IDS["bearing_od"], 2, "9 Points Same Side", "WARNING",
+                     acknowledged=True, ack_user="eng.detroit",
+                     ack_reason="Tool wear identified — scheduling replacement")
+    insert_violation(cur, samples[255], IDS["bearing_od"], 5, "2 of 3 in Zone A", "WARNING")
+    insert_violation(cur, samples[270], IDS["bearing_od"], 1, "Beyond Control Limits", "CRITICAL",
+                     acknowledged=True, ack_user="eng.detroit",
+                     ack_reason="Corrective action initiated")
+
+    # Annotation at sample 250
+    insert_annotation(cur, IDS["bearing_od"], "point",
+                      "Tool wear investigation initiated — Bearing OD trending high",
+                      color="#e67e22", sample_id=samples[250], created_by="eng.detroit")
+
+    # Phase 3: Halted/recalibrated (samples 280-319)
+    for i in range(280, 320):
+        values = gen_normal(5, 25.002, 0.010)  # slightly off during recalibration
+        sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Annotation for recalibration
+    insert_annotation(cur, IDS["bearing_od"], "period",
+                      "Replaced cutting insert CNC-401. Process recalibrated.",
+                      color="#27ae60", start_sid=samples[281], end_sid=samples[319],
+                      created_by="eng.detroit")
+
+    # Phase 4: Back in control (samples 320-499) -- tighter Cpk ~1.67
+    for i in range(320, 500):
+        values = gen_normal(5, 25.000, 0.006)
+        sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Scattered violations (unacknowledged)
+    insert_violation(cur, samples[350], IDS["bearing_od"], 1, "Beyond Control Limits", "CRITICAL")
+    insert_violation(cur, samples[420], IDS["bearing_od"], 3, "6 Consecutively Increasing", "WARNING")
+
+    # 4 capability snapshots
+    insert_capability(cur, IDS["bearing_od"], cp=1.52, cpk=1.45, pp=1.48, ppk=1.40,
+                      sample_count=100, p_value=0.45, calc_by="eng.detroit")
+    insert_capability(cur, IDS["bearing_od"], cp=1.10, cpk=0.89, pp=1.05, ppk=0.82,
+                      sample_count=250, p_value=0.12, calc_by="eng.detroit")
+    insert_capability(cur, IDS["bearing_od"], cp=1.60, cpk=1.52, pp=1.55, ppk=1.48,
+                      sample_count=350, p_value=0.62, calc_by="eng.detroit")
+    insert_capability(cur, IDS["bearing_od"], cp=1.75, cpk=1.67, pp=1.70, ppk=1.62,
+                      sample_count=500, p_value=0.78, calc_by="eng.detroit")
+
+    IDS["bearing_od_samples"] = samples
+
+    # ══════════════════════════════════════════════════════════════════
+    # ARC 2: "Anomaly in the Autoclave" (Cure Temp, I-MR)
+    # ══════════════════════════════════════════════════════════════════
+    timestamps = make_timestamps(500, span_days=60)
+    samples = []
+
+    # Phase 1: Stable (samples 0-299)
+    for i in range(300):
+        values = [random.gauss(177.0, 0.30)]
+        sid = insert_sample(cur, IDS["cure_temp"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Phase 2: Subtle shift (samples 300-349) -- anomaly region
+    for i in range(300, 350):
+        drift = 0.008 * (i - 300)
+        values = [random.gauss(177.0 + drift, 0.35)]
+        sid = insert_sample(cur, IDS["cure_temp"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # Annotation
+    insert_annotation(cur, IDS["cure_temp"], "point",
+                      "AI flagged potential heater element degradation",
+                      color="#e74c3c", sample_id=samples[320], created_by="system")
+
+    # Phase 3: Corrected (samples 350-499)
+    for i in range(350, 500):
+        values = [random.gauss(177.0, 0.28)]
+        sid = insert_sample(cur, IDS["cure_temp"], timestamps[i], values=values)
+        samples.append(sid)
+
+    IDS["cure_temp_samples"] = samples
+
+    # ══════════════════════════════════════════════════════════════════
+    # ARC 3: "Regulated Tablet" (Tablet Weight, I-MR)
+    # ══════════════════════════════════════════════════════════════════
+    timestamps = make_timestamps(500, span_days=42)
+    samples = []
+
+    for i in range(500):
+        values = [random.gauss(200.0, 0.50)]
+        sid = insert_sample(cur, IDS["tablet_weight"], timestamps[i], values=values)
+        samples.append(sid)
+
+    # 2 capability snapshots
+    insert_capability(cur, IDS["tablet_weight"], cp=1.45, cpk=1.38, pp=1.42, ppk=1.35,
+                      sample_count=250, p_value=0.55, calc_by="eng.pharma")
+    insert_capability(cur, IDS["tablet_weight"], cp=1.50, cpk=1.41, pp=1.47, ppk=1.38,
+                      sample_count=500, p_value=0.68, calc_by="eng.pharma")
+
+    IDS["tablet_weight_samples"] = samples
+
+
+# ── Wave 3: Violations, Capability History, Annotations ──────────────────
+
+
+def seed_violations(cur: sqlite3.Cursor) -> None:
+    """Add scattered violations across non-narrative characteristics."""
+
+    # For each variable characteristic, find some samples to attach violations to
+    non_narrative_vars = [
+        "surface_finish", "bore_dia", "pin_height", "bolt_torque",
+        "ply_thickness", "blade_profile", "rivet_grip", "fastener_torque",
+        "api_conc", "moisture", "blend_unif", "fill_volume", "assay_pct", "dissolution",
+    ]
+
+    for char_key in non_narrative_vars:
+        char_id = IDS[char_key]
+        # Get sample IDs at roughly evenly-spaced intervals for violations
+        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp", (char_id,))
+        all_sids = [row[0] for row in cur.fetchall()]
+        if len(all_sids) < 10:
+            continue
+
+        # 3-5 Rule 1 violations (beyond control limits)
+        n_violations = random.randint(3, 5)
+        violation_indices = random.sample(range(len(all_sids)), min(n_violations, len(all_sids)))
+        for idx in violation_indices:
+            sid = all_sids[idx]
+            severity = random.choice(["CRITICAL", "CRITICAL", "WARNING"])
+            ack = random.random() < 0.4  # 40% acknowledged
+            ack_user = random.choice(["eng.detroit", "eng.wichita", "eng.pharma"]) if ack else None
+            ack_reason = "Investigated — within acceptable range" if ack else None
+            insert_violation(cur, sid, char_id, 1, "Beyond Control Limits", severity,
+                acknowledged=ack, ack_user=ack_user, ack_reason=ack_reason)
+
+    # Attribute characteristics
+    non_narrative_attrs = [
+        "solder_defects", "electrical_pf", "paint_defects", "blemishes",
+        "void_pct", "seal_failures", "delam_count",
+    ]
+
+    for char_key in non_narrative_attrs:
+        char_id = IDS[char_key]
+        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp", (char_id,))
+        all_sids = [row[0] for row in cur.fetchall()]
+        if len(all_sids) < 10:
+            continue
+
+        n_violations = random.randint(3, 6)
+        violation_indices = random.sample(range(len(all_sids)), min(n_violations, len(all_sids)))
+        for idx in violation_indices:
+            sid = all_sids[idx]
+            severity = random.choice(["CRITICAL", "WARNING", "WARNING"])
+            ack = random.random() < 0.3
+            ack_user = random.choice(["sup.detroit", "sup.pharma"]) if ack else None
+            ack_reason = "Reviewed — no systemic issue" if ack else None
+            insert_violation(cur, sid, char_id, 1, "Beyond Control Limits", severity,
+                acknowledged=ack, ack_user=ack_user, ack_reason=ack_reason)
+
+
+def seed_capability_and_annotations(cur: sqlite3.Cursor) -> None:
+    """Add capability snapshots and general annotations for non-narrative chars."""
+
+    # 2 capability snapshots per non-narrative variable characteristic
+    cap_data = {
+        "surface_finish": [(1.20, 1.10, 1.15, 1.05, 150), (1.25, 1.18, 1.20, 1.12, 500)],
+        "bore_dia": [(1.35, 1.28, 1.30, 1.22, 150), (1.40, 1.33, 1.35, 1.28, 500)],
+        "pin_height": [(1.50, 1.42, 1.45, 1.38, 150), (1.35, 1.25, 1.30, 1.20, 500)],
+        "bolt_torque": [(1.45, 1.38, 1.40, 1.32, 150), (1.30, 1.22, 1.25, 1.18, 500)],
+        "ply_thickness": [(1.55, 1.48, 1.50, 1.42, 150), (1.60, 1.52, 1.55, 1.48, 500)],
+        "blade_profile": [(1.30, 1.20, 1.25, 1.15, 150), (1.35, 1.25, 1.30, 1.22, 500)],
+        "rivet_grip": [(1.40, 1.32, 1.35, 1.28, 150), (1.45, 1.38, 1.40, 1.33, 500)],
+        "fastener_torque": [(1.50, 1.45, 1.48, 1.42, 150), (1.55, 1.48, 1.52, 1.45, 500)],
+        "api_conc": [(1.40, 1.30, 1.35, 1.25, 150), (1.45, 1.35, 1.40, 1.30, 500)],
+        "moisture": [(1.60, 1.52, 1.55, 1.48, 150), (1.65, 1.58, 1.60, 1.53, 500)],
+        "blend_unif": [(1.35, 1.28, 1.30, 1.22, 150), (1.40, 1.33, 1.35, 1.28, 500)],
+        "fill_volume": [(1.55, 1.48, 1.50, 1.42, 150), (1.50, 1.40, 1.45, 1.35, 500)],
+        "assay_pct": [(1.25, 1.15, 1.20, 1.10, 150), (1.30, 1.22, 1.25, 1.18, 500)],
+        "dissolution": [(1.40, 1.32, 1.35, 1.28, 150), (1.35, 1.25, 1.30, 1.20, 500)],
+    }
+
+    for char_key, snapshots in cap_data.items():
+        for cp, cpk, pp, ppk, count in snapshots:
+            p_val = round(random.uniform(0.10, 0.85), 3)
+            calc_by = {
+                "surface_finish": "eng.detroit", "bore_dia": "eng.detroit",
+                "pin_height": "eng.detroit", "bolt_torque": "eng.detroit",
+                "ply_thickness": "eng.wichita", "blade_profile": "eng.wichita",
+                "rivet_grip": "eng.wichita", "fastener_torque": "eng.wichita",
+                "api_conc": "eng.pharma", "moisture": "eng.pharma",
+                "blend_unif": "eng.pharma", "fill_volume": "eng.pharma",
+                "assay_pct": "eng.pharma", "dissolution": "eng.pharma",
+            }.get(char_key, "system")
+            insert_capability(cur, IDS[char_key], cp, cpk, pp, ppk,
+                sample_count=count, p_value=p_val, calc_by=calc_by)
+
+    # General plant annotations (not tied to specific narrative arcs)
+    # Detroit: scheduled maintenance
+    det_chars = ["surface_finish", "bore_dia", "pin_height", "bolt_torque"]
+    for ck in det_chars:
+        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp LIMIT 1 OFFSET 100",
+                    (IDS[ck],))
+        row = cur.fetchone()
+        if row:
+            start_sid = row[0]
+            cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp LIMIT 1 OFFSET 110",
+                        (IDS[ck],))
+            end_row = cur.fetchone()
+            if end_row:
+                insert_annotation(cur, IDS[ck], "period",
+                    "Scheduled maintenance — all machining lines",
+                    color="#3498db", start_sid=start_sid, end_sid=end_row[0],
+                    created_by="sup.detroit")
+                break  # Just one annotation for Detroit
+
+    # Wichita: new material batch
+    cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp LIMIT 1 OFFSET 200",
+                (IDS["ply_thickness"],))
+    row = cur.fetchone()
+    if row:
+        insert_annotation(cur, IDS["ply_thickness"], "point",
+            "New material batch received — lot MB-2026-042",
+            color="#2ecc71", sample_id=row[0], created_by="eng.wichita")
+
+    # RTP: annual FDA audit
+    rtp_chars = ["api_conc", "moisture", "blend_unif"]
+    for ck in rtp_chars:
+        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp LIMIT 1 OFFSET 300",
+                    (IDS[ck],))
+        row = cur.fetchone()
+        if row:
+            start_sid = row[0]
+            cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp LIMIT 1 OFFSET 320",
+                        (IDS[ck],))
+            end_row = cur.fetchone()
+            if end_row:
+                insert_annotation(cur, IDS[ck], "period",
+                    "Annual FDA audit preparation — enhanced monitoring",
+                    color="#9b59b6", start_sid=start_sid, end_sid=end_row[0],
+                    created_by="sup.pharma")
+                break  # Just one annotation for RTP
+
+
+# ── Wave 4: Connectivity & Gage Bridges ──────────────────────────────────
+
+
+def seed_connectivity(cur: sqlite3.Cursor) -> None:
+    """Create MQTT brokers, OPC-UA servers, and data sources (JTI pattern)."""
+    now = utcnow()
+
+    # ── MQTT Brokers (one per plant) ────────────────────────────────────
+    cur.execute("""INSERT INTO mqtt_broker
+        (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
+         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         outbound_rate_limit, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["det_plant"], "Detroit MQTT", "localhost", 1883, "cassini-detroit", 60, 30,
+         "json", "cassini/detroit/outbound/", "json", 10.0, now, now))
+    IDS["det_broker"] = cur.lastrowid
+
+    cur.execute("""INSERT INTO mqtt_broker
+        (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
+         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         outbound_rate_limit, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["ict_plant"], "Wichita MQTT", "localhost", 1883, "cassini-wichita", 60, 30,
+         "json", "cassini/wichita/outbound/", "json", 10.0, now, now))
+    IDS["ict_broker"] = cur.lastrowid
+
+    cur.execute("""INSERT INTO mqtt_broker
+        (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
+         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         outbound_rate_limit, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["rtp_plant"], "RTP MQTT", "localhost", 1883, "cassini-rtp", 60, 30,
+         "json", "cassini/rtp/outbound/", "json", 10.0, now, now))
+    IDS["rtp_broker"] = cur.lastrowid
+
+    # ── OPC-UA Servers (one per plant) ──────────────────────────────────
+    endpoint = "opc.tcp://localhost:4840/UA/TestHarness"
+
+    cur.execute("""INSERT INTO opcua_server
+        (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
+         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["det_plant"], "Detroit OPC-UA", endpoint, "anonymous", "None", "None",
+         30000, 1000, 500, now, now))
+    IDS["det_opcua"] = cur.lastrowid
+
+    cur.execute("""INSERT INTO opcua_server
+        (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
+         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["ict_plant"], "Wichita OPC-UA", endpoint, "anonymous", "None", "None",
+         30000, 1000, 500, now, now))
+    IDS["ict_opcua"] = cur.lastrowid
+
+    cur.execute("""INSERT INTO opcua_server
+        (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
+         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+        (IDS["rtp_plant"], "RTP OPC-UA", endpoint, "anonymous", "None", "None",
+         30000, 1000, 500, now, now))
+    IDS["rtp_opcua"] = cur.lastrowid
+
+    # ── OPC-UA Data Sources (10 characteristics) ───────────────────────
+    opcua_mappings = [
+        # (char_key, server_key, node_id)
+        ("bearing_od", "det_opcua", "ns=2;s=Detroit.BearingOD"),
+        ("surface_finish", "det_opcua", "ns=2;s=Detroit.SurfaceFinish"),
+        ("bore_dia", "det_opcua", "ns=2;s=Detroit.BoreDiameter"),
+        ("pin_height", "det_opcua", "ns=2;s=Detroit.PinHeight"),
+        ("cure_temp", "ict_opcua", "ns=2;s=Wichita.CureTemp"),
+        ("blade_profile", "ict_opcua", "ns=2;s=Wichita.BladeProfile"),
+        ("rivet_grip", "ict_opcua", "ns=2;s=Wichita.RivetGrip"),
+        ("api_conc", "rtp_opcua", "ns=2;s=RTP.APIConcentration"),
+        ("tablet_weight", "rtp_opcua", "ns=2;s=RTP.TabletWeight"),
+        ("fill_volume", "rtp_opcua", "ns=2;s=RTP.FillVolume"),
+    ]
+
+    for char_key, server_key, node_id in opcua_mappings:
+        # Base data_source row
+        cur.execute("""INSERT INTO data_source
+            (type, characteristic_id, trigger_strategy, is_active, created_at, updated_at)
+            VALUES ('opcua', ?, 'on_value_change', 1, ?, ?)""",
+            (IDS[char_key], now, now))
+        ds_id = cur.lastrowid
+        # OPC-UA child row
+        cur.execute("""INSERT INTO opcua_data_source
+            (id, server_id, node_id, sampling_interval, publishing_interval)
+            VALUES (?, ?, ?, 500, 1000)""",
+            (ds_id, IDS[server_key], node_id))
+
+    # ── MQTT Data Sources (14 characteristics) ─────────────────────────
+    mqtt_mappings = [
+        # (char_key, broker_key, topic, metric_name)
+        ("bolt_torque", "det_broker", "detroit/assembly/measurements", "bolt_torque"),
+        ("solder_defects", "det_broker", "detroit/assembly/measurements", "solder_defects"),
+        ("electrical_pf", "det_broker", "detroit/assembly/measurements", "electrical_pf"),
+        ("paint_defects", "det_broker", "detroit/paint/measurements", "paint_defects"),
+        ("blemishes", "det_broker", "detroit/paint/measurements", "blemishes"),
+        ("ply_thickness", "ict_broker", "wichita/composite/measurements", "ply_thickness"),
+        ("fastener_torque", "ict_broker", "wichita/assembly/measurements", "fastener_torque"),
+        ("void_pct", "ict_broker", "wichita/ndt/measurements", "void_pct"),
+        ("delam_count", "ict_broker", "wichita/ndt/measurements", "delam_count"),
+        ("moisture", "rtp_broker", "rtp/api-mfg/measurements", "moisture"),
+        ("blend_unif", "rtp_broker", "rtp/formulation/measurements", "blend_uniformity"),
+        ("seal_failures", "rtp_broker", "rtp/packaging/measurements", "seal_failures"),
+        ("assay_pct", "rtp_broker", "rtp/qc-lab/measurements", "assay_pct"),
+        ("dissolution", "rtp_broker", "rtp/qc-lab/measurements", "dissolution_rate"),
+    ]
+
+    for char_key, broker_key, topic, metric_name in mqtt_mappings:
+        cur.execute("""INSERT INTO data_source
+            (type, characteristic_id, trigger_strategy, is_active, created_at, updated_at)
+            VALUES ('mqtt', ?, 'on_message', 1, ?, ?)""",
+            (IDS[char_key], now, now))
+        ds_id = cur.lastrowid
+        cur.execute("""INSERT INTO mqtt_data_source
+            (id, broker_id, topic, metric_name, trigger_tag)
+            VALUES (?, ?, ?, ?, NULL)""",
+            (ds_id, IDS[broker_key], topic, metric_name))
+
+
+def seed_gage_bridges(cur: sqlite3.Cursor) -> None:
+    """Create gage bridge configs with serial ports."""
+    now = utcnow()
+
+    # Bridge 1: CMM Bridge — Detroit Floor
+    api_key_1 = "showcase-detroit-cmm-bridge-key-001"
+    cur.execute("""INSERT INTO gage_bridge
+        (plant_id, name, api_key_hash, mqtt_broker_id, status, last_heartbeat_at, registered_by, created_at)
+        VALUES (?, ?, ?, ?, 'online', ?, ?, ?)""",
+        (IDS["det_plant"], "CMM Bridge \u2014 Detroit Floor",
+         hashlib.sha256(api_key_1.encode()).hexdigest(),
+         IDS["det_broker"], now, IDS["eng_det"], now))
+    bridge1 = cur.lastrowid
+
+    # Port 1: COM3, Mitutoyo Digimatic, mapped to Pin Height
+    cur.execute("""INSERT INTO gage_port
+        (bridge_id, port_name, baud_rate, data_bits, parity, stop_bits, protocol_profile,
+         parse_pattern, mqtt_topic, characteristic_id, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 1, ?)""",
+        (bridge1, "COM3", 9600, 8, "none", 1.0, "mitutoyo_digimatic",
+         "detroit/machining/measurements", IDS["pin_height"], now))
+
+    # Port 2: COM5, generic regex, mapped to Bore Diameter
+    cur.execute("""INSERT INTO gage_port
+        (bridge_id, port_name, baud_rate, data_bits, parity, stop_bits, protocol_profile,
+         parse_pattern, mqtt_topic, characteristic_id, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+        (bridge1, "COM5", 115200, 8, "none", 1.0, "generic_regex",
+         r"(?P<value>[\d.]+)\s*mm", "detroit/machining/measurements", IDS["bore_dia"], now))
+
+    # Bridge 2: QC Lab Bridge — RTP
+    api_key_2 = "showcase-rtp-qclab-bridge-key-002"
+    cur.execute("""INSERT INTO gage_bridge
+        (plant_id, name, api_key_hash, mqtt_broker_id, status, last_heartbeat_at, registered_by, created_at)
+        VALUES (?, ?, ?, ?, 'online', ?, ?, ?)""",
+        (IDS["rtp_plant"], "QC Lab Bridge \u2014 RTP",
+         hashlib.sha256(api_key_2.encode()).hexdigest(),
+         IDS["rtp_broker"], now, IDS["eng_rtp"], now))
+    bridge2 = cur.lastrowid
+
+    # Port 1: COM1, generic, mapped to Assay
+    cur.execute("""INSERT INTO gage_port
+        (bridge_id, port_name, baud_rate, data_bits, parity, stop_bits, protocol_profile,
+         parse_pattern, mqtt_topic, characteristic_id, is_active, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, 1, ?)""",
+        (bridge2, "COM1", 9600, 8, "none", 1.0, "generic_regex",
+         "rtp/qc-lab/measurements", IDS["assay_pct"], now))
+
+
+# ── Wave 5: Anomaly, Signatures, MSA, FAI ────────────────────────────────
+
+
+def seed_anomaly(cur: sqlite3.Cursor) -> None:
+    """Anomaly detection configs and events for narrative arcs."""
+    now = utcnow()
+
+    # Config on Cure Temp: all 3 detectors enabled
+    cur.execute("""INSERT INTO anomaly_detector_config
+        (char_id, is_enabled, pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment,
+         iforest_enabled, iforest_contamination, iforest_n_estimators, iforest_min_training, iforest_retrain_interval,
+         ks_enabled, ks_reference_window, ks_test_window, ks_alpha,
+         notify_on_changepoint, notify_on_anomaly_score, notify_on_distribution_shift,
+         anomaly_score_threshold, created_at, updated_at)
+        VALUES (?, 1, 1, 'rbf', 'bic', 25,
+                1, 0.05, 100, 50, 100,
+                1, 100, 50, 0.05,
+                1, 1, 1,
+                0.7, ?, ?)""",
+        (IDS["cure_temp"], now, now))
+
+    # Config on Bearing OD: PELT only
+    cur.execute("""INSERT INTO anomaly_detector_config
+        (char_id, is_enabled, pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment,
+         iforest_enabled, iforest_contamination, iforest_n_estimators, iforest_min_training, iforest_retrain_interval,
+         ks_enabled, ks_reference_window, ks_test_window, ks_alpha,
+         notify_on_changepoint, notify_on_anomaly_score, notify_on_distribution_shift,
+         anomaly_score_threshold, created_at, updated_at)
+        VALUES (?, 1, 1, 'rbf', 'bic', 25,
+                0, 0.05, 100, 50, 100,
+                0, 100, 50, 0.05,
+                1, 0, 0,
+                0.7, ?, ?)""",
+        (IDS["bearing_od"], now, now))
+
+    # Config on Tablet Weight: K-S only
+    cur.execute("""INSERT INTO anomaly_detector_config
+        (char_id, is_enabled, pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment,
+         iforest_enabled, iforest_contamination, iforest_n_estimators, iforest_min_training, iforest_retrain_interval,
+         ks_enabled, ks_reference_window, ks_test_window, ks_alpha,
+         notify_on_changepoint, notify_on_anomaly_score, notify_on_distribution_shift,
+         anomaly_score_threshold, created_at, updated_at)
+        VALUES (?, 1, 0, 'rbf', 'bic', 25,
+                0, 0.05, 100, 50, 100,
+                1, 100, 50, 0.05,
+                0, 0, 1,
+                0.7, ?, ?)""",
+        (IDS["tablet_weight"], now, now))
+
+    # Anomaly events for Cure Temp (Arc 2)
+    ct_samples = IDS["cure_temp_samples"]
+
+    # 1. PELT changepoint at sample 310
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, summary, detected_at)
+        VALUES (?, 'pelt', 'changepoint', 'high', ?, ?, NULL, NULL,
+                1, 0, 'PELT detected process shift at sample 310', ?)""",
+        (IDS["cure_temp"], json.dumps({"change_point_index": 310, "segment_means": [177.0, 177.4]}),
+         ct_samples[310], now))
+
+    # 2. IsolationForest outlier at sample 315
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, summary, detected_at)
+        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
+                0, 0, 'Anomaly score 0.82 exceeds threshold 0.70', ?)""",
+        (IDS["cure_temp"], json.dumps({"anomaly_score": 0.82, "threshold": 0.70}),
+         ct_samples[315], now))
+
+    # 3. IsolationForest outlier at sample 325
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, summary, detected_at)
+        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
+                0, 0, 'Anomaly score 0.75 exceeds threshold 0.70', ?)""",
+        (IDS["cure_temp"], json.dumps({"anomaly_score": 0.75, "threshold": 0.70}),
+         ct_samples[325], now))
+
+    # 4. IsolationForest outlier at sample 340
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, summary, detected_at)
+        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
+                1, 0, 'Anomaly score 0.78 exceeds threshold 0.70', ?)""",
+        (IDS["cure_temp"], json.dumps({"anomaly_score": 0.78, "threshold": 0.70}),
+         ct_samples[340], now))
+
+    # 5. K-S distribution shift window 280-350
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, summary, detected_at)
+        VALUES (?, 'ks_test', 'distribution_shift', 'high', ?, NULL, ?, ?,
+                1, 0, 'K-S test: distribution shift detected (p=0.003)', ?)""",
+        (IDS["cure_temp"], json.dumps({"ks_statistic": 0.245, "p_value": 0.003, "alpha": 0.05}),
+         ct_samples[280], ct_samples[350], now))
+
+    # 6. Dismissed false positive at sample 200
+    cur.execute("""INSERT INTO anomaly_event
+        (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
+         is_acknowledged, is_dismissed, dismissed_by, dismissed_reason, summary, detected_at)
+        VALUES (?, 'isolation_forest', 'anomaly_score', 'low', ?, ?, NULL, NULL,
+                0, 1, 'eng.wichita', 'Normal variation during startup', 'Low anomaly score 0.55', ?)""",
+        (IDS["cure_temp"], json.dumps({"anomaly_score": 0.55, "threshold": 0.70}),
+         ct_samples[200], now))
+
+
+def seed_signatures(cur: sqlite3.Cursor) -> None:
+    """Electronic signatures — meanings, workflows, instances, individual signatures."""
+    now = utcnow()
+
+    # Signature meanings (5 per plant, shared codes)
+    meanings = [
+        ("approved", "Approved", "Indicates full approval of the resource", False),
+        ("reviewed", "Reviewed", "Indicates technical review complete", False),
+        ("verified", "Verified", "Indicates verification against spec", True),
+        ("rejected", "Rejected", "Indicates rejection with required reason", True),
+        ("released", "Released", "Indicates release for production", False),
+    ]
+
+    for plant_key in ["det_plant", "ict_plant", "rtp_plant"]:
+        for i, (code, display, desc, req_comment) in enumerate(meanings):
+            cur.execute("""INSERT INTO signature_meaning
+                (plant_id, code, display_name, description, requires_comment, is_active, sort_order)
+                VALUES (?, ?, ?, ?, ?, 1, ?)""",
+                (IDS[plant_key], code, display, desc, 1 if req_comment else 0, i + 1))
+
+    # 4 workflow configurations
+
+    # WF1: FAI Report Approval (RTP, required)
+    cur.execute("""INSERT INTO signature_workflow
+        (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
+        VALUES (?, 'FAI Report Approval', 'fai_report', 1, 1, 'Two-step approval for FAI reports', ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+    wf1 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 1, 'Engineer Review', 'engineer', 'reviewed', 1, 0, 48)""", (wf1,))
+    wf1_step1 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 2, 'Supervisor Approval', 'supervisor', 'approved', 1, 0, 72)""", (wf1,))
+    wf1_step2 = cur.lastrowid
+
+    # WF2: Spec Limit Change (RTP, required)
+    cur.execute("""INSERT INTO signature_workflow
+        (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
+        VALUES (?, 'Spec Limit Change Approval', 'characteristic', 1, 1, 'Two-step approval for spec limit changes', ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+    wf2 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 1, 'Engineer Review', 'engineer', 'reviewed', 1, 0, 48)""", (wf2,))
+    wf2_step1 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 2, 'Supervisor Approval', 'supervisor', 'approved', 1, 0, 72)""", (wf2,))
+    wf2_step2 = cur.lastrowid
+
+    # WF3: MSA Study Sign-off (Wichita)
+    cur.execute("""INSERT INTO signature_workflow
+        (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
+        VALUES (?, 'MSA Study Sign-off', 'msa_study', 1, 0, 'Engineer sign-off on MSA study results', ?, ?)""",
+        (IDS["ict_plant"], now, now))
+    wf3 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 1, 'Engineer Review', 'engineer', 'reviewed', 1, 1, 168)""", (wf3,))
+    wf3_step1 = cur.lastrowid
+
+    # WF4: Critical Sample Approval (Detroit)
+    cur.execute("""INSERT INTO signature_workflow
+        (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
+        VALUES (?, 'Critical Sample Approval', 'sample', 1, 0, 'Supervisor approval for critical OOC samples', ?, ?)""",
+        (IDS["det_plant"], now, now))
+    wf4 = cur.lastrowid
+    cur.execute("""INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, 1, 'Supervisor Approval', 'supervisor', 'approved', 1, 0, 24)""", (wf4,))
+    wf4_step1 = cur.lastrowid
+
+    # Generate resource hashes (content-based)
+    import hashlib as _hl
+
+    def resource_hash(rtype, rid, content=""):
+        return _hl.sha256(f"{rtype}:{rid}:{content}".encode()).hexdigest()
+
+    def sig_hash(user_id, meaning, ts, rhash):
+        return _hl.sha256(f"{user_id}:{meaning}:{ts}:{rhash}".encode()).hexdigest()
+
+    # 5 workflow instances
+
+    # Instance 1: APPROVED — Tablet weight spec update (RTP)
+    r_hash = resource_hash("characteristic", IDS["tablet_weight"], "spec_update_usl_205")
+    cur.execute("""INSERT INTO signature_workflow_instance
+        (workflow_id, resource_type, resource_id, status, current_step, initiated_by, initiated_at, completed_at, expires_at)
+        VALUES (?, 'characteristic', ?, 'completed', 2, ?, ?, ?, NULL)""",
+        (wf2, IDS["tablet_weight"], IDS["eng_rtp"], now, now))
+    inst1 = cur.lastrowid
+    # Step 1 signed by eng.pharma
+    ts1 = now
+    sh1 = sig_hash(IDS["eng_rtp"], "reviewed", ts1, r_hash)
+    cur.execute("""INSERT INTO electronic_signature
+        (user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id,
+         resource_hash, signature_hash, ip_address, workflow_step_id, comment, is_valid)
+        VALUES (?, 'eng.pharma', 'David Kim', ?, 'reviewed', 'Reviewed', 'characteristic', ?,
+                ?, ?, '10.0.1.50', ?, 'Spec limits verified against process capability', 1)""",
+        (IDS["eng_rtp"], ts1, IDS["tablet_weight"], r_hash, sh1, wf2_step1))
+    # Step 2 signed by sup.pharma
+    sh2 = sig_hash(IDS["sup_rtp"], "approved", ts1, r_hash)
+    cur.execute("""INSERT INTO electronic_signature
+        (user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id,
+         resource_hash, signature_hash, ip_address, workflow_step_id, comment, is_valid)
+        VALUES (?, 'sup.pharma', 'James O''Brien', ?, 'approved', 'Approved', 'characteristic', ?,
+                ?, ?, '10.0.1.51', ?, NULL, 1)""",
+        (IDS["sup_rtp"], ts1, IDS["tablet_weight"], r_hash, sh2, wf2_step2))
+
+    # Instance 2: REJECTED — Wider API concentration limits (RTP)
+    r_hash2 = resource_hash("characteristic", IDS["api_conc"], "widen_limits")
+    cur.execute("""INSERT INTO signature_workflow_instance
+        (workflow_id, resource_type, resource_id, status, current_step, initiated_by, initiated_at, completed_at, expires_at)
+        VALUES (?, 'characteristic', ?, 'rejected', 2, ?, ?, ?, NULL)""",
+        (wf2, IDS["api_conc"], IDS["eng_rtp"], now, now))
+    inst2 = cur.lastrowid
+    sh3 = sig_hash(IDS["eng_rtp"], "reviewed", ts1, r_hash2)
+    cur.execute("""INSERT INTO electronic_signature
+        (user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id,
+         resource_hash, signature_hash, ip_address, workflow_step_id, comment, is_valid)
+        VALUES (?, 'eng.pharma', 'David Kim', ?, 'reviewed', 'Reviewed', 'characteristic', ?,
+                ?, ?, '10.0.1.50', ?, 'Engineering review complete', 1)""",
+        (IDS["eng_rtp"], ts1, IDS["api_conc"], r_hash2, sh3, wf2_step1))
+    sh4 = sig_hash(IDS["sup_rtp"], "rejected", ts1, r_hash2)
+    cur.execute("""INSERT INTO electronic_signature
+        (user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id,
+         resource_hash, signature_hash, ip_address, workflow_step_id, comment, is_valid)
+        VALUES (?, 'sup.pharma', 'James O''Brien', ?, 'rejected', 'Rejected', 'characteristic', ?,
+                ?, ?, '10.0.1.51', ?, 'Limits too wide for FDA validation requirements', 1)""",
+        (IDS["sup_rtp"], ts1, IDS["api_conc"], r_hash2, sh4, wf2_step2))
+
+    # Instance 3: PENDING — Fill Volume limit change (RTP)
+    cur.execute("""INSERT INTO signature_workflow_instance
+        (workflow_id, resource_type, resource_id, status, current_step, initiated_by, initiated_at, completed_at, expires_at)
+        VALUES (?, 'characteristic', ?, 'pending', 1, ?, ?, NULL, NULL)""",
+        (wf2, IDS["fill_volume"], IDS["eng_rtp"], now))
+
+    # Instance 4: PARTIAL — MSA sign-off (Wichita). Step 1 signed.
+    r_hash4 = resource_hash("msa_study", 1, "gage_rr_study")
+    cur.execute("""INSERT INTO signature_workflow_instance
+        (workflow_id, resource_type, resource_id, status, current_step, initiated_by, initiated_at, completed_at, expires_at)
+        VALUES (?, 'msa_study', 1, 'in_progress', 1, ?, ?, NULL, NULL)""",
+        (wf3, IDS["eng_ict"], now))
+    inst4 = cur.lastrowid
+    sh5 = sig_hash(IDS["eng_ict"], "reviewed", ts1, r_hash4)
+    cur.execute("""INSERT INTO electronic_signature
+        (user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id,
+         resource_hash, signature_hash, ip_address, workflow_step_id, comment, is_valid)
+        VALUES (?, 'eng.wichita', 'Priya Patel', ?, 'reviewed', 'Reviewed', 'msa_study', 1,
+                ?, ?, '10.0.2.30', ?, 'GR&R results acceptable per AIAG MSA 4th Ed', 1)""",
+        (IDS["eng_ict"], ts1, r_hash4, sh5, wf3_step1))
+
+    # Instance 5: EXPIRED — Old Detroit sample approval
+    expired_at = ts_offset(BASE_TIME, days=-30)
+    initiated_at = ts_offset(BASE_TIME, days=-32)
+    cur.execute("""INSERT INTO signature_workflow_instance
+        (workflow_id, resource_type, resource_id, status, current_step, initiated_by, initiated_at, completed_at, expires_at)
+        VALUES (?, 'sample', 1, 'expired', 1, ?, ?, NULL, ?)""",
+        (wf4, IDS["sup_det"], initiated_at, expired_at))
+
+
+def seed_msa(cur: sqlite3.Cursor) -> None:
+    """3 MSA studies per design doc."""
+    now = utcnow()
+
+    # Study 1: Crankshaft Gage R&R (Detroit, crossed_anova, Bearing OD)
+    # 3 operators x 10 parts x 3 reps = 90 measurements
+    cur.execute("""INSERT INTO msa_study
+        (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
+         tolerance, status, created_by, created_at, completed_at, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (IDS["det_plant"], "Crankshaft Gage R&R", "crossed_anova", IDS["bearing_od"],
+         3, 10, 3, 0.100, "complete", IDS["eng_det"], now, now,
+         json.dumps({
+             "grr_percent": 12.3, "ndc": 8, "repeatability": 8.5, "reproducibility": 8.9,
+             "part_variation": 99.2, "total_variation": 100.0,
+             "anova_table": {"source": ["Operator", "Part", "Operator*Part", "Repeatability", "Total"],
+                             "df": [2, 9, 18, 60, 89], "ss": [0.0012, 0.0845, 0.0008, 0.0156, 0.1021],
+                             "ms": [0.0006, 0.0094, 0.00004, 0.00026], "f": [13.5, 214.5, 0.17]},
+         })))
+    study1 = cur.lastrowid
+
+    # Operators
+    ops1 = []
+    for i, name in enumerate(["Marcus Johnson", "Tyler Washington", "Ana Rodriguez"]):
+        cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            (study1, name, i + 1))
+        ops1.append(cur.lastrowid)
+
+    # Parts
+    parts1 = []
+    part_refs = [25.000 + 0.005 * (i - 5) for i in range(10)]  # spread around nominal
+    for i in range(10):
+        cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
+            (study1, f"Part-{i+1:02d}", part_refs[i], i + 1))
+        parts1.append(cur.lastrowid)
+
+    # Measurements: 3 ops x 10 parts x 3 reps = 90
+    for op_idx, op_id in enumerate(ops1):
+        for part_idx, part_id in enumerate(parts1):
+            for rep in range(3):
+                base = part_refs[part_idx]
+                op_bias = [-0.001, 0.000, 0.001][op_idx]
+                error = random.gauss(0, 0.003)
+                value = round(base + op_bias + error, 4)
+                cur.execute("""INSERT INTO msa_measurement
+                    (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?)""",
+                    (study1, op_id, part_id, rep + 1, value, now))
+
+    # Study 2: CMM Repeatability (Detroit, range_method, Pin Height)
+    # 2 operators x 10 parts x 2 reps = 40 measurements
+    cur.execute("""INSERT INTO msa_study
+        (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
+         tolerance, status, created_by, created_at, completed_at, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (IDS["det_plant"], "CMM Repeatability Study", "range_method", IDS["pin_height"],
+         2, 10, 2, 0.200, "complete", IDS["eng_det"], now, now,
+         json.dumps({"grr_percent": 8.1, "repeatability": 6.2, "reproducibility": 5.2, "ndc": 12})))
+    study2 = cur.lastrowid
+
+    ops2 = []
+    for i, name in enumerate(["Marcus Johnson", "Ana Rodriguez"]):
+        cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            (study2, name, i + 1))
+        ops2.append(cur.lastrowid)
+
+    parts2 = []
+    pin_refs = [12.700 + 0.010 * (i - 5) for i in range(10)]
+    for i in range(10):
+        cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
+            (study2, f"Pin-{i+1:02d}", pin_refs[i], i + 1))
+        parts2.append(cur.lastrowid)
+
+    for op_idx, op_id in enumerate(ops2):
+        for part_idx, part_id in enumerate(parts2):
+            for rep in range(2):
+                base = pin_refs[part_idx]
+                op_bias = [-0.002, 0.002][op_idx]
+                value = round(base + op_bias + random.gauss(0, 0.004), 4)
+                cur.execute("""INSERT INTO msa_measurement
+                    (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?)""",
+                    (study2, op_id, part_id, rep + 1, value, now))
+
+    # Study 3: X-Ray Inspection Agreement (Wichita, attribute_agreement, Void %)
+    # 3 operators x 20 parts x 2 reps = 120 measurements
+    cur.execute("""INSERT INTO msa_study
+        (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
+         tolerance, status, created_by, created_at, completed_at, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)""",
+        (IDS["ict_plant"], "X-Ray Inspection Agreement", "attribute_agreement", IDS["void_pct"],
+         3, 20, 2, "complete", IDS["eng_ict"], now, now,
+         json.dumps({"kappa": 0.87, "overall_agreement": 0.93, "operator_agreement": [0.95, 0.90, 0.94]})))
+    study3 = cur.lastrowid
+
+    ops3 = []
+    for i, name in enumerate(["Priya Patel", "Maria Santos", "Ana Rodriguez"]):
+        cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            (study3, name, i + 1))
+        ops3.append(cur.lastrowid)
+
+    parts3 = []
+    # Ground truth: 3 of 20 parts are actually defective
+    part_truth = [False] * 17 + [True] * 3
+    random.shuffle(part_truth)
+    for i in range(20):
+        cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, NULL, ?)",
+            (study3, f"Panel-{i+1:02d}", i + 1))
+        parts3.append((cur.lastrowid, part_truth[i]))
+
+    for op_idx, op_id in enumerate(ops3):
+        for part_idx, (part_id, is_defective) in enumerate(parts3):
+            for rep in range(2):
+                # Operators have ~95% accuracy on clear cases, ~80% on borderline
+                if is_defective:
+                    call = "Fail" if random.random() < 0.85 else "Pass"
+                else:
+                    call = "Pass" if random.random() < 0.95 else "Fail"
+                cur.execute("""INSERT INTO msa_measurement
+                    (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
+                    VALUES (?, ?, ?, ?, 0.0, ?, ?)""",
+                    (study3, op_id, part_id, rep + 1, call, now))
+
+
+def seed_fai(cur: sqlite3.Cursor) -> None:
+    """3 FAI reports per design doc."""
+    now = utcnow()
+
+    # Report 1: Turbine Blade Rev C (Wichita, approved)
+    cur.execute("""INSERT INTO fai_report
+        (plant_id, part_number, part_name, revision, serial_number, lot_number, drawing_number,
+         organization_name, supplier, purchase_order, reason_for_inspection,
+         material_supplier, material_spec, special_processes, functional_test_results,
+         status, created_by, created_at, submitted_by, submitted_at, approved_by, approved_at, rejection_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)""",
+        (IDS["ict_plant"], "TB-2026-001", "Turbine Blade Assembly", "C", "SN-TB-0042",
+         "LOT-2026-W08", "DWG-TB-2026-001-C",
+         "Titan Aerospace Inc.", "AeroParts Global Ltd.", "PO-2026-0157", "new_production",
+         "Alcoa Aerospace", "AMS 4928 Ti-6Al-4V", "Heat treat (AMS 2770), NDT (ASTM E2375), Coating (AMS 2460)",
+         "All functional tests passed per ATP-TB-001",
+         "approved", IDS["eng_ict"], now, IDS["eng_ict"], now, IDS["sup_det"], now))
+    fai1 = cur.lastrowid
+
+    # 15 FAI items for Turbine Blade (14 pass, 1 rework)
+    blade_items = [
+        (1, "Blade Chord Length", 42.50, 42.75, 42.25, 42.48, "mm", "CMM", True, "pass"),
+        (2, "Blade Span", 185.00, 185.50, 184.50, 184.95, "mm", "CMM", True, "pass"),
+        (3, "Root Width", 28.00, 28.10, 27.90, 28.02, "mm", "CMM", True, "pass"),
+        (4, "Tip Thickness", 1.20, 1.30, 1.10, 1.22, "mm", "Micrometer", True, "pass"),
+        (5, "Leading Edge Radius", 0.80, 0.90, 0.70, 0.82, "mm", "Optical", True, "pass"),
+        (6, "Trailing Edge Thickness", 0.50, 0.60, 0.40, 0.48, "mm", "Micrometer", True, "pass"),
+        (7, "Root Fillet Radius", 3.00, 3.20, 2.80, 3.05, "mm", "CMM", True, "pass"),
+        (8, "Surface Roughness Ra", 0.80, 1.60, None, 0.95, "um", "Profilometer", False, "pass"),
+        (9, "Airfoil Profile", 0.00, 0.10, -0.10, 0.03, "mm", "CMM", True, "pass"),
+        (10, "Twist Angle", 32.00, 32.50, 31.50, 32.15, "deg", "CMM", True, "pass"),
+        (11, "Platform Height", 12.00, 12.15, 11.85, 12.08, "mm", "CMM", True, "pass"),
+        (12, "Dovetail Width", 18.50, 18.60, 18.40, 18.52, "mm", "CMM", True, "pass"),
+        (13, "Cooling Hole Diameter", 0.80, 0.85, 0.75, 0.78, "mm", "Pin Gauge", True, "rework"),
+        (14, "Weight", 145.0, 150.0, 140.0, 146.2, "g", "Scale", False, "pass"),
+        (15, "Hardness HRC", 36.0, 40.0, 34.0, 37.5, "HRC", "Rockwell", False, "pass"),
+    ]
+
+    for balloon, name, nom, usl, lsl, actual, unit, tools, designed, result in blade_items:
+        deviation = "Cooling hole 0.78mm below min 0.75mm — reworked per NCR-2026-042" if result == "rework" else None
+        cur.execute("""INSERT INTO fai_item
+            (report_id, balloon_number, characteristic_name, nominal, usl, lsl, actual_value,
+             unit, tools_used, designed_char, result, deviation_reason, characteristic_id, sequence_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)""",
+            (fai1, balloon, name, nom, usl, lsl, actual, unit, tools,
+             1 if designed else 0, result, deviation, balloon))
+
+    # Report 2: Tablet Press Setup (RTP, submitted)
+    cur.execute("""INSERT INTO fai_report
+        (plant_id, part_number, part_name, revision, serial_number, lot_number, drawing_number,
+         organization_name, supplier, purchase_order, reason_for_inspection,
+         material_supplier, material_spec, special_processes, functional_test_results,
+         status, created_by, created_at, submitted_by, submitted_at, approved_by, approved_at, rejection_reason)
+        VALUES (?, ?, ?, ?, NULL, ?, NULL,
+                ?, NULL, NULL, ?,
+                ?, ?, NULL, NULL,
+                'submitted', ?, ?, ?, ?, NULL, NULL, NULL)""",
+        (IDS["rtp_plant"], "TP-500-R4", "Tablet Press Die Set", "R4", "LOT-2026-P12",
+         "BioVerde Pharma Inc.", "equipment_qualification",
+         "PharmaParts Direct", "316L Stainless Steel per ASTM A240",
+         IDS["eng_rtp"], now, IDS["sup_rtp"], now))
+    fai2 = cur.lastrowid
+
+    tablet_items = [
+        (1, "Die Bore Diameter", 12.000, 12.010, 11.990, 12.002, "mm", "Bore Gauge", True, "pass"),
+        (2, "Punch Tip Flat", 8.000, 8.020, 7.980, 8.005, "mm", "Optical", True, "pass"),
+        (3, "Die Wall Perpendicularity", 0.000, 0.005, None, 0.002, "mm", "CMM", True, "pass"),
+        (4, "Surface Finish Ra", 0.200, 0.400, None, 0.250, "um", "Profilometer", False, "pass"),
+        (5, "Compression Force Range", 15.0, 20.0, 10.0, 15.5, "kN", "Load Cell", True, "pass"),
+        (6, "Tablet Thickness", 4.000, 4.200, 3.800, 4.050, "mm", "Micrometer", True, "pass"),
+        (7, "Hardness", 8.0, 12.0, 6.0, 9.2, "kP", "Hardness Tester", True, "pass"),
+        (8, "Weight Uniformity", 200.0, 205.0, 195.0, 200.3, "mg", "Analytical Balance", True, "pass"),
+    ]
+
+    for balloon, name, nom, usl, lsl, actual, unit, tools, designed, result in tablet_items:
+        cur.execute("""INSERT INTO fai_item
+            (report_id, balloon_number, characteristic_name, nominal, usl, lsl, actual_value,
+             unit, tools_used, designed_char, result, deviation_reason, characteristic_id, sequence_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)""",
+            (fai2, balloon, name, nom, usl, lsl, actual, unit, tools, 1 if designed else 0, result, balloon))
+
+    # Report 3: Crankshaft Housing (Detroit, draft)
+    cur.execute("""INSERT INTO fai_report
+        (plant_id, part_number, part_name, revision, serial_number, lot_number, drawing_number,
+         organization_name, supplier, purchase_order, reason_for_inspection,
+         material_supplier, material_spec, special_processes, functional_test_results,
+         status, created_by, created_at, submitted_by, submitted_at, approved_by, approved_at, rejection_reason)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?,
+                ?, NULL, NULL, ?,
+                ?, ?, ?, NULL,
+                'draft', ?, ?, NULL, NULL, NULL, NULL, NULL)""",
+        (IDS["det_plant"], "CH-8800-A", "Crankshaft Main Housing", "A", "DWG-CH-8800-A",
+         "Precision Motors Inc.", "new_production",
+         "US Steel", "SAE 4340 per AMS 6414", "Heat treat (AMS 2759), Magnaflux (ASTM E1444)",
+         IDS["eng_det"], now))
+    fai3 = cur.lastrowid
+
+    housing_items = [
+        (1, "Main Bore Diameter", 65.000, 65.025, 64.975, 65.008, "mm", "CMM", True, "pass"),
+        (2, "Bearing Seat Width", 25.400, 25.425, 25.375, 25.412, "mm", "CMM", True, "pass"),
+        (3, "Face Flatness", 0.000, 0.010, None, 0.004, "mm", "CMM", True, "pass"),
+        (4, "Bolt Hole Pattern PCD", 82.000, 82.050, 81.950, None, "mm", "CMM", True, "pending"),
+        (5, "Oil Gallery Diameter", 8.000, 8.030, 7.970, None, "mm", "Bore Gauge", True, "pending"),
+        (6, "Surface Finish Main Bore", 0.400, 0.800, None, 0.520, "um", "Profilometer", False, "pass"),
+        (7, "Parallelism Bearing Faces", 0.000, 0.015, None, None, "mm", "CMM", True, "pending"),
+        (8, "Thread Depth M8", 12.000, 12.500, 11.500, 12.200, "mm", "Thread Gauge", True, "pass"),
+        (9, "Dowel Pin Hole", 10.000, 10.010, 9.990, 10.003, "mm", "Pin Gauge", True, "pass"),
+        (10, "Overall Length", 180.000, 180.100, 179.900, None, "mm", "CMM", True, "pending"),
+        (11, "Weight", 4.200, 4.500, 3.900, 4.280, "kg", "Scale", False, "pass"),
+        (12, "Hardness HRC", 28.0, 34.0, 24.0, 30.5, "HRC", "Rockwell", False, "pass"),
+    ]
+
+    for balloon, name, nom, usl, lsl, actual, unit, tools, designed, result in housing_items:
+        cur.execute("""INSERT INTO fai_item
+            (report_id, balloon_number, characteristic_name, nominal, usl, lsl, actual_value,
+             unit, tools_used, designed_char, result, deviation_reason, characteristic_id, sequence_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)""",
+            (fai3, balloon, name, nom, usl, lsl, actual, unit, tools, 1 if designed else 0, result, balloon))
+
+
+# ── Wave 6: Compliance — Notifications, ERP, Retention, Audit ────────────
+
+
+def seed_compliance(cur: sqlite3.Cursor) -> None:
+    """Notifications, ERP connectors, retention policies, and audit trail."""
+    now = utcnow()
+
+    # ── SMTP Config ──
+    cur.execute("""INSERT INTO smtp_config
+        (server, port, username, password, use_tls, from_address, is_active, created_at, updated_at)
+        VALUES ('smtp.company-internal.local', 587, 'cassini-notify', NULL, 1, 'cassini@company-internal.local', 0, ?, ?)""",
+        (now, now))
+
+    # ── Webhook Configs ──
+    cur.execute("""INSERT INTO webhook_config
+        (name, url, secret, is_active, retry_count, events_filter, created_at, updated_at)
+        VALUES ('Slack Quality Alerts', 'https://hooks.slack-mock.local/cassini-alerts',
+                'whsec_showcase_slack_secret_001', 1, 3, 'violation,anomaly', ?, ?)""",
+        (now, now))
+
+    cur.execute("""INSERT INTO webhook_config
+        (name, url, secret, is_active, retry_count, events_filter, created_at, updated_at)
+        VALUES ('ERP Quality Webhook', 'https://erp.precision-motors.local/api/webhooks/quality',
+                'whsec_showcase_erp_secret_002', 1, 5, 'capability,fai', ?, ?)""",
+        (now, now))
+
+    # ── Notification Preferences ──
+    # event_types: violation, anomaly, capability, fai, signature, system
+    # channels: email, webhook, push
+    # severity_filter: all, critical, warning
+
+    prefs = [
+        # Operators: violation only, critical
+        (IDS["op_det"], "violation", "email", 1, "critical"),
+        (IDS["op_ict"], "violation", "email", 1, "critical"),
+        # Engineers: violation + anomaly + capability
+        (IDS["eng_det"], "violation", "email", 1, "all"),
+        (IDS["eng_det"], "anomaly", "email", 1, "all"),
+        (IDS["eng_det"], "capability", "email", 1, "all"),
+        (IDS["eng_ict"], "violation", "email", 1, "all"),
+        (IDS["eng_ict"], "anomaly", "email", 1, "all"),
+        (IDS["eng_ict"], "capability", "email", 1, "all"),
+        (IDS["eng_rtp"], "violation", "email", 1, "all"),
+        (IDS["eng_rtp"], "anomaly", "email", 1, "all"),
+        (IDS["eng_rtp"], "capability", "email", 1, "all"),
+        # Supervisors: violation + fai + signature
+        (IDS["sup_det"], "violation", "email", 1, "warning"),
+        (IDS["sup_det"], "fai", "email", 1, "all"),
+        (IDS["sup_det"], "signature", "email", 1, "all"),
+        (IDS["sup_rtp"], "violation", "email", 1, "warning"),
+        (IDS["sup_rtp"], "fai", "email", 1, "all"),
+        (IDS["sup_rtp"], "signature", "email", 1, "all"),
+        # Admin: everything
+        (IDS["admin"], "violation", "email", 1, "all"),
+        (IDS["admin"], "anomaly", "email", 1, "all"),
+        (IDS["admin"], "capability", "email", 1, "all"),
+        (IDS["admin"], "fai", "email", 1, "all"),
+        (IDS["admin"], "signature", "email", 1, "all"),
+        (IDS["admin"], "system", "email", 1, "all"),
+        (IDS["admin"], "violation", "webhook", 1, "all"),
+        (IDS["admin"], "anomaly", "webhook", 1, "all"),
+    ]
+
+    for user_id, event_type, channel, enabled, severity in prefs:
+        cur.execute("""INSERT INTO notification_preference
+            (user_id, event_type, channel, is_enabled, severity_filter, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, event_type, channel, enabled, severity, now))
+
+    # ── ERP Connectors ──
+
+    # SAP Quality Management (Detroit)
+    cur.execute("""INSERT INTO erp_connector
+        (plant_id, name, connector_type, base_url, auth_type, auth_config, headers, is_active, status,
+         last_sync_at, last_error, created_at, updated_at)
+        VALUES (?, 'SAP Quality Management', 'sap_odata',
+                'https://sap.precision-motors.local/sap/opu/odata/sap/API_QUALITYNOTIFICATION',
+                'oauth2_client_credentials', '{}', '{}', 1, 'active',
+                ?, NULL, ?, ?)""",
+        (IDS["det_plant"], ts_offset(BASE_TIME, hours=-6), now, now))
+    sap_conn = cur.lastrowid
+
+    # SAP field mappings
+    cur.execute("""INSERT INTO erp_field_mapping
+        (connector_id, name, direction, erp_entity, erp_field_path, openspc_entity, openspc_field, transform, is_active)
+        VALUES (?, 'Material Number', 'inbound', 'QualityNotification', 'MaterialNumber', 'characteristic', 'name', NULL, 1)""",
+        (sap_conn,))
+    cur.execute("""INSERT INTO erp_field_mapping
+        (connector_id, name, direction, erp_entity, erp_field_path, openspc_entity, openspc_field, transform, is_active)
+        VALUES (?, 'Inspection Lot Qty', 'inbound', 'QualityNotification', 'InspLotQuantity', 'sample', 'actual_n', NULL, 1)""",
+        (sap_conn,))
+
+    # SAP sync schedule
+    cur.execute("""INSERT INTO erp_sync_schedule
+        (connector_id, direction, cron_expression, is_active, last_run_at, next_run_at)
+        VALUES (?, 'inbound', '0 */6 * * *', 1, ?, ?)""",
+        (sap_conn, ts_offset(BASE_TIME, hours=-6), ts_offset(BASE_TIME, hours=0)))
+
+    # SAP sync logs (2 successful)
+    cur.execute("""INSERT INTO erp_sync_log
+        (connector_id, direction, status, records_processed, records_failed, started_at, completed_at, error_message, detail)
+        VALUES (?, 'inbound', 'success', 42, 0, ?, ?, NULL, NULL)""",
+        (sap_conn, ts_offset(BASE_TIME, hours=-6), ts_offset(BASE_TIME, hours=-5, minutes=-58)))
+    cur.execute("""INSERT INTO erp_sync_log
+        (connector_id, direction, status, records_processed, records_failed, started_at, completed_at, error_message, detail)
+        VALUES (?, 'inbound', 'success', 38, 0, ?, ?, NULL, NULL)""",
+        (sap_conn, ts_offset(BASE_TIME, hours=-12), ts_offset(BASE_TIME, hours=-11, minutes=-57)))
+
+    # QC LIMS (RTP)
+    cur.execute("""INSERT INTO erp_connector
+        (plant_id, name, connector_type, base_url, auth_type, auth_config, headers, is_active, status,
+         last_sync_at, last_error, created_at, updated_at)
+        VALUES (?, 'QC LIMS', 'generic_lims',
+                'https://lims.bioverde.local/api/v2/results',
+                'api_key', '{}', '{}', 1, 'active',
+                ?, NULL, ?, ?)""",
+        (IDS["rtp_plant"], ts_offset(BASE_TIME, hours=-2), now, now))
+    lims_conn = cur.lastrowid
+
+    # LIMS field mappings
+    cur.execute("""INSERT INTO erp_field_mapping
+        (connector_id, name, direction, erp_entity, erp_field_path, openspc_entity, openspc_field, transform, is_active)
+        VALUES (?, 'Test Result', 'inbound', 'LabResult', 'test_value', 'sample', 'value', NULL, 1)""",
+        (lims_conn,))
+    cur.execute("""INSERT INTO erp_field_mapping
+        (connector_id, name, direction, erp_entity, erp_field_path, openspc_entity, openspc_field, transform, is_active)
+        VALUES (?, 'Sample ID', 'inbound', 'LabResult', 'sample_id', 'sample', 'batch_number', NULL, 1)""",
+        (lims_conn,))
+
+    # LIMS sync schedule
+    cur.execute("""INSERT INTO erp_sync_schedule
+        (connector_id, direction, cron_expression, is_active, last_run_at, next_run_at)
+        VALUES (?, 'inbound', '0 */2 * * *', 1, ?, ?)""",
+        (lims_conn, ts_offset(BASE_TIME, hours=-2), ts_offset(BASE_TIME, hours=0)))
+
+    # LIMS sync logs (2 success, 1 failure)
+    cur.execute("""INSERT INTO erp_sync_log
+        (connector_id, direction, status, records_processed, records_failed, started_at, completed_at, error_message, detail)
+        VALUES (?, 'inbound', 'success', 25, 0, ?, ?, NULL, NULL)""",
+        (lims_conn, ts_offset(BASE_TIME, hours=-2), ts_offset(BASE_TIME, hours=-1, minutes=-58)))
+    cur.execute("""INSERT INTO erp_sync_log
+        (connector_id, direction, status, records_processed, records_failed, started_at, completed_at, error_message, detail)
+        VALUES (?, 'inbound', 'success', 31, 0, ?, ?, NULL, NULL)""",
+        (lims_conn, ts_offset(BASE_TIME, hours=-4), ts_offset(BASE_TIME, hours=-3, minutes=-57)))
+    cur.execute("""INSERT INTO erp_sync_log
+        (connector_id, direction, status, records_processed, records_failed, started_at, completed_at, error_message, detail)
+        VALUES (?, 'inbound', 'failed', 0, 0, ?, NULL, 'Connection timeout after 30s', NULL)""",
+        (lims_conn, ts_offset(BASE_TIME, hours=-6)))
+
+    # ── Retention Policies ──
+
+    # Detroit global: 2-year (730 days)
+    cur.execute("""INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id, retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, 'global', NULL, NULL, 'time_delta', 730, 'days', ?, ?)""",
+        (IDS["det_plant"], now, now))
+
+    # Detroit per-char: 500 samples on Bearing OD
+    cur.execute("""INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id, retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, 'characteristic', NULL, ?, 'sample_count', 500, NULL, ?, ?)""",
+        (IDS["det_plant"], IDS["bearing_od"], now, now))
+
+    # Wichita global: forever
+    cur.execute("""INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id, retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, 'global', NULL, NULL, 'forever', NULL, NULL, ?, ?)""",
+        (IDS["ict_plant"], now, now))
+
+    # RTP global: 7-year (2555 days)
+    cur.execute("""INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id, retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, 'global', NULL, NULL, 'time_delta', 2555, 'days', ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+
+    # RTP API Manufacturing: 10-year (3650 days) hierarchy override
+    cur.execute("""INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id, retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, 'hierarchy', ?, NULL, 'time_delta', 3650, 'days', ?, ?)""",
+        (IDS["rtp_plant"], IDS["rtp_api"], now, now))
+
+    # ── Audit Trail (~50 entries) ──
+
+    # Login events for all users (over past 7 days)
+    users_info = [
+        ("admin", "Sarah Chen", IDS["admin"]),
+        ("eng.detroit", "Marcus Johnson", IDS["eng_det"]),
+        ("eng.wichita", "Priya Patel", IDS["eng_ict"]),
+        ("eng.pharma", "David Kim", IDS["eng_rtp"]),
+        ("sup.detroit", "Ana Rodriguez", IDS["sup_det"]),
+        ("sup.pharma", "James O'Brien", IDS["sup_rtp"]),
+        ("op.floor1", "Tyler Washington", IDS["op_det"]),
+        ("op.floor2", "Maria Santos", IDS["op_ict"]),
+    ]
+
+    # Multiple logins per user spread over past week
+    for username, full_name, user_id in users_info:
+        # 2-3 login events each
+        for days_ago in random.sample(range(1, 8), min(3, 7)):
+            ts = ts_offset(BASE_TIME, days=-days_ago, hours=-random.randint(0, 12))
+            cur.execute("""INSERT INTO audit_log
+                (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+                VALUES (?, ?, 'login', 'session', NULL, ?, ?, ?, ?)""",
+                (user_id, username, json.dumps({"method": "password"}),
+                 f"10.0.{random.randint(1,3)}.{random.randint(10,250)}",
+                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0", ts))
+
+    # Characteristic edits by engineers
+    for char_key, eng_key, eng_name in [
+        ("bearing_od", "eng_det", "eng.detroit"),
+        ("cure_temp", "eng_ict", "eng.wichita"),
+        ("tablet_weight", "eng_rtp", "eng.pharma"),
+    ]:
+        ts = ts_offset(BASE_TIME, days=-3)
+        cur.execute("""INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+            VALUES (?, ?, 'update', 'characteristic', ?, ?, ?, ?, ?)""",
+            (IDS[eng_key], eng_name, IDS[char_key],
+             json.dumps({"field": "ucl", "old_value": "25.035", "new_value": "25.030"}),
+             "10.0.1.50", "Mozilla/5.0 Chrome/122.0", ts))
+
+    # Sample submissions by operators
+    for i in range(5):
+        ts = ts_offset(BASE_TIME, days=-random.randint(1, 5))
+        op = random.choice([("op_det", "op.floor1"), ("op_ict", "op.floor2")])
+        cur.execute("""INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+            VALUES (?, ?, 'create', 'sample', ?, NULL, ?, ?, ?)""",
+            (IDS[op[0]], op[1], random.randint(1, 100),
+             f"10.0.{random.randint(1,3)}.{random.randint(10,250)}",
+             "Mozilla/5.0 Chrome/122.0", ts))
+
+    # FAI status changes
+    for action_detail, days in [
+        ({"status": "submitted", "report": "TB-2026-001"}, 5),
+        ({"status": "approved", "report": "TB-2026-001", "approver": "sup.detroit"}, 4),
+        ({"status": "submitted", "report": "TP-500-R4"}, 2),
+    ]:
+        ts = ts_offset(BASE_TIME, days=-days)
+        cur.execute("""INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+            VALUES (?, ?, 'update', 'fai_report', ?, ?, ?, ?, ?)""",
+            (IDS["eng_ict"], "eng.wichita", 1,
+             json.dumps(action_detail), "10.0.2.30", "Mozilla/5.0 Chrome/122.0", ts))
+
+    # Limit change approvals (signature events)
+    for i in range(3):
+        ts = ts_offset(BASE_TIME, days=-random.randint(1, 10))
+        cur.execute("""INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+            VALUES (?, ?, 'sign', 'characteristic', ?, ?, ?, ?, ?)""",
+            (IDS["sup_rtp"], "sup.pharma", IDS["tablet_weight"],
+             json.dumps({"meaning": "approved", "workflow": "Spec Limit Change Approval"}),
+             "10.0.3.15", "Mozilla/5.0 Chrome/122.0", ts))
+
+    # Config changes by admin
+    config_changes = [
+        ("update", "smtp_config", 1, {"field": "is_active", "old": False, "new": True}),
+        ("create", "webhook_config", 1, {"name": "Slack Quality Alerts"}),
+        ("create", "webhook_config", 2, {"name": "ERP Quality Webhook"}),
+        ("update", "password_policy", 1, {"field": "min_password_length", "old": 8, "new": 12}),
+        ("create", "erp_connector", 1, {"name": "SAP Quality Management"}),
+        ("create", "erp_connector", 2, {"name": "QC LIMS"}),
+        ("update", "retention_policy", 1, {"scope": "global", "plant": "Detroit"}),
+    ]
+
+    for action, rtype, rid, detail in config_changes:
+        ts = ts_offset(BASE_TIME, days=-random.randint(1, 14))
+        cur.execute("""INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, user_agent, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (IDS["admin"], "admin", action, rtype, rid,
+             json.dumps(detail), "10.0.1.1", "Mozilla/5.0 Chrome/122.0", ts))
+
+
+def seed_dummy_server() -> None:
+    """Configure the dummy server at localhost:3000 for live data generation.
+    Fails gracefully if the server is unavailable."""
+    print("\nConfiguring dummy server for live data...")
+
+    ok, msg = api_call("GET", "/health")
+    if not ok:
+        print(f"  WARNING: Dummy server not reachable at {DUMMY_SERVER_URL}")
+        print(f"  ({msg})")
+        print("  SQLite seed is complete. Start the dummy server later for live connectivity.")
+        return
+
+    print("  Dummy server reachable. Pushing configuration...")
+
+    # OPC-UA node configuration
+    opcua_nodes = {
+        "Detroit": {
+            "Detroit.BearingOD": {"dataType": "Double", "value": 25.000},
+            "Detroit.SurfaceFinish": {"dataType": "Double", "value": 1.200},
+            "Detroit.BoreDiameter": {"dataType": "Double", "value": 50.000},
+            "Detroit.PinHeight": {"dataType": "Double", "value": 12.700},
+        },
+        "Wichita": {
+            "Wichita.CureTemp": {"dataType": "Double", "value": 177.0},
+            "Wichita.BladeProfile": {"dataType": "Double", "value": 2.150},
+            "Wichita.RivetGrip": {"dataType": "Double", "value": 6.350},
+        },
+        "RTP": {
+            "RTP.APIConcentration": {"dataType": "Double", "value": 99.50},
+            "RTP.TabletWeight": {"dataType": "Double", "value": 200.0},
+            "RTP.FillVolume": {"dataType": "Double", "value": 5.000},
+        },
+    }
+
+    mqtt_topics = [
+        "detroit/machining/measurements", "detroit/assembly/measurements",
+        "detroit/paint/measurements", "wichita/composite/measurements",
+        "wichita/ndt/measurements", "rtp/api-mfg/measurements",
+        "rtp/formulation/measurements", "rtp/packaging/measurements",
+        "rtp/qc-lab/measurements",
+    ]
+
+    config = {"opcua": {"nodes": opcua_nodes}, "mqtt": {"topics": mqtt_topics}}
+    ok, msg = api_call("PUT", "/config/current", config)
+    if ok:
+        print("  Configuration pushed.")
+    else:
+        print(f"  WARNING: Config push failed: {msg}")
+        return
+
+    # OPC-UA generators
+    opcua_gens = [
+        {"nodeId": "Detroit.BearingOD", "mode": "drift", "nominal": 25.000, "stddev": 0.008, "rate": 2000},
+        {"nodeId": "Detroit.SurfaceFinish", "mode": "normal", "nominal": 1.200, "stddev": 0.050, "rate": 2000},
+        {"nodeId": "Detroit.BoreDiameter", "mode": "normal", "nominal": 50.000, "stddev": 0.005, "rate": 2000},
+        {"nodeId": "Detroit.PinHeight", "mode": "normal", "nominal": 12.700, "stddev": 0.010, "rate": 2000},
+        {"nodeId": "Wichita.CureTemp", "mode": "drift", "nominal": 177.0, "stddev": 0.30, "rate": 3000},
+        {"nodeId": "Wichita.BladeProfile", "mode": "normal", "nominal": 2.150, "stddev": 0.015, "rate": 2000},
+        {"nodeId": "Wichita.RivetGrip", "mode": "normal", "nominal": 6.350, "stddev": 0.010, "rate": 2000},
+        {"nodeId": "RTP.APIConcentration", "mode": "normal", "nominal": 99.50, "stddev": 0.15, "rate": 2000},
+        {"nodeId": "RTP.TabletWeight", "mode": "normal", "nominal": 200.0, "stddev": 0.50, "rate": 2000},
+        {"nodeId": "RTP.FillVolume", "mode": "sine", "nominal": 5.000, "stddev": 0.015, "rate": 2000},
+    ]
+
+    ok, msg = api_call("POST", "/opcua/generate/start", {"generators": opcua_gens})
+    print(f"  OPC-UA generators: {'started' if ok else 'FAILED — ' + msg}")
+
+    # MQTT generators
+    mqtt_gens = [
+        {"topic": "detroit/machining/measurements", "mode": "normal", "nominal": 25.000, "stddev": 0.008, "rate": 2000},
+        {"topic": "detroit/assembly/measurements", "mode": "normal", "nominal": 35.0, "stddev": 0.5, "rate": 2000},
+        {"topic": "detroit/paint/measurements", "mode": "normal", "nominal": 2.5, "stddev": 0.3, "rate": 3000},
+        {"topic": "wichita/composite/measurements", "mode": "normal", "nominal": 0.125, "stddev": 0.003, "rate": 2000},
+        {"topic": "wichita/ndt/measurements", "mode": "normal", "nominal": 1.5, "stddev": 0.2, "rate": 3000},
+        {"topic": "rtp/api-mfg/measurements", "mode": "normal", "nominal": 99.50, "stddev": 0.15, "rate": 2000},
+        {"topic": "rtp/formulation/measurements", "mode": "normal", "nominal": 200.0, "stddev": 0.50, "rate": 2000},
+        {"topic": "rtp/packaging/measurements", "mode": "normal", "nominal": 5.000, "stddev": 0.015, "rate": 2000},
+        {"topic": "rtp/qc-lab/measurements", "mode": "normal", "nominal": 99.0, "stddev": 0.3, "rate": 3000},
+    ]
+
+    ok, msg = api_call("POST", "/mqtt/generate/start", {"generators": mqtt_gens})
+    print(f"  MQTT generators: {'started' if ok else 'FAILED — ' + msg}")
+    print("  Dummy server configuration complete!")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -763,20 +2335,70 @@ def main() -> None:
     cur.execute("PRAGMA synchronous=NORMAL")
     cur.execute("PRAGMA foreign_keys=ON")
 
+    # Remove "Default Plant" created by Alembic migration
+    cur.execute("DELETE FROM hierarchy WHERE plant_id IN (SELECT id FROM plant WHERE code='DEFAULT')")
+    cur.execute("DELETE FROM user_plant_role WHERE plant_id IN (SELECT id FROM plant WHERE code='DEFAULT')")
+    cur.execute("DELETE FROM plant WHERE code='DEFAULT'")
+
     print("Seeding foundation (plants, hierarchy, users)...")
     seed_foundation(cur)
     print("Seeding characteristics...")
     seed_characteristics(cur)
+    print("Seeding rule presets...")
+    seed_rules(cur)
+    print("Seeding variable samples...")
+    seed_variable_samples(cur)
+    print("Seeding attribute samples...")
+    seed_attribute_samples(cur)
+    print("Seeding narrative arcs...")
+    seed_narrative_arcs(cur)
+    print("Seeding violations (non-narrative)...")
+    seed_violations(cur)
+    print("Seeding capability history and annotations...")
+    seed_capability_and_annotations(cur)
+    print("Seeding connectivity (MQTT, OPC-UA, data sources)...")
+    seed_connectivity(cur)
+    print("Seeding gage bridges...")
+    seed_gage_bridges(cur)
+    print("Seeding anomaly detection...")
+    seed_anomaly(cur)
+    print("Seeding electronic signatures...")
+    seed_signatures(cur)
+    print("Seeding MSA studies...")
+    seed_msa(cur)
+    print("Seeding FAI reports...")
+    seed_fai(cur)
+    print("Seeding compliance (notifications, ERP, retention, audit)...")
+    seed_compliance(cur)
 
     conn.commit()
 
     # Print summary
-    tables = ["plant", "hierarchy", "user", "user_plant_role", "characteristic", "characteristic_rules"]
+    tables = [
+        "plant", "hierarchy", "user", "user_plant_role", "password_policy",
+        "characteristic", "characteristic_rules", "sample", "measurement",
+        "violation", "annotation", "capability_history", "rule_preset",
+        "mqtt_broker", "opcua_server", "data_source", "gage_bridge", "gage_port",
+        "anomaly_detector_config", "anomaly_event",
+        "signature_meaning", "signature_workflow", "signature_workflow_step",
+        "signature_workflow_instance", "electronic_signature",
+        "msa_study", "msa_operator", "msa_part", "msa_measurement",
+        "fai_report", "fai_item",
+        "smtp_config", "webhook_config", "notification_preference",
+        "erp_connector", "erp_field_mapping", "erp_sync_schedule", "erp_sync_log",
+        "retention_policy", "audit_log",
+    ]
+    print("\n=== Summary ===")
     for t in tables:
         cur.execute(f"SELECT COUNT(*) FROM {t}")
         print(f"  {t}: {cur.fetchone()[0]}")
 
     conn.close()
+
+    # Dummy server (optional, fails gracefully)
+    if not args.skip_dummy_server:
+        seed_dummy_server()
+
     print(f"\nShowcase DB created: {db_path}")
     print("Login with any user / password: demo123")
 

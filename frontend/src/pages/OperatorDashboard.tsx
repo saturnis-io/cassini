@@ -33,6 +33,7 @@ import { AlertTriangle, Activity, Hash, Gauge } from 'lucide-react'
 import { BottomDrawer } from '@/components/BottomDrawer'
 import type { DrawerTab } from '@/components/BottomDrawer'
 import { Explainable } from '@/components/Explainable'
+import { DiagnoseTab } from '@/components/DiagnoseTab'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
@@ -587,6 +588,16 @@ export function OperatorDashboard() {
                           setAnnotationSampleLabel(undefined)
                           setAnnotationDialogOpen(true)
                         }}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'diagnose',
+                    label: 'Diagnose',
+                    content: (
+                      <DiagnoseTab
+                        characteristicId={selectedId}
+                        chartOptions={chartOptions}
                       />
                     ),
                   },

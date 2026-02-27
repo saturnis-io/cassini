@@ -168,6 +168,16 @@ async def validate_mapping(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    except Exception:
+        logger.exception(
+            "import_validate_failed",
+            filename=filename,
+            characteristic_id=characteristic_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to validate file data — check column mapping and file format",
+        )
 
     logger.info(
         "import_validated",

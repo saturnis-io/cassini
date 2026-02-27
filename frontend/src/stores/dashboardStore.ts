@@ -107,8 +107,8 @@ interface DashboardState {
   // Bottom drawer state
   drawerOpen: boolean
   setDrawerOpen: (open: boolean) => void
-  drawerTab: 'capability' | 'annotations'
-  setDrawerTab: (tab: 'capability' | 'annotations') => void
+  drawerTab: 'capability' | 'annotations' | 'diagnose'
+  setDrawerTab: (tab: 'capability' | 'annotations' | 'diagnose') => void
 }
 
 // Default time range: last 50 points
@@ -259,7 +259,7 @@ export const useDashboardStore = create<DashboardState>()(
       // Bottom drawer
       drawerOpen: false,
       setDrawerOpen: (open) => set({ drawerOpen: open }),
-      drawerTab: 'capability' as 'capability' | 'annotations',
+      drawerTab: 'capability' as 'capability' | 'annotations' | 'diagnose',
       setDrawerTab: (tab) => set({ drawerTab: tab }),
     }),
     {

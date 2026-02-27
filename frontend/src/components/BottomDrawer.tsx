@@ -31,7 +31,7 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
       if (drawerOpen && drawerTab === tabId) {
         setDrawerOpen(false)
       } else {
-        setDrawerTab(tabId as 'capability' | 'annotations')
+        setDrawerTab(tabId as 'capability' | 'annotations' | 'diagnose')
         setDrawerOpen(true)
       }
     },

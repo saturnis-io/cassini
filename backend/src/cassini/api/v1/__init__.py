@@ -3,6 +3,7 @@
 from cassini.api.v1.characteristics import router as characteristics_router
 from cassini.api.v1.data_entry import router as data_entry_router
 from cassini.api.v1.hierarchy import router as hierarchy_router
+from cassini.api.v1.ishikawa import router as ishikawa_router
 from cassini.api.v1.opcua_servers import router as opcua_servers_router
 from cassini.api.v1.retention import router as retention_router
 from cassini.api.v1.samples import router as samples_router
@@ -13,6 +14,7 @@ __all__ = [
     "characteristics_router",
     "data_entry_router",
     "hierarchy_router",
+    "ishikawa_router",
     "opcua_servers_router",
     "retention_router",
     "samples_router",

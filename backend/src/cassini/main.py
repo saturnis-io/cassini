@@ -30,6 +30,7 @@ from cassini.api.v1.distributions import router as distributions_router
 from cassini.api.v1.fai import router as fai_router
 from cassini.api.v1.gage_bridges import router as gage_bridges_router
 from cassini.api.v1.import_router import router as import_router
+from cassini.api.v1.ishikawa import router as ishikawa_router
 from cassini.api.v1.msa import router as msa_router
 from cassini.api.v1.hierarchy import router as hierarchy_router
 from cassini.api.v1.notifications import router as notifications_router
@@ -406,6 +407,7 @@ app.include_router(distributions_router)
 app.include_router(fai_router)
 app.include_router(gage_bridges_router)
 app.include_router(import_router)
+app.include_router(ishikawa_router)
 app.include_router(msa_router)
 app.include_router(notifications_router)
 app.include_router(oidc_router)

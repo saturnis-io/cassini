@@ -3,8 +3,10 @@ import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
 import { Explainable } from '@/components/Explainable'
+import { IshikawaDiagram } from '@/components/IshikawaDiagram'
 import type { ECOption } from '@/lib/echarts'
 import type { GageRRResult } from '@/api/client'
+import type { IshikawaResult } from '@/api/hooks/useIshikawa'
 
 interface MSAResultsProps {
   result: GageRRResult
@@ -98,8 +100,62 @@ function pctBg(pct: number): string {
   return 'bg-red-500/10'
 }
 
+/** Transform GageRRResult into IshikawaResult for fishbone visualization */
+function grrToIshikawa(result: GageRRResult): IshikawaResult {
+  const categories = [
+    {
+      name: 'Measurement',
+      eta_squared: result.pct_contribution_ev / 100,
+      p_value: null,
+      significant: result.pct_contribution_ev > 10,
+      sufficient_data: true,
+      factors: [{ name: `EV (${result.repeatability_ev.toFixed(4)})`, sample_count: 0 }],
+      detail: 'Equipment Variation (Repeatability)',
+    },
+    {
+      name: 'Personnel',
+      eta_squared: result.pct_contribution_av / 100,
+      p_value: null,
+      significant: result.pct_contribution_av > 10,
+      sufficient_data: true,
+      factors: [
+        { name: `AV (${result.reproducibility_av.toFixed(4)})`, sample_count: 0 },
+        ...(result.pct_contribution_interaction != null
+          ? [{ name: `Interaction (${result.pct_contribution_interaction.toFixed(1)}%)`, sample_count: 0 }]
+          : []),
+      ],
+      detail: 'Appraiser Variation (Reproducibility)',
+    },
+    {
+      name: 'Material',
+      eta_squared: result.pct_contribution_pv / 100,
+      p_value: null,
+      significant: result.pct_contribution_pv > 50,
+      sufficient_data: true,
+      factors: [{ name: `PV (${result.part_variation.toFixed(4)})`, sample_count: 0 }],
+      detail: 'Part Variation',
+    },
+    // Empty categories to complete the fishbone
+    { name: 'Method', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+    { name: 'Equipment', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+    { name: 'Environment', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+  ]
+
+  return {
+    effect: 'Measurement Variation',
+    total_variance: result.total_variation ** 2,
+    sample_count: 0,
+    categories,
+    analysis_window: { start_date: null, end_date: null, limit: null },
+    warnings: [],
+  }
+}
+
 export function MSAResults({ result, studyId }: MSAResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.unacceptable
+  const [varianceView, setVarianceView] = useState<'bar' | 'fishbone'>('bar')
+
+  const fishboneData = useMemo(() => grrToIshikawa(result), [result])
 
   // Variance components bar chart
   const chartOption = useMemo<ECOption>(() => {
@@ -188,11 +244,41 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
 
       {/* Variance components chart */}
       <div className="border-border rounded-xl border p-4">
-        <h3 className="mb-2 text-sm font-medium">
-          % Contribution (Variance Components)
-          <Tip id="pct_contribution" />
-        </h3>
-        <div ref={containerRef} style={{ width: '100%', height: 200 }} />
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-medium">
+            % Contribution (Variance Components)
+            <Tip id="pct_contribution" />
+          </h3>
+          <div className="bg-muted inline-flex rounded-md p-0.5 text-xs">
+            <button
+              onClick={() => setVarianceView('bar')}
+              className={cn(
+                'rounded px-2.5 py-1 font-medium transition-colors',
+                varianceView === 'bar'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Bar Chart
+            </button>
+            <button
+              onClick={() => setVarianceView('fishbone')}
+              className={cn(
+                'rounded px-2.5 py-1 font-medium transition-colors',
+                varianceView === 'fishbone'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Fishbone
+            </button>
+          </div>
+        </div>
+        {varianceView === 'bar' ? (
+          <div ref={containerRef} style={{ width: '100%', height: 200 }} />
+        ) : (
+          <IshikawaDiagram data={fishboneData} height={280} />
+        )}
       </div>
 
       {/* %Contribution table */}
