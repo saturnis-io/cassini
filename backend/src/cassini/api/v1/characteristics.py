@@ -1249,6 +1249,7 @@ async def set_limits(
     characteristic.lcl = request.lcl
     characteristic.stored_center_line = request.center_line
     characteristic.stored_sigma = request.sigma
+    characteristic.limits_calc_params = _json.dumps({"method": "manual"})
 
     await session.commit()
 
