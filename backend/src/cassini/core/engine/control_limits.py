@@ -10,8 +10,9 @@ Calculation methods:
 - n>10: S-bar / c4 method
 """
 
-import structlog
+import json
 import math
+import structlog
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -258,6 +259,15 @@ class ControlLimitService:
         # These values are required for variable subgroup size handling
         characteristic.stored_sigma = result.sigma
         characteristic.stored_center_line = result.center_line
+
+        # Store the calculation parameters so Show Your Work can replay exactly
+        characteristic.limits_calc_params = json.dumps({
+            "exclude_ooc": exclude_ooc,
+            "min_samples": min_samples,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "last_n": last_n,
+        })
 
         # Commit changes
         await self._char_repo.session.commit()

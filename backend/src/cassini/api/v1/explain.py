@@ -359,11 +359,29 @@ async def explain_control_limits_metric(
     )
     collector = ExplanationCollector()
 
+    # Replay the exact parameters used when limits were last persisted
+    import json as _json
+    from datetime import datetime as _dt
+
+    calc_kwargs: dict = {"min_samples": 2}  # fallback defaults
+    if char.limits_calc_params:
+        try:
+            stored = _json.loads(char.limits_calc_params)
+            calc_kwargs["exclude_ooc"] = stored.get("exclude_ooc", False)
+            calc_kwargs["min_samples"] = stored.get("min_samples", 25)
+            if stored.get("start_date"):
+                calc_kwargs["start_date"] = _dt.fromisoformat(stored["start_date"])
+            if stored.get("end_date"):
+                calc_kwargs["end_date"] = _dt.fromisoformat(stored["end_date"])
+            calc_kwargs["last_n"] = stored.get("last_n")
+        except (ValueError, KeyError):
+            pass  # Fall back to defaults if stored params are corrupt
+
     try:
         calc_result = await service.calculate_limits(
             characteristic_id=characteristic_id,
-            min_samples=2,
             collector=collector,
+            **calc_kwargs,
         )
     except ValueError:
         raise HTTPException(
