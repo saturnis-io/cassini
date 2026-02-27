@@ -9,7 +9,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -382,6 +382,7 @@ async def submit_attribute_measurements(
 @router.post("/studies/{study_id}/calculate", response_model=GageRRResultResponse)
 async def calculate_gage_rr(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> GageRRResultResponse:
@@ -483,6 +484,22 @@ async def calculate_gage_rr(
 
     await session.commit()
 
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "calculate",
+        "summary": f"Gage R&R calculated for '{study.name}'"
+                   + (f": GRR={result.grr_percent:.1f}%, ndc={result.ndc}" if result else ""),
+        "fields": {
+            "study_name": study.name,
+            "study_type": study.study_type,
+            "method": study.study_type,
+            "grr_percent": round(result.grr_percent, 2) if result else None,
+            "ndc": result.ndc if result else None,
+            "plant_id": study.plant_id,
+        },
+    }
+
     logger.info(
         "msa_gage_rr_calculated", study_id=study_id,
         method=study.study_type, verdict=result.verdict, user=user.username,
@@ -493,6 +510,7 @@ async def calculate_gage_rr(
 @router.post("/studies/{study_id}/attribute-calculate", response_model=AttributeMSAResultResponse)
 async def calculate_attribute_msa(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> AttributeMSAResultResponse:
@@ -584,6 +602,18 @@ async def calculate_attribute_msa(
         await sig_engine.initiate_workflow("msa_study", study.id, user.id, study.plant_id)
 
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "calculate",
+        "summary": f"Attribute MSA calculated for '{study.name}'",
+        "fields": {
+            "study_name": study.name,
+            "study_type": "attribute",
+            "plant_id": study.plant_id,
+        },
+    }
 
     logger.info(
         "msa_attribute_calculated", study_id=study_id,

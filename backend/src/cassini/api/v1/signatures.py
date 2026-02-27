@@ -132,6 +132,26 @@ async def execute_signature(
 
     await session.commit()
 
+    request.state.audit_context = {
+        "resource_type": body.resource_type,
+        "resource_id": body.resource_id,
+        "action": "sign",
+        "summary": f"Signed {body.resource_type.replace('_', ' ').title()} #{body.resource_id}"
+                   + (f" as {step_name}" if step_name else "")
+                   + (f" — {sig.meaning_display}" if sig.meaning_display else ""),
+        "fields": {
+            "resource_type": body.resource_type,
+            "resource_id": body.resource_id,
+            "meaning": sig.meaning_display,
+            "workflow_step": step_name,
+            "workflow_status": workflow_status,
+            "comment": body.comment,
+            "plant_id": plant_id,
+            "signature_id": sig.id,
+            "signer": sig.username,
+        },
+    }
+
     return SignResponse(
         signature_id=sig.id,
         signer_name=sig.username,
@@ -168,6 +188,18 @@ async def reject_workflow(
         ip_address=ip,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "action": "reject",
+        "summary": f"Rejected workflow instance #{body.workflow_instance_id}",
+        "fields": {
+            "workflow_instance_id": body.workflow_instance_id,
+            "reason": body.reason,
+            "plant_id": plant_id,
+        },
+    }
+
     return {"message": "Workflow rejected"}
 
 
