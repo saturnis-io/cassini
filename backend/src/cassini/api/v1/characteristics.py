@@ -1132,6 +1132,7 @@ async def get_chart_data(
 @router.post("/{char_id}/recalculate-limits")
 async def recalculate_limits(
     char_id: int,
+    request: Request,
     exclude_ooc: bool = Query(False, description="Exclude out-of-control samples from calculation"),
     min_samples: int = Query(25, ge=1, description="Minimum samples required for calculation"),
     start_date: datetime | None = Query(None, description="Start date for baseline period"),
@@ -1171,10 +1172,22 @@ async def recalculate_limits(
 
     # --- Attribute chart branch ---
     if characteristic.data_type == "attribute":
-        return await _recalculate_attribute_limits(
+        attr_result = await _recalculate_attribute_limits(
             char_id, characteristic, before, min_samples,
             SampleRepository(session), session,
         )
+        request.state.audit_context = {
+            "resource_type": "characteristic",
+            "resource_id": char_id,
+            "action": "recalculate",
+            "summary": f"Control limits recalculated for '{characteristic.name}'",
+            "fields": {
+                "characteristic_name": characteristic.name,
+                "chart_type": characteristic.chart_type,
+                "data_type": "attribute",
+            },
+        }
+        return attr_result
 
     # Recalculate limits
     try:
@@ -1194,6 +1207,20 @@ async def recalculate_limits(
 
     # Get updated characteristic
     await session.refresh(characteristic)
+
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "recalculate",
+        "summary": f"Control limits recalculated for '{characteristic.name}'",
+        "fields": {
+            "characteristic_name": characteristic.name,
+            "chart_type": characteristic.chart_type,
+            "ucl": result.ucl,
+            "centerline": result.center_line,
+            "lcl": result.lcl,
+        },
+    }
 
     # Return before/after values with metadata
     return {
@@ -1219,7 +1246,8 @@ async def recalculate_limits(
 @router.post("/{char_id}/set-limits", response_model=ControlLimitsResponse)
 async def set_limits(
     char_id: int,
-    request: SetLimitsRequest,
+    body: SetLimitsRequest,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1245,10 +1273,10 @@ async def set_limits(
     }
 
     # Apply manual limits
-    characteristic.ucl = request.ucl
-    characteristic.lcl = request.lcl
-    characteristic.stored_center_line = request.center_line
-    characteristic.stored_sigma = request.sigma
+    characteristic.ucl = body.ucl
+    characteristic.lcl = body.lcl
+    characteristic.stored_center_line = body.center_line
+    characteristic.stored_sigma = body.sigma
     characteristic.limits_calc_params = _json.dumps({"method": "manual"})
 
     await session.commit()
@@ -1262,25 +1290,38 @@ async def set_limits(
 
     event = ControlLimitsUpdatedEvent(
         characteristic_id=char_id,
-        center_line=request.center_line,
-        ucl=request.ucl,
-        lcl=request.lcl,
+        center_line=body.center_line,
+        ucl=body.ucl,
+        lcl=body.lcl,
         method="manual",
         sample_count=0,
         timestamp=datetime.now(timezone.utc),
     )
     await event_bus.publish(event)
 
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Control limits manually set for '{characteristic.name}'",
+        "fields": {
+            "characteristic_name": characteristic.name,
+            "ucl": body.ucl,
+            "centerline": body.center_line,
+            "lcl": body.lcl,
+        },
+    }
+
     return ControlLimitsResponse(
         before=before,
         after={
-            "ucl": request.ucl,
-            "lcl": request.lcl,
-            "center_line": request.center_line,
+            "ucl": body.ucl,
+            "lcl": body.lcl,
+            "center_line": body.center_line,
         },
         calculation={
             "method": "manual",
-            "sigma": request.sigma,
+            "sigma": body.sigma,
             "sample_count": 0,
             "excluded_count": 0,
             "calculated_at": datetime.now(timezone.utc).isoformat(),

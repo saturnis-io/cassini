@@ -5,7 +5,7 @@ Implements violation management and acknowledgment endpoints for SPC monitoring.
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,6 +57,7 @@ async def list_violations(
     repo: ViolationRepository = Depends(get_violation_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
     characteristic_id: int | None = None,
     sample_id: int | None = None,
     acknowledged: bool | None = None,
@@ -120,6 +121,7 @@ async def list_violations(
         offset = (page - 1) * limit
 
     violations, total = await repo.list_violations(
+        plant_id=plant_id,
         characteristic_id=characteristic_id,
         sample_id=sample_id,
         acknowledged=acknowledged,
@@ -186,6 +188,7 @@ async def list_violations(
 async def get_violation_stats(
     manager: AlertManager = Depends(get_alert_manager),
     _user: User = Depends(get_current_user),
+    plant_id: int | None = Query(None, description="Filter by plant ID"),
     characteristic_id: int | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
@@ -221,6 +224,7 @@ async def get_violation_stats(
         ```
     """
     stats = await manager.get_violation_stats(
+        plant_id=plant_id,
         characteristic_id=characteristic_id,
         start_date=start_date,
         end_date=end_date,
@@ -314,6 +318,7 @@ async def get_violation(
 async def acknowledge_violation(
     violation_id: int,
     data: ViolationAcknowledge,
+    request: Request,
     manager: AlertManager = Depends(get_alert_manager),
     repo: ViolationRepository = Depends(get_violation_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -404,6 +409,18 @@ async def acknowledge_violation(
             reason=data.reason,
         ))
 
+        request.state.audit_context = {
+            "resource_type": "violation",
+            "resource_id": violation_id,
+            "action": "acknowledge",
+            "summary": f"Violation #{violation_id} acknowledged — {data.reason}",
+            "fields": {
+                "reason": data.reason,
+                "acknowledged_by": data.user,
+                "exclude_sample": data.exclude_sample,
+            },
+        }
+
         return ViolationResponse.model_validate(violation)
     except ValueError as e:
         error_msg = str(e)
@@ -426,7 +443,8 @@ async def acknowledge_violation(
 
 @router.post("/batch-acknowledge", response_model=BatchAcknowledgeResult)
 async def batch_acknowledge(
-    request: BatchAcknowledgeRequest,
+    body: BatchAcknowledgeRequest,
+    request: Request,
     manager: AlertManager = Depends(get_alert_manager),
     repo: ViolationRepository = Depends(get_violation_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -438,7 +456,7 @@ async def batch_acknowledge(
     Handles partial success - returns detailed results for each violation.
 
     Args:
-        request: Batch acknowledgment request with violation IDs and acknowledgment data
+        body: Batch acknowledgment request with violation IDs and acknowledgment data
 
     Returns:
         Summary and detailed results of batch operation
@@ -483,7 +501,7 @@ async def batch_acknowledge(
     successful = 0
     failed = 0
 
-    for violation_id in request.violation_ids:
+    for violation_id in body.violation_ids:
         try:
             # Plant-scoped authorization per violation
             violation_obj = await repo.get_by_id(violation_id)
@@ -501,9 +519,9 @@ async def batch_acknowledge(
 
             await manager.acknowledge(
                 violation_id=violation_id,
-                user=request.user,
-                reason=request.reason,
-                exclude_sample=request.exclude_sample,
+                user=body.user,
+                reason=body.reason,
+                exclude_sample=body.exclude_sample,
             )
             results.append(
                 AcknowledgeResultItem(
@@ -536,8 +554,22 @@ async def batch_acknowledge(
     acknowledged_ids = [r.violation_id for r in results if r.success]
     error_map = {r.violation_id: (r.error or "Unknown error") for r in results if not r.success}
 
+    request.state.audit_context = {
+        "resource_type": "violation",
+        "action": "acknowledge",
+        "summary": f"{successful} violation(s) acknowledged — {body.reason}"
+                   + (f" ({failed} failed)" if failed else ""),
+        "fields": {
+            "violation_ids": body.violation_ids,
+            "reason": body.reason,
+            "successful": successful,
+            "failed": failed,
+            "acknowledged_by": body.user,
+        },
+    }
+
     return BatchAcknowledgeResult(
-        total=len(request.violation_ids),
+        total=len(body.violation_ids),
         successful=successful,
         failed=failed,
         results=results,

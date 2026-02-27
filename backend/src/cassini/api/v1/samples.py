@@ -10,7 +10,7 @@ from datetime import datetime
 
 logger = structlog.get_logger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -284,6 +284,7 @@ async def list_samples(
 @router.post("/", response_model=SampleProcessingResult, status_code=status.HTTP_201_CREATED)
 async def submit_sample(
     data: SampleCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     engine: SPCEngine = Depends(get_spc_engine),
     provider: ManualProvider = Depends(get_manual_provider),
@@ -349,6 +350,19 @@ async def submit_sample(
                 )
                 for vr in violation_records
             ]
+            request.state.audit_context = {
+                "resource_type": "sample",
+                "resource_id": cusum_result.sample_id,
+                "action": "create",
+                "summary": f"Sample submitted for '{characteristic.name}': {data.measurements}",
+                "fields": {
+                    "characteristic_name": characteristic.name,
+                    "characteristic_id": characteristic.id,
+                    "measurements": data.measurements,
+                    "subgroup_size": len(data.measurements),
+                    "chart_type": "cusum",
+                },
+            }
             return SampleProcessingResult(
                 sample_id=cusum_result.sample_id,
                 timestamp=cusum_result.timestamp,
@@ -387,6 +401,19 @@ async def submit_sample(
                 )
                 for vr in violation_records
             ]
+            request.state.audit_context = {
+                "resource_type": "sample",
+                "resource_id": ewma_result.sample_id,
+                "action": "create",
+                "summary": f"Sample submitted for '{characteristic.name}': {data.measurements}",
+                "fields": {
+                    "characteristic_name": characteristic.name,
+                    "characteristic_id": characteristic.id,
+                    "measurements": data.measurements,
+                    "subgroup_size": len(data.measurements),
+                    "chart_type": "ewma",
+                },
+            }
             return SampleProcessingResult(
                 sample_id=ewma_result.sample_id,
                 timestamp=ewma_result.timestamp,
@@ -429,6 +456,19 @@ async def submit_sample(
                     severity=vr.severity,
                 )
             )
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": result.sample_id,
+            "action": "create",
+            "summary": f"Sample submitted for '{characteristic.name}': {data.measurements}",
+            "fields": {
+                "characteristic_name": characteristic.name,
+                "characteristic_id": characteristic.id,
+                "measurements": data.measurements,
+                "subgroup_size": len(data.measurements),
+            },
+        }
 
         return SampleProcessingResult(
             sample_id=result.sample_id,
@@ -527,6 +567,7 @@ async def get_sample(
 async def toggle_exclude(
     sample_id: int,
     data: SampleExclude,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     _user: User = Depends(get_current_user),
@@ -580,6 +621,17 @@ async def toggle_exclude(
         measurements = [m.value for m in sample.measurements]
         mean, range_value = calculate_mean_range(measurements)
 
+        action_word = "excluded" if data.is_excluded else "included"
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": sample_id,
+            "action": "update",
+            "summary": f"Sample #{sample_id} {action_word} from control limits",
+            "fields": {
+                "is_excluded": data.is_excluded,
+            },
+        }
+
         return SampleResponse(
             id=sample.id,
             char_id=sample.char_id,
@@ -607,6 +659,7 @@ async def toggle_exclude(
 @router.delete("/{sample_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_sample(
     sample_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     window_manager: RollingWindowManager = Depends(get_window_manager),
@@ -649,6 +702,14 @@ async def delete_sample(
         # Invalidate the rolling window to trigger rebuild
         await window_manager.invalidate(char_id)
 
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": sample_id,
+            "action": "delete",
+            "summary": f"Sample #{sample_id} deleted",
+            "fields": {},
+        }
+
     except HTTPException:
         await session.rollback()
         raise
@@ -665,6 +726,7 @@ async def delete_sample(
 async def update_sample(
     sample_id: int,
     data: SampleUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     char_repo: CharacteristicRepository = Depends(get_char_repo),
@@ -847,6 +909,16 @@ async def update_sample(
         await window_manager.invalidate(sample.char_id)
 
         processing_time_ms = (time.perf_counter() - start_time) * 1000
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": sample_id,
+            "action": "update",
+            "summary": f"Sample #{sample_id} updated",
+            "fields": {
+                "new_measurements": data.measurements,
+            },
+        }
 
         return SampleProcessingResult(
             sample_id=sample_id,
