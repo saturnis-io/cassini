@@ -1,0 +1,68 @@
+id: TC-RBAC-005
+title: "Engineer can access configuration page"
+category: "RBAC & Security"
+subcategory: "EngineerAccess"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 8.5.1 - Controlled conditions for production"
+  - "IATF 16949 - Process configuration by qualified personnel"
+  - "AIAG SPC Manual - Chart setup by trained SPC practitioners"
+preconditions:
+  description: >
+    An engineer user exists with role 'engineer' at a specific plant.
+    The plant has a hierarchy with at least one department and line.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-RBAC"
+    department: "Quality"
+    line: "Inspection-1"
+    users:
+      - username: "oq-engineer"
+        password: "Engineer123!"
+        full_name: "OQ Engineer User"
+        role: "engineer"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-engineer' with password 'Engineer123!'"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Examine the sidebar navigation"
+    verify: >
+      The sidebar shows engineer-level items including:
+      - Dashboard, Data Entry, Violations (operator level)
+      - Reports (supervisor level)
+      - MSA, FAI, DOE (study items)
+      - Analytics, Connectivity, Configuration, Settings (system items)
+      The sidebar does NOT show: Users (admin only).
+    screenshot: true
+  - step: 3
+    action: "Click 'Configuration' in the sidebar"
+    verify: >
+      The configuration page loads at /configuration. The hierarchy tree
+      is displayed on the left showing the plant structure (departments,
+      lines, characteristics). The configuration panel appears on the
+      right for editing selected nodes.
+    screenshot: true
+  - step: 4
+    action: "Select a characteristic in the hierarchy tree"
+    verify: >
+      The characteristic detail panel loads showing all configuration
+      options: name, chart type, subgroup size, data type, spec limits,
+      control limits, rules, and other settings. The engineer has full
+      read-write access to all configuration fields.
+    screenshot: true
+expected_result: >
+  An engineer user can access the configuration page and modify
+  characteristic settings. The sidebar shows the full engineer-level
+  navigation. The hierarchy tree and configuration panel are fully
+  functional.
+pass_criteria: >
+  Login succeeds. /configuration loads with hierarchy tree and config panel.
+  Characteristic detail panel shows all editable fields. Sidebar shows
+  engineer-level items but not Users.
+cleanup:
+  - "Log out the engineer user"

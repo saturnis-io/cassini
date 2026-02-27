@@ -1,0 +1,61 @@
+id: TC-FAI-006
+title: "Submit FAI report for approval"
+category: "First Article Inspection"
+subcategory: "Workflow"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C - Submission workflow for FAI verification"
+  - "AS9100 Rev D Section 8.6 - Release of products and services"
+  - "21 CFR Part 11 - Electronic records workflow integrity"
+  - "IATF 16949 - Product approval process"
+preconditions:
+  description: "Engineer user is logged in. A draft FAI report 'OQ-PART-001' exists with Form 1, Form 2, and Form 3 data filled (all items have actual values and pass results). The report is in 'draft' status."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      status: "draft"
+    items:
+      - balloon_number: 1
+        characteristic_name: "Outer Diameter"
+        nominal: 25.00
+        usl: 25.05
+        lsl: 24.95
+        actual_value: 25.01
+        result: "pass"
+      - balloon_number: 2
+        characteristic_name: "Length"
+        nominal: 100.0
+        usl: 100.1
+        lsl: 99.9
+        actual_value: 100.05
+        result: "pass"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the FAI report 'OQ-PART-001' in the report editor."
+    verify: "The report editor loads. Status badge shows 'Draft' (gray). The Submit button is visible in the action buttons area."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Submit' button to submit the report for approval."
+    verify: "A confirmation may appear (or the action proceeds directly). The status badge changes from 'Draft' (gray) to 'Submitted' (blue). A success notification appears confirming the report was submitted for approval."
+    screenshot: true
+  - step: 3
+    action: "Verify the report is no longer editable."
+    verify: "Form fields are now read-only or disabled. The Save button is hidden or disabled. The 'Add Item' button in Form 3 is hidden or disabled. The report cannot be modified in its submitted state. The Submit button is replaced by or disabled."
+    screenshot: true
+  - step: 4
+    action: "Navigate back to /fai and verify the report status in the list."
+    verify: "The reports table shows 'OQ-PART-001' with Status = 'Submitted' (blue badge). The delete button (trash icon) is not shown for submitted reports (only draft reports can be deleted)."
+    screenshot: true
+  - step: 5
+    action: "Click on the report row to reopen it and verify the submitted state."
+    verify: "The report editor loads in read-only mode. Status shows 'Submitted'. The submitted timestamp and submitter information are displayed. Approve and Reject action buttons are visible (for a different user to act on)."
+    screenshot: true
+expected_result: "The FAI report is submitted for approval. Status transitions from 'draft' to 'submitted'. The report becomes non-editable. The submitted_by and submitted_at fields are set."
+pass_criteria: "Status changes to 'Submitted'. Report fields are read-only. Submitted timestamp is recorded. Report appears as 'Submitted' in the list. Delete action is not available for submitted reports."
+cleanup:
+  - "Reset report to draft status via API for further testing, or delete if no longer needed"

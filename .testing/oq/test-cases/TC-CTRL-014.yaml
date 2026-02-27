@@ -1,0 +1,65 @@
+id: TC-CTRL-014
+title: "Chart zoom and pan functionality"
+category: "Control Charts"
+subcategory: "Interactions"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (data exploration)"
+
+preconditions:
+  description: >
+    A characteristic with at least 50 data points so that zooming and
+    panning provides meaningful navigation through the data.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Pin Length IMR"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "50 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Pin Length IMR"
+    verify: "Chart renders showing data points (may show all 50 or a subset)"
+    screenshot: true
+  - step: 2
+    action: "Use the mouse scroll wheel to zoom into the chart (scroll up)"
+    verify: >
+      The chart zooms in on the time axis. Fewer data points are visible
+      but they are more spread out. The zoom is smooth and responsive.
+    screenshot: true
+  - step: 3
+    action: "Click and drag horizontally on the chart to pan"
+    verify: >
+      The visible time window shifts. Different data points come into
+      view as you pan left or right along the time axis.
+    screenshot: true
+  - step: 4
+    action: "Use scroll wheel to zoom back out (scroll down)"
+    verify: "Chart zooms out to show more data points. Full dataset is accessible."
+    screenshot: false
+  - step: 5
+    action: "Double-click or use a reset button to restore the default zoom level"
+    verify: "Chart returns to the default view showing the standard data window"
+    screenshot: false
+
+expected_result: >
+  Zoom and pan interactions work smoothly on the ECharts-rendered
+  control chart. Users can explore historical data by zooming into
+  regions of interest and panning through time periods. Performance
+  remains smooth with 50 data points.
+
+pass_criteria: >
+  Scroll zoom changes the visible range. Drag pan shifts the view.
+  No chart corruption or rendering artifacts during interaction.
+  Control limit lines scale correctly with zoom level.
+
+cleanup:
+  - "Delete seeded data via API"

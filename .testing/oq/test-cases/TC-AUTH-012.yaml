@@ -1,0 +1,39 @@
+id: TC-AUTH-012
+title: "Email change triggers verification flow"
+category: "Authentication & Accounts"
+subcategory: "Profile"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 - Verified user contact information"
+  - "ISO 13485 - Accurate personnel records"
+preconditions:
+  description: "Default admin user is logged in. The admin user has an existing email (or no email). SMTP may or may not be configured -- the test verifies the UI flow regardless of whether the email is actually delivered."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/account"
+    verify: "Account settings page loads with the Profile section visible. Note the current value of the Email field."
+    screenshot: true
+  - step: 2
+    action: "Change the Email field to 'oq-newemail@test.local'"
+    verify: "The Email field shows 'oq-newemail@test.local'. The 'Save Changes' button becomes enabled."
+    screenshot: false
+  - step: 3
+    action: "Click 'Save Changes'"
+    verify: "A success message or toast is displayed. Below the Email field, a pending verification banner appears indicating that a verification email has been sent to the new address. The banner should show text like 'Pending verification: oq-newemail@test.local'."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page (F5)"
+    verify: "After refresh, the Email field may show the original email (since the new one is not yet verified), and the 'Pending verification' banner persists. The pending_email is stored on the user record but does not replace the primary email until verified."
+    screenshot: true
+  - step: 5
+    action: "Open the header user menu to check displayed email"
+    verify: "The user's primary email has NOT changed yet. It still shows the old email (or no email). The new email is pending verification."
+    screenshot: false
+expected_result: "Changing the email address does not immediately update the primary email. Instead, it triggers an email verification flow. The new email is stored as pending_email and a verification banner is shown. The primary email changes only after the verification token is used."
+pass_criteria: "Save succeeds. Pending verification banner is displayed with the new email address. Primary email is unchanged until verification. No error occurs."
+cleanup:
+  - "The pending email will remain until verified or overwritten. No immediate cleanup needed. The pending_email can be cleared by saving the profile again with the original email."

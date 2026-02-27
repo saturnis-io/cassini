@@ -1,0 +1,43 @@
+id: TC-SET-007
+title: "Configure notification preferences per event type"
+category: "Settings & Admin"
+subcategory: "Notifications"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(g) - Notification of attempted unauthorized access"
+  - "ISO 9001:2015 Section 7.4 - Communication of quality-relevant events"
+  - "IATF 16949 Section 8.7.1.4 - Customer notification of nonconforming product"
+preconditions:
+  description: >
+    Any authenticated user is logged in (operator+ role). The Notifications
+    settings tab is accessible. This test verifies that per-event notification
+    preferences can be configured and saved.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/notifications."
+    verify: "Notifications settings tab loads. A list of event types is shown, each with toggle switches for notification channels (email, webhook, push, or similar categories)."
+    screenshot: true
+  - step: 2
+    action: "Find the 'Violation' event type. Toggle email notifications ON for violations."
+    verify: "The email toggle for violations is switched to ON/enabled."
+    screenshot: true
+  - step: 3
+    action: "Find the 'Sample' or 'New Sample' event type. Toggle email notifications OFF for samples."
+    verify: "The email toggle for samples is switched to OFF/disabled."
+    screenshot: false
+  - step: 4
+    action: "Click Save to persist notification preferences."
+    verify: "Success indication (toast or inline message). Preferences are saved."
+    screenshot: true
+  - step: 5
+    action: "Navigate away to /dashboard, then return to /settings/notifications."
+    verify: "Notification preferences reload showing the saved state: violations email = ON, samples email = OFF. The preferences persisted correctly."
+    screenshot: true
+expected_result: "Notification preferences can be configured per event type and per channel. Preferences persist across page navigation via the backend API."
+pass_criteria: "Toggle switches work for each event type. Changes save without error. Saved preferences reload correctly after navigation. API verification: GET /notifications/preferences returns the saved preferences matching the UI state."
+cleanup:
+  - "No cleanup required -- preferences are per-user and non-destructive"

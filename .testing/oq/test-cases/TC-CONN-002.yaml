@@ -1,0 +1,43 @@
+id: TC-CONN-002
+title: "Add MQTT broker configuration"
+category: "Connectivity"
+subcategory: "MQTT"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Data collection equipment must be documented with connection parameters"
+  - "21 CFR Part 11 - Data acquisition configuration must be controlled and traceable"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected. No MQTT brokers are configured yet (clean state), or the broker name used in this test does not already exist."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads showing the unified server list. If no servers exist, an empty state is shown."
+    screenshot: false
+  - step: 2
+    action: "Click the 'Add Server' button"
+    verify: "A protocol selection step appears, offering to choose between MQTT and OPC-UA."
+    screenshot: true
+  - step: 3
+    action: "Select 'MQTT' as the protocol"
+    verify: "The MQTT broker configuration form opens with fields: Name, Host (default 'localhost'), Port (default 1883), Username, Password, Client ID (default 'openspc-client'), Keepalive (default 60), Use TLS toggle. Outbound publishing fields are also present."
+    screenshot: true
+  - step: 4
+    action: "Fill in the form: Name='OQ Test Broker', Host='192.168.1.100', Port=1883. Leave username and password empty. Leave other fields at defaults."
+    verify: "All fields accept input. The Name field shows 'OQ Test Broker'. The Host field shows '192.168.1.100'. Port shows 1883."
+    screenshot: false
+  - step: 5
+    action: "Click 'Save' to save the broker configuration"
+    verify: "A success toast notification appears (e.g., 'Broker created'). The form closes. The Servers tab list now shows the new broker 'OQ Test Broker' with protocol badge 'MQTT' and host '192.168.1.100:1883'. Connection status may show 'Disconnected' (expected -- no actual broker is running at that address)."
+    screenshot: true
+  - step: 6
+    action: "Verify the broker persists by navigating away (click Monitor tab) and back (click Servers tab)"
+    verify: "The broker 'OQ Test Broker' is still in the list after navigating away and back. The configuration was persisted to the backend."
+    screenshot: false
+expected_result: "A new MQTT broker configuration can be created through the Servers tab form. The broker appears in the server list and persists across navigation."
+pass_criteria: "Broker form accepts all required fields. Save succeeds with toast confirmation. Broker appears in the server list with correct name, host, and port. Broker persists after page navigation."
+cleanup:
+  - "Delete the 'OQ Test Broker' via the server list delete action to restore clean state"

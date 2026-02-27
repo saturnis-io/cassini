@@ -1,0 +1,74 @@
+id: TC-DATA-012
+title: "Exclude sample from control limit calculations"
+category: "Data Entry"
+subcategory: "SampleManagement"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Rational Subgrouping (exclusion of assignable causes)"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+  - "IATF 16949 Section 9.1.1.1 - SPC (control limit integrity)"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists with 25+ samples so that control limits
+    are calculated. One sample has an obvious outlier value that will be
+    excluded. The test user has supervisor+ role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+    samples: "30 samples centered at 10.00 with sigma~0.02, plus one outlier at 10.15"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor and navigate to /dashboard. Select Bore Diameter."
+    verify: "Chart shows 31 data points with control limits. The outlier at 10.15 is visible."
+    screenshot: true
+  - step: 2
+    action: "Note the current UCL and LCL values before exclusion"
+    verify: "UCL and LCL values are recorded (they include the outlier in the calculation)"
+    screenshot: true
+  - step: 3
+    action: "Click on the outlier point (10.15) to open sample inspector"
+    verify: "Sample inspector shows measurement = 10.15"
+    screenshot: false
+  - step: 4
+    action: "Click Exclude in the sample inspector"
+    verify: >
+      Success notification. The data point at 10.15 changes appearance
+      (e.g., hollow circle, grayed out, or different marker style) to
+      indicate it is excluded. Control limits recalculate.
+    screenshot: true
+  - step: 5
+    action: "Compare UCL and LCL values after exclusion"
+    verify: >
+      UCL is narrower (lower) than before because the outlier no longer
+      inflates the range/sigma estimate. LCL is correspondingly tighter.
+      The limits visually contract on the chart.
+    screenshot: true
+
+expected_result: >
+  The excluded sample remains visible on the chart but is styled
+  distinctly and is not used in control limit calculations or Nelson
+  Rule evaluation. Limits recalculate without the excluded point,
+  resulting in tighter control limits.
+
+pass_criteria: >
+  API: PATCH /samples/{id}/exclude returns is_excluded=true.
+  GET /characteristics/{id}/chart-data shows the sample with
+  is_excluded=true. UCL/LCL values are numerically different (tighter)
+  after exclusion.
+
+cleanup:
+  - "Re-include the excluded sample: PATCH /samples/{id}/exclude {is_excluded: false}"
+  - "Delete seeded samples via API"

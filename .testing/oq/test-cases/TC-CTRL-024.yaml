@@ -1,0 +1,69 @@
+id: TC-CTRL-024
+title: "Chart renders with 100+ data points without performance issues"
+category: "Control Charts"
+subcategory: "Performance"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (large dataset handling)"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control (production volume data)"
+
+preconditions:
+  description: >
+    An I-MR characteristic with 120 samples seeded. This tests
+    ECharts rendering performance with a realistically large dataset
+    that accumulates over weeks of production monitoring.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Pin Length Performance"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "120 measurements centered at 50.00, sigma ~0.02"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Pin Length Performance"
+    verify: >
+      Chart loads and renders within 3 seconds. All 120 data points
+      are accessible (visible in the default view or via scrolling).
+    screenshot: true
+  - step: 2
+    action: "Pan/scroll through the full dataset"
+    verify: >
+      Panning and scrolling is smooth (no visible lag or frame drops).
+      All 120 points are reachable.
+    screenshot: false
+  - step: 3
+    action: "Zoom into a subset (e.g., 20 points)"
+    verify: "Zoom is responsive. Points are clearly distinguishable when zoomed in."
+    screenshot: true
+  - step: 4
+    action: "Hover over data points while panning"
+    verify: "Tooltips appear promptly (no noticeable delay). Values are correct."
+    screenshot: false
+  - step: 5
+    action: "Zoom out to view all 120 points simultaneously"
+    verify: >
+      Chart renders all points. Lines are not jagged or broken.
+      UCL/CL/LCL lines extend across the full range.
+    screenshot: true
+
+expected_result: >
+  ECharts handles 120 data points without degradation in rendering
+  speed or interaction responsiveness. The canvas renderer efficiently
+  manages the dataset. This validates that the chart implementation
+  can handle months of production data for a typical characteristic.
+
+pass_criteria: >
+  Initial render < 3 seconds. Pan/zoom interactions are smooth (no
+  frame drops or jank). Tooltips appear within 200ms. No JavaScript
+  errors in the console.
+
+cleanup:
+  - "Delete seeded data via API"

@@ -1,0 +1,48 @@
+id: TC-CAP-014
+title: "Shapiro-Wilk normality test result displayed"
+category: "Capability Analysis"
+subcategory: "Normality"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Normality testing requirement"
+  - "ISO 22514 - Verification of distributional assumptions"
+preconditions:
+  description: "A variable characteristic exists with spec limits and at least 60 subgroups of normally distributed data. Capability has been calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Normality"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements from N(10.0, 0.015). This truly normal data should pass the Shapiro-Wilk test with p > 0.05."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Normality'."
+    verify: "The Capability Card is visible with capability indices."
+    screenshot: false
+  - step: 2
+    action: "Locate the normality test result on the Capability Card or in the Distribution Analysis modal."
+    verify: "The Shapiro-Wilk test result is displayed, showing: (a) The test name ('Shapiro-Wilk'). (b) A result indicator (e.g., 'Normal' or 'Non-Normal', or a green/red badge). (c) For normal data: the result should indicate 'Normal' or 'Pass'."
+    screenshot: true
+  - step: 3
+    action: "Verify the normality test details via API: call GET /characteristics/{id}/capability."
+    verify: "The API response includes: normality_test='Shapiro-Wilk', normality_p_value (a float, should be > 0.05 for truly normal data), is_normal=true (since p > 0.05)."
+    screenshot: false
+  - step: 4
+    action: "If p-value is displayed in the UI, verify it."
+    verify: "The p-value should be greater than 0.05 for the normally distributed data. This means we fail to reject the null hypothesis of normality -- the data is consistent with a normal distribution. The p-value gives auditors confidence that the standard Cp/Cpk formulas (which assume normality) are appropriate for this data."
+    screenshot: true
+expected_result: "The Shapiro-Wilk normality test result is displayed, showing the test name, the pass/fail determination, and optionally the p-value. For normally distributed data, the test passes (p > 0.05), confirming the validity of standard capability calculations."
+pass_criteria: "Normality test is identified as 'Shapiro-Wilk'. The result correctly indicates normal (is_normal=true) for the normal data. The p-value is > 0.05. The test name and result are visible in the UI."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Normality' and all associated data via API"

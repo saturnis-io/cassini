@@ -1,0 +1,68 @@
+id: TC-CHAR-016
+title: "Enable short-run deviation mode"
+category: "Characteristic Configuration"
+subcategory: "ShortRun"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Manual - Short-run SPC techniques"
+  - "ISO 7870-8 - Charting techniques for short production runs"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists with a target value set. Not a CUSUM or EWMA chart."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Short Run Plant"
+        code: "OQSR"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "SR Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "SR Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Deviation-Mode"
+        subgroup_size: 5
+        data_type: "variable"
+        target_value: 25.0
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Deviation-Mode' in the tree."
+    verify: "Config panel opens. Target value shows 25.0."
+    screenshot: false
+  - step: 2
+    action: "Locate the short-run mode setting. Select 'Deviation' mode."
+    verify: "Short-run mode dropdown or radio button shows 'Deviation' selected."
+    screenshot: true
+  - step: 3
+    action: "Click Save."
+    verify: "Save completes. Characteristic now configured for deviation short-run mode."
+    screenshot: false
+  - step: 4
+    action: "Navigate to the chart view for this characteristic (dashboard or chart page)."
+    verify: "Chart Y-axis label indicates deviation mode (e.g., 'Deviation from Target' or similar label showing values are offset from the target). The axis shows values relative to 0 (target) rather than absolute values."
+    screenshot: true
+  - step: 5
+    action: "Refresh the page and verify the short-run mode persisted."
+    verify: "After refresh, the configuration still shows short_run_mode = 'deviation'."
+    screenshot: true
+expected_result: "Short-run deviation mode is enabled, and the control chart axis labels change to reflect that values are deviations from target."
+pass_criteria: "short_run_mode='deviation' is saved. Chart axis labels indicate deviation mode."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

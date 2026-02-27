@@ -1,0 +1,59 @@
+id: TC-AUDIT-001
+title: "Audit log viewer loads with entries"
+category: "Audit Trail & Retention"
+subcategory: "AuditLog"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Attributable electronic records (ALCOA: who, what, when)"
+  - "ISO 9001:2015 Section 7.5 - Control of documented information"
+  - "IATF 16949 - Control of records with traceability"
+preconditions:
+  description: >
+    An admin user exists. The system has been used (at least a few
+    login/create/update operations have occurred so the audit log is not
+    empty). Backend and frontend servers are running.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin user and navigate to /settings/audit-log"
+    verify: >
+      The audit log viewer page loads. A table is displayed with columns:
+      timestamp, user (username), action, resource type, resource ID,
+      and a detail/expand column. The table is populated with audit entries
+      sorted by timestamp descending (most recent first).
+    screenshot: true
+  - step: 2
+    action: "Examine the first row in the audit log table"
+    verify: >
+      The row displays: a human-readable timestamp (formatted per
+      localization settings), a username or 'System' for automated events,
+      an action label (e.g., 'Login', 'Create', 'Update'), a resource type
+      label (e.g., 'Characteristic', 'Sample', 'User'), and a resource ID
+      (integer or dash for non-resource actions like login).
+    screenshot: true
+  - step: 3
+    action: "Click on a row to expand its detail section (if expandable)"
+    verify: >
+      The detail section shows the JSON detail payload for that audit entry.
+      For a create/update action, it may show changed fields or request
+      details. For a login action, it may show the IP address.
+    screenshot: true
+  - step: 4
+    action: "Scroll down or navigate to the next page using pagination controls"
+    verify: >
+      Pagination controls are visible at the bottom of the table. Clicking
+      'Next' or page numbers loads the next set of entries. The total count
+      of entries is displayed.
+    screenshot: true
+expected_result: >
+  The audit log viewer displays a paginated table of all system mutations
+  with proper column formatting, expandable detail sections, and pagination.
+pass_criteria: >
+  Page loads without error. Table has visible rows with all expected columns.
+  At least one entry is present. Pagination controls are functional.
+  API verification: GET /audit/logs returns items array with total > 0.
+cleanup:
+  - "No cleanup required"

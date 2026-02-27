@@ -1,0 +1,48 @@
+id: TC-CAP-012
+title: "Distribution Analysis modal shows histogram with fitted curve"
+category: "Capability Analysis"
+subcategory: "Distribution"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Distribution analysis visualization"
+  - "ISO 22514 - Graphical assessment of process capability"
+preconditions:
+  description: "A variable characteristic exists with spec limits and at least 60 subgroups of data. Control limits calculated. The logged-in user has engineer role or higher (Distribution Analysis may require engineer access)."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Histogram"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements from N(10.0, 0.015). This produces a normal distribution suitable for histogram visualization."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Histogram'. Locate the Capability Card below the control chart."
+    verify: "The Capability Card is visible with capability indices displayed."
+    screenshot: false
+  - step: 2
+    action: "Click the 'Distribution Analysis' button or 'Distribution' button on the Capability Card to open the modal."
+    verify: "A Distribution Analysis modal opens, occupying a significant portion of the screen."
+    screenshot: true
+  - step: 3
+    action: "Examine the histogram visualization."
+    verify: "The modal contains a histogram showing the distribution of measurement values. The histogram has: (a) X-axis showing measurement values (ranging approximately from 9.95 to 10.05). (b) Y-axis showing frequency or density. (c) Bars representing data bins with heights proportional to frequency. (d) A fitted normal curve overlaid on the histogram bars. (e) Vertical lines or markers indicating USL and LSL positions. The histogram should appear approximately bell-shaped for the normal data."
+    screenshot: true
+  - step: 4
+    action: "Verify the fitted curve overlay."
+    verify: "A smooth curve is overlaid on the histogram, representing the fitted distribution (normal in this case). The curve should closely follow the histogram bar heights, confirming a good fit. The curve's peak should align with the center of the histogram."
+    screenshot: false
+expected_result: "The Distribution Analysis modal displays a histogram of measurement data with a fitted distribution curve overlay, providing visual assessment of data distribution shape and spec limit positioning."
+pass_criteria: "Histogram renders with correct bin heights. Fitted curve is overlaid and matches the histogram shape. USL and LSL markers are visible. The modal is clearly readable and interactive."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Histogram' and all associated data via API"

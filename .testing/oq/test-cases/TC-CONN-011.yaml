@@ -1,0 +1,40 @@
+id: TC-CONN-011
+title: "ERP integrations tab loads and connector wizard works"
+category: "Connectivity"
+subcategory: "ERP"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Integration between quality and enterprise systems must be documented"
+  - "ISO 13485 - Data exchange between quality system and ERP/LIMS must be validated"
+  - "21 CFR Part 11 - Bidirectional data interfaces must be controlled and documented"
+preconditions:
+  description: "Logged in as admin (ERP connector creation requires admin role). A plant is selected."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/integrations"
+    verify: "The Integrations tab loads. The header shows 'ERP/LIMS Integrations' with a subtitle about connecting to enterprise systems. An 'Add Connector' button is visible (admin-only). If no connectors exist, an empty state message is shown."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add Connector'"
+    verify: "The ConnectorWizard dialog opens. The first step shows adapter type selection: SAP OData, Oracle REST, Generic LIMS, and Webhook options are available as cards or a list."
+    screenshot: true
+  - step: 3
+    action: "Select an adapter type (e.g., 'Generic LIMS')"
+    verify: "The wizard advances to the connection configuration step. Fields appear for the selected adapter type: endpoint URL, authentication type, and credentials."
+    screenshot: true
+  - step: 4
+    action: "Fill in test values: a name for the connector, an endpoint URL (e.g., 'https://lims.example.com/api'), and any required authentication fields"
+    verify: "The form accepts the test values. Validation does not reject well-formed URLs and credentials."
+    screenshot: false
+  - step: 5
+    action: "Proceed through the wizard steps (field mapping, sync schedule) or cancel"
+    verify: "The wizard allows navigation between steps. Each step shows appropriate configuration fields. The wizard can be cancelled at any point without saving, or completed to save the connector."
+    screenshot: true
+expected_result: "The ERP Integrations tab loads correctly. The connector wizard opens and walks through adapter selection, connection configuration, field mapping, and sync schedule steps."
+pass_criteria: "Integrations tab renders without errors. Add Connector button visible for admin. Wizard opens with adapter type selection. Wizard steps are navigable. Form fields accept valid input."
+cleanup:
+  - "Cancel the wizard if not completed, or delete any test connector that was saved"

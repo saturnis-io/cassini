@@ -1,0 +1,40 @@
+id: TC-SET-004
+title: "Configure SMTP email settings"
+category: "Settings & Admin"
+subcategory: "SMTP"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(g) - Authority checks and notification"
+  - "ISO 9001:2015 Section 7.4 - Communication (internal and external)"
+  - "IATF 16949 - Notification of nonconforming product"
+preconditions:
+  description: >
+    An admin user is logged in. The Email & Webhooks settings tab is
+    accessible. No SMTP configuration exists yet (or the existing one
+    will be overwritten). Note: A real SMTP server is NOT required for
+    this test -- it validates the configuration form saves correctly.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/email-webhooks."
+    verify: "Email & Webhooks settings tab loads. An SMTP configuration section is visible with fields for Host, Port, TLS, Username, and Password."
+    screenshot: true
+  - step: 2
+    action: "Enter the following SMTP settings: Host: 'smtp.example.com', Port: 587, TLS: enabled (checked), Username: 'notifications@example.com', Password: 'SmtpPass123!'."
+    verify: "All fields accept input. Host shows 'smtp.example.com'. Port shows 587. TLS checkbox is checked. Username shows 'notifications@example.com'. Password shows masked characters."
+    screenshot: true
+  - step: 3
+    action: "Click Save to persist the SMTP configuration."
+    verify: "Success indication (toast or inline message: 'SMTP settings saved' or similar). The form remains populated with the entered values."
+    screenshot: true
+  - step: 4
+    action: "Navigate away to /dashboard, then return to /settings/email-webhooks."
+    verify: "The SMTP settings reload showing the saved values: Host = 'smtp.example.com', Port = 587, TLS = enabled, Username = 'notifications@example.com'. The Password field shows masked characters (dots or asterisks) -- the raw password is NOT displayed."
+    screenshot: true
+expected_result: "SMTP configuration is saved successfully. All fields persist across page navigation. The password is stored securely and displayed only as masked characters after initial save."
+pass_criteria: "SMTP settings save without error. Host, port, TLS, and username persist correctly on reload. Password is masked (not visible in plaintext) on subsequent loads."
+cleanup:
+  - "Optionally clear SMTP settings via API: PUT /smtp-config with empty values"

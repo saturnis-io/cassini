@@ -1,0 +1,46 @@
+id: TC-AUTH-007
+title: "Forced password change on login when must_change_password flag is set"
+category: "Authentication & Accounts"
+subcategory: "Password"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Password management controls"
+  - "ISO 13485 - Controlled credential management"
+  - "NIST 800-63B - Credential lifecycle management"
+preconditions:
+  description: "A test user exists with must_change_password=true. This requires either: (a) creating a user via API and setting the flag, or (b) using a pre-seeded user. The backend must NOT be in dev_mode (dev_mode suppresses forced password change). No user is currently logged in."
+  seed_method: api
+  seed_data:
+    endpoint: "POST /users/"
+    body:
+      username: "oq-mustchange"
+      password: "TempPass123!"
+      email: "mustchange@test.local"
+    post_setup: "PATCH /users/{id} with must_change_password: true, then assign operator role at a plant via POST /users/{id}/roles"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login"
+    verify: "Login page loads."
+    screenshot: false
+  - step: 2
+    action: "Enter 'oq-mustchange' in the Username field and 'TempPass123!' in the Password field. Click 'Log In'."
+    verify: "Login succeeds (credentials are valid), but instead of redirecting to /dashboard, the user is redirected to /change-password. The change password page displays fields for current password, new password, and confirm new password."
+    screenshot: true
+  - step: 3
+    action: "Try to navigate to /dashboard by typing the URL directly in the browser address bar"
+    verify: "The user is redirected back to /change-password. The dashboard is NOT accessible until the password is changed. The RequireAuth component enforces the must_change_password redirect."
+    screenshot: true
+  - step: 4
+    action: "On the /change-password page, enter the current password ('TempPass123!'), a new password ('NewSecure456!'), and confirm the new password. Click the submit button."
+    verify: "The password is changed successfully. The user is redirected to /dashboard. The must_change_password flag is cleared."
+    screenshot: true
+  - step: 5
+    action: "Log out and log back in with the new password ('NewSecure456!')"
+    verify: "Login succeeds and goes directly to /dashboard (no forced password change redirect). This confirms the flag was cleared."
+    screenshot: false
+expected_result: "Users with the must_change_password flag set are forced to change their password before accessing any other page. After changing, the flag is cleared and normal access is restored."
+pass_criteria: "After login with must_change_password=true: redirected to /change-password, not /dashboard. Direct navigation to /dashboard is blocked. After password change: normal access to /dashboard. Subsequent login with new password goes directly to /dashboard."
+cleanup:
+  - "Delete or deactivate the oq-mustchange test user via API: DELETE /users/{id}"

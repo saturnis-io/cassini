@@ -1,0 +1,41 @@
+id: TC-RPT-005
+title: "Export report as PDF with chart image"
+category: "Reports & Export"
+subcategory: "Export"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Reports must be printable or exportable as fixed-format records"
+  - "ISO 13485 - Quality records must be preserved in a durable format"
+  - "IATF 16949 - Customer submissions often require PDF format with embedded charts"
+preconditions:
+  description: "Logged in as supervisor or higher. A report is displayed with a selected characteristic and template that includes a chart (e.g., Characteristic Summary). The report preview is fully rendered with a visible control chart."
+  seed_method: api
+  seed_data:
+    characteristic: "Variable characteristic with at least 10 samples"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports. Select 'Characteristic Summary' template. Select a characteristic with data. Wait for the report preview to fully render including the control chart."
+    verify: "Report preview is displayed with a visible control chart image."
+    screenshot: false
+  - step: 2
+    action: "Click the Export dropdown button in the controls bar"
+    verify: "Export dropdown menu opens showing format options including PDF."
+    screenshot: false
+  - step: 3
+    action: "Click the PDF export option"
+    verify: "A brief processing indicator may appear. A PDF file downloads to the browser's default download location. The filename includes the report type and date (e.g., 'characteristic-summary-report-2026-02-26.pdf'). A success toast notification shows 'PDF exported successfully'."
+    screenshot: false
+  - step: 4
+    action: "Open the downloaded PDF file in a PDF viewer"
+    verify: "The PDF contains the report content in landscape orientation. The control chart image is visible and legible -- data points, control limit lines, and axis labels are all rendered. The chart has a white background regardless of the application's dark/light mode setting. Statistics and text sections are readable."
+    screenshot: true
+  - step: 5
+    action: "Verify the chart in the PDF matches the chart in the report preview"
+    verify: "The chart data points, control limits, and general appearance in the PDF match the report preview. The chart is rendered at sufficient resolution for print (2x pixel ratio). No chart elements are cut off or missing."
+    screenshot: false
+expected_result: "PDF export captures the full report including the control chart as a high-resolution static image. The PDF is in landscape orientation, the chart is legible, and all report sections are present."
+pass_criteria: "PDF file downloads without error. File opens in a PDF viewer. Control chart image is present and legible. Landscape orientation. Text content is readable. Chart background is white."
+cleanup:
+  - "Delete the downloaded PDF file from the downloads folder"

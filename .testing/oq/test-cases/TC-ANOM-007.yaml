@@ -1,0 +1,61 @@
+id: TC-ANOM-007
+title: "Dismiss anomaly event as false positive"
+category: "Anomaly Detection"
+subcategory: "Events"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Evaluation of monitoring data with expert judgment"
+  - "FDA Guidance on AI/ML - Documented human override of AI-detected anomalies"
+  - "ICH Q10 - Knowledge management documenting false positive rationale"
+preconditions:
+  description: >
+    At least one anomaly event exists that has not been dismissed
+    (is_dismissed=false). An engineer or higher user is logged in (dismiss
+    requires engineer+ role to prevent operators from hiding real anomalies).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-engineer"
+      role: "engineer"
+    anomaly_event:
+      detector_type: "ks_test"
+      event_type: "distribution_shift"
+      severity: "low"
+      is_acknowledged: false
+      is_dismissed: false
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard, select the characteristic, and enable AI Insights. Locate the anomaly event list."
+    verify: "The event list shows at least one non-dismissed event."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Dismiss' button on the event"
+    verify: "A dismiss confirmation appears, optionally with a text field for entering a reason."
+    screenshot: true
+  - step: 3
+    action: "Enter a reason: 'Known calibration event -- gage recalibrated at this time'. Confirm dismissal."
+    verify: "The event is marked as dismissed. A success notification may appear. The event is either removed from the prominent event list or visually marked as dismissed."
+    screenshot: true
+  - step: 4
+    action: "Verify via API: GET /anomaly/{char_id}/events/{event_id}"
+    verify: "Response shows: is_dismissed=true, dismissed_by='oq-engineer', dismissed_reason='Known calibration event -- gage recalibrated at this time'."
+    screenshot: false
+  - step: 5
+    action: "Check the event list and anomaly overlay"
+    verify: "The dismissed event is no longer prominent in the event list (may be hidden or in a 'dismissed' filter). The anomaly overlay on the chart no longer highlights this event (or shows it with reduced emphasis)."
+    screenshot: true
+expected_result: >
+  The anomaly event is dismissed as a false positive with a documented
+  reason. The event record updates to is_dismissed=true with the dismissing
+  user and reason. The event is no longer prominent in the UI but the
+  record is preserved for audit purposes.
+pass_criteria: >
+  Dismiss action succeeds. API returns is_dismissed=true, dismissed_by
+  matching the current user, and dismissed_reason matching the entered text.
+  The event is de-emphasized or hidden in the event list. The dismissed
+  event is excluded from active anomaly counts.
+cleanup:
+  - "No cleanup required -- dismissal is a persistent state change"

@@ -1,0 +1,55 @@
+id: TC-CHAR-002
+title: "Create I-MR characteristic"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - Individuals and Moving Range chart (Section III)"
+  - "ISO 7870-2 - Shewhart control charts"
+preconditions:
+  description: "Engineer user is logged in. A station node exists in the hierarchy."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ IMR Plant"
+        code: "OQIMR"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "IMR Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "IMR Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'IMR Station'."
+    verify: "Station node is selected in the tree."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Characteristic'. Enter: Name: 'OQ-Temperature', Data Type: Variable, Subgroup Size: 1."
+    verify: "Subgroup size set to 1. Chart type resolves to I-MR (Individuals and Moving Range)."
+    screenshot: true
+  - step: 3
+    action: "Click Create/Save."
+    verify: "Characteristic created. Appears under 'IMR Station'."
+    screenshot: false
+  - step: 4
+    action: "Click on 'OQ-Temperature' to open config panel."
+    verify: "Config shows: Subgroup Size = 1, Chart Type = I-MR (or Individuals/Moving Range)."
+    screenshot: true
+expected_result: "An I-MR characteristic with subgroup size 1 is created, correctly identified as an Individuals-Moving Range chart."
+pass_criteria: "Characteristic shows subgroup_size=1 and chart type indicating I-MR."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

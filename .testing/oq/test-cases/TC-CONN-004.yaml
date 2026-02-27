@@ -1,0 +1,40 @@
+id: TC-CONN-004
+title: "Delete MQTT broker configuration"
+category: "Connectivity"
+subcategory: "MQTT"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Removal of data collection equipment must be documented"
+  - "21 CFR Part 11 - Deletion of configuration records is an auditable event"
+preconditions:
+  description: "Logged in as engineer or higher. An MQTT broker named 'OQ Delete Test' exists in the server list."
+  seed_method: api
+  seed_data:
+    broker: "MQTT broker named 'OQ Delete Test' with any valid host/port"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads showing 'OQ Delete Test' in the broker list."
+    screenshot: true
+  - step: 2
+    action: "Note the total count of servers in the list before deletion"
+    verify: "Record the count (e.g., 3 servers total)."
+    screenshot: false
+  - step: 3
+    action: "Click the delete button (trash icon) on the 'OQ Delete Test' broker row"
+    verify: "A confirmation dialog or prompt appears asking to confirm deletion. The broker is NOT immediately deleted -- the user must confirm."
+    screenshot: true
+  - step: 4
+    action: "Confirm the deletion by clicking 'Delete' or 'Confirm' in the dialog"
+    verify: "A success toast notification appears (e.g., 'Broker deleted'). The broker 'OQ Delete Test' is removed from the server list. The total server count decreases by one."
+    screenshot: true
+  - step: 5
+    action: "Navigate away (click Monitor tab) and back (click Servers tab) to verify persistence"
+    verify: "The broker 'OQ Delete Test' is still absent from the list. The deletion was persisted to the backend."
+    screenshot: false
+expected_result: "An MQTT broker can be deleted with a confirmation step. The broker is removed from the list and the deletion persists."
+pass_criteria: "Delete requires confirmation (not instant). After confirmation, broker is removed from the list. Toast confirms deletion. Broker does not reappear on page reload."
+cleanup:
+  - "No cleanup required -- the test broker has been deleted"

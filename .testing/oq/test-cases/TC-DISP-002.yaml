@@ -1,0 +1,73 @@
+id: TC-DISP-002
+title: "Kiosk mode hides sidebar, header, and settings"
+category: "Display Modes"
+subcategory: "Kiosk"
+priority: high
+regulatory_relevance:
+  - "Lean Manufacturing - Distraction-free operator interface"
+  - "ISO 9001:2015 Section 7.1.4 - Environment for operation of processes"
+preconditions:
+  description: >
+    An operator user exists with access to a plant. At least one
+    characteristic with data exists. The user is logged in and can
+    access /kiosk.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Display"
+    department: "Production"
+    line: "Line-1"
+    characteristic:
+      name: "OQ-Kiosk-NoChrome"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /kiosk"
+    verify: "Kiosk view loads with the chart displayed fullscreen"
+    screenshot: false
+  - step: 2
+    action: "Verify there is no sidebar navigation"
+    verify: >
+      The left side of the screen has no navigation panel. No links to
+      Dashboard, Data Entry, Violations, Reports, Configuration, Settings,
+      or any other page are visible. The chart area extends to the left
+      edge of the viewport (with padding only).
+    screenshot: true
+  - step: 3
+    action: "Verify there is no application header or toolbar"
+    verify: >
+      The top of the screen has no application header. No plant switcher,
+      no user avatar, no Show Your Work toggle, no notification bell, and
+      no hamburger menu are visible. Only the characteristic name heading
+      and status indicator are at the top.
+    screenshot: true
+  - step: 4
+    action: "Verify there is no way to access settings from the kiosk view"
+    verify: >
+      There are no gear icons, settings links, or configuration controls.
+      The only interactive elements are: Pause/Resume button, navigation
+      arrows (if multiple characteristics), and pagination dots (if
+      multiple characteristics). The view is intentionally simplified
+      for shop floor use.
+    screenshot: true
+  - step: 5
+    action: "Verify forced dark mode is active"
+    verify: >
+      The background is dark (near-black). Text is light (near-white).
+      This is the kiosk forced dark mode, applied regardless of the user's
+      theme preference. This ensures readability on factory floor monitors
+      with varying ambient lighting.
+    screenshot: true
+expected_result: >
+  Kiosk mode provides a completely chrome-free experience with no
+  sidebar, header, or settings access. Only the chart and minimal
+  controls are visible. Dark mode is forced for contrast.
+pass_criteria: >
+  No sidebar visible. No header visible. No settings access points.
+  Only chart + status indicator + stats bar + pause/nav controls visible.
+  Dark mode active.
+cleanup:
+  - "No cleanup required"

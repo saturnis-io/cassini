@@ -1,0 +1,60 @@
+id: TC-RBAC-003
+title: "Operator CANNOT access configuration page"
+category: "RBAC & Security"
+subcategory: "OperatorAccess"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - System access limited to authorized individuals"
+  - "ISO 9001:2015 Section 7.5.3 - Protection against unintended changes"
+  - "IATF 16949 - Separation of process configuration from operation"
+preconditions:
+  description: >
+    An operator user 'oq-operator' exists with operator role at OQ-Plant-RBAC.
+    The configuration page is at /configuration and requires engineer+ role.
+  seed_method: api
+  seed_data:
+    users:
+      - username: "oq-operator"
+        password: "Operator123!"
+        role: "operator"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-operator'"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Examine the sidebar navigation"
+    verify: >
+      The sidebar does NOT show a 'Configuration' link. The Configuration
+      item is filtered out because the operator role (level 1) does not
+      meet the engineer (level 3) requirement.
+    screenshot: true
+  - step: 3
+    action: "Manually navigate to /configuration by typing the URL in the address bar"
+    verify: >
+      The user is redirected to /dashboard. A toast notification appears
+      with the message: 'Access Denied -- This page requires Engineer or
+      higher privileges.' (or similar access denied message). The
+      configuration page does NOT load.
+    screenshot: true
+  - step: 4
+    action: "Verify the user is back on the dashboard"
+    verify: >
+      The URL shows /dashboard. The dashboard page content is displayed.
+      The ProtectedRoute component successfully blocked access to
+      /configuration and redirected to /dashboard.
+    screenshot: false
+expected_result: >
+  An operator user is denied access to the configuration page both via
+  sidebar (link not visible) and via direct URL (redirected with toast).
+  This enforces the principle that operators can enter data but cannot
+  change process configuration, protecting against unintended changes.
+pass_criteria: >
+  Sidebar does not show Configuration link. Direct navigation to
+  /configuration results in redirect to /dashboard. Access denied toast
+  is displayed. Configuration page content never renders.
+cleanup:
+  - "No cleanup required"

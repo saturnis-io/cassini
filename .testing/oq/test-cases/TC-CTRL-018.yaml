@@ -1,0 +1,70 @@
+id: TC-CTRL-018
+title: "Short-run deviation mode chart renders correctly"
+category: "Control Charts"
+subcategory: "ShortRun"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Short Run SPC"
+  - "IATF 16949 Section 9.1.1.1 - SPC for low-volume production"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists with short_run_mode='deviation' and
+    a target value set (e.g., target=50.00). At least 25 measurements
+    should be seeded. Deviation mode subtracts the target from each
+    value so the chart plots deviations from nominal.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Mixed Part Deviation"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      target: 50.00
+      short_run_mode: "deviation"
+    samples: "25 measurements centered at 50.00 (raw values like 49.98, 50.02, etc.)"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Mixed Part Deviation"
+    verify: >
+      Chart renders with Y-axis showing deviation values (e.g., -0.02,
+      +0.02, +0.01), NOT raw measurement values (49.98, 50.02, etc.).
+      The center line should be near 0.
+    screenshot: true
+  - step: 2
+    action: "Inspect the Y-axis labels"
+    verify: >
+      Y-axis shows deviation values centered around 0. This confirms
+      that each plotted value = raw_measurement - target. The axis may
+      be labeled 'Deviation from Target' or show a deviation indicator.
+    screenshot: true
+  - step: 3
+    action: "Inspect the control limit positions"
+    verify: >
+      UCL and LCL are positioned relative to the deviation center line
+      (near 0). For example, UCL = +0.06, LCL = -0.06 (not 50.06 and
+      49.94).
+    screenshot: true
+
+expected_result: >
+  The chart correctly displays deviation mode where all values are
+  transformed by subtracting the target. This allows monitoring of
+  mixed part numbers on a single chart when parts share similar
+  variation characteristics but have different target dimensions.
+
+pass_criteria: >
+  Y-axis values are small deviations (magnitude < 1), not raw
+  measurements. Center line is near 0. Control limits are symmetrically
+  placed around 0. API chart-data confirms deviation transformation.
+
+cleanup:
+  - "Delete seeded data via API"

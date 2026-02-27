@@ -1,0 +1,47 @@
+id: TC-MSA-008
+title: "Range method Gage R&R study"
+category: "MSA / Gage R&R"
+subcategory: "RangeMethod"
+priority: high
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Range method (quick Gage R&R assessment)"
+  - "IATF 16949 - Simplified measurement system evaluation"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. No MSA study named 'OQ-GRR-Range' exists."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /msa and click 'New Study'."
+    verify: "The study creation form is displayed."
+    screenshot: false
+  - step: 2
+    action: "Enter Name: 'OQ-GRR-Range'. Select Type: 'Range Method (quick study)'. Set Operators to 2, Parts to 5, Replicates to 1. Click Create."
+    verify: "The study is created and the editor opens. Status badge shows 'Setup'. The configuration confirms: Range Method, 2 operators, 5 parts, 1 replicate."
+    screenshot: true
+  - step: 3
+    action: "Set operator names: 'Op-X', 'Op-Y'. Save operators."
+    verify: "Two operators are listed: Op-X and Op-Y."
+    screenshot: false
+  - step: 4
+    action: "Set 5 part names: 'RangePart-1' through 'RangePart-5'. Save parts."
+    verify: "Five parts are listed: RangePart-1 through RangePart-5."
+    screenshot: false
+  - step: 5
+    action: "Navigate to the Data tab. Enter 10 measurements (2 operators x 5 parts x 1 replicate). Use values: Op-X: (10.02, 10.05, 9.98, 10.01, 10.03), Op-Y: (10.03, 10.04, 9.99, 10.02, 10.02). Submit measurements."
+    verify: "All 10 cells are filled. Success notification appears. Study status changes to 'Collecting'."
+    screenshot: true
+  - step: 6
+    action: "Navigate to the Results tab and click 'Calculate'."
+    verify: "The calculation completes. Results display with the following key differences from crossed ANOVA: (1) Verdict banner shows the method as 'Range Method'. (2) Variance components table shows EV (Repeatability), AV (Reproducibility), and GRR but does NOT show an Interaction row. (3) NO ANOVA table is displayed (the ANOVA table section is absent). (4) ndc is still displayed. (5) %Contribution and %Study Var columns are populated for EV, AV, GRR, and PV."
+    screenshot: true
+  - step: 7
+    action: "Verify the ANOVA table is absent."
+    verify: "There is no ANOVA table section in the results. The range method provides simplified results without ANOVA decomposition. Only the variance components summary table and bar chart are shown."
+    screenshot: false
+expected_result: "A range method Gage R&R study with 2 operators and 5 parts calculates successfully. Results show simplified output: EV, AV, GRR percentages without ANOVA table or interaction term."
+pass_criteria: "Study creates with 'Range Method' type. Calculation completes. Results show EV, AV, GRR, PV. No ANOVA table is displayed. No Interaction row is present. Method label shows 'Range Method'. Verdict follows AIAG thresholds."
+cleanup:
+  - "Delete MSA study 'OQ-GRR-Range' via API: DELETE /msa/studies/{id}"

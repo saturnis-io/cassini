@@ -1,0 +1,41 @@
+id: TC-RPT-004
+title: "Export report data as CSV"
+category: "Reports & Export"
+subcategory: "Export"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic records must be exportable for review and archiving"
+  - "ISO 13485 - Quality records must be available in formats suitable for audit"
+  - "IATF 16949 - Data must be exportable for customer submission"
+preconditions:
+  description: "Logged in as supervisor or higher. A report is displayed with a selected characteristic and template (e.g., Characteristic Summary with data). The report preview is fully rendered."
+  seed_method: api
+  seed_data:
+    characteristic: "Variable characteristic with at least 10 samples"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports. Select 'Characteristic Summary' template. Select a characteristic with data."
+    verify: "Report preview renders with chart, statistics, and data."
+    screenshot: false
+  - step: 2
+    action: "Locate the Export dropdown button in the top-right area of the controls bar"
+    verify: "The Export dropdown button is visible and enabled (not grayed out). It shows a download icon."
+    screenshot: true
+  - step: 3
+    action: "Click the Export dropdown button to open the export menu"
+    verify: "A dropdown menu opens showing export format options including CSV."
+    screenshot: true
+  - step: 4
+    action: "Click the CSV export option"
+    verify: "A CSV file downloads to the browser's default download location. The filename includes the report type and a date stamp (e.g., 'characteristic-summary-report-2026-02-26.csv'). A success toast notification appears."
+    screenshot: false
+  - step: 5
+    action: "Open the downloaded CSV file in a text editor or spreadsheet application"
+    verify: "The CSV file contains tabular data with column headers. For chart data, columns include timestamp, mean, zone, and violation_rules. For violations, columns include id, created_at, rule_name, severity, acknowledged. Data values match what is displayed in the report preview."
+    screenshot: true
+expected_result: "CSV export downloads a valid CSV file containing the report data. The file is properly formatted with headers and data rows matching the report content."
+pass_criteria: "CSV file downloads without error. File is not empty. Column headers are present. Data rows contain numeric values consistent with the report preview. File opens correctly in a spreadsheet application."
+cleanup:
+  - "Delete the downloaded CSV file from the downloads folder"

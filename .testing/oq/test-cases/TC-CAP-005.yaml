@@ -1,0 +1,44 @@
+id: TC-CAP-005
+title: "Color coding green for capable process (Cpk >= 1.33)"
+category: "Capability Analysis"
+subcategory: "ColorCoding"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Cpk >= 1.33 minimum for production processes"
+  - "AIAG SPC Reference Manual - Capability acceptance criteria"
+preconditions:
+  description: "A variable characteristic (X-bar/R, subgroup_size=5) exists with USL=10.05, LSL=9.95, and target=10.0. At least 60 subgroups have been submitted from a very tight, centered distribution N(10.0, 0.008). With sigma=0.008, Cpk should be well above 1.33. Control limits calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Green"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each from N(10.0, 0.008). The tight sigma means the process is well within spec limits. Expected Cp = (10.05 - 9.95) / (6 * 0.008) = 0.10 / 0.048 = approximately 2.08. With the process centered, Cpk should also be approximately 2.08. Both are well above 1.33 (green threshold). Example subgroup: [10.006, 9.994, 10.003, 9.998, 10.004]."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Green' from the hierarchy tree."
+    verify: "The Capability Card is visible below the control chart."
+    screenshot: true
+  - step: 2
+    action: "Examine the Cpk value and its color."
+    verify: "Cpk is displayed with a value >= 1.33 (expected approximately 2.08, range 1.6-2.5). The Cpk value is shown in GREEN, indicating a capable process that meets the IATF 16949 standard requirement."
+    screenshot: true
+  - step: 3
+    action: "Examine all displayed capability indices and their colors."
+    verify: "Cp, Cpk, Pp, Ppk, and Cpm (if target is set) are all green because the tight sigma results in all indices being well above 1.33. The green color provides immediate visual confirmation that the process is capable."
+    screenshot: true
+expected_result: "When all capability indices are >= 1.33, they are displayed in green, providing immediate visual feedback that the process meets industry-standard capability requirements."
+pass_criteria: "Cpk >= 1.33 and is displayed in green. All other indices (Cp, Pp, Ppk, Cpm) are also green. The green color is visually distinct from yellow and red."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Green' and all associated data via API"

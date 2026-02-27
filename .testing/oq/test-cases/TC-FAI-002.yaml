@@ -1,0 +1,49 @@
+id: TC-FAI-002
+title: "Fill Form 1 -- Part Number Accountability"
+category: "First Article Inspection"
+subcategory: "Form1"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C Form 1 - Part Number Accountability"
+  - "AS9100 Rev D Section 8.5.2 - Identification and traceability"
+  - "IATF 16949 Section 8.5.2 - Identification and traceability"
+preconditions:
+  description: "Engineer user is logged in. A draft FAI report exists with part number 'OQ-PART-001'. The report editor is open on the Form 1 tab."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget"
+      revision: "A"
+      status: "draft"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the FAI report 'OQ-PART-001' by navigating to /fai and clicking on the report row."
+    verify: "The FAI Report Editor loads on the Form 1 tab. Status badge shows 'Draft'. Part number shows 'OQ-PART-001'."
+    screenshot: false
+  - step: 2
+    action: "Fill in all Form 1 fields: Part Number = 'OQ-PART-001' (already set), Part Name = 'Test Widget Bracket', Revision = 'A', Serial Number = 'SN-2026-001', Lot Number = 'LOT-2026-Q1-001', Drawing Number = 'DWG-TW-001-A'."
+    verify: "All identification fields accept the input values and display correctly."
+    screenshot: true
+  - step: 3
+    action: "Fill in organization fields: Organization Name = 'Saturnis Manufacturing', Supplier = 'Precision Parts Corp', Purchase Order = 'PO-2026-12345'."
+    verify: "Organization, supplier, and purchase order fields accept the input."
+    screenshot: false
+  - step: 4
+    action: "Set the Reason for Inspection (e.g., select or enter 'new_part' for a new production run)."
+    verify: "The reason for inspection is set."
+    screenshot: false
+  - step: 5
+    action: "Click Save to persist Form 1 data."
+    verify: "A success notification appears confirming the report was updated. All fields retain their values."
+    screenshot: true
+  - step: 6
+    action: "Refresh the page (F5) and reopen the report to verify persistence."
+    verify: "After page reload, all Form 1 fields display the previously entered values: Part Number = 'OQ-PART-001', Part Name = 'Test Widget Bracket', Revision = 'A', Serial Number = 'SN-2026-001', Lot Number = 'LOT-2026-Q1-001', Drawing Number = 'DWG-TW-001-A', Organization = 'Saturnis Manufacturing', Supplier = 'Precision Parts Corp', PO = 'PO-2026-12345'. No data was lost."
+    screenshot: true
+expected_result: "All AS9102 Form 1 fields are filled, saved, and persist correctly. Part identification, organization details, and reason for inspection are all captured."
+pass_criteria: "All Form 1 fields accept input and display correctly. Data persists after save and page refresh. Part number, serial number, lot number, drawing number, organization, supplier, and purchase order are all captured."
+cleanup:
+  - "Delete FAI report via API: DELETE /fai/reports/{id}"

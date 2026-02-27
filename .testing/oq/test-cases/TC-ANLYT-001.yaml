@@ -1,0 +1,46 @@
+id: TC-ANLYT-001
+title: "Analytics page loads with all tabs"
+category: "Advanced Analytics"
+subcategory: "Multivariate"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation of data"
+  - "AIAG SPC Manual - Multivariate analysis for correlated characteristics"
+preconditions:
+  description: >
+    An engineer user is logged in with engineer+ role at the active plant.
+    The backend and frontend servers are running. No prior analytics data
+    is required for this test -- it validates page load and tab structure.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as an engineer user and navigate to /analytics."
+    verify: "Analytics page loads. The page header shows 'Analytics' with subtitle text describing multivariate SPC and correlation analysis."
+    screenshot: true
+  - step: 2
+    action: "Observe the tab bar below the header."
+    verify: "Four tabs are visible: 'Correlation' (with GitCompareArrows icon), 'Multivariate' (with BarChart3 icon), 'Predictions' (with TrendingUp icon), and 'AI Insights' (with Sparkles icon). The Correlation tab is active by default."
+    screenshot: true
+  - step: 3
+    action: "Click the 'Multivariate' tab."
+    verify: "The Multivariate tab content loads. The URL updates to /analytics?tab=multivariate. The Group Manager panel is visible for creating multivariate chart groups."
+    screenshot: true
+  - step: 4
+    action: "Click the 'Predictions' tab."
+    verify: "The Predictions tab content loads. The URL updates to /analytics?tab=predictions. The predictions interface renders (may show empty state if no models are configured)."
+    screenshot: false
+  - step: 5
+    action: "Click the 'AI Insights' tab."
+    verify: "The AI Insights tab content loads. The URL updates to /analytics?tab=ai-insights."
+    screenshot: false
+  - step: 6
+    action: "Click the 'Correlation' tab to return to the default."
+    verify: "The Correlation tab content loads. The URL updates to /analytics?tab=correlation. The characteristic multi-selector and method selector are visible."
+    screenshot: false
+expected_result: "The Analytics page loads successfully with all four tabs (Correlation, Multivariate, Predictions, AI Insights). Each tab is navigable and renders its content. The default tab is Correlation."
+pass_criteria: "All four tabs are visible and clickable. Each tab renders its respective content without errors. The URL query parameter updates to reflect the active tab."
+cleanup:
+  - "No cleanup required -- no data was created"

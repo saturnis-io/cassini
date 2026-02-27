@@ -1,0 +1,39 @@
+id: TC-AUTH-003
+title: "Login with non-existent username"
+category: "Authentication & Accounts"
+subcategory: "Login"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - System must reject unauthorized access attempts"
+  - "OWASP Authentication - User enumeration prevention"
+preconditions:
+  description: "No user with username 'fakeuser' exists in the system. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login"
+    verify: "Login page loads."
+    screenshot: false
+  - step: 2
+    action: "Enter 'fakeuser' in the Username field"
+    verify: "Username field displays 'fakeuser'."
+    screenshot: false
+  - step: 3
+    action: "Enter 'anypassword123' in the Password field"
+    verify: "Password field shows masked characters."
+    screenshot: false
+  - step: 4
+    action: "Click the 'Log In' button"
+    verify: "An error message appears on the login page. The message reads 'Invalid username or password' -- the SAME message as TC-AUTH-002 (invalid password for a valid user). This is critical: the system must not reveal whether the username exists."
+    screenshot: true
+  - step: 5
+    action: "Compare the error message text to the error from TC-AUTH-002"
+    verify: "The error messages are identical. An attacker cannot distinguish between 'username does not exist' and 'password is wrong'. The URL remains /login."
+    screenshot: false
+expected_result: "Login is rejected with the same generic error message used for invalid passwords. No information is leaked about username existence."
+pass_criteria: "Error message matches TC-AUTH-002 exactly ('Invalid username or password'). No redirect. No timing difference observable (both should respond in similar time)."
+cleanup:
+  - "No cleanup required"

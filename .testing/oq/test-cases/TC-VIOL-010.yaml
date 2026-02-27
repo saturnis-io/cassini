@@ -1,0 +1,51 @@
+id: TC-VIOL-010
+title: "Acknowledge single violation with reason code"
+category: "Violations & Rules"
+subcategory: "Acknowledge"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic records with user attribution"
+  - "IATF 16949 - Documented reaction to out-of-control conditions"
+  - "ISO 7870-2 - Corrective action documentation"
+preconditions:
+  description: "At least one unacknowledged violation exists in the system (seeded from a Rule 1 trigger). The logged-in user has supervisor role or higher at the owning plant (acknowledgment requires supervisor+)."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Ack"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 26
+      values_description: "25 normal samples (mean=10.0, sigma=0.02) followed by recalculate-limits, then 1 extreme value (10.10) to trigger a Rule 1 violation. The violation should be unacknowledged."
+    post_seed:
+      - "Recalculate limits after first 25 samples"
+      - "Submit extreme value to generate violation"
+      - "Verify one unacknowledged violation exists"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as a supervisor user (oq-supervisor). Navigate to /violations."
+    verify: "The violations list shows at least one unacknowledged violation for 'OQ-VIOL-Ack' with acknowledged=false."
+    screenshot: true
+  - step: 2
+    action: "Click on the unacknowledged violation row to view its details or click an 'Acknowledge' button on the row."
+    verify: "An acknowledgment dialog or form appears. It includes: a text field or dropdown for the reason, the user performing the acknowledgment (pre-filled or displayed), and an optional 'Exclude sample' checkbox."
+    screenshot: true
+  - step: 3
+    action: "Select or enter a reason (e.g., 'Tool Change' from the standard reason codes). Leave 'Exclude sample' unchecked. Click 'Acknowledge' or 'Submit'."
+    verify: "The violation status changes to acknowledged. The row now shows: acknowledged=true, the supervisor's username as ack_user, the reason 'Tool Change' as ack_reason, and an ack_timestamp. A success toast notification appears."
+    screenshot: true
+  - step: 4
+    action: "Refresh the violations page or re-filter."
+    verify: "The previously acknowledged violation now shows its acknowledged status persistently. If filtering by acknowledged=false, this violation is no longer visible."
+    screenshot: false
+expected_result: "A supervisor can acknowledge a violation by providing a reason code. The acknowledgment records the user identity, reason, and timestamp, creating an auditable electronic record."
+pass_criteria: "Violation status changes from unacknowledged to acknowledged. The ack_user matches the logged-in supervisor username. The ack_reason matches the selected reason. An ack_timestamp is set. The acknowledgment persists after page refresh."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Ack' and all associated data via API"

@@ -1,0 +1,45 @@
+id: TC-CAP-009
+title: "Non-normal capability with lognormal distribution"
+category: "Capability Analysis"
+subcategory: "NonNormal"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Non-normal distributions"
+  - "ISO 22514 - Capability for non-normal processes"
+preconditions:
+  description: "A variable characteristic exists with USL and LSL set. At least 60 subgroups of lognormal-distributed data have been submitted. The distribution method has been set to 'lognormal' on the characteristic. Control limits calculated. The logged-in user has engineer role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Lognormal"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 15.0
+      lsl: 5.0
+      target_value: 10.0
+    samples:
+      count: 100
+      values_description: "100 individual measurements drawn from a lognormal distribution. Generate by: x = exp(N(2.3, 0.1)), which produces values with mean approximately 10.0 and a right-skewed distribution. Example values: 10.2, 9.5, 10.8, 9.1, 11.3, 9.8, 10.4, 10.1, 9.7, 10.6, ... The Shapiro-Wilk test should reject normality (p < 0.05) for this data. After seeding, set distribution_method='lognormal' on the characteristic via PATCH."
+    post_seed:
+      - "Recalculate control limits"
+      - "Set distribution_method='lognormal' via PATCH /characteristics/{id}"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Lognormal'."
+    verify: "The Capability Card is visible. It may show a non-normal indicator or the distribution method 'lognormal'."
+    screenshot: true
+  - step: 2
+    action: "Examine the capability indices on the Capability Card."
+    verify: "Capability indices are displayed. Because the distribution method is set to lognormal, the calculation uses the lognormal fitting or percentile method rather than standard normal-based formulas. The indices may differ from what standard Cp/Cpk would produce."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: call GET /characteristics/{id}/capability."
+    verify: "The API response shows capability indices. The normality_test field should indicate the normality test result. The is_normal field should be false (lognormal data fails the Shapiro-Wilk test). Capability values should be non-null and reasonable given the USL/LSL and data distribution."
+    screenshot: false
+expected_result: "When the distribution method is set to lognormal, the capability calculation correctly uses lognormal distribution fitting instead of assuming normality, producing more accurate capability indices for right-skewed data."
+pass_criteria: "Capability indices are calculated and displayed for the lognormal data. The normality test indicates non-normal data (is_normal=false). The capability values are reasonable for the given specifications and data distribution."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Lognormal' and all associated data via API"

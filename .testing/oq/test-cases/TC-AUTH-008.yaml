@@ -1,0 +1,39 @@
+id: TC-AUTH-008
+title: "Forgot password flow submits successfully"
+category: "Authentication & Accounts"
+subcategory: "Password"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Password recovery controls"
+  - "ISO 13485 - Controlled credential recovery process"
+preconditions:
+  description: "A user with a known username exists in the system (e.g., admin). No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login"
+    verify: "Login page loads with the 'Forgot Password?' link visible below/beside the password field."
+    screenshot: false
+  - step: 2
+    action: "Click the 'Forgot Password?' link"
+    verify: "The browser navigates to /forgot-password. A form is displayed with a field to enter a username or email address, and a submit button."
+    screenshot: true
+  - step: 3
+    action: "Enter 'admin' in the identifier field and click submit"
+    verify: "A success message is displayed: 'If an account with that identifier exists, a reset link has been sent.' The message does NOT confirm or deny whether the username exists."
+    screenshot: true
+  - step: 4
+    action: "Enter a non-existent identifier (e.g., 'nonexistent-user-xyz') and click submit"
+    verify: "The SAME success message is displayed: 'If an account with that identifier exists, a reset link has been sent.' The response is indistinguishable from step 3. This prevents user enumeration."
+    screenshot: true
+  - step: 5
+    action: "Compare the messages from step 3 and step 4"
+    verify: "Messages are identical. No visual or textual difference reveals whether the identifier matched a real account."
+    screenshot: false
+expected_result: "The forgot password form always returns the same success message regardless of whether the identifier matches a real user. This prevents user enumeration attacks."
+pass_criteria: "Success message displayed for both existing and non-existing identifiers. Messages are identical. No error is shown. No redirect occurs (user stays on the forgot-password page to see the message)."
+cleanup:
+  - "No cleanup required -- password reset tokens expire after 1 hour and are not consumed by this test"

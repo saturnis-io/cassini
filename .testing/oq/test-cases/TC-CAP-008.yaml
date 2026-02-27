@@ -1,0 +1,52 @@
+id: TC-CAP-008
+title: "Capability history trend chart shows Cpk over time"
+category: "Capability Analysis"
+subcategory: "History"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Process capability trending and monitoring"
+  - "AIAG PPAP - Ongoing capability evidence"
+preconditions:
+  description: "A variable characteristic with spec limits exists with at least 60 subgroups. The engineer has saved at least 2 capability snapshots (ideally at different data states to show trend variation). The logged-in user has engineer role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Trend"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements from N(10.0, 0.015). After seeding the initial 60 subgroups and recalculating limits, save a snapshot. Then submit 20 more subgroups from a slightly shifted distribution N(10.01, 0.015) and save a second snapshot. The two snapshots should show slightly different Cpk values, demonstrating a trend."
+    post_seed:
+      - "Recalculate limits after first 60 subgroups"
+      - "Save first snapshot via POST /characteristics/{id}/capability/snapshot"
+      - "Submit 20 additional subgroups from N(10.01, 0.015)"
+      - "Save second snapshot via POST /characteristics/{id}/capability/snapshot"
+      - "Verify 2 snapshots exist via GET /characteristics/{id}/capability/history"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer. Navigate to /dashboard. Select 'OQ-CAP-Trend'."
+    verify: "The Capability Card is visible with current capability indices."
+    screenshot: false
+  - step: 2
+    action: "Open the capability history view (click 'History' button or trend icon on the Capability Card)."
+    verify: "A trend chart or history view appears showing Cpk values over time. At least 2 data points are visible on the trend, corresponding to the 2 saved snapshots."
+    screenshot: true
+  - step: 3
+    action: "Examine the trend chart."
+    verify: "The chart has: (a) Time/date on the X-axis showing when each snapshot was taken. (b) Cpk values on the Y-axis. (c) At least 2 points connected by a line or displayed as markers. (d) The trend direction should show any change in Cpk between snapshots. If the second snapshot was taken after shifting the mean, Cpk should be slightly lower for the second point."
+    screenshot: true
+  - step: 4
+    action: "Verify the snapshot details (hover or click on a trend point if interactive)."
+    verify: "Each snapshot data point shows: Cpk value, timestamp, and optionally the calculated_by user. The values match what was returned by the capability history API."
+    screenshot: false
+expected_result: "The capability history trend chart visualizes Cpk (and potentially other indices) over time using saved snapshots, enabling engineers to monitor process capability evolution and detect degradation trends."
+pass_criteria: "Trend chart renders with at least 2 data points. X-axis shows timestamps. Y-axis shows Cpk values. The trend direction matches the expected change from data shifts. The chart is clearly readable."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Trend' and all associated data via API"

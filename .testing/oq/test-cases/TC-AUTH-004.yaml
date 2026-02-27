@@ -1,0 +1,44 @@
+id: TC-AUTH-004
+title: "Logout clears session and prevents re-access"
+category: "Authentication & Accounts"
+subcategory: "Logout"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Session termination controls"
+  - "ISO 13485 - Controlled access termination"
+  - "IATF 16949 - Prevention of unauthorized access after session end"
+preconditions:
+  description: "Default admin user exists. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login and log in as admin/admin"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Confirm the dashboard is accessible by checking the page title and sidebar"
+    verify: "Dashboard page is displayed with control chart area and sidebar navigation."
+    screenshot: true
+  - step: 3
+    action: "Click the user avatar/name in the top-right header to open the user menu"
+    verify: "Dropdown menu opens showing the username and a 'Sign Out' option."
+    screenshot: false
+  - step: 4
+    action: "Click 'Sign Out'"
+    verify: "The user is redirected to /login. The login form is displayed. The header no longer shows the user's name or avatar."
+    screenshot: true
+  - step: 5
+    action: "Navigate directly to /dashboard by typing the URL in the browser address bar"
+    verify: "The browser redirects to /login. The dashboard is NOT displayed. The user must authenticate again to access protected routes."
+    screenshot: true
+  - step: 6
+    action: "Navigate directly to /settings/account by typing the URL in the browser address bar"
+    verify: "The browser redirects to /login. No authenticated content is accessible."
+    screenshot: false
+expected_result: "Logout clears the session completely. After logout, all protected routes redirect to the login page. The refresh token cookie is cleared, so silent re-authentication does not occur."
+pass_criteria: "After clicking Sign Out: redirected to /login. Navigating to /dashboard after logout redirects to /login. No authenticated content is visible."
+cleanup:
+  - "No cleanup required -- user is already logged out"

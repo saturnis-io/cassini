@@ -1,0 +1,53 @@
+id: TC-AUDIT-007
+title: "Export audit log as CSV"
+category: "Audit Trail & Retention"
+subcategory: "Export"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic records must be available for FDA inspection in exportable format"
+  - "ISO 9001:2015 Section 7.5.3 - Documented information must be available for retrieval"
+  - "IATF 16949 - Records available for customer and regulatory audit"
+preconditions:
+  description: >
+    An admin user exists. The audit log has entries (at least 5-10 entries
+    from prior operations). The browser supports file download.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/audit-log"
+    verify: "Audit log viewer loads with entries visible in the table"
+    screenshot: false
+  - step: 2
+    action: "Click the 'Export CSV' button (or download icon button)"
+    verify: >
+      A CSV file download is initiated by the browser. The file is named
+      'audit_log.csv' (or similar). The download completes successfully.
+    screenshot: true
+  - step: 3
+    action: "Open the downloaded CSV file in a text editor or spreadsheet application"
+    verify: >
+      The CSV file contains a header row with columns: timestamp, username,
+      action, resource_type, resource_id, ip_address, detail. Data rows
+      follow the header, with values matching what was displayed in the
+      audit log viewer. Timestamps are in ISO 8601 format.
+    screenshot: true
+  - step: 4
+    action: "Apply a filter (e.g., action = 'Create') in the audit log viewer, then click Export CSV again"
+    verify: >
+      A new CSV file is downloaded. Opening it confirms that only 'create'
+      action entries are included -- the export respects the active filters.
+    screenshot: true
+expected_result: >
+  The CSV export produces a well-formatted file with the correct columns
+  and data, respecting any active filters. The file is suitable for
+  regulatory audit submission.
+pass_criteria: >
+  CSV file downloads successfully. Header row contains all expected columns.
+  Data rows match displayed entries. Filtered export contains only filtered
+  results. API verification: GET /audit/logs/export returns text/csv with
+  Content-Disposition header.
+cleanup:
+  - "Delete downloaded CSV files from the local filesystem"

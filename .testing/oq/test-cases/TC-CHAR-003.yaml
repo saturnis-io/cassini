@@ -1,0 +1,55 @@
+id: TC-CHAR-003
+title: "Create p-chart characteristic"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - p Chart (Section III)"
+  - "ISO 7870-1 - General guide to attribute control charts"
+preconditions:
+  description: "Engineer user is logged in. A station node exists in the hierarchy."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ P-Chart Plant"
+        code: "OQPC"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Attr Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Attr Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'Attr Station'."
+    verify: "Station node selected."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Characteristic'. Enter: Name: 'OQ-Solder-Defect-Rate', Data Type: Attribute, Attribute Chart Type: p (proportion defective), Default Sample Size: 100."
+    verify: "Attribute-specific fields appear when 'Attribute' data type is selected. p-chart type is selectable."
+    screenshot: true
+  - step: 3
+    action: "Click Create/Save."
+    verify: "Characteristic created. Appears under 'Attr Station'."
+    screenshot: false
+  - step: 4
+    action: "Click on 'OQ-Solder-Defect-Rate' to open config panel."
+    verify: "Config shows: Data Type = Attribute, Attribute Chart Type = p, Default Sample Size = 100."
+    screenshot: true
+expected_result: "A p-chart (proportion defective) attribute characteristic is created with the correct configuration."
+pass_criteria: "Characteristic shows data_type=attribute, attribute_chart_type=p, default_sample_size=100."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

@@ -1,0 +1,61 @@
+id: TC-DATA-015
+title: "Batch submit 10 samples via API"
+category: "Data Entry"
+subcategory: "APIEntry"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement (bulk data import)"
+  - "21 CFR Part 11 Section 11.10(e) - Electronic Records (batch integrity)"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists. The test user has operator+ role
+    with a valid JWT token. No API key required for this test (uses
+    JWT auth via the samples/batch endpoint).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+
+execution_mode: api-verify
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: >
+      Send POST /samples/batch with JWT auth. Body:
+      {"characteristic_id": {id}, "samples": [
+        {"measurements": [10.01]}, {"measurements": [10.03]},
+        {"measurements": [9.98]}, {"measurements": [10.02]},
+        {"measurements": [10.00]}, {"measurements": [9.99]},
+        {"measurements": [10.04]}, {"measurements": [10.01]},
+        {"measurements": [9.97]}, {"measurements": [10.02]}
+      ], "skip_rule_evaluation": false}
+    verify: >
+      Response 200 OK. Body: total = 10, imported = 10, failed = 0,
+      errors = [].
+    screenshot: false
+  - step: 2
+    action: "Send GET /samples/?characteristic_id={id}&limit=20"
+    verify: "Response contains at least 10 samples with the correct measurement values"
+    screenshot: false
+  - step: 3
+    action: "Navigate to /dashboard and select Bore Diameter"
+    verify: "Chart shows all 10 new data points plotted chronologically"
+    screenshot: true
+
+expected_result: >
+  All 10 samples are imported in a single transaction. Each sample is
+  processed through the SPC engine with Nelson Rule evaluation. The
+  batch response confirms 10 successful imports with 0 failures.
+
+pass_criteria: >
+  imported = 10, failed = 0. All 10 samples visible in the API list
+  and on the dashboard chart. Each sample has the correct measurement value.
+
+cleanup:
+  - "Delete all 10 samples via API: iterate and DELETE /samples/{id}"

@@ -1,0 +1,44 @@
+id: TC-SET-013
+title: "Create user via admin panel"
+category: "Settings & Admin"
+subcategory: "UserManagement"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Limiting system access to authorized individuals"
+  - "21 CFR Part 11 Section 11.10(g) - Use of authority checks"
+  - "ISO 13485 Section 6.2 - Human resources, competence, training, and awareness"
+  - "ISO 9001:2015 Section 7.2 - Competence of personnel affecting product quality"
+preconditions:
+  description: >
+    An admin user is logged in. The /admin/users page is accessible.
+    No user with username 'oq-newuser' exists (or it has been cleaned
+    up from prior test runs).
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /admin/users."
+    verify: "The user management page loads. A table of existing users is displayed. An 'Add User' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add User'."
+    verify: "A user creation form or dialog appears with fields for: username (required), password (required), email (optional), display name (optional)."
+    screenshot: true
+  - step: 3
+    action: "Enter: username: 'oq-newuser', display name: 'OQ Test User', password: 'OqNew123!'."
+    verify: "All fields accept input. Username shows 'oq-newuser'. Display name shows 'OQ Test User'. Password is masked."
+    screenshot: true
+  - step: 4
+    action: "Click Submit/Create to create the user."
+    verify: "Success indication (toast: 'User created' or similar). The new user 'oq-newuser' appears in the user table with their display name."
+    screenshot: true
+  - step: 5
+    action: "Locate 'oq-newuser' in the user table."
+    verify: "The table row shows: username = 'oq-newuser', display name = 'OQ Test User', status = active. No plant roles assigned yet."
+    screenshot: true
+expected_result: "A new user is created via the admin panel with username 'oq-newuser' and display name 'OQ Test User'. The user appears in the user management table as an active user with no roles assigned."
+pass_criteria: "User creation succeeds without errors. User appears in the table. API verification: GET /users/ includes a user with username='oq-newuser', is_active=true."
+cleanup:
+  - "Delete user via API: DELETE /users/{user_id} then DELETE /users/{user_id}/permanent"

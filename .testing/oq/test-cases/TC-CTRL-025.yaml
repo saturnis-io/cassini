@@ -1,0 +1,76 @@
+id: TC-CTRL-025
+title: "Dual chart panel for side-by-side comparison"
+category: "Control Charts"
+subcategory: "Interactions"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (comparative analysis)"
+  - "IATF 16949 Section 9.1.1.1 - SPC (multi-stream monitoring)"
+
+preconditions:
+  description: >
+    At least 2 characteristics with data exist in the same plant.
+    The dashboard or wall-dashboard supports side-by-side chart
+    comparison. If full dual-panel is not available, the wall
+    dashboard at /wall-dashboard provides multi-chart display.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristics:
+      - name: "Bore Diameter Compare"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        samples: "25 measurements"
+      - name: "Shaft OD Compare"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        samples: "25 measurements"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /wall-dashboard (multi-chart display)"
+    verify: "Wall dashboard loads with a grid or multi-panel layout"
+    screenshot: true
+  - step: 2
+    action: "Add or select Bore Diameter Compare as the first chart"
+    verify: "First chart panel shows the Bore Diameter I-MR chart"
+    screenshot: false
+  - step: 3
+    action: "Add or select Shaft OD Compare as the second chart"
+    verify: "Second chart panel shows the Shaft OD I-MR chart alongside the first"
+    screenshot: true
+  - step: 4
+    action: "Verify both charts are visible simultaneously"
+    verify: >
+      Both charts render correctly in their respective panels. Each
+      has its own data points, control limits, and interactive
+      features. The layout does not overlap or clip either chart.
+    screenshot: true
+  - step: 5
+    action: "Interact with one chart (hover for tooltip)"
+    verify: >
+      Tooltip appears for the interacted chart. The other chart is
+      not affected by the interaction.
+    screenshot: false
+
+expected_result: >
+  Two control charts display simultaneously in a side-by-side or
+  grid layout. This supports comparative analysis where engineers
+  need to see related characteristics together -- for example,
+  comparing inner and outer diameter of the same bore, or
+  monitoring upstream and downstream process parameters.
+
+pass_criteria: >
+  Both charts visible and correctly rendered. Independent interaction
+  (hover, zoom on one does not affect the other). Layout is responsive
+  and neither chart is clipped or compressed beyond readability.
+
+cleanup:
+  - "Delete seeded data via API"

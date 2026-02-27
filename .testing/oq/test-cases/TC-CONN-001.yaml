@@ -1,0 +1,36 @@
+id: TC-CONN-001
+title: "Connectivity Hub page loads with all tabs"
+category: "Connectivity"
+subcategory: "Hub"
+priority: critical
+regulatory_relevance:
+  - "IATF 16949 - Automated data collection systems must be documented and accessible to process engineers"
+  - "21 CFR Part 11 - Data acquisition system configuration must be controlled and auditable"
+  - "AS9100 - Measurement system documentation must be accessible to authorized personnel"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected. Backend and frontend servers are running."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity via the sidebar (click 'Connectivity' in the sidebar navigation)"
+    verify: "The Connectivity Hub page loads. The page header reads 'Connectivity Hub' with a subtitle describing managing industrial data sources. The page redirects to /connectivity/monitor (the default tab)."
+    screenshot: true
+  - step: 2
+    action: "Examine the sidebar navigation within the Connectivity Hub page (left panel)"
+    verify: "The sidebar shows four grouped sections with six navigation items: Operations group contains 'Monitor' and 'Servers'. Configuration group contains 'Browse' and 'Mapping'. Instruments group contains 'Gages'. Integrations group contains 'ERP/LIMS'. The 'Monitor' tab is highlighted as active."
+    screenshot: true
+  - step: 3
+    action: "Click each tab in sequence: Servers, Browse, Mapping, Gages, ERP/LIMS"
+    verify: "Each tab click navigates to the corresponding sub-route (/connectivity/servers, /connectivity/browse, /connectivity/mapping, /connectivity/gages, /connectivity/integrations). Each tab loads its content area without errors. The clicked tab becomes highlighted in the sidebar."
+    screenshot: false
+  - step: 4
+    action: "Click 'Monitor' to return to the default tab"
+    verify: "Monitor tab content loads. Shows connectivity metrics, data flow visualization, and server status grid (or empty state if no servers are configured)."
+    screenshot: true
+expected_result: "The Connectivity Hub page loads successfully with all six tabs accessible via sidebar navigation. Each tab renders its content area without errors."
+pass_criteria: "All six tabs (Monitor, Servers, Browse, Mapping, Gages, ERP/LIMS) are visible in the sidebar. Clicking each tab loads corresponding content. No console errors on any tab."
+cleanup:
+  - "No cleanup required"

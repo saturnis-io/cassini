@@ -1,0 +1,57 @@
+id: TC-SIG-009
+title: "Signature meanings CRUD lifecycle"
+category: "Electronic Signatures"
+subcategory: "SignatureMeaning"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.50 - Signature manifestations must include meaning"
+  - "ISO 13485 Section 4.2.5 - Defined approval types in quality management system"
+  - "GMP - Standardized signature meanings for manufacturing records"
+preconditions:
+  description: >
+    An admin user is logged in. No meaning with code 'validated' exists for
+    the active plant. The Signatures settings page is accessible.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-admin"
+      role: "admin"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/signatures and expand the Meanings section"
+    verify: "The Meanings section shows existing meanings (may include defaults like 'Authored', 'Reviewed', 'Approved'). An 'Add Meaning' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add Meaning'. Fill in: Code: 'validated', Display Name: 'Validated', Description: 'Independent validation completed per SOP-QA-042', Requires Comment: unchecked, Sort Order: 10. Click Save."
+    verify: "Success notification. The new meaning 'Validated' appears in the meanings list with code='validated', description shown, requires_comment=false."
+    screenshot: true
+  - step: 3
+    action: "Click on the 'Validated' meaning to edit it. Change Description to 'Independent validation per SOP-QA-042 Rev B'. Enable 'Requires Comment'. Click Save."
+    verify: "Success notification. The meaning now shows updated description and requires_comment=true."
+    screenshot: true
+  - step: 4
+    action: "Verify the update via API: GET /signatures/meanings?plant_id={plant_id}"
+    verify: "Response includes a meaning with code='validated', display_name='Validated', description='Independent validation per SOP-QA-042 Rev B', requires_comment=true, is_active=true."
+    screenshot: false
+  - step: 5
+    action: "Click the delete/deactivate button on the 'Validated' meaning. Confirm deletion."
+    verify: "Success notification. The meaning is removed from the active list (soft-deleted, set to is_active=false)."
+    screenshot: true
+  - step: 6
+    action: "Verify via API: GET /signatures/meanings?plant_id={plant_id}&include_inactive=true"
+    verify: "Response includes the meaning with code='validated' and is_active=false. It is preserved for referential integrity but no longer available for new signatures."
+    screenshot: false
+expected_result: >
+  Full CRUD lifecycle for a signature meaning: create 'Validated', update
+  its description and requires_comment flag, then soft-delete (deactivate) it.
+  The deactivated meaning is preserved in the database but not shown in
+  active listings.
+pass_criteria: >
+  Create, update, and delete operations all complete without errors. API
+  confirms each change. Deactivated meaning has is_active=false but still
+  exists in the database when include_inactive=true is used.
+cleanup:
+  - "No cleanup needed -- the meaning was deactivated during the test"

@@ -1,0 +1,45 @@
+id: TC-HIER-003
+title: "Delete a plant"
+category: "Plants & Hierarchy"
+subcategory: "Plants"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information"
+  - "21 CFR Part 11 - Records retention and deletion audit trail"
+preconditions:
+  description: "Admin user is logged in. A plant with code 'OQ03' exists and is not the Default plant."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Delete Test Plant"
+        code: "OQ03"
+        is_active: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Settings > Sites (/settings/sites)."
+    verify: "Plant list loads. 'OQ Delete Test Plant' (OQ03) is visible."
+    screenshot: true
+  - step: 2
+    action: "Select 'OQ Delete Test Plant' and click the Delete button."
+    verify: "A confirmation dialog appears warning that deletion is permanent and cascades to all plant data."
+    screenshot: true
+  - step: 3
+    action: "Confirm the deletion."
+    verify: "Plant is deleted. Success notification appears."
+    screenshot: false
+  - step: 4
+    action: "Verify the plant is removed from the list."
+    verify: "'OQ Delete Test Plant' no longer appears in the /settings/sites list."
+    screenshot: true
+  - step: 5
+    action: "Open the plant switcher in the header."
+    verify: "'OQ Delete Test Plant' no longer appears in the plant switcher dropdown."
+    screenshot: true
+expected_result: "Plant is permanently deleted and removed from both the settings list and the plant switcher."
+pass_criteria: "Plant 'OQ03' does not appear in the plant list or plant switcher after deletion."
+cleanup: []

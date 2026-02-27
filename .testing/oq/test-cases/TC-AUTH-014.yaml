@@ -1,0 +1,51 @@
+id: TC-AUTH-014
+title: "Assign plant role to a user"
+category: "Authentication & Accounts"
+subcategory: "UserMgmt"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Role-based access controls"
+  - "ISO 13485 - Defined personnel responsibilities"
+  - "IATF 16949 - Competence-based access to SPC functions"
+  - "AS9100 - Separation of duties in quality processes"
+preconditions:
+  description: "Admin user is logged in. A test user 'oq-newuser' exists (created in TC-AUTH-013 or via API). At least one plant exists in the system. The test user currently has no plant roles assigned."
+  seed_method: api
+  seed_data:
+    user:
+      username: "oq-roleuser"
+      password: "RoleTest123!"
+      email: "roleuser@test.local"
+    notes: "If TC-AUTH-013 was executed and cleanup was skipped, the 'oq-newuser' user can be reused"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin. Navigate to /admin/users."
+    verify: "User Management page loads with the user list."
+    screenshot: false
+  - step: 2
+    action: "Click on the test user (oq-roleuser or oq-newuser) row to open user details or the edit dialog"
+    verify: "User detail view or edit dialog opens. The current plant roles section is visible (may be empty if no roles assigned). A role assignment form is present with plant selector and role selector."
+    screenshot: true
+  - step: 3
+    action: "In the role assignment form, select the first available plant and select 'engineer' as the role. Click the assign/save button."
+    verify: "The role is assigned successfully. The plant roles list now shows the selected plant with 'engineer' role. A success indication is shown (toast or inline update)."
+    screenshot: true
+  - step: 4
+    action: "Close the dialog. Refresh the user management page (F5)."
+    verify: "The user list reloads. The test user still shows the assigned role. The change persisted."
+    screenshot: false
+  - step: 5
+    action: "Log out. Log in as the test user (oq-roleuser / RoleTest123!)."
+    verify: "Login succeeds. The dashboard loads. The sidebar shows items appropriate for the engineer role: Dashboard, Data Entry, Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Settings. The 'Users' admin link is NOT visible (engineer is not admin)."
+    screenshot: true
+  - step: 6
+    action: "Navigate to /admin/users by typing the URL directly in the browser address bar"
+    verify: "Access is denied. The user is either redirected away or shown an unauthorized message. Engineers cannot access the admin user management page."
+    screenshot: true
+expected_result: "An admin can assign a plant-scoped role to a user. The role determines what sidebar items and routes the user can access. Role enforcement is verified by both sidebar visibility and direct URL access."
+pass_criteria: "Role is saved and persists after refresh. Logging in as the user shows engineer-level sidebar items. Admin-only routes are blocked for the engineer. The assigned role matches what was selected."
+cleanup:
+  - "Log in as admin and remove the role assignment, then deactivate/delete the test user"
+  - "Alternatively, retain for use in TC-AUTH-015"

@@ -1,0 +1,49 @@
+id: TC-CAP-007
+title: "Save capability snapshot persists calculation"
+category: "Capability Analysis"
+subcategory: "History"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Documented process capability evidence"
+  - "AIAG PPAP - Capability study documentation"
+  - "21 CFR Part 11 - Persistent electronic records"
+preconditions:
+  description: "A variable characteristic with USL=10.05, LSL=9.95, target=10.0 exists with at least 60 subgroups of data and control limits calculated. The Capability Card displays valid capability indices. The logged-in user has engineer role or higher (snapshot save requires engineer+)."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Snapshot"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each from N(10.0, 0.015)."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer (oq-engineer). Navigate to /dashboard. Select 'OQ-CAP-Snapshot'."
+    verify: "The Capability Card is visible with valid Cp, Cpk, Pp, Ppk values. Note the current Cpk value for comparison."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Save Snapshot' button on the Capability Card (may be a save icon or explicit button)."
+    verify: "A success notification appears confirming the snapshot was saved. The snapshot includes: the capability indices, sample count, normality test result, timestamp, and the engineer's username as 'calculated_by'."
+    screenshot: true
+  - step: 3
+    action: "Verify the snapshot was saved via API: call GET /characteristics/{id}/capability/history."
+    verify: "The API returns at least one snapshot entry with: id (numeric), cp, cpk, pp, ppk, cpm, sample_count, normality_test, calculated_at (ISO timestamp), and calculated_by (the engineer's username). The cpk value matches the value that was displayed when the snapshot was saved."
+    screenshot: false
+  - step: 4
+    action: "Refresh the page and verify the snapshot persists."
+    verify: "After page refresh, the capability history still shows the saved snapshot. The data is persisted in the database, not just in-memory."
+    screenshot: false
+expected_result: "Saving a capability snapshot persists the current capability calculation (all indices, sample count, normality, timestamp, user) to the database for historical tracking and audit purposes."
+pass_criteria: "Snapshot is saved successfully. API history endpoint returns the snapshot with correct values. The calculated_by field matches the engineer username. The snapshot persists after page refresh."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Snapshot' and all associated data via API"

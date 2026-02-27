@@ -1,0 +1,62 @@
+id: TC-SIG-007
+title: "View signature history for a resource"
+category: "Electronic Signatures"
+subcategory: "SignatureMeaning"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Complete audit trail of electronic signatures with attribution"
+  - "ISO 13485 Section 4.2.5 - Records of approval with reviewer identity and date"
+  - "GMP - Full signature history for batch records and quality documentation"
+preconditions:
+  description: >
+    At least one standalone or workflow-based signature exists for a known
+    resource (e.g., capability_snapshot id=1). A supervisor or higher user
+    is logged in.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-supervisor"
+      role: "supervisor"
+    signatures:
+      - resource_type: "capability_snapshot"
+        resource_id: 1
+        signer: "oq-engineer"
+        meaning_code: "reviewed"
+      - resource_type: "capability_snapshot"
+        resource_id: 1
+        signer: "oq-admin"
+        meaning_code: "approved"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the resource that has been signed (e.g., a capability snapshot detail page, or the signature history section of the Signatures settings page)"
+    verify: "The page loads. A Signature History section or component is visible for the resource."
+    screenshot: true
+  - step: 2
+    action: "Examine the signature history list"
+    verify: "The list shows all signatures for this resource. Each entry includes: signer name (username and/or full name), timestamp (date and time), meaning (e.g., 'Reviewed', 'Approved'), and a verification badge (valid/invalid indicator)."
+    screenshot: true
+  - step: 3
+    action: "Verify the list shows the expected signatures in chronological order"
+    verify: "First signature: signer='oq-engineer', meaning='Reviewed'. Second signature: signer='oq-admin', meaning='Approved'. Timestamps are in chronological order (engineer signed first)."
+    screenshot: false
+  - step: 4
+    action: "Verify via API: GET /signatures/resource/capability_snapshot/1"
+    verify: "Response is an array of signature objects. Each object includes: id, user_id, username, full_name, timestamp, meaning_code, meaning_display, resource_type, resource_id, resource_hash, signature_hash, is_valid. Array length is >= 2."
+    screenshot: false
+  - step: 5
+    action: "Verify signature history via API: GET /signatures/history?plant_id={plant_id}&resource_type=capability_snapshot"
+    verify: "Response includes items with correct username, meaning_code, meaning_display, resource_type, resource_id, and is_valid fields."
+    screenshot: false
+expected_result: >
+  The signature history for the resource shows all signatures with correct
+  signer identity, timestamp, meaning, and validity status. The history
+  provides a complete audit trail of who signed, when, and with what intent.
+pass_criteria: >
+  Signature history shows all expected signatures. Each entry has correct
+  signer, timestamp, meaning. Verification badges show valid status for
+  unmodified resources. API returns complete signature records.
+cleanup:
+  - "No cleanup required -- signatures are immutable records"

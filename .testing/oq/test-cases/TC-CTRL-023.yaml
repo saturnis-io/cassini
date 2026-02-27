@@ -1,0 +1,70 @@
+id: TC-CTRL-023
+title: "Real-time chart update on new data submission"
+category: "Control Charts"
+subcategory: "Interactions"
+priority: critical
+regulatory_relevance:
+  - "IATF 16949 Section 9.1.1.1 - Real-time process monitoring"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement (timeliness)"
+
+preconditions:
+  description: >
+    A characteristic with chart data displayed on the dashboard. A
+    second browser tab or API client is available to submit a new
+    sample while the dashboard is open.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Bore Diameter Realtime"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "20 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard in Tab A and select Bore Diameter Realtime"
+    verify: "Chart renders with 20 data points"
+    screenshot: true
+  - step: 2
+    action: "Count the current number of data points on the chart"
+    verify: "20 points visible"
+    screenshot: false
+  - step: 3
+    action: >
+      In a second tab (Tab B) or via API, submit a new measurement:
+      POST /samples/ with measurements=[10.05] for this characteristic
+    verify: "Submit succeeds (201 response)"
+    screenshot: false
+  - step: 4
+    action: "Return to Tab A (dashboard) and observe the chart"
+    verify: >
+      The chart updates to show 21 data points WITHOUT a full page
+      refresh. The new point at 10.05 appears at the right end of
+      the chart. React Query cache invalidation triggers the update.
+    screenshot: true
+  - step: 5
+    action: "Verify the new point's position and value"
+    verify: >
+      The new point is plotted at the correct Y-value (10.05) and at
+      the most recent time position on the X-axis.
+    screenshot: false
+
+expected_result: >
+  New data submitted from any source (UI, API, connectivity) appears
+  on the dashboard chart in near real-time without requiring the user
+  to manually refresh the page. This is achieved through React Query
+  cache invalidation and optional WebSocket notifications.
+
+pass_criteria: >
+  Chart shows 21 points after submission (was 20). No page reload
+  occurred. New point is at the correct value. Limit lines remain
+  correctly positioned.
+
+cleanup:
+  - "Delete seeded data via API"

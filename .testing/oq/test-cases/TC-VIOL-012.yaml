@@ -1,0 +1,45 @@
+id: TC-VIOL-012
+title: "Violation detail view shows rule description and data context"
+category: "Violations & Rules"
+subcategory: "ViolationList"
+priority: medium
+regulatory_relevance:
+  - "ISO 7870-2 - Interpretation of control chart signals"
+  - "IATF 16949 - Documentation of out-of-control investigation"
+preconditions:
+  description: "At least one violation exists (preferably a Rule 1 violation for clear demonstration). The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Detail"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 26
+      values_description: "25 normal samples (mean=10.0, sigma=0.02) followed by recalculate-limits, then 1 extreme value (10.10) to trigger a Rule 1 violation."
+    post_seed:
+      - "Recalculate limits after first 25 samples"
+      - "Submit extreme value to generate violation"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /violations. Click on a violation row to view its details."
+    verify: "A detail view or expanded panel opens showing the violation's complete information."
+    screenshot: true
+  - step: 2
+    action: "Examine the violation detail content."
+    verify: "The detail view shows: (a) Rule number and name (e.g., 'Rule 1 - Outlier' or 'Beyond 3 sigma'), (b) a description of what the rule tests (e.g., 'A single point beyond the upper or lower control limit'), (c) severity (CRITICAL), (d) the associated characteristic name ('OQ-VIOL-Detail'), (e) the timestamp of the violation, and (f) the sample ID or a reference to the data point that triggered it."
+    screenshot: true
+  - step: 3
+    action: "Look for a link or button to navigate to the control chart showing this violation."
+    verify: "A navigation element (link, button, or clickable characteristic name) is present that would take the user to the dashboard view of the characteristic's control chart. If clicked, it navigates to the chart with the violation point visible."
+    screenshot: false
+expected_result: "Clicking on a violation row reveals detailed information including the rule number, description, severity, characteristic context, timestamp, and a way to navigate to the associated control chart."
+pass_criteria: "Violation detail shows rule_id, rule_name, severity, characteristic name, and timestamp. The information is sufficient for an operator or supervisor to understand what happened and investigate."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Detail' and all associated data via API"

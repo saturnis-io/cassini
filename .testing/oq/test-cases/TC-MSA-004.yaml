@@ -1,0 +1,48 @@
+id: TC-MSA-004
+title: "Enter measurement data for Gage R&R study"
+category: "MSA / Gage R&R"
+subcategory: "DataEntry"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Data collection for Gage R&R (randomized measurement order)"
+  - "IATF 16949 - Measurement data recording"
+  - "ISO 13485 - Documented measurement records"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study 'OQ-GRR-Crossed' exists with 3 operators (Op-A, Op-B, Op-C) and 10 parts (Part-01 through Part-10) configured, num_replicates=2. Study status is 'Setup' or 'Collecting'."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+    operators: ["Op-A", "Op-B", "Op-C"]
+    parts: ["Part-01", "Part-02", "Part-03", "Part-04", "Part-05", "Part-06", "Part-07", "Part-08", "Part-09", "Part-10"]
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the MSA study 'OQ-GRR-Crossed' and navigate to the Data tab."
+    verify: "The data grid is displayed with a matrix layout. Rows represent parts (Part-01 through Part-10). Columns represent operators x replicates (Op-A Rep1, Op-A Rep2, Op-B Rep1, Op-B Rep2, Op-C Rep1, Op-C Rep2). All cells are initially empty. The total expected measurements count (60 = 3 x 10 x 2) may be shown."
+    screenshot: true
+  - step: 2
+    action: "Enter realistic measurement data for a 25mm diameter feature. Use base value 25.00mm with small variation to simulate a good measurement system (EV approximately 0.01, AV approximately 0.005, PV approximately 0.08). Enter the first 20 measurements for Op-A across all 10 parts, 2 replicates each. Use values like: Part-01 (25.01, 25.02), Part-02 (24.95, 24.94), Part-03 (25.08, 25.07), Part-04 (24.92, 24.93), Part-05 (25.03, 25.04), Part-06 (24.98, 24.97), Part-07 (25.06, 25.05), Part-08 (24.90, 24.91), Part-09 (25.10, 25.09), Part-10 (25.00, 25.01)."
+    verify: "Op-A's 20 cells are filled with the entered values. Numbers display in the grid cells."
+    screenshot: false
+  - step: 3
+    action: "Enter 20 measurements for Op-B with slightly different values reflecting operator technique variation. Use values like: Part-01 (25.02, 25.01), Part-02 (24.94, 24.95), Part-03 (25.07, 25.08), Part-04 (24.93, 24.92), Part-05 (25.04, 25.03), Part-06 (24.97, 24.98), Part-07 (25.05, 25.06), Part-08 (24.91, 24.90), Part-09 (25.09, 25.10), Part-10 (25.01, 25.00)."
+    verify: "Op-B's 20 cells are filled. A total of 40 out of 60 measurements are entered."
+    screenshot: false
+  - step: 4
+    action: "Enter 20 measurements for Op-C. Use values like: Part-01 (25.01, 25.01), Part-02 (24.95, 24.95), Part-03 (25.08, 25.08), Part-04 (24.92, 24.92), Part-05 (25.03, 25.03), Part-06 (24.98, 24.98), Part-07 (25.06, 25.06), Part-08 (24.90, 24.90), Part-09 (25.10, 25.10), Part-10 (25.00, 25.00)."
+    verify: "All 60 cells (3 operators x 10 parts x 2 replicates) are filled with numeric values. No empty cells remain in the grid."
+    screenshot: true
+  - step: 5
+    action: "Click the Submit / Save Measurements button to persist the data."
+    verify: "A success notification appears confirming measurements were saved. The study status badge changes from 'Setup' to 'Collecting' (amber). The measurement count shows 60."
+    screenshot: true
+expected_result: "All 60 measurements (3 operators x 10 parts x 2 replicates) are entered in the data grid and saved successfully. The study status transitions to 'Collecting'."
+pass_criteria: "All 60 grid cells contain numeric values. No empty cells remain. Study status is 'Collecting'. Measurement count displays 60. Data persists after page refresh."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

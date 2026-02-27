@@ -1,0 +1,59 @@
+id: TC-CAP-006
+title: "Show Your Work explains Cpk calculation step by step"
+category: "Capability Analysis"
+subcategory: "ShowYourWork"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Computation traceability for electronic records"
+  - "IATF 16949 - Validation of SPC methods"
+  - "ISO 13485 - Documented evidence of statistical method correctness"
+  - "AIAG SPC Reference Manual - Cpk formula reference"
+preconditions:
+  description: "A variable characteristic with USL=10.05, LSL=9.95, target=10.0 exists with at least 60 subgroups of data and control limits calculated. Capability indices are displayed on the Capability Card. The logged-in user has any role (Show Your Work is available to all authenticated users)."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-ShowWork"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each from N(10.0, 0.015). Standard centered distribution."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-ShowWork'. Verify the Capability Card shows Cpk."
+    verify: "Cpk is displayed on the Capability Card with a numeric value."
+    screenshot: false
+  - step: 2
+    action: "Click the 'Show Your Work' toggle button in the application header (calculator or formula icon)."
+    verify: "The toggle activates. Statistical values throughout the page -- including the Cpk value on the Capability Card -- now display a dotted underline, indicating they are clickable for explanation."
+    screenshot: true
+  - step: 3
+    action: "Click on the Cpk value (now underlined) on the Capability Card."
+    verify: "An Explanation Panel slides out from the right side of the screen. The panel contains: (a) Title: 'Process Capability (Cpk)' or similar. (b) Formula: A KaTeX-rendered formula showing Cpk = min(Cpu, Cpl) where Cpu = (USL - X-bar) / (3 * sigma_w) and Cpl = (X-bar - LSL) / (3 * sigma_w)."
+    screenshot: true
+  - step: 4
+    action: "Scroll through the Explanation Panel to review the step-by-step computation."
+    verify: "The panel shows numbered computation steps with actual values from the data, including: (a) Step computing the mean (X-bar) with the actual calculated mean value. (b) Step computing the within-subgroup sigma (sigma_w) with the actual value (R-bar/d2 method). (c) Step computing Cpu = (USL - X-bar) / (3 * sigma_w) with actual numbers plugged in. (d) Step computing Cpl = (X-bar - LSL) / (3 * sigma_w) with actual numbers. (e) Final step: Cpk = min(Cpu, Cpl) with the result. All intermediate values are shown as actual numbers, not placeholders."
+    screenshot: true
+  - step: 5
+    action: "Scroll to the bottom of the Explanation Panel to find the citation."
+    verify: "A citation or reference is displayed, referencing the AIAG SPC Reference Manual (or equivalent standard source) for the Cpk formula and method."
+    screenshot: true
+  - step: 6
+    action: "Compare the Cpk value shown in the Explanation Panel with the Cpk value displayed on the Capability Card."
+    verify: "The two values match exactly. The Explanation Panel's computed Cpk equals the Capability Card's displayed Cpk. This confirms the 'value matching' requirement -- the explanation uses the same computation path as the display."
+    screenshot: false
+expected_result: "Show Your Work provides a complete, auditable explanation of the Cpk computation: the formula (KaTeX rendered), step-by-step calculation with actual data values, and an AIAG citation. The explained value matches the displayed value exactly."
+pass_criteria: "The Explanation Panel opens with the Cpk formula rendered in KaTeX. Step-by-step computation shows actual numeric values for mean, sigma, Cpu, Cpl, and Cpk. An AIAG citation is present. The panel's Cpk value exactly matches the Capability Card's Cpk value."
+cleanup:
+  - "Disable Show Your Work toggle"
+  - "Delete characteristic 'OQ-CAP-ShowWork' and all associated data via API"

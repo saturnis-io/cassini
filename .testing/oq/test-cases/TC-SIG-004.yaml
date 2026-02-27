@@ -1,0 +1,59 @@
+id: TC-SIG-004
+title: "Initiate workflow-based approval"
+category: "Electronic Signatures"
+subcategory: "Approval"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Multi-step approval workflows with sequential authorization"
+  - "AS9102 Rev C - FAI approval workflow requiring engineer review before admin approval"
+  - "ISO 13485 Section 7.3.5 - Design and development verification with staged approval"
+preconditions:
+  description: >
+    An engineer user is logged in. A workflow 'OQ-Approval-Flow' exists with
+    2 steps (Step 1: engineer/reviewed, Step 2: admin/approved). The workflow's
+    resource_type is 'fai_report'. An FAI report exists that can trigger the
+    workflow. Signature meanings 'reviewed' and 'approved' exist.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    workflow:
+      name: "OQ-Approval-Flow"
+      resource_type: "fai_report"
+      steps:
+        - step_order: 1
+          name: "Engineer Review"
+          min_role: "engineer"
+          meaning_code: "reviewed"
+        - step_order: 2
+          name: "Admin Approval"
+          min_role: "admin"
+          meaning_code: "approved"
+    fai_report:
+      part_number: "OQ-PART-001"
+      status: "submitted"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the FAI report detail page for the submitted FAI report (OQ-PART-001). Locate and click the 'Approve' or 'Start Approval' button that triggers the workflow."
+    verify: "The system initiates a workflow instance. The SignatureDialog appears for Step 1 ('Engineer Review'), or the page indicates the workflow has been initiated and Step 1 is pending."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /settings/signatures and expand the Pending Approvals section"
+    verify: "The Pending Approvals dashboard shows the newly created workflow instance. It displays: workflow name 'OQ-Approval-Flow', resource type 'fai_report', current step 'Engineer Review' (Step 1 of 2), and the initiator's username."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: GET /signatures/pending?plant_id={plant_id}"
+    verify: "Response items array includes an item with workflow_name='OQ-Approval-Flow', current_step='Engineer Review', step_number=1, total_steps=2. The initiated_by field shows the username of the user who triggered the workflow."
+    screenshot: false
+expected_result: >
+  A workflow-based approval is initiated for the FAI report. A workflow instance
+  is created with Step 1 (Engineer Review) in pending status. The pending
+  approval appears in the Pending Approvals dashboard for users with the
+  engineer role.
+pass_criteria: >
+  Workflow instance is created successfully. Step 1 is pending. The Pending
+  Approvals dashboard shows the item. API confirms workflow_name, current_step,
+  step_number=1, total_steps=2.
+cleanup:
+  - "Reject the workflow to clean up the pending instance, or delete via direct DB cleanup"

@@ -1,0 +1,49 @@
+id: TC-HIER-006
+title: "Create line under department"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: critical
+regulatory_relevance:
+  - "ISA-95 - Equipment hierarchy model"
+  - "ISO 9001:2015 Section 4.4 - Quality management system and its processes"
+preconditions:
+  description: "Engineer user is logged in. A department node 'OQ Department' exists in the hierarchy."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Line Test Plant"
+        code: "OQ06"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Department"
+        type: "Area"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Line Test Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'OQ Department' as a root node."
+    screenshot: true
+  - step: 2
+    action: "Right-click on 'OQ Department' and select 'Add Child' (or select the node and use the toolbar Add button)."
+    verify: "A dialog or inline editor appears for creating a child node."
+    screenshot: true
+  - step: 3
+    action: "Enter Name: 'CNC Line 1', Type: 'Line'. Click Create/Save."
+    verify: "Node is created as a child of 'OQ Department'."
+    screenshot: false
+  - step: 4
+    action: "Expand 'OQ Department' in the tree if not already expanded."
+    verify: "'CNC Line 1' appears nested under 'OQ Department' with proper indentation showing parent-child relationship."
+    screenshot: true
+expected_result: "A line-level hierarchy node is created as a child of the department node, correctly nested in the tree."
+pass_criteria: "'CNC Line 1' is visible as a child of 'OQ Department' in the hierarchy tree, with proper nesting indentation."
+cleanup:
+  - "Delete hierarchy nodes bottom-up via API"
+  - "Delete plant 'OQ06' via API: DELETE /plants/{id}"

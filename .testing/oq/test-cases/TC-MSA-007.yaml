@@ -1,0 +1,45 @@
+id: TC-MSA-007
+title: "Verify ndc (Number of Distinct Categories) calculation and display"
+category: "MSA / Gage R&R"
+subcategory: "ANOVACalculation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - ndc >= 5 required for adequate measurement system discrimination"
+  - "IATF 16949 - Measurement system discrimination capability"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study 'OQ-GRR-Crossed' has been calculated with data designed so that part variation is large relative to measurement system variation, yielding ndc >= 5. The Results tab is displayed."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+    operators: ["Op-A", "Op-B", "Op-C"]
+    parts: ["Part-01", "Part-02", "Part-03", "Part-04", "Part-05", "Part-06", "Part-07", "Part-08", "Part-09", "Part-10"]
+    measurements: "60 measurements with high PV/GRR ratio yielding ndc >= 5"
+    calculated: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the completed MSA study 'OQ-GRR-Crossed' and navigate to the Results tab."
+    verify: "The Results tab displays the Gage R&R results. The verdict banner and ndc badge are visible."
+    screenshot: false
+  - step: 2
+    action: "Locate the ndc value displayed near the verdict banner (typically to the right of the verdict)."
+    verify: "The ndc value is displayed as a numeric integer inside a badge/pill. The label 'ndc =' precedes the value. The value is >= 5 (with the test data designed for a good measurement system). The badge background is green, indicating the measurement system has adequate discrimination per AIAG requirements."
+    screenshot: true
+  - step: 3
+    action: "Hover over or click the ndc help icon (question mark) to view the tooltip explanation."
+    verify: "A tooltip appears explaining: 'Number of Distinct Categories. How many groups of parts the gage can reliably distinguish. ndc >= 5 is required for adequate discrimination (AIAG MSA 4th Ed).' The tooltip describes that ndc < 2 means the gage cannot distinguish parts."
+    screenshot: true
+  - step: 4
+    action: "Verify the ndc calculation is consistent with the displayed variance components. Mentally confirm: ndc = int(1.41 x PV / GRR) where PV = part_variation and GRR = gage_rr from the variance components table."
+    verify: "The displayed ndc value is consistent with the formula ndc = 1.41 x (PV / GRR) truncated to an integer. The PV (Part Variation StdDev) and GRR (Gage R&R StdDev) values are shown in the variance components table. When manually calculated, the truncated result matches the displayed ndc."
+    screenshot: false
+expected_result: "The ndc value is correctly displayed, is >= 5 with the test data, uses green color coding for adequate discrimination, and is consistent with the AIAG formula ndc = 1.41 x (PV/GRR)."
+pass_criteria: "ndc value is displayed as an integer >= 5. Badge color is green. Tooltip correctly explains ndc and AIAG threshold. ndc is mathematically consistent with the displayed PV and GRR standard deviations."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

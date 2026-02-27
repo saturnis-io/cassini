@@ -1,0 +1,73 @@
+id: TC-FAI-009
+title: "FAI print view renders AS9102 formatted document"
+category: "First Article Inspection"
+subcategory: "PrintView"
+priority: high
+regulatory_relevance:
+  - "AS9102 Rev C - Standardized FAI documentation format"
+  - "AS9100 Rev D Section 7.5 - Documented information"
+  - "IATF 16949 - Quality records format and retention"
+preconditions:
+  description: "An approved FAI report 'OQ-PART-001' exists with all 3 forms completed: Form 1 (part identification), Form 2 (materials/processes), and Form 3 (5 characteristic items with actual values and pass results)."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      serial_number: "SN-2026-001"
+      lot_number: "LOT-2026-Q1-001"
+      drawing_number: "DWG-TW-001-A"
+      organization_name: "Saturnis Manufacturing"
+      supplier: "Precision Parts Corp"
+      material_supplier: "Alcoa Howmet"
+      material_spec: "Al 6061-T6 per AMS 4027"
+      status: "approved"
+    items:
+      - balloon_number: 1
+        characteristic_name: "Outer Diameter"
+        nominal: 25.00
+        usl: 25.05
+        lsl: 24.95
+        actual_value: 25.01
+        unit: "mm"
+        tools_used: "Caliper #M-042"
+        result: "pass"
+      - balloon_number: 2
+        characteristic_name: "Length"
+        nominal: 100.0
+        usl: 100.1
+        lsl: 99.9
+        actual_value: 100.05
+        unit: "mm"
+        result: "pass"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the approved FAI report 'OQ-PART-001' in the report editor."
+    verify: "The report editor loads. Status shows 'Approved' (green)."
+    screenshot: false
+  - step: 2
+    action: "Click the Print/Preview button (printer icon) to open the print view."
+    verify: "The FAI Print View opens, displaying the report in AS9102 formatted layout. This may open as a modal overlay, a new tab, or a dedicated print-friendly view."
+    screenshot: true
+  - step: 3
+    action: "Examine the Form 1 section of the print view."
+    verify: "Form 1 (Part Number Accountability) is displayed with labeled fields: Part Number = 'OQ-PART-001', Part Name = 'Test Widget Bracket', Revision = 'A', Serial Number = 'SN-2026-001', Lot Number = 'LOT-2026-Q1-001', Drawing Number = 'DWG-TW-001-A', Organization = 'Saturnis Manufacturing', Supplier = 'Precision Parts Corp'. Created, submitted, and approved dates are shown."
+    screenshot: true
+  - step: 4
+    action: "Examine the Form 2 section of the print view."
+    verify: "Form 2 (Product Accountability) is displayed with: Material Supplier = 'Alcoa Howmet', Material Spec = 'Al 6061-T6 per AMS 4027'. Special processes and functional test results are shown if populated."
+    screenshot: true
+  - step: 5
+    action: "Examine the Form 3 section of the print view."
+    verify: "Form 3 (Characteristic Accountability) is displayed as a table with columns for balloon number, characteristic name, nominal, USL, LSL, actual value, unit, tools used, and result. All inspection items are listed with their measured values and pass/fail results. Summary counts may show total characteristics, pass count, fail count."
+    screenshot: true
+  - step: 6
+    action: "Verify the print view includes all 3 forms and signature/approval information."
+    verify: "The print view contains: (1) Form 1 header with part identification, (2) Form 2 with material/process accountability, (3) Form 3 table with all characteristics, and (4) Signature/approval blocks showing submitter name, submission date, approver name, and approval date. The layout is suitable for printing or PDF export."
+    screenshot: true
+expected_result: "The FAI print view renders a complete AS9102-formatted document with all 3 forms, measurement data, pass/fail results, and signature blocks."
+pass_criteria: "Print view displays all 3 forms with correct data. Part identification is complete. Material/process information is shown. All Form 3 items appear with balloon numbers, specs, actuals, and results. Submitter and approver information is displayed."
+cleanup: []

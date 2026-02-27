@@ -1,0 +1,39 @@
+id: TC-AUTH-006
+title: "Session persists across page refresh via token refresh"
+category: "Authentication & Accounts"
+subcategory: "Login"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Continuous session integrity"
+  - "ISO 13485 - Uninterrupted access for authorized users during valid session"
+preconditions:
+  description: "Default admin user exists. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login and log in as admin/admin"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Confirm the dashboard displays the user's name in the header"
+    verify: "The header shows the logged-in user identity (username or display name)."
+    screenshot: true
+  - step: 3
+    action: "Press F5 or Ctrl+R to refresh the browser page"
+    verify: "The page reloads. After a brief loading indicator, the dashboard is displayed again. The user is NOT redirected to /login. The header still shows the user's identity."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /settings/account using the sidebar"
+    verify: "Settings page loads with account information. This confirms the session is fully functional after refresh."
+    screenshot: false
+  - step: 5
+    action: "Press F5 again to refresh on the settings page"
+    verify: "The settings page reloads and displays correctly. Session persists across multiple refreshes."
+    screenshot: false
+expected_result: "The user session survives page refreshes. The refresh token (httpOnly cookie) is used to obtain a new access token transparently. The user does not need to re-authenticate."
+pass_criteria: "After login, refreshing the page does not log the user out. The dashboard (or current page) reloads and remains accessible. This works on multiple consecutive refreshes."
+cleanup:
+  - "Log out via the user menu to clean up the session"

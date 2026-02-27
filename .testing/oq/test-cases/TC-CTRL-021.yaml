@@ -1,0 +1,73 @@
+id: TC-CTRL-021
+title: "Multiple characteristics display on dashboard"
+category: "Control Charts"
+subcategory: "Interactions"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (multi-metric monitoring)"
+
+preconditions:
+  description: >
+    At least 3 characteristics with data exist in the same plant/
+    department. Each should have a different chart type (e.g., I-MR,
+    X-bar/R, p-chart) to verify multi-chart rendering.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristics:
+      - name: "Bore Diameter IMR"
+        chart_type: "i_mr"
+        data_type: "variable"
+        samples: "20 measurements"
+      - name: "Shaft OD XbarR"
+        chart_type: "xbar_r"
+        subgroup_size: 5
+        data_type: "variable"
+        samples: "20 subgroups"
+      - name: "Surface Defects p"
+        chart_type: "p"
+        data_type: "attribute"
+        samples: "20 attribute samples"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select OQ-Plant-Ctrl"
+    verify: "Hierarchy tree shows 3 characteristics under Machining > Lathe-01"
+    screenshot: true
+  - step: 2
+    action: "Click the first characteristic (Bore Diameter IMR)"
+    verify: "I-MR chart renders"
+    screenshot: false
+  - step: 3
+    action: "Click the second characteristic (Shaft OD XbarR)"
+    verify: "X-bar/R chart renders, replacing the previous chart"
+    screenshot: false
+  - step: 4
+    action: "Click the third characteristic (Surface Defects p)"
+    verify: "p-chart renders"
+    screenshot: true
+  - step: 5
+    action: "Verify the dashboard grid or scrollable layout (if applicable)"
+    verify: >
+      The dashboard may show a summary/grid view with multiple
+      characteristics' quick stats (KPIs) visible simultaneously,
+      or a list view with status indicators for each characteristic.
+    screenshot: true
+
+expected_result: >
+  The dashboard correctly renders different chart types as the user
+  navigates between characteristics. Switching between characteristics
+  is smooth with no rendering artifacts or stale data.
+
+pass_criteria: >
+  Each chart type renders correctly when selected. Switching is smooth.
+  No stale data from previous charts persists. Quick stats update
+  to match the selected characteristic.
+
+cleanup:
+  - "Delete seeded data via API"

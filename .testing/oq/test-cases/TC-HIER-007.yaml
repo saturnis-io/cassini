@@ -1,0 +1,56 @@
+id: TC-HIER-007
+title: "Create station under line"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: critical
+regulatory_relevance:
+  - "ISA-95 - Equipment hierarchy model"
+  - "ISO 9001:2015 Section 7.1.5 - Monitoring and measuring resources"
+preconditions:
+  description: "Engineer user is logged in. A hierarchy exists: Department > Line."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Station Test Plant"
+        code: "OQ07"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Dept"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "OQ Line"
+        type: "Line"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Station Test Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'OQ Dept' > 'OQ Line'."
+    screenshot: true
+  - step: 2
+    action: "Expand the tree to show 'OQ Line'. Right-click on 'OQ Line' and select 'Add Child'."
+    verify: "Child creation dialog appears."
+    screenshot: false
+  - step: 3
+    action: "Enter Name: 'Lathe Station A', Type: 'Equipment'. Click Create/Save."
+    verify: "Node is created as a child of 'OQ Line'."
+    screenshot: false
+  - step: 4
+    action: "Expand the full tree: OQ Dept > OQ Line > Lathe Station A."
+    verify: "Three-level nesting is visible. 'Lathe Station A' appears under 'OQ Line' under 'OQ Dept'."
+    screenshot: true
+expected_result: "A station-level node is created as a child of the line node, establishing a 3-level hierarchy: Department > Line > Station."
+pass_criteria: "Full 3-level tree is visible: 'OQ Dept' > 'OQ Line' > 'Lathe Station A', each correctly nested."
+cleanup:
+  - "Delete hierarchy nodes bottom-up via API"
+  - "Delete plant 'OQ07' via API: DELETE /plants/{id}"

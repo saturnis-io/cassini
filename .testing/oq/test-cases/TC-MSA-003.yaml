@@ -1,0 +1,42 @@
+id: TC-MSA-003
+title: "Add parts to an MSA study"
+category: "MSA / Gage R&R"
+subcategory: "StudyCreation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Part selection for Gage R&R (parts should span process variation)"
+  - "IATF 16949 - Measurement System Analysis sample selection"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study named 'OQ-GRR-Crossed' exists in 'Setup' status with num_parts=10 configured and operators already set. The study editor is open."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+    operators: ["Op-A", "Op-B", "Op-C"]
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the MSA study 'OQ-GRR-Crossed' by navigating to /msa and clicking on the study row."
+    verify: "The MSA Study Editor loads. The study name 'OQ-GRR-Crossed' is displayed. Operators Op-A, Op-B, Op-C are listed."
+    screenshot: false
+  - step: 2
+    action: "Locate the Parts section in the Overview tab. Enter 10 part names: 'Part-01', 'Part-02', 'Part-03', 'Part-04', 'Part-05', 'Part-06', 'Part-07', 'Part-08', 'Part-09', 'Part-10' in the part name input fields."
+    verify: "Ten part name fields are visible. Each accepts the typed name. All names from Part-01 through Part-10 are displayed."
+    screenshot: true
+  - step: 3
+    action: "Click the Save / Set Parts button to save the part names."
+    verify: "A success notification appears confirming parts were saved. The parts list shows all 10 parts in order: Part-01 through Part-10, each with sequence order 0 through 9."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page (F5) and reopen the study to verify persistence."
+    verify: "After page reload, the study editor shows all 10 parts in the correct order: Part-01 through Part-10. No data was lost on refresh."
+    screenshot: true
+expected_result: "Ten parts (Part-01 through Part-10) are successfully assigned to the MSA study and persist after page refresh."
+pass_criteria: "All 10 part names are displayed in the parts section of the study editor. Parts are listed in the correct sequence order (Part-01 first, Part-10 last). Data persists across page reload."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

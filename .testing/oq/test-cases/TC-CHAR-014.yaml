@@ -1,0 +1,76 @@
+id: TC-CHAR-014
+title: "Create custom rule preset with modified parameters"
+category: "Characteristic Configuration"
+subcategory: "RulePresets"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 8.5.1 - Control of production and service provision"
+  - "AIAG SPC Manual - Customization of detection rules"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists. The built-in presets (Nelson, AIAG, WECO, Wheeler) exist."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Custom Preset Plant"
+        code: "OQCP"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "CP Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "CP Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Custom-Preset"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Custom-Preset', open Rules tab."
+    verify: "Rules tab loads."
+    screenshot: false
+  - step: 2
+    action: "Enable only Rules 1, 2, and 5. Disable all others."
+    verify: "Rules 1, 2, and 5 are checked. Rules 3, 4, 6, 7, 8 are unchecked."
+    screenshot: true
+  - step: 3
+    action: "For Rule 2, modify the window size parameter from the default of 9 to 7 (7 consecutive points on same side of center line)."
+    verify: "Parameter editor allows changing the window size. Value changes from 9 to 7."
+    screenshot: true
+  - step: 4
+    action: "Click 'Save as Preset' (or equivalent). Enter preset name: 'OQ Custom Strict', description: 'Custom rules for OQ testing - tighter Rule 2'."
+    verify: "Save dialog or form appears. Name and description fields accept input."
+    screenshot: true
+  - step: 5
+    action: "Save the custom preset."
+    verify: "Custom preset saved successfully. It now appears in the preset dropdown alongside built-in presets."
+    screenshot: true
+  - step: 6
+    action: "Select a different preset (e.g., Nelson) and apply it to change the current rules."
+    verify: "Rules change to Nelson configuration (all 8 enabled, default parameters)."
+    screenshot: false
+  - step: 7
+    action: "Select 'OQ Custom Strict' from the preset dropdown and apply it."
+    verify: "Rules revert to the custom configuration: Rules 1, 2, 5 enabled. Rule 2 window = 7. Rules 3, 4, 6, 7, 8 disabled."
+    screenshot: true
+expected_result: "A custom rule preset with modified parameters can be created, saved, and reapplied. Custom presets appear alongside built-in presets."
+pass_criteria: "Custom preset 'OQ Custom Strict' is saved and when applied, Rule 2 has window=7, only rules 1/2/5 are enabled."
+cleanup:
+  - "Delete custom preset via API: (note: custom presets may need manual cleanup)"
+  - "Delete characteristic, hierarchy nodes, and plant via API"

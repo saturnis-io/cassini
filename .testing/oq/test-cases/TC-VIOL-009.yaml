@@ -1,0 +1,50 @@
+id: TC-VIOL-009
+title: "Violations page lists all violations with correct metadata"
+category: "Violations & Rules"
+subcategory: "ViolationList"
+priority: critical
+regulatory_relevance:
+  - "ISO 7870-2 - Documentation of out-of-control conditions"
+  - "AIAG SPC Reference Manual - Reaction plan documentation"
+  - "21 CFR Part 11 - Electronic records with attribution"
+preconditions:
+  description: "At least one characteristic exists with multiple violations already triggered (e.g., from TC-VIOL-001 seeding). There should be at least 2-3 violations of different rule types to verify table display. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-List"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 30
+      values_description: "25 normal samples (mean=10.0, sigma=0.02) to establish limits, then recalculate limits, then submit 5 additional samples designed to trigger violations: (1) one value at 10.10 to trigger Rule 1, (2) after that, submit 9 values all above centerline (10.015, 10.012, 10.018, 10.010, 10.020, 10.013, 10.016, 10.011, 10.014) to trigger Rule 2. This produces at least 2 violations of different types."
+    post_seed:
+      - "Recalculate limits after first 25 samples"
+      - "Verify at least 2 violations exist via GET /violations"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /violations."
+    verify: "The violations page loads. A table/list of violations is displayed. The table has columns for: rule type (rule ID or name), characteristic name, timestamp/created date, severity, and acknowledgment status. At least 2 violations are visible."
+    screenshot: true
+  - step: 2
+    action: "Examine the violation rows in the table."
+    verify: "Each violation row displays: (a) the rule number or name (e.g., 'Rule 1 - Outlier', 'Rule 2 - Run'), (b) the characteristic name 'OQ-VIOL-List', (c) a timestamp indicating when the violation occurred, (d) severity level (CRITICAL or WARNING), and (e) acknowledged status (showing 'No' or an unchecked state for unacknowledged violations)."
+    screenshot: true
+  - step: 3
+    action: "If filter controls are visible, filter by characteristic 'OQ-VIOL-List'."
+    verify: "The table filters to show only violations for 'OQ-VIOL-List'. The count matches the expected number of violations."
+    screenshot: false
+  - step: 4
+    action: "If severity filter is available, filter by 'CRITICAL'."
+    verify: "Only CRITICAL violations are shown (the Rule 1 violation). WARNING violations are hidden."
+    screenshot: false
+expected_result: "The violations page correctly displays all violations in a paginated table with rule type, characteristic name, timestamp, severity, and acknowledgment status. Filtering works correctly."
+pass_criteria: "All violations are listed with correct metadata. Each violation shows the rule number/name, severity, characteristic, and unacknowledged status. Filters narrow the list appropriately."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-List' and all associated data via API"

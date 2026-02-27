@@ -1,0 +1,63 @@
+id: TC-SET-001
+title: "Settings page loads with role-appropriate tabs"
+category: "Settings & Admin"
+subcategory: "SettingsPage"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Access control and user privilege management"
+  - "ISO 13485 Section 6.2 - Competence, training, and awareness"
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information"
+preconditions:
+  description: >
+    Two users exist: (1) an admin user with admin role at the active plant,
+    and (2) an operator user with only operator role at the active plant.
+    Both users have known passwords.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Settings Plant"
+        code: "OQST"
+        is_active: true
+    operator_user:
+      method: POST
+      endpoint: "/users/"
+      body:
+        username: "oq-operator-set"
+        password: "OqOper123!"
+    operator_role:
+      method: POST
+      endpoint: "/users/{operator_user.id}/roles"
+      body:
+        plant_id: "{plant_id}"
+        role: "operator"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the admin user. Navigate to /settings."
+    verify: "Settings page loads with a sidebar showing grouped tabs. ALL tabs are visible: Personal group (Account, Appearance, Notifications), Organization group (Sites, Branding, Localization, Email & Webhooks), Security group (SSO, Signatures, API Keys, Audit Log), Data group (Database, Retention, Reports), Integrations group (AI)."
+    screenshot: true
+  - step: 2
+    action: "Click through each sidebar group to verify all tabs load."
+    verify: "Each tab loads its content without errors. The sidebar highlights the active tab."
+    screenshot: false
+  - step: 3
+    action: "Log out. Log in as the operator user (username: oq-operator-set, password: OqOper123!)."
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 4
+    action: "Navigate to /settings."
+    verify: "Settings page loads. Only the Personal group is visible in the sidebar, showing exactly 3 tabs: Account, Appearance, Notifications. Organization, Security, Data, and Integrations groups are NOT visible."
+    screenshot: true
+  - step: 5
+    action: "Try navigating directly to /settings/database (an engineer+ tab) via the browser URL bar."
+    verify: "The page either redirects to an accessible tab (e.g., /settings/account), shows an access denied message, or renders an empty state. The operator cannot access engineer/admin-only settings content."
+    screenshot: true
+expected_result: "The settings page correctly gates tab visibility by role. Admin users see all tabs across all groups. Operator users see only Account, Appearance, and Notifications tabs in the Personal group."
+pass_criteria: "Admin sees 15 tabs across 5 groups. Operator sees exactly 3 tabs in 1 group. Direct URL access to restricted tabs is blocked for operators."
+cleanup:
+  - "Delete operator user via API: DELETE /users/{user_id}/permanent"
+  - "Delete plant via API"

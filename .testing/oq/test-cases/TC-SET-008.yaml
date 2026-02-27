@@ -1,0 +1,43 @@
+id: TC-SET-008
+title: "Create API key and verify one-time display"
+category: "Settings & Admin"
+subcategory: "APIKeys"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Authority checks for system access"
+  - "ISO 27001 - Information security management, credential handling"
+  - "NIST SP 800-63 - API authentication and key management"
+preconditions:
+  description: >
+    An engineer or admin user is logged in. The API Keys settings tab is
+    accessible (engineer+ role required). No API keys exist yet (or new
+    ones can be added alongside existing keys).
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/api-keys."
+    verify: "API Keys settings tab loads. A 'Create API Key' button is visible. If no keys exist, an empty state or empty table is shown."
+    screenshot: true
+  - step: 2
+    action: "Click 'Create API Key'. Enter the name 'OQ-Test-Key'."
+    verify: "The creation form accepts the name. A Create/Generate button is available."
+    screenshot: true
+  - step: 3
+    action: "Click Create/Generate."
+    verify: "The API key is created. The raw key value is displayed prominently -- typically in a highlighted box with a copy button. A warning message indicates that the key will NOT be shown again after this dialog is closed."
+    screenshot: true
+  - step: 4
+    action: "Copy the displayed key value (click copy button or manually select and copy). Note the key value for reference."
+    verify: "The key value is copied to clipboard. The key starts with a prefix (e.g., 'ck_' or similar) followed by a long random string."
+    screenshot: false
+  - step: 5
+    action: "Close the key display dialog (or navigate away). Return to /settings/api-keys."
+    verify: "The API key list shows an entry for 'OQ-Test-Key' with its name and created date. The raw key value is NOT visible -- only the name and metadata are shown. There is no way to retrieve the original key."
+    screenshot: true
+expected_result: "An API key is created with a descriptive name. The raw key value is displayed exactly once at creation time. After closing the display, the key value cannot be retrieved -- only the name and metadata remain visible."
+pass_criteria: "Key creation succeeds. Raw key is shown once. Key is NOT visible after dialog close. API verification: GET /api-keys returns an entry with name='OQ-Test-Key' but no raw key value."
+cleanup:
+  - "Delete API key via API: DELETE /api-keys/{key_id}"

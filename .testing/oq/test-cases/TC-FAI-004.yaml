@@ -1,0 +1,45 @@
+id: TC-FAI-004
+title: "Add Form 3 characteristic items"
+category: "First Article Inspection"
+subcategory: "Form3"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C Form 3 - Characteristic Accountability"
+  - "AS9100 Rev D Section 8.6 - Release of products and services"
+  - "IATF 16949 - Product characteristics verification"
+preconditions:
+  description: "Engineer user is logged in. A draft FAI report 'OQ-PART-001' exists with Forms 1 and 2 filled. The report editor is open."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      status: "draft"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the FAI report 'OQ-PART-001' and navigate to the Form 3 tab."
+    verify: "The Form 3 tab is active. The characteristic items table is displayed (may be empty initially). An 'Add Item' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add Item' to add the first characteristic. Enter: Balloon Number = 1, Characteristic Name = 'Outer Diameter', Nominal = 25.00, USL = 25.05, LSL = 24.95, Unit = 'mm', Tools Used = 'Mitutoyo 6\" caliper #M-042'. Leave Actual Value and Result empty for now. Save the item."
+    verify: "The item is added to the Form 3 table. Row shows Balloon #1, 'Outer Diameter', nominal 25.00, tolerance 24.95-25.05, unit mm, tools 'Mitutoyo 6\" caliper #M-042'."
+    screenshot: true
+  - step: 3
+    action: "Add 4 more items by clicking 'Add Item' for each: Item 2: Balloon = 2, Name = 'Length', Nominal = 100.0, USL = 100.1, LSL = 99.9, Unit = 'mm'. Item 3: Balloon = 3, Name = 'Width', Nominal = 50.0, USL = 50.2, LSL = 49.8, Unit = 'mm'. Item 4: Balloon = 4, Name = 'Corner Radius', Nominal = 5.0, USL = 5.3, LSL = 4.7, Unit = 'mm'. Item 5: Balloon = 5, Name = 'Surface Finish', Nominal = 1.6, USL = 1.6, LSL = null (max specification), Unit = 'Ra'. Save each item."
+    verify: "The Form 3 table now shows 5 items, each with the correct balloon number (1-5), characteristic name, nominal value, tolerance limits, and unit. Items are listed in sequence order."
+    screenshot: true
+  - step: 4
+    action: "Verify all 5 items are displayed in the Form 3 table."
+    verify: "The table shows 5 rows: (1) Outer Diameter 25.00 +/- 0.05 mm, (2) Length 100.0 +/- 0.1 mm, (3) Width 50.0 +/- 0.2 mm, (4) Corner Radius 5.0 +/- 0.3 mm, (5) Surface Finish Ra 1.6 max. Balloon numbers are sequential from 1 to 5."
+    screenshot: true
+  - step: 5
+    action: "Refresh the page (F5), reopen the report, and navigate to Form 3."
+    verify: "All 5 items persist after page reload with correct balloon numbers, names, nominals, tolerances, units, and tools used."
+    screenshot: true
+expected_result: "Five AS9102 Form 3 characteristic items are created with balloon numbers, measurement specifications, and tolerance ranges. All items persist correctly."
+pass_criteria: "Five items are displayed in the Form 3 table. Each item shows balloon number, characteristic name, nominal, USL, LSL, and unit. Items are in sequential order. Data persists after page refresh."
+cleanup:
+  - "Delete FAI report via API: DELETE /fai/reports/{id}"

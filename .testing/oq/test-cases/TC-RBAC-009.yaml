@@ -1,0 +1,93 @@
+id: TC-RBAC-009
+title: "Plant-scoped role changes access on plant switch"
+category: "RBAC & Security"
+subcategory: "PlantScoping"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Access controls must be appropriate for each operational context"
+  - "ISO 9001:2015 Section 7.5.3 - Access control based on organizational context"
+  - "IATF 16949 - Plant-specific quality management with appropriate authorities"
+preconditions:
+  description: >
+    Two plants exist: OQ-Plant-A and OQ-Plant-B. A user 'oq-multi' exists
+    with admin role at OQ-Plant-A and operator role at OQ-Plant-B. Both
+    plants have hierarchy and at least one characteristic. The plant
+    switcher in the header is functional.
+  seed_method: api
+  seed_data:
+    plants:
+      - name: "OQ-Plant-A"
+        department: "Dept-A"
+        line: "Line-A1"
+      - name: "OQ-Plant-B"
+        department: "Dept-B"
+        line: "Line-B1"
+    users:
+      - username: "oq-multi"
+        password: "MultiPlant123!"
+        full_name: "OQ Multi-Plant User"
+        roles:
+          - plant: "OQ-Plant-A"
+            role: "admin"
+          - plant: "OQ-Plant-B"
+            role: "operator"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-multi' with password 'MultiPlant123!'"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Switch to OQ-Plant-A using the plant switcher in the header"
+    verify: >
+      The plant switcher shows OQ-Plant-A as the active plant. The sidebar
+      shows the full admin navigation including: Dashboard, Data Entry,
+      Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity,
+      Configuration, Settings, Users. All items are visible because the
+      user is admin at Plant A.
+    screenshot: true
+  - step: 3
+    action: "Navigate to /configuration to confirm admin access at Plant A"
+    verify: "Configuration page loads successfully. No access denied."
+    screenshot: false
+  - step: 4
+    action: "Navigate to /admin/users to confirm admin access at Plant A"
+    verify: "User management page loads successfully. No access denied."
+    screenshot: true
+  - step: 5
+    action: "Switch to OQ-Plant-B using the plant switcher"
+    verify: >
+      The plant switcher shows OQ-Plant-B as the active plant. The sidebar
+      CHANGES to show only operator-level items: Dashboard, Data Entry,
+      Violations. Configuration, Settings, Users, and other higher-level
+      items are NO LONGER visible. This is because the user is only an
+      operator at Plant B.
+    screenshot: true
+  - step: 6
+    action: "Attempt to navigate to /configuration while at Plant B"
+    verify: >
+      The user is redirected to /dashboard with an 'Access Denied' toast.
+      The configuration page does not load. Even though this user is admin
+      at Plant A, they are only an operator at Plant B and cannot access
+      engineer-level features here.
+    screenshot: true
+  - step: 7
+    action: "Switch back to OQ-Plant-A"
+    verify: >
+      The sidebar returns to full admin navigation. Configuration and
+      Users links are visible again. This confirms that role changes
+      are dynamic and immediate on plant switch.
+    screenshot: true
+expected_result: >
+  A user with admin role at Plant A and operator role at Plant B sees
+  different sidebar navigation and has different access levels when
+  switching between plants. This demonstrates plant-scoped RBAC: the
+  same user can be a full admin at one plant and a restricted operator
+  at another.
+pass_criteria: >
+  At Plant A: full admin sidebar, /configuration and /admin/users accessible.
+  At Plant B: operator-only sidebar, /configuration redirects to dashboard
+  with access denied toast. Sidebar updates dynamically on plant switch.
+cleanup:
+  - "Log out the multi-plant user"

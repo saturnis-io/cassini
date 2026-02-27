@@ -1,0 +1,46 @@
+id: TC-VIOL-007
+title: "Nelson Rule 7 -- 15 consecutive points within 1 sigma of centerline"
+category: "Violations & Rules"
+subcategory: "NelsonRule7"
+priority: high
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 7 (stratification)"
+  - "AIAG SPC Reference Manual - Supplementary run tests"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. 20 in-control samples have been submitted with moderate variation (sigma approximately 0.02) and control limits calculated. The wider sigma ensures that very tight subsequent values fall within Zone C (within 1 sigma). The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule7"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 20
+      values_description: "20 samples with moderate spread to establish a wider sigma. Include some values further from the center to increase sigma. Example values: 10.03, 9.97, 10.02, 9.98, 10.04, 9.96, 10.01, 9.99, 10.03, 9.97, 10.02, 9.98, 10.01, 10.03, 9.97, 10.04, 9.96, 10.02, 9.98, 10.01. This should yield sigma approximately 0.025-0.03, so 1-sigma zone spans roughly 10.0 +/- 0.03. After submission, recalculate control limits."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Note the sigma value -- 1-sigma zone should span at least +/- 0.025 from CL"
+      - "Verify no Rule 7 violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Determine the 1-sigma boundary from the chart data. Navigate to /data-entry. Select 'OQ-VIOL-Rule7'. Submit 15 consecutive samples that all fall within Zone C (within 1 sigma of the centerline). If sigma is 0.03 and CL is 10.0, all values must be between 9.97 and 10.03. Use very tight values: 10.005, 9.995, 10.01, 9.99, 10.005, 10.00, 9.995, 10.01, 10.00, 9.99, 10.005, 9.995, 10.01, 10.00, 9.99. Submit each individually."
+    verify: "The first 14 tightly-clustered samples do not trigger Rule 7. On the 15th consecutive within-1-sigma sample, the response includes a violation with rule_id=7. The notification indicates stratification or 'within 1 sigma'."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /violations."
+    verify: "A violation exists for 'OQ-VIOL-Rule7' with rule_id=7 and severity='WARNING'. The rule_name indicates stratification or reduced variation."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /dashboard and select 'OQ-VIOL-Rule7'."
+    verify: "The chart shows 15 consecutive points clustered tightly around the centerline, all within Zone C. A WARNING marker is visible."
+    screenshot: false
+expected_result: "Submitting 15 consecutive points all within 1 sigma of the centerline triggers a Nelson Rule 7 violation with WARNING severity, indicating stratification (mixed data sources or overly wide control limits)."
+pass_criteria: "Rule 7 violation is created with rule_id=7 and severity=WARNING. The violation triggers on the 15th consecutive within-Zone-C point. All 15 points are visibly clustered near the centerline."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule7' and all associated data via API"

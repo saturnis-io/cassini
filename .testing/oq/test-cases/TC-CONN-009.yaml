@@ -1,0 +1,45 @@
+id: TC-CONN-009
+title: "Register new gage bridge"
+category: "Connectivity"
+subcategory: "Gages"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - New measurement instruments must be registered and identified in the quality system"
+  - "21 CFR Part 11 - Data acquisition device registration is an auditable configuration change"
+  - "AS9100 - Measurement system additions must be documented"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected. At least one MQTT broker exists (required for bridge registration -- the bridge publishes measurements via MQTT)."
+  seed_method: api
+  seed_data:
+    broker: "At least one MQTT broker configured for the selected plant"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/gages"
+    verify: "Gages tab loads."
+    screenshot: false
+  - step: 2
+    action: "Click the 'Register Bridge' button"
+    verify: "A registration dialog opens with fields: Name (text input) and MQTT Broker (dropdown). The broker dropdown is populated with available brokers."
+    screenshot: true
+  - step: 3
+    action: "Enter 'OQ Test Bridge' in the Name field. Select an MQTT broker from the dropdown."
+    verify: "Name field shows 'OQ Test Bridge'. A broker is selected in the dropdown."
+    screenshot: false
+  - step: 4
+    action: "Click 'Register' to submit the registration"
+    verify: "The registration succeeds. The dialog transitions to show a one-time API key. A prominent warning states 'Copy this API key now. It will not be shown again.' The API key is displayed in a monospaced font with a copy button. An alert/warning icon emphasizes the one-time nature."
+    screenshot: true
+  - step: 5
+    action: "Click the copy button next to the API key"
+    verify: "The API key is copied to the clipboard. The copy button changes to a check icon briefly, confirming the copy action."
+    screenshot: false
+  - step: 6
+    action: "Close the registration dialog"
+    verify: "The dialog closes. The bridge list now shows 'OQ Test Bridge' as a registered bridge. The bridge count increments by one."
+    screenshot: true
+expected_result: "A gage bridge can be registered with a name and MQTT broker assignment. The registration generates a one-time API key that must be copied immediately."
+pass_criteria: "Registration dialog opens with name and broker fields. Registration succeeds. One-time API key is displayed with copy functionality. Bridge appears in the list after dialog closes."
+cleanup:
+  - "Delete 'OQ Test Bridge' via the bridge list delete action"

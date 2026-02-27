@@ -1,0 +1,38 @@
+id: TC-SET-003
+title: "Change visual style between Retro and Glass"
+category: "Settings & Admin"
+subcategory: "Appearance"
+priority: low
+regulatory_relevance:
+  - "ISO 9241-110 - Ergonomics of human-system interaction (user customization)"
+  - "Usability: Visual style preference is independent of light/dark theme"
+preconditions:
+  description: >
+    Any authenticated user is logged in. The current visual style is
+    set to the default (Retro). The application is running in a browser
+    with localStorage enabled.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/appearance."
+    verify: "Appearance settings tab loads. Visual style selector is visible showing the current style (Retro)."
+    screenshot: true
+  - step: 2
+    action: "Select 'Glass' visual style."
+    verify: "The UI immediately switches to Glass style. Observable changes include: (1) Border radius increases (corners become rounded). (2) Frosted glass/blur effects appear on card backgrounds. (3) Font style may shift from monospace to proportional. The change is immediate with no page reload."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /dashboard to see the Glass style on a content-rich page."
+    verify: "Dashboard renders in Glass style. Cards, sidebar, and toolbar show rounded corners and frosted effects."
+    screenshot: true
+  - step: 4
+    action: "Navigate back to /settings/appearance. Select 'Retro' visual style."
+    verify: "The UI switches back to Retro style. Corners become sharp (no border radius). Monospace font returns. The technical aesthetic is restored."
+    screenshot: true
+expected_result: "Visual style switches between Retro (sharp corners, monospace) and Glass (rounded, frosted) immediately. The style is independent of the light/dark theme setting."
+pass_criteria: "Style change is visually distinct and immediate. No page reload required. Both styles render correctly across dashboard, settings, and other pages."
+cleanup:
+  - "Ensure visual style is reset to 'Retro' for subsequent tests"

@@ -1,0 +1,40 @@
+id: TC-FAI-001
+title: "Create a new FAI report"
+category: "First Article Inspection"
+subcategory: "ReportCreation"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C - First Article Inspection Requirements"
+  - "AS9100 Rev D Section 8.5.1 - Control of production and service provision"
+  - "IATF 16949 - Product approval process (PPAP)"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. No FAI report with part number 'OQ-PART-001' exists for this plant."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as an engineer user (oq-engineer / OqTest123!) and ensure a plant is selected in the header plant switcher."
+    verify: "Dashboard loads successfully. Plant name is visible in the header."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /fai using the sidebar 'FAI' link under the Studies section."
+    verify: "The First Article Inspection page loads. The heading reads 'First Article Inspection' with subheading 'AS9102 Rev C compliant inspection reports'. A 'New Report' button is visible in the top-right. Status filter buttons (All, Draft, Submitted, Approved, Rejected) are displayed."
+    screenshot: true
+  - step: 3
+    action: "Click the 'New Report' button."
+    verify: "A new FAI report is created and the page navigates to the FAI Report Editor at /fai/{reportId}. The report opens on the Form 1 tab. The status badge shows 'Draft' (gray). The part number field shows the placeholder value 'NEW-PART' (auto-assigned on creation). The header displays navigation: Form 1, Form 2, Form 3 tab buttons."
+    screenshot: true
+  - step: 4
+    action: "In the Form 1 tab, update the part number to 'OQ-PART-001'. Enter Part Name: 'Test Widget'. Enter Revision: 'A'. Click Save."
+    verify: "The fields accept the input. A success notification appears. The part number displays 'OQ-PART-001', part name displays 'Test Widget', and revision displays 'A'."
+    screenshot: true
+  - step: 5
+    action: "Navigate back to /fai to verify the report appears in the list."
+    verify: "The FAI reports table lists the new report with Part Number = 'OQ-PART-001', Part Name = 'Test Widget', Rev = 'A', Status = 'Draft' (gray badge), and a recent creation date. The site column shows the name of the selected plant."
+    screenshot: true
+expected_result: "A new FAI report is created in draft status, the placeholder part number is updated to 'OQ-PART-001', and the report appears in the FAI list with correct metadata."
+pass_criteria: "Report appears in /fai list with part number 'OQ-PART-001', part name 'Test Widget', revision 'A', and 'Draft' status badge. Clicking the row navigates to the report editor."
+cleanup:
+  - "Delete FAI report via API: DELETE /fai/reports/{id}"

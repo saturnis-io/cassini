@@ -1,0 +1,45 @@
+id: TC-CONN-010
+title: "Configure gage port with serial parameters"
+category: "Connectivity"
+subcategory: "Gages"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Measurement instrument communication parameters must be documented"
+  - "21 CFR Part 11 - Instrument interface configuration is part of the validated data acquisition system"
+  - "AS9100 - Measurement system setup parameters must be recorded"
+preconditions:
+  description: "Logged in as engineer or higher. A gage bridge named 'OQ Test Bridge' is registered (from TC-CONN-009 or seeded). The bridge has no ports configured yet."
+  seed_method: api
+  seed_data:
+    bridge: "Gage bridge named 'OQ Test Bridge' with no ports"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/gages. Click on 'OQ Test Bridge' to expand or view its port configuration."
+    verify: "The port configuration panel loads for 'OQ Test Bridge'. The port list is empty. An 'Add Port' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add Port'"
+    verify: "A port configuration form appears with fields: Port Name (text), Baud Rate (number, default 9600), Data Bits (dropdown, default 8), Parity (dropdown, default None), Stop Bits (dropdown, default 1), Protocol Profile (dropdown), Parse Pattern (text, for custom regex), Characteristic (picker, optional)."
+    screenshot: true
+  - step: 3
+    action: "Fill in the serial parameters: Port Name='COM3', Baud Rate=9600, Data Bits=8, Parity='None', Stop Bits=1"
+    verify: "All serial parameter fields accept the specified values. Port Name shows 'COM3', Baud Rate shows 9600, Data Bits shows 8, Parity shows 'None', Stop Bits shows 1."
+    screenshot: false
+  - step: 4
+    action: "Select 'Mitutoyo Digimatic' from the Protocol Profile dropdown"
+    verify: "The Protocol Profile dropdown shows 'Mitutoyo Digimatic' (or similar label). The Parse Pattern field may be disabled or hidden since Mitutoyo has a built-in parser."
+    screenshot: true
+  - step: 5
+    action: "Click 'Save' to save the port configuration"
+    verify: "The port is saved successfully. The port list for 'OQ Test Bridge' now shows one port: COM3 at 9600 baud, Mitutoyo Digimatic profile. The form resets or closes."
+    screenshot: true
+  - step: 6
+    action: "Verify the port configuration persists by navigating away and back"
+    verify: "After navigating to another tab and returning to Gages, the port 'COM3' is still listed under 'OQ Test Bridge' with the correct serial parameters."
+    screenshot: false
+expected_result: "A serial port can be configured on a gage bridge with standard RS-232 parameters (baud rate, data bits, parity, stop bits) and a parser profile. The configuration persists."
+pass_criteria: "Port form accepts all serial parameters. Mitutoyo Digimatic profile is selectable. Port saves successfully and appears in the port list. Configuration persists across navigation."
+cleanup:
+  - "Delete the port and bridge, or leave for subsequent tests"

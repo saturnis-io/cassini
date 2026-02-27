@@ -1,0 +1,59 @@
+id: TC-CHAR-008
+title: "Create EWMA characteristic"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: high
+regulatory_relevance:
+  - "ISO 7870-6 - EWMA control charts"
+  - "AIAG SPC Manual - Appendix (EWMA overview)"
+preconditions:
+  description: "Engineer user is logged in. A station node exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ EWMA Plant"
+        code: "OQEW"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "EWMA Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "EWMA Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'EWMA Station'."
+    verify: "Station node selected."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Characteristic'. Enter: Name: 'OQ-EWMA-pH', Data Type: Variable, Chart Type: EWMA, Subgroup Size: 1."
+    verify: "EWMA-specific fields appear: Lambda (smoothing constant), L (control limit multiplier)."
+    screenshot: true
+  - step: 3
+    action: "Enter EWMA parameters: Lambda: 0.2, L: 2.7."
+    verify: "EWMA parameters accepted. Lambda is between 0 and 1 (exclusive). L is positive."
+    screenshot: true
+  - step: 4
+    action: "Click Create/Save."
+    verify: "Characteristic created."
+    screenshot: false
+  - step: 5
+    action: "Open config panel for 'OQ-EWMA-pH'."
+    verify: "Config shows: Chart Type = EWMA, ewma_lambda = 0.2, ewma_l = 2.7."
+    screenshot: true
+expected_result: "An EWMA characteristic is created with the correct smoothing constant (lambda) and control limit multiplier (L) parameters."
+pass_criteria: "Characteristic shows chart_type=ewma with ewma_lambda=0.2, ewma_l=2.7."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

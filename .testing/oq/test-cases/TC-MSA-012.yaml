@@ -1,0 +1,71 @@
+id: TC-MSA-012
+title: "MSA study list and status filtering"
+category: "MSA / Gage R&R"
+subcategory: "StudyList"
+priority: medium
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Documentation and record retrieval"
+  - "IATF 16949 - Quality records management"
+  - "ISO 9001:2015 Section 7.5 - Documented information retrieval"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. Multiple MSA studies exist in different states: at least one in 'Setup' status, one in 'Collecting' status, and one in 'Complete' status."
+  seed_method: api
+  seed_data:
+    studies:
+      - name: "OQ-List-Setup"
+        study_type: "crossed_anova"
+        status: "setup"
+        num_operators: 3
+        num_parts: 10
+        num_replicates: 2
+      - name: "OQ-List-Collecting"
+        study_type: "range_method"
+        status: "collecting"
+        num_operators: 2
+        num_parts: 5
+        num_replicates: 1
+      - name: "OQ-List-Complete"
+        study_type: "attribute_agreement"
+        status: "complete"
+        num_operators: 3
+        num_parts: 20
+        num_replicates: 2
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /msa."
+    verify: "The Measurement System Analysis page loads. The study list table is displayed showing all MSA studies for the selected plant. The table has columns: Name, Type, Status, Operators, Parts, Created, Actions. The 'All' filter tab is active by default."
+    screenshot: true
+  - step: 2
+    action: "Verify the study list contents. Look for the three seeded studies."
+    verify: "The table shows at least three studies: (1) 'OQ-List-Setup' with Type 'Crossed ANOVA', Status 'Setup' (blue badge), Operators = 3, Parts = 10. (2) 'OQ-List-Collecting' with Type 'Range Method', Status 'Collecting' (amber badge), Operators = 2, Parts = 5. (3) 'OQ-List-Complete' with Type 'Attribute Agreement', Status 'Complete' (green badge), Operators = 3, Parts = 20. Each row shows a creation date."
+    screenshot: true
+  - step: 3
+    action: "Click the 'Setup' filter tab."
+    verify: "The study list filters to show only studies with 'Setup' status. 'OQ-List-Setup' is visible. 'OQ-List-Collecting' and 'OQ-List-Complete' are not shown. The 'Setup' tab is highlighted as active."
+    screenshot: true
+  - step: 4
+    action: "Click the 'Collecting' filter tab."
+    verify: "The study list filters to show only studies with 'Collecting' status. 'OQ-List-Collecting' is visible. The other two studies are not shown."
+    screenshot: false
+  - step: 5
+    action: "Click the 'Complete' filter tab."
+    verify: "The study list filters to show only studies with 'Complete' status. 'OQ-List-Complete' is visible. The other two studies are not shown."
+    screenshot: false
+  - step: 6
+    action: "Click the 'All' filter tab to restore the unfiltered view."
+    verify: "All three studies are visible again in the table."
+    screenshot: false
+  - step: 7
+    action: "Click on the 'OQ-List-Setup' study row."
+    verify: "The page navigates to /msa/{studyId} and the MSA Study Editor loads for that study. The study name and details are displayed correctly."
+    screenshot: true
+  - step: 8
+    action: "Navigate back to /msa. Click the delete (trash) icon on a study row (e.g., 'OQ-List-Setup')."
+    verify: "A confirmation dialog appears asking 'Delete MSA Study?' with a warning that this action cannot be undone."
+    screenshot: true
+expected_result: "The MSA study list displays all studies with correct type labels, status badges (color-coded), operator/part counts, and creation dates. Status filter tabs correctly filter the list. Row clicks navigate to the study editor. Delete confirmation dialog appears before deletion."
+pass_criteria: "All seeded studies appear in the list with correct metadata. Status filter tabs filter correctly (Setup/Collecting/Complete). Row click navigates to study editor. Delete confirmation dialog appears. Status badges use correct colors (blue/amber/green)."
+cleanup:
+  - "Delete all OQ-List-* MSA studies via API: DELETE /msa/studies/{id}"

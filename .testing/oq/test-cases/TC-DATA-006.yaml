@@ -1,0 +1,61 @@
+id: TC-DATA-006
+title: "CSV import - upload valid CSV file and view preview"
+category: "Data Entry"
+subcategory: "CSVImport"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information"
+  - "21 CFR Part 11 Section 11.10(e) - Electronic Records (data integrity during import)"
+
+preconditions:
+  description: >
+    A variable characteristic must exist (I-MR or X-bar/R). A test CSV file
+    must be available with columns: Timestamp, Value (for I-MR) or Value1
+    through Value5 (for X-bar/R with subgroup=5), plus optional Batch and
+    Operator columns. The CSV should contain 10-20 rows of valid numeric data.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Machining"
+    line: "CNC-Line-1"
+    characteristic:
+      name: "Pin Length"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    csv_file:
+      name: "test-pin-length.csv"
+      columns: ["Timestamp", "Value", "Batch", "Operator"]
+      rows: 15
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Click the Import button in the data entry toolbar"
+    verify: "Import wizard dialog opens (Step 1: Upload)"
+    screenshot: true
+  - step: 3
+    action: "Click Choose File and select the test-pin-length.csv file"
+    verify: >
+      File is uploaded. The wizard displays: detected columns (Timestamp,
+      Value, Batch, Operator), row count (15), and a preview table showing
+      the first few rows of data.
+    screenshot: true
+
+expected_result: >
+  The CSV file is parsed successfully. The upload response includes
+  column names, row count, and preview rows. No data is imported yet --
+  this is the preview step only.
+
+pass_criteria: >
+  Column names match the CSV headers. Row count equals the number of
+  data rows (excluding header). Preview rows show actual data values.
+  No error messages.
+
+cleanup: []

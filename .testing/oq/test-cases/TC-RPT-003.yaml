@@ -1,0 +1,45 @@
+id: TC-RPT-003
+title: "Report includes charts and capability data"
+category: "Reports & Export"
+subcategory: "Generation"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Capability reports (Cpk/Ppk) with control chart evidence required for supplier quality submissions"
+  - "AS9100 - Process capability evidence required for production approval"
+  - "ISO 13485 - Statistical techniques used for process validation must be documented"
+preconditions:
+  description: "Logged in as supervisor or higher. At least one characteristic exists with sample data AND spec limits configured (USL, LSL, target). Minimum 30 data points for meaningful capability."
+  seed_method: api
+  seed_data:
+    characteristic: "Variable characteristic with spec limits (USL, LSL, target) and at least 30 samples"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports"
+    verify: "Reports page loads."
+    screenshot: false
+  - step: 2
+    action: "Select 'Capability Analysis' from the template dropdown"
+    verify: "Template dropdown shows 'Capability Analysis' selected."
+    screenshot: false
+  - step: 3
+    action: "Use the CharacteristicContextBar to select a characteristic with spec limits and sufficient data"
+    verify: "The Capability Analysis report begins rendering."
+    screenshot: false
+  - step: 4
+    action: "Wait for the report preview to fully render"
+    verify: "The Capability Analysis report renders with: (1) Header with characteristic name and analysis window. (2) Histogram showing the distribution of measurement values overlaid with a normal curve and spec limit lines. (3) Capability metrics section showing Cp, Cpk, Pp, Ppk values with color coding (green for >=1.33, yellow for >=1.0, red for <1.0). (4) Interpretation section with a plain-language summary of capability status."
+    screenshot: true
+  - step: 5
+    action: "Verify the capability indices are reasonable: Cp and Cpk should be positive numbers if spec limits bracket the data"
+    verify: "Capability indices are displayed as numeric values (e.g., Cpk = 1.45). Values are not NaN, undefined, or blank. Cp >= Cpk (Cp is always >= Cpk by definition). If Cpk > 1.33, the color coding shows green."
+    screenshot: true
+  - step: 6
+    action: "Scroll to verify the histogram section"
+    verify: "The histogram shows bars representing the measurement distribution. Spec limit lines (USL, LSL) are visible on the histogram. If configured, the target line is also shown."
+    screenshot: false
+expected_result: "The Capability Analysis report includes both a histogram chart and capability index values (Cp, Cpk, Pp, Ppk). The histogram visually shows the process distribution relative to specification limits."
+pass_criteria: "Histogram renders with visible bars and spec limit lines. Capability indices (Cp, Cpk, Pp, Ppk) are displayed as numeric values. Cp >= Cpk. Color coding matches the value range."
+cleanup:
+  - "No cleanup required"

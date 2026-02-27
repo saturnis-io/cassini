@@ -1,0 +1,41 @@
+id: TC-MSA-002
+title: "Add operators to an MSA study"
+category: "MSA / Gage R&R"
+subcategory: "StudyCreation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Appraiser selection for Gage R&R"
+  - "IATF 16949 - Personnel involved in measurement system evaluation"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study named 'OQ-GRR-Crossed' exists in 'Setup' status with num_operators=3 configured. The study editor is open."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the MSA study 'OQ-GRR-Crossed' by navigating to /msa and clicking on the study row."
+    verify: "The MSA Study Editor loads. The Overview tab is active. The study name 'OQ-GRR-Crossed' and status 'Setup' are displayed."
+    screenshot: false
+  - step: 2
+    action: "Locate the Operators section in the Overview tab. Enter three operator names: 'Op-A', 'Op-B', 'Op-C' in the operator name input fields."
+    verify: "Three operator name fields are visible. Each accepts the typed name. The names 'Op-A', 'Op-B', 'Op-C' are displayed in the input fields."
+    screenshot: true
+  - step: 3
+    action: "Click the Save / Set Operators button to save the operator names."
+    verify: "A success notification appears confirming operators were saved. The operator list now shows all three operators: Op-A (sequence 0), Op-B (sequence 1), Op-C (sequence 2)."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page (F5) and reopen the study to verify persistence."
+    verify: "After page reload, the study editor shows the same three operators: Op-A, Op-B, Op-C in the correct order. No data was lost on refresh."
+    screenshot: true
+expected_result: "Three operators (Op-A, Op-B, Op-C) are successfully assigned to the MSA study and persist after page refresh."
+pass_criteria: "All three operator names are displayed in the operator section of the study editor. Operators are listed in the correct sequence order (Op-A first, Op-C last). Data persists across page reload."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

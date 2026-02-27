@@ -1,0 +1,49 @@
+id: TC-VIOL-001
+title: "Nelson Rule 1 -- single point beyond 3 sigma triggers violation"
+category: "Violations & Rules"
+subcategory: "NelsonRule1"
+priority: critical
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 1 (beyond action limits)"
+  - "AIAG SPC Reference Manual - Special cause test #1"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. At least 25 in-control samples have been submitted and control limits have been calculated, establishing a stable centerline and UCL/LCL. The logged-in user has operator role or higher at the owning plant."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule1"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 25
+      values_description: "25 samples from a tight normal distribution centered at 10.0 with sigma approximately 0.02. Example values: 10.00, 9.98, 10.01, 10.02, 9.99, 10.00, 9.97, 10.01, 10.03, 9.98, 10.00, 10.01, 9.99, 10.02, 9.98, 10.00, 10.01, 9.99, 10.00, 10.02, 9.97, 10.01, 10.00, 9.99, 10.01. After submission, recalculate control limits. The resulting sigma should be approximately 0.015-0.02, giving UCL around 10.05 and LCL around 9.95."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify UCL and LCL are established via GET /characteristics/{id}/chart-data"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select the 'OQ-VIOL-Rule1' characteristic from the hierarchy tree."
+    verify: "The control chart loads showing 25 in-control points. All points are within the UCL and LCL lines. No violation markers are present on the chart."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /data-entry. Select the 'OQ-VIOL-Rule1' characteristic. Enter a value of 10.10 (well beyond the expected UCL of approximately 10.05). Submit the sample."
+    verify: "The submission response indicates a violation was detected. A toast notification or inline alert shows 'Rule 1: Beyond 3 sigma' or equivalent. The response includes a violations array with at least one entry having rule_id=1 and severity='CRITICAL'."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /dashboard and select the 'OQ-VIOL-Rule1' characteristic."
+    verify: "The control chart now shows 26 points. The last point (10.10) is above the UCL line. A red violation marker (CRITICAL severity) is visible at the last data point, indicating a Rule 1 violation."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /violations."
+    verify: "The violations list contains at least one entry for 'OQ-VIOL-Rule1'. The violation shows: rule_id=1 (or rule_name containing 'Outlier' or 'Beyond 3 sigma'), severity='CRITICAL', acknowledged=false, and the characteristic name 'OQ-VIOL-Rule1'."
+    screenshot: true
+expected_result: "Submitting a single measurement value that exceeds 3 sigma from the centerline triggers a Nelson Rule 1 violation with CRITICAL severity. The violation is visible on the control chart as a marker and appears in the violations list."
+pass_criteria: "Rule 1 violation is created with rule_id=1 and severity=CRITICAL. The violation appears in both the chart markers and the violations page. No false violations were generated for the 25 in-control samples."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule1' and all associated data via API"

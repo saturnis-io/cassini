@@ -1,0 +1,45 @@
+id: TC-VIOL-003
+title: "Nelson Rule 3 -- 6 consecutive points trending in one direction"
+category: "Violations & Rules"
+subcategory: "NelsonRule3"
+priority: critical
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 3 (trend)"
+  - "AIAG SPC Reference Manual - Special cause test #3 (six points trending)"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. 20 in-control samples have been submitted and control limits calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule3"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 20
+      values_description: "20 samples from a normal distribution around 10.0 with sigma approximately 0.02. Example values: 10.01, 9.98, 10.02, 9.99, 10.00, 9.97, 10.01, 10.03, 9.98, 10.00, 10.01, 9.99, 10.02, 9.98, 10.00, 10.01, 9.99, 10.00, 10.02, 9.97. Values should not form any pre-existing monotonic trend of 6+ points. After submission, recalculate control limits."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify no Rule 3 violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /data-entry. Select 'OQ-VIOL-Rule3'. Submit 6 consecutive samples with steadily increasing values: 10.00, 10.01, 10.02, 10.03, 10.04, 10.05. Submit each one individually in order."
+    verify: "The first 5 increasing samples submit without triggering Rule 3. On the 6th sample (completing the monotonic sequence of 6), the response includes a violation with rule_id=3. The notification indicates a trend violation."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /dashboard and select 'OQ-VIOL-Rule3'."
+    verify: "The control chart shows all 26 points. The last 6 points form a clear upward staircase pattern. A WARNING violation marker is visible at or near the 6th trending point."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /violations."
+    verify: "A violation exists for 'OQ-VIOL-Rule3' with rule_id=3, severity='WARNING'. The rule_name indicates a trend or '6 trending' pattern."
+    screenshot: false
+expected_result: "Submitting 6 consecutively increasing measurements triggers a Nelson Rule 3 (trend) violation with WARNING severity, indicating progressive process drift such as tool wear."
+pass_criteria: "Rule 3 violation is created with rule_id=3 and severity=WARNING. The violation triggers on the 6th point in the monotonic sequence. The upward trend is visible on the control chart."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule3' and all associated data via API"

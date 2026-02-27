@@ -1,0 +1,57 @@
+id: TC-AUDIT-002
+title: "Audit trail captures POST (create) operations"
+category: "Audit Trail & Retention"
+subcategory: "AuditLog"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - All record creation must be attributable and timestamped"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and measurement data integrity"
+  - "IATF 16949 - Traceability of quality record creation"
+preconditions:
+  description: >
+    An admin or engineer user exists with access to a plant that has a
+    hierarchy (department and line). The configuration page is accessible.
+    The audit log is accessible at /settings/audit-log.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Audit"
+    department: "Quality"
+    line: "Inspection-Line-1"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as an engineer or admin user"
+    verify: "Dashboard loads successfully"
+    screenshot: false
+  - step: 2
+    action: "Navigate to /configuration and select the Inspection-Line-1 node in the hierarchy tree"
+    verify: "Configuration page loads with the hierarchy tree showing the OQ-Plant-Audit structure"
+    screenshot: false
+  - step: 3
+    action: "Create a new characteristic named 'OQ-Audit-Create-Test' with chart_type I-MR, subgroup_size 1, data_type variable, USL 10.1, LSL 9.9"
+    verify: "Characteristic is created successfully. A success toast appears. The new characteristic appears in the hierarchy tree."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /settings/audit-log"
+    verify: "Audit log viewer loads"
+    screenshot: false
+  - step: 5
+    action: "Look for the most recent entries in the audit log table"
+    verify: >
+      A 'Create' action entry is visible for the resource type 'Characteristic'.
+      The entry shows: the current user's username, action 'Create', resource
+      type 'Characteristic', and a resource ID matching the newly created
+      characteristic. The timestamp is within the last few minutes.
+    screenshot: true
+expected_result: >
+  Creating a characteristic via the configuration page generates an audit
+  trail entry with action 'create', resource type 'characteristic', and the
+  correct resource ID, attributed to the logged-in user.
+pass_criteria: >
+  The audit log contains a 'create' entry for the newly created characteristic
+  with the correct username and a recent timestamp. API verification:
+  GET /audit/logs?action=create&resource_type=characteristic returns at
+  least one entry with resource_id matching the new characteristic.
+cleanup:
+  - "Delete the characteristic 'OQ-Audit-Create-Test' via API: DELETE /characteristics/{id}"

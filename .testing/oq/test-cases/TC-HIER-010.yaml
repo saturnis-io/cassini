@@ -1,0 +1,48 @@
+id: TC-HIER-010
+title: "Rename hierarchy node"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information (updates and changes)"
+preconditions:
+  description: "Engineer user is logged in. A hierarchy node 'OQ Rename Target' exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Rename Plant"
+        code: "OQ10"
+        is_active: true
+    node:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Rename Target"
+        type: "Area"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Rename Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'OQ Rename Target'."
+    screenshot: true
+  - step: 2
+    action: "Right-click on 'OQ Rename Target' and select 'Rename' (or double-click the node name to enter edit mode)."
+    verify: "Node name becomes editable (inline text field or rename dialog appears)."
+    screenshot: true
+  - step: 3
+    action: "Change the name to 'OQ Renamed Department' and press Enter or click Save."
+    verify: "Node name updates in the tree to 'OQ Renamed Department'."
+    screenshot: true
+  - step: 4
+    action: "Refresh the browser page (F5)."
+    verify: "After reload, the tree still shows 'OQ Renamed Department'. The rename persisted to the database."
+    screenshot: true
+expected_result: "Hierarchy node is successfully renamed and the new name persists across page reloads."
+pass_criteria: "Node displays 'OQ Renamed Department' in the tree both before and after page refresh."
+cleanup:
+  - "Delete hierarchy node via API: DELETE /hierarchy/{id}"
+  - "Delete plant 'OQ10' via API: DELETE /plants/{id}"

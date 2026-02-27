@@ -1,0 +1,64 @@
+id: TC-ANOM-008
+title: "AI Insights toggle shows and hides overlay"
+category: "Anomaly Detection"
+subcategory: "Overlay"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Flexible data analysis and evaluation tools"
+  - "IATF 16949 - Operator ability to focus on core SPC without distraction"
+  - "FDA Guidance on AI/ML - Optional AI overlay does not interfere with primary monitoring"
+preconditions:
+  description: >
+    An operator or higher user is logged in. A characteristic exists with
+    completed anomaly analysis that produced at least one visible event on
+    the chart overlay. The AI Insights toggle is available in the chart
+    toolbar.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-operator"
+      role: "operator"
+    characteristic:
+      name: "OQ-Bore-Diameter-Shift"
+      chart_type: "i_mr"
+    anomaly_events:
+      - detector_type: "pelt"
+        event_type: "changepoint"
+        severity: "medium"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select the characteristic with anomaly results. Verify the AI Insights toggle is in the OFF position."
+    verify: "The control chart loads with standard SPC elements (data points, control limits, centerline). No anomaly overlay markers or regions are visible. The AI Insights toggle button is in its inactive/off state."
+    screenshot: true
+  - step: 2
+    action: "Click the AI Insights toggle to turn it ON"
+    verify: "The toggle activates (highlighted/enabled visual state). The chart updates to show the anomaly overlay. Colored markers or regions appear at the locations of detected anomalies. The anomaly event list panel becomes visible."
+    screenshot: true
+  - step: 3
+    action: "Click the AI Insights toggle to turn it OFF"
+    verify: "The toggle deactivates (returns to inactive/off visual state). The anomaly overlay disappears from the chart. The chart returns to showing only standard SPC elements. The anomaly event list panel is hidden or collapsed."
+    screenshot: true
+  - step: 4
+    action: "Click the AI Insights toggle to turn it ON again"
+    verify: "The toggle reactivates. The anomaly overlay reappears on the chart in the same locations as before. The event list panel is visible again. The toggle behavior is consistent across multiple on/off cycles."
+    screenshot: true
+  - step: 5
+    action: "With AI Insights ON, verify the underlying chart data is still readable"
+    verify: "The control chart data points, control limits (UCL/LCL), and centerline are all still visible and readable beneath/alongside the anomaly overlay. The overlay enhances but does not obscure the standard SPC chart."
+    screenshot: true
+expected_result: >
+  The AI Insights toggle cleanly shows and hides the anomaly overlay on
+  the control chart. Toggling OFF removes all anomaly visual elements.
+  Toggling ON restores them. The toggle can be cycled multiple times
+  without issues. The underlying SPC chart remains fully readable when
+  the overlay is active.
+pass_criteria: >
+  Toggle OFF: no anomaly overlay visible. Toggle ON: overlay appears.
+  Toggle OFF again: overlay disappears. Toggle ON again: overlay returns.
+  No visual glitches or rendering errors during transitions. Underlying
+  chart data is always readable.
+cleanup:
+  - "No cleanup required -- toggle state is ephemeral UI state"

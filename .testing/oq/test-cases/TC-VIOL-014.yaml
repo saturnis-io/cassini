@@ -1,0 +1,55 @@
+id: TC-VIOL-014
+title: "Disabled Nelson rule does not trigger violation"
+category: "Violations & Rules"
+subcategory: "Configuration"
+priority: critical
+regulatory_relevance:
+  - "ISO 7870-2 - Configurable control chart interpretation"
+  - "AIAG SPC Reference Manual - Rule selection based on process requirements"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with control limits established from 25 in-control samples. All 8 Nelson rules are initially enabled. The logged-in user has engineer role or higher (needed to modify rule configuration)."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Disabled"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 25
+      values_description: "25 normal samples (mean=10.0, sigma=0.02) to establish control limits."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify all 8 rules are enabled via GET /characteristics/{id}/rules"
+      - "Verify no violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer (oq-engineer). Navigate to /configuration. Select 'OQ-VIOL-Disabled'. Go to the Rules tab."
+    verify: "All 8 Nelson rules are shown with their enable/disable toggles. Rule 1 is currently enabled."
+    screenshot: true
+  - step: 2
+    action: "Disable Rule 1 (Beyond 3 sigma) by toggling it off. Save the rule configuration."
+    verify: "Rule 1 is now disabled. A success notification confirms the rule configuration was saved. The Rules tab shows Rule 1 as disabled."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /data-entry. Select 'OQ-VIOL-Disabled'. Submit a value well beyond 3 sigma (e.g., 10.10, which would normally trigger Rule 1)."
+    verify: "The sample is submitted successfully. The response does NOT include a Rule 1 violation. No violation toast appears for Rule 1. The violations array in the response is empty or contains no rule_id=1 entry."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /violations. Filter by characteristic 'OQ-VIOL-Disabled'."
+    verify: "No Rule 1 violation exists for this characteristic despite the extreme value. The system correctly respected the disabled rule configuration."
+    screenshot: true
+  - step: 5
+    action: "Navigate back to /configuration > Rules tab. Re-enable Rule 1. Save."
+    verify: "Rule 1 is re-enabled. Future extreme values will again trigger Rule 1 violations."
+    screenshot: false
+expected_result: "When a Nelson rule is disabled on a characteristic, submitting data that would normally trigger that rule does NOT generate a violation. The disabled rule is completely skipped by the SPC engine."
+pass_criteria: "No Rule 1 violation is generated for the extreme value when Rule 1 is disabled. The rule disable/enable toggle persists correctly. Re-enabling the rule restores normal violation detection."
+cleanup:
+  - "Re-enable all rules on the characteristic"
+  - "Delete characteristic 'OQ-VIOL-Disabled' and all associated data via API"

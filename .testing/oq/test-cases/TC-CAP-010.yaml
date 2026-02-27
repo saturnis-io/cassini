@@ -1,0 +1,45 @@
+id: TC-CAP-010
+title: "Non-normal capability with Weibull distribution"
+category: "Capability Analysis"
+subcategory: "NonNormal"
+priority: medium
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Non-normal distributions"
+  - "ISO 22514 - Capability for non-normal processes"
+preconditions:
+  description: "A variable characteristic exists with USL and LSL set. At least 100 individual measurements from a Weibull distribution have been submitted. The distribution method has been set to 'weibull' on the characteristic. The logged-in user has engineer role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Weibull"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 20.0
+      lsl: 2.0
+      target_value: 10.0
+    samples:
+      count: 100
+      values_description: "100 individual measurements drawn from a Weibull distribution with shape parameter k=3 and scale parameter lambda=10. This produces values centered around 9.0 with moderate right skew. Example values: 8.5, 10.2, 7.3, 11.1, 9.8, 6.5, 10.9, 8.0, 9.4, 12.1, ... The Shapiro-Wilk test should reject normality for this distribution. After seeding, set distribution_method='weibull' via PATCH."
+    post_seed:
+      - "Recalculate control limits"
+      - "Set distribution_method='weibull' via PATCH /characteristics/{id}"
+execution_mode: api-verify
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Call GET /characteristics/{id}/capability to compute capability with Weibull distribution method."
+    verify: "The API returns a CapabilityResponse with non-null cp, cpk values. The normality_test indicates 'Shapiro-Wilk', is_normal is false. The calculation used the Weibull distribution fitting."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Weibull'."
+    verify: "The Capability Card displays capability indices for the Weibull-fitted data. The values are non-null and reasonable."
+    screenshot: true
+  - step: 3
+    action: "Verify the capability values are reasonable for the Weibull data and specification limits."
+    verify: "Given USL=20.0, LSL=2.0, and Weibull(k=3, lambda=10) data centered around 9.0: the spec width is generous relative to the data spread, so capability indices should be moderately high (> 1.0). The values should be different from what standard normal Cp/Cpk would compute."
+    screenshot: false
+expected_result: "When the distribution method is set to Weibull, the capability calculation correctly uses Weibull distribution fitting, producing capability indices appropriate for the Weibull-shaped data."
+pass_criteria: "Capability indices are calculated and non-null for Weibull data. The is_normal flag is false. The values are reasonable for the given distribution shape and specification limits."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Weibull' and all associated data via API"

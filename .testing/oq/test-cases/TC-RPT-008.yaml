@@ -1,0 +1,45 @@
+id: TC-RPT-008
+title: "Report filters by characteristic"
+category: "Reports & Export"
+subcategory: "Filtering"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Reports must reference specific process parameters (characteristics)"
+  - "ISO 13485 - Quality records must be traceable to specific product/process characteristics"
+  - "IATF 16949 - SPC reports must identify the specific characteristic being monitored"
+preconditions:
+  description: "Logged in as supervisor or higher. At least two different characteristics exist with sample data. Both are in the same plant."
+  seed_method: api
+  seed_data:
+    characteristics: "Two variable characteristics in the same plant, each with at least 10 samples"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports. Select 'Characteristic Summary' template."
+    verify: "Template is selected. The main area shows 'No characteristic selected' empty state."
+    screenshot: false
+  - step: 2
+    action: "Use the CharacteristicContextBar to select the first characteristic (Characteristic A)"
+    verify: "The context bar shows Characteristic A's name. The report preview renders with Characteristic A's data: its control chart, statistics, and violations."
+    screenshot: true
+  - step: 3
+    action: "Note the specific values: the mean value in the statistics section, the number of data points, and the chart type shown in the header"
+    verify: "Record the values: mean, data point count, and chart type for Characteristic A. These should match the characteristic's actual data."
+    screenshot: false
+  - step: 4
+    action: "Use the CharacteristicContextBar to switch to the second characteristic (Characteristic B)"
+    verify: "The context bar updates to show Characteristic B's name. The report preview fully refreshes with Characteristic B's data. The control chart shows different data points. The statistics section shows different values (mean, count). The header reflects Characteristic B's chart type and name."
+    screenshot: true
+  - step: 5
+    action: "Compare the report values for Characteristic B with the previously noted values for Characteristic A"
+    verify: "The values are different (assuming the two characteristics have different data, which they should). The report is showing data exclusively for the selected characteristic, not a mix of both."
+    screenshot: false
+  - step: 6
+    action: "Switch back to Characteristic A to confirm the report reflects the switch"
+    verify: "The report returns to showing Characteristic A's data. The mean and data point count match what was noted in step 3."
+    screenshot: true
+expected_result: "Changing the selected characteristic in the CharacteristicContextBar causes the entire report to refresh with data for the newly selected characteristic. Each characteristic's report shows only its own data."
+pass_criteria: "Selecting different characteristics produces different report content. Report header identifies the selected characteristic. Statistics differ between characteristics. Switching back restores the original values."
+cleanup:
+  - "No cleanup required"

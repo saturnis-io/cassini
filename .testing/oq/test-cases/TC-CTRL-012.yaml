@@ -1,0 +1,77 @@
+id: TC-CTRL-012
+title: "Violation markers display on out-of-control points"
+category: "Control Charts"
+subcategory: "VariableCharts"
+priority: critical
+regulatory_relevance:
+  - "IATF 16949 Section 9.1.1.1 - Reaction to Special Causes"
+  - "AIAG SPC Reference Manual - Out-of-Control Action Plans (OCAP)"
+  - "ISO 9001:2015 Section 10.2 - Nonconformity and Corrective Action"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists with established control limits and
+    30 samples. One or more samples should have known violations
+    (Nelson Rule 1: point beyond 3 sigma). The seeded data should
+    include at least one point intentionally placed above UCL.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Bore Diameter Violations"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+    samples: >
+      29 measurements centered at 10.00 (sigma ~0.02), plus 1 outlier
+      at 10.09 that exceeds UCL. This triggers Nelson Rule 1
+      (point beyond 3 sigma from center line).
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Bore Diameter Violations"
+    verify: "Chart renders with 30 points and control limit lines"
+    screenshot: false
+  - step: 2
+    action: "Locate the outlier point (value ~10.09, above UCL)"
+    verify: >
+      The out-of-control point is marked with a violation indicator.
+      This may be a different color (red), different shape, a flag
+      icon, or other visual distinction from in-control points.
+      The point is clearly above the UCL line.
+    screenshot: true
+  - step: 3
+    action: "Hover over the violation point"
+    verify: >
+      Tooltip shows the violation information: rule triggered (Nelson
+      Rule 1 - Beyond Control Limits), severity (CRITICAL), and the
+      measurement value.
+    screenshot: true
+  - step: 4
+    action: "Click the violation point"
+    verify: >
+      Sample inspector opens showing the measurement details and the
+      violation record (rule_id=1, rule_name, severity=CRITICAL).
+    screenshot: true
+
+expected_result: >
+  Out-of-control points are visually marked with violation indicators
+  that are clearly distinguishable from in-control points. This
+  immediate visual alerting is the core purpose of SPC -- operators
+  can instantly see when the process has shifted and take corrective
+  action (OCAP).
+
+pass_criteria: >
+  Violation point has distinct visual styling from normal points.
+  Tooltip and inspector show violation details. API: chart-data
+  includes violation array for the affected sample.
+
+cleanup:
+  - "Delete seeded data via API"

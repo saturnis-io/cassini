@@ -1,0 +1,40 @@
+id: TC-SET-012
+title: "Create database backup"
+category: "Settings & Admin"
+subcategory: "Database"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(c) - Protection of records to enable accurate and ready retrieval"
+  - "ISO 13485 Section 4.2.5 - Control of records, including backup procedures"
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information"
+preconditions:
+  description: >
+    An engineer or admin user is logged in. The Database settings tab is
+    accessible. The database is operational (connected). For SQLite, the
+    backup creates a file copy. For server databases, backup triggers the
+    appropriate server-side mechanism.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/database."
+    verify: "Database settings tab loads. Backup button is visible and enabled."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Backup' button."
+    verify: "The backup process initiates. One of the following occurs: (A) A progress indicator appears (spinner, progress bar). (B) A file download starts (for SQLite backup). (C) A success message appears indicating the backup was created."
+    screenshot: true
+  - step: 3
+    action: "Wait for the backup to complete."
+    verify: "Success indication appears: 'Backup created successfully' or similar message. If a backup list exists on the page, the new backup appears in the list with a timestamp."
+    screenshot: true
+  - step: 4
+    action: "If a backup list is displayed, verify the new backup entry."
+    verify: "The backup list shows the newly created backup with: timestamp (current date/time), file size (non-zero), and optionally a download or restore button."
+    screenshot: false
+expected_result: "A database backup is created successfully. The backup appears in the backup list (if applicable) or is available for download. The operation completes without errors."
+pass_criteria: "Backup button triggers the operation. Completion message appears. API verification: POST /database/backup returns success. GET /database/backups returns at least one backup entry."
+cleanup:
+  - "Optionally delete the backup to save disk space"

@@ -1,0 +1,71 @@
+id: TC-CTRL-016
+title: "Add period annotation spanning a date range"
+category: "Control Charts"
+subcategory: "Annotations"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.2 - Nonconformity and Corrective Action"
+  - "IATF 16949 Section 10.2.3 - Problem Solving"
+  - "ISO 13485 Section 8.5.2 - Corrective Action (event documentation)"
+
+preconditions:
+  description: >
+    A characteristic with chart data spanning at least 5 days of
+    timestamps. The test user has supervisor+ role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Bore Diameter Annotations"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "30 measurements with timestamps spanning 7 days"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor. Navigate to /dashboard and select Bore Diameter Annotations."
+    verify: "Chart renders with data spanning multiple days"
+    screenshot: false
+  - step: 2
+    action: "Open annotation creation dialog and select 'Period' annotation type"
+    verify: "Period annotation form appears with start date and end date fields"
+    screenshot: true
+  - step: 3
+    action: >
+      Set start date to day 2 of the data range and end date to day 4.
+      Enter text: 'Preventive maintenance window - machine offline for calibration'
+    verify: "Dates and text are entered"
+    screenshot: false
+  - step: 4
+    action: "Save the annotation"
+    verify: >
+      Success notification. A shaded region appears on the chart spanning
+      from the start date to end date. The shaded region covers the
+      vertical extent of the chart (behind data points).
+    screenshot: true
+  - step: 5
+    action: "Hover over the shaded region"
+    verify: >
+      A tooltip or popover shows: 'Preventive maintenance window -
+      machine offline for calibration', the date range, and the author.
+    screenshot: true
+
+expected_result: >
+  A period annotation creates a visually distinct shaded region on the
+  chart spanning the specified date range. This documents time periods
+  where known process changes occurred, supporting root cause analysis
+  when reviewing historical control charts.
+
+pass_criteria: >
+  Shaded region visible between the specified dates. Hover shows
+  annotation text. API: GET /characteristics/{id}/annotations returns
+  the annotation with type=period, start_date, end_date, and text.
+
+cleanup:
+  - "Delete the annotation via API"
+  - "Delete seeded data via API"

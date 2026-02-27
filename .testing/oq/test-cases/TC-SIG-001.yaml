@@ -1,0 +1,56 @@
+id: TC-SIG-001
+title: "Create signature workflow template"
+category: "Electronic Signatures"
+subcategory: "Workflow"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic signature workflow management"
+  - "ISO 13485 Section 4.2.5 - Control of documents with defined approval processes"
+  - "IATF 16949 - Controlled approval processes for quality records"
+preconditions:
+  description: >
+    An admin or engineer user is logged in with engineer+ role at the active
+    plant. The Signatures settings page is accessible. No workflow named
+    'OQ-Approval-Flow' exists for this plant.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-engineer"
+      role: "engineer"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the engineer user and navigate to /settings/signatures"
+    verify: "The Signatures settings page loads. Sub-sections are visible: Workflow Config, Meanings, Password Policy, Pending Approvals."
+    screenshot: true
+  - step: 2
+    action: "Click on the 'Workflow Config' section to expand it"
+    verify: "The Workflow Config section expands showing a list of existing workflows (may be empty) and a 'Create Workflow' button."
+    screenshot: true
+  - step: 3
+    action: "Click 'Create Workflow' (or 'Add Workflow') button"
+    verify: "A workflow creation form appears with fields: Name, Resource Type, Is Required toggle, Description."
+    screenshot: true
+  - step: 4
+    action: "Enter Name: 'OQ-Approval-Flow', Resource Type: 'fai_report', leave Is Required unchecked, Description: 'OQ test workflow for approval testing'"
+    verify: "All fields accept input. Name shows 'OQ-Approval-Flow'. Resource type shows 'fai_report'."
+    screenshot: false
+  - step: 5
+    action: "Click Save"
+    verify: "Success notification appears. The new workflow 'OQ-Approval-Flow' appears in the workflow list. It shows resource_type: fai_report, is_active: true, 0 steps."
+    screenshot: true
+  - step: 6
+    action: "Verify the workflow via API: GET /signatures/workflows?plant_id={plant_id}"
+    verify: "Response includes a workflow object with name='OQ-Approval-Flow', resource_type='fai_report', is_active=true, description='OQ test workflow for approval testing'."
+    screenshot: false
+expected_result: >
+  A new signature workflow template named 'OQ-Approval-Flow' is successfully
+  created for the fai_report resource type. The workflow appears in the
+  Workflow Config list and is returned by the API.
+pass_criteria: >
+  Workflow creation completes without error. Workflow appears in the UI list.
+  API returns the workflow with correct name, resource_type, and is_active=true.
+cleanup:
+  - "Delete workflow via API: DELETE /signatures/workflows/{workflow_id}?plant_id={plant_id}"

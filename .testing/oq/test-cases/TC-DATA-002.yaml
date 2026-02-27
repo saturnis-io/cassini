@@ -1,0 +1,68 @@
+id: TC-DATA-002
+title: "Submit subgroup of 5 measurements for X-bar/R characteristic"
+category: "Data Entry"
+subcategory: "ManualEntry"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "AIAG SPC Reference Manual - Rational Subgrouping"
+
+preconditions:
+  description: >
+    An X-bar/R characteristic must exist with subgroup_size=5 and
+    data_type=variable. The test user has operator role at the plant.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Machining"
+    line: "CNC-Line-1"
+    characteristic:
+      name: "Shaft OD"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 25.10
+      lsl: 24.90
+      target: 25.00
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Select OQ-Plant-Data plant, expand tree to Machining > CNC-Line-1, click 'Shaft OD'"
+    verify: "Data entry form shows 5 measurement input fields (one per subgroup member)"
+    screenshot: true
+  - step: 3
+    action: "Enter the following values: 10.01, 10.03, 9.98, 10.02, 10.00"
+    verify: "All 5 fields are populated with the entered values"
+    screenshot: false
+  - step: 4
+    action: "Click Submit"
+    verify: "Success toast notification. Fields clear for next entry."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /dashboard and select Shaft OD characteristic"
+    verify: >
+      X-bar chart shows a new point at approximately 10.008 (mean of the 5
+      values). R chart shows a new point at 0.05 (range: 10.03 - 9.98).
+    screenshot: true
+
+expected_result: >
+  A subgroup of 5 measurements is submitted. The SPC engine computes
+  mean = (10.01+10.03+9.98+10.02+10.00)/5 = 10.008 and
+  range = 10.03 - 9.98 = 0.05. Both values are plotted on the X-bar
+  and R charts respectively.
+
+pass_criteria: >
+  API verification: GET /samples/?characteristic_id={id} returns a sample
+  with measurements=[10.01, 10.03, 9.98, 10.02, 10.00], mean approximately
+  10.008, and range_value approximately 0.05.
+
+cleanup:
+  - "Delete the submitted sample via API: DELETE /samples/{sample_id}"

@@ -1,0 +1,58 @@
+id: TC-FAI-008
+title: "Reject FAI report with reason"
+category: "First Article Inspection"
+subcategory: "Workflow"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C - FAI rejection and corrective action"
+  - "AS9100 Rev D Section 8.7 - Control of nonconforming outputs"
+  - "IATF 16949 - Nonconforming product disposition"
+preconditions:
+  description: "A FAI report 'OQ-PART-002' exists in 'submitted' status, submitted by the engineer user. An admin user or a different engineer is available to reject it."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-002"
+      part_name: "Test Widget Reject"
+      revision: "A"
+      status: "submitted"
+      submitted_by: "oq-engineer"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the admin user (admin / admin) -- a different user from the submitter."
+    verify: "Dashboard loads. User is authenticated as admin."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /fai. Locate report 'OQ-PART-002' with Status = 'Submitted'."
+    verify: "Report appears in the list with 'Submitted' blue badge."
+    screenshot: false
+  - step: 3
+    action: "Click on the report row to open it."
+    verify: "The report editor loads. Status shows 'Submitted'. 'Approve' and 'Reject' buttons are visible."
+    screenshot: true
+  - step: 4
+    action: "Click the 'Reject' button."
+    verify: "A rejection dialog or form appears, prompting for a rejection reason. A text input field for the reason is displayed. The reject action requires a reason to be entered before proceeding."
+    screenshot: true
+  - step: 5
+    action: "Enter the rejection reason: 'Dimension 3 (Width) out of tolerance -- remeasure with calibrated instrument and verify 50.10 reading'. Click the confirm/submit rejection button."
+    verify: "The rejection is processed. The status badge changes from 'Submitted' (blue) to a rejected state. A notification appears confirming the rejection. Since rejected reports return to 'Draft' status per the backend, the status should show 'Draft' (gray) or 'Rejected' (red) depending on UI implementation."
+    screenshot: true
+  - step: 6
+    action: "Verify the rejection reason is displayed on the report."
+    verify: "The rejection reason 'Dimension 3 (Width) out of tolerance -- remeasure with calibrated instrument and verify 50.10 reading' is visible somewhere on the report page (in the header area, a notice banner, or the workflow section)."
+    screenshot: true
+  - step: 7
+    action: "Navigate back to /fai and verify the report status in the list."
+    verify: "Report 'OQ-PART-002' shows with the appropriate status after rejection. If the backend sets status to 'draft', it appears with a gray 'Draft' badge. The delete action may be available again since the report is back in draft."
+    screenshot: true
+  - step: 8
+    action: "Reopen the report and verify it is editable again."
+    verify: "Since rejected reports return to draft status, the form fields should be editable. The engineer can make corrections and resubmit. The previous rejection reason is displayed as context."
+    screenshot: true
+expected_result: "The FAI report is rejected with a mandatory reason. The report returns to draft/rejected status. The rejection reason is displayed. The report becomes editable again for corrections."
+pass_criteria: "Rejection requires a reason. Status changes after rejection. Rejection reason is persisted and displayed. Report is editable again (returned to draft). Report can be resubmitted after corrections."
+cleanup:
+  - "Delete FAI report 'OQ-PART-002' via API: DELETE /fai/reports/{id}"

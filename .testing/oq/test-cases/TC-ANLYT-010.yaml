@@ -1,0 +1,95 @@
+id: TC-ANLYT-010
+title: "DOE -- ANOVA analysis, effects plots, and Pareto chart"
+category: "Advanced Analytics"
+subcategory: "DOE"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.2 - Root cause analysis and corrective action"
+  - "Six Sigma DMAIC Analyze/Improve - ANOVA for factor significance testing"
+  - "AIAG APQP Section 2.13 - Design of Experiments for product/process optimization"
+preconditions:
+  description: >
+    An engineer user is logged in. A DOE study exists in 'collecting' status
+    with all 4 runs having response values (from TC-ANLYT-009 or seeded).
+    Response values: Run 1 = 3.2, Run 2 = 4.1, Run 3 = 2.8, Run 4 = 5.5.
+    This test triggers ANOVA analysis and verifies all output tables and plots.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ DOE Analysis Plant"
+        code: "OQDA"
+        is_active: true
+    study:
+      method: POST
+      endpoint: "/doe/studies"
+      body:
+        plant_id: "{plant_id}"
+        name: "OQ ANOVA Study"
+        design_type: "full_factorial"
+        response_name: "Surface Roughness"
+        response_unit: "um"
+        factors:
+          - name: "Temperature"
+            low_level: 180
+            high_level: 220
+            unit: "degC"
+          - name: "Pressure"
+            low_level: 50
+            high_level: 100
+            unit: "MPa"
+    generate:
+      method: POST
+      endpoint: "/doe/studies/{study.id}/generate"
+      body: {}
+    enter_data:
+      method: PUT
+      endpoint: "/doe/studies/{study.id}/runs"
+      body:
+        runs:
+          - run_id: "{run_1_id}"
+            response_value: 3.2
+          - run_id: "{run_2_id}"
+            response_value: 4.1
+          - run_id: "{run_3_id}"
+            response_value: 2.8
+          - run_id: "{run_4_id}"
+            response_value: 5.5
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the DOE study detail page. Verify all 4 runs have response values."
+    verify: "Study shows 'Collecting' status. All 4 runs display their response values (3.2, 4.1, 2.8, 5.5). An 'Analyze' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Analyze' button to run ANOVA and effect analysis."
+    verify: "Loading indicator appears. Analysis completes. The study status transitions to 'Analyzed'. Analysis results become visible."
+    screenshot: true
+  - step: 3
+    action: "Observe the ANOVA table."
+    verify: "The ANOVA table displays rows for each source of variation: (1) Temperature -- with Sum of Squares, df=1, Mean Square, F-value, p-value. (2) Pressure -- with SS, df=1, MS, F-value, p-value. (3) Temperature*Pressure interaction -- with SS, df=1, MS, F-value, p-value. (4) Error/Residual -- with SS, df. (5) Total -- with total SS. All numeric values are displayed. Significant factors (p < 0.05) may be highlighted."
+    screenshot: true
+  - step: 4
+    action: "Observe the main effects display."
+    verify: "Main effects are shown for each factor: Temperature effect and Pressure effect. Each shows the magnitude of the effect (difference between high and low level means) and the coefficient. The display may be a plot (line chart showing response at low vs. high) or a table."
+    screenshot: true
+  - step: 5
+    action: "Observe the interaction effects display."
+    verify: "Interaction effects between Temperature and Pressure are shown. This may be displayed as an interaction plot (non-parallel lines indicate interaction) or as a table entry with the interaction effect magnitude."
+    screenshot: true
+  - step: 6
+    action: "Observe the R-squared value."
+    verify: "The R-squared (or R^2) and adjusted R-squared values are displayed, indicating how well the model fits the data. Values are between 0 and 1."
+    screenshot: false
+  - step: 7
+    action: "Verify the analysis can be re-viewed by navigating away and back."
+    verify: "Navigate to /doe, then click the study again. The 'Analyzed' status badge is visible. Analysis results load when viewing the study detail."
+    screenshot: true
+expected_result: "The ANOVA analysis completes successfully. The results include: ANOVA table with SS/df/MS/F/p for each factor and interaction, main effect estimates, interaction effects, and R-squared model fit statistic. The study transitions to 'Analyzed' status."
+pass_criteria: "ANOVA table renders with correct columns (Source, SS, df, MS, F, p). Effects are computed for both factors. R-squared is displayed. API verification: POST /doe/studies/{id}/analyze returns anova_table, effects, interactions, and r_squared. GET /doe/studies/{id} shows status='analyzed'."
+cleanup:
+  - "Delete DOE study via API: DELETE /doe/studies/{study_id}"
+  - "Delete plant via API"

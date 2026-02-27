@@ -1,0 +1,45 @@
+id: TC-VIOL-002
+title: "Nelson Rule 2 -- 9 consecutive points on same side of centerline"
+category: "Violations & Rules"
+subcategory: "NelsonRule2"
+priority: critical
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 2 (run above/below centerline)"
+  - "AIAG SPC Reference Manual - Special cause test #2 (process shift)"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. 20 in-control samples have been submitted and control limits calculated. The centerline (X-bar) is established at approximately 10.0. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule2"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 20
+      values_description: "20 samples oscillating closely around the centerline of 10.0. Example values: 10.01, 9.99, 10.00, 9.98, 10.02, 9.99, 10.01, 9.98, 10.00, 10.02, 9.99, 10.01, 9.98, 10.00, 10.02, 9.99, 10.01, 9.98, 10.00, 10.01. These values alternate above and below 10.0 to ensure no pre-existing Rule 2 condition. After submission, recalculate control limits."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify no violations exist via GET /violations?characteristic_id={id}"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /data-entry. Select 'OQ-VIOL-Rule2'. Submit 9 consecutive samples that are all above the centerline but within control limits. Use values: 10.015, 10.012, 10.018, 10.010, 10.020, 10.013, 10.016, 10.011, 10.014. Submit each one individually."
+    verify: "The first 8 samples submit without triggering a Rule 2 violation. On the 9th sample submission, the response includes a violation with rule_id=2. A toast or alert indicates 'Rule 2' or '9 same side' or 'Run above centerline'."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /dashboard and select 'OQ-VIOL-Rule2'."
+    verify: "The control chart shows all 29 points. The last 9 points are visibly above the centerline. A warning violation marker (orange/yellow, WARNING severity) is visible at or near the 9th consecutive above-centerline point."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /violations."
+    verify: "A violation exists for 'OQ-VIOL-Rule2' with rule_id=2, severity='WARNING', and acknowledged=false. The rule_name indicates a run or shift pattern."
+    screenshot: true
+expected_result: "Submitting 9 consecutive measurements on the same side of the centerline triggers a Nelson Rule 2 violation with WARNING severity, indicating a process mean shift."
+pass_criteria: "Rule 2 violation is created with rule_id=2 and severity=WARNING. The violation triggers on the 9th consecutive same-side point, not before. The violation is visible on the chart and in the violations list."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule2' and all associated data via API"

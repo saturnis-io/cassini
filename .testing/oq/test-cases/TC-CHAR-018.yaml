@@ -1,0 +1,70 @@
+id: TC-CHAR-018
+title: "Set distribution method to lognormal"
+category: "Characteristic Configuration"
+subcategory: "Distribution"
+priority: high
+regulatory_relevance:
+  - "ISO 22514-2 - Process capability for non-normal distributions"
+  - "AIAG SPC Manual - Non-normal data considerations"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists. Sufficient data submitted for distribution fitting is not required for configuration -- the setting can be applied before data."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Distribution Plant"
+        code: "OQDI"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Dist Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Dist Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Lognormal-Char"
+        subgroup_size: 1
+        data_type: "variable"
+        usl: 100.0
+        lsl: 10.0
+        target_value: 40.0
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Lognormal-Char' in the tree."
+    verify: "Config panel opens."
+    screenshot: false
+  - step: 2
+    action: "Locate the distribution method setting (may be in advanced config, capability section, or distribution analysis modal)."
+    verify: "Distribution method field or selector is visible. Default is 'Normal' or unset."
+    screenshot: true
+  - step: 3
+    action: "Set the distribution method to 'Lognormal'."
+    verify: "Lognormal is selected. Other options should include Normal, Weibull, Gamma, Exponential, Box-Cox."
+    screenshot: true
+  - step: 4
+    action: "Save the configuration."
+    verify: "Save completes without errors."
+    screenshot: false
+  - step: 5
+    action: "Refresh the page and verify the distribution method persisted."
+    verify: "Distribution method still shows 'Lognormal' after refresh."
+    screenshot: true
+expected_result: "Distribution method is set to lognormal and persists. When capability analysis is performed, the system will use lognormal percentile-based Cp/Cpk formulas instead of standard normal."
+pass_criteria: "distribution_method='lognormal' is saved and displayed after page refresh."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

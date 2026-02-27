@@ -1,0 +1,68 @@
+id: TC-SIG-011
+title: "Pending approvals dashboard"
+category: "Electronic Signatures"
+subcategory: "PendingApprovals"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Timely review and approval of electronic records"
+  - "ISO 13485 Section 7.3.5 - Design and development verification tracking"
+  - "IATF 16949 - Controlled document approval with visibility into pending items"
+preconditions:
+  description: >
+    Multiple workflow instances are pending at different steps. At least one
+    pending item requires the current user's role. The user is logged in.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-admin"
+      password: "Admin123!"
+      role: "admin"
+    workflow_instances:
+      - workflow_name: "FAI Approval Flow"
+        resource_type: "fai_report"
+        resource_id: 1
+        current_step: 2
+        step_name: "Admin Approval"
+        initiated_by: "oq-engineer"
+      - workflow_name: "Data Purge Authorization"
+        resource_type: "data_purge"
+        resource_id: 5
+        current_step: 1
+        step_name: "Admin Authorization"
+        initiated_by: "oq-engineer-2"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the admin user. Navigate to /settings/signatures and expand the Pending Approvals section."
+    verify: "The Pending Approvals dashboard loads. It shows a list of items awaiting the current user's signature."
+    screenshot: true
+  - step: 2
+    action: "Examine the pending items list"
+    verify: "The list shows at least two items. Each item displays: workflow name, resource type, current step name, step number and total steps (e.g., 'Step 2 of 2'), who initiated the workflow, and when it was initiated."
+    screenshot: true
+  - step: 3
+    action: "Verify the first pending item shows the FAI Approval Flow"
+    verify: "Item shows: workflow_name='FAI Approval Flow', resource_type='fai_report', current_step='Admin Approval', step indication showing this is step 2 of the total steps, initiated_by showing 'oq-engineer'."
+    screenshot: false
+  - step: 4
+    action: "Verify the second pending item shows the Data Purge Authorization"
+    verify: "Item shows: workflow_name='Data Purge Authorization', resource_type='data_purge', current_step='Admin Authorization', initiated_by='oq-engineer-2'."
+    screenshot: false
+  - step: 5
+    action: "Verify via API: GET /signatures/pending?plant_id={plant_id}"
+    verify: "Response has items array with total >= 2. Each item includes workflow_instance_id, workflow_name, resource_type, resource_id, current_step, step_number, total_steps, initiated_by, initiated_at. Items that have prior steps completed include a previous_signatures array."
+    screenshot: false
+expected_result: >
+  The Pending Approvals dashboard correctly shows all workflow instances
+  that require the current user's action. Each item displays the workflow
+  name, resource type, current step, who initiated it, and when. Items
+  from different workflows and different initiators are all visible.
+pass_criteria: >
+  Dashboard shows all expected pending items. Each item has correct workflow
+  name, resource type, step information, and initiator. API returns matching
+  data. Items from other users' workflows are visible to the current user
+  if they have the required role.
+cleanup:
+  - "Reject or complete the pending workflow instances"

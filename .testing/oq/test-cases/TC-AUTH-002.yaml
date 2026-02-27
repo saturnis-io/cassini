@@ -1,0 +1,39 @@
+id: TC-AUTH-002
+title: "Login with invalid password"
+category: "Authentication & Accounts"
+subcategory: "Login"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - System must reject unauthorized access attempts"
+  - "ISO 13485 - Prevention of unauthorized access"
+preconditions:
+  description: "Default admin user exists with username 'admin' and password 'admin'. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login"
+    verify: "Login page loads with username and password fields."
+    screenshot: false
+  - step: 2
+    action: "Enter 'admin' in the Username field"
+    verify: "Username field displays 'admin'."
+    screenshot: false
+  - step: 3
+    action: "Enter 'wrongpassword' in the Password field"
+    verify: "Password field shows masked characters."
+    screenshot: false
+  - step: 4
+    action: "Click the 'Log In' button"
+    verify: "An error message appears on the login page. The message reads 'Invalid username or password' (generic message that does not reveal whether the username exists). The URL remains /login -- no redirect occurs. The username and password fields remain visible for retry."
+    screenshot: true
+  - step: 5
+    action: "Verify the browser URL bar"
+    verify: "The URL is still /login. The user was not redirected to /dashboard or any other authenticated route."
+    screenshot: false
+expected_result: "Login is rejected with a generic error message. The user remains on the login page. No session token is issued."
+pass_criteria: "Error message is displayed. No redirect occurs. The error message does not reveal whether the username 'admin' exists (it says 'Invalid username or password', not 'Invalid password')."
+cleanup:
+  - "No cleanup required"

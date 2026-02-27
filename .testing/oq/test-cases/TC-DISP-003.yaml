@@ -1,0 +1,91 @@
+id: TC-DISP-003
+title: "Wall dashboard loads with chart grid"
+category: "Display Modes"
+subcategory: "WallDashboard"
+priority: high
+regulatory_relevance:
+  - "Lean Manufacturing - Visual management board for production area"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring multiple processes simultaneously"
+preconditions:
+  description: >
+    An operator (or higher) user exists with access to a plant that has at
+    least 2-4 active characteristics with sample data and calculated
+    control limits. This ensures the grid has multiple charts to display.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Display"
+    department: "Production"
+    line: "Line-1"
+    characteristics:
+      - name: "OQ-Wall-Chart-A"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        usl: 10.10
+        lsl: 9.90
+      - name: "OQ-Wall-Chart-B"
+        chart_type: "xbar_r"
+        subgroup_size: 5
+        data_type: "variable"
+        usl: 25.10
+        lsl: 24.90
+      - name: "OQ-Wall-Chart-C"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        usl: 5.05
+        lsl: 4.95
+      - name: "OQ-Wall-Chart-D"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        usl: 15.02
+        lsl: 14.98
+    samples:
+      count: 25
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /wall-dashboard"
+    verify: >
+      The wall dashboard loads. The page title 'Wall Dashboard' is visible
+      in a minimal toolbar at the top. A grid of chart cards is displayed
+      below the toolbar. The default grid size is 2x2.
+    screenshot: true
+  - step: 2
+    action: "Verify charts are rendered in the grid cells"
+    verify: >
+      Each grid cell contains a WallChartCard showing a miniature control
+      chart with the characteristic name. If 4 characteristics are
+      available and the grid is 2x2, all 4 cells contain charts. If fewer
+      characteristics exist, some cells show 'No data' placeholder.
+    screenshot: true
+  - step: 3
+    action: "Change the grid size to 3x3 using the grid size selector in the toolbar"
+    verify: >
+      The grid layout changes to 3 columns and 3 rows. Charts redistribute
+      to fill the new grid. Empty slots (if any) show 'No data' placeholders.
+    screenshot: true
+  - step: 4
+    action: "Click on one of the chart cards to expand it"
+    verify: >
+      A fullscreen modal (ExpandedChartModal) opens showing a larger version
+      of the control chart. The characteristic name is in the modal header.
+      Chart details (data points, control limits) are more readable at this
+      size. A close button (X) is visible.
+    screenshot: true
+  - step: 5
+    action: "Press Escape or click the close button to dismiss the modal"
+    verify: "The expanded modal closes. The grid view is restored."
+    screenshot: false
+expected_result: >
+  Wall dashboard displays multiple control charts in a configurable grid
+  layout. Charts render with live data. Grid size can be changed. Charts
+  can be expanded for closer inspection.
+pass_criteria: >
+  Grid loads with chart cards. Charts render data points and control limits.
+  Grid size selector changes the layout. Click-to-expand opens modal.
+  Modal closes on Escape or close button.
+cleanup:
+  - "No cleanup required"

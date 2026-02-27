@@ -1,0 +1,55 @@
+id: TC-ANOM-004
+title: "Anomaly overlay renders on control chart"
+category: "Anomaly Detection"
+subcategory: "Overlay"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Visual analysis and evaluation of monitoring data"
+  - "IATF 16949 - Statistical process monitoring with visual aids"
+  - "FDA Guidance on AI/ML - Human oversight of AI-detected patterns"
+preconditions:
+  description: >
+    An engineer user is logged in. A characteristic exists with completed
+    anomaly analysis that produced at least one event (e.g., a changepoint
+    or outlier). The AI Insights toggle is available on the chart toolbar.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    characteristic:
+      name: "OQ-Bore-Diameter-Shift"
+      chart_type: "i_mr"
+    anomaly_events:
+      - detector_type: "pelt"
+        event_type: "changepoint"
+        severity: "medium"
+        summary: "Mean shift detected at sample 50"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select the characteristic that has anomaly analysis results."
+    verify: "The control chart loads with the data points displayed normally (no anomaly overlay yet)."
+    screenshot: true
+  - step: 2
+    action: "Enable the 'AI Insights' toggle in the chart toolbar"
+    verify: "The chart updates to show the anomaly overlay. Colored regions or markers appear on the chart indicating detected anomalies. For a changepoint, a vertical line or colored region marks the transition point. For outliers, individual point markers are highlighted."
+    screenshot: true
+  - step: 3
+    action: "Examine the anomaly overlay details"
+    verify: "The overlay visually indicates: the location of the anomaly on the x-axis (time or sample number), the severity via color coding (e.g., orange for medium, red for high), and the type of anomaly (changepoint region vs. outlier marker). The overlay does not obscure the underlying control chart data."
+    screenshot: true
+  - step: 4
+    action: "Hover over or click on an anomaly marker/region on the chart"
+    verify: "A tooltip or popup shows details about the anomaly: detector type, event type, severity, and summary description."
+    screenshot: true
+expected_result: >
+  After enabling AI Insights, the anomaly overlay renders on the control
+  chart showing detected anomalies as colored markers or regions. The overlay
+  provides visual indication of anomaly location, type, and severity without
+  obscuring the underlying chart data.
+pass_criteria: >
+  AI Insights toggle enables the overlay. At least one anomaly marker or
+  region is visible on the chart. The overlay uses color coding for severity.
+  The overlay does not prevent reading the underlying control chart.
+cleanup:
+  - "No cleanup required -- overlay is a display-only feature"

@@ -1,0 +1,46 @@
+id: TC-VIOL-005
+title: "Nelson Rule 5 -- 2 of 3 consecutive points beyond 2 sigma"
+category: "Violations & Rules"
+subcategory: "NelsonRule5"
+priority: high
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 5 (Zone A test)"
+  - "AIAG SPC Reference Manual - Supplementary run tests"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. 20 in-control samples have been submitted and control limits calculated. Sigma is approximately 0.015, so 2-sigma boundary is approximately 0.03 from centerline (at approximately 10.03 and 9.97). The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule5"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 20
+      values_description: "20 tightly distributed samples around 10.0 with sigma approximately 0.015. Example values: 10.01, 9.99, 10.00, 10.015, 9.985, 10.005, 9.995, 10.01, 9.99, 10.005, 9.995, 10.01, 9.985, 10.00, 10.015, 9.99, 10.01, 9.995, 10.005, 10.00. After submission, recalculate control limits. Verify the 2-sigma zone boundary is near 10.03."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Note the sigma value from chart-data to calculate the 2-sigma boundary"
+      - "Verify no Rule 5 violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Determine the 2-sigma boundary from the chart data (CL + 2*sigma). Navigate to /data-entry. Select 'OQ-VIOL-Rule5'. Submit 3 consecutive samples where 2 of the 3 are beyond 2 sigma on the same side. For example, if sigma is 0.015 and CL is 10.0, submit: 10.04 (beyond 2-sigma upper), 10.005 (within 1-sigma, the 'normal' one), 10.04 (beyond 2-sigma upper again). Submit each individually."
+    verify: "After submitting the 3rd sample (completing the 2-of-3 pattern beyond 2 sigma), the response includes a violation with rule_id=5. The notification indicates a Zone A warning or '2 of 3 beyond 2 sigma'."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /violations."
+    verify: "A violation exists for 'OQ-VIOL-Rule5' with rule_id=5 and severity='WARNING'. The rule_name indicates the zone A test or 2-of-3 pattern."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /dashboard and select 'OQ-VIOL-Rule5'."
+    verify: "The control chart shows the 2 points beyond the 2-sigma zone. A WARNING violation marker is visible at the triggering point."
+    screenshot: false
+expected_result: "Submitting a 2-of-3 pattern beyond the 2-sigma zone on the same side triggers a Nelson Rule 5 violation with WARNING severity, providing early warning of developing instability."
+pass_criteria: "Rule 5 violation is created with rule_id=5 and severity=WARNING. The pattern is correctly detected as 2 of 3 consecutive points beyond Zone A on the same side."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule5' and all associated data via API"

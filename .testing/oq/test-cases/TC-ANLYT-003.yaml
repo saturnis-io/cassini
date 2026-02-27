@@ -1,0 +1,141 @@
+id: TC-ANLYT-003
+title: "Add characteristics to multivariate group and verify members"
+category: "Advanced Analytics"
+subcategory: "Multivariate"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation"
+  - "AIAG SPC Manual - Joint monitoring of correlated variables"
+preconditions:
+  description: >
+    An engineer user is logged in. A multivariate group 'OQ-Multivariate'
+    exists (from TC-ANLYT-002 or seeded). Three variable-data characteristics
+    exist under the same plant, each seeded with 30+ correlated samples for
+    aligned data analysis. Correlation is introduced by generating values
+    where Char2 ~ 2.5*Char1 + noise and Char3 ~ -0.8*Char1 + offset + noise.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ MV Members Plant"
+        code: "OQMM"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "MV Dept"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "MV Line"
+        type: "Line"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{line.id}"
+        name: "MV Station"
+        type: "Equipment"
+    characteristic_1:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Dim-A"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 10.00
+    characteristic_2:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Dim-B"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 25.00
+    characteristic_3:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Dim-C"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 5.00
+    samples_char1:
+      method: POST
+      endpoint: "/samples/batch"
+      body:
+        characteristic_id: "{characteristic_1.id}"
+        samples:
+          - measurements: [10.01]
+          - measurements: [10.03]
+          - measurements: [9.98]
+          - measurements: [10.02]
+          - measurements: [10.00]
+          - measurements: [10.04]
+          - measurements: [9.97]
+          - measurements: [10.01]
+          - measurements: [10.05]
+          - measurements: [9.99]
+          - measurements: [10.02]
+          - measurements: [10.06]
+          - measurements: [9.96]
+          - measurements: [10.03]
+          - measurements: [10.01]
+          - measurements: [9.98]
+          - measurements: [10.04]
+          - measurements: [10.00]
+          - measurements: [10.02]
+          - measurements: [9.99]
+          - measurements: [10.03]
+          - measurements: [10.05]
+          - measurements: [9.97]
+          - measurements: [10.01]
+          - measurements: [10.04]
+          - measurements: [9.98]
+          - measurements: [10.02]
+          - measurements: [10.00]
+          - measurements: [10.03]
+          - measurements: [10.01]
+        skip_rule_evaluation: true
+    group:
+      method: POST
+      endpoint: "/multivariate/groups"
+      body:
+        plant_id: "{plant_id}"
+        name: "OQ-Multivariate-3"
+        chart_type: "t_squared"
+        alpha: 0.05
+        characteristic_ids: ["{characteristic_1.id}", "{characteristic_2.id}", "{characteristic_3.id}"]
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to the plant and navigate to /analytics?tab=multivariate."
+    verify: "Multivariate tab loads. The Group Manager shows the group 'OQ-Multivariate-3' in the list."
+    screenshot: true
+  - step: 2
+    action: "Select the 'OQ-Multivariate-3' group."
+    verify: "The group detail loads showing the member characteristics: OQ-Dim-A, OQ-Dim-B, and OQ-Dim-C are listed as members with their display names."
+    screenshot: true
+  - step: 3
+    action: "Verify the member list shows all 3 characteristics with their names."
+    verify: "Members listed in display order: (1) OQ-Dim-A, (2) OQ-Dim-B, (3) OQ-Dim-C. Each shows its characteristic name. Chart type shows T-squared. Alpha shows 0.05."
+    screenshot: true
+expected_result: "The multivariate group has 3 member characteristics, all listed by name. The group configuration (chart type, alpha) is correctly displayed."
+pass_criteria: "Group detail shows 3 members with correct names. API verification: GET /multivariate/groups/{group_id} returns members array with 3 entries, each having characteristic_name populated."
+cleanup:
+  - "Delete multivariate group via API: DELETE /multivariate/groups/{group_id}"
+  - "Delete characteristics and samples via API"
+  - "Delete hierarchy nodes and plant via API"

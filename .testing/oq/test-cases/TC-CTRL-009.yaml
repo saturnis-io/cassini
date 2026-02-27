@@ -1,0 +1,69 @@
+id: TC-CTRL-009
+title: "EWMA chart renders with exponentially weighted data"
+category: "Control Charts"
+subcategory: "SpecialCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - EWMA Chart"
+  - "ISO 7870-6 - EWMA Control Charts"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+
+preconditions:
+  description: >
+    An EWMA characteristic must exist with target, lambda (smoothing
+    parameter), and L (control limit width) configured. At least 25
+    samples should be seeded. The EWMA chart smooths data to detect
+    small shifts, especially useful for autocorrelated data.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Spindle Vibration EWMA"
+      chart_type: "ewma"
+      subgroup_size: 1
+      data_type: "variable"
+      target: 5.00
+      ewma_lambda: 0.2
+      ewma_l: 2.7
+    samples: "25 measurements centered near 5.00"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Spindle Vibration EWMA"
+    verify: >
+      EWMA chart renders showing the exponentially weighted moving average
+      values. The plotted series is smoother than raw data because each
+      point EWMA_t = lambda * X_t + (1-lambda) * EWMA_{t-1}.
+    screenshot: true
+  - step: 2
+    action: "Inspect the control limit lines"
+    verify: >
+      EWMA control limits are visible:
+      UCL = target + L * sigma * sqrt(lambda / (2 - lambda))
+      LCL = target - L * sigma * sqrt(lambda / (2 - lambda))
+      (For early points, time-varying limits may apply but converge
+      quickly for lambda=0.2.)
+    screenshot: true
+  - step: 3
+    action: "Hover over a data point"
+    verify: "Tooltip shows: EWMA value, original measurement, timestamp"
+    screenshot: true
+
+expected_result: >
+  The EWMA chart renders correctly with smoothed data and specialized
+  control limits. The lambda parameter (0.2) gives moderate smoothing --
+  the chart is more sensitive to shifts than a Shewhart chart but less
+  noisy. Control limits use L*sigma*sqrt(lambda/(2-lambda)).
+
+pass_criteria: >
+  EWMA chart visible with smoothed data line. UCL/LCL present and
+  tighter than Shewhart 3-sigma limits. Chart type distinguishable
+  from Shewhart. API returns EWMA-specific data.
+
+cleanup:
+  - "Delete seeded data via API"

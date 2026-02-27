@@ -1,0 +1,40 @@
+id: TC-CONN-006
+title: "Edit OPC-UA server configuration"
+category: "Connectivity"
+subcategory: "OPCUA"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Changes to measurement system configuration must be controlled and documented"
+  - "21 CFR Part 11 - Configuration change control"
+preconditions:
+  description: "Logged in as engineer or higher. An OPC-UA server named 'OQ Test OPC-UA' exists in the server list."
+  seed_method: api
+  seed_data:
+    server: "OPC-UA server named 'OQ Test OPC-UA' with endpoint 'opc.tcp://192.168.1.200:4840'"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads showing 'OQ Test OPC-UA' in the list."
+    screenshot: false
+  - step: 2
+    action: "Click the edit button on the 'OQ Test OPC-UA' server row"
+    verify: "The OPC-UA edit form opens pre-populated with existing values: Name='OQ Test OPC-UA', Endpoint URL='opc.tcp://192.168.1.200:4840', Auth Mode='Anonymous', Security Policy='None'."
+    screenshot: true
+  - step: 3
+    action: "Change the Endpoint URL to 'opc.tcp://10.0.0.100:4840'. Change Security Policy to 'Basic256Sha256'. Change Security Mode to 'SignAndEncrypt'."
+    verify: "The fields accept the new values. Endpoint URL shows the updated address. Security Policy dropdown shows 'Basic256Sha256'. Security Mode dropdown shows 'SignAndEncrypt'."
+    screenshot: false
+  - step: 4
+    action: "Click 'Save'"
+    verify: "A success toast appears. The form closes. The server list shows the updated endpoint for 'OQ Test OPC-UA'."
+    screenshot: true
+  - step: 5
+    action: "Re-open the edit form for 'OQ Test OPC-UA'"
+    verify: "The form shows the updated values: Endpoint URL='opc.tcp://10.0.0.100:4840', Security Policy='Basic256Sha256', Security Mode='SignAndEncrypt'. Changes persisted."
+    screenshot: false
+expected_result: "An existing OPC-UA server configuration can be edited. Security policy and endpoint changes are saved and persist."
+pass_criteria: "Edit form pre-populates correctly. Endpoint URL and security settings update on save. Re-opening form confirms persisted values."
+cleanup:
+  - "Delete 'OQ Test OPC-UA' or restore original values"

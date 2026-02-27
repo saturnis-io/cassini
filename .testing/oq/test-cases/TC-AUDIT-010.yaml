@@ -1,0 +1,79 @@
+id: TC-AUDIT-010
+title: "Inheritance chain display for retention policies"
+category: "Audit Trail & Retention"
+subcategory: "Inheritance"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5 - Demonstrable control of documented information lifecycle"
+  - "21 CFR Part 11 - Ability to explain and justify data retention decisions"
+  - "IATF 16949 - Documented retention requirements at each organizational level"
+preconditions:
+  description: >
+    An engineer or admin user exists. A plant hierarchy is set up with:
+    Global default = 365 days, a department (e.g., 'Assembly') with a
+    730-day override, a line under that department with no override, and
+    a characteristic under that line with no override. This creates a
+    multi-level inheritance chain.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Retention"
+    department: "Assembly"
+    line: "Line-A"
+    characteristic:
+      name: "OQ-Retention-Inherit-Test"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    global_retention:
+      retention_type: "time_delta"
+      retention_value: 365
+      retention_unit: "days"
+    department_retention:
+      retention_type: "time_delta"
+      retention_value: 730
+      retention_unit: "days"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer or admin and navigate to /settings/retention"
+    verify: "Retention settings page loads"
+    screenshot: false
+  - step: 2
+    action: "Verify the global default shows 365 days on the Policy tab"
+    verify: "Global default retention displays: Time-based, 365 days"
+    screenshot: true
+  - step: 3
+    action: "Switch to the Overrides tab and verify the Assembly department shows a 730-day override"
+    verify: "Assembly department is listed with retention: 730 days"
+    screenshot: true
+  - step: 4
+    action: "Navigate to the 'OQ-Retention-Inherit-Test' characteristic in the tree browser (Assembly > Line-A > OQ-Retention-Inherit-Test)"
+    verify: >
+      The characteristic is selected. The effective retention policy is
+      displayed as 730 days. The inheritance chain visualization shows:
+      Global (365d) -> Plant (inherits) -> Assembly (730d override) ->
+      Line-A (inherits) -> OQ-Retention-Inherit-Test (inherits 730d).
+      The chain clearly indicates that the 730d value comes from the
+      Assembly department override, not the 365d global default.
+    screenshot: true
+  - step: 5
+    action: "Verify via API that the effective policy resolves correctly"
+    verify: >
+      API call GET /retention/characteristic/{id}/effective returns:
+      retention_type='time_delta', retention_value=730, retention_unit='days',
+      source='hierarchy'. This confirms the inheritance chain resolution.
+    screenshot: false
+expected_result: >
+  The inheritance chain correctly resolves the effective retention policy
+  for a characteristic that inherits from a department-level override,
+  skipping the global default. The chain is visually displayed showing
+  each level and which one provides the active policy.
+pass_criteria: >
+  Effective policy shows 730 days (from Assembly override), not 365 days
+  (from global). Inheritance chain visualization shows the full path.
+  API verification: GET /retention/characteristic/{id}/effective returns
+  source='hierarchy', retention_value=730.
+cleanup:
+  - "Delete the hierarchy override: DELETE /retention/hierarchy/{assembly_id}"
+  - "Delete the characteristic: DELETE /characteristics/{id}"

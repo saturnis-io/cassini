@@ -1,0 +1,71 @@
+id: TC-HIER-011
+title: "Delete hierarchy node with cascade warning"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information (retention and disposition)"
+  - "21 CFR Part 11 - Audit trail for record deletion"
+preconditions:
+  description: "Engineer user is logged in. A hierarchy exists with parent node containing child nodes (Department > Line) and a separate leaf node that can be deleted."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Delete Node Plant"
+        code: "OQ11"
+        is_active: true
+    parent:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Parent Dept"
+        type: "Area"
+    child:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{parent.id}"
+        name: "OQ Child Line"
+        type: "Line"
+    leaf:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Deletable Leaf"
+        type: "Area"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Delete Node Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'OQ Parent Dept' (with child 'OQ Child Line') and 'OQ Deletable Leaf' as separate root nodes."
+    screenshot: true
+  - step: 2
+    action: "Right-click on 'OQ Parent Dept' (which has children) and select 'Delete'."
+    verify: "An error message or warning appears indicating the node cannot be deleted because it has child nodes. The deletion is blocked."
+    screenshot: true
+  - step: 3
+    action: "Dismiss the error/warning. Verify 'OQ Parent Dept' is still in the tree."
+    verify: "'OQ Parent Dept' and its child 'OQ Child Line' remain in the tree."
+    screenshot: false
+  - step: 4
+    action: "Right-click on 'OQ Deletable Leaf' (which has no children) and select 'Delete'."
+    verify: "A confirmation dialog appears."
+    screenshot: true
+  - step: 5
+    action: "Confirm the deletion."
+    verify: "'OQ Deletable Leaf' is removed from the tree."
+    screenshot: true
+  - step: 6
+    action: "Verify 'OQ Deletable Leaf' is no longer visible in the tree."
+    verify: "Only 'OQ Parent Dept' (with 'OQ Child Line') remains. 'OQ Deletable Leaf' is gone."
+    screenshot: true
+expected_result: "Nodes with children cannot be deleted (blocked with error). Leaf nodes without children can be deleted successfully."
+pass_criteria: "Delete of parent node is blocked with an appropriate error. Delete of leaf node succeeds and removes it from the tree."
+cleanup:
+  - "Delete 'OQ Child Line' via API: DELETE /hierarchy/{id}"
+  - "Delete 'OQ Parent Dept' via API: DELETE /hierarchy/{id}"
+  - "Delete plant 'OQ11' via API: DELETE /plants/{id}"

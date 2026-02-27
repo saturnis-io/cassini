@@ -1,0 +1,73 @@
+id: TC-CHAR-019
+title: "Enable Laney correction on p-chart"
+category: "Characteristic Configuration"
+subcategory: "Laney"
+priority: high
+regulatory_relevance:
+  - "Laney (2002) - Improved control charts for attributes"
+  - "ISO 7870-1 - General guide (note on overdispersion)"
+  - "AIAG SPC Manual - Attribute chart considerations"
+preconditions:
+  description: "Engineer user is logged in. A p-chart (attribute, proportion defective) characteristic exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Laney Plant"
+        code: "OQLA"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Laney Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Laney Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Laney-P-Prime"
+        data_type: "attribute"
+        attribute_chart_type: "p"
+        default_sample_size: 500
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Laney-P-Prime' in the tree."
+    verify: "Config panel opens showing attribute chart configuration. Chart type is p."
+    screenshot: false
+  - step: 2
+    action: "Locate the 'Use Laney Correction' checkbox (or 'Laney p-prime' toggle) in the configuration."
+    verify: "Laney correction option is visible. It is unchecked by default."
+    screenshot: true
+  - step: 3
+    action: "Check/enable the Laney correction checkbox."
+    verify: "Checkbox is now checked."
+    screenshot: true
+  - step: 4
+    action: "Click Save."
+    verify: "Save completes. use_laney_correction is set to true."
+    screenshot: false
+  - step: 5
+    action: "Navigate to the chart view for this characteristic (if data exists)."
+    verify: "The sigma-Z (sigma_z) badge appears on the chart, indicating the Laney correction factor. Chart title or subtitle may indicate 'Laney p-prime' or 'p-prime chart'."
+    screenshot: true
+  - step: 6
+    action: "Refresh the page and verify persistence."
+    verify: "Laney correction remains enabled after refresh. use_laney_correction = true."
+    screenshot: true
+expected_result: "Laney p-prime correction is enabled on the p-chart. The sigma-Z badge appears on the chart, and control limits use the Laney-adjusted sigma."
+pass_criteria: "use_laney_correction=true is saved. sigma_z badge visible on chart (when data is present)."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

@@ -1,0 +1,63 @@
+id: TC-CHAR-012
+title: "Apply AIAG rule preset"
+category: "Characteristic Configuration"
+subcategory: "RulePresets"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - Control chart interpretation rules (Section II)"
+  - "IATF 16949 - Automotive quality management (SPC requirement)"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists with all 8 Nelson rules enabled."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ AIAG Preset Plant"
+        code: "OQAI"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "AIAG Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "AIAG Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-AIAG-Preset"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-AIAG-Preset', open Rules tab."
+    verify: "All 8 rules are currently enabled (default state)."
+    screenshot: true
+  - step: 2
+    action: "Locate the preset selector dropdown. Select 'AIAG' preset."
+    verify: "AIAG preset is available in the dropdown list."
+    screenshot: true
+  - step: 3
+    action: "Click 'Apply Preset' or equivalent action button."
+    verify: "Rules update: Rules 1, 2, 3, and 4 are enabled. Rules 5, 6, 7, and 8 are disabled."
+    screenshot: true
+  - step: 4
+    action: "Refresh the browser page and verify the preset was applied persistently."
+    verify: "After refresh, rules 1-4 enabled, rules 5-8 disabled. The AIAG configuration persisted."
+    screenshot: true
+expected_result: "AIAG rule preset correctly enables only rules 1-4 (the automotive-standard detection rules) and disables rules 5-8."
+pass_criteria: "Rules 1-4 enabled, rules 5-8 disabled, matching the AIAG SPC Manual recommendation."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

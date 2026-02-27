@@ -1,0 +1,47 @@
+id: TC-HIER-005
+title: "Create department hierarchy node"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: critical
+regulatory_relevance:
+  - "ISA-95 - Equipment hierarchy model"
+  - "ISO 9001:2015 Section 4.4 - Quality management system and its processes"
+preconditions:
+  description: "Engineer user is logged in. Active plant is selected. No hierarchy nodes exist yet for this plant (clean slate)."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Hierarchy Test Plant"
+        code: "OQ05"
+        is_active: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Hierarchy Test Plant' via the header plant switcher."
+    verify: "Plant switcher shows 'OQ Hierarchy Test Plant'."
+    screenshot: false
+  - step: 2
+    action: "Navigate to Configuration page (/configuration)."
+    verify: "Configuration page loads. Hierarchy tree panel is visible on the left. Tree is empty (no nodes for this plant)."
+    screenshot: true
+  - step: 3
+    action: "Use the toolbar 'Add' button or right-click in the tree area to create a new root node."
+    verify: "A dialog or inline editor appears to enter node name and type."
+    screenshot: true
+  - step: 4
+    action: "Enter Name: 'Machining Department', Type: 'Area'. Click Create/Save."
+    verify: "Node is created. 'Machining Department' appears as a root node in the tree."
+    screenshot: true
+  - step: 5
+    action: "Verify the node type indicator shows 'Area' (or the appropriate icon/label)."
+    verify: "Node displays with the correct type designation."
+    screenshot: false
+expected_result: "A department-level hierarchy node is created as a root node in the tree, with the correct name and type."
+pass_criteria: "'Machining Department' appears in the hierarchy tree as a root-level node of type 'Area'."
+cleanup:
+  - "Delete hierarchy node via API: DELETE /hierarchy/{id}"
+  - "Delete plant 'OQ05' via API: DELETE /plants/{id}"

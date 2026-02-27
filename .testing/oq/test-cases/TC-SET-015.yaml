@@ -1,0 +1,73 @@
+id: TC-SET-015
+title: "Deactivate user and verify login is blocked"
+category: "Settings & Admin"
+subcategory: "UserManagement"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Ability to revoke system access"
+  - "21 CFR Part 11 Section 11.10(g) - Authority checks preventing unauthorized use"
+  - "ISO 13485 Section 6.2 - Access control for departed or reassigned personnel"
+  - "ISO 27001 - User access de-provisioning"
+preconditions:
+  description: >
+    An admin user is logged in. A user exists that will be deactivated.
+    This user has known credentials so we can verify login is blocked.
+    The user should have at least one plant role assigned so we can
+    verify the deactivation fully removes access.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Deactivate Plant"
+        code: "OQDP"
+        is_active: true
+    user:
+      method: POST
+      endpoint: "/users/"
+      body:
+        username: "oq-deactivate"
+        password: "OqDeact123!"
+    role:
+      method: POST
+      endpoint: "/users/{user.id}/roles"
+      body:
+        plant_id: "{plant_id}"
+        role: "operator"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin. Navigate to /admin/users."
+    verify: "User management page loads. User 'oq-deactivate' is visible in the table with status 'active' and role 'operator' at 'OQ Deactivate Plant'."
+    screenshot: true
+  - step: 2
+    action: "Click on the 'oq-deactivate' user row."
+    verify: "User detail view opens showing the user's information. A 'Deactivate' button (or similar) is visible."
+    screenshot: true
+  - step: 3
+    action: "Click 'Deactivate'."
+    verify: "A confirmation dialog appears warning that the user will be deactivated and will no longer be able to log in."
+    screenshot: true
+  - step: 4
+    action: "Confirm the deactivation."
+    verify: "Success indication (toast: 'User deactivated' or similar). The user status in the table changes to 'inactive' (may show a visual indicator like a badge, greyed-out row, or 'Inactive' text)."
+    screenshot: true
+  - step: 5
+    action: "Log out of the admin session."
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 6
+    action: "Attempt to log in as 'oq-deactivate' with password 'OqDeact123!'."
+    verify: "Login is REJECTED. An error message appears (e.g., 'Account is inactive' or 'Invalid credentials'). The user is NOT redirected to the dashboard. The login page remains displayed."
+    screenshot: true
+  - step: 7
+    action: "Log back in as admin."
+    verify: "Admin login succeeds, confirming the admin account is unaffected."
+    screenshot: false
+expected_result: "The user 'oq-deactivate' is deactivated by the admin. The user's status changes to inactive in the user management table. The deactivated user cannot log in -- authentication is rejected."
+pass_criteria: "Deactivation succeeds. User shows as inactive in the table. Login attempt with deactivated credentials fails with an appropriate error message. API verification: GET /users/{user_id} shows is_active=false. POST /auth/login with the deactivated user's credentials returns an error (401 or 403)."
+cleanup:
+  - "Permanently delete user via API: DELETE /users/{user_id}/permanent"
+  - "Delete plant via API"

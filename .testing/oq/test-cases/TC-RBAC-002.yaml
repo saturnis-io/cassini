@@ -1,0 +1,70 @@
+id: TC-RBAC-002
+title: "Operator can access data entry and submit measurements"
+category: "RBAC & Security"
+subcategory: "OperatorAccess"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Authorized data entry with attribution"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and measurement data collection"
+  - "IATF 16949 Section 9.1.1.1 - SPC data entry by trained operators"
+preconditions:
+  description: >
+    An operator user 'oq-operator' exists with operator role at OQ-Plant-RBAC.
+    A characteristic 'OQ-RBAC-Char' (I-MR, subgroup_size=1) exists under the
+    plant hierarchy. The data entry page is functional.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-RBAC"
+    department: "Quality"
+    line: "Inspection-1"
+    characteristic:
+      name: "OQ-RBAC-Char"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+    users:
+      - username: "oq-operator"
+        password: "Operator123!"
+        role: "operator"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-operator' and navigate to /data-entry"
+    verify: "Data entry page loads with the hierarchy tree in the left panel"
+    screenshot: true
+  - step: 2
+    action: "Select the OQ-Plant-RBAC plant from the plant switcher (if not already active)"
+    verify: "Hierarchy tree shows the OQ-Plant-RBAC structure"
+    screenshot: false
+  - step: 3
+    action: "Expand the hierarchy tree: Quality > Inspection-1 > OQ-RBAC-Char"
+    verify: >
+      The data entry form appears for OQ-RBAC-Char. A single measurement
+      input field is shown (subgroup_size=1 for I-MR chart).
+    screenshot: true
+  - step: 4
+    action: "Enter 10.03 in the measurement field and click Submit"
+    verify: >
+      A success toast notification appears. The input field clears for the
+      next measurement. The submission was accepted -- operators are
+      authorized to submit data.
+    screenshot: true
+  - step: 5
+    action: "Navigate to /dashboard and select OQ-RBAC-Char"
+    verify: "The control chart shows the newly submitted data point at 10.03"
+    screenshot: true
+expected_result: >
+  An operator can access the data entry page, select a characteristic, and
+  submit a measurement. The data is accepted and appears on the dashboard
+  control chart. This confirms operators have the minimum required
+  permissions for their primary workflow.
+pass_criteria: >
+  Data entry page loads. Measurement 10.03 submits without error. Dashboard
+  chart shows the new data point. API verification: GET /samples with
+  characteristic_id filter returns the submitted sample.
+cleanup:
+  - "Delete the submitted sample via API: DELETE /samples/{sample_id}"

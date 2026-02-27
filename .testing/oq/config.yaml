@@ -1,0 +1,51 @@
+# OQ Test Framework Configuration
+# Cassini SPC Platform — Operational Qualification
+
+environment:
+  base_url: "http://localhost:5173"
+  api_url: "http://localhost:8000/api/v1"
+  backend_cmd: "cd backend && uvicorn cassini.main:app --reload"
+  frontend_cmd: "cd frontend && npm run dev"
+
+credentials:
+  admin:
+    username: "admin"
+    password: "admin"
+  operator:
+    username: "oq-operator"
+    password: "OqTest123!"
+  supervisor:
+    username: "oq-supervisor"
+    password: "OqTest123!"
+  engineer:
+    username: "oq-engineer"
+    password: "OqTest123!"
+
+timeouts:
+  page_load: 10000
+  api_call: 5000
+  screenshot_delay: 1000
+
+screenshot:
+  format: "png"
+  full_page: false
+
+categories:
+  - { prefix: "AUTH", name: "Authentication & Accounts", kb: "01-auth-accounts.md" }
+  - { prefix: "HIER", name: "Plants & Hierarchy", kb: "02-plants-hierarchy.md" }
+  - { prefix: "CHAR", name: "Characteristic Configuration", kb: "03-characteristics-config.md" }
+  - { prefix: "DATA", name: "Data Entry", kb: "04-data-entry.md" }
+  - { prefix: "CTRL", name: "Control Charts", kb: "05-control-charts.md" }
+  - { prefix: "VIOL", name: "Violations & Rules", kb: "06-violations-rules.md" }
+  - { prefix: "CAP", name: "Capability Analysis", kb: "07-capability-analysis.md" }
+  - { prefix: "RPT", name: "Reports & Export", kb: "08-reports-export.md" }
+  - { prefix: "CONN", name: "Connectivity", kb: "09-connectivity.md" }
+  - { prefix: "MSA", name: "MSA / Gage R&R", kb: "10-msa-gagerr.md" }
+  - { prefix: "FAI", name: "First Article Inspection", kb: "11-fai-inspection.md" }
+  - { prefix: "SIG", name: "Electronic Signatures", kb: "12-signatures-compliance.md" }
+  - { prefix: "ANOM", name: "Anomaly Detection", kb: "13-anomaly-detection.md" }
+  - { prefix: "ANLYT", name: "Advanced Analytics", kb: "14-analytics-advanced.md" }
+  - { prefix: "SET", name: "Settings & Admin", kb: "15-settings-admin.md" }
+  - { prefix: "AUDIT", name: "Audit Trail & Retention", kb: "16-audit-retention.md" }
+  - { prefix: "DISP", name: "Display Modes", kb: "17-display-modes.md" }
+  - { prefix: "RBAC", name: "RBAC & Security", kb: "18-rbac-security.md" }

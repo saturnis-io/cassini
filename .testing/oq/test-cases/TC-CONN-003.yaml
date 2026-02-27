@@ -1,0 +1,40 @@
+id: TC-CONN-003
+title: "Edit MQTT broker configuration"
+category: "Connectivity"
+subcategory: "MQTT"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Changes to data collection configuration must be controlled"
+  - "21 CFR Part 11 - Configuration changes are auditable events"
+preconditions:
+  description: "Logged in as engineer or higher. An MQTT broker named 'OQ Test Broker' exists in the server list (created by TC-CONN-002 or seeded)."
+  seed_method: api
+  seed_data:
+    broker: "MQTT broker named 'OQ Test Broker' with host '192.168.1.100' and port 1883"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads showing the broker 'OQ Test Broker' in the list."
+    screenshot: false
+  - step: 2
+    action: "Click the edit button (pencil icon) on the 'OQ Test Broker' row, or click the broker name to open the edit form"
+    verify: "The MQTT broker edit form opens pre-populated with the existing values: Name='OQ Test Broker', Host='192.168.1.100', Port=1883."
+    screenshot: true
+  - step: 3
+    action: "Change the Port field from 1883 to 8883. Change the Host to '10.0.0.50'."
+    verify: "The Port field now shows 8883. The Host field shows '10.0.0.50'."
+    screenshot: false
+  - step: 4
+    action: "Click 'Save' to save the updated configuration"
+    verify: "A success toast notification appears (e.g., 'Broker updated'). The form closes. The server list now shows 'OQ Test Broker' with the updated host '10.0.0.50:8883'."
+    screenshot: true
+  - step: 5
+    action: "Open the edit form again to confirm the changes persisted"
+    verify: "The form shows Host='10.0.0.50' and Port=8883, confirming the update was saved to the backend."
+    screenshot: false
+expected_result: "An existing MQTT broker configuration can be edited. Changed values are saved and reflected in both the server list and the edit form on re-open."
+pass_criteria: "Edit form pre-populates with existing values. Port and host changes save successfully. Updated values appear in the server list. Re-opening edit form confirms persisted values."
+cleanup:
+  - "Delete the 'OQ Test Broker' or restore original values"

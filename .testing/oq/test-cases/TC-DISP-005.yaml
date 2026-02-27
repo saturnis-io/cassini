@@ -1,0 +1,71 @@
+id: TC-DISP-005
+title: "Direct URL access to display modes requires authentication"
+category: "Display Modes"
+subcategory: "Kiosk"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Access limited to authorized individuals"
+  - "ISO 9001:2015 Section 7.5.3 - Control of access to documented information"
+  - "SOC 2 - Logical access controls"
+preconditions:
+  description: >
+    Backend and frontend servers are running. No user is currently logged
+    in (clear browser session/cookies before testing). At least one
+    characteristic with data exists in the system.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open a browser with no active session (clear cookies or use incognito mode)"
+    verify: "No user is logged in"
+    screenshot: false
+  - step: 2
+    action: "Navigate directly to /kiosk by typing the URL in the address bar"
+    verify: >
+      The browser is redirected to /login. The kiosk view does NOT load.
+      The login page is displayed, indicating that authentication is
+      required before accessing display modes. This is because kiosk uses
+      RequireAuth which redirects unauthenticated users.
+    screenshot: true
+  - step: 3
+    action: "Navigate directly to /wall-dashboard by typing the URL"
+    verify: >
+      The browser is again redirected to /login. The wall dashboard does
+      NOT load without authentication.
+    screenshot: true
+  - step: 4
+    action: "Log in with a valid operator account"
+    verify: "Login succeeds. User is redirected to /dashboard."
+    screenshot: false
+  - step: 5
+    action: "Now navigate to /kiosk"
+    verify: >
+      The kiosk view loads successfully with the fullscreen chart.
+      Authentication is valid, so the display mode renders.
+    screenshot: true
+  - step: 6
+    action: "Navigate to /wall-dashboard"
+    verify: >
+      The wall dashboard loads successfully with the chart grid.
+      Both display modes are accessible to authenticated users.
+    screenshot: true
+  - step: 7
+    action: "Bookmark both URLs for future direct access"
+    verify: >
+      /kiosk and /wall-dashboard can be bookmarked. After a future login,
+      navigating to these bookmarks loads the display modes directly
+      (after authentication at /login first).
+    screenshot: false
+expected_result: >
+  Display modes require authentication. Unauthenticated access redirects
+  to the login page. After authentication, both /kiosk and /wall-dashboard
+  load correctly via direct URL. URLs can be bookmarked for factory
+  terminal configuration.
+pass_criteria: >
+  Unauthenticated /kiosk redirects to /login. Unauthenticated
+  /wall-dashboard redirects to /login. Authenticated access to both
+  URLs loads the respective display modes.
+cleanup:
+  - "No cleanup required"

@@ -1,0 +1,72 @@
+id: TC-HIER-008
+title: "Create characteristic under station"
+category: "Plants & Hierarchy"
+subcategory: "HierarchyTree"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - Control chart setup"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring, measurement, analysis, and evaluation"
+preconditions:
+  description: "Engineer user is logged in. A 3-level hierarchy exists: Department > Line > Station."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Char Create Plant"
+        code: "OQ08"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "OQ Dept"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "OQ Line"
+        type: "Line"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{line.id}"
+        name: "OQ Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Char Create Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows OQ Dept > OQ Line > OQ Station."
+    screenshot: true
+  - step: 2
+    action: "Select 'OQ Station' in the tree. Click the 'Add Characteristic' button or right-click > Add Characteristic."
+    verify: "Characteristic creation form appears with fields for Name, Data Type, Chart Type, Subgroup Size."
+    screenshot: true
+  - step: 3
+    action: "Enter: Name: 'OQ-Diameter', Data Type: Variable, Subgroup Size: 5. Leave chart type as default (X-bar-R for subgroup >= 2)."
+    verify: "Fields accept the input. Subgroup size is set to 5."
+    screenshot: false
+  - step: 4
+    action: "Click Create/Save."
+    verify: "Characteristic is created without errors. Success notification appears."
+    screenshot: false
+  - step: 5
+    action: "Verify 'OQ-Diameter' appears as a leaf node under 'OQ Station' in the tree."
+    verify: "Characteristic is visible in the tree with a distinct icon (different from hierarchy nodes). Tree shows: OQ Dept > OQ Line > OQ Station > OQ-Diameter."
+    screenshot: true
+  - step: 6
+    action: "Click on 'OQ-Diameter' in the tree."
+    verify: "Configuration panel appears on the right with tabs (General/Limits/Rules/Sampling or similar). Shows subgroup size = 5 and chart type = X-bar-R."
+    screenshot: true
+expected_result: "A variable characteristic with X-bar-R chart type and subgroup size 5 is created as a leaf node under the station, and its configuration panel is accessible."
+pass_criteria: "Characteristic 'OQ-Diameter' appears under 'OQ Station' in the tree. Config panel shows subgroup_size=5 and X-bar-R chart type."
+cleanup:
+  - "Delete characteristic via API: DELETE /characteristics/{id}"
+  - "Delete hierarchy nodes bottom-up via API"
+  - "Delete plant 'OQ08' via API: DELETE /plants/{id}"

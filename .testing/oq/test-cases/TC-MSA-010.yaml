@@ -1,0 +1,48 @@
+id: TC-MSA-010
+title: "Attribute MSA with Cohen's Kappa (2 raters)"
+category: "MSA / Gage R&R"
+subcategory: "AttributeMSA"
+priority: high
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Attribute Agreement Analysis"
+  - "IATF 16949 - Attribute measurement system evaluation"
+  - "ISO 13485 - Validation of inspection by attributes"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. No MSA study named 'OQ-Attribute-Cohen' exists."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /msa and click 'New Study'."
+    verify: "The study creation form is displayed."
+    screenshot: false
+  - step: 2
+    action: "Enter Name: 'OQ-Attribute-Cohen'. Select Type: 'Attribute Agreement Analysis'. Set Operators to 2, Parts to 50, Replicates to 2. Click Create."
+    verify: "The study is created and the editor opens. Status badge shows 'Setup'. Configuration confirms: Attribute Agreement, 2 operators (raters), 50 parts (items), 2 replicates (trials)."
+    screenshot: true
+  - step: 3
+    action: "Set operator (rater) names: 'Rater-1', 'Rater-2'. Save operators."
+    verify: "Two operators (raters) are listed: Rater-1 and Rater-2."
+    screenshot: false
+  - step: 4
+    action: "Set 50 part names: 'Item-01' through 'Item-50'. Save parts."
+    verify: "Fifty parts (items) are listed."
+    screenshot: false
+  - step: 5
+    action: "Navigate to the Data tab. The grid should display attribute value inputs (text fields for categorical values like 'pass'/'fail') instead of numeric inputs. Enter pass/fail decisions for all items. Make approximately 90% agreement between raters to produce a good kappa. For most items, both raters should agree on pass or fail across both replicates. Introduce approximately 5 disagreements to create a realistic dataset. Submit attribute measurements."
+    verify: "All 200 cells (2 raters x 50 items x 2 replicates) are filled with categorical values (pass/fail). Success notification appears. Study status changes to 'Collecting'."
+    screenshot: true
+  - step: 6
+    action: "Navigate to the Results tab and click 'Calculate'."
+    verify: "The calculation completes. Since this is an attribute study, the results show attribute MSA metrics instead of Gage R&R variance components. The results include: (1) Cohen's Kappa value for the rater pair (Rater-1 vs Rater-2). (2) Within-Appraiser agreement percentages for each rater (Rater-1 and Rater-2 self-consistency across replicates). (3) Between-Appraiser agreement percentage. (4) Fleiss' Kappa (for 2 raters, Fleiss' kappa equals Cohen's kappa). (5) Verdict based on kappa value. With approximately 90% agreement, kappa should be > 0.75 yielding 'acceptable' verdict."
+    screenshot: true
+  - step: 7
+    action: "Examine the Cohen's Kappa value for the rater pair."
+    verify: "The Cohen's Kappa is displayed for the pair 'Rater-1 vs Rater-2'. The value is a decimal between -1 and 1. With the test data designed for approximately 90% agreement, the kappa value should be > 0.75. The interpretation (acceptable/marginal/unacceptable) is shown based on the kappa value."
+    screenshot: true
+expected_result: "An attribute MSA study with 2 raters calculates Cohen's Kappa correctly. Results show within-appraiser agreement, between-appraiser agreement, Cohen's kappa for the pair, and a verdict based on kappa thresholds."
+pass_criteria: "Attribute study creates with 'Attribute Agreement' type. Calculation produces Cohen's kappa > 0.75 with the test data. Within-appraiser and between-appraiser percentages are displayed. Verdict is 'acceptable'. No ANOVA table or variance components chart is shown (these are specific to variable MSA)."
+cleanup:
+  - "Delete MSA study 'OQ-Attribute-Cohen' via API: DELETE /msa/studies/{id}"

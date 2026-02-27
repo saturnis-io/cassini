@@ -1,0 +1,71 @@
+id: TC-CTRL-004
+title: "p-chart renders with proportion defective data"
+category: "Control Charts"
+subcategory: "AttributeCharts"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - p-Chart (Proportion Nonconforming)"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    A p-chart characteristic must exist with at least 25 attribute
+    samples (defect count + sample size). Control limits should be
+    calculated. Sample sizes should vary to demonstrate per-point
+    limit calculation.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Assembly"
+    line: "QC-Station-1"
+    characteristic:
+      name: "Solder Defect Rate p"
+      chart_type: "p"
+      subgroup_size: 1
+      data_type: "attribute"
+    samples: >
+      25 attribute samples with varying sample sizes (40-60 units each)
+      and defect counts averaging ~5% defective rate.
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Solder Defect Rate p"
+    verify: >
+      p-chart renders showing 25 data points. Each point plots the
+      proportion defective p_i = defects_i / n_i. Center line shows
+      p-bar (overall average proportion defective).
+    screenshot: true
+  - step: 2
+    action: "Inspect the control limit lines"
+    verify: >
+      UCL and LCL lines may appear stepped (not straight) because they
+      are calculated per point based on variable sample sizes:
+      UCL_i = p-bar + 3 * sqrt(p-bar * (1 - p-bar) / n_i)
+      LCL_i = p-bar - 3 * sqrt(p-bar * (1 - p-bar) / n_i)
+      LCL may be 0 if the calculated value is negative.
+    screenshot: true
+  - step: 3
+    action: "Hover over a data point"
+    verify: >
+      Tooltip shows: plotted value (proportion), defect count,
+      sample size, timestamp.
+    screenshot: true
+
+expected_result: >
+  The p-chart correctly plots proportion defective with per-point
+  control limits that account for variable sample sizes. This is the
+  standard chart for monitoring defective rates when sample sizes vary
+  (e.g., different lot sizes inspected each shift).
+
+pass_criteria: >
+  Chart shows 25 points with stepped UCL/LCL lines. CL = p-bar.
+  Points with larger sample sizes have tighter limits (closer to CL).
+  API: chart-data returns per-point limit arrays.
+
+cleanup:
+  - "Delete seeded data via API"

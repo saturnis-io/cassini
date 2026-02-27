@@ -1,0 +1,105 @@
+id: TC-HIER-012
+title: "Plant data isolation verification"
+category: "Plants & Hierarchy"
+subcategory: "DataIsolation"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5 - Documented information (access control)"
+  - "ISO 17025 Section 7.11 - Control of data and information management"
+  - "21 CFR Part 11 - Access controls and data integrity"
+preconditions:
+  description: "Admin user is logged in. Two plants exist, each with their own hierarchy and at least one characteristic with sample data."
+  seed_method: api
+  seed_data:
+    plant_a:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "Isolation Plant A"
+        code: "ISOA"
+        is_active: true
+    plant_b:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "Isolation Plant B"
+        code: "ISOB"
+        is_active: true
+    dept_a:
+      method: POST
+      endpoint: "/plants/{plant_a.id}/hierarchies"
+      body:
+        name: "Plant A Machining"
+        type: "Area"
+    station_a:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{dept_a.id}"
+        name: "Plant A Lathe"
+        type: "Equipment"
+    char_a:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station_a.id}"
+        name: "Plant A Diameter"
+        subgroup_size: 1
+        data_type: "variable"
+    dept_b:
+      method: POST
+      endpoint: "/plants/{plant_b.id}/hierarchies"
+      body:
+        name: "Plant B Assembly"
+        type: "Area"
+    station_b:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{dept_b.id}"
+        name: "Plant B Fixture"
+        type: "Equipment"
+    char_b:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station_b.id}"
+        name: "Plant B Torque"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'Isolation Plant A' via the header plant switcher."
+    verify: "Plant switcher shows 'Isolation Plant A'."
+    screenshot: true
+  - step: 2
+    action: "Navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'Plant A Machining' > 'Plant A Lathe' > 'Plant A Diameter'. No nodes from Plant B are visible."
+    screenshot: true
+  - step: 3
+    action: "Navigate to Dashboard (/)."
+    verify: "Dashboard shows data related to Isolation Plant A only. 'Plant A Diameter' is listed if the dashboard shows characteristics."
+    screenshot: true
+  - step: 4
+    action: "Switch to 'Isolation Plant B' via the header plant switcher."
+    verify: "Plant switcher updates to 'Isolation Plant B'."
+    screenshot: false
+  - step: 5
+    action: "Navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows 'Plant B Assembly' > 'Plant B Fixture' > 'Plant B Torque'. No nodes from Plant A are visible (no 'Plant A Machining', no 'Plant A Diameter')."
+    screenshot: true
+  - step: 6
+    action: "Navigate to Dashboard (/)."
+    verify: "Dashboard shows data related to Isolation Plant B only. 'Plant A Diameter' is NOT visible."
+    screenshot: true
+  - step: 7
+    action: "Switch back to 'Isolation Plant A' and verify its data is unchanged."
+    verify: "Configuration page shows Plant A hierarchy as before. Data isolation is bidirectional."
+    screenshot: true
+expected_result: "Each plant's data (hierarchy, characteristics, samples, charts) is completely isolated. Switching plants shows only that plant's data with no cross-contamination."
+pass_criteria: "Plant A's hierarchy and characteristics are not visible when Plant B is active, and vice versa. No data leaks between plants."
+cleanup:
+  - "Delete characteristics, hierarchy nodes for both plants via API"
+  - "Delete plants 'ISOA' and 'ISOB' via API"

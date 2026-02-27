@@ -1,0 +1,39 @@
+id: TC-AUTH-011
+title: "Profile update -- change display name"
+category: "Authentication & Accounts"
+subcategory: "Profile"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 - Accurate user identification records"
+  - "ISO 13485 - Traceability of user identity"
+preconditions:
+  description: "Default admin user exists and is logged in. The admin user has no display name set (or a known initial display name)."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin/admin and navigate to /settings/account"
+    verify: "The Account settings page loads. The 'Profile' section is visible with fields for Display Name, Username (read-only), and Email. The Username field is grayed out and shows 'admin'."
+    screenshot: true
+  - step: 2
+    action: "Clear the Display Name field and enter 'OQ Test Administrator'"
+    verify: "The Display Name field shows 'OQ Test Administrator'. The 'Save Changes' button becomes enabled (changes detected)."
+    screenshot: false
+  - step: 3
+    action: "Click 'Save Changes'"
+    verify: "A success toast notification appears (e.g., 'Profile updated successfully'). The button returns to its default state."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page (F5 or Ctrl+R)"
+    verify: "After refresh, the Display Name field still shows 'OQ Test Administrator'. The change was persisted to the database."
+    screenshot: true
+  - step: 5
+    action: "Check the header -- click the user avatar/name in the top-right"
+    verify: "The user menu dropdown shows the updated display name 'OQ Test Administrator' (or the full name, depending on what the header displays)."
+    screenshot: true
+expected_result: "The display name is updated successfully and persists across page refreshes. The updated name is reflected in the header user menu."
+pass_criteria: "Display name is saved. After refresh, the field retains the new value. The header reflects the updated name. No errors occur."
+cleanup:
+  - "Optionally reset the display name to its original value by clearing the field and saving"

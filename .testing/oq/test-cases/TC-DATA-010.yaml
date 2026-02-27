@@ -1,0 +1,75 @@
+id: TC-DATA-010
+title: "Edit submitted sample value and verify audit trail"
+category: "Data Entry"
+subcategory: "SampleManagement"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(e) - Audit Trails for Electronic Records"
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information (amendment tracking)"
+  - "IATF 16949 Section 7.5.3.1 - Record Retention (original and amended values)"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists with at least one submitted sample
+    (value 10.02). The test user has supervisor role or higher (sample
+    editing requires supervisor+).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples:
+      - measurements: [10.02]
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor and navigate to /dashboard. Select the Bore Diameter characteristic."
+    verify: "Chart displays with the sample at 10.02 visible"
+    screenshot: false
+  - step: 2
+    action: "Click on the data point at 10.02 to open the sample inspector"
+    verify: "Sample inspector panel opens showing measurement = 10.02, timestamp, display key"
+    screenshot: true
+  - step: 3
+    action: "Click Edit in the sample inspector. Change the measurement from 10.02 to 10.05."
+    verify: "Edit form appears. New value 10.05 is entered."
+    screenshot: true
+  - step: 4
+    action: "Enter reason: 'Corrected transcription error - original reading was 10.05'"
+    verify: "Reason field shows the entered text"
+    screenshot: false
+  - step: 5
+    action: "Click Save"
+    verify: >
+      Success notification. Chart updates to show the point at 10.05.
+      The sample is marked as modified (edit indicator visible).
+    screenshot: true
+  - step: 6
+    action: "Verify edit history via API: GET /samples/{id}/history"
+    verify: >
+      Response contains one edit history record with:
+      previous_values = [10.02], new_values = [10.05],
+      previous_mean = 10.02, new_mean = 10.05,
+      edited_by = supervisor username,
+      reason = 'Corrected transcription error - original reading was 10.05'
+    screenshot: false
+
+expected_result: >
+  The sample measurement is updated from 10.02 to 10.05. An immutable
+  SampleEditHistory record is created preserving the original value,
+  new value, editor identity, reason, and timestamp. Nelson Rules are
+  re-evaluated against the updated value.
+
+pass_criteria: >
+  Chart shows updated value 10.05. Edit history API returns one record
+  with correct previous/new values and reason. Sample is_modified flag
+  is true.
+
+cleanup:
+  - "Delete the sample via API: DELETE /samples/{sample_id}"

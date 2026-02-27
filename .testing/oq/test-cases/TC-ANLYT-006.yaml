@@ -1,0 +1,50 @@
+id: TC-ANLYT-006
+title: "PCA biplot renders with component axes and variable vectors"
+category: "Advanced Analytics"
+subcategory: "PCA"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation of data"
+  - "Six Sigma DMAIC Analyze phase - Dimensionality reduction for root cause identification"
+preconditions:
+  description: >
+    An engineer user is logged in. At least 3 variable-data characteristics
+    exist in the active plant, each with 30+ aligned data points.
+    Same setup as TC-ANLYT-005 (3 characteristics with correlated data).
+    PCA requires the correlation compute endpoint with include_pca=true,
+    or the dedicated compute-pca endpoint.
+  seed_method: api
+  seed_data:
+    note: "Same as TC-ANLYT-005 seed data. 3 characteristics with 30+ samples each, with known correlation structure."
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /analytics?tab=correlation."
+    verify: "Correlation tab loads."
+    screenshot: false
+  - step: 2
+    action: "Select all 3 characteristics (OQ-Corr-A, OQ-Corr-B, OQ-Corr-C). Check the 'Include PCA' checkbox. Set method to Pearson."
+    verify: "Three characteristics selected. PCA checkbox is checked."
+    screenshot: true
+  - step: 3
+    action: "Click 'Compute' to run correlation + PCA analysis."
+    verify: "Loading indicator appears. Computation completes. Both the correlation heatmap AND the PCA biplot render."
+    screenshot: true
+  - step: 4
+    action: "Observe the PCA biplot."
+    verify: "The biplot displays: (1) Two axes labeled 'PC1' and 'PC2' (or 'Principal Component 1/2') with explained variance percentages. (2) Score points (data observations) plotted in PC space. (3) Variable vectors (arrows/lines) showing the loadings of each characteristic onto the principal components, with characteristic names as labels."
+    screenshot: true
+  - step: 5
+    action: "Check the variable vectors for OQ-Corr-A and OQ-Corr-B."
+    verify: "Since these two characteristics are positively correlated, their vectors should point in roughly the same direction on the biplot. The vectors have visible labels."
+    screenshot: true
+  - step: 6
+    action: "Verify explained variance information is displayed."
+    verify: "The eigenvalues or explained variance ratios are shown (either on the axes, in a legend, or in a separate table). PC1 should capture the majority of variance given the strong correlation between A and B."
+    screenshot: false
+expected_result: "The PCA biplot renders with principal component axes, score points, and variable loading vectors. Explained variance ratios are displayed. The biplot correctly reflects the correlation structure in the data."
+pass_criteria: "Biplot renders with labeled axes and variable vectors. Explained variance percentages are visible. API verification: POST /multivariate/correlation/compute-pca returns eigenvalues, explained_variance_ratios, loadings, scores, and characteristic_names."
+cleanup:
+  - "Delete characteristics and samples via API"
+  - "Delete hierarchy nodes and plant via API"

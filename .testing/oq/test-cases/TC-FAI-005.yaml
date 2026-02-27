@@ -1,0 +1,85 @@
+id: TC-FAI-005
+title: "Enter Form 3 actual measurements and verify pass/fail"
+category: "First Article Inspection"
+subcategory: "Form3"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C Form 3 - Actual measurement recording and conformance determination"
+  - "AS9100 Rev D Section 8.6 - Evidence of conformity with acceptance criteria"
+  - "IATF 16949 - Inspection and test records"
+preconditions:
+  description: "Engineer user is logged in. A draft FAI report 'OQ-PART-001' exists with 5 Form 3 items (Outer Diameter, Length, Width, Corner Radius, Surface Finish) configured with nominal and tolerance values. No actual measurements entered yet."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      status: "draft"
+    items:
+      - balloon_number: 1
+        characteristic_name: "Outer Diameter"
+        nominal: 25.00
+        usl: 25.05
+        lsl: 24.95
+        unit: "mm"
+        tools_used: "Mitutoyo 6\" caliper #M-042"
+      - balloon_number: 2
+        characteristic_name: "Length"
+        nominal: 100.0
+        usl: 100.1
+        lsl: 99.9
+        unit: "mm"
+      - balloon_number: 3
+        characteristic_name: "Width"
+        nominal: 50.0
+        usl: 50.2
+        lsl: 49.8
+        unit: "mm"
+      - balloon_number: 4
+        characteristic_name: "Corner Radius"
+        nominal: 5.0
+        usl: 5.3
+        lsl: 4.7
+        unit: "mm"
+      - balloon_number: 5
+        characteristic_name: "Surface Finish"
+        nominal: 1.6
+        usl: 1.6
+        lsl: null
+        unit: "Ra"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the FAI report 'OQ-PART-001' and navigate to the Form 3 tab."
+    verify: "Form 3 shows 5 items. The Actual Value column is empty (or shows dashes) for all items. The Result column shows default values or is empty."
+    screenshot: true
+  - step: 2
+    action: "For item 1 (Outer Diameter), click to edit the item. Enter Actual Value = 25.01 and Tools Used = 'Mitutoyo 6\" caliper #M-042'. Set Result = 'pass'. Save the item."
+    verify: "Item 1 shows Actual Value = 25.01, Result = 'pass'. The value 25.01 is within tolerance (24.95-25.05)."
+    screenshot: false
+  - step: 3
+    action: "For item 2 (Length), enter Actual Value = 100.05, Tools Used = 'Mitutoyo height gage #H-015'. Set Result = 'pass'. Save."
+    verify: "Item 2 shows Actual Value = 100.05, Result = 'pass'. The value is within tolerance (99.9-100.1)."
+    screenshot: false
+  - step: 4
+    action: "For item 3 (Width), enter Actual Value = 50.10, Tools Used = 'Starrett mic #S-008'. Set Result = 'pass'. Save."
+    verify: "Item 3 shows Actual Value = 50.10, Result = 'pass'. The value is within tolerance (49.8-50.2)."
+    screenshot: false
+  - step: 5
+    action: "For item 4 (Corner Radius), enter Actual Value = 5.15, Tools Used = 'Radius gage set #R-003'. Set Result = 'pass'. Save."
+    verify: "Item 4 shows Actual Value = 5.15, Result = 'pass'. The value is within tolerance (4.7-5.3)."
+    screenshot: false
+  - step: 6
+    action: "For item 5 (Surface Finish), enter Actual Value = 1.2, Tools Used = 'Profilometer #P-001'. Set Result = 'pass'. Save."
+    verify: "Item 5 shows Actual Value = 1.2, Result = 'pass'. The value 1.2 Ra is below the max 1.6 Ra specification."
+    screenshot: true
+  - step: 7
+    action: "Review the complete Form 3 table with all 5 items filled."
+    verify: "All 5 items show: (1) Outer Diameter: 25.01 mm, pass. (2) Length: 100.05 mm, pass. (3) Width: 50.10 mm, pass. (4) Corner Radius: 5.15 mm, pass. (5) Surface Finish: 1.2 Ra, pass. Every item has an actual value, tools used, and a result of 'pass'. The gage ID is recorded for each measurement."
+    screenshot: true
+expected_result: "All 5 Form 3 items have actual measurement values entered with gage identification. Results are set to 'pass' for all items within tolerance."
+pass_criteria: "All 5 items have numeric actual values entered. Tools used (gage IDs) are recorded for each item. Result is 'pass' for all items. Actual values fall within the specified tolerances."
+cleanup:
+  - "Delete FAI report via API: DELETE /fai/reports/{id}"

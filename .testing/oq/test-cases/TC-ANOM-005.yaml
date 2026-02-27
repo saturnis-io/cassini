@@ -1,0 +1,66 @@
+id: TC-ANOM-005
+title: "Anomaly event list shows detected events"
+category: "Anomaly Detection"
+subcategory: "Events"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation with documented evidence"
+  - "IATF 16949 Section 9.1.1 - Monitoring results documented and available for review"
+  - "ICH Q10 - Knowledge management and documented process understanding"
+preconditions:
+  description: >
+    Analysis has been run on a characteristic that produced multiple anomaly
+    events (at least one changepoint and ideally one distribution shift or
+    outlier). An operator or higher user is logged in.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-operator"
+      role: "operator"
+    characteristic:
+      name: "OQ-Bore-Diameter-Shift"
+    anomaly_events:
+      - detector_type: "pelt"
+        event_type: "changepoint"
+        severity: "medium"
+        summary: "Mean shift detected at sample 50"
+      - detector_type: "ks_test"
+        event_type: "distribution_shift"
+        severity: "low"
+        summary: "Distribution change detected in test window"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select the characteristic with anomaly events. Enable AI Insights."
+    verify: "The chart loads with anomaly overlay visible."
+    screenshot: true
+  - step: 2
+    action: "Locate the anomaly event list panel (below the chart or in a side panel)"
+    verify: "The anomaly event list is visible. It shows a list of detected events as rows or cards."
+    screenshot: true
+  - step: 3
+    action: "Examine the event list entries"
+    verify: "Each event entry shows: event type (changepoint, distribution_shift, or outlier), detector type (pelt, ks_test, or isolation_forest), severity level (low, medium, high, or critical), timestamp (when the anomaly was detected), and a summary description."
+    screenshot: true
+  - step: 4
+    action: "Verify via API: GET /anomaly/{char_id}/events"
+    verify: "Response includes an events array with at least one event. Each event has: id, char_id, detector_type, event_type, severity, details (JSON object), summary, is_acknowledged (boolean), is_dismissed (boolean), detected_at (datetime). Total count matches the number of events displayed."
+    screenshot: false
+  - step: 5
+    action: "Click on an event entry to view its details"
+    verify: "Event detail shows: full summary text, detector-specific details (e.g., shift magnitude for PELT, K-S statistic for K-S test, anomaly score for Isolation Forest), sample references (sample_id or window_start_id/window_end_id), and action buttons (Acknowledge, Dismiss)."
+    screenshot: true
+expected_result: >
+  The anomaly event list correctly displays all detected events with their
+  type, detector, severity, timestamp, and summary. Each event provides
+  sufficient detail for an operator or engineer to understand what was
+  detected and take appropriate action.
+pass_criteria: >
+  Event list shows all detected events. Each event has correct detector_type,
+  event_type, severity, and summary. API returns matching event records.
+  Events are ordered by detection time (most recent first or in a consistent
+  order).
+cleanup:
+  - "No cleanup required -- events persist for historical record"

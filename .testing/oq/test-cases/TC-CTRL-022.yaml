@@ -1,0 +1,65 @@
+id: TC-CTRL-022
+title: "Chart export as image"
+category: "Control Charts"
+subcategory: "Toolbar"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(b) - Ability to Generate Accurate and Complete Copies"
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information"
+  - "IATF 16949 Section 7.5.3 - Record Retention (exportable evidence)"
+
+preconditions:
+  description: >
+    A characteristic with chart data and control limits rendered on
+    the dashboard. The chart toolbar should include an export or
+    screenshot button.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Pin Length IMR"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "30 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Pin Length IMR"
+    verify: "Chart renders with data and control limits"
+    screenshot: false
+  - step: 2
+    action: "Click the export/download button in the chart toolbar"
+    verify: >
+      An image file (PNG) is downloaded to the browser's download
+      folder, or a clipboard copy dialog appears.
+    screenshot: true
+  - step: 3
+    action: "Open the downloaded image file"
+    verify: >
+      The image contains the complete control chart with:
+      - All data points visible
+      - UCL, CL, LCL lines
+      - Axis labels and values
+      - Chart title or characteristic name
+      - Legible resolution (no pixelation)
+    screenshot: true
+
+expected_result: >
+  The chart export produces a high-quality image suitable for
+  inclusion in quality reports, PPAP submissions, or audit
+  documentation. The exported image accurately represents the
+  on-screen chart.
+
+pass_criteria: >
+  Image file downloads successfully. Format is PNG. Image contains
+  all chart elements (data, limits, labels). Resolution is sufficient
+  for printing (at least 2x screen resolution).
+
+cleanup:
+  - "Delete the downloaded image file"
+  - "Delete seeded data via API"

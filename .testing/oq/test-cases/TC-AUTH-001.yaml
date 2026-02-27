@@ -1,0 +1,40 @@
+id: TC-AUTH-001
+title: "Login with valid admin credentials"
+category: "Authentication & Accounts"
+subcategory: "Login"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Unique user identification and authentication"
+  - "ISO 13485 - Access control to quality management system"
+  - "IATF 16949 - Controlled access to quality records"
+preconditions:
+  description: "Default admin user exists with username 'admin' and password 'admin'. Backend and frontend servers are running. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the browser and navigate to the application base URL (e.g., http://localhost:5173/login)"
+    verify: "Login page loads. The Cassini logo and 'Sign In' heading are visible. Username and password fields are present. The 'Log In' button is visible but disabled (no input yet)."
+    screenshot: true
+  - step: 2
+    action: "Enter 'admin' in the Username field"
+    verify: "Username field displays 'admin'. The Log In button remains disabled because the password field is empty."
+    screenshot: false
+  - step: 3
+    action: "Enter 'admin' in the Password field"
+    verify: "Password field shows masked characters. The 'Log In' button becomes enabled (both fields have content)."
+    screenshot: false
+  - step: 4
+    action: "Click the 'Log In' button"
+    verify: "Button text changes to 'Signing in...' briefly. The page redirects to /dashboard. The dashboard loads with the header showing the logged-in user's name. The sidebar is visible with navigation items appropriate for the admin role (Dashboard, Data Entry, Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Settings, Users)."
+    screenshot: true
+  - step: 5
+    action: "Click the user avatar/name in the top-right corner of the header"
+    verify: "A dropdown menu opens showing the username, role, and a 'Sign Out' option. This confirms the session is active and the user identity is displayed."
+    screenshot: true
+expected_result: "Admin user successfully authenticates with valid credentials and is redirected to the dashboard with full admin-level navigation visible."
+pass_criteria: "Login completes without error. Dashboard loads. User identity is displayed in the header. All admin-level sidebar items are visible."
+cleanup:
+  - "No cleanup required -- session will be used or cleared by subsequent tests"

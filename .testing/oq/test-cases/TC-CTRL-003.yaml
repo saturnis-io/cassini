@@ -1,0 +1,69 @@
+id: TC-CTRL-003
+title: "I-MR chart renders with individuals and moving range"
+category: "Control Charts"
+subcategory: "VariableCharts"
+priority: critical
+regulatory_relevance:
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "AIAG SPC Reference Manual - Individuals and Moving Range Chart"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    An I-MR characteristic (subgroup_size=1) must exist with at least
+    30 individual measurements and calculated control limits. The I-MR
+    chart is the most common chart for continuous processes and
+    destructive testing.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Pin Length IMR"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 50.10
+      lsl: 49.90
+      target: 50.00
+    samples: "30 individual measurements centered at 50.00, sigma ~0.03"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Pin Length IMR"
+    verify: >
+      Individuals chart renders showing 30 data points with UCL/CL/LCL.
+      CL = X-bar (average of all individuals).
+      UCL = X-bar + E2 * MR-bar (E2 = 2.660 for moving range of 2).
+      LCL = X-bar - E2 * MR-bar.
+    screenshot: true
+  - step: 2
+    action: "Inspect the Moving Range chart (below the I chart)"
+    verify: >
+      MR chart shows 29 data points (one fewer than individuals because
+      MR is calculated between consecutive pairs). MR chart has:
+      CL = MR-bar, UCL = D4 * MR-bar (D4 = 3.267 for n=2), LCL = 0.
+    screenshot: true
+  - step: 3
+    action: "Hover over a point on the I chart"
+    verify: "Tooltip shows the individual measurement value and timestamp"
+    screenshot: true
+
+expected_result: >
+  The I-MR chart renders as a dual-panel layout. The Individuals chart
+  plots raw measurements with E2-based limits. The Moving Range chart
+  plots |X_i - X_{i-1}| with D4-based limits. This combination detects
+  both location shifts (I chart) and dispersion changes (MR chart).
+
+pass_criteria: >
+  Both I and MR charts visible with data and limit lines. I chart has
+  30 points. MR chart has 29 points. UCL_I > CL_I > LCL_I. UCL_MR > 0.
+  E2 = 2.660 for n=2 (AIAG standard).
+
+cleanup:
+  - "Delete seeded data via API"

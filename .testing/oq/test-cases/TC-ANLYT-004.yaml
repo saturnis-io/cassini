@@ -1,0 +1,48 @@
+id: TC-ANLYT-004
+title: "T-squared control chart renders with UCL and data points"
+category: "Advanced Analytics"
+subcategory: "Multivariate"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation"
+  - "AIAG SPC Manual Section IV - Hotelling T-squared chart for multivariate monitoring"
+  - "Montgomery (2013) Introduction to Statistical Quality Control Ch. 11 - Multivariate Quality Control"
+preconditions:
+  description: >
+    An engineer user is logged in. A multivariate group exists with 3
+    characteristics, each having 30+ aligned data points (same timestamps).
+    The group has been seeded via API (see TC-ANLYT-003 preconditions).
+    The group has NOT been computed yet -- this test triggers the initial
+    computation and verifies chart rendering.
+  seed_method: api
+  seed_data:
+    note: "Same as TC-ANLYT-003 seed data. 3 characteristics with 30 correlated samples each, plus a multivariate group containing all three."
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /analytics?tab=multivariate. Select the multivariate group."
+    verify: "Group detail loads. No chart data exists yet (chart area may show empty state or a prompt to compute)."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Compute' button (Play icon) to compute the T-squared chart data."
+    verify: "A loading indicator appears briefly. The computation completes and the T-squared control chart renders in the chart area."
+    screenshot: true
+  - step: 3
+    action: "Observe the T-squared chart."
+    verify: "The chart displays: (1) A horizontal UCL line based on the F-distribution (with value labeled). (2) Individual T-squared data points plotted chronologically. (3) The Y-axis label indicates 'T-squared' or 'T^2'. (4) Points below UCL are shown as in-control. (5) Any points above UCL are highlighted as out-of-control (different color or marker)."
+    screenshot: true
+  - step: 4
+    action: "Hover over a data point on the T-squared chart."
+    verify: "A tooltip appears showing the T-squared value, timestamp, and in-control status."
+    screenshot: true
+  - step: 5
+    action: "Verify the UCL value is reasonable for 3 variables at alpha=0.05."
+    verify: "The UCL is displayed and is a positive value consistent with the F-distribution for p=3 variables (typically in the range of 8-15 for 30 observations, depending on the exact formula used). The value is clearly marked on the chart."
+    screenshot: false
+expected_result: "The T-squared control chart renders with a UCL line, data points plotted over time, and clear distinction between in-control and out-of-control points."
+pass_criteria: "Chart renders with non-zero UCL. Data points are visible. Tooltips function. API verification: POST /multivariate/groups/{id}/compute returns points with t_squared values and a non-null ucl."
+cleanup:
+  - "Delete multivariate group via API: DELETE /multivariate/groups/{group_id}"
+  - "Delete characteristics and samples via API"
+  - "Delete hierarchy nodes and plant via API"

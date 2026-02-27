@@ -1,0 +1,39 @@
+id: TC-SET-011
+title: "Database settings page shows connection info and actions"
+category: "Settings & Admin"
+subcategory: "Database"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(c) - Protection of records to enable retrieval"
+  - "ISO 13485 Section 4.2.5 - Control of records (backup and integrity)"
+  - "ISO 9001:2015 Section 7.5 - Documented information management"
+preconditions:
+  description: >
+    An engineer or admin user is logged in. The Database settings tab is
+    accessible (engineer+ role required). The application is running with
+    its default database (typically SQLite for development environments).
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/database."
+    verify: "Database settings tab loads. The page displays the current database connection information."
+    screenshot: true
+  - step: 2
+    action: "Observe the database status section."
+    verify: "The page shows: (1) Current database type (e.g., 'SQLite' for development, or 'PostgreSQL'/'MySQL' for production). (2) Connection status indicator (connected/disconnected). (3) Database file path or connection string (may be partially masked for security). (4) Schema version or migration status."
+    screenshot: true
+  - step: 3
+    action: "Locate the action buttons."
+    verify: "Action buttons are visible: (1) 'Backup' button for creating database backups. (2) 'Vacuum' or 'Optimize' button for database maintenance. The buttons are enabled and clickable."
+    screenshot: true
+  - step: 4
+    action: "Check for migration status display."
+    verify: "A migration status section shows the current Alembic revision or a list of applied migrations, confirming the schema is up to date."
+    screenshot: false
+expected_result: "The Database settings page displays the current database type, connection status, and available administrative actions (backup, vacuum/optimize). Migration status is visible."
+pass_criteria: "Database type is correctly displayed. Connection status shows 'connected'. Backup and vacuum buttons are present. API verification: GET /database/status returns the database type and status."
+cleanup:
+  - "No cleanup required -- no changes were made"
