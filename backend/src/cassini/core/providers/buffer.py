@@ -28,6 +28,7 @@ class TagConfig:
     trigger_strategy: str = "on_change"
     trigger_tag: str | None = None
     metric_name: str | None = None
+    json_path: str | None = None
     buffer_timeout_seconds: float = 60.0
 
 
