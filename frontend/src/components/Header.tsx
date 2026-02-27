@@ -77,7 +77,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
   return (
     <header
-      className={cn('bg-card flex h-12 items-center justify-between border-b px-4', className)}
+      className={cn('bg-card relative z-10 flex h-12 items-center justify-between border-b px-4', className)}
     >
       {/* Left: Hamburger (mobile) + Logo and app name */}
       <div className="flex items-center gap-2.5">

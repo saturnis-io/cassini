@@ -922,6 +922,29 @@ export function ControlChart({
     }
 
     markLineData.push(...annotationMarkLines)
+
+    // Vertical indicator line for the inspected/highlighted sample
+    if (highlightSampleId != null) {
+      const highlightIdx = data.findIndex((p) => p.sample_id === highlightSampleId)
+      if (highlightIdx >= 0) {
+        const xVal = useTimeCoords ? data[highlightIdx].timestampMs : highlightIdx
+        markLineData.push({
+          xAxis: xVal,
+          lineStyle: { color: 'hsl(180, 100%, 50%)', type: 'solid', width: 2, opacity: 0.6 },
+          label: {
+            formatter: 'Violation',
+            position: 'insideEndTop',
+            color: 'hsl(180, 100%, 50%)',
+            fontSize: 10,
+            fontWeight: 600,
+            backgroundColor: isDark ? 'hsl(220, 25%, 13%)' : 'hsl(0, 0%, 100%)',
+            padding: [2, 6],
+            borderRadius: 3,
+          },
+        })
+      }
+    }
+
     const allMarkAreas = [...markAreaData, ...annotationMarkAreas]
 
     // --- Custom series renderItem for data point symbols ---

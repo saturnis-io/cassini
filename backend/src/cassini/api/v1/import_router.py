@@ -125,9 +125,10 @@ async def upload_file(
     try:
         result = parse_file(content, filename)
     except ValueError as e:
+        logger.warning("import_upload_parse_error", filename=filename, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Failed to parse file — check format is CSV or supported Excel",
         )
 
     logger.info(
@@ -164,9 +165,10 @@ async def validate_mapping(
         parsed = _build_full_parsed(content, filename)
         result = validate_and_map(parsed, mapping, data_type)
     except ValueError as e:
+        logger.warning("import_validate_error", filename=filename, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Validation failed — check column mapping matches file structure",
         )
     except Exception:
         logger.exception(
@@ -217,9 +219,10 @@ async def confirm_import(
         parsed = _build_full_parsed(content, filename)
         validation = validate_and_map(parsed, mapping, data_type)
     except ValueError as e:
+        logger.warning("import_confirm_parse_error", filename=filename, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Failed to parse or validate file — check format and column mapping",
         )
 
     valid_rows = validation["valid_rows"]

@@ -45,7 +45,7 @@ export const queryKeys = {
     all: ['violations'] as const,
     list: (params?: object) => [...queryKeys.violations.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.violations.all, 'detail', id] as const,
-    stats: () => [...queryKeys.violations.all, 'stats'] as const,
+    stats: (params?: { plant_id?: number }) => [...queryKeys.violations.all, 'stats', params] as const,
   },
   annotations: {
     all: ['annotations'] as const,

@@ -237,17 +237,19 @@ class AuditMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Cache request body for Tier 2 auto-capture (only for mutating methods)
+        # Cache request body for Tier 2 auto-capture (only for JSON mutating methods)
         cached_body: dict | None = None
         if request.method in ("POST", "PUT", "PATCH"):
-            try:
-                raw = await request.body()
-                if raw:
-                    import json as _json
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    raw = await request.body()
+                    if raw:
+                        import json as _json
 
-                    cached_body = _json.loads(raw)
-            except Exception:
-                cached_body = None
+                        cached_body = _json.loads(raw)
+                except Exception:
+                    cached_body = None
 
         response = await call_next(request)
 

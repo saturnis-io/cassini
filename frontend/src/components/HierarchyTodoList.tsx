@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Clock,
   CheckCircle,
-  ListChecks,
   Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,7 +22,6 @@ import {
 } from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
-import { SelectionToolbar } from './SelectionToolbar'
 
 export type StatusFilter = 'ALL' | 'OOC' | 'DUE' | 'OK'
 
@@ -55,38 +53,6 @@ function getCharacteristicStatus(char: Characteristic): CharacteristicStatus {
   }
   // Has data and no violations → in control
   return 'OK'
-}
-
-/**
- * Checkbox with indeterminate state support
- */
-function IndeterminateCheckbox({
-  checked,
-  indeterminate,
-  onChange,
-}: {
-  checked: boolean
-  indeterminate: boolean
-  onChange: (checked: boolean) => void
-}) {
-  const checkboxRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (checkboxRef.current) {
-      checkboxRef.current.indeterminate = indeterminate
-    }
-  }, [indeterminate])
-
-  return (
-    <input
-      ref={checkboxRef}
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      onClick={(e) => e.stopPropagation()}
-      className="border-border h-4 w-4 cursor-pointer rounded"
-    />
-  )
 }
 
 /**
@@ -190,8 +156,6 @@ interface HierarchyTodoListProps {
   className?: string
   /** When true, renders without card wrapper for sidebar embedding */
   embedded?: boolean
-  /** When true, shows the multi-select button for report generation */
-  allowMultiSelect?: boolean
 }
 
 /**
@@ -209,7 +173,7 @@ function findPathToNode(tree: HierarchyNode[], targetNodeId: number): number[] {
   return []
 }
 
-export function HierarchyTodoList({ className, embedded, allowMultiSelect = false }: HierarchyTodoListProps) {
+export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProps) {
   const { selectedPlant, isLoading: plantLoading } = usePlant()
   const { data: nodes, isLoading: hierarchyLoading } = useHierarchyTreeByPlant(
     selectedPlant?.id ?? 0,
@@ -217,8 +181,6 @@ export function HierarchyTodoList({ className, embedded, allowMultiSelect = fals
   const isLoading = plantLoading || hierarchyLoading
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(new Set())
-  const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
-  const setMultiSelectMode = useDashboardStore((state) => state.setMultiSelectMode)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const handleCharacteristicSelect = useCallback(
     (charId: number) => {
@@ -296,45 +258,26 @@ export function HierarchyTodoList({ className, embedded, allowMultiSelect = fals
     }
 
     return (
-      <>
-        <div className={cn('flex h-full flex-col', className)}>
-          <div className="flex items-center gap-1.5 px-2 pb-1.5">
-            <div className="min-w-0 flex-1">
-              <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
-            </div>
-            {allowMultiSelect && (
-              <button
-                onClick={() => setMultiSelectMode(!isMultiSelectMode)}
-                className={cn(
-                  'flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
-                  isMultiSelectMode
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted text-muted-foreground',
-                )}
-                title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
-              >
-                <ListChecks className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto px-1">
-            <div className="space-y-0.5">
-              {nodes?.map((node) => (
-                <TodoTreeNode
-                  key={node.id}
-                  node={node}
-                  level={0}
-                  statusFilter={statusFilter}
-                  expandedNodeIds={expandedNodeIds}
-                  toggleNodeExpanded={toggleNodeExpanded}
-                  onCharacteristicSelect={handleCharacteristicSelect}
-                />
-              ))}
-            </div>
+      <div className={cn('flex h-full flex-col', className)}>
+        <div className="px-2 pb-1.5">
+          <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
+        </div>
+        <div className="flex-1 overflow-y-auto px-1">
+          <div className="space-y-0.5">
+            {nodes?.map((node) => (
+              <TodoTreeNode
+                key={node.id}
+                node={node}
+                level={0}
+                statusFilter={statusFilter}
+                expandedNodeIds={expandedNodeIds}
+                toggleNodeExpanded={toggleNodeExpanded}
+                onCharacteristicSelect={handleCharacteristicSelect}
+              />
+            ))}
           </div>
         </div>
-        {allowMultiSelect && isMultiSelectMode && <SelectionToolbar />}
-      </>
+      </div>
     )
   }
 
@@ -371,50 +314,28 @@ export function HierarchyTodoList({ className, embedded, allowMultiSelect = fals
   }
 
   return (
-    <>
-      <div
-        className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
-      >
-        <div className="space-y-2 border-b px-3 py-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Characteristics</h2>
-            {allowMultiSelect && (
-              <button
-                onClick={() => setMultiSelectMode(!isMultiSelectMode)}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors',
-                  isMultiSelectMode
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted text-muted-foreground',
-                )}
-                title={isMultiSelectMode ? 'Exit multi-select' : 'Select for reporting'}
-              >
-                <ListChecks className="h-3.5 w-3.5" />
-                {isMultiSelectMode ? 'Done' : 'Select'}
-              </button>
-            )}
-          </div>
-          <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
-        </div>
-        <div className="flex-1 overflow-auto p-2">
-          <div className="space-y-1">
-            {nodes?.map((node) => (
-              <TodoTreeNode
-                key={node.id}
-                node={node}
-                level={0}
-                statusFilter={statusFilter}
-                expandedNodeIds={expandedNodeIds}
-                toggleNodeExpanded={toggleNodeExpanded}
-              />
-            ))}
-          </div>
+    <div
+      className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
+    >
+      <div className="space-y-2 border-b px-3 py-2">
+        <h2 className="text-sm font-semibold">Characteristics</h2>
+        <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
+      </div>
+      <div className="flex-1 overflow-auto p-2">
+        <div className="space-y-1">
+          {nodes?.map((node) => (
+            <TodoTreeNode
+              key={node.id}
+              node={node}
+              level={0}
+              statusFilter={statusFilter}
+              expandedNodeIds={expandedNodeIds}
+              toggleNodeExpanded={toggleNodeExpanded}
+            />
+          ))}
         </div>
       </div>
-
-      {/* Selection toolbar */}
-      {allowMultiSelect && isMultiSelectMode && <SelectionToolbar />}
-    </>
+    </div>
   )
 }
 
@@ -438,13 +359,6 @@ function TodoTreeNode({
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const openInputModal = useDashboardStore((state) => state.openInputModal)
-  const isMultiSelectMode = useDashboardStore((state) => state.isMultiSelectMode)
-  const selectedCharacteristicIds = useDashboardStore((state) => state.selectedCharacteristicIds)
-  const toggleCharacteristicSelection = useDashboardStore(
-    (state) => state.toggleCharacteristicSelection,
-  )
-  const selectAllCharacteristics = useDashboardStore((state) => state.selectAllCharacteristics)
-  const deselectAllCharacteristics = useDashboardStore((state) => state.deselectAllCharacteristics)
 
   const isExpanded = expandedNodeIds.has(node.id)
   const hasChildren = node.children && node.children.length > 0
@@ -470,28 +384,6 @@ function TodoTreeNode({
     return characteristics?.filter((char) => getCharacteristicStatus(char) === statusFilter)
   }, [characteristics, statusFilter])
 
-  // Calculate folder selection state for multi-select
-  const folderSelectionState = useMemo(() => {
-    if (!filteredCharacteristics || filteredCharacteristics.length === 0) {
-      return { allSelected: false, someSelected: false, charIds: [] as number[] }
-    }
-    const charIds = filteredCharacteristics.map((c) => c.id)
-    const selectedCount = charIds.filter((id) => selectedCharacteristicIds.has(id)).length
-    return {
-      allSelected: selectedCount === charIds.length,
-      someSelected: selectedCount > 0 && selectedCount < charIds.length,
-      charIds,
-    }
-  }, [filteredCharacteristics, selectedCharacteristicIds])
-
-  const handleFolderCheckboxChange = (checked: boolean) => {
-    if (checked) {
-      selectAllCharacteristics(folderSelectionState.charIds)
-    } else {
-      deselectAllCharacteristics(folderSelectionState.charIds)
-    }
-  }
-
   // Folders are always visible - only characteristics get filtered
   // This ensures users can navigate the full hierarchy regardless of filter
 
@@ -508,13 +400,6 @@ function TodoTreeNode({
         style={{ paddingLeft: `${level * 14 + 6}px` }}
         onClick={handleToggle}
       >
-        {isMultiSelectMode && isExpanded && folderSelectionState.charIds.length > 0 && (
-          <IndeterminateCheckbox
-            checked={folderSelectionState.allSelected}
-            indeterminate={folderSelectionState.someSelected}
-            onChange={handleFolderCheckboxChange}
-          />
-        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -590,7 +475,6 @@ function TodoTreeNode({
             filteredCharacteristics?.map((char) => {
               const status = getCharacteristicStatus(char)
               const isSelected = selectedId === char.id
-              const isChecked = selectedCharacteristicIds.has(char.id)
 
               return (
                 <div
@@ -598,39 +482,26 @@ function TodoTreeNode({
                   className={cn(
                     'group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1',
                     'hover:bg-muted text-xs transition-colors',
-                    isSelected && !isMultiSelectMode && 'bg-primary/10 ring-primary/30 ring-1',
-                    isChecked && isMultiSelectMode && 'bg-primary/10',
-                    status === 'OOC' && !isChecked && 'bg-destructive/5',
-                    status === 'DUE' && !isChecked && 'bg-warning/5',
+                    isSelected && 'bg-primary/10 ring-primary/30 ring-1',
+                    status === 'OOC' && 'bg-destructive/5',
+                    status === 'DUE' && 'bg-warning/5',
                   )}
                   style={{ paddingLeft: `${(level + 1) * 14 + 6}px` }}
                   onClick={() => {
-                    if (isMultiSelectMode) {
-                      toggleCharacteristicSelection(char.id)
-                    } else if (onCharacteristicSelect) {
+                    if (onCharacteristicSelect) {
                       onCharacteristicSelect(char.id)
                     } else {
                       setSelectedId(char.id)
                     }
                   }}
                 >
-                  {isMultiSelectMode ? (
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleCharacteristicSelection(char.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="border-border h-4 w-4 cursor-pointer rounded"
-                    />
-                  ) : (
-                    <span className="w-4" />
-                  )}
+                  <span className="w-4" />
                   {status === 'OOC' && <AlertCircle className="text-destructive h-4 w-4" />}
                   {status === 'DUE' && <Clock className="text-warning h-4 w-4" />}
                   {status === 'OK' && <CheckCircle className="text-success h-4 w-4" />}
                   <span className="flex-1 font-medium">{char.name}</span>
                   <StatusBadge status={status} />
-                  {!isMultiSelectMode && !char.data_source && (
+                  {!char.data_source && (
                     <button
                       className="text-primary text-xs opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
                       onClick={(e) => {

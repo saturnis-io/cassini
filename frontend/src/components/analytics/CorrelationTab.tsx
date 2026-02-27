@@ -97,6 +97,7 @@ export function CorrelationTab() {
             <HierarchyMultiSelector
               selectedIds={selectedCharIds}
               onSelectionChange={setSelectedCharIds}
+              plantId={plantId}
               className="border-border max-h-64 rounded-lg border"
             />
 

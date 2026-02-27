@@ -75,6 +75,7 @@ export function IshikawaDiagram({
       tooltip: {
         show: true,
         trigger: 'item',
+        appendToBody: true,
         formatter: (params: unknown) => {
           const p = params as { data: [number, number, number, string] }
           const name = p.data?.[3]

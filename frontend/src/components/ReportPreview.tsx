@@ -47,6 +47,8 @@ function hasChartPoints(chartData: ChartData): boolean {
  */
 function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
   const { containerRef, chartRef } = useECharts(opts)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const [dataURL, setDataURL] = useState<string | null>(null)
 
   // Capture a static image after the chart has rendered
@@ -56,14 +58,15 @@ function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
       const chart = chartRef.current
       if (!chart) return
       try {
-        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+        const bgColor = isDark ? 'hsl(220, 25%, 13%)' : '#fff'
+        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: bgColor })
         setDataURL(url)
       } catch {
         // Chart may not be ready yet
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [chartRef, opts.option])
+  }, [chartRef, opts.option, isDark])
 
   return { containerRef, dataURL }
 }
@@ -582,6 +585,9 @@ function ReportHistogramSection({
   chartData: ChartData
   characteristicId?: number
 }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   // Always use raw measurements for the histogram
   const values = getChartMeasurements(chartData)
 
@@ -678,13 +684,13 @@ function ReportHistogramSection({
         type: 'value' as const,
         min: binMin,
         max: binMax,
-        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
-        splitLine: { show: true, lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
+        splitLine: { show: true, lineStyle: { type: 'dashed' as const, color: isDark ? 'hsl(220, 10%, 25%)' : 'hsl(240 6% 90%)' } },
       },
       yAxis: {
         type: 'value' as const,
         max: Math.ceil(maxCount * 1.1),
-        axisLabel: { fontSize: 10 },
+        axisLabel: { fontSize: 10, color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
       },
       tooltip: {
         trigger: 'item' as const,
@@ -697,7 +703,7 @@ function ReportHistogramSection({
           type: 'bar' as const,
           data: bins.map((b) => [b.binCenter, b.count]),
           barWidth: `${(100 / binCount) * 0.8}%`,
-          itemStyle: { color: 'hsl(212 100% 45%)', opacity: 0.7 },
+          itemStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)', opacity: 0.7 },
           markLine: {
             silent: true,
             symbol: 'none',
@@ -706,7 +712,7 @@ function ReportHistogramSection({
         },
       ],
     }
-  }, [values, capability])
+  }, [values, capability, isDark])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
@@ -960,6 +966,8 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
  * Trend chart section for reports (ECharts)
  */
 function ReportTrendSection({ chartData }: { chartData: ChartData }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const { dateFormat, datetimeFormat } = useDateFormat()
 
   // Build a unified array of {timestamp, value} from whichever data source is populated
@@ -1033,14 +1041,14 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
         type: 'category' as const,
         boundaryGap: false,
         data: trendData.map((d) => d.date),
-        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)) },
+        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
       },
       yAxis: {
         type: 'value' as const,
         min: minVal - padding,
         max: maxVal + padding,
-        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
-        splitLine: { lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
+        splitLine: { lineStyle: { type: 'dashed' as const, color: isDark ? 'hsl(220, 10%, 25%)' : 'hsl(240 6% 90%)' } },
       },
       tooltip: {
         trigger: 'axis' as const,
@@ -1065,8 +1073,8 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
           smooth: false,
           symbol: 'circle',
           symbolSize: 4,
-          lineStyle: { color: 'hsl(212 100% 45%)', width: 1 },
-          itemStyle: { color: 'hsl(212 100% 45%)' },
+          lineStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)', width: 1 },
+          itemStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)' },
           markLine:
             markLineData.length > 0
               ? { silent: true, symbol: 'none', data: markLineData }
@@ -1083,7 +1091,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
         },
       ],
     }
-  }, [trendPoints, chartData])
+  }, [trendPoints, chartData, isDark])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 

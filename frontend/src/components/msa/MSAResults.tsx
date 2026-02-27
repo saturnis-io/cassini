@@ -274,9 +274,15 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
             </button>
           </div>
         </div>
-        {varianceView === 'bar' ? (
-          <div ref={containerRef} style={{ width: '100%', height: 200 }} />
-        ) : (
+        <div
+          ref={containerRef}
+          style={{
+            width: '100%',
+            height: 200,
+            display: varianceView === 'bar' ? 'block' : 'none',
+          }}
+        />
+        {varianceView === 'fishbone' && (
           <IshikawaDiagram data={fishboneData} height={280} />
         )}
       </div>

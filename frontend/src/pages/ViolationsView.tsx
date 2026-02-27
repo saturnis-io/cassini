@@ -19,6 +19,7 @@ import { useDateFormat } from '@/hooks/useDateFormat'
 import { useViolations, useViolationStats, useAcknowledgeViolation } from '@/api/hooks'
 import { violationApi } from '@/api/client'
 import { useAuth } from '@/providers/AuthProvider'
+import { usePlant } from '@/providers/PlantProvider'
 import { canPerformAction } from '@/lib/roles'
 import { NELSON_RULES } from '@/components/ViolationLegend'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
@@ -170,7 +171,10 @@ export function ViolationsView() {
     setPage(1)
   }
 
-  const { data: stats, refetch: refetchStats } = useViolationStats()
+  const { selectedPlant } = usePlant()
+  const plantId = selectedPlant?.id
+
+  const { data: stats, refetch: refetchStats } = useViolationStats({ plant_id: plantId })
   const {
     data: violations,
     isLoading,
@@ -181,6 +185,7 @@ export function ViolationsView() {
     requires_acknowledgement:
       statusFilter === 'required' ? true : statusFilter === 'informational' ? false : undefined,
     rule_id: selectedRule ?? undefined,
+    plant_id: plantId,
     page: isPointsLimit ? 1 : page,
     per_page: effectivePerPage,
     ...dateParams,
@@ -199,6 +204,7 @@ export function ViolationsView() {
     acknowledged: false,
     requires_acknowledgement: true,
     rule_id: selectedRule ?? undefined,
+    plant_id: plantId,
     per_page: 1,
     ...dateParams,
   })

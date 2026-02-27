@@ -467,9 +467,10 @@ async def calculate_gage_rr(
                 detail=f"Unknown study type: {study.study_type}",
             )
     except ValueError as exc:
+        logger.warning("msa_calculation_failed", study_id=study_id, error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
+            detail="Gage R&R calculation failed — check measurement data completeness",
         )
 
     # Store result

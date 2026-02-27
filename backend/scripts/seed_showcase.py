@@ -15,6 +15,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import logging
 import math
 import os
 import random
@@ -485,21 +486,21 @@ def seed_foundation(cur: sqlite3.Cursor) -> None:
     IDS["rtp_dissolution"] = insert_hierarchy(cur, IDS["rtp_plant"], "Dissolution", "Cell", IDS["rtp_qc"])
 
     # ── Users ────────────────────────────────────────────────────────────
-    IDS["admin"] = insert_user(cur, "admin", "demo123",
+    IDS["admin"] = insert_user(cur, "admin", "password",
                                email="admin@cassini-demo.com", full_name="Sarah Chen")
-    IDS["eng_det"] = insert_user(cur, "eng.detroit", "demo123",
+    IDS["eng_det"] = insert_user(cur, "eng.detroit", "password",
                                   email="marcus@cassini-demo.com", full_name="Marcus Johnson")
-    IDS["eng_ict"] = insert_user(cur, "eng.wichita", "demo123",
+    IDS["eng_ict"] = insert_user(cur, "eng.wichita", "password",
                                   email="priya@cassini-demo.com", full_name="Priya Patel")
-    IDS["eng_rtp"] = insert_user(cur, "eng.pharma", "demo123",
+    IDS["eng_rtp"] = insert_user(cur, "eng.pharma", "password",
                                   email="david@cassini-demo.com", full_name="David Kim")
-    IDS["sup_det"] = insert_user(cur, "sup.detroit", "demo123",
+    IDS["sup_det"] = insert_user(cur, "sup.detroit", "password",
                                   email="ana@cassini-demo.com", full_name="Ana Rodriguez")
-    IDS["sup_rtp"] = insert_user(cur, "sup.pharma", "demo123",
+    IDS["sup_rtp"] = insert_user(cur, "sup.pharma", "password",
                                   email="james@cassini-demo.com", full_name="James O'Brien")
-    IDS["op_det"] = insert_user(cur, "op.floor1", "demo123",
+    IDS["op_det"] = insert_user(cur, "op.floor1", "password",
                                  email="tyler@cassini-demo.com", full_name="Tyler Washington")
-    IDS["op_ict"] = insert_user(cur, "op.floor2", "demo123",
+    IDS["op_ict"] = insert_user(cur, "op.floor2", "password",
                                  email="maria@cassini-demo.com", full_name="Maria Santos")
 
     # ── Role assignments ─────────────────────────────────────────────────
@@ -999,15 +1000,6 @@ def seed_narrative_arcs(cur: sqlite3.Cursor) -> None:
         sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
         samples.append(sid)
 
-    # Violations during drift phase
-    insert_violation(cur, samples[240], IDS["bearing_od"], 2, "9 Points Same Side", "WARNING",
-                     acknowledged=True, ack_user="eng.detroit",
-                     ack_reason="Tool wear identified — scheduling replacement")
-    insert_violation(cur, samples[255], IDS["bearing_od"], 5, "2 of 3 in Zone A", "WARNING")
-    insert_violation(cur, samples[270], IDS["bearing_od"], 1, "Beyond Control Limits", "CRITICAL",
-                     acknowledged=True, ack_user="eng.detroit",
-                     ack_reason="Corrective action initiated")
-
     # Annotation at sample 250
     insert_annotation(cur, IDS["bearing_od"], "point",
                       "Tool wear investigation initiated — Bearing OD trending high",
@@ -1030,10 +1022,6 @@ def seed_narrative_arcs(cur: sqlite3.Cursor) -> None:
         values = gen_normal(5, 25.000, 0.006)
         sid = insert_sample(cur, IDS["bearing_od"], timestamps[i], values=values)
         samples.append(sid)
-
-    # Scattered violations (unacknowledged)
-    insert_violation(cur, samples[350], IDS["bearing_od"], 1, "Beyond Control Limits", "CRITICAL")
-    insert_violation(cur, samples[420], IDS["bearing_od"], 3, "6 Consecutively Increasing", "WARNING")
 
     # 4 capability snapshots
     insert_capability(cur, IDS["bearing_od"], cp=1.52, cpk=1.45, pp=1.48, ppk=1.40,
@@ -1102,59 +1090,373 @@ def seed_narrative_arcs(cur: sqlite3.Cursor) -> None:
 # ── Wave 3: Violations, Capability History, Annotations ──────────────────
 
 
-def seed_violations(cur: sqlite3.Cursor) -> None:
-    """Add scattered violations across non-narrative characteristics."""
+def replay_spc_violations(cur: sqlite3.Cursor) -> None:
+    """Replay seeded samples through real SPC engine logic to generate organic violations.
 
-    # For each variable characteristic, find some samples to attach violations to
-    non_narrative_vars = [
-        "surface_finish", "bore_dia", "pin_height", "bolt_torque",
-        "ply_thickness", "blade_profile", "rivet_grip", "fastener_torque",
-        "api_conc", "moisture", "blend_unif", "fill_volume", "assay_pct", "dissolution",
-    ]
+    Instead of hardcoding violations with random rule IDs and severities, this runs
+    the actual Nelson rules, CUSUM thresholds, and EWMA limits on the seeded data
+    to produce only violations that would naturally occur.
+    """
+    from collections import defaultdict
+    from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+    from cassini.core.engine.rolling_window import (
+        RollingWindow, ZoneBoundaries as RWZoneBoundaries, WindowSample,
+    )
+    from cassini.core.engine.attribute_engine import (
+        check_attribute_nelson_rules, get_plotted_value, get_per_point_limits,
+        calculate_attribute_limits, get_per_point_limits_laney, calculate_laney_sigma_z,
+    )
+    from cassini.core.engine.ewma_engine import calculate_ewma_limits
 
-    for char_key in non_narrative_vars:
-        char_id = IDS[char_key]
-        # Get sample IDs at roughly evenly-spaced intervals for violations
-        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp", (char_id,))
-        all_sids = [row[0] for row in cur.fetchall()]
-        if len(all_sids) < 10:
+    total_violations = 0
+
+    # Load all characteristics with their config
+    cur.execute("""
+        SELECT id, name, data_type, chart_type, subgroup_size,
+               ucl, lcl, stored_sigma, stored_center_line, target_value,
+               cusum_target, cusum_k, cusum_h,
+               ewma_lambda, ewma_l,
+               attribute_chart_type, use_laney_correction, short_run_mode
+        FROM characteristic
+    """)
+    chars = cur.fetchall()
+    col_names = [desc[0] for desc in cur.description]
+
+    for char_row in chars:
+        c = dict(zip(col_names, char_row))
+        char_id = c["id"]
+        data_type = c["data_type"]
+        chart_type = c["chart_type"]
+
+        # Load enabled rules for this characteristic
+        cur.execute("""
+            SELECT rule_id, require_acknowledgement, parameters
+            FROM characteristic_rules WHERE char_id = ? AND is_enabled = 1
+        """, (char_id,))
+        rule_rows = cur.fetchall()
+        enabled_rules = {r[0] for r in rule_rows}
+        rule_params: dict[int, dict] = {}
+        for rid, _, params_json in rule_rows:
+            if params_json:
+                try:
+                    rule_params[rid] = json.loads(params_json)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        if not enabled_rules:
             continue
 
-        # 3-5 Rule 1 violations (beyond control limits)
-        n_violations = random.randint(3, 5)
-        violation_indices = random.sample(range(len(all_sids)), min(n_violations, len(all_sids)))
-        for idx in violation_indices:
-            sid = all_sids[idx]
-            severity = random.choice(["CRITICAL", "CRITICAL", "WARNING"])
-            ack = random.random() < 0.4  # 40% acknowledged
-            ack_user = random.choice(["eng.detroit", "eng.wichita", "eng.pharma"]) if ack else None
-            ack_reason = "Investigated — within acceptable range" if ack else None
-            insert_violation(cur, sid, char_id, 1, "Beyond Control Limits", severity,
-                acknowledged=ack, ack_user=ack_user, ack_reason=ack_reason)
+        n_viol = 0
 
-    # Attribute characteristics
-    non_narrative_attrs = [
-        "solder_defects", "electrical_pf", "paint_defects", "blemishes",
-        "void_pct", "seal_failures", "delam_count",
-    ]
+        # ═══════════════════════════════════════════════════════════
+        # CUSUM characteristics
+        # ═══════════════════════════════════════════════════════════
+        if chart_type == "cusum":
+            target = c["cusum_target"]
+            sigma = c["stored_sigma"]
+            k_mult = c["cusum_k"] or 0.5
+            h_mult = c["cusum_h"] or 5.0
 
-    for char_key in non_narrative_attrs:
-        char_id = IDS[char_key]
-        cur.execute("SELECT id FROM sample WHERE char_id = ? ORDER BY timestamp", (char_id,))
-        all_sids = [row[0] for row in cur.fetchall()]
-        if len(all_sids) < 10:
-            continue
+            if target is None or not sigma or sigma <= 0:
+                continue
 
-        n_violations = random.randint(3, 6)
-        violation_indices = random.sample(range(len(all_sids)), min(n_violations, len(all_sids)))
-        for idx in violation_indices:
-            sid = all_sids[idx]
-            severity = random.choice(["CRITICAL", "WARNING", "WARNING"])
-            ack = random.random() < 0.3
-            ack_user = random.choice(["sup.detroit", "sup.pharma"]) if ack else None
-            ack_reason = "Reviewed — no systemic issue" if ack else None
-            insert_violation(cur, sid, char_id, 1, "Beyond Control Limits", severity,
-                acknowledged=ack, ack_user=ack_user, ack_reason=ack_reason)
+            # k and h are stored as sigma multipliers (AIAG convention)
+            k_val = k_mult * sigma
+            h_val = h_mult * sigma
+
+            cur.execute("""
+                SELECT s.id, m.value FROM sample s
+                JOIN measurement m ON m.sample_id = s.id
+                WHERE s.char_id = ? AND s.is_excluded = 0
+                ORDER BY s.timestamp
+            """, (char_id,))
+
+            ch, cl = 0.0, 0.0
+            for sid, val in cur.fetchall():
+                ch = max(0.0, ch + (val - target - k_val))
+                cl = max(0.0, cl + (target - val - k_val))
+                if ch > h_val:
+                    insert_violation(cur, sid, char_id, 1, "CUSUM+ Shift", "CRITICAL")
+                    n_viol += 1
+                if cl > h_val:
+                    insert_violation(cur, sid, char_id, 1, "CUSUM- Shift", "CRITICAL")
+                    n_viol += 1
+
+        # ═══════════════════════════════════════════════════════════
+        # EWMA characteristics
+        # ═══════════════════════════════════════════════════════════
+        elif chart_type == "ewma":
+            lam = c["ewma_lambda"] or 0.2
+            l_mult = c["ewma_l"] or 3.0
+            target = c["target_value"] or c["stored_center_line"]
+            sigma = c["stored_sigma"]
+
+            if target is None or not sigma or sigma <= 0:
+                continue
+
+            ucl, lcl = calculate_ewma_limits(target, sigma, lam, l_mult)
+
+            cur.execute("""
+                SELECT id, ewma_value FROM sample
+                WHERE char_id = ? AND is_excluded = 0 ORDER BY timestamp
+            """, (char_id,))
+
+            for sid, ewma_val in cur.fetchall():
+                if ewma_val is None:
+                    continue
+                if ewma_val > ucl:
+                    insert_violation(cur, sid, char_id, 1, "EWMA Above UCL", "CRITICAL")
+                    n_viol += 1
+                elif ewma_val < lcl:
+                    insert_violation(cur, sid, char_id, 1, "EWMA Below LCL", "CRITICAL")
+                    n_viol += 1
+
+        # ═══════════════════════════════════════════════════════════
+        # Attribute characteristics (p/np/c/u charts)
+        # ═══════════════════════════════════════════════════════════
+        elif data_type == "attribute":
+            attr_type = c["attribute_chart_type"]
+            use_laney = bool(c["use_laney_correction"])
+            center_line = c["stored_center_line"]
+
+            if not attr_type:
+                continue
+
+            # Load all samples chronologically
+            cur.execute("""
+                SELECT id, defect_count, sample_size, units_inspected
+                FROM sample WHERE char_id = ? AND is_excluded = 0 ORDER BY timestamp
+            """, (char_id,))
+            all_samples = cur.fetchall()
+
+            if not all_samples:
+                continue
+
+            # Calculate center_line from data if not stored
+            if center_line is None:
+                sample_dicts = [{"defect_count": dc or 0, "sample_size": ss,
+                                 "units_inspected": ui}
+                                for _, dc, ss, ui in all_samples]
+                try:
+                    limits = calculate_attribute_limits(attr_type, sample_dicts)
+                    center_line = limits.center_line
+                except Exception:
+                    continue
+
+            # Compute Laney sigma_z for overdispersion correction
+            sigma_z = None
+            if use_laney:
+                sample_dicts = [{"defect_count": dc or 0, "sample_size": ss,
+                                 "units_inspected": ui}
+                                for _, dc, ss, ui in all_samples]
+                try:
+                    sigma_z = calculate_laney_sigma_z(attr_type, sample_dicts, center_line)
+                except Exception:
+                    pass
+
+            # Attribute charts only support rules 1-4
+            attr_enabled = enabled_rules & {1, 2, 3, 4}
+            if not attr_enabled:
+                continue
+
+            # Build sliding window and check rules after each addition
+            plotted_vals: list[float] = []
+            ucl_vals: list[float] = []
+            lcl_vals: list[float] = []
+            sids: list[int] = []
+            prev_triggered: set[int] = set()
+
+            for sid, dc, ss, ui in all_samples:
+                dc = dc or 0
+                try:
+                    pv = get_plotted_value(attr_type, dc, ss, ui)
+                except Exception:
+                    continue
+
+                if use_laney and sigma_z is not None:
+                    try:
+                        u, l = get_per_point_limits_laney(
+                            attr_type, center_line, sigma_z, ss, ui)
+                    except Exception:
+                        u, l = get_per_point_limits(attr_type, center_line, ss, ui)
+                else:
+                    try:
+                        u, l = get_per_point_limits(attr_type, center_line, ss, ui)
+                    except Exception:
+                        continue
+
+                plotted_vals.append(pv)
+                ucl_vals.append(u)
+                lcl_vals.append(l)
+                sids.append(sid)
+
+                # Sliding window of last 25 samples
+                ws = min(25, len(plotted_vals))
+                try:
+                    results = check_attribute_nelson_rules(
+                        plotted_vals[-ws:], center_line,
+                        ucl_vals[-ws:], lcl_vals[-ws:],
+                        sids[-ws:], attr_enabled,
+                    )
+                except Exception:
+                    continue
+
+                curr_triggered: set[int] = set()
+                for r in results:
+                    if not r.triggered:
+                        continue
+                    curr_triggered.add(r.rule_id)
+                    # Rule 1: every OOC sample; Rules 2+: only on new trigger
+                    if r.rule_id == 1 or r.rule_id not in prev_triggered:
+                        sev = r.severity if isinstance(r.severity, str) else r.severity
+                        insert_violation(cur, sid, char_id, r.rule_id, r.rule_name, sev)
+                        n_viol += 1
+                prev_triggered = curr_triggered
+
+        # ═══════════════════════════════════════════════════════════
+        # Variable characteristics (Shewhart X-bar / I-MR)
+        # ═══════════════════════════════════════════════════════════
+        elif data_type == "variable" and chart_type is None:
+            sigma = c["stored_sigma"]
+            center_line = c["stored_center_line"]
+            short_run = c["short_run_mode"]
+            target_val = c["target_value"]
+
+            if not sigma or sigma <= 0 or center_line is None:
+                continue
+
+            # Zone boundaries depend on short-run mode
+            if short_run == "standardized":
+                b_cl, b_sig = 0.0, 1.0
+            elif short_run == "deviation":
+                b_cl, b_sig = 0.0, sigma
+            else:
+                b_cl, b_sig = center_line, sigma
+
+            boundaries = RWZoneBoundaries(
+                center_line=b_cl,
+                plus_1_sigma=b_cl + b_sig,
+                plus_2_sigma=b_cl + 2 * b_sig,
+                plus_3_sigma=b_cl + 3 * b_sig,
+                minus_1_sigma=b_cl - b_sig,
+                minus_2_sigma=b_cl - 2 * b_sig,
+                minus_3_sigma=b_cl - 3 * b_sig,
+                sigma=b_sig,
+            )
+
+            # Build library with custom rule parameters if any
+            library = NelsonRuleLibrary()
+            if rule_params:
+                configs = []
+                for rid in range(1, 9):
+                    cfg: dict = {"rule_id": rid}
+                    if rid in rule_params:
+                        cfg["parameters"] = rule_params[rid]
+                    configs.append(cfg)
+                library.create_from_config(configs)
+
+            window = RollingWindow(25)
+            window.set_boundaries(boundaries)
+
+            # Batch-load samples and measurements
+            cur.execute("""
+                SELECT id, timestamp, z_score FROM sample
+                WHERE char_id = ? AND is_excluded = 0 ORDER BY timestamp
+            """, (char_id,))
+            samples = cur.fetchall()
+            sample_ids = [s[0] for s in samples]
+
+            if not sample_ids:
+                continue
+
+            # Batch-load all measurements (SQLite variable limit is 999)
+            meas_by_sid: dict[int, list[float]] = defaultdict(list)
+            for batch_start in range(0, len(sample_ids), 900):
+                batch_sids = sample_ids[batch_start:batch_start + 900]
+                placeholders = ",".join("?" * len(batch_sids))
+                cur.execute(
+                    f"SELECT sample_id, value FROM measurement "
+                    f"WHERE sample_id IN ({placeholders}) ORDER BY id",
+                    batch_sids,
+                )
+                for msid, mval in cur.fetchall():
+                    meas_by_sid[msid].append(mval)
+
+            prev_triggered: set[int] = set()
+            for sid, ts, z_score in samples:
+                meas = meas_by_sid.get(sid, [])
+                if not meas:
+                    continue
+
+                mean_val = sum(meas) / len(meas)
+
+                # Plotted value depends on short-run mode
+                if short_run == "standardized" and z_score is not None:
+                    plot_val = z_score
+                elif short_run == "deviation" and target_val is not None:
+                    plot_val = mean_val - target_val
+                else:
+                    plot_val = mean_val
+
+                zone, is_above, sigma_dist = window.classify_value(plot_val)
+                ws = WindowSample(
+                    sample_id=sid,
+                    timestamp=(datetime.fromisoformat(ts)
+                               if isinstance(ts, str) else ts),
+                    value=plot_val,
+                    range_value=None,
+                    zone=zone,
+                    is_above_center=is_above,
+                    sigma_distance=sigma_dist,
+                )
+                window.append(ws)
+
+                results = library.check_all(window, enabled_rules)
+                curr_triggered: set[int] = set()
+                for r in results:
+                    if not r.triggered:
+                        continue
+                    curr_triggered.add(r.rule_id)
+                    # Rule 1: every OOC sample; Rules 2+: only on new trigger
+                    if r.rule_id == 1 or r.rule_id not in prev_triggered:
+                        sev = (r.severity.value
+                               if hasattr(r.severity, "value") else str(r.severity))
+                        insert_violation(
+                            cur, sid, char_id, r.rule_id, r.rule_name, sev)
+                        n_viol += 1
+                prev_triggered = curr_triggered
+
+        total_violations += n_viol
+        if n_viol > 0:
+            print(f"  {c['name']}: {n_viol} violations")
+
+    print(f"  Total: {total_violations} violations detected by SPC engine")
+
+    # ── Post-replay: Acknowledge some narrative violations ────────
+    # Find violations in bearing_od drift phase and acknowledge with story reasons
+    if "bearing_od_samples" in IDS:
+        bearing_samples = IDS["bearing_od_samples"]
+        if len(bearing_samples) > 280:
+            drift_sids = bearing_samples[200:280]
+            placeholders = ",".join("?" * len(drift_sids))
+            cur.execute(
+                f"SELECT id FROM violation "
+                f"WHERE char_id = ? AND sample_id IN ({placeholders}) ORDER BY id",
+                [IDS["bearing_od"]] + drift_sids,
+            )
+            drift_viols = [row[0] for row in cur.fetchall()]
+
+            ack_data = [
+                ("eng.detroit", "Tool wear identified — scheduling replacement"),
+                ("eng.detroit", "Corrective action initiated"),
+            ]
+            for i, vid in enumerate(drift_viols[:len(ack_data)]):
+                user, reason = ack_data[i]
+                cur.execute(
+                    "UPDATE violation SET acknowledged = 1, ack_user = ?, "
+                    "ack_reason = ?, ack_timestamp = ? WHERE id = ?",
+                    (user, reason, utcnow(), vid),
+                )
 
 
 def seed_capability_and_annotations(cur: sqlite3.Cursor) -> None:
@@ -2198,89 +2500,212 @@ def seed_compliance(cur: sqlite3.Cursor) -> None:
              json.dumps(detail), "10.0.1.1", "Mozilla/5.0 Chrome/122.0", ts))
 
 
+_log = logging.getLogger("seed_showcase")
+
+
 def seed_dummy_server() -> None:
     """Configure the dummy server at localhost:3000 for live data generation.
     Fails gracefully if the server is unavailable."""
-    print("\nConfiguring dummy server for live data...")
+    _log.info("Configuring dummy server at %s ...", DUMMY_SERVER_URL)
 
-    ok, msg = api_call("GET", "/health")
+    ok, msg = api_call("GET", "/status")
     if not ok:
-        print(f"  WARNING: Dummy server not reachable at {DUMMY_SERVER_URL}")
-        print(f"  ({msg})")
-        print("  SQLite seed is complete. Start the dummy server later for live connectivity.")
+        _log.warning("Dummy server not reachable at %s (%s)", DUMMY_SERVER_URL, msg)
+        _log.info("SQLite seed is complete. Start the dummy server later for live connectivity.")
         return
 
-    print("  Dummy server reachable. Pushing configuration...")
+    _log.info("Dummy server reachable. Pushing configuration...")
 
-    # OPC-UA node configuration
-    opcua_nodes = {
-        "Detroit": {
-            "Detroit.BearingOD": {"dataType": "Double", "value": 25.000},
-            "Detroit.SurfaceFinish": {"dataType": "Double", "value": 1.200},
-            "Detroit.BoreDiameter": {"dataType": "Double", "value": 50.000},
-            "Detroit.PinHeight": {"dataType": "Double", "value": 12.700},
-        },
-        "Wichita": {
-            "Wichita.CureTemp": {"dataType": "Double", "value": 177.0},
-            "Wichita.BladeProfile": {"dataType": "Double", "value": 2.150},
-            "Wichita.RivetGrip": {"dataType": "Double", "value": 6.350},
-        },
-        "RTP": {
-            "RTP.APIConcentration": {"dataType": "Double", "value": 99.50},
-            "RTP.TabletWeight": {"dataType": "Double", "value": 200.0},
-            "RTP.FillVolume": {"dataType": "Double", "value": 5.000},
+    # ── Project config (matches ProjectConfig schema) ─────────────────
+    # OPC-UA nodes as tree: folder → variable children
+    opcua_nodes = [
+        {"id": "Detroit", "name": "Detroit", "type": "folder", "children": [
+            {"id": "Detroit.BearingOD", "name": "BearingOD", "type": "variable", "dataType": "Double", "initialValue": 25.000},
+            {"id": "Detroit.SurfaceFinish", "name": "SurfaceFinish", "type": "variable", "dataType": "Double", "initialValue": 1.200},
+            {"id": "Detroit.BoreDiameter", "name": "BoreDiameter", "type": "variable", "dataType": "Double", "initialValue": 50.000},
+            {"id": "Detroit.PinHeight", "name": "PinHeight", "type": "variable", "dataType": "Double", "initialValue": 12.700},
+        ]},
+        {"id": "Wichita", "name": "Wichita", "type": "folder", "children": [
+            {"id": "Wichita.CureTemp", "name": "CureTemp", "type": "variable", "dataType": "Double", "initialValue": 177.0},
+            {"id": "Wichita.BladeProfile", "name": "BladeProfile", "type": "variable", "dataType": "Double", "initialValue": 2.150},
+            {"id": "Wichita.RivetGrip", "name": "RivetGrip", "type": "variable", "dataType": "Double", "initialValue": 6.350},
+        ]},
+        {"id": "RTP", "name": "RTP", "type": "folder", "children": [
+            {"id": "RTP.APIConcentration", "name": "APIConcentration", "type": "variable", "dataType": "Double", "initialValue": 99.50},
+            {"id": "RTP.TabletWeight", "name": "TabletWeight", "type": "variable", "dataType": "Double", "initialValue": 200.0},
+            {"id": "RTP.FillVolume", "name": "FillVolume", "type": "variable", "dataType": "Double", "initialValue": 5.000},
+        ]},
+    ]
+
+    # MQTT topics as typed objects with payload schema
+    mqtt_topic_defs = [
+        {"id": "det-machining", "topic": "detroit/machining/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "det-assembly", "topic": "detroit/assembly/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "det-paint", "topic": "detroit/paint/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "ict-composite", "topic": "wichita/composite/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "ict-ndt", "topic": "wichita/ndt/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "rtp-api-mfg", "topic": "rtp/api-mfg/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "rtp-formulation", "topic": "rtp/formulation/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "rtp-packaging", "topic": "rtp/packaging/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+        {"id": "rtp-qc-lab", "topic": "rtp/qc-lab/measurements",
+         "payloadSchema": [{"key": "value", "type": "number"}], "qos": 0, "publishOnChange": False},
+    ]
+
+    config = {
+        "name": "cassini-showcase",
+        "opcua": {"port": 4840, "nodes": opcua_nodes},
+        "mqtt": {"port": 1883, "topics": mqtt_topic_defs},
+        "metadata": {
+            "partIdPattern": "PART-{seq:0000}",
+            "machineId": "SHOWCASE-001",
+            "operatorId": "OP-001",
+            "customFields": {},
         },
     }
-
-    mqtt_topics = [
-        "detroit/machining/measurements", "detroit/assembly/measurements",
-        "detroit/paint/measurements", "wichita/composite/measurements",
-        "wichita/ndt/measurements", "rtp/api-mfg/measurements",
-        "rtp/formulation/measurements", "rtp/packaging/measurements",
-        "rtp/qc-lab/measurements",
-    ]
-
-    config = {"opcua": {"nodes": opcua_nodes}, "mqtt": {"topics": mqtt_topics}}
     ok, msg = api_call("PUT", "/config/current", config)
     if ok:
-        print("  Configuration pushed.")
+        _log.info("Configuration pushed to dummy server.")
     else:
-        print(f"  WARNING: Config push failed: {msg}")
+        _log.warning("Config push failed: %s", msg)
         return
 
-    # OPC-UA generators
+    # ── OPC-UA generators (one call per node) ─────────────────────────
     opcua_gens = [
-        {"nodeId": "Detroit.BearingOD", "mode": "drift", "nominal": 25.000, "stddev": 0.008, "rate": 2000},
-        {"nodeId": "Detroit.SurfaceFinish", "mode": "normal", "nominal": 1.200, "stddev": 0.050, "rate": 2000},
-        {"nodeId": "Detroit.BoreDiameter", "mode": "normal", "nominal": 50.000, "stddev": 0.005, "rate": 2000},
-        {"nodeId": "Detroit.PinHeight", "mode": "normal", "nominal": 12.700, "stddev": 0.010, "rate": 2000},
-        {"nodeId": "Wichita.CureTemp", "mode": "drift", "nominal": 177.0, "stddev": 0.30, "rate": 3000},
-        {"nodeId": "Wichita.BladeProfile", "mode": "normal", "nominal": 2.150, "stddev": 0.015, "rate": 2000},
-        {"nodeId": "Wichita.RivetGrip", "mode": "normal", "nominal": 6.350, "stddev": 0.010, "rate": 2000},
-        {"nodeId": "RTP.APIConcentration", "mode": "normal", "nominal": 99.50, "stddev": 0.15, "rate": 2000},
-        {"nodeId": "RTP.TabletWeight", "mode": "normal", "nominal": 200.0, "stddev": 0.50, "rate": 2000},
-        {"nodeId": "RTP.FillVolume", "mode": "sine", "nominal": 5.000, "stddev": 0.015, "rate": 2000},
+        ("Detroit.BearingOD", {"mode": "drift", "nominal": 25.000, "stdDev": 0.008, "rateMs": 2000}),
+        ("Detroit.SurfaceFinish", {"mode": "normal", "nominal": 1.200, "stdDev": 0.050, "rateMs": 2000}),
+        ("Detroit.BoreDiameter", {"mode": "normal", "nominal": 50.000, "stdDev": 0.005, "rateMs": 2000}),
+        ("Detroit.PinHeight", {"mode": "normal", "nominal": 12.700, "stdDev": 0.010, "rateMs": 2000}),
+        ("Wichita.CureTemp", {"mode": "drift", "nominal": 177.0, "stdDev": 0.30, "rateMs": 3000}),
+        ("Wichita.BladeProfile", {"mode": "normal", "nominal": 2.150, "stdDev": 0.015, "rateMs": 2000}),
+        ("Wichita.RivetGrip", {"mode": "normal", "nominal": 6.350, "stdDev": 0.010, "rateMs": 2000}),
+        ("RTP.APIConcentration", {"mode": "normal", "nominal": 99.50, "stdDev": 0.15, "rateMs": 2000}),
+        ("RTP.TabletWeight", {"mode": "normal", "nominal": 200.0, "stdDev": 0.50, "rateMs": 2000}),
+        ("RTP.FillVolume", {"mode": "sine", "nominal": 5.000, "stdDev": 0.015, "rateMs": 2000}),
     ]
 
-    ok, msg = api_call("POST", "/opcua/generate/start", {"generators": opcua_gens})
-    print(f"  OPC-UA generators: {'started' if ok else 'FAILED — ' + msg}")
+    opcua_ok, opcua_fail = 0, 0
+    for node_id, gen_config in opcua_gens:
+        ok, msg = api_call("POST", "/opcua/generate/start", {"nodeId": node_id, "config": gen_config})
+        if ok:
+            opcua_ok += 1
+        else:
+            opcua_fail += 1
+            _log.warning("OPC-UA generator %s failed: %s", node_id, msg)
+    _log.info("OPC-UA generators: %d started, %d failed", opcua_ok, opcua_fail)
 
-    # MQTT generators
+    # ── MQTT generators (one call per topic) ──────────────────────────
+    # topicId references the "id" from mqtt_topic_defs above
     mqtt_gens = [
-        {"topic": "detroit/machining/measurements", "mode": "normal", "nominal": 25.000, "stddev": 0.008, "rate": 2000},
-        {"topic": "detroit/assembly/measurements", "mode": "normal", "nominal": 35.0, "stddev": 0.5, "rate": 2000},
-        {"topic": "detroit/paint/measurements", "mode": "normal", "nominal": 2.5, "stddev": 0.3, "rate": 3000},
-        {"topic": "wichita/composite/measurements", "mode": "normal", "nominal": 0.125, "stddev": 0.003, "rate": 2000},
-        {"topic": "wichita/ndt/measurements", "mode": "normal", "nominal": 1.5, "stddev": 0.2, "rate": 3000},
-        {"topic": "rtp/api-mfg/measurements", "mode": "normal", "nominal": 99.50, "stddev": 0.15, "rate": 2000},
-        {"topic": "rtp/formulation/measurements", "mode": "normal", "nominal": 200.0, "stddev": 0.50, "rate": 2000},
-        {"topic": "rtp/packaging/measurements", "mode": "normal", "nominal": 5.000, "stddev": 0.015, "rate": 2000},
-        {"topic": "rtp/qc-lab/measurements", "mode": "normal", "nominal": 99.0, "stddev": 0.3, "rate": 3000},
+        ("det-machining", {"mode": "normal", "nominal": 25.000, "stdDev": 0.008, "rateMs": 2000}),
+        ("det-assembly", {"mode": "normal", "nominal": 35.0, "stdDev": 0.5, "rateMs": 2000}),
+        ("det-paint", {"mode": "normal", "nominal": 2.5, "stdDev": 0.3, "rateMs": 3000}),
+        ("ict-composite", {"mode": "normal", "nominal": 0.125, "stdDev": 0.003, "rateMs": 2000}),
+        ("ict-ndt", {"mode": "normal", "nominal": 1.5, "stdDev": 0.2, "rateMs": 3000}),
+        ("rtp-api-mfg", {"mode": "normal", "nominal": 99.50, "stdDev": 0.15, "rateMs": 2000}),
+        ("rtp-formulation", {"mode": "normal", "nominal": 200.0, "stdDev": 0.50, "rateMs": 2000}),
+        ("rtp-packaging", {"mode": "normal", "nominal": 5.000, "stdDev": 0.015, "rateMs": 2000}),
+        ("rtp-qc-lab", {"mode": "normal", "nominal": 99.0, "stdDev": 0.3, "rateMs": 3000}),
     ]
 
-    ok, msg = api_call("POST", "/mqtt/generate/start", {"generators": mqtt_gens})
-    print(f"  MQTT generators: {'started' if ok else 'FAILED — ' + msg}")
-    print("  Dummy server configuration complete!")
+    mqtt_ok, mqtt_fail = 0, 0
+    for topic_id, gen_config in mqtt_gens:
+        ok, msg = api_call("POST", "/mqtt/generate/start", {"topicId": topic_id, "config": gen_config})
+        if ok:
+            mqtt_ok += 1
+        else:
+            mqtt_fail += 1
+            _log.warning("MQTT generator %s failed: %s", topic_id, msg)
+    _log.info("MQTT generators: %d started, %d failed", mqtt_ok, mqtt_fail)
+    _log.info("Dummy server configuration complete!")
+
+
+# ── Async entry point (DevTools page) ─────────────────────────────────────
+
+async def seed() -> None:
+    """Entry point for DevTools page. Wipes cassini.db and re-seeds."""
+    db_path = backend_dir / "cassini.db"
+
+    # Drop all existing tables in-place (avoids Windows file-lock on unlink)
+    if db_path.exists():
+        _conn = sqlite3.connect(str(db_path))
+        _cur = _conn.cursor()
+        _cur.execute("PRAGMA foreign_keys=OFF")
+        _cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        for (tbl,) in _cur.fetchall():
+            _cur.execute(f"DROP TABLE IF EXISTS [{tbl}]")
+        _conn.commit()
+        _conn.close()
+
+    # Run alembic migrations in subprocess (needs sync driver URL)
+    print("Running Alembic migrations...")
+    env = {**os.environ, "CASSINI_DATABASE_URL": f"sqlite:///{db_path.resolve()}"}
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=str(backend_dir),
+        capture_output=True, text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Alembic migration failed: {result.stderr}")
+    print("Migrations complete.")
+
+    conn = sqlite3.connect(str(db_path))
+    cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.execute("PRAGMA foreign_keys=ON")
+
+    # Remove "Default Plant" created by Alembic migration
+    cur.execute("DELETE FROM hierarchy WHERE plant_id IN (SELECT id FROM plant WHERE code='DEFAULT')")
+    cur.execute("DELETE FROM user_plant_role WHERE plant_id IN (SELECT id FROM plant WHERE code='DEFAULT')")
+    cur.execute("DELETE FROM plant WHERE code='DEFAULT'")
+
+    print("Seeding foundation (plants, hierarchy, users)...")
+    seed_foundation(cur)
+    print("Seeding characteristics...")
+    seed_characteristics(cur)
+    print("Seeding rule presets...")
+    seed_rules(cur)
+    print("Seeding variable samples...")
+    seed_variable_samples(cur)
+    print("Seeding attribute samples...")
+    seed_attribute_samples(cur)
+    print("Seeding narrative arcs...")
+    seed_narrative_arcs(cur)
+    print("Replaying SPC engine for organic violations...")
+    replay_spc_violations(cur)
+    print("Seeding capability history and annotations...")
+    seed_capability_and_annotations(cur)
+    print("Seeding connectivity (MQTT, OPC-UA, data sources)...")
+    seed_connectivity(cur)
+    print("Seeding gage bridges...")
+    seed_gage_bridges(cur)
+    print("Seeding anomaly detection...")
+    seed_anomaly(cur)
+    print("Seeding electronic signatures...")
+    seed_signatures(cur)
+    print("Seeding MSA studies...")
+    seed_msa(cur)
+    print("Seeding FAI reports...")
+    seed_fai(cur)
+    print("Seeding compliance (notifications, ERP, retention, audit)...")
+    seed_compliance(cur)
+
+    conn.commit()
+    conn.close()
+
+    # Configure dummy server for live MQTT/OPC-UA data (fails gracefully)
+    seed_dummy_server()
+
+    print("Showcase seed complete. Login with any user / password: password")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -2352,8 +2777,8 @@ def main() -> None:
     seed_attribute_samples(cur)
     print("Seeding narrative arcs...")
     seed_narrative_arcs(cur)
-    print("Seeding violations (non-narrative)...")
-    seed_violations(cur)
+    print("Replaying SPC engine for organic violations...")
+    replay_spc_violations(cur)
     print("Seeding capability history and annotations...")
     seed_capability_and_annotations(cur)
     print("Seeding connectivity (MQTT, OPC-UA, data sources)...")
@@ -2400,7 +2825,7 @@ def main() -> None:
         seed_dummy_server()
 
     print(f"\nShowcase DB created: {db_path}")
-    print("Login with any user / password: demo123")
+    print("Login with any user / password: password")
 
 
 if __name__ == "__main__":

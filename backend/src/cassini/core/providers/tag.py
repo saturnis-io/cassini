@@ -325,9 +325,13 @@ class TagProvider(DataProvider):
                     )
                     continue
 
+                matches = []
                 try:
-                    from jsonpath_ng import parse as jsonpath_parse
-                    expr = jsonpath_parse(config.json_path)
+                    expr = config._json_path_expr
+                    if expr is None:
+                        from jsonpath_ng import parse as jsonpath_parse
+                        expr = jsonpath_parse(config.json_path)
+                        config._json_path_expr = expr
                     matches = expr.find(parsed_json)
                     if not matches:
                         logger.debug(

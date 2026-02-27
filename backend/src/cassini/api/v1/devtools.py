@@ -109,6 +109,13 @@ AVAILABLE_SCRIPTS = {
         "script_file": "scripts/seed_test_sprint9.py",
         "category": "test",
     },
+    "showcase": {
+        "name": "Showcase Demo",
+        "description": "3 industry-themed plants (automotive, aerospace, pharma) with 8 users, 24 characteristics covering every chart type, distribution, and SPC feature. Includes narrative story arcs, violations, annotations, connectivity, MSA, FAI, and compliance.",
+        "estimated_samples": "~12,000",
+        "script_file": "scripts/seed_showcase.py",
+        "category": "demo",
+    },
     "distillery": {
         "name": "Alcohol Distillery",
         "description": "5 plants (Whiskey, Vodka/Gin, Rum, Tequila/Mezcal, QC Lab) with ~50 characteristics covering variable, attribute, CUSUM, EWMA, non-normal distributions, Laney p'/u', short-run, and correlated multivariate data. Exercises Sprints 5-9.",

@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import {
   useHierarchyTree,
+  useHierarchyTreeByPlant,
   useHierarchyCharacteristics,
   useCharacteristics,
 } from '@/api/hooks'
@@ -23,6 +24,8 @@ import type { HierarchyNode, Characteristic } from '@/types'
 interface HierarchyMultiSelectorProps {
   selectedIds: number[]
   onSelectionChange: (ids: number[]) => void
+  /** When provided, scopes the hierarchy tree to this plant */
+  plantId?: number
   className?: string
 }
 
@@ -118,9 +121,13 @@ function collectAncestorIds(
 export function HierarchyMultiSelector({
   selectedIds,
   onSelectionChange,
+  plantId,
   className,
 }: HierarchyMultiSelectorProps) {
-  const { data: hierarchy, isLoading } = useHierarchyTree()
+  const { data: globalHierarchy, isLoading: isLoadingGlobal } = useHierarchyTree()
+  const { data: plantHierarchy, isLoading: isLoadingPlant } = useHierarchyTreeByPlant(plantId ?? 0)
+  const hierarchy = plantId ? plantHierarchy : globalHierarchy
+  const isLoading = plantId ? isLoadingPlant : isLoadingGlobal
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set())
   const [searchInput, setSearchInput] = useState('')
   const debouncedQuery = useDebounce(searchInput, 300)

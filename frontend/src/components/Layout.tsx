@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { Sidebar } from '@/components/Sidebar'
 import { Header } from '@/components/Header'
 import { PlantSelector } from '@/components/PlantSelector'
+import { usePlant } from '@/providers/PlantProvider'
 import { MobileNav } from '@/components/MobileNav'
 import { ExplanationPanel } from '@/components/ExplanationPanel'
 
@@ -32,8 +33,10 @@ export function Layout() {
   const { t } = useTranslation('common')
   const { t: tNav } = useTranslation('navigation')
   const wsConnected = useDashboardStore((state) => state.wsConnected)
+  const { selectedPlant } = usePlant()
   const { data: stats } = useViolationStats({
     refetchInterval: wsConnected ? false : undefined,
+    plant_id: selectedPlant?.id,
   })
   const { isOffline, setIsOffline, offlineQueueCount, setOfflineQueueCount } = useUIStore()
 

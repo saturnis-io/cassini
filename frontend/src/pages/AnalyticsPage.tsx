@@ -36,7 +36,7 @@ export function AnalyticsPage() {
         </p>
 
         {/* Tab bar */}
-        <div className="mt-4 flex gap-1">
+        <div className="-mb-px mt-4 flex gap-1">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id
             return (
@@ -44,14 +44,17 @@ export function AnalyticsPage() {
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 rounded-t-lg px-4 py-2 text-sm font-medium transition-colors',
+                  'relative flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-card text-foreground border-border border border-b-transparent shadow-sm'
+                    ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                 )}
               >
                 <tab.icon className="h-4 w-4" />
                 {tab.label}
+                {isActive && (
+                  <span className="bg-primary absolute inset-x-0 bottom-0 h-0.5 rounded-full" />
+                )}
               </button>
             )
           })}

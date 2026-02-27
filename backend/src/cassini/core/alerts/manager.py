@@ -344,6 +344,7 @@ class AlertManager:
 
     async def get_violation_stats(
         self,
+        plant_id: int | None = None,
         characteristic_id: int | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
@@ -354,6 +355,7 @@ class AlertManager:
         unacknowledged count, and breakdowns by rule and severity.
 
         Args:
+            plant_id: Optional plant ID to scope stats
             characteristic_id: Optional ID to filter by characteristic
             start_date: Optional start of date range
             end_date: Optional end of date range
@@ -366,50 +368,81 @@ class AlertManager:
             >>> print(f"Total: {stats.total}, Unacknowledged: {stats.unacknowledged}")
             >>> print(f"By severity: {stats.by_severity}")
         """
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
         from cassini.db.models.sample import Sample
-        from sqlalchemy import and_, select
+        from sqlalchemy import and_, case, func, select
 
-        # Build query
-        stmt = select(Violation).join(Sample, Violation.sample_id == Sample.id)
+        session = self._violation_repo.session
 
-        # Apply filters
+        # Build base filter conditions
         filters = []
+        need_sample_join = False
+        need_plant_join = False
+
+        if plant_id is not None:
+            filters.append(Hierarchy.plant_id == plant_id)
+            need_plant_join = True
         if characteristic_id is not None:
-            filters.append(Sample.char_id == characteristic_id)
+            filters.append(Violation.char_id == characteristic_id)
         if start_date is not None:
             filters.append(Sample.timestamp >= start_date)
+            need_sample_join = True
         if end_date is not None:
             filters.append(Sample.timestamp <= end_date)
+            need_sample_join = True
 
-        if filters:
-            stmt = stmt.where(and_(*filters))
+        def _apply_joins(stmt):
+            if need_sample_join or need_plant_join:
+                stmt = stmt.join(Sample, Violation.sample_id == Sample.id)
+            if need_plant_join:
+                stmt = stmt.join(
+                    Characteristic, Violation.char_id == Characteristic.id
+                ).join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id)
+            if filters:
+                stmt = stmt.where(and_(*filters))
+            return stmt
 
-        # Execute query
-        result = await self._violation_repo.session.execute(stmt)
-        violations = list(result.scalars().all())
+        # Aggregate query: total, unacknowledged, informational in one pass
+        agg_stmt = select(
+            func.count().label("total"),
+            func.sum(
+                case(
+                    (and_(Violation.acknowledged == False, Violation.requires_acknowledgement == True), 1),  # noqa: E712
+                    else_=0,
+                )
+            ).label("unacknowledged"),
+            func.sum(
+                case(
+                    (and_(Violation.acknowledged == False, Violation.requires_acknowledgement == False), 1),  # noqa: E712
+                    else_=0,
+                )
+            ).label("informational"),
+        ).select_from(Violation)
+        agg_stmt = _apply_joins(agg_stmt)
+        agg_row = (await session.execute(agg_stmt)).one()
 
-        # Calculate statistics
-        total = len(violations)
-        # Unacknowledged = requires acknowledgement AND not acknowledged
-        unacknowledged = sum(
-            1 for v in violations
-            if not v.acknowledged and v.requires_acknowledgement
+        total = agg_row.total or 0
+        unacknowledged = agg_row.unacknowledged or 0
+        informational = agg_row.informational or 0
+
+        # Group by rule_id
+        rule_stmt = (
+            select(Violation.rule_id, func.count().label("cnt"))
+            .select_from(Violation)
         )
-        # Informational = does NOT require acknowledgement AND not acknowledged
-        informational = sum(
-            1 for v in violations
-            if not v.acknowledged and not v.requires_acknowledgement
-        )
-
-        # Group by rule
-        by_rule: dict[int, int] = {}
-        for v in violations:
-            by_rule[v.rule_id] = by_rule.get(v.rule_id, 0) + 1
+        rule_stmt = _apply_joins(rule_stmt).group_by(Violation.rule_id)
+        rule_rows = (await session.execute(rule_stmt)).all()
+        by_rule: dict[int, int] = {row.rule_id: row.cnt for row in rule_rows}
 
         # Group by severity
-        by_severity: dict[str, int] = {}
-        for v in violations:
-            by_severity[v.severity] = by_severity.get(v.severity, 0) + 1
+        sev_stmt = (
+            select(Violation.severity, func.count().label("cnt"))
+            .select_from(Violation)
+        )
+        sev_stmt = _apply_joins(sev_stmt).group_by(Violation.severity)
+        sev_rows = (await session.execute(sev_stmt)).all()
+        by_severity: dict[str, int] = {row.severity: row.cnt for row in sev_rows}
 
         return ViolationStats(
             total=total,

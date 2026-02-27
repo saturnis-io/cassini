@@ -272,6 +272,20 @@ button:not(:disabled):active {
     0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 
+/* Primary buttons: disabled state needs strong text contrast */
+.bg-primary:disabled,
+button.bg-primary:disabled {
+  background: var(--color-muted);
+  box-shadow: none;
+  transform: none;
+}
+
+.dark .bg-primary:disabled,
+.dark button.bg-primary:disabled {
+  background: hsl(220 12% 22%);
+  color: hsl(220 5% 62%);
+}
+
 /* SPC Chart zone styles - Soft, modern fills */
 .zone-c {
   fill: color-mix(in srgb, var(--color-zone-c) 12%, transparent);
@@ -448,7 +462,7 @@ h6 {
 
   /* Muted - Subtle dark */
   --color-muted: hsl(220 12% 19%);
-  --color-muted-foreground: hsl(220 5% 55%);
+  --color-muted-foreground: hsl(220 5% 62%);
 
   /* Accent - Slightly lighter than card for hover visibility */
   --color-accent: hsl(220 20% 20%);
@@ -560,10 +574,10 @@ h6 {
   .dark select:focus,
   .dark textarea:focus {
     background: hsl(220 15% 11%);
-    border-color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 70%, hsl(220 15% 30%));
     box-shadow:
       inset 0 1px 3px hsl(220 60% 3% / 0.4),
-      0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+      0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 }
 
@@ -802,8 +816,27 @@ h6 {
   .dark.glass input,
   .dark.glass select,
   .dark.glass textarea {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--color-foreground);
+  }
+
+  /* Select option elements render in OS-native dropdowns —
+     force dark background so text is readable */
+  .dark.glass select option,
+  .dark select option {
+    background: hsl(220 25% 13%);
+    color: hsl(0 0% 95%);
+  }
+
+  .dark.glass input:focus,
+  .dark.glass select:focus,
+  .dark.glass textarea:focus {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-primary);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.2),
+      0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 }
 

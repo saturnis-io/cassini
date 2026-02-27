@@ -98,7 +98,7 @@ function FormatPicker({
       <select
         value={mode}
         onChange={(e) => handleSelectChange(e.target.value)}
-        className="border-border bg-card w-full rounded-lg border px-3 py-2 text-sm"
+        className="border-border w-full rounded-lg border px-3 py-2 text-sm"
       >
         {includeSystemDefault && <option value="">System Default</option>}
         {presets.map((p) => (
