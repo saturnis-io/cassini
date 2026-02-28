@@ -516,13 +516,23 @@ class Rule8Mixture:
                             for p in last_n)
 
         if none_in_zone_c:
+            # Must have points on BOTH sides of center (mixture = bimodal pattern).
+            # Without this check, a sustained shift into Zone B/A on one side
+            # would falsely trigger Rule 8 in addition to Rule 2/6.
+            has_upper = any(p.zone in (Zone.ZONE_B_UPPER, Zone.ZONE_A_UPPER, Zone.BEYOND_UCL)
+                           for p in last_n)
+            has_lower = any(p.zone in (Zone.ZONE_B_LOWER, Zone.ZONE_A_LOWER, Zone.BEYOND_LCL)
+                           for p in last_n)
+            if not (has_upper and has_lower):
+                return None
+
             return RuleResult(
                 rule_id=self.rule_id,
                 rule_name=self.rule_name,
                 triggered=True,
                 severity=self.severity,
                 involved_sample_ids=[p.sample_id for p in last_n],
-                message=f"{self._consecutive} consecutive points outside Zone C (mixture pattern)"
+                message=f"{self._consecutive} consecutive points outside Zone C on both sides (mixture pattern)"
             )
         return None
 

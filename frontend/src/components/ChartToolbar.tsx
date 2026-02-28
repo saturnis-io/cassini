@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLicense } from '@/hooks/useLicense'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
@@ -69,6 +70,7 @@ export function ChartToolbar({
   onComparisonToggle,
   onChangeSecondary,
 }: ChartToolbarProps) {
+  const { isCommercial } = useLicense()
   const {
     comparisonMode,
     setComparisonMode,
@@ -148,14 +150,16 @@ export function ChartToolbar({
 
       {/* Right group — visibility toggles */}
       <div className="flex items-center gap-1">
-        <ToolbarBtn
-          active={showAnomalies}
-          onClick={() => setShowAnomalies(!showAnomalies)}
-          title={showAnomalies ? 'Hide anomaly overlay' : 'Show AI anomaly detection'}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">AI</span>
-        </ToolbarBtn>
+        {isCommercial && (
+          <ToolbarBtn
+            active={showAnomalies}
+            onClick={() => setShowAnomalies(!showAnomalies)}
+            title={showAnomalies ? 'Hide anomaly overlay' : 'Show AI anomaly detection'}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">AI</span>
+          </ToolbarBtn>
+        )}
 
         <ToolbarBtn
           active={showSpecLimits}

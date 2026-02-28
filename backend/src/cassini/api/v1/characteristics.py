@@ -618,12 +618,35 @@ async def _get_cusum_chart_data(
     session: AsyncSession,
 ) -> ChartDataResponse:
     """Build chart data response for CUSUM characteristics."""
+    import math
     from cassini.db.repositories import ViolationRepository
     from cassini.db.models.sample import Sample as SampleModel
     from sqlalchemy import and_
 
     target = characteristic.cusum_target or characteristic.target_value or 0.0
-    h = characteristic.cusum_h or 5.0
+    h_sigma = characteristic.cusum_h or 5.0
+
+    # Convert h from sigma units to measurement units for chart display
+    # The stored cusum_high/cusum_low on samples are in measurement units,
+    # so the decision interval threshold must also be in measurement units.
+    sigma = characteristic.stored_sigma
+    if sigma is None or sigma <= 0:
+        # Estimate sigma from sample data (same fallback as engine)
+        all_samples = await sample_repo.get_rolling_window(
+            char_id=char_id, window_size=100, exclude_excluded=True,
+        )
+        all_vals: list[float] = []
+        for s in all_samples:
+            for m in s.measurements:
+                all_vals.append(m.value)
+        if len(all_vals) >= 2:
+            n = len(all_vals)
+            mean = sum(all_vals) / n
+            variance = sum((x - mean) ** 2 for x in all_vals) / (n - 1)
+            sigma = math.sqrt(variance)
+        else:
+            sigma = 1.0
+    h = h_sigma * sigma
 
     # Get samples with measurements
     samples = await sample_repo.get_rolling_window(

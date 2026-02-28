@@ -76,12 +76,13 @@ async def process_cusum_sample(
 
     Steps:
     1. Load characteristic and validate CUSUM configuration
-    2. Load previous sample's CUSUM values from DB
-    3. Calculate new CUSUM+ and CUSUM- values
-    4. Create sample with measurement and CUSUM values
-    5. Check for violations (C+ > H or C- > H)
-    6. Create violations if thresholds exceeded
-    7. Return result
+    2. Estimate sigma from stored_sigma or historical data
+    3. Load previous sample's CUSUM values from DB
+    4. Calculate new CUSUM+ and CUSUM- values (k and h scaled by sigma)
+    5. Create sample with measurement and CUSUM values
+    6. Check for violations (C+ > H*sigma or C- > H*sigma)
+    7. Create violations if thresholds exceeded
+    8. Return result
 
     Args:
         char_id: Characteristic ID
@@ -112,15 +113,15 @@ async def process_cusum_sample(
         )
 
     target = char.cusum_target
-    k = char.cusum_k
-    h = char.cusum_h
+    k_sigma = char.cusum_k  # k in sigma units (e.g. 0.5 means 0.5*sigma)
+    h_sigma = char.cusum_h  # h in sigma units (e.g. 5 means 5*sigma)
 
     if target is None:
         raise ValueError(f"Characteristic {char_id} has no cusum_target configured")
-    if k is None:
-        k = 0.5  # Default slack value
-    if h is None:
-        h = 5.0  # Default decision interval
+    if k_sigma is None:
+        k_sigma = 0.5  # Default slack value in sigma units
+    if h_sigma is None:
+        h_sigma = 5.0  # Default decision interval in sigma units
 
     # Extract rule config for violation creation
     rule_require_ack = {
@@ -129,7 +130,39 @@ async def process_cusum_sample(
         if rule.is_enabled
     }
 
-    # Step 2: Load previous sample's CUSUM values
+    # Step 2: Estimate sigma (same pattern as EWMA engine)
+    # Use stored_sigma if available, otherwise estimate from historical data
+    sigma = char.stored_sigma
+    if sigma is None or sigma <= 0:
+        window_data = await sample_repo.get_rolling_window_data(
+            char_id=char_id, window_size=100, exclude_excluded=True
+        )
+        all_values = []
+        for wd in window_data:
+            all_values.extend(wd["values"])
+        all_values.append(measurement)
+        if len(all_values) >= 2:
+            n = len(all_values)
+            mean = sum(all_values) / n
+            variance = sum((x - mean) ** 2 for x in all_values) / (n - 1)
+            sigma = math.sqrt(variance)
+        else:
+            sigma = 0.0
+
+    if sigma <= 0:
+        sigma = 1.0  # Fallback to prevent division by zero
+        logger.warning(
+            "cusum_sigma_fallback",
+            char_id=char_id,
+            msg="Insufficient data to estimate sigma, using 1.0",
+        )
+
+    # Convert k and h from sigma units to measurement units
+    # Montgomery (Ch. 9): K = k*sigma, H = h*sigma
+    k = k_sigma * sigma
+    h = h_sigma * sigma
+
+    # Step 3: Load previous sample's CUSUM values
     prev_cusum_high = 0.0
     prev_cusum_low = 0.0
 
@@ -142,11 +175,12 @@ async def process_cusum_sample(
         prev_cusum_high = prev_sample.cusum_high if prev_sample.cusum_high is not None else 0.0
         prev_cusum_low = prev_sample.cusum_low if prev_sample.cusum_low is not None else 0.0
 
-    # Step 3: Calculate new CUSUM values
+    # Step 4: Calculate new CUSUM values
+    # k and h are now in measurement units (k_sigma*sigma, h_sigma*sigma)
     cusum_high = max(0.0, prev_cusum_high + (measurement - target - k))
     cusum_low = max(0.0, prev_cusum_low + (target - measurement - k))
 
-    # Step 4: Create sample with measurement and CUSUM values
+    # Step 5: Create sample with measurement and CUSUM values
     sample = await sample_repo.create_with_measurements(
         char_id=char_id,
         values=[measurement],
@@ -159,7 +193,7 @@ async def process_cusum_sample(
     sample.cusum_low = cusum_low
     await sample_repo.session.flush()
 
-    # Step 5: Check for violations
+    # Step 6: Check for violations
     violations = []
 
     if cusum_high > h:

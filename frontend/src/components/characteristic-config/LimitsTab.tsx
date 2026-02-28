@@ -5,6 +5,7 @@ import { HelpTooltip } from '../HelpTooltip'
 import { LocalTimeRangeSelector, type TimeRangeState } from '../LocalTimeRangeSelector'
 import { RefreshCw, Calculator, Edit3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLicense } from '@/hooks/useLicense'
 import type { SubgroupMode } from '@/types'
 
 type LimitSource = 'calculate' | 'manual'
@@ -405,6 +406,7 @@ export function LimitsTab({
   isRecalculating = false,
   isSettingManual = false,
 }: LimitsTabProps) {
+  const { isCommercial } = useLicense()
   const [limitSource, setLimitSource] = useState<LimitSource>('calculate')
   const [excludeOoc, setExcludeOoc] = useState(true)
   const [dateRange, setDateRange] = useState<TimeRangeState>({
@@ -419,9 +421,9 @@ export function LimitsTab({
   const [manualCenterLine, setManualCenterLine] = useState('')
   const [manualSigma, setManualSigma] = useState('')
 
-  const target = parseFloat(formData.target_value) || null
-  const usl = parseFloat(formData.usl) || null
-  const lsl = parseFloat(formData.lsl) || null
+  const target = isNaN(parseFloat(formData.target_value)) ? null : parseFloat(formData.target_value)
+  const usl = isNaN(parseFloat(formData.usl)) ? null : parseFloat(formData.usl)
+  const lsl = isNaN(parseFloat(formData.lsl)) ? null : parseFloat(formData.lsl)
 
   // Calculate positions for visual indicator
   const hasSpecLimits = usl !== null && lsl !== null
@@ -583,30 +585,34 @@ export function LimitsTab({
             </div>
           )}
 
-          {/* Laney p'/u' correction */}
-          {(characteristic?.attribute_chart_type === 'p' || characteristic?.attribute_chart_type === 'u') && (
-            <div className="flex items-center gap-2 mt-3">
-              <input
-                type="checkbox"
-                id="laney-correction"
-                checked={formData.use_laney_correction ?? false}
-                onChange={(e) => onChange('use_laney_correction', e.target.checked)}
-                className="border-border rounded"
-              />
-              <label htmlFor="laney-correction" className="text-sm">
-                Use Laney p&apos;/u&apos; correction
-                <span className="text-muted-foreground ml-1">(adjusts limits for over/under-dispersion)</span>
-              </label>
-            </div>
-          )}
+          {/* Laney p'/u' correction (commercial only) */}
+          {isCommercial &&
+            (characteristic?.attribute_chart_type === 'p' ||
+              characteristic?.attribute_chart_type === 'u') && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="laney-correction"
+                  checked={formData.use_laney_correction ?? false}
+                  onChange={(e) => onChange('use_laney_correction', e.target.checked)}
+                  className="border-border rounded"
+                />
+                <label htmlFor="laney-correction" className="text-sm">
+                  Use Laney p&apos;/u&apos; correction
+                  <span className="text-muted-foreground ml-1">
+                    (adjusts limits for over/under-dispersion)
+                  </span>
+                </label>
+              </div>
+            )}
 
-          {/* Short-Run Mode (variable data only) */}
-          {dataType === 'variable' && (
-            <div className="space-y-2 mt-3">
+          {/* Short-Run Mode (variable data only, commercial only) */}
+          {isCommercial && dataType === 'variable' && (
+            <div className="mt-3 space-y-2">
               <label className="text-sm font-medium">Short-Run Mode</label>
               <p className="text-muted-foreground text-xs">
-                Short-run charts normalize data across multiple part numbers or short production runs,
-                enabling meaningful SPC with limited data per part.
+                Short-run charts normalize data across multiple part numbers or short production
+                runs, enabling meaningful SPC with limited data per part.
               </p>
               <select
                 value={formData.short_run_mode ?? ''}
@@ -627,7 +633,8 @@ export function LimitsTab({
               )}
               {formData.short_run_mode === 'standardized' && (
                 <p className="text-muted-foreground text-xs">
-                  Each point is plotted as (value - target) / sigma. Control limits become fixed at ±3.
+                  Each point is plotted as (value - target) / sigma. Control limits become fixed at
+                  ±3.
                 </p>
               )}
             </div>

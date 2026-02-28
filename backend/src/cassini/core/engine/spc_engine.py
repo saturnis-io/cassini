@@ -378,8 +378,9 @@ class SPCEngine:
                 "is_enabled": rule.is_enabled,
                 "parameters": params,
             })
-        if rule_configs:
-            self._rule_library.create_from_config(rule_configs)
+        # Always rebuild rule library (even if empty) to prevent leaking
+        # rules from a previously-processed characteristic in the same batch
+        self._rule_library.create_from_config(rule_configs)
         char_subgroup_mode = char.subgroup_mode
         char_subgroup_size = char.subgroup_size
         char_min_measurements = char.min_measurements
@@ -416,10 +417,17 @@ class SPCEngine:
         effective_lcl = stats["effective_lcl"]
 
         # Short-run transformation: deviation or standardized mode
-        # Transforms the computed values so the frontend receives pre-shifted data
+        # Transforms the computed values so the frontend receives pre-shifted data.
+        # IMPORTANT: Also build transformed measurement values for the rolling window
+        # so that WindowSample.value (mean of values) matches the transformed
+        # zone boundaries.  Raw measurements are persisted to the DB unchanged;
+        # only the window copy is transformed.
+        window_measurements = measurements  # default: same as raw
         if char_short_run_mode == "deviation":
             target = char_target_value if char_target_value is not None else 0.0
             mean = mean - target
+            # Shift each measurement so mean(window_measurements) == mean
+            window_measurements = [v - target for v in measurements]
             if char_ucl is not None:
                 char_ucl = char_ucl - target
             if char_lcl is not None:
@@ -434,11 +442,14 @@ class SPCEngine:
                 # Use sigma_xbar = sigma / sqrt(n) for subgroups > 1
                 sigma_xbar = sigma / math.sqrt(actual_n) if actual_n > 1 else sigma
                 mean = (mean - target) / sigma_xbar
+                # Transform each measurement so mean(window_measurements) == mean
+                window_measurements = [(v - target) / sigma_xbar for v in measurements]
                 char_ucl = 3.0
                 char_lcl = -3.0
                 char_stored_center_line = 0.0
 
         # Step 4: Persist sample and measurements with mode-specific fields
+        # NOTE: Raw measurements are stored; transformations are display-only.
         sample = await self._sample_repo.create_with_measurements(
             char_id=characteristic_id,
             values=measurements,
@@ -458,12 +469,37 @@ class SPCEngine:
             lcl=char_lcl,
         )
 
-        # Add sample to rolling window with mode-specific data
+        # Build a value_transform for the rolling window cold-load path.
+        # When the window is loaded from DB, historical raw measurements
+        # must be transformed to match the zone boundaries' coordinate system.
+        value_transform = None
+        if char_short_run_mode == "deviation":
+            _dev_target = char_target_value if char_target_value is not None else 0.0
+            value_transform = lambda vals, t=_dev_target: [v - t for v in vals]
+        elif char_short_run_mode == "standardized":
+            _std_target = char_target_value if char_target_value is not None else 0.0
+            _std_sigma = char_stored_sigma
+            if _std_sigma and _std_sigma > 0:
+                # NOTE: For historical samples loaded from DB we don't know
+                # each sample's actual_n.  We use the characteristic's
+                # configured subgroup_size as the best available proxy.
+                # (For n=1 characteristics this is exact; for variable-n
+                # Mode B/C it is approximate but short-run + variable-n is
+                # uncommon.)
+                _std_n = char_subgroup_size if char_subgroup_size and char_subgroup_size > 1 else 1
+                _std_sxbar = _std_sigma / math.sqrt(_std_n) if _std_n > 1 else _std_sigma
+                value_transform = lambda vals, t=_std_target, s=_std_sxbar: [
+                    (v - t) / s for v in vals
+                ]
+
+        # Add sample to rolling window with mode-specific data.
+        # Pass transformed measurements so WindowSample.value is in the
+        # same coordinate system as the zone boundaries.
         window_sample = await self._window_manager.add_sample(
             char_id=characteristic_id,
             sample=sample,
             boundaries=boundaries,
-            measurement_values=measurements,
+            measurement_values=window_measurements,
             subgroup_mode=char_subgroup_mode,
             actual_n=actual_n,
             is_undersized=is_undersized,
@@ -472,6 +508,7 @@ class SPCEngine:
             effective_lcl=effective_lcl,
             stored_sigma=char_stored_sigma,
             stored_center_line=char_stored_center_line,
+            value_transform=value_transform,
         )
 
         # Step 5: Evaluate enabled Nelson Rules
@@ -682,6 +719,7 @@ class SPCEngine:
         from cassini.utils.statistics import (
             calculate_imr_limits,
             calculate_xbar_r_limits,
+            estimate_sigma_sbar,
         )
 
         char = await self._char_repo.get_by_id(characteristic_id)
@@ -717,8 +755,8 @@ class SPCEngine:
                 limits.xbar_limits.ucl,
                 limits.xbar_limits.lcl,
             )
-        else:
-            # X-bar R chart
+        elif char.subgroup_size <= 10:
+            # X-bar R chart (subgroup sizes 2-10)
             means = []
             ranges = []
             for data in sample_data:
@@ -737,3 +775,26 @@ class SPCEngine:
                 limits.xbar_limits.ucl,
                 limits.xbar_limits.lcl,
             )
+        else:
+            # X-bar S chart (subgroup sizes > 10)
+            import numpy as np
+
+            means = []
+            stdevs = []
+            for data in sample_data:
+                sample_values = data["values"]
+                if len(sample_values) != char.subgroup_size:
+                    continue
+                means.append(sum(sample_values) / len(sample_values))
+                stdevs.append(float(np.std(sample_values, ddof=1)))
+
+            if len(means) < 2:
+                raise ValueError("Need at least 2 subgroups for X-bar S chart")
+
+            x_double_bar = sum(means) / len(means)
+            sigma = estimate_sigma_sbar(stdevs, char.subgroup_size)
+            import math
+
+            ucl = x_double_bar + 3.0 * sigma / math.sqrt(char.subgroup_size)
+            lcl = x_double_bar - 3.0 * sigma / math.sqrt(char.subgroup_size)
+            return (x_double_bar, ucl, lcl)

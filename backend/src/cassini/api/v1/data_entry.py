@@ -15,7 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
 
-from cassini.api.deps import get_current_user_or_api_key, get_db_session
+from cassini.api.deps import (
+    check_plant_role,
+    get_current_user_or_api_key,
+    get_db_session,
+    resolve_plant_id_for_characteristic,
+)
+from cassini.db.models.user import User
 from cassini.api.schemas.data_entry import (
     AttributeDataEntryRequest,
     AttributeDataEntryResponse,
@@ -101,13 +107,16 @@ async def submit_sample(
         HTTPException: 400 if validation fails.
         HTTPException: 500 if processing fails.
     """
-    # Check permission for this characteristic (API key only)
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     engine = await get_spc_engine(session)
 
@@ -184,13 +193,16 @@ async def submit_attribute_sample(
     Processes an attribute sample through the attribute SPC engine,
     evaluates Nelson Rules 1-4, and returns the result.
     """
-    # Check permission for this characteristic (API key only)
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -237,7 +249,7 @@ async def submit_attribute_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid attribute sample input")
     except Exception:
         logger.exception("Failed to process attribute data entry sample")
         await session.rollback()
@@ -262,12 +274,16 @@ async def submit_cusum_sample(
     session: AsyncSession = Depends(get_db_session),
 ) -> CUSUMDataEntryResponse:
     """Submit a single CUSUM sample."""
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -304,7 +320,7 @@ async def submit_cusum_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid CUSUM sample input")
     except Exception:
         logger.exception("Failed to process CUSUM data entry sample")
         await session.rollback()
@@ -329,12 +345,16 @@ async def submit_ewma_sample(
     session: AsyncSession = Depends(get_db_session),
 ) -> EWMADataEntryResponse:
     """Submit a single EWMA sample."""
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -371,7 +391,7 @@ async def submit_ewma_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid EWMA sample input")
     except Exception:
         logger.exception("Failed to process EWMA data entry sample")
         await session.rollback()
@@ -414,14 +434,30 @@ async def submit_batch(
     violation_repo = ViolationRepository(session)
     results: list[DataEntryResponse] = []
     errors: list[str] = []
+    _plant_cache: dict[int, int] = {}
 
     for idx, sample in enumerate(data.samples):
-        # Check permission for each characteristic (API key only)
-        if isinstance(auth, APIKey) and not auth.can_access_characteristic(sample.characteristic_id):
-            errors.append(
-                f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
-            )
-            continue
+        # Plant-scoped authorization
+        if isinstance(auth, APIKey):
+            if not auth.can_access_characteristic(sample.characteristic_id):
+                errors.append(
+                    f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
+                )
+                continue
+        elif isinstance(auth, User):
+            try:
+                if sample.characteristic_id not in _plant_cache:
+                    _plant_cache[sample.characteristic_id] = (
+                        await resolve_plant_id_for_characteristic(
+                            sample.characteristic_id, session
+                        )
+                    )
+                check_plant_role(auth, _plant_cache[sample.characteristic_id], "operator")
+            except HTTPException:
+                errors.append(
+                    f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
+                )
+                continue
 
         try:
             context = SampleContext(

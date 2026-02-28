@@ -7,6 +7,7 @@ import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts
 import { useChartDragSelect, type DragSelection } from '@/hooks/useChartDragSelect'
 import type { RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
+import { useLicense } from '@/hooks/useLicense'
 import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
@@ -225,8 +226,13 @@ export function ControlChart({
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
   const showAnomalies = useDashboardStore((state) => state.showAnomalies)
+  const { isCommercial } = useLicense()
   const { data: annotations } = useAnnotations(characteristicId)
-  const { data: anomalyData } = useAnomalyEvents(characteristicId, { limit: 100 })
+  // Gate anomaly API calls to commercial edition only (hook has enabled: charId > 0)
+  const { data: anomalyData } = useAnomalyEvents(
+    isCommercial ? characteristicId : 0,
+    { limit: 100 },
+  )
 
   // Annotation detail popover state
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
@@ -327,7 +333,8 @@ export function ControlChart({
   // Only match events against the visible data range so the summary bar
   // hides when the shaded region is scrolled out of view.
   const anomalyOverlay = useMemo(() => {
-    if (!showAnomalies || !anomalyData?.events?.length || data.length === 0) return null
+    if (!isCommercial || !showAnomalies || !anomalyData?.events?.length || data.length === 0)
+      return null
     const visibleData = showBrush && rangeWindow
       ? data.slice(rangeWindow[0], rangeWindow[1] + 1)
       : data
@@ -342,7 +349,7 @@ export function ControlChart({
       return marks
     }
     return null
-  }, [showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
+  }, [isCommercial, showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
 
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
@@ -1408,8 +1415,8 @@ export function ControlChart({
           style={{ visibility: hasData ? 'visible' : 'hidden', cursor: 'crosshair' }}
         />
 
-        {/* AI Insights floating overlay — absolutely positioned, no layout shift */}
-        {anomalyOverlay && anomalyData?.events && (
+        {/* AI Insights floating overlay — absolutely positioned, no layout shift (commercial only) */}
+        {isCommercial && anomalyOverlay && anomalyData?.events && (
           <AnomalyInsightsOverlay events={anomalyData.events} />
         )}
 

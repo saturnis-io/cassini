@@ -363,14 +363,15 @@ def calculate_percentile_capability(
     if usl is not None and lsl is not None:
         pp = (usl - lsl) / spread
 
-    # Ppk: symmetric spread formula (half_spread = spread / 2)
-    half_spread = spread / 2.0
+    # Ppk: asymmetric half-spreads for skewed distributions
+    # Upper half-spread = P99.865 - P50, lower half-spread = P50 - P0.135
+    upper_half = p99_865 - p50
+    lower_half = p50 - p0_135
     ppk_values = []
-    if half_spread > 0:
-        if usl is not None:
-            ppk_values.append((usl - p50) / half_spread)
-        if lsl is not None:
-            ppk_values.append((p50 - lsl) / half_spread)
+    if usl is not None and upper_half > 0:
+        ppk_values.append((usl - p50) / upper_half)
+    if lsl is not None and lower_half > 0:
+        ppk_values.append((p50 - lsl) / lower_half)
 
     if ppk_values:
         ppk = min(ppk_values)
@@ -468,11 +469,11 @@ def _box_cox_capability(
             if cpk_values:
                 cpk = min(cpk_values)
 
-    # Cpm
+    # Cpm — uses sigma_within per AIAG definition
     if cp is not None and target is not None:
         target_t = transform_limit(target) if target > 0 else None
-        if target_t is not None:
-            tau = math.sqrt(sigma_overall_t**2 + (mean_t - target_t) ** 2)
+        if target_t is not None and sigma_within_t is not None and sigma_within_t > 0:
+            tau = math.sqrt(sigma_within_t**2 + (mean_t - target_t) ** 2)
             if tau > 0 and usl_t is not None and lsl_t is not None:
                 cpm = (usl_t - lsl_t) / (6.0 * tau)
 
