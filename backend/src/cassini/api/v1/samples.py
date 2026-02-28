@@ -802,8 +802,7 @@ async def update_sample(
                 "is_enabled": rule.is_enabled,
                 "parameters": params,
             })
-        if rule_configs:
-            rule_library.create_from_config(rule_configs)
+        rule_library.create_from_config(rule_configs)
 
         window = await window_manager.get_window(sample.char_id)
 
@@ -813,6 +812,13 @@ async def update_sample(
         if window and characteristic.ucl is not None and characteristic.lcl is not None:
             # Get enabled rule IDs from characteristic configuration
             enabled_rule_ids = {rule.rule_id for rule in characteristic.rules if rule.is_enabled}
+
+            # Build require_acknowledgement lookup from characteristic rules
+            rule_require_ack = {
+                rule.rule_id: rule.require_acknowledgement
+                for rule in characteristic.rules
+                if rule.is_enabled
+            }
 
             # Check all enabled rules using the library's check_all method
             rule_results = rule_library.check_all(window, enabled_rule_ids)
@@ -825,9 +831,11 @@ async def update_sample(
                     from cassini.db.models.violation import Violation as ViolationModel
                     violation = ViolationModel(
                         sample_id=sample_id,
+                        char_id=sample.char_id,
                         rule_id=result.rule_id,
                         rule_name=result.rule_name,
                         severity=result.severity.value,
+                        requires_acknowledgement=rule_require_ack.get(result.rule_id, True),
                     )
                     session.add(violation)
                     await session.flush()
@@ -845,6 +853,45 @@ async def update_sample(
 
         # Invalidate rolling window
         await window_manager.invalidate(sample.char_id)
+
+        # Publish events to event bus for anomaly detection, notifications, MQTT
+        from cassini.core.events import (
+            event_bus,
+            SampleProcessedEvent,
+            ViolationCreatedEvent,
+        )
+
+        violation_dicts = [
+            {
+                "id": v.violation_id,
+                "sample_id": sample_id,
+                "characteristic_id": sample.char_id,
+                "rule_id": v.rule_id,
+                "rule_name": v.rule_name,
+                "severity": v.severity,
+            }
+            for v in violations
+        ]
+
+        await event_bus.publish(SampleProcessedEvent(
+            sample_id=sample_id,
+            characteristic_id=sample.char_id,
+            mean=mean,
+            range_value=range_value,
+            zone=zone,
+            in_control=in_control,
+            violations=violation_dicts,
+        ))
+
+        for v in violations:
+            await event_bus.publish(ViolationCreatedEvent(
+                violation_id=v.violation_id,
+                sample_id=sample_id,
+                characteristic_id=sample.char_id,
+                rule_id=v.rule_id,
+                rule_name=v.rule_name,
+                severity=v.severity,
+            ))
 
         processing_time_ms = (time.perf_counter() - start_time) * 1000
 
