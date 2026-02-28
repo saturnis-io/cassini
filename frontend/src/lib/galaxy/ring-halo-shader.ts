@@ -5,7 +5,6 @@
 
 export const ringHaloVertexShader = /* glsl */ `
   uniform float uPixelRatio;
-  uniform float uTime;
 
   attribute vec3 color;
   varying vec3 vColor;
