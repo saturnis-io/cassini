@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from cassini.core.alerts.manager import AlertManager
+from cassini.core.licensing import LicenseService
 from cassini.db.database import get_session
 from cassini.db.models.user import User, UserPlantRole, UserRole
 from cassini.db.repositories.characteristic import CharacteristicRepository
@@ -288,3 +289,8 @@ async def resolve_plant_id_for_characteristic(
             detail=f"Characteristic {characteristic_id} not found",
         )
     return row
+
+
+def get_license_service(request: Request) -> LicenseService:
+    """Get the LicenseService from app state."""
+    return request.app.state.license_service

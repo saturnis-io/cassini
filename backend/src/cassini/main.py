@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from cassini.api.v1.license import router as license_router
 from cassini.api.v1.anomaly import router as anomaly_router
 from cassini.api.v1.annotations import router as annotations_router
 from cassini.api.v1.api_keys import router as api_keys_router
@@ -59,6 +60,7 @@ from cassini.core.broadcast import WebSocketBroadcaster
 from cassini.core.notifications import NotificationDispatcher
 from cassini.core.publish import MQTTPublisher
 from cassini.core.config import get_settings
+from cassini.core.licensing import LicenseService
 from cassini.core.events import event_bus
 from cassini.core.rate_limit import limiter
 from cassini.core.providers import tag_provider_manager, opcua_provider_manager
@@ -80,6 +82,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging(settings.log_format)
 
     logger.info("Starting Cassini application")
+
+    # Initialize license service
+    license_service = LicenseService(license_path=settings.license_file or None)
+    app.state.license_service = license_service
+    logger.info("License service initialized", edition=license_service.edition)
 
     # Initialize database connection
     db = get_database()
@@ -423,6 +430,7 @@ app.include_router(doe_router)
 app.include_router(violations_router)
 app.include_router(websocket_router)
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(license_router)
 
 # Dev tools router — only registered in sandbox mode
 if settings.sandbox:
