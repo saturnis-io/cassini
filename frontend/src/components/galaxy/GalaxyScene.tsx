@@ -38,6 +38,8 @@ interface GalaxySceneProps {
   navigateToCharId?: number | null
   /** Kiosk mode: slow auto-rotate camera, no click/scroll interaction needed */
   kioskMode?: boolean
+  /** Called when a moon (data point) is clicked at planet zoom level */
+  onMoonClick?: (moonIndex: number) => void
 }
 
 /** Shared color palette for all planet systems */
@@ -57,6 +59,7 @@ export function GalaxyScene({
   navigateToConstellationId,
   navigateToCharId,
   kioskMode = false,
+  onMoonClick,
 }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -98,6 +101,10 @@ export function GalaxyScene({
   const kioskModeRef = useRef(kioskMode)
   kioskModeRef.current = kioskMode
 
+  // Moon click callback ref
+  const onMoonClickRef = useRef(onMoonClick)
+  onMoonClickRef.current = onMoonClick
+
   // Callback ref for focus changes
   const onFocusChangeRef = useRef(onFocusChange)
   onFocusChangeRef.current = onFocusChange
@@ -131,6 +138,12 @@ export function GalaxyScene({
     { refetchInterval: isConnected ? false : 5000 },
   )
   const { data: capability } = useCapability(focusedCharIdRef.current ?? 0)
+
+  // Data refs (accessible from Effect 1 event handlers which close over mount scope)
+  const characteristicsRef = useRef(characteristics)
+  characteristicsRef.current = characteristics
+  const capabilityRef = useRef(capability)
+  capabilityRef.current = capability
 
   // -------------------------------------------------------------------------
   // LOD management callback — called when zoom level changes
@@ -243,6 +256,7 @@ export function GalaxyScene({
     [],
   )
 
+// -------------------------------------------------------------------------  // Find which moon mesh was clicked (planet zoom only)  // -------------------------------------------------------------------------  const findMoonClickTarget = useCallback(    (event: PointerEvent): number | null => {      const renderer = rendererRef.current      const camera = cameraRef.current      if (!renderer || !camera) return null      const system = focusedSystemRef.current      if (!system || system.lod !== 'full') return null      const moonMeshes = system.getMoonMeshes()      if (moonMeshes.length === 0) return null      const rect = renderer.domElement.getBoundingClientRect()      pointerRef.current.x =        ((event.clientX - rect.left) / rect.width) * 2 - 1      pointerRef.current.y =        -((event.clientY - rect.top) / rect.height) * 2 + 1      camera.updateMatrixWorld()      raycasterRef.current.setFromCamera(pointerRef.current, camera)      const intersects = raycasterRef.current.intersectObjects(moonMeshes, false)      if (intersects.length === 0) return null      const hitMesh = intersects[0].object      const moonIndex = moonMeshes.indexOf(hitMesh as THREE.Mesh)      return moonIndex >= 0 ? moonIndex : null    },    [],  )
   // -------------------------------------------------------------------------
   // Dismiss any active CSS2D labels
   // -------------------------------------------------------------------------
@@ -349,6 +363,9 @@ export function GalaxyScene({
         // Check for zoom level changes and update LOD
         const level = ctrl.zoomLevel
         if (level !== prevZoomLevelRef.current) {
+          // Dismiss labels when zooming out (level change)
+          dismissLabels()
+
           updateLODForZoomLevel(
             level,
             ctrl.focusedCharId,
@@ -410,6 +427,15 @@ export function GalaxyScene({
       const ctrl = controllerRef.current
       if (!ctrl || ctrl.isAnimating) return
 
+      // At planet zoom, check for moon clicks first
+      if (ctrl.zoomLevel === 'planet') {
+        const moonIdx = findMoonClickTarget(event)
+        if (moonIdx != null) {
+          onMoonClickRef.current?.(moonIdx)
+          return
+        }
+      }
+
       const hit = findClickTarget(event)
 
       if (!hit) {
@@ -431,11 +457,12 @@ export function GalaxyScene({
         dismissLabels()
 
         // Find the characteristic data for this planet
-        const charData = characteristics.find((c) => c.id === hit.charId)
+        const chars = characteristicsRef.current
+        const charData = chars.find((c) => c.id === hit.charId)
         if (charData) {
           const system = systemsRef.current.get(hit.charId)
           if (system) {
-            const label = createPlanetLabel(charData, capability)
+            const label = createPlanetLabel(charData, capabilityRef.current)
             system.group.add(label)
             activeLabelRef.current = label
           }
@@ -447,14 +474,34 @@ export function GalaxyScene({
           constellationId: hit.constellationId,
         })
       } else if (currentZoom === 'planet') {
-        // At planet level, show a label on the clicked planet
+        // At planet level, check if a moon (data point) was clicked
+        const focusedId = ctrl.focusedCharId
+        if (focusedId != null) {
+          const system = systemsRef.current.get(focusedId)
+          if (system) {
+            const moonMeshes = system.getMoonMeshes()
+            if (moonMeshes.length > 0) {
+              const moonHits = raycasterRef.current.intersectObjects(moonMeshes)
+              if (moonHits.length > 0) {
+                const moonIndex = moonMeshes.indexOf(moonHits[0].object as THREE.Mesh)
+                if (moonIndex >= 0) {
+                  onMoonClickRef.current?.(moonIndex)
+                  return
+                }
+              }
+            }
+          }
+        }
+
+        // No moon hit — show a label on the clicked planet
         dismissLabels()
 
-        const charData = characteristics.find((c) => c.id === hit.charId)
+        const chars = characteristicsRef.current
+        const charData = chars.find((c) => c.id === hit.charId)
         if (charData) {
           const system = systemsRef.current.get(hit.charId)
           if (system) {
-            const label = createPlanetLabel(charData, capability)
+            const label = createPlanetLabel(charData, capabilityRef.current)
             system.group.add(label)
             activeLabelRef.current = label
           }
@@ -688,6 +735,22 @@ export function GalaxyScene({
       const hex = cpkToColorHex(capability.cpk)
       system.setPlanetColor(new THREE.Color(hex))
     }
+
+    // At planet zoom, attach UCL/CL/LCL control limit labels to the focused system
+    const ctrl = controllerRef.current
+    if (ctrl?.zoomLevel === 'planet' && chartData) {
+      // Remove old control limit labels first
+      for (const cl of activeControlLabelsRef.current) {
+        disposeLabel(cl)
+      }
+      activeControlLabelsRef.current = []
+
+      const clLabels = createControlLimitLabels(chartData)
+      for (const cl of clLabels) {
+        system.group.add(cl)
+      }
+      activeControlLabelsRef.current = clLabels
+    }
   }, [chartData, capability])
 
   // -------------------------------------------------------------------------
@@ -770,7 +833,7 @@ export function GalaxyScene({
     <div
       ref={containerRef}
       className={className}
-      style={{ background: '#080C16', width: '100%', height: '100%' }}
+      style={{ background: '#080C16', width: '100%', height: '100%', position: 'relative' }}
     />
   )
 }
