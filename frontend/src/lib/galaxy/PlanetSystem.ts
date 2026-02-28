@@ -211,8 +211,9 @@ export class PlanetSystem {
 
     this.planet.rotation.y += 0.001
 
-    // Moon state machine
+    // Moon state machine (skip data-driven moons — they're stationary at their data positions)
     this.moons.forEach((moon, i) => {
+      if (moon.speed === 0) return
       this.updateMoon(moon, i, time)
     })
   }
