@@ -6,7 +6,7 @@
 
 import './i18n/config'
 import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Layout } from '@/components/Layout'
@@ -114,6 +114,7 @@ class RouteErrorBoundary extends Component<
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, mustChangePassword } = useAuth()
+  const location = useLocation()
 
   if (isLoading) {
     return (
@@ -127,7 +128,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
   if (mustChangePassword) {
