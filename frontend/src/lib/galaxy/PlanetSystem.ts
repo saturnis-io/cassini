@@ -15,7 +15,7 @@ export class PlanetSystem {
   readonly group: THREE.Group
 
   private readonly config: PlanetSystemConfig
-  private readonly moons: MoonState[] = []
+  private moons: MoonState[] = []
 
   // Geometries (kept for dispose)
   private readonly planetGeo: THREE.BufferGeometry
@@ -350,19 +350,88 @@ export class PlanetSystem {
     )
   }
 
+  /** Remove all existing moons and create new ones at data-driven positions. */
+  setDataMoons(
+    samples: Array<{ angle: number; radius: number; hasViolation: boolean }>,
+  ): void {
+    // Remove existing moon meshes from group and dispose materials
+    this.moons.forEach((m) => {
+      this.group.remove(m.mesh)
+      ;(m.mesh.material as THREE.Material).dispose()
+      if (m.anomalyTimeout) clearTimeout(m.anomalyTimeout)
+    })
+
+    const uniformMoons = this.ringShaderMat.uniforms.uMoons
+      .value as THREE.Vector3[]
+    const uniformStatus = this.ringShaderMat.uniforms.uMoonStatus
+      .value as number[]
+    const gapCenter = this.config.gaps[0]?.center ?? 15.5
+
+    this.moons = samples.slice(0, this.config.moonCount).map((sample, i) => {
+      const mat = new THREE.MeshBasicMaterial({
+        color: this.config.colors.cream.clone(),
+      })
+      const mesh = new THREE.Mesh(this.moonGeo, mat)
+      this.group.add(mesh)
+
+      mesh.position.set(
+        Math.cos(sample.angle) * sample.radius,
+        0,
+        Math.sin(sample.angle) * sample.radius,
+      )
+
+      // Update shader uniforms for wake effects
+      if (i < uniformMoons.length) {
+        uniformMoons[i].set(sample.radius, sample.angle, gapCenter)
+        uniformStatus[i] = sample.hasViolation ? 0.8 : 0
+      }
+
+      // Color and scale violation moons
+      if (sample.hasViolation) {
+        ;(mesh.material as THREE.MeshBasicMaterial).color.copy(
+          this.config.colors.orange,
+        )
+        mesh.scale.setScalar(1.6)
+      }
+
+      return {
+        mesh,
+        angle: sample.angle,
+        speed: 0, // data moons don't orbit randomly
+        gap: this.config.gaps[0] ?? { in: 14.5, out: 16.5, center: 15.5 },
+        currentRadius: sample.radius,
+        targetRadius: sample.radius,
+        anomalyState: sample.hasViolation ? 1 : 0,
+        anomalyTarget: sample.radius,
+        noiseOffset: 0,
+        noiseFreq: 0,
+        currentRotation: 0,
+        anomaliesThisRotation: 0,
+        rotationsSinceLastAnomaly: 0,
+        anomalyTimeout: null,
+      } satisfies MoonState
+    })
+
+    // Zero out unused uniform slots
+    for (let i = this.moons.length; i < uniformMoons.length; i++) {
+      uniformMoons[i].set(0, 0, 0)
+      uniformStatus[i] = 0
+    }
+  }
+
   /** Update planet surface color (e.g. for Cpk-driven coloring). */
   setPlanetColor(color: THREE.Color): void {
     const posAttr = this.planetGeo.getAttribute('position')
     const colAttr = this.planetGeo.getAttribute('color')
     const { planetRadius } = this.config
+    const tmp = new THREE.Color() // reuse one instance
 
     for (let i = 0; i < posAttr.count; i++) {
       const y = posAttr.getY(i) / planetRadius
-      const mixedColor = color.clone().lerp(
-        this.config.colors.gold,
-        (y + 1) / 2 + (Math.random() * 0.2 - 0.1),
-      )
-      colAttr.setXYZ(i, mixedColor.r, mixedColor.g, mixedColor.b)
+      tmp
+        .copy(color)
+        .lerp(this.config.colors.gold, (y + 1) / 2 + (Math.random() * 0.2 - 0.1))
+      colAttr.setXYZ(i, tmp.r, tmp.g, tmp.b)
     }
     colAttr.needsUpdate = true
   }

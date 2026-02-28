@@ -2,14 +2,29 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { DEFAULT_LOGIN_CONFIG } from '@/lib/galaxy/types'
+import { useChartData } from '@/api/hooks/characteristics'
+import { useCapability } from '@/api/hooks/quality'
+import {
+  controlLimitsToGap,
+  valueToRadius,
+  timestampToAngle,
+  cpkToColorHex,
+} from '@/lib/galaxy/data-mapping'
 
 interface GalaxySceneProps {
   className?: string
+  characteristicId?: number
 }
 
-export function GalaxyScene({ className }: GalaxySceneProps) {
+export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const systemRef = useRef<PlanetSystem | null>(null)
 
+  // Fetch chart data and capability for the focused characteristic
+  const { data: chartData } = useChartData(characteristicId ?? 0, { limit: 25 })
+  const { data: capability } = useCapability(characteristicId ?? 0)
+
+  // Setup Three.js scene (runs once)
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -72,6 +87,9 @@ export function GalaxyScene({ className }: GalaxySceneProps) {
     system.group.rotation.x = 12 * (Math.PI / 180)
     scene.add(system.group)
 
+    // Store system in ref for data sync effect
+    systemRef.current = system
+
     // Animation loop
     const clock = new THREE.Clock()
     let frameId: number
@@ -97,6 +115,7 @@ export function GalaxyScene({ className }: GalaxySceneProps) {
 
     // Cleanup
     return () => {
+      systemRef.current = null
       window.removeEventListener('resize', handleResize)
       cancelAnimationFrame(frameId)
       system.dispose()
@@ -108,6 +127,44 @@ export function GalaxyScene({ className }: GalaxySceneProps) {
       }
     }
   }, [])
+
+  // Sync data to the PlanetSystem when chart data changes
+  useEffect(() => {
+    const system = systemRef.current
+    if (!system || !characteristicId) return
+
+    if (chartData) {
+      const ucl = chartData.control_limits?.ucl ?? null
+      const lcl = chartData.control_limits?.lcl ?? null
+      const cl = chartData.control_limits?.center_line ?? null
+
+      // Build gap from control limits
+      const gap = controlLimitsToGap(ucl, lcl, cl)
+
+      // Use attribute data points for attribute charts, otherwise variable data points
+      const isAttribute =
+        chartData.data_type === 'attribute' && chartData.attribute_data_points?.length
+      const moonData = isAttribute
+        ? chartData.attribute_data_points!.map((pt, i, arr) => ({
+            angle: timestampToAngle(i, arr.length),
+            radius: valueToRadius(pt.plotted_value, ucl ?? 0, lcl ?? 0, gap),
+            hasViolation: pt.violation_ids.length > 0,
+          }))
+        : chartData.data_points.map((pt, i, arr) => ({
+            angle: timestampToAngle(i, arr.length),
+            radius: valueToRadius(pt.mean, ucl ?? 0, lcl ?? 0, gap),
+            hasViolation: pt.violation_ids.length > 0,
+          }))
+
+      system.setDataMoons(moonData)
+    }
+
+    // Apply Cpk coloring to planet
+    if (capability) {
+      const hex = cpkToColorHex(capability.cpk)
+      system.setPlanetColor(new THREE.Color(hex))
+    }
+  }, [chartData, capability, characteristicId])
 
   return (
     <div
