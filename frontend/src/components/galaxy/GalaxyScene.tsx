@@ -20,7 +20,15 @@ import {
 interface GalaxySceneProps {
   className?: string
   initialFocusCharId?: number
-  onFocusChange?: (charId: number | null, zoomLevel: ZoomLevel) => void
+  onFocusChange?: (
+    charId: number | null,
+    zoomLevel: ZoomLevel,
+    constellationId?: number | null,
+  ) => void
+  /** When changed, fly the camera to this constellation */
+  navigateToConstellationId?: number | null
+  /** When changed, fly the camera to this planet */
+  navigateToCharId?: number | null
 }
 
 /** Shared color palette for all planet systems */
@@ -36,6 +44,8 @@ export function GalaxyScene({
   className,
   initialFocusCharId,
   onFocusChange,
+  navigateToConstellationId,
+  navigateToCharId,
 }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -310,8 +320,8 @@ export function GalaxyScene({
             focusedSystemRef.current = null
           }
 
-          // Notify parent of focus change
-          onFocusChangeRef.current?.(charId, level)
+          // Notify parent of focus change (including constellation id for sidebar sync)
+          onFocusChangeRef.current?.(charId, level, ctrl.focusedConstellationId)
 
           prevZoomLevelRef.current = level
         }
@@ -584,6 +594,76 @@ export function GalaxyScene({
     subscribe(charId)
     return () => unsubscribe(charId)
   }, [focusedCharIdRef.current, subscribe, unsubscribe])
+
+  // -------------------------------------------------------------------------
+  // Effect 5: Navigate to constellation when navigateToConstellationId changes
+  // -------------------------------------------------------------------------
+  const prevNavConstellationRef = useRef<number | null | undefined>(undefined)
+  useEffect(() => {
+    if (
+      navigateToConstellationId == null ||
+      navigateToConstellationId === prevNavConstellationRef.current
+    )
+      return
+    prevNavConstellationRef.current = navigateToConstellationId
+
+    const controller = controllerRef.current
+    const posMap = positionsRef.current
+    if (!controller || !posMap || controller.isAnimating) return
+
+    // Find any characteristic in this constellation to get its center position
+    for (const [, pos] of posMap) {
+      if (pos.constellationId === navigateToConstellationId) {
+        // Use this constellation's approximate center (the group center from layout)
+        // We average all positions in the constellation for a better center
+        let cx = 0
+        let cz = 0
+        let count = 0
+        for (const [, p] of posMap) {
+          if (p.constellationId === navigateToConstellationId) {
+            cx += p.x
+            cz += p.z
+            count++
+          }
+        }
+        if (count > 0) {
+          cx /= count
+          cz /= count
+        }
+        const target = new THREE.Vector3(cx, 0, cz)
+        controller.flyTo(target, 'constellation', {
+          constellationId: navigateToConstellationId,
+        })
+        return
+      }
+    }
+  }, [navigateToConstellationId])
+
+  // -------------------------------------------------------------------------
+  // Effect 6: Navigate to planet when navigateToCharId changes
+  // -------------------------------------------------------------------------
+  const prevNavCharRef = useRef<number | null | undefined>(undefined)
+  useEffect(() => {
+    if (
+      navigateToCharId == null ||
+      navigateToCharId === prevNavCharRef.current
+    )
+      return
+    prevNavCharRef.current = navigateToCharId
+
+    const controller = controllerRef.current
+    const posMap = positionsRef.current
+    if (!controller || !posMap || controller.isAnimating) return
+
+    const pos = posMap.get(navigateToCharId)
+    if (!pos) return
+
+    const target = new THREE.Vector3(pos.x, 0, pos.z)
+    controller.flyTo(target, 'planet', {
+      charId: navigateToCharId,
+      constellationId: pos.constellationId,
+    })
+  }, [navigateToCharId])
 
   return (
     <div
