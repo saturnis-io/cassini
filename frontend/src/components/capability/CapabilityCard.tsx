@@ -1,6 +1,7 @@
 import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability, useCharacteristic } from '@/api/hooks'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
+import { useLicense } from '@/hooks/useLicense'
 import { useECharts } from '@/hooks/useECharts'
 import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
@@ -188,8 +189,9 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const saveSnapshot = useSaveCapabilitySnapshot()
   const [showDistAnalysis, setShowDistAnalysis] = useState(false)
 
+  const { isCommercial } = useLicense()
   const canSaveSnapshot = hasAccess(role, 'engineer')
-  const canFitDist = hasAccess(role, 'engineer')
+  const canFitDist = hasAccess(role, 'engineer') && isCommercial
 
   if (isLoading) {
     return (

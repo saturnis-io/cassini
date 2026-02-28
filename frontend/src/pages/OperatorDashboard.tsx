@@ -548,9 +548,7 @@ export function OperatorDashboard() {
                         </span>
                       ) : undefined,
                     content: (
-                      <FeatureGate>
-                        <CapabilityCard characteristicId={selectedId} />
-                      </FeatureGate>
+                      <CapabilityCard characteristicId={selectedId} />
                     ),
                   }] : []),
                   {
