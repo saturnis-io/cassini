@@ -352,7 +352,7 @@ export function OperatorDashboard() {
         <div className="flex flex-shrink-0 items-center gap-1.5 overflow-x-auto px-1 py-1 md:gap-2">
           {/* Characteristic name + chart type */}
           <div className="mr-1 flex flex-shrink-0 items-center gap-1.5 md:mr-2 md:gap-2">
-            <span className="max-w-[120px] truncate text-xs font-semibold md:max-w-[200px] md:text-sm">
+            <span className="text-xs font-semibold whitespace-nowrap md:text-sm">
               {selectedCharacteristic?.name ?? '—'}
             </span>
             {selectedCharacteristic?.unit && (
