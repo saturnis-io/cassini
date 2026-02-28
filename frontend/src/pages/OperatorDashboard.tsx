@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,6 +29,7 @@ import { canPerformAction } from '@/lib/roles'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
+import { useKonamiSequence } from '@/hooks/useKonamiSequence'
 import { AlertTriangle, Activity, Hash, Gauge } from 'lucide-react'
 import { BottomDrawer } from '@/components/BottomDrawer'
 import type { DrawerTab } from '@/components/BottomDrawer'
@@ -66,7 +68,15 @@ function StatPill({
   )
 }
 
+const CASSINI_SEQUENCE = ['c', 'a', 's', 's', 'i', 'n', 'i']
+
 export function OperatorDashboard() {
+  const navigate = useNavigate()
+  useKonamiSequence(
+    CASSINI_SEQUENCE,
+    useCallback(() => navigate('/galaxy?from=easter-egg'), [navigate]),
+  )
+
   const { t } = useTranslation('dashboard')
   const { t: tCommon } = useTranslation('common')
   const { data: characteristicsData, isLoading } = useCharacteristics()
