@@ -14,6 +14,7 @@ a normal distribution with defined sigma zones, which attribute charts
 (based on binomial/Poisson distributions) do not guarantee.
 """
 
+import json
 import math
 import time
 import structlog
@@ -379,6 +380,7 @@ def check_attribute_nelson_rules(
     lcl_values: list[float],
     sample_ids: list[int],
     enabled_rules: set[int] | None = None,
+    rule_params: dict[int, dict] | None = None,
 ) -> list[AttributeRuleResult]:
     """Evaluate Nelson Rules 1-4 against attribute chart data.
 
@@ -393,12 +395,17 @@ def check_attribute_nelson_rules(
         lcl_values: Per-point LCL values (same length as plotted_values)
         sample_ids: Sample IDs corresponding to plotted_values
         enabled_rules: Set of rule IDs to check (default: all 4)
+        rule_params: Optional dict mapping rule_id to parameter overrides
+            (e.g. {2: {"consecutive_points": 7}})
 
     Returns:
         List of AttributeRuleResult for triggered rules only
     """
     if enabled_rules is None:
         enabled_rules = ATTRIBUTE_NELSON_RULE_IDS
+
+    if rule_params is None:
+        rule_params = {}
 
     # Only check rules 1-4, intersect with enabled_rules
     rules_to_check = enabled_rules & ATTRIBUTE_NELSON_RULE_IDS
@@ -414,21 +421,27 @@ def check_attribute_nelson_rules(
         if result is not None:
             results.append(result)
 
-    # Rule 2: 9 consecutive on same side of center (WARNING)
+    # Rule 2: N consecutive on same side of center (WARNING, default 9)
     if 2 in rules_to_check:
-        result = _check_rule_2(plotted_values, center_line, sample_ids)
+        r2_params = rule_params.get(2, {})
+        consecutive = r2_params.get("consecutive_points", 9)
+        result = _check_rule_2(plotted_values, center_line, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)
 
-    # Rule 3: 6 consecutive increasing/decreasing (WARNING)
+    # Rule 3: N consecutive increasing/decreasing (WARNING, default 6)
     if 3 in rules_to_check:
-        result = _check_rule_3(plotted_values, sample_ids)
+        r3_params = rule_params.get(3, {})
+        consecutive = r3_params.get("consecutive_points", 6)
+        result = _check_rule_3(plotted_values, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)
 
-    # Rule 4: 14 consecutive alternating (WARNING)
+    # Rule 4: N consecutive alternating (WARNING, default 14)
     if 4 in rules_to_check:
-        result = _check_rule_4(plotted_values, sample_ids)
+        r4_params = rule_params.get(4, {})
+        consecutive = r4_params.get("consecutive_points", 14)
+        result = _check_rule_4(plotted_values, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)
 
@@ -463,25 +476,26 @@ def _check_rule_2(
     values: list[float],
     center_line: float,
     sample_ids: list[int],
+    consecutive_points: int = 9,
 ) -> AttributeRuleResult | None:
-    """Rule 2: Nine consecutive on same side of center line."""
-    if len(values) < 9:
+    """Rule 2: N consecutive on same side of center line (default 9)."""
+    if len(values) < consecutive_points:
         return None
 
-    last_9 = values[-9:]
-    all_above = all(v > center_line for v in last_9)
-    all_below = all(v < center_line for v in last_9)
+    last_n = values[-consecutive_points:]
+    all_above = all(v > center_line for v in last_n)
+    all_below = all(v < center_line for v in last_n)
 
     if all_above or all_below:
         side = "above" if all_above else "below"
-        start_idx = len(values) - 9
+        start_idx = len(values) - consecutive_points
         return AttributeRuleResult(
             rule_id=2,
             rule_name="Shift",
             triggered=True,
             severity="WARNING",
             involved_indices=list(range(start_idx, len(values))),
-            message=f"9 consecutive points {side} center line",
+            message=f"{consecutive_points} consecutive points {side} center line",
         )
     return None
 
@@ -489,26 +503,27 @@ def _check_rule_2(
 def _check_rule_3(
     values: list[float],
     sample_ids: list[int],
+    consecutive_points: int = 6,
 ) -> AttributeRuleResult | None:
-    """Rule 3: Six consecutive increasing or decreasing."""
-    if len(values) < 6:
+    """Rule 3: N consecutive increasing or decreasing (default 6)."""
+    if len(values) < consecutive_points:
         return None
 
-    last_6 = values[-6:]
+    last_n = values[-consecutive_points:]
 
-    all_increasing = all(last_6[i] < last_6[i + 1] for i in range(5))
-    all_decreasing = all(last_6[i] > last_6[i + 1] for i in range(5))
+    all_increasing = all(last_n[i] < last_n[i + 1] for i in range(consecutive_points - 1))
+    all_decreasing = all(last_n[i] > last_n[i + 1] for i in range(consecutive_points - 1))
 
     if all_increasing or all_decreasing:
         direction = "increasing" if all_increasing else "decreasing"
-        start_idx = len(values) - 6
+        start_idx = len(values) - consecutive_points
         return AttributeRuleResult(
             rule_id=3,
             rule_name="Trend",
             triggered=True,
             severity="WARNING",
             involved_indices=list(range(start_idx, len(values))),
-            message=f"6 consecutive points {direction}",
+            message=f"{consecutive_points} consecutive points {direction}",
         )
     return None
 
@@ -516,30 +531,31 @@ def _check_rule_3(
 def _check_rule_4(
     values: list[float],
     sample_ids: list[int],
+    consecutive_points: int = 14,
 ) -> AttributeRuleResult | None:
-    """Rule 4: Fourteen consecutive alternating up and down."""
-    if len(values) < 14:
+    """Rule 4: N consecutive alternating up and down (default 14)."""
+    if len(values) < consecutive_points:
         return None
 
-    last_14 = values[-14:]
+    last_n = values[-consecutive_points:]
 
     alternating = True
-    for i in range(12):
-        dir1 = last_14[i + 1] - last_14[i]
-        dir2 = last_14[i + 2] - last_14[i + 1]
+    for i in range(consecutive_points - 2):
+        dir1 = last_n[i + 1] - last_n[i]
+        dir2 = last_n[i + 2] - last_n[i + 1]
         if dir1 * dir2 >= 0:  # Same sign or zero means not alternating
             alternating = False
             break
 
     if alternating:
-        start_idx = len(values) - 14
+        start_idx = len(values) - consecutive_points
         return AttributeRuleResult(
             rule_id=4,
             rule_name="Alternator",
             triggered=True,
             severity="WARNING",
             involved_indices=list(range(start_idx, len(values))),
-            message="14 consecutive points alternating up and down",
+            message=f"{consecutive_points} consecutive points alternating up and down",
         )
     return None
 
@@ -705,6 +721,13 @@ async def process_attribute_sample(
     char_stored_center_line = char.stored_center_line
     enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
     rule_require_ack = {rule.rule_id: rule.require_acknowledgement for rule in char.rules}
+    rule_params: dict[int, dict] = {}
+    for rule in char.rules:
+        if rule.is_enabled and rule.parameters:
+            try:
+                rule_params[rule.rule_id] = json.loads(rule.parameters)
+            except (ValueError, TypeError):
+                pass
 
     # Use default_sample_size from characteristic if not provided
     if sample_size is None and char.default_sample_size is not None:
@@ -828,6 +851,7 @@ async def process_attribute_sample(
         lcl_values=lcl_values,
         sample_ids=window_sample_ids,
         enabled_rules=enabled_rules,
+        rule_params=rule_params if rule_params else None,
     )
 
     # Step 7: Create violations for triggered rules
