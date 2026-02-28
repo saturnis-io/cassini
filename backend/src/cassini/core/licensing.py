@@ -2,7 +2,7 @@
 
 Validates Ed25519-signed JWT license files for Commercial edition features.
 Community edition (no license) provides core SPC functionality.
-Commercial edition (valid license) unlocks enterprise features.
+Commercial edition (valid license AND not expired) unlocks enterprise features.
 """
 
 import structlog
@@ -13,21 +13,40 @@ import jwt
 
 logger = structlog.get_logger(__name__)
 
-# Saturnis Ed25519 public key for license validation.
-# Replace with actual production public key before release.
-_DEFAULT_PUBLIC_KEY = b"""-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAPlaceholderKeyReplaceWithActualProductionKey00=
------END PUBLIC KEY-----
-"""
-
 
 class LicenseService:
     """Validates and exposes license state for feature gating."""
 
-    def __init__(self, license_path: str | None, public_key: bytes = _DEFAULT_PUBLIC_KEY):
+    def __init__(
+        self,
+        license_path: str | None,
+        public_key_path: str | None = None,
+        public_key: bytes | None = None,
+    ):
         self._claims: dict | None = None
         self._valid = False
-        self._load(license_path, public_key)
+
+        # Resolve public key: explicit bytes (testing) > file path (production)
+        resolved_key = public_key or self._load_public_key_file(public_key_path)
+        if resolved_key:
+            self._load(license_path, resolved_key)
+        elif license_path:
+            logger.warning(
+                "License file specified but no public key configured — running as Community Edition"
+            )
+        else:
+            logger.info("No license file configured — running as Community Edition")
+
+    @staticmethod
+    def _load_public_key_file(path: str | None) -> bytes | None:
+        """Load an Ed25519 public key PEM from disk."""
+        if not path:
+            return None
+        p = Path(path)
+        if not p.exists():
+            logger.warning("License public key file not found at %s", path)
+            return None
+        return p.read_bytes()
 
     def _load(self, license_path: str | None, public_key: bytes) -> None:
         if not license_path:
@@ -58,21 +77,22 @@ class LicenseService:
 
     @property
     def is_commercial(self) -> bool:
-        return self._valid
+        """A license must be valid AND not expired to unlock commercial features."""
+        return self._valid and not self.is_expired
 
     @property
     def edition(self) -> str:
-        return "commercial" if self._valid else "community"
+        return "commercial" if self.is_commercial else "community"
 
     @property
     def tier(self) -> str:
-        if not self._valid or not self._claims:
+        if not self.is_commercial:
             return "community"
         return self._claims.get("tier", "professional")
 
     @property
     def max_plants(self) -> int:
-        if not self._valid or not self._claims:
+        if not self.is_commercial:
             return 1
         return self._claims.get("max_plants", 1)
 
@@ -101,11 +121,20 @@ class LicenseService:
         """Return license status for the API endpoint."""
         if not self._valid:
             return {"edition": "community", "tier": "community", "max_plants": 1}
+        if self.is_expired:
+            return {
+                "edition": "community",
+                "tier": "community",
+                "max_plants": 1,
+                "is_expired": True,
+                "expires_at": self._claims.get("expires_at") if self._claims else None,
+                "licensed_tier": self._claims.get("tier", "professional") if self._claims else "professional",
+            }
         return {
             "edition": "commercial",
-            "tier": self.tier,
-            "max_plants": self.max_plants,
+            "tier": self._claims.get("tier", "professional") if self._claims else "professional",
+            "max_plants": self._claims.get("max_plants", 1) if self._claims else 1,
             "expires_at": self._claims.get("expires_at") if self._claims else None,
             "days_until_expiry": self.days_until_expiry,
-            "is_expired": self.is_expired,
+            "is_expired": False,
         }

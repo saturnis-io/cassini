@@ -58,6 +58,7 @@ class Settings(BaseSettings):
 
     # Licensing
     license_file: str = ""
+    license_public_key_file: str = ""  # Path to Ed25519 public key PEM
 
     @property
     def cors_origin_list(self) -> list[str]:

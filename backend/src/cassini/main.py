@@ -84,7 +84,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting Cassini application")
 
     # Initialize license service
-    license_service = LicenseService(license_path=settings.license_file or None)
+    license_service = LicenseService(
+        license_path=settings.license_file or None,
+        public_key_path=settings.license_public_key_file or None,
+    )
     app.state.license_service = license_service
     logger.info("License service initialized", edition=license_service.edition)
 
@@ -426,7 +429,10 @@ app.include_router(brokers_router)
 app.include_router(license_router)
 
 # Commercial routers — only registered with a valid commercial license
-_license_svc = LicenseService(license_path=settings.license_file or None)
+_license_svc = LicenseService(
+    license_path=settings.license_file or None,
+    public_key_path=settings.license_public_key_file or None,
+)
 if _license_svc.is_commercial:
     app.include_router(anomaly_router)
     app.include_router(audit_router)
