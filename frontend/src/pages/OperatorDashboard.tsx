@@ -19,6 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
+import { FeatureGate } from '@/components/FeatureGate'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
@@ -546,7 +547,11 @@ export function OperatorDashboard() {
                           {quickStats.cpk.toFixed(2)}
                         </span>
                       ) : undefined,
-                    content: <CapabilityCard characteristicId={selectedId} />,
+                    content: (
+                      <FeatureGate>
+                        <CapabilityCard characteristicId={selectedId} />
+                      </FeatureGate>
+                    ),
                   }] : []),
                   {
                     id: 'annotations',
@@ -577,7 +582,9 @@ export function OperatorDashboard() {
       </div>
 
       {/* Pending Signature Approvals */}
-      <PendingApprovalsDashboard compact />
+      <FeatureGate>
+        <PendingApprovalsDashboard compact />
+      </FeatureGate>
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}
