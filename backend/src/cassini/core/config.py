@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # Dev mode -- disables enterprise enforcement (forced password change, etc.)
     dev_mode: bool = False
 
+    # Licensing
+    license_file: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Parse comma-separated CORS origins into a list."""
