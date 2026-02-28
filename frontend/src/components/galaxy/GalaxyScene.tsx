@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
+import { ConstellationLines } from '@/lib/galaxy/ConstellationLines'
 import { DEFAULT_LOGIN_CONFIG } from '@/lib/galaxy/types'
+import { computeConstellationLayout } from '@/lib/galaxy/constellation-layout'
 import { useChartData } from '@/api/hooks/characteristics'
-import { useCapability } from '@/api/hooks/quality'
+import { useCharacteristics, useHierarchyTree, useCapability } from '@/api/hooks'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import {
   controlLimitsToGap,
@@ -14,62 +16,95 @@ import {
 
 interface GalaxySceneProps {
   className?: string
-  characteristicId?: number
+  focusedCharId?: number
 }
 
-export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
+/** Shared color palette for all planet systems */
+const colors = {
+  navy: new THREE.Color('#080C16'),
+  gold: new THREE.Color('#D4AF37'),
+  cream: new THREE.Color('#F4F1DE'),
+  orange: new THREE.Color('#E05A3D'),
+  muted: new THREE.Color('#4B5563'),
+}
+
+export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const systemRef = useRef<PlanetSystem | null>(null)
+
+  // Three.js scene objects stored in refs so population effect can access them
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const starsRef = useRef<THREE.Points | null>(null)
+  const clockRef = useRef<THREE.Clock | null>(null)
+  const frameIdRef = useRef<number>(0)
+
+  // Multi-planet state
+  const systemsRef = useRef<Map<number, PlanetSystem>>(new Map())
+  const linesRef = useRef<ConstellationLines | null>(null)
+  const violatingIdsRef = useRef<Set<number>>(new Set())
+
+  // Focused system ref (for data sync)
+  const focusedSystemRef = useRef<PlanetSystem | null>(null)
+
   const { subscribe, unsubscribe, isConnected } = useWebSocketContext()
 
+  // Fetch hierarchy tree and all characteristics for the plant
+  const { data: hierarchyTree } = useHierarchyTree()
+  const { data: charsData } = useCharacteristics({ per_page: 5000 })
+  const characteristics = useMemo(() => charsData?.items ?? [], [charsData])
+
+  // Compute layout positions from hierarchy + characteristics
+  const positions = useMemo(() => {
+    if (!hierarchyTree || characteristics.length === 0) return null
+    return computeConstellationLayout(hierarchyTree, characteristics)
+  }, [hierarchyTree, characteristics])
+
   // Fetch chart data and capability for the focused characteristic
-  // Disable polling when WebSocket is delivering live updates
   const { data: chartData } = useChartData(
-    characteristicId ?? 0,
+    focusedCharId ?? 0,
     { limit: 25 },
     { refetchInterval: isConnected ? false : 5000 },
   )
-  const { data: capability } = useCapability(characteristicId ?? 0)
+  const { data: capability } = useCapability(focusedCharId ?? 0)
 
-  // Setup Three.js scene (runs once)
+  // -------------------------------------------------------------------------
+  // Effect 1: Setup Three.js renderer, scene, camera, stars, animation loop
+  // Runs once on mount. Does NOT depend on data.
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
-    // Same color palette as login page
-    const colors = {
-      navy: new THREE.Color('#080C16'),
-      gold: new THREE.Color('#D4AF37'),
-      cream: new THREE.Color('#F4F1DE'),
-      orange: new THREE.Color('#E05A3D'),
-      muted: new THREE.Color('#4B5563'),
-    }
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(container.clientWidth, container.clientHeight)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
+    rendererRef.current = renderer
 
-    // Scene + fog
+    // Scene + fog (lower density for galaxy scale)
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(colors.navy.getHex(), 0.003)
+    scene.fog = new THREE.FogExp2(colors.navy.getHex(), 0.0005)
+    sceneRef.current = scene
 
-    // Camera — positioned slightly differently than login for a more "overview" feel
+    // Camera — pulled way back for galaxy overview
     const camera = new THREE.PerspectiveCamera(
       45,
       container.clientWidth / container.clientHeight,
       0.1,
-      1000,
+      2000,
     )
-    camera.position.set(0, 30, 60)
+    camera.position.set(0, 300, 500)
     camera.lookAt(0, 0, 0)
+    cameraRef.current = camera
 
-    // Background stars (same as login page)
+    // Background stars — larger sphere with more stars for galaxy scale
+    const starCount = 3000
     const starsGeo = new THREE.BufferGeometry()
-    const starPositions = new Float32Array(1000 * 3)
-    for (let i = 0; i < 1000 * 3; i += 3) {
-      const r = 100 + Math.random() * 200
+    const starPositions = new Float32Array(starCount * 3)
+    for (let i = 0; i < starCount * 3; i += 3) {
+      const r = 500 + Math.random() * 1000
       const theta = Math.random() * Math.PI * 2
       const p = Math.acos(Math.random() * 2 - 1)
       starPositions[i] = r * Math.sin(p) * Math.cos(theta)
@@ -87,24 +122,26 @@ export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
       }),
     )
     scene.add(starsMesh)
-
-    // Single planet system (proof of concept — uses random login animation)
-    const system = new PlanetSystem({ ...DEFAULT_LOGIN_CONFIG, colors })
-    system.group.rotation.z = -20 * (Math.PI / 180)
-    system.group.rotation.x = 12 * (Math.PI / 180)
-    scene.add(system.group)
-
-    // Store system in ref for data sync effect
-    systemRef.current = system
+    starsRef.current = starsMesh
 
     // Animation loop
     const clock = new THREE.Clock()
-    let frameId: number
+    clockRef.current = clock
 
     function animate() {
-      frameId = requestAnimationFrame(animate)
+      frameIdRef.current = requestAnimationFrame(animate)
       const time = clock.getElapsedTime()
-      system.update(time)
+
+      // Update all planet systems
+      for (const system of systemsRef.current.values()) {
+        system.update(time)
+      }
+
+      // Update constellation lines
+      if (linesRef.current) {
+        linesRef.current.update(time, violatingIdsRef.current)
+      }
+
       starsMesh.rotation.y += 0.0001
       renderer.render(scene, camera)
     }
@@ -116,29 +153,143 @@ export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
       camera.aspect = container.clientWidth / container.clientHeight
       camera.updateProjectionMatrix()
       renderer.setSize(container.clientWidth, container.clientHeight)
-      system.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      const pr = Math.min(window.devicePixelRatio, 2)
+      for (const system of systemsRef.current.values()) {
+        system.setPixelRatio(pr)
+      }
     }
     window.addEventListener('resize', handleResize)
 
     // Cleanup
     return () => {
-      systemRef.current = null
       window.removeEventListener('resize', handleResize)
-      cancelAnimationFrame(frameId)
-      system.dispose()
+      cancelAnimationFrame(frameIdRef.current)
+
+      // Dispose all planet systems
+      for (const system of systemsRef.current.values()) {
+        system.dispose()
+      }
+      systemsRef.current.clear()
+
+      // Dispose constellation lines
+      if (linesRef.current) {
+        scene.remove(linesRef.current.lineSegments)
+        linesRef.current.dispose()
+        linesRef.current = null
+      }
+
+      // Dispose stars
       starsGeo.dispose()
       ;(starsMesh.material as THREE.Material).dispose()
+
+      // Dispose renderer
       renderer.dispose()
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement)
       }
+
+      sceneRef.current = null
+      cameraRef.current = null
+      rendererRef.current = null
+      starsRef.current = null
+      clockRef.current = null
+      focusedSystemRef.current = null
     }
   }, [])
 
-  // Sync data to the PlanetSystem when chart data changes
+  // -------------------------------------------------------------------------
+  // Effect 2: Populate scene with planet systems + constellation lines
+  // Runs when hierarchy/characteristics data arrives or changes.
+  // -------------------------------------------------------------------------
   useEffect(() => {
-    const system = systemRef.current
-    if (!system || !characteristicId) return
+    const scene = sceneRef.current
+    if (!scene || !positions || characteristics.length === 0) return
+
+    // Tear down previous population if any
+    for (const system of systemsRef.current.values()) {
+      scene.remove(system.group)
+      system.dispose()
+    }
+    systemsRef.current.clear()
+    focusedSystemRef.current = null
+
+    if (linesRef.current) {
+      scene.remove(linesRef.current.lineSegments)
+      linesRef.current.dispose()
+      linesRef.current = null
+    }
+
+    // Create one PlanetSystem per characteristic at dot LOD
+    const systems = new Map<number, PlanetSystem>()
+    const violatingIds = new Set<number>()
+
+    for (const char of characteristics) {
+      const pos = positions.get(char.id)
+      if (!pos) continue
+
+      const system = new PlanetSystem({ ...DEFAULT_LOGIN_CONFIG, colors }, 'dot')
+      system.group.position.set(pos.x, 0, pos.z)
+      scene.add(system.group)
+      systems.set(char.id, system)
+
+      // Set initial color based on in_control status
+      if (char.in_control === false) {
+        system.setDotColor(new THREE.Color('#E05A3D'))
+        violatingIds.add(char.id)
+      }
+    }
+
+    systemsRef.current = systems
+    violatingIdsRef.current = violatingIds
+
+    // Create constellation lines between siblings
+    const constellationLines = new ConstellationLines(characteristics, positions)
+    scene.add(constellationLines.lineSegments)
+    linesRef.current = constellationLines
+
+    // If there's already a focused char, upgrade it to full LOD
+    if (focusedCharId) {
+      const focused = systems.get(focusedCharId)
+      if (focused) {
+        focused.setLOD('full')
+        focusedSystemRef.current = focused
+      }
+    }
+  }, [positions, characteristics, focusedCharId])
+
+  // -------------------------------------------------------------------------
+  // Effect 3: Manage focused planet LOD transitions
+  // When focusedCharId changes, downgrade the old and upgrade the new.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const systems = systemsRef.current
+    if (systems.size === 0) return
+
+    // Downgrade the previously focused system
+    if (focusedSystemRef.current) {
+      focusedSystemRef.current.setLOD('dot')
+    }
+
+    if (!focusedCharId) {
+      focusedSystemRef.current = null
+      return
+    }
+
+    const system = systems.get(focusedCharId)
+    if (system) {
+      system.setLOD('full')
+      focusedSystemRef.current = system
+    } else {
+      focusedSystemRef.current = null
+    }
+  }, [focusedCharId])
+
+  // -------------------------------------------------------------------------
+  // Effect 4: Sync chart data + capability to the focused planet
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const system = focusedSystemRef.current
+    if (!system || !focusedCharId) return
 
     if (chartData) {
       const ucl = chartData.control_limits?.ucl ?? null
@@ -164,6 +315,14 @@ export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
           }))
 
       system.setDataMoons(moonData)
+
+      // Update violation tracking for this characteristic
+      const hasViolation = moonData.some((m) => m.hasViolation)
+      if (hasViolation) {
+        violatingIdsRef.current.add(focusedCharId)
+      } else {
+        violatingIdsRef.current.delete(focusedCharId)
+      }
     }
 
     // Apply Cpk coloring to planet
@@ -171,14 +330,16 @@ export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
       const hex = cpkToColorHex(capability.cpk)
       system.setPlanetColor(new THREE.Color(hex))
     }
-  }, [chartData, capability, characteristicId])
+  }, [chartData, capability, focusedCharId])
 
-  // Subscribe to WebSocket channel for live sample/violation updates
+  // -------------------------------------------------------------------------
+  // Effect 5: WebSocket subscription for live updates on focused characteristic
+  // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!characteristicId) return
-    subscribe(characteristicId)
-    return () => unsubscribe(characteristicId)
-  }, [characteristicId, subscribe, unsubscribe])
+    if (!focusedCharId) return
+    subscribe(focusedCharId)
+    return () => unsubscribe(focusedCharId)
+  }, [focusedCharId, subscribe, unsubscribe])
 
   return (
     <div

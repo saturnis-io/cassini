@@ -12,7 +12,7 @@ export function GalaxyPage() {
     <div className="fixed inset-0 z-50 bg-[#080C16]">
       <GalaxyScene
         className="h-full w-full"
-        characteristicId={charId && !isNaN(charId) ? charId : undefined}
+        focusedCharId={charId && !isNaN(charId) ? charId : undefined}
       />
     </div>
   )
