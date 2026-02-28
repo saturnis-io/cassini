@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useHierarchyTree, useHierarchyCharacteristics, useCharacteristics } from '@/api/hooks'
+import { useHierarchyTreeByPlant, useHierarchyCharacteristics, useCharacteristics } from '@/api/hooks'
 import type { HierarchyNode, Characteristic } from '@/types'
 import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 
@@ -22,6 +22,7 @@ import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 // ---------------------------------------------------------------------------
 
 interface GalaxySidebarProps {
+  plantId: number
   activeConstellationId: number | null
   activeCharacteristicId: number | null
   zoomLevel: ZoomLevel
@@ -179,6 +180,7 @@ function findAncestorsOfMatches(
 // ---------------------------------------------------------------------------
 
 export function GalaxySidebar({
+  plantId,
   activeConstellationId,
   activeCharacteristicId,
   zoomLevel,
@@ -191,8 +193,8 @@ export function GalaxySidebar({
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { data: hierarchyTree } = useHierarchyTree()
-  const { data: charsData } = useCharacteristics({ per_page: 5000 })
+  const { data: hierarchyTree } = useHierarchyTreeByPlant(plantId)
+  const { data: charsData } = useCharacteristics({ plant_id: plantId, per_page: 5000 })
 
   // Build a charId -> hierarchy_id lookup (shared query with GalaxyScene, no extra fetch)
   const charHierarchyMap = useMemo(() => {

@@ -8,7 +8,7 @@ import type { ConstellationPosition } from '@/lib/galaxy/constellation-layout'
 import { CameraController } from '@/lib/galaxy/CameraController'
 import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 import { useChartData } from '@/api/hooks/characteristics'
-import { useCharacteristics, useHierarchyTree, useCapability } from '@/api/hooks'
+import { useCharacteristics, useHierarchyTreeByPlant, useCapability } from '@/api/hooks'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import {
   controlLimitsToGap,
@@ -19,6 +19,7 @@ import {
 
 interface GalaxySceneProps {
   className?: string
+  plantId: number
   initialFocusCharId?: number
   onFocusChange?: (
     charId: number | null,
@@ -42,6 +43,7 @@ const colors = {
 
 export function GalaxyScene({
   className,
+  plantId,
   initialFocusCharId,
   onFocusChange,
   navigateToConstellationId,
@@ -88,9 +90,9 @@ export function GalaxyScene({
 
   const { subscribe, unsubscribe, isConnected } = useWebSocketContext()
 
-  // Fetch hierarchy tree and all characteristics for the plant
-  const { data: hierarchyTree } = useHierarchyTree()
-  const { data: charsData } = useCharacteristics({ per_page: 5000 })
+  // Fetch hierarchy tree and all characteristics for the selected plant
+  const { data: hierarchyTree } = useHierarchyTreeByPlant(plantId)
+  const { data: charsData } = useCharacteristics({ plant_id: plantId, per_page: 5000 })
   const characteristics = useMemo(() => charsData?.items ?? [], [charsData])
 
   // Compute layout positions from hierarchy + characteristics
