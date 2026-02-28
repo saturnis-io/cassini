@@ -26,7 +26,7 @@ test.describe('Connectivity', () => {
       timeout: 10000,
     })
 
-    // Monitor tab should be active by default
+    // Monitor tab should be active by default (redirects to /connectivity/monitor)
     await expect(page.getByText('Monitor')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('connectivity-hub-monitor', {
@@ -36,7 +36,7 @@ test.describe('Connectivity', () => {
   })
 
   test('monitor tab shows empty state', async ({ page }) => {
-    await page.goto('/connectivity')
+    await page.goto('/connectivity/monitor')
     await page.waitForTimeout(2000)
 
     await expect(page.getByText(/No data sources configured/i)).toBeVisible({
@@ -71,9 +71,13 @@ test.describe('Connectivity', () => {
     await page.getByRole('button', { name: 'Add Server' }).first().click()
     await page.waitForTimeout(1000)
 
-    // Protocol selector shows MQTT Broker and OPC-UA Server cards
-    await expect(page.getByRole('heading', { name: 'MQTT Broker' })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('heading', { name: 'OPC-UA Server' })).toBeVisible({ timeout: 5000 })
+    // Protocol selector shows MQTT Broker and OPC-UA Server cards (h3 headings inside buttons)
+    await expect(page.getByRole('heading', { name: 'MQTT Broker' })).toBeVisible({
+      timeout: 5000,
+    })
+    await expect(page.getByRole('heading', { name: 'OPC-UA Server' })).toBeVisible({
+      timeout: 5000,
+    })
 
     await test.info().attach('connectivity-protocol-selector', {
       body: await page.screenshot(),
@@ -92,8 +96,10 @@ test.describe('Connectivity', () => {
     await page.getByRole('button', { name: /MQTT Broker/i }).first().click()
     await page.waitForTimeout(1000)
 
-    // Verify MQTT form heading and fields (labels are <label> without htmlFor, use heading + placeholder)
-    await expect(page.getByRole('heading', { name: 'New MQTT Broker' })).toBeVisible({ timeout: 5000 })
+    // Verify MQTT form heading and fields
+    await expect(page.getByRole('heading', { name: 'New MQTT Broker' })).toBeVisible({
+      timeout: 5000,
+    })
     await expect(page.getByPlaceholder('Production MQTT')).toBeVisible({ timeout: 5000 })
     await expect(page.getByPlaceholder('mqtt.example.com')).toBeVisible({ timeout: 5000 })
 
@@ -114,8 +120,10 @@ test.describe('Connectivity', () => {
     await page.getByRole('button', { name: /OPC-UA Server/i }).first().click()
     await page.waitForTimeout(1000)
 
-    // Verify OPC-UA form heading and fields (labels are <label> without htmlFor, use heading + placeholder)
-    await expect(page.getByRole('heading', { name: 'New OPC-UA Server' })).toBeVisible({ timeout: 5000 })
+    // Verify OPC-UA form heading and fields
+    await expect(page.getByRole('heading', { name: 'New OPC-UA Server' })).toBeVisible({
+      timeout: 5000,
+    })
     await expect(page.getByPlaceholder('PLC Controller 1')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('connectivity-opcua-form', {

@@ -2,30 +2,38 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet } from './helpers/api'
 import { switchToPlant } from './helpers/seed'
-import { getManifest } from './helpers/manifest'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const CSV_FILE_PATH = path.resolve(__dirname, 'fixtures/test-data.csv')
 
 test.describe('CSV Import Wizard', () => {
-  let token: string
-  let plantId: number
-  let characteristicId: number
-
-  test.beforeAll(async ({ request }) => {
-    token = await getAuthToken(request)
-    const m = getManifest().csv_import
-    plantId = m.plant_id
-    characteristicId = m.char_id
-  })
-
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
     await switchToPlant(page, 'CSV Import Plant')
   })
+
+  /** Select "Test Char" in the CharacteristicPicker dropdown using search */
+  async function selectCharInPicker(page: import('@playwright/test').Page) {
+    const pickerTrigger = page.locator('button').filter({ hasText: '-- None --' }).first()
+    if (!(await pickerTrigger.isVisible({ timeout: 3000 }).catch(() => false))) return
+
+    await pickerTrigger.click()
+    await page.waitForTimeout(500)
+
+    // Use the search box to filter — avoids tree expansion and sidebar collision
+    const searchBox = page.getByPlaceholder('Search characteristics...')
+    await expect(searchBox).toBeVisible({ timeout: 3000 })
+    await searchBox.fill('Test Char')
+    await page.waitForTimeout(500)
+
+    // Click the filtered result
+    const charOption = page.getByRole('button', { name: 'Test Char', exact: true })
+    await expect(charOption).toBeVisible({ timeout: 5000 })
+    await charOption.click()
+    await page.waitForTimeout(500)
+  }
 
   test('import CSV button visible on data entry page', async ({ page }) => {
     await page.goto('/data-entry')
@@ -131,35 +139,22 @@ test.describe('CSV Import Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click()
     await page.waitForTimeout(1000)
 
-    // "Target Characteristic" dropdown should be visible
+    // "Target Characteristic" label should be visible
     await expect(page.getByText('Target Characteristic')).toBeVisible({ timeout: 5000 })
-    const charSelect = page.locator('select').first()
-    await expect(charSelect).toBeVisible({ timeout: 3000 })
 
-    // Select the seeded characteristic (may be auto-selected if only one exists)
-    const options = charSelect.locator('option')
-    const optionCount = await options.count()
-    for (let i = 0; i < optionCount; i++) {
-      const text = await options.nth(i).textContent()
-      if (text && text.includes('Test Char')) {
-        const value = await options.nth(i).getAttribute('value')
-        if (value) {
-          await charSelect.selectOption(value)
-          break
-        }
-      }
-    }
-    await page.waitForTimeout(500)
+    // Select "Test Char" via the CharacteristicPicker (expands tree nodes)
+    await selectCharInPicker(page)
 
     // Column mapping table should be visible with headers
     await expect(page.getByText('Target Field')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('columnheader', { name: 'File Column' })).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('File Column').first()).toBeVisible({ timeout: 3000 })
 
     // Auto-suggested mappings: the target field labels should be listed in the mapping table
-    await expect(page.getByRole('cell', { name: 'Timestamp' }).first()).toBeVisible({ timeout: 3000 })
-    await expect(page.getByRole('cell', { name: 'Value' }).first()).toBeVisible({ timeout: 3000 })
-    await expect(page.getByRole('cell', { name: 'Batch' }).first()).toBeVisible({ timeout: 3000 })
-    await expect(page.getByRole('cell', { name: 'Operator' }).first()).toBeVisible({ timeout: 3000 })
+    // Use exact:true to avoid matching cells like "timestamp (datetime)" or "batch_number (string)"
+    await expect(page.getByRole('cell', { name: 'Timestamp', exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(page.getByRole('cell', { name: 'Value*', exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(page.getByRole('cell', { name: 'Batch', exact: true })).toBeVisible({ timeout: 3000 })
+    await expect(page.getByRole('cell', { name: 'Operator', exact: true })).toBeVisible({ timeout: 3000 })
 
     // Validate button should be enabled after characteristic is selected
     const validateButton = page.getByRole('button', { name: /Validate/ })
@@ -187,20 +182,8 @@ test.describe('CSV Import Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click()
     await page.waitForTimeout(1000)
 
-    // Ensure the characteristic is selected (may be auto-selected)
-    const charSelect = page.locator('select').first()
-    const options = charSelect.locator('option')
-    const optionCount = await options.count()
-    for (let i = 0; i < optionCount; i++) {
-      const text = await options.nth(i).textContent()
-      if (text && text.includes('Test Char')) {
-        const value = await options.nth(i).getAttribute('value')
-        if (value) {
-          await charSelect.selectOption(value)
-          break
-        }
-      }
-    }
+    // Select "Test Char" via the CharacteristicPicker (expands tree nodes)
+    await selectCharInPicker(page)
 
     // Click Validate to advance to preview step
     const validateButton = page.getByRole('button', { name: /Validate/ })
@@ -208,7 +191,7 @@ test.describe('CSV Import Wizard', () => {
     await validateButton.click()
     await page.waitForTimeout(3000)
 
-    // "Valid Rows" count should be visible (use exact: true to avoid matching "valid rows" in preview heading)
+    // "Valid Rows" count should be visible
     await expect(page.getByText('Valid Rows', { exact: true })).toBeVisible({ timeout: 10000 })
 
     // "Total Rows" count should be visible
@@ -240,20 +223,8 @@ test.describe('CSV Import Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click()
     await page.waitForTimeout(1000)
 
-    // Ensure the characteristic is selected (may be auto-selected)
-    const charSelect = page.locator('select').first()
-    const options = charSelect.locator('option')
-    const optCount = await options.count()
-    for (let i = 0; i < optCount; i++) {
-      const text = await options.nth(i).textContent()
-      if (text && text.includes('Test Char')) {
-        const value = await options.nth(i).getAttribute('value')
-        if (value) {
-          await charSelect.selectOption(value)
-          break
-        }
-      }
-    }
+    // Select "Test Char" via the CharacteristicPicker (expands tree nodes)
+    await selectCharInPicker(page)
 
     // Click Validate
     const validateButton = page.getByRole('button', { name: /Validate/ })

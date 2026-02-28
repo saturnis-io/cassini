@@ -22,10 +22,11 @@ test.describe('Settings Extended', () => {
     await page.goto('/settings/appearance')
     await page.waitForTimeout(2000)
 
-    // Theme mode options should be visible
-    await expect(page.getByText('Light').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Dark').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('System').first()).toBeVisible({ timeout: 5000 })
+    // Theme mode options should be visible within the main settings content
+    const content = page.locator('main')
+    await expect(content.getByText('Light').first()).toBeVisible({ timeout: 5000 })
+    await expect(content.getByText('Dark').first()).toBeVisible({ timeout: 5000 })
+    await expect(content.getByText('System').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('appearance-theme-options', {
       body: await page.screenshot(),
@@ -37,8 +38,9 @@ test.describe('Settings Extended', () => {
     await page.goto('/settings/appearance')
     await page.waitForTimeout(2000)
 
-    // Click the "Dark" theme option button
-    await page.getByText('Dark').first().click()
+    // Click the "Dark" theme option button (scope to main to avoid header theme toggle)
+    const content = page.locator('main')
+    await content.getByText('Dark').first().click()
     await page.waitForTimeout(1000)
 
     // Verify the html element has the "dark" class
@@ -50,7 +52,7 @@ test.describe('Settings Extended', () => {
     })
 
     // Reset back to Light
-    await page.getByText('Light').first().click()
+    await content.getByText('Light').first().click()
     await page.waitForTimeout(1000)
 
     await test.info().attach('light-mode-restored', {
@@ -112,7 +114,7 @@ test.describe('Settings Extended', () => {
     await page.waitForTimeout(1000)
 
     // Fill the key name input
-    await page.getByPlaceholder(/Key name/).fill('E2E Test Key')
+    await page.getByPlaceholder(/Key name/).first().fill('E2E Test Key')
     await page.waitForTimeout(500)
 
     await test.info().attach('api-key-form-filled', {
@@ -148,7 +150,7 @@ test.describe('Settings Extended', () => {
     }
     await page.waitForTimeout(1000)
 
-    await page.getByPlaceholder(/Key name/).fill('E2E Alert Key')
+    await page.getByPlaceholder(/Key name/).first().fill('E2E Alert Key')
     await page.waitForTimeout(500)
 
     await page.getByRole('button', { name: 'Create', exact: true }).click()

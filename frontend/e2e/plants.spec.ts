@@ -65,10 +65,12 @@ test.describe('Plant Management', () => {
     const token = await getAuthToken(request)
     const existingPlants = await apiGet(request, '/plants/', token)
     if (existingPlants.length < 2) {
-      await (await request.post('http://localhost:8000/api/v1/plants/', {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        data: { name: 'Switch Target', code: 'SWITCH' },
-      })).json()
+      await (
+        await request.post('http://localhost:8000/api/v1/plants/', {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          data: { name: 'Switch Target', code: 'SWITCH' },
+        })
+      ).json()
     }
 
     await page.goto('/dashboard')
@@ -125,8 +127,10 @@ test.describe('Plant Management', () => {
     await page.goto('/settings/sites')
     await page.waitForTimeout(2000)
 
-    // Find the plant row by code "EDITTEST" (name may have been changed)
-    const row = page.locator('.divide-y > div').filter({ hasText: 'EDITTEST' })
+    // Find the plant row by code "EDITTEST" — plant list is inside .bg-muted.divide-y
+    const row = page
+      .locator('.bg-muted.divide-y > div, .bg-muted > div')
+      .filter({ hasText: 'EDITTEST' })
     await row.locator('button[title="Edit site"]').click()
     await page.waitForTimeout(500)
 
@@ -160,10 +164,12 @@ test.describe('Plant Management', () => {
   test('delete plant removes it from the list', async ({ page, request }) => {
     // Create a plant to delete (may already exist from prior run)
     const token = await getAuthToken(request)
-    await (await request.post('http://localhost:8000/api/v1/plants/', {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      data: { name: 'Delete Me', code: 'DELME' },
-    })).json()
+    await (
+      await request.post('http://localhost:8000/api/v1/plants/', {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        data: { name: 'Delete Me', code: 'DELME' },
+      })
+    ).json()
 
     await page.goto('/settings/sites')
     await page.waitForTimeout(2000)
@@ -172,7 +178,9 @@ test.describe('Plant Management', () => {
     await expect(page.getByText('Delete Me').first()).toBeVisible({ timeout: 5000 })
 
     // Find the plant row — it may already be inactive from a prior run
-    const row = page.locator('.divide-y > div').filter({ hasText: 'Delete Me' })
+    const row = page
+      .locator('.bg-muted.divide-y > div, .bg-muted > div')
+      .filter({ hasText: 'Delete Me' })
     const deactivateButton = row.locator('button[title="Deactivate site"]')
 
     // Only deactivate if the button exists (plant is currently active)
@@ -182,12 +190,14 @@ test.describe('Plant Management', () => {
     }
 
     // Now click the delete button (appears for inactive plants)
-    const deleteRow = page.locator('.divide-y > div').filter({ hasText: 'Delete Me' })
+    const deleteRow = page
+      .locator('.bg-muted.divide-y > div, .bg-muted > div')
+      .filter({ hasText: 'Delete Me' })
     await deleteRow.locator('button[title="Delete site"]').click()
     await page.waitForTimeout(500)
 
     // Confirm deletion in the dialog — scope to the modal overlay to avoid matching the row button
-    const dialog = page.locator('[role="dialog"], .fixed.inset-0').last()
+    const dialog = page.locator('.fixed.inset-0').last()
 
     await test.info().attach('delete-confirmation-dialog', {
       body: await page.screenshot(),

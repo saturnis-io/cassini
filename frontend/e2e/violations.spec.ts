@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet, apiPost } from './helpers/api'
+import { getAuthToken, apiGet } from './helpers/api'
 import { getManifest } from './helpers/manifest'
+import { switchToPlant } from './helpers/seed'
 
 test.describe('Violations', () => {
   let token: string
@@ -18,23 +19,15 @@ test.describe('Violations', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
 
-    // Switch to test plant using [role="option"] for precise matching
-    const plantSelector = page.locator('button[aria-haspopup="listbox"]')
-    await expect(plantSelector).toBeVisible({ timeout: 10000 })
-    await plantSelector.click()
-    const listbox = page.locator('[role="listbox"]')
-    await expect(listbox).toBeVisible({ timeout: 3000 })
-    const targetOption = listbox.locator('[role="option"]').filter({ hasText: 'Violations Plant' })
-    if (await targetOption.isVisible({ timeout: 2000 })) {
-      await targetOption.click()
-    } else {
-      await page.keyboard.press('Escape')
-    }
+    // Switch to test plant
+    await switchToPlant(page, 'Violations Plant')
   })
 
   test('violations page renders with table', async ({ page }) => {
     await page.goto('/violations')
+    // The heading uses i18n key "title" = "Violations"
     await expect(page.getByRole('heading', { name: 'Violations' })).toBeVisible({ timeout: 10000 })
+    // Stats card uses i18n key "stats.totalViolations" = "Total Violations"
     await expect(page.getByText('Total Violations')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('violations-page-stats', {
@@ -53,14 +46,15 @@ test.describe('Violations', () => {
     await page.goto('/violations')
     await page.waitForTimeout(3000)
 
-    // Switch filter to "All" to see all violations (exact: true to avoid matching "All time")
+    // Switch filter to "All" to see all violations
+    // Filter buttons use i18n: "Pending", "Informational", "Acknowledged", "All"
     const allButton = page.getByRole('button', { name: 'All', exact: true })
     if (await allButton.isVisible({ timeout: 3000 })) {
       await allButton.click()
       await page.waitForTimeout(1000)
     }
 
-    // Should see violation rows in the table
+    // Should see violation rows in the table (desktop layout uses <table>)
     const table = page.locator('table')
     await expect(table).toBeVisible({ timeout: 5000 })
 
@@ -77,7 +71,11 @@ test.describe('Violations', () => {
 
   test('acknowledge a violation changes its status', async ({ page, request }) => {
     // First check if there are unacknowledged violations
-    const violations = await apiGet(request, `/violations/?acknowledged=false&requires_acknowledgement=true&limit=1`, token)
+    const violations = await apiGet(
+      request,
+      `/violations/?acknowledged=false&requires_acknowledgement=true&limit=1`,
+      token,
+    )
 
     if (violations.total > 0) {
       await page.goto('/violations')
@@ -92,11 +90,21 @@ test.describe('Violations', () => {
         contentType: 'image/png',
       })
 
-      // Click an individual Acknowledge button (exact: true avoids matching "Bulk Acknowledge")
-      const ackButton = page.getByRole('button', { name: 'Acknowledge', exact: true }).first()
+      // Click an individual Acknowledge button (uses i18n: "Acknowledge")
+      const ackButton = page
+        .getByRole('button', { name: 'Acknowledge', exact: true })
+        .first()
       await expect(ackButton).toBeVisible({ timeout: 5000 })
       await ackButton.click()
-      await page.waitForTimeout(3000)
+      await page.waitForTimeout(1000)
+
+      // A reason textarea appears inline — fill it in and confirm
+      const reasonInput = page.locator('textarea[placeholder*="Reason"]')
+      if (await reasonInput.isVisible({ timeout: 3000 })) {
+        await reasonInput.fill('E2E test acknowledgment')
+        await page.getByRole('button', { name: 'Confirm' }).click()
+        await page.waitForTimeout(2000)
+      }
 
       await test.info().attach('violations-after-acknowledge', {
         body: await page.screenshot(),
@@ -123,7 +131,7 @@ test.describe('Violations', () => {
     await ackFilter.click()
     await page.waitForTimeout(1000)
 
-    // Click "All" filter to see all violations (exact: true avoids matching "All time")
+    // Click "All" filter to see all violations
     const allFilter = page.getByRole('button', { name: 'All', exact: true })
     await expect(allFilter).toBeVisible({ timeout: 3000 })
     await allFilter.click()
@@ -156,7 +164,7 @@ test.describe('Violations', () => {
     // Get the options to verify Rule 1 is available
     const options = ruleSelect.locator('option')
     const optionTexts = await options.allTextContents()
-    expect(optionTexts.some(t => t.includes('Rule 1'))).toBeTruthy()
+    expect(optionTexts.some((t) => t.includes('Rule 1'))).toBeTruthy()
 
     // Select Rule 1 to verify the dropdown works
     const rule1Option = options.filter({ hasText: 'Rule 1' }).first()
@@ -179,7 +187,7 @@ test.describe('Violations', () => {
     await page.goto('/violations')
     await page.waitForTimeout(3000)
 
-    // Verify all 5 stats cards are visible
+    // Verify all 5 stats cards are visible (uses i18n keys)
     await expect(page.getByText('Total Violations')).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('Pending').first()).toBeVisible({ timeout: 3000 })
     await expect(page.getByText('Informational').first()).toBeVisible({ timeout: 3000 })
@@ -196,7 +204,7 @@ test.describe('Violations', () => {
     await page.goto('/violations')
     await page.waitForTimeout(3000)
 
-    // The bulk acknowledge button text includes the count: "Bulk Acknowledge (X)"
+    // The bulk acknowledge button text uses i18n: "Bulk Acknowledge (X)"
     const bulkBtn = page.getByRole('button', { name: /Bulk Acknowledge/ })
     await expect(bulkBtn).toBeVisible({ timeout: 5000 })
 

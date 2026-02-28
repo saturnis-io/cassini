@@ -211,8 +211,8 @@ test.describe('Characteristic Configuration', () => {
     await page.getByText('Test Char').first().click()
     await page.waitForTimeout(2000)
 
-    // Characteristic header shows subgroup info for variable type
-    await expect(page.getByText('Subgroup size').first()).toBeVisible({ timeout: 5000 })
+    // CharacteristicForm header shows "Subgroup size: N" (lowercase 's')
+    await expect(page.getByText(/Subgroup size:/i).first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('characteristic-data-type', {
       body: await page.screenshot(),

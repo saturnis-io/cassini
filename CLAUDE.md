@@ -133,7 +133,7 @@ Every approval/sign-off workflow SHOULD integrate with the signature system (`co
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **SPC-client** (6745 symbols, 20127 relationships, 300 execution flows).
+This project is indexed by GitNexus as **SPC-client** (6907 symbols, 20555 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

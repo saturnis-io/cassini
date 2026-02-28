@@ -245,10 +245,13 @@ class OPCUAManager:
 
     async def shutdown(self) -> None:
         """Disconnect all servers and clean up resources."""
+        import asyncio
+
         logger.info("Shutting down OPC-UA manager")
         self._browsing_services.clear()
 
-        for server_id, client in list(self._clients.items()):
+        # Disconnect all clients concurrently with an overall timeout
+        async def _disconnect_one(server_id: int, client) -> None:
             try:
                 await client.disconnect()
             except Exception as e:
@@ -257,6 +260,19 @@ class OPCUAManager:
                     server_id=server_id,
                     error=str(e),
                 )
+
+        if self._clients:
+            tasks = [
+                _disconnect_one(sid, c)
+                for sid, c in self._clients.items()
+            ]
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=15.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("opcua_manager_shutdown_timeout")
 
         self._clients.clear()
         self._states.clear()

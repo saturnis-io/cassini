@@ -83,7 +83,8 @@ test.describe('Navigation', () => {
     await page.waitForTimeout(1000)
 
     await page.getByRole('link', { name: 'Settings' }).click()
-    await page.waitForURL('**/settings', { timeout: 5000 })
+    // Settings now redirects to /settings/account by default
+    await page.waitForURL('**/settings/**', { timeout: 5000 })
     await expect(page).toHaveURL(/\/settings/)
   })
 
@@ -92,7 +93,8 @@ test.describe('Navigation', () => {
     await page.waitForTimeout(1000)
 
     await page.getByRole('link', { name: 'Connectivity' }).click()
-    await page.waitForURL('**/connectivity', { timeout: 5000 })
+    // Connectivity redirects to /connectivity/monitor by default
+    await page.waitForURL('**/connectivity/**', { timeout: 5000 })
     await expect(page).toHaveURL(/\/connectivity/)
 
     await test.info().attach('connectivity-page', {

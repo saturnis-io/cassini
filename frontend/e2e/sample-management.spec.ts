@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet, apiPatch, apiPut } from './helpers/api'
-import { switchToPlant, expandSelectorToChar } from './helpers/seed'
+import { switchToPlant, collapseNavSection } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
 test.describe('Sample Management', () => {
@@ -24,19 +24,50 @@ test.describe('Sample Management', () => {
     await switchToPlant(page, 'Sample Mgmt Plant')
   })
 
-  test('sample history tab accessible', async ({ page }) => {
+  /** Navigate to Sample History tab and select the test characteristic */
+  async function navigateToSampleHistory(page: import('@playwright/test').Page) {
     await page.goto('/data-entry')
     await page.waitForTimeout(2000)
 
-    // Click "Sample History" link/tab in sidebar
-    const historyTab = page.getByText('Sample History')
+    // DataEntryView uses tabs: Manual Entry | Scheduling | Sample History
+    const historyTab = page.getByRole('tab', { name: 'Sample History' })
     await expect(historyTab).toBeVisible({ timeout: 5000 })
     await historyTab.click()
-    await page.waitForTimeout(2000)
+    await page.waitForTimeout(1000)
+  }
 
-    // Content changes — placeholder text for no selection should be visible
+  /** Navigate to Sample History and select the test characteristic from sidebar */
+  async function navigateToSampleHistoryWithChar(page: import('@playwright/test').Page) {
+    await navigateToSampleHistory(page)
+
+    // Collapse nav section to make room for the characteristic tree
+    await collapseNavSection(page)
+
+    // Expand tree and select characteristic from the sidebar
+    const firstNode = page.getByText('Test Dept', { exact: true }).first()
+    await expect(firstNode).toBeVisible({ timeout: 15000 })
+
+    for (const nodeName of ['Test Dept', 'Test Line', 'Test Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
+
+    // Click the characteristic to select it
+    const testChar = page.getByText('Test Char').first()
+    await expect(testChar).toBeVisible({ timeout: 10000 })
+    await testChar.scrollIntoViewIfNeeded()
+    await testChar.click({ force: true })
+    await page.waitForTimeout(1000)
+  }
+
+  test('sample history tab accessible', async ({ page }) => {
+    await navigateToSampleHistory(page)
+
+    // Without selecting a characteristic, NoCharacteristicState shows
     await expect(
-      page.getByText('Select a characteristic to view samples'),
+      page.getByText('No characteristic selected'),
     ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('sample-history-tab', {
@@ -46,17 +77,7 @@ test.describe('Sample Management', () => {
   })
 
   test('sample history shows samples after selecting char', async ({ page }) => {
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
-
-    // Navigate to Sample History tab
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    // Expand tree and select characteristic
-    await expandSelectorToChar(page)
+    await navigateToSampleHistoryWithChar(page)
 
     // Table rows should appear
     const rows = page.locator('tbody tr')
@@ -69,15 +90,7 @@ test.describe('Sample Management', () => {
   })
 
   test('samples show Active status', async ({ page }) => {
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
-
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    await expandSelectorToChar(page)
+    await navigateToSampleHistoryWithChar(page)
 
     // Look for "Active" badge text in the table rows
     await expect(page.getByText('Active').first()).toBeVisible({ timeout: 10000 })
@@ -96,20 +109,14 @@ test.describe('Sample Management', () => {
       reason: 'E2E test exclusion',
     })
 
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
+    await navigateToSampleHistoryWithChar(page)
 
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    await expandSelectorToChar(page)
-
-    // Enable "Include excluded" checkbox to show excluded samples
-    const excludedCheckbox = page.getByRole('checkbox', { name: /include excluded/i })
-    if (await excludedCheckbox.isVisible({ timeout: 3000 })) {
-      await excludedCheckbox.check()
+    // Enable "Include excluded samples" checkbox to show excluded samples
+    const excludedCheckbox = page.locator('input[type="checkbox"]').filter({ has: page.locator('..', { hasText: /include excluded/i }) })
+    // The checkbox is inside a label: <label><input type="checkbox" />Include excluded samples</label>
+    const excludeLabel = page.getByText('Include excluded samples')
+    if (await excludeLabel.isVisible({ timeout: 3000 })) {
+      await excludeLabel.click()
       await page.waitForTimeout(2000)
     }
 
@@ -130,15 +137,7 @@ test.describe('Sample Management', () => {
       reason: 'E2E test edit',
     })
 
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
-
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    await expandSelectorToChar(page)
+    await navigateToSampleHistoryWithChar(page)
 
     // EditHistoryTooltip renders a button with title="Modified N time(s)"
     const modifiedIndicator = page.locator('button[title*="Modified"]')
@@ -178,17 +177,9 @@ test.describe('Sample Management', () => {
   })
 
   test('pagination controls visible with enough data', async ({ page }) => {
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
+    await navigateToSampleHistoryWithChar(page)
 
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    await expandSelectorToChar(page)
-
-    // Look for "Showing" text or pagination buttons (Previous/Next)
+    // Look for pagination text "Showing X to Y of Z samples" or Previous/Next buttons
     const paginationIndicator = page.getByText(/showing/i)
       .or(page.getByRole('button', { name: /previous/i }))
       .or(page.getByRole('button', { name: /next/i }))
@@ -202,19 +193,11 @@ test.describe('Sample Management', () => {
   })
 
   test('no-characteristic shows placeholder', async ({ page }) => {
-    await page.goto('/data-entry')
-    await page.waitForTimeout(2000)
+    await navigateToSampleHistory(page)
 
-    const historyTab = page.getByText('Sample History')
-    await expect(historyTab).toBeVisible({ timeout: 5000 })
-    await historyTab.click()
-    await page.waitForTimeout(2000)
-
-    // Without selecting a characteristic, look for placeholder text
+    // Without selecting a characteristic, NoCharacteristicState is shown
     await expect(
-      page.getByText(/select a characteristic/i)
-        .or(page.getByText(/no characteristic/i))
-        .or(page.getByText(/choose a characteristic/i)),
+      page.getByText('No characteristic selected'),
     ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('sample-history-placeholder', {

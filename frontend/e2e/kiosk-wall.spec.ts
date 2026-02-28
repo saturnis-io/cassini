@@ -23,7 +23,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
     await loginAsAdmin(page)
   })
 
-  // ── Kiosk View ─────────────────────────────────────────────────────
+  // -- Kiosk View -------------------------------------------------------
 
   test('kiosk view loads with single characteristic', async ({ page }) => {
     await page.goto(`/kiosk?chars=${charId1}`)
@@ -129,7 +129,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
       }
     }
 
-    // Pagination dots should be visible
+    // Pagination dots should be visible (aria-label="Go to characteristic N")
     const dots = page.locator('[aria-label^="Go to characteristic"]')
     const dotCount = await dots.count()
     if (dotCount > 0) {
@@ -142,7 +142,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
     })
   })
 
-  // ── Wall Dashboard ─────────────────────────────────────────────────
+  // -- Wall Dashboard ---------------------------------------------------
 
   test('wall dashboard loads', async ({ page }) => {
     await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1},${charId2}`)
@@ -151,7 +151,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
     // "Wall Dashboard" heading should be visible
     await expect(page.getByText('Wall Dashboard')).toBeVisible({ timeout: 10000 })
 
-    // At least one chart card should render
+    // At least one chart card should render (canvas inside WallChartCard)
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
 
     await test.info().attach('wall-dashboard-loaded', {
@@ -164,7 +164,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
     await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1},${charId2}`)
     await page.waitForTimeout(3000)
 
-    // Find the grid size selector button
+    // Find the grid size selector button (shows current grid like "2x2")
     const gridBtn = page.getByText(/\d+x\d+/).first()
     const hasGridBtn = await gridBtn.isVisible({ timeout: 5000 }).catch(() => false)
 
@@ -172,7 +172,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
       await gridBtn.click()
       await page.waitForTimeout(500)
 
-      // Options like "2x2", "3x3" should appear
+      // Options like "3x3" should appear in the dropdown
       const option3x3 = page.getByText('3x3')
       if (await option3x3.isVisible({ timeout: 3000 }).catch(() => false)) {
         await option3x3.click()
@@ -190,7 +190,7 @@ test.describe('Kiosk & Wall Dashboard', () => {
     await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1},${charId2}`)
     await page.waitForTimeout(3000)
 
-    // Canvas elements should be rendered (one per chart card)
+    // Canvas elements should be rendered (one per WallChartCard)
     const canvasCount = await page.locator('canvas').count()
     expect(canvasCount).toBeGreaterThanOrEqual(1)
 
@@ -219,17 +219,20 @@ test.describe('Kiosk & Wall Dashboard', () => {
     })
   })
 
-  test('wall chart card click expands', async ({ page }) => {
+  test('wall chart card expand button opens modal', async ({ page }) => {
     await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1}`)
     await page.waitForTimeout(3000)
 
-    // Click on the first chart card
-    const firstCard = page.locator('canvas').first()
-    await expect(firstCard).toBeVisible({ timeout: 10000 })
-    await firstCard.click()
+    // Click the expand button on the first WallChartCard (title="Expand chart")
+    const expandBtn = page.getByTitle('Expand chart').first()
+    await expect(expandBtn).toBeVisible({ timeout: 10000 })
+    await expandBtn.click()
     await page.waitForTimeout(1000)
 
-    // Expanded modal may appear with characteristic details
+    // Expanded modal should appear (ExpandedChartModal is a fixed overlay)
+    const modal = page.locator('.fixed.inset-0').last()
+    await expect(modal).toBeVisible({ timeout: 5000 })
+
     await test.info().attach('wall-chart-expanded', {
       body: await page.screenshot(),
       contentType: 'image/png',

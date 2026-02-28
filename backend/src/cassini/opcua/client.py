@@ -108,7 +108,8 @@ class OPCUAClient:
         """Gracefully disconnect from server.
 
         Cancels reconnection tasks, deletes subscriptions, and closes
-        the connection. Safe to call multiple times.
+        the connection. Safe to call multiple times. Uses timeouts to
+        prevent hanging if the server connection is in a bad state.
         """
         self._shutdown_event.set()
 
@@ -119,20 +120,38 @@ class OPCUAClient:
 
         if self._subscription:
             try:
-                await self._subscription.delete()
+                await asyncio.wait_for(self._subscription.delete(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning("opcua_sub_delete_timeout")
             except Exception as e:
                 logger.warning("opcua_sub_delete_error", error=str(e))
             self._subscription = None
 
         if self._client:
             try:
-                await self._client.disconnect()
+                await asyncio.wait_for(self._client.disconnect(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "opcua_disconnect_timeout",
+                    url=self._config.endpoint_url,
+                )
+                self._force_close_transport()
             except Exception as e:
                 logger.warning("opcua_disconnect_error", error=str(e))
+                self._force_close_transport()
             self._client = None
 
         self._connected = False
         self._monitored_items.clear()
+
+    def _force_close_transport(self) -> None:
+        """Force-close the underlying socket transport when disconnect hangs."""
+        try:
+            protocol = self._client.uaclient.protocol
+            if protocol and protocol.transport:
+                protocol.transport.close()
+        except Exception:
+            pass
 
     # --- Subscription management ---
 

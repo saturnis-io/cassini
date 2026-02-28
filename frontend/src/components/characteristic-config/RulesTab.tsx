@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useNelsonRules, useUpdateNelsonRules, useRulePresets, useApplyPreset } from '@/api/hooks'
 import { Accordion, AccordionSection } from './Accordion'
 import { NELSON_SPARKLINES } from './NelsonSparklines'
@@ -206,6 +206,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const [isDirty, setIsDirty] = useState(false)
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null)
   const [expandedRules, setExpandedRules] = useState<Set<number>>(new Set())
+  const skipDetectRef = useRef(false)
 
   // Initialize from server - intentional sync from fetched data
 
@@ -229,8 +230,10 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       setRuleConfigs(configMap)
       setInitialized(true)
 
-      // Detect matching preset
-      if (presets) {
+      // Detect matching preset (skip if we just applied one — cache may be stale)
+      if (skipDetectRef.current) {
+        skipDetectRef.current = false
+      } else if (presets) {
         const matched = detectMatchingPreset(configMap, presets)
         setSelectedPresetId(matched)
       }
@@ -310,7 +313,10 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   const handlePresetSelect = async (presetId: number) => {
     await applyPreset.mutateAsync({ charId: characteristicId, presetId })
     setSelectedPresetId(presetId)
-    setInitialized(false) // Force re-init from server
+    // Force re-init from server. The skipDetect flag prevents the init effect
+    // from overwriting selectedPresetId with a stale cache match.
+    skipDetectRef.current = true
+    setInitialized(false)
     setIsDirty(false)
   }
 
