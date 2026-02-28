@@ -755,6 +755,11 @@ export class PlanetSystem {
     this.pendingPlanetColor = color.clone()
   }
 
+  /** Return the moon mesh array for raycasting (read-only). */
+  getMoonMeshes(): THREE.Mesh[] {
+    return this.moons.map((m) => m.mesh)
+  }
+
   /** Update the dot sprite's color directly (convenience for galaxy view). */
   setDotColor(color: THREE.Color): void {
     if (this.dotSprite) {

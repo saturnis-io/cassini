@@ -256,7 +256,42 @@ export function GalaxyScene({
     [],
   )
 
-// -------------------------------------------------------------------------  // Find which moon mesh was clicked (planet zoom only)  // -------------------------------------------------------------------------  const findMoonClickTarget = useCallback(    (event: PointerEvent): number | null => {      const renderer = rendererRef.current      const camera = cameraRef.current      if (!renderer || !camera) return null      const system = focusedSystemRef.current      if (!system || system.lod !== 'full') return null      const moonMeshes = system.getMoonMeshes()      if (moonMeshes.length === 0) return null      const rect = renderer.domElement.getBoundingClientRect()      pointerRef.current.x =        ((event.clientX - rect.left) / rect.width) * 2 - 1      pointerRef.current.y =        -((event.clientY - rect.top) / rect.height) * 2 + 1      camera.updateMatrixWorld()      raycasterRef.current.setFromCamera(pointerRef.current, camera)      const intersects = raycasterRef.current.intersectObjects(moonMeshes, false)      if (intersects.length === 0) return null      const hitMesh = intersects[0].object      const moonIndex = moonMeshes.indexOf(hitMesh as THREE.Mesh)      return moonIndex >= 0 ? moonIndex : null    },    [],  )
+  // -------------------------------------------------------------------------
+  // Find which moon mesh was clicked (planet zoom only)
+  // -------------------------------------------------------------------------
+  const findMoonClickTarget = useCallback(
+    (event: PointerEvent): number | null => {
+      const renderer = rendererRef.current
+      const camera = cameraRef.current
+      if (!renderer || !camera) return null
+
+      const system = focusedSystemRef.current
+      if (!system || system.lod !== 'full') return null
+
+      const moonMeshes = system.getMoonMeshes()
+      if (moonMeshes.length === 0) return null
+
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointerRef.current.x =
+        ((event.clientX - rect.left) / rect.width) * 2 - 1
+      pointerRef.current.y =
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+      camera.updateMatrixWorld()
+      raycasterRef.current.setFromCamera(pointerRef.current, camera)
+
+      const intersects = raycasterRef.current.intersectObjects(
+        moonMeshes,
+        false,
+      )
+      if (intersects.length === 0) return null
+
+      const hitMesh = intersects[0].object
+      const moonIndex = moonMeshes.indexOf(hitMesh as THREE.Mesh)
+      return moonIndex >= 0 ? moonIndex : null
+    },
+    [],
+  )
   // -------------------------------------------------------------------------
   // Dismiss any active CSS2D labels
   // -------------------------------------------------------------------------
@@ -474,26 +509,8 @@ export function GalaxyScene({
           constellationId: hit.constellationId,
         })
       } else if (currentZoom === 'planet') {
-        // At planet level, check if a moon (data point) was clicked
-        const focusedId = ctrl.focusedCharId
-        if (focusedId != null) {
-          const system = systemsRef.current.get(focusedId)
-          if (system) {
-            const moonMeshes = system.getMoonMeshes()
-            if (moonMeshes.length > 0) {
-              const moonHits = raycasterRef.current.intersectObjects(moonMeshes)
-              if (moonHits.length > 0) {
-                const moonIndex = moonMeshes.indexOf(moonHits[0].object as THREE.Mesh)
-                if (moonIndex >= 0) {
-                  onMoonClickRef.current?.(moonIndex)
-                  return
-                }
-              }
-            }
-          }
-        }
-
-        // No moon hit — show a label on the clicked planet
+        // At planet level — moon clicks are handled above (findMoonClickTarget)
+        // If we get here, click was on a planet body — show its label
         dismissLabels()
 
         const chars = characteristicsRef.current

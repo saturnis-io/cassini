@@ -4,7 +4,10 @@ import { Building2, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GalaxyScene } from '@/components/galaxy/GalaxyScene'
 import { GalaxySidebar } from '@/components/galaxy/GalaxySidebar'
+import { SampleDetailPanel } from '@/components/galaxy/SampleDetailPanel'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { useChartData } from '@/api/hooks/characteristics'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 
 export function GalaxyPage() {
@@ -27,6 +30,23 @@ export function GalaxyPage() {
   const [navConstellationId, setNavConstellationId] = useState<number | null>(null)
   const [navCharId, setNavCharId] = useState<number | null>(null)
 
+  // Sample detail panel state
+  const [selectedMoonIndex, setSelectedMoonIndex] = useState<number | null>(null)
+
+  // Fetch chart data for the focused characteristic (needed for moon -> sample mapping)
+  const { isConnected } = useWebSocketContext()
+  const { data: chartData } = useChartData(
+    activeCharacteristicId ?? 0,
+    { limit: 25 },
+    { refetchInterval: isConnected ? false : 5000 },
+  )
+
+  // Derive the selected sample data point from chart data + moon index
+  const selectedSample =
+    selectedMoonIndex != null && chartData
+      ? chartData.data_points[selectedMoonIndex] ?? null
+      : null
+
   // Plant selector state
   const [plantMenuOpen, setPlantMenuOpen] = useState(false)
 
@@ -40,6 +60,7 @@ export function GalaxyPage() {
         setActiveCharacteristicId(newCharId)
       } else {
         setActiveCharacteristicId(null)
+        setSelectedMoonIndex(null)
       }
 
       setSearchParams((prev) => {
@@ -69,6 +90,14 @@ export function GalaxyPage() {
     setActiveCharacteristicId(charId)
   }, [])
 
+  const handleMoonClick = useCallback((moonIndex: number) => {
+    setSelectedMoonIndex(moonIndex)
+  }, [])
+
+  const handleSamplePanelClose = useCallback(() => {
+    setSelectedMoonIndex(null)
+  }, [])
+
   if (!plantId) return null
 
   return (
@@ -81,6 +110,7 @@ export function GalaxyPage() {
         navigateToConstellationId={navConstellationId}
         navigateToCharId={navCharId}
         kioskMode={kioskMode}
+        onMoonClick={handleMoonClick}
       />
       {!kioskMode && (
         <GalaxySidebar
@@ -143,6 +173,15 @@ export function GalaxyPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Sample detail panel — slides in from right when a moon is clicked */}
+      {selectedSample && activeCharacteristicId != null && (
+        <SampleDetailPanel
+          sampleData={selectedSample}
+          charId={activeCharacteristicId}
+          onClose={handleSamplePanelClose}
+        />
       )}
     </div>
   )
