@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Sigma, Bell } from 'lucide-react'
+import {
+  Sun,
+  Moon,
+  Monitor,
+  User,
+  LogOut,
+  ChevronDown,
+  Menu,
+  Sigma,
+  Bell,
+  Globe,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -12,9 +23,6 @@ import { usePlant } from '@/providers/PlantProvider'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 import { CassiniLogo } from '@/components/login/CassiniLogo'
 import { deriveLogoColors } from '@/lib/brand-engine'
-import { usePendingApprovals } from '@/api/hooks'
-import { usePlant } from '@/providers/PlantProvider'
-import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 
 interface HeaderProps {
   className?: string
@@ -177,6 +185,15 @@ export function Header({ className, plantSelector }: HeaderProps) {
           {getThemeIcon()}
           <span className="hidden sm:inline">{getThemeLabel()}</span>
         </button>
+
+        {/* TODO: Temporary galaxy link — remove when Easter egg is implemented */}
+        <a
+          href="/galaxy"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
+          title="Galaxy View"
+        >
+          <Globe className="h-4 w-4" />
+        </a>
 
         {/* Show Your Work toggle */}
         <button
