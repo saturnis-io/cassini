@@ -121,7 +121,6 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'connectivity',
       icon: <Network className="h-5 w-5" />,
       requiredRole: 'engineer',
-      commercial: true,
     },
     {
       path: '/configuration',

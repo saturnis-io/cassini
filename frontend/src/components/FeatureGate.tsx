@@ -7,11 +7,10 @@ interface FeatureGateProps {
 }
 
 export function FeatureGate({ children, fallback = null }: FeatureGateProps) {
-  const { isCommercial } = useLicense()
+  const { isCommercial, loaded } = useLicense()
 
-  if (!isCommercial) {
-    return <>{fallback}</>
-  }
+  if (!loaded) return null
+  if (!isCommercial) return <>{fallback}</>
 
   return <>{children}</>
 }

@@ -426,6 +426,7 @@ app.include_router(capability_router)
 app.include_router(websocket_router)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(brokers_router)
+app.include_router(providers_router)
 app.include_router(license_router)
 
 # Commercial routers — only registered with a valid commercial license
@@ -445,7 +446,6 @@ if _license_svc.is_commercial:
     app.include_router(msa_router)
     app.include_router(notifications_router)
     app.include_router(oidc_router)
-    app.include_router(providers_router)
     app.include_router(retention_router)
     app.include_router(rule_presets_router)
     app.include_router(scheduled_reports_router)
@@ -457,7 +457,7 @@ if _license_svc.is_commercial:
     app.include_router(ai_analysis_router)
     app.include_router(doe_router)
     logger.info("Commercial license detected — enterprise routers registered",
-                router_count=22)
+                router_count=21)
 else:
     logger.info("Community edition — enterprise routers not registered")
 

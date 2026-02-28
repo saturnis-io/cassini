@@ -37,7 +37,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
     labelKey: 'groups.personal',
     tabs: [
       { to: 'appearance', labelKey: 'tabs.appearance', icon: Palette },
-      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell },
+      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell, commercial: true },
     ],
   },
   {

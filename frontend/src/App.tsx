@@ -227,20 +227,39 @@ function App() {
                 <Route
                   path="connectivity"
                   element={
-                    <RequireCommercial>
-                      <ProtectedRoute requiredRole="engineer">
-                        <ConnectivityPage />
-                      </ProtectedRoute>
-                    </RequireCommercial>
+                    <ProtectedRoute requiredRole="engineer">
+                      <ConnectivityPage />
+                    </ProtectedRoute>
                   }
                 >
                   <Route index element={<Navigate to="monitor" replace />} />
                   <Route path="monitor" element={<MonitorTab />} />
                   <Route path="servers" element={<ServersTab />} />
-                  <Route path="browse" element={<BrowseTab />} />
                   <Route path="mapping" element={<MappingTab />} />
-                  <Route path="gages" element={<GagesTab />} />
-                  <Route path="integrations" element={<IntegrationsTab />} />
+                  <Route
+                    path="browse"
+                    element={
+                      <RequireCommercial>
+                        <BrowseTab />
+                      </RequireCommercial>
+                    }
+                  />
+                  <Route
+                    path="gages"
+                    element={
+                      <RequireCommercial>
+                        <GagesTab />
+                      </RequireCommercial>
+                    }
+                  />
+                  <Route
+                    path="integrations"
+                    element={
+                      <RequireCommercial>
+                        <IntegrationsTab />
+                      </RequireCommercial>
+                    }
+                  />
                 </Route>
                 <Route
                   path="configuration"
@@ -340,7 +359,14 @@ function App() {
                 >
                   <Route index element={<Navigate to="appearance" replace />} />
                   <Route path="appearance" element={<AppearanceSettings />} />
-                  <Route path="notifications" element={<NotificationsSettings />} />
+                  <Route
+                    path="notifications"
+                    element={
+                      <RequireCommercial>
+                        <NotificationsSettings />
+                      </RequireCommercial>
+                    }
+                  />
                   <Route
                     path="branding"
                     element={
