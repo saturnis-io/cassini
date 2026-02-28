@@ -205,6 +205,21 @@ export function GalaxySidebar({
     return map
   }, [charsData])
 
+  // Pre-compute nodeId -> constellationId map once (avoids per-node tree walks)
+  const constellationMap = useMemo(() => {
+    const map = new Map<number, number>()
+    if (!hierarchyTree) return map
+    function walk(nodes: HierarchyNode[]) {
+      for (const n of nodes) {
+        const topId = findTopLevelAncestorId(n.id, hierarchyTree!)
+        if (topId != null) map.set(n.id, topId)
+        if (n.children) walk(n.children)
+      }
+    }
+    walk(hierarchyTree)
+    return map
+  }, [hierarchyTree])
+
   // Debounce search input (300ms)
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -387,7 +402,7 @@ export function GalaxySidebar({
                   onNodeClick={onNodeClick}
                   onCharacteristicClick={onCharacteristicClick}
                   searchQuery={debouncedSearch}
-                  tree={hierarchyTree ?? []}
+                  constellationMap={constellationMap}
                 />
               ))
             )}
@@ -412,7 +427,7 @@ interface SidebarTreeNodeProps {
   onNodeClick: (constellationId: number) => void
   onCharacteristicClick: (charId: number) => void
   searchQuery: string
-  tree: HierarchyNode[]
+  constellationMap: Map<number, number>
 }
 
 function SidebarTreeNode({
@@ -425,7 +440,7 @@ function SidebarTreeNode({
   onNodeClick,
   onCharacteristicClick,
   searchQuery,
-  tree,
+  constellationMap,
 }: SidebarTreeNodeProps) {
   const isExpanded = expandedNodeIds.has(node.id)
   const hasChildren = (node.children && node.children.length > 0) || (node.characteristic_count ?? 0) > 0
@@ -433,11 +448,8 @@ function SidebarTreeNode({
   // Load characteristics when this node is expanded
   const { data: characteristics } = useHierarchyCharacteristics(isExpanded ? node.id : 0)
 
-  // Determine the top-level constellation id for this node
-  const constellationId = useMemo(
-    () => findTopLevelAncestorId(node.id, tree) ?? node.id,
-    [node.id, tree],
-  )
+  // Look up pre-computed constellation id
+  const constellationId = constellationMap.get(node.id) ?? node.id
 
   // Is this node (or its constellation) the active one?
   const isActiveConstellation = constellationId === activeConstellationId
@@ -542,7 +554,7 @@ function SidebarTreeNode({
               onNodeClick={onNodeClick}
               onCharacteristicClick={onCharacteristicClick}
               searchQuery={searchQuery}
-              tree={tree}
+              constellationMap={constellationMap}
             />
           ))}
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import * as THREE from 'three'
 import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { ConstellationLines } from '@/lib/galaxy/ConstellationLines'
@@ -65,6 +65,7 @@ export function GalaxyScene({
   // Focused system ref (for data sync)
   const focusedSystemRef = useRef<PlanetSystem | null>(null)
   const focusedCharIdRef = useRef<number | null>(null)
+  const [subscribedCharId, setSubscribedCharId] = useState<number | null>(null)
 
   // Camera controller
   const controllerRef = useRef<CameraController | null>(null)
@@ -313,6 +314,7 @@ export function GalaxyScene({
           // Track focused system for data sync
           const charId = ctrl.focusedCharId
           focusedCharIdRef.current = charId
+          setSubscribedCharId(charId)
           if (charId != null) {
             focusedSystemRef.current =
               systemsRef.current.get(charId) ?? null
@@ -540,9 +542,10 @@ export function GalaxyScene({
   // Effect 3: Sync chart data + capability to the focused planet
   // -------------------------------------------------------------------------
   useEffect(() => {
-    const system = focusedSystemRef.current
     const charId = focusedCharIdRef.current
-    if (!system || !charId) return
+    if (!charId) return
+    const system = systemsRef.current.get(charId)
+    if (!system) return
 
     if (chartData) {
       const ucl = chartData.control_limits?.ucl ?? null
@@ -589,11 +592,10 @@ export function GalaxyScene({
   // Effect 4: WebSocket subscription for live updates on focused characteristic
   // -------------------------------------------------------------------------
   useEffect(() => {
-    const charId = focusedCharIdRef.current
-    if (!charId) return
-    subscribe(charId)
-    return () => unsubscribe(charId)
-  }, [focusedCharIdRef.current, subscribe, unsubscribe])
+    if (!subscribedCharId) return
+    subscribe(subscribedCharId)
+    return () => unsubscribe(subscribedCharId)
+  }, [subscribedCharId, subscribe, unsubscribe])
 
   // -------------------------------------------------------------------------
   // Effect 5: Navigate to constellation when navigateToConstellationId changes
@@ -605,38 +607,33 @@ export function GalaxyScene({
       navigateToConstellationId === prevNavConstellationRef.current
     )
       return
-    prevNavConstellationRef.current = navigateToConstellationId
 
     const controller = controllerRef.current
     const posMap = positionsRef.current
     if (!controller || !posMap || controller.isAnimating) return
 
-    // Find any characteristic in this constellation to get its center position
-    for (const [, pos] of posMap) {
-      if (pos.constellationId === navigateToConstellationId) {
-        // Use this constellation's approximate center (the group center from layout)
-        // We average all positions in the constellation for a better center
-        let cx = 0
-        let cz = 0
-        let count = 0
-        for (const [, p] of posMap) {
-          if (p.constellationId === navigateToConstellationId) {
-            cx += p.x
-            cz += p.z
-            count++
-          }
-        }
-        if (count > 0) {
-          cx /= count
-          cz /= count
-        }
-        const target = new THREE.Vector3(cx, 0, cz)
-        controller.flyTo(target, 'constellation', {
-          constellationId: navigateToConstellationId,
-        })
-        return
+    // Single pass to compute constellation center
+    let cx = 0
+    let cz = 0
+    let count = 0
+    for (const [, p] of posMap) {
+      if (p.constellationId === navigateToConstellationId) {
+        cx += p.x
+        cz += p.z
+        count++
       }
     }
+    if (count === 0) return
+
+    // Only commit prevRef after we know we can act
+    prevNavConstellationRef.current = navigateToConstellationId
+
+    cx /= count
+    cz /= count
+    const target = new THREE.Vector3(cx, 0, cz)
+    controller.flyTo(target, 'constellation', {
+      constellationId: navigateToConstellationId,
+    })
   }, [navigateToConstellationId])
 
   // -------------------------------------------------------------------------
@@ -649,7 +646,6 @@ export function GalaxyScene({
       navigateToCharId === prevNavCharRef.current
     )
       return
-    prevNavCharRef.current = navigateToCharId
 
     const controller = controllerRef.current
     const posMap = positionsRef.current
@@ -657,6 +653,9 @@ export function GalaxyScene({
 
     const pos = posMap.get(navigateToCharId)
     if (!pos) return
+
+    // Only commit prevRef after we know we can act
+    prevNavCharRef.current = navigateToCharId
 
     const target = new THREE.Vector3(pos.x, 0, pos.z)
     controller.flyTo(target, 'planet', {
