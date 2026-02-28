@@ -1,9 +1,12 @@
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, useCallback } from 'react'
 import * as THREE from 'three'
 import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { ConstellationLines } from '@/lib/galaxy/ConstellationLines'
 import { DEFAULT_LOGIN_CONFIG } from '@/lib/galaxy/types'
 import { computeConstellationLayout } from '@/lib/galaxy/constellation-layout'
+import type { ConstellationPosition } from '@/lib/galaxy/constellation-layout'
+import { CameraController } from '@/lib/galaxy/CameraController'
+import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 import { useChartData } from '@/api/hooks/characteristics'
 import { useCharacteristics, useHierarchyTree, useCapability } from '@/api/hooks'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
@@ -16,7 +19,8 @@ import {
 
 interface GalaxySceneProps {
   className?: string
-  focusedCharId?: number
+  initialFocusCharId?: number
+  onFocusChange?: (charId: number | null, zoomLevel: ZoomLevel) => void
 }
 
 /** Shared color palette for all planet systems */
@@ -28,7 +32,11 @@ const colors = {
   muted: new THREE.Color('#4B5563'),
 }
 
-export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
+export function GalaxyScene({
+  className,
+  initialFocusCharId,
+  onFocusChange,
+}: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Three.js scene objects stored in refs so population effect can access them
@@ -46,6 +54,26 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
 
   // Focused system ref (for data sync)
   const focusedSystemRef = useRef<PlanetSystem | null>(null)
+  const focusedCharIdRef = useRef<number | null>(null)
+
+  // Camera controller
+  const controllerRef = useRef<CameraController | null>(null)
+  const prevZoomLevelRef = useRef<ZoomLevel>('galaxy')
+
+  // Layout positions ref (accessible from event handlers and animation loop)
+  const positionsRef = useRef<Map<number, ConstellationPosition> | null>(null)
+
+  // Raycaster for click detection
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster())
+  const pointerRef = useRef<THREE.Vector2>(new THREE.Vector2())
+
+  // Callback ref for focus changes
+  const onFocusChangeRef = useRef(onFocusChange)
+  onFocusChangeRef.current = onFocusChange
+
+  // Initial focus ref (consumed once on first population)
+  const initialFocusRef = useRef(initialFocusCharId)
+  const initialFocusConsumedRef = useRef(false)
 
   const { subscribe, unsubscribe, isConnected } = useWebSocketContext()
 
@@ -60,13 +88,129 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     return computeConstellationLayout(hierarchyTree, characteristics)
   }, [hierarchyTree, characteristics])
 
+  // Keep positions ref in sync
+  useEffect(() => {
+    positionsRef.current = positions ?? null
+  }, [positions])
+
   // Fetch chart data and capability for the focused characteristic
   const { data: chartData } = useChartData(
-    focusedCharId ?? 0,
+    focusedCharIdRef.current ?? 0,
     { limit: 25 },
     { refetchInterval: isConnected ? false : 5000 },
   )
-  const { data: capability } = useCapability(focusedCharId ?? 0)
+  const { data: capability } = useCapability(focusedCharIdRef.current ?? 0)
+
+  // -------------------------------------------------------------------------
+  // LOD management callback — called when zoom level changes
+  // -------------------------------------------------------------------------
+  const updateLODForZoomLevel = useCallback(
+    (
+      level: ZoomLevel,
+      charId: number | null,
+      constellationId: number | null,
+    ) => {
+      const systems = systemsRef.current
+      const posMap = positionsRef.current
+      if (systems.size === 0 || !posMap) return
+
+      if (level === 'galaxy') {
+        // Downgrade everything to dot
+        for (const system of systems.values()) {
+          if (system.lod !== 'dot') system.setLOD('dot')
+        }
+      } else if (level === 'constellation' && constellationId != null) {
+        // Upgrade constellation members to halo, rest to dot
+        for (const [id, system] of systems.entries()) {
+          const pos = posMap.get(id)
+          if (pos?.constellationId === constellationId) {
+            if (system.lod !== 'halo') system.setLOD('halo')
+          } else {
+            if (system.lod !== 'dot') system.setLOD('dot')
+          }
+        }
+      } else if (level === 'planet' && charId != null) {
+        // Upgrade target to full, constellation to halo, rest to dot
+        const targetPos = posMap.get(charId)
+        for (const [id, system] of systems.entries()) {
+          if (id === charId) {
+            if (system.lod !== 'full') system.setLOD('full')
+          } else {
+            const pos = posMap.get(id)
+            if (
+              targetPos &&
+              pos?.constellationId === targetPos.constellationId
+            ) {
+              if (system.lod !== 'halo') system.setLOD('halo')
+            } else {
+              if (system.lod !== 'dot') system.setLOD('dot')
+            }
+          }
+        }
+      }
+    },
+    [],
+  )
+
+  // -------------------------------------------------------------------------
+  // Find which constellation/planet was clicked via raycasting
+  // -------------------------------------------------------------------------
+  const findClickTarget = useCallback(
+    (
+      event: PointerEvent,
+    ): {
+      charId: number
+      constellationId: number
+      position: THREE.Vector3
+    } | null => {
+      const renderer = rendererRef.current
+      const camera = cameraRef.current
+      const scene = sceneRef.current
+      if (!renderer || !camera || !scene) return null
+
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointerRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      pointerRef.current.y =
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+      camera.updateMatrixWorld()
+      raycasterRef.current.setFromCamera(pointerRef.current, camera)
+
+      // Intersect all objects in the scene recursively
+      const intersects = raycasterRef.current.intersectObjects(
+        scene.children,
+        true,
+      )
+
+      // Find the closest intersection that belongs to a PlanetSystem group
+      const systems = systemsRef.current
+      const posMap = positionsRef.current
+      if (!posMap) return null
+
+      for (const hit of intersects) {
+        // Walk up the parent chain to find which PlanetSystem group this belongs to
+        let obj: THREE.Object3D | null = hit.object
+        while (obj) {
+          for (const [charId, system] of systems.entries()) {
+            if (obj === system.group) {
+              const pos = posMap.get(charId)
+              if (pos) {
+                return {
+                  charId,
+                  constellationId: pos.constellationId,
+                  position: new THREE.Vector3(pos.x, 0, pos.z),
+                }
+              }
+            }
+          }
+          obj = obj.parent
+        }
+      }
+
+      return null
+    },
+    [],
+  )
 
   // -------------------------------------------------------------------------
   // Effect 1: Setup Three.js renderer, scene, camera, stars, animation loop
@@ -99,6 +243,10 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     camera.lookAt(0, 0, 0)
     cameraRef.current = camera
 
+    // Camera controller
+    const controller = new CameraController(camera)
+    controllerRef.current = controller
+
     // Background stars — larger sphere with more stars for galaxy scale
     const starCount = 3000
     const starsGeo = new THREE.BufferGeometry()
@@ -111,7 +259,10 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
       starPositions[i + 1] = r * Math.sin(p) * Math.sin(theta)
       starPositions[i + 2] = r * Math.cos(p)
     }
-    starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
+    starsGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(starPositions, 3),
+    )
     const starsMesh = new THREE.Points(
       starsGeo,
       new THREE.PointsMaterial({
@@ -127,10 +278,44 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     // Animation loop
     const clock = new THREE.Clock()
     clockRef.current = clock
+    let prevTime = 0
 
     function animate() {
       frameIdRef.current = requestAnimationFrame(animate)
       const time = clock.getElapsedTime()
+      const deltaMs = (time - prevTime) * 1000
+      prevTime = time
+
+      // Update camera controller
+      const ctrl = controllerRef.current
+      if (ctrl) {
+        ctrl.update(deltaMs)
+
+        // Check for zoom level changes and update LOD
+        const level = ctrl.zoomLevel
+        if (level !== prevZoomLevelRef.current) {
+          updateLODForZoomLevel(
+            level,
+            ctrl.focusedCharId,
+            ctrl.focusedConstellationId,
+          )
+
+          // Track focused system for data sync
+          const charId = ctrl.focusedCharId
+          focusedCharIdRef.current = charId
+          if (charId != null) {
+            focusedSystemRef.current =
+              systemsRef.current.get(charId) ?? null
+          } else {
+            focusedSystemRef.current = null
+          }
+
+          // Notify parent of focus change
+          onFocusChangeRef.current?.(charId, level)
+
+          prevZoomLevelRef.current = level
+        }
+      }
 
       // Update all planet systems
       for (const system of systemsRef.current.values()) {
@@ -149,6 +334,73 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     }
     animate()
 
+    // -----------------------------------------------------------------------
+    // Click handler — raycast to detect planet/constellation clicks
+    // -----------------------------------------------------------------------
+    function handlePointerDown(event: PointerEvent) {
+      const ctrl = controllerRef.current
+      if (!ctrl || ctrl.isAnimating) return
+
+      const hit = findClickTarget(event)
+      if (!hit) return
+
+      const currentZoom = ctrl.zoomLevel
+
+      if (currentZoom === 'galaxy') {
+        // At galaxy level, click flies to the clicked constellation
+        ctrl.flyTo(hit.position, 'constellation', {
+          constellationId: hit.constellationId,
+        })
+      } else if (currentZoom === 'constellation') {
+        // At constellation level, click flies to the specific planet
+        ctrl.flyTo(hit.position, 'planet', {
+          charId: hit.charId,
+          constellationId: hit.constellationId,
+        })
+      }
+      // At planet level, clicks on other planets could also navigate
+      // but for now we ignore (user uses ESC to back out first)
+    }
+    renderer.domElement.addEventListener('pointerdown', handlePointerDown)
+
+    // -----------------------------------------------------------------------
+    // Scroll handler — forward to camera controller
+    // -----------------------------------------------------------------------
+    function handleWheel(event: WheelEvent) {
+      event.preventDefault()
+      const ctrl = controllerRef.current
+      if (!ctrl || ctrl.isAnimating) return
+
+      const target = ctrl.handleWheel(event.deltaY)
+      if (target) {
+        ctrl.flyTo(target.position, target.zoomLevel, {
+          charId: target.charId,
+          constellationId: target.constellationId,
+        })
+      }
+    }
+    renderer.domElement.addEventListener('wheel', handleWheel, {
+      passive: false,
+    })
+
+    // -----------------------------------------------------------------------
+    // ESC handler — back out one level
+    // -----------------------------------------------------------------------
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      const ctrl = controllerRef.current
+      if (!ctrl || ctrl.isAnimating) return
+
+      const target = ctrl.back()
+      if (target) {
+        ctrl.flyTo(target.position, target.zoomLevel, {
+          charId: target.charId,
+          constellationId: target.constellationId,
+        })
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
     // Resize handler
     function handleResize() {
       if (!container) return
@@ -165,6 +417,9 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
+      window.removeEventListener('keydown', handleKeyDown)
+      renderer.domElement.removeEventListener('pointerdown', handlePointerDown)
+      renderer.domElement.removeEventListener('wheel', handleWheel)
       cancelAnimationFrame(frameIdRef.current)
 
       // Dispose all planet systems
@@ -195,8 +450,10 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
       rendererRef.current = null
       starsRef.current = null
       clockRef.current = null
+      controllerRef.current = null
       focusedSystemRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // -------------------------------------------------------------------------
@@ -249,42 +506,33 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     scene.add(constellationLines.lineSegments)
     linesRef.current = constellationLines
 
-    // Note: focused char LOD promotion is handled by Effect 3 (focusedCharId watcher)
+    // Handle initial focus (consumed once)
+    if (
+      !initialFocusConsumedRef.current &&
+      initialFocusRef.current != null
+    ) {
+      initialFocusConsumedRef.current = true
+      const charId = initialFocusRef.current
+      const pos = positions.get(charId)
+      const controller = controllerRef.current
+      if (pos && controller) {
+        const target = new THREE.Vector3(pos.x, 0, pos.z)
+        // Fly to the planet directly
+        controller.flyTo(target, 'planet', {
+          charId,
+          constellationId: pos.constellationId,
+        })
+      }
+    }
   }, [positions, characteristics])
 
   // -------------------------------------------------------------------------
-  // Effect 3: Manage focused planet LOD transitions
-  // When focusedCharId changes, downgrade the old and upgrade the new.
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    const systems = systemsRef.current
-    if (systems.size === 0) return
-
-    // Downgrade the previously focused system
-    if (focusedSystemRef.current) {
-      focusedSystemRef.current.setLOD('dot')
-    }
-
-    if (!focusedCharId) {
-      focusedSystemRef.current = null
-      return
-    }
-
-    const system = systems.get(focusedCharId)
-    if (system) {
-      system.setLOD('full')
-      focusedSystemRef.current = system
-    } else {
-      focusedSystemRef.current = null
-    }
-  }, [focusedCharId])
-
-  // -------------------------------------------------------------------------
-  // Effect 4: Sync chart data + capability to the focused planet
+  // Effect 3: Sync chart data + capability to the focused planet
   // -------------------------------------------------------------------------
   useEffect(() => {
     const system = focusedSystemRef.current
-    if (!system || !focusedCharId) return
+    const charId = focusedCharIdRef.current
+    if (!system || !charId) return
 
     if (chartData) {
       const ucl = chartData.control_limits?.ucl ?? null
@@ -314,9 +562,9 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
       // Update violation tracking for this characteristic
       const hasViolation = moonData.some((m) => m.hasViolation)
       if (hasViolation) {
-        violatingIdsRef.current.add(focusedCharId)
+        violatingIdsRef.current.add(charId)
       } else {
-        violatingIdsRef.current.delete(focusedCharId)
+        violatingIdsRef.current.delete(charId)
       }
     }
 
@@ -325,16 +573,17 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
       const hex = cpkToColorHex(capability.cpk)
       system.setPlanetColor(new THREE.Color(hex))
     }
-  }, [chartData, capability, focusedCharId])
+  }, [chartData, capability])
 
   // -------------------------------------------------------------------------
-  // Effect 5: WebSocket subscription for live updates on focused characteristic
+  // Effect 4: WebSocket subscription for live updates on focused characteristic
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!focusedCharId) return
-    subscribe(focusedCharId)
-    return () => unsubscribe(focusedCharId)
-  }, [focusedCharId, subscribe, unsubscribe])
+    const charId = focusedCharIdRef.current
+    if (!charId) return
+    subscribe(charId)
+    return () => unsubscribe(charId)
+  }, [focusedCharIdRef.current, subscribe, unsubscribe])
 
   return (
     <div
