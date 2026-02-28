@@ -211,6 +211,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip audit logging entirely in Community edition
+        license_svc = getattr(request.app.state, "license_service", None)
+        if license_svc and not license_svc.is_commercial:
+            return await call_next(request)
+
         response = await call_next(request)
 
         # Get audit service lazily from app state
