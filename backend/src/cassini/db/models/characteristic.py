@@ -94,6 +94,11 @@ class Characteristic(Base):
     # Short-run charts (Sprint 6 - B2)
     short_run_mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
+    # CUSUM reset point
+    cusum_reset_after_sample_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("sample.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
     hierarchy: Mapped["Hierarchy"] = relationship("Hierarchy", back_populates="characteristics")
     rules: Mapped[list["CharacteristicRule"]] = relationship(

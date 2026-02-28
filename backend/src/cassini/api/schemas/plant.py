@@ -13,6 +13,12 @@ class PlantCreate(BaseModel):
     code: str = Field(..., min_length=1, max_length=10, pattern=r"^[A-Z0-9_-]+$")
     is_active: bool = True
     settings: Optional[dict[str, Any]] = None
+    capability_green_threshold: Optional[float] = Field(
+        None, gt=0, description="Cpk threshold for green (good) status, default 1.33"
+    )
+    capability_yellow_threshold: Optional[float] = Field(
+        None, gt=0, description="Cpk threshold for yellow (marginal) status, default 1.0"
+    )
 
 
 class PlantUpdate(BaseModel):
@@ -22,6 +28,12 @@ class PlantUpdate(BaseModel):
     code: Optional[str] = Field(None, min_length=1, max_length=10, pattern=r"^[A-Z0-9_-]+$")
     is_active: Optional[bool] = None
     settings: Optional[dict[str, Any]] = None
+    capability_green_threshold: Optional[float] = Field(
+        None, gt=0, description="Cpk threshold for green (good) status"
+    )
+    capability_yellow_threshold: Optional[float] = Field(
+        None, gt=0, description="Cpk threshold for yellow (marginal) status"
+    )
 
 
 class PlantResponse(BaseModel):
@@ -32,6 +44,8 @@ class PlantResponse(BaseModel):
     code: str
     is_active: bool
     settings: Optional[dict[str, Any]] = None
+    capability_green_threshold: Optional[float] = None
+    capability_yellow_threshold: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 

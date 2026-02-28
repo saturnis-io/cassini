@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Sigma } from 'lucide-react'
+import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Sigma, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -9,6 +9,9 @@ import { useUIStore } from '@/stores/uiStore'
 import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
 import { CassiniLogo } from '@/components/login/CassiniLogo'
 import { deriveLogoColors } from '@/lib/brand-engine'
+import { usePendingApprovals } from '@/api/hooks'
+import { usePlant } from '@/providers/PlantProvider'
+import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 
 interface HeaderProps {
   className?: string
@@ -34,10 +37,15 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
   const derivedLogoColors = useMemo(() => deriveLogoColors(fullBrandConfig), [fullBrandConfig])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [pendingMenuOpen, setPendingMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const pendingMenuRef = useRef<HTMLDivElement>(null)
   const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
   const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
   const toggleShowYourWork = useShowYourWorkStore((s) => s.toggle)
+  const { selectedPlant } = usePlant()
+  const { data: pendingData } = usePendingApprovals(selectedPlant?.id)
+  const pendingCount = pendingData?.items?.length ?? 0
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -58,17 +66,28 @@ export function Header({ className, plantSelector }: HeaderProps) {
     return t('theme.light')
   }
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
-    if (!userMenuOpen) return
+    if (!userMenuOpen && !pendingMenuOpen) return
     function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      if (
+        userMenuOpen &&
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
         setUserMenuOpen(false)
+      }
+      if (
+        pendingMenuOpen &&
+        pendingMenuRef.current &&
+        !pendingMenuRef.current.contains(e.target as Node)
+      ) {
+        setPendingMenuOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [userMenuOpen])
+  }, [userMenuOpen, pendingMenuOpen])
 
   const handleLogout = useCallback(() => {
     setUserMenuOpen(false)
@@ -115,6 +134,36 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
         {/* Divider */}
         <div className="bg-border h-6 w-px" />
+
+        {/* Pending approvals bell */}
+        {user && (
+          <div className="relative" ref={pendingMenuRef}>
+            <button
+              onClick={() => setPendingMenuOpen((o) => !o)}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent relative flex items-center justify-center rounded-md p-1.5 transition-colors"
+              title={
+                pendingCount > 0
+                  ? `${pendingCount} pending approval${pendingCount !== 1 ? 's' : ''}`
+                  : 'No pending approvals'
+              }
+            >
+              <Bell className="h-4 w-4" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </span>
+              )}
+            </button>
+
+            {pendingMenuOpen && (
+              <div className="bg-popover absolute top-full right-0 z-50 mt-1 w-96 overflow-hidden rounded-md border shadow-md">
+                <div className="max-h-[28rem] overflow-y-auto p-2">
+                  <PendingApprovalsDashboard compact />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Theme toggle */}
         <button

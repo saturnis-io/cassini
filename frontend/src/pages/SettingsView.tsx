@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess, type Role } from '@/lib/roles'
+import { useLicense } from '@/hooks/useLicense'
 import type { LucideIcon } from 'lucide-react'
 
 interface TabDef {
@@ -27,6 +28,7 @@ interface TabDef {
   labelKey: string
   icon: LucideIcon
   minRole?: Role
+  commercial?: boolean
 }
 
 interface SidebarGroupDef {
@@ -40,7 +42,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
     tabs: [
       { to: 'account', labelKey: 'tabs.account', icon: CircleUser },
       { to: 'appearance', labelKey: 'tabs.appearance', icon: Palette },
-      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell },
+      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell, commercial: true },
     ],
   },
   {
@@ -55,24 +57,24 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
   {
     labelKey: 'groups.security',
     tabs: [
-      { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin' },
-      { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer' },
-      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer' },
-      { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin' },
+      { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin', commercial: true },
+      { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer', commercial: true },
+      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer', commercial: true },
+      { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin', commercial: true },
     ],
   },
   {
     labelKey: 'groups.data',
     tabs: [
-      { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer' },
-      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer' },
-      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer' },
+      { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer', commercial: true },
+      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer', commercial: true },
+      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer', commercial: true },
     ],
   },
   {
     labelKey: 'groups.integrations',
     tabs: [
-      { to: 'ai', labelKey: 'tabs.ai', icon: Brain, minRole: 'admin' },
+      { to: 'ai', labelKey: 'tabs.ai', icon: Brain, minRole: 'admin', commercial: true },
     ],
   },
 ]
@@ -84,6 +86,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
 export function SettingsPage() {
   const { t } = useTranslation('settings')
   const { role } = useAuth()
+  const { isCommercial } = useLicense()
 
   return (
     <div className="flex h-full flex-col">
@@ -104,7 +107,9 @@ export function SettingsPage() {
         >
           {SIDEBAR_GROUPS.map((group) => {
             const visibleTabs = group.tabs.filter(
-              (tab) => !tab.minRole || hasAccess(role, tab.minRole),
+              (tab) =>
+                (!tab.minRole || hasAccess(role, tab.minRole)) &&
+                (tab.commercial !== true || isCommercial),
             )
             if (visibleTabs.length === 0) return null
 

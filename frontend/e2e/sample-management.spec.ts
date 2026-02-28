@@ -150,6 +150,33 @@ test.describe('Sample Management', () => {
     })
   })
 
+  test('edited sample violations have char_id set', async ({ request }) => {
+    // Edit a sample with an extreme value to trigger Rule 1 violation
+    const targetSampleId = sampleIds[0]
+    await apiPut(request, `/samples/${targetSampleId}`, token, {
+      measurements: [99.0], // Well beyond UCL
+      reason: 'E2E violation char_id test',
+    })
+
+    // Fetch violations for this characteristic
+    const violations = await apiGet(
+      request,
+      `/violations/?characteristic_id=${characteristicId}`,
+      token,
+    )
+    const items = violations.items ?? violations
+
+    // Find violations for our edited sample
+    const sampleViolations = items.filter(
+      (v: { sample_id: number }) => v.sample_id === targetSampleId,
+    )
+
+    // If violations were created, they must have char_id
+    for (const v of sampleViolations) {
+      expect(v.characteristic_id ?? v.char_id).toBe(characteristicId)
+    }
+  })
+
   test('pagination controls visible with enough data', async ({ page }) => {
     await page.goto('/data-entry')
     await page.waitForTimeout(2000)

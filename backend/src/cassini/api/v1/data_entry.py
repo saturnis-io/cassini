@@ -15,7 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
 
-from cassini.api.deps import get_current_user_or_api_key, get_db_session
+from cassini.api.deps import (
+    check_plant_role,
+    get_current_user_or_api_key,
+    get_db_session,
+    resolve_plant_id_for_characteristic,
+)
+from cassini.db.models.user import User
 from cassini.api.schemas.data_entry import (
     AttributeDataEntryRequest,
     AttributeDataEntryResponse,
@@ -101,17 +107,98 @@ async def submit_sample(
         HTTPException: 400 if validation fails.
         HTTPException: 500 if processing fails.
     """
-    # Check permission for this characteristic (API key only)
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
-    engine = await get_spc_engine(session)
+    # Look up characteristic to determine chart type for engine dispatch
+    char_repo = CharacteristicRepository(session)
+    characteristic = await char_repo.get_by_id(data.characteristic_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Characteristic not found",
+        )
+
+    chart_type = getattr(characteristic, "chart_type", None)
 
     try:
+        if chart_type == "cusum":
+            # Route to CUSUM engine
+            from cassini.core.engine.cusum_engine import process_cusum_sample
+
+            sample_repo = SampleRepository(session)
+            violation_repo = ViolationRepository(session)
+            cusum_result = await process_cusum_sample(
+                char_id=data.characteristic_id,
+                measurement=data.measurements[0],
+                sample_repo=sample_repo,
+                char_repo=char_repo,
+                violation_repo=violation_repo,
+                batch_number=data.batch_number,
+                operator_id=data.operator_id,
+            )
+            await session.commit()
+
+            return DataEntryResponse(
+                sample_id=cusum_result.sample_id,
+                characteristic_id=data.characteristic_id,
+                timestamp=cusum_result.timestamp,
+                mean=cusum_result.measurement,
+                range_value=None,
+                zone="cusum",
+                in_control=cusum_result.in_control,
+                violations=[
+                    {"rule_id": v["rule_id"], "rule_name": v["rule_name"], "severity": v["severity"]}
+                    for v in cusum_result.violations
+                ]
+                if cusum_result.violations
+                else [],
+            )
+
+        if chart_type == "ewma":
+            # Route to EWMA engine
+            from cassini.core.engine.ewma_engine import process_ewma_sample
+
+            sample_repo = SampleRepository(session)
+            violation_repo = ViolationRepository(session)
+            ewma_result = await process_ewma_sample(
+                char_id=data.characteristic_id,
+                measurement=data.measurements[0],
+                sample_repo=sample_repo,
+                char_repo=char_repo,
+                violation_repo=violation_repo,
+                batch_number=data.batch_number,
+                operator_id=data.operator_id,
+            )
+            await session.commit()
+
+            return DataEntryResponse(
+                sample_id=ewma_result.sample_id,
+                characteristic_id=data.characteristic_id,
+                timestamp=ewma_result.timestamp,
+                mean=ewma_result.measurement,
+                range_value=None,
+                zone="ewma",
+                in_control=ewma_result.in_control,
+                violations=[
+                    {"rule_id": v["rule_id"], "rule_name": v["rule_name"], "severity": v["severity"]}
+                    for v in ewma_result.violations
+                ]
+                if ewma_result.violations
+                else [],
+            )
+
+        # Standard Shewhart chart — use default SPC engine
+        engine = await get_spc_engine(session)
+
         # Build sample context from request data
         context = SampleContext(
             batch_number=data.batch_number,
@@ -184,13 +271,16 @@ async def submit_attribute_sample(
     Processes an attribute sample through the attribute SPC engine,
     evaluates Nelson Rules 1-4, and returns the result.
     """
-    # Check permission for this characteristic (API key only)
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -237,7 +327,7 @@ async def submit_attribute_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid attribute sample input")
     except Exception:
         logger.exception("Failed to process attribute data entry sample")
         await session.rollback()
@@ -262,12 +352,16 @@ async def submit_cusum_sample(
     session: AsyncSession = Depends(get_db_session),
 ) -> CUSUMDataEntryResponse:
     """Submit a single CUSUM sample."""
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -304,7 +398,7 @@ async def submit_cusum_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid CUSUM sample input")
     except Exception:
         logger.exception("Failed to process CUSUM data entry sample")
         await session.rollback()
@@ -329,12 +423,16 @@ async def submit_ewma_sample(
     session: AsyncSession = Depends(get_db_session),
 ) -> EWMADataEntryResponse:
     """Submit a single EWMA sample."""
+    # Plant-scoped authorization
     if isinstance(auth, APIKey):
         if not auth.can_access_characteristic(data.characteristic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key does not have permission for characteristic {data.characteristic_id}",
             )
+    elif isinstance(auth, User):
+        plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+        check_plant_role(auth, plant_id, "operator")
 
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
@@ -371,7 +469,7 @@ async def submit_ewma_sample(
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
         await session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid EWMA sample input")
     except Exception:
         logger.exception("Failed to process EWMA data entry sample")
         await session.rollback()
@@ -414,14 +512,30 @@ async def submit_batch(
     violation_repo = ViolationRepository(session)
     results: list[DataEntryResponse] = []
     errors: list[str] = []
+    _plant_cache: dict[int, int] = {}
 
     for idx, sample in enumerate(data.samples):
-        # Check permission for each characteristic (API key only)
-        if isinstance(auth, APIKey) and not auth.can_access_characteristic(sample.characteristic_id):
-            errors.append(
-                f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
-            )
-            continue
+        # Plant-scoped authorization
+        if isinstance(auth, APIKey):
+            if not auth.can_access_characteristic(sample.characteristic_id):
+                errors.append(
+                    f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
+                )
+                continue
+        elif isinstance(auth, User):
+            try:
+                if sample.characteristic_id not in _plant_cache:
+                    _plant_cache[sample.characteristic_id] = (
+                        await resolve_plant_id_for_characteristic(
+                            sample.characteristic_id, session
+                        )
+                    )
+                check_plant_role(auth, _plant_cache[sample.characteristic_id], "operator")
+            except HTTPException:
+                errors.append(
+                    f"Sample {idx}: No permission for characteristic {sample.characteristic_id}"
+                )
+                continue
 
         try:
             context = SampleContext(

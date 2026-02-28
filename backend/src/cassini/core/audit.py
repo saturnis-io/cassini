@@ -121,6 +121,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "dismiss"
     if "/purge" in path:
         return "purge"
+    if "/cusum-reset" in path:
+        return "reset"
     if "/forecast" in path:
         return "forecast"
     if "/test" in path:
@@ -237,6 +239,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip audit logging entirely in Community edition
+        license_svc = getattr(request.app.state, "license_service", None)
+        if license_svc and not license_svc.is_commercial:
+            return await call_next(request)
+
         # Cache request body for Tier 2 auto-capture (only for JSON mutating methods)
         cached_body: dict | None = None
         if request.method in ("POST", "PUT", "PATCH"):

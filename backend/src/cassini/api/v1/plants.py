@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cassini.api.deps import get_current_user, get_current_admin, get_db_session
+from cassini.api.deps import get_current_user, get_current_admin, get_db_session, get_license_service
 from cassini.api.schemas.plant import PlantCreate, PlantResponse, PlantUpdate
+from cassini.core.licensing import LicenseService
 from cassini.db.models.user import User, UserPlantRole, UserRole
 from cassini.db.repositories.plant import PlantRepository
 from cassini.db.repositories.user import UserRepository
@@ -44,6 +45,7 @@ async def create_plant(
     repo: PlantRepository = Depends(get_plant_repo),
     _user: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db_session),
+    license_service: LicenseService = Depends(get_license_service),
 ) -> PlantResponse:
     """Create a new plant.
 
@@ -51,6 +53,14 @@ async def create_plant(
     uppercased and must be unique. All admin users are automatically assigned
     admin role for the new plant.
     """
+    # Enforce plant limit from license
+    existing_plants = await repo.get_all()
+    if len(existing_plants) >= license_service.max_plants:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Plant limit reached ({license_service.max_plants}). Upgrade your license for more plants.",
+        )
+
     try:
         plant = await repo.create(
             name=data.name,

@@ -5,6 +5,7 @@ import { useCharacteristic, useFitDistribution, useNonNormalCapability, useUpdat
 import { cn } from '@/lib/utils'
 import type { DistributionFitResultData, NonNormalCapabilityResult } from '@/types'
 import { X, BarChart3, CheckCircle, ArrowDownUp, Save, AlertTriangle, HelpCircle } from 'lucide-react'
+import { StatNote } from '@/components/StatNote'
 
 const METHOD_OPTIONS = [
   { value: 'auto', label: 'Auto (cascade)' },
@@ -404,6 +405,15 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
               <Save className="h-3.5 w-3.5" />
               {updateConfig.isPending ? 'Saving...' : 'Apply Config'}
             </button>
+
+            {method === 'auto' && (
+              <StatNote>
+                Method selected automatically: Shapiro-Wilk normality test
+                &rarr; if non-normal, tries Box-Cox transform &rarr; if still
+                non-normal, fits distribution families &rarr; falls back to
+                percentile method.
+              </StatNote>
+            )}
           </div>
 
           {/* Capability result summary */}
@@ -530,7 +540,7 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
 function CapabilitySummary({ result }: { result: NonNormalCapabilityResult }) {
   return (
     <div className="bg-muted/20 border-border mb-6 rounded-lg border p-4">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">
           {result.method_detail}
         </span>
@@ -543,6 +553,21 @@ function CapabilitySummary({ result }: { result: NonNormalCapabilityResult }) {
           {result.is_normal ? 'Normal' : 'Non-normal'} (p=
           {result.normality_p_value?.toFixed(4) ?? '?'})
         </span>
+        {result.sample_count > 5000 && (
+          <StatNote>
+            Normality test uses a random sample of 5,000 points from the full
+            dataset for statistical efficiency. Results are representative.
+          </StatNote>
+        )}
+        {result.method === 'box_cox' && (
+          <span className="flex items-center gap-1 text-xs text-zinc-400">
+            Box-Cox transformed
+            <StatNote>
+              Data transformed using Box-Cox to achieve normality. Capability
+              indices computed on transformed data, then back-transformed.
+            </StatNote>
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-5 gap-3 text-center text-sm">
         <IndexMini label="Pp" value={result.pp} />
@@ -551,6 +576,13 @@ function CapabilitySummary({ result }: { result: NonNormalCapabilityResult }) {
         <IndexMini label="Cpk" value={result.cpk} />
         <IndexMini label="Cpm" value={result.cpm} />
       </div>
+      {/* Distribution p-value */}
+      {result.fitted_distribution?.ad_p_value != null && (
+        <div className="text-muted-foreground mt-2 text-xs">
+          Distribution fit p-value: {result.fitted_distribution.ad_p_value.toFixed(4)}
+          {result.fitted_distribution.ad_p_value >= 0.05 ? ' (adequate)' : ' (poor fit)'}
+        </div>
+      )}
       {(result.percentile_pp !== null || result.percentile_ppk !== null) &&
         result.method !== 'percentile' && (
           <div className="mt-3 border-t border-border pt-2">

@@ -356,6 +356,11 @@ async def update_characteristic(
                 detail="Laney correction is only supported for p and u charts",
             )
 
+    # Auto-clear Laney correction when attribute_chart_type changes to np or c
+    if "attribute_chart_type" in update_data and eff_attr_chart_type in ("np", "c"):
+        if characteristic.use_laney_correction:
+            update_data["use_laney_correction"] = False
+
     # Update only provided fields
     for key, value in update_data.items():
         setattr(characteristic, key, value)
@@ -627,6 +632,7 @@ async def _get_attribute_chart_data(
         attribute_chart_type=chart_type,
         sigma_z=sigma_z_value,
         short_run_mode=characteristic.short_run_mode,
+        limits_type="laney_corrected" if use_laney and sigma_z_value is not None else "standard",
     )
 
 
@@ -638,12 +644,38 @@ async def _get_cusum_chart_data(
     session: AsyncSession,
 ) -> ChartDataResponse:
     """Build chart data response for CUSUM characteristics."""
+    import math
     from cassini.db.repositories import ViolationRepository
     from cassini.db.models.sample import Sample as SampleModel
     from sqlalchemy import and_
 
     target = characteristic.cusum_target or characteristic.target_value or 0.0
-    h = characteristic.cusum_h or 5.0
+    h_sigma = characteristic.cusum_h or 5.0
+    cusum_k_val = characteristic.cusum_k or 0.5
+    reset_after_id = getattr(characteristic, 'cusum_reset_after_sample_id', None)
+
+    # Convert h from sigma units to measurement units for chart display
+    # The stored cusum_high/cusum_low on samples are in measurement units,
+    # so the decision interval threshold must also be in measurement units.
+    sigma = characteristic.stored_sigma
+    if sigma is None or sigma <= 0:
+        # Estimate sigma from sample data (same fallback as engine)
+        all_samples = await sample_repo.get_rolling_window(
+            char_id=char_id, window_size=100, exclude_excluded=True,
+        )
+        all_vals: list[float] = []
+        for s in all_samples:
+            for m in s.measurements:
+                all_vals.append(m.value)
+        if len(all_vals) >= 2:
+            n = len(all_vals)
+            mean = sum(all_vals) / n
+            variance = sum((x - mean) ** 2 for x in all_vals) / (n - 1)
+            sigma = math.sqrt(variance)
+        else:
+            sigma = 1.0
+    h = h_sigma * sigma
+    k = cusum_k_val * sigma  # Convert k from sigma units to measurement units
 
     # Get samples with measurements
     samples = await sample_repo.get_rolling_window(
@@ -678,10 +710,35 @@ async def _get_cusum_chart_data(
         preceding = (await session.execute(count_stmt)).scalar_one()
         _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
 
+    # Recompute CUSUM S+/S- with reset logic
+    cusum_high_running = 0.0
+    cusum_low_running = 0.0
+    past_reset = reset_after_id is None  # If no reset point, all samples accumulate
+
     cusum_samples = []
     for sample in samples:
         values = [m.value for m in sample.measurements]
         measurement = values[0] if values else 0.0
+
+        if not past_reset:
+            if sample.id <= reset_after_id:
+                c_high = 0.0
+                c_low = 0.0
+                if sample.id == reset_after_id:
+                    past_reset = True
+                    cusum_high_running = 0.0
+                    cusum_low_running = 0.0
+            else:
+                past_reset = True
+                cusum_high_running = max(0.0, cusum_high_running + (measurement - target - k))
+                cusum_low_running = max(0.0, cusum_low_running + (target - measurement - k))
+                c_high = cusum_high_running
+                c_low = cusum_low_running
+        else:
+            cusum_high_running = max(0.0, cusum_high_running + (measurement - target - k))
+            cusum_low_running = max(0.0, cusum_low_running + (target - measurement - k))
+            c_high = cusum_high_running
+            c_low = cusum_low_running
 
         sv = violations_by_sample.get(sample.id, [])
         violation_ids = [v.id for v in sv]
@@ -692,8 +749,8 @@ async def _get_cusum_chart_data(
             sample_id=sample.id,
             timestamp=sample.timestamp.isoformat(),
             measurement=measurement,
-            cusum_high=sample.cusum_high or 0.0,
-            cusum_low=sample.cusum_low or 0.0,
+            cusum_high=c_high,
+            cusum_low=c_low,
             excluded=sample.is_excluded,
             violation_ids=violation_ids,
             unacknowledged_violation_ids=unack_ids,
@@ -722,7 +779,8 @@ async def _get_cusum_chart_data(
         decimal_precision=characteristic.decimal_precision,
         data_type="variable",
         chart_type="cusum",
-        cusum_h=h,
+        cusum_h=h_sigma,
+        cusum_k=cusum_k_val,
         cusum_target=target,
         short_run_mode=characteristic.short_run_mode,
     )
@@ -736,7 +794,10 @@ async def _get_ewma_chart_data(
     session: AsyncSession,
 ) -> ChartDataResponse:
     """Build chart data response for EWMA characteristics."""
-    from cassini.core.engine.ewma_engine import calculate_ewma_limits, estimate_sigma_from_values
+    from cassini.core.engine.ewma_engine import (
+        calculate_ewma_limits,
+        estimate_sigma_from_values,
+    )
     from cassini.db.repositories import ViolationRepository
     from cassini.db.models.sample import Sample as SampleModel
     from sqlalchemy import and_
@@ -762,7 +823,32 @@ async def _get_ewma_chart_data(
     if sigma <= 0:
         sigma = 1.0
 
+    # Steady-state limits for backward compatibility
     ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l)
+
+    # Count total non-excluded samples to compute absolute 1-based indices
+    # for time-varying limits. The displayed window is the last N samples,
+    # so their absolute indices are (total - N + 1) through total.
+    total_count_stmt = select(func.count()).select_from(SampleModel).where(
+        SampleModel.char_id == char_id,
+        SampleModel.is_excluded == False,  # noqa: E712
+    )
+    total_non_excluded = (await session.execute(total_count_stmt)).scalar_one()
+
+    num_displayed = len(samples)
+    # Absolute 1-based start index for the first displayed sample
+    abs_start_index = max(1, total_non_excluded - num_displayed + 1)
+
+    # Compute per-point time-varying UCL/LCL arrays
+    ewma_ucl_values: list[float] = []
+    ewma_lcl_values: list[float] = []
+    for i in range(num_displayed):
+        pt_ucl, pt_lcl = calculate_ewma_limits(
+            target, sigma, ewma_lambda, ewma_l,
+            sample_index=abs_start_index + i,
+        )
+        ewma_ucl_values.append(pt_ucl)
+        ewma_lcl_values.append(pt_lcl)
 
     # Batch-load violations
     violation_repo = ViolationRepository(session)
@@ -837,6 +923,10 @@ async def _get_ewma_chart_data(
         data_type="variable",
         chart_type="ewma",
         ewma_target=target,
+        ewma_ucl_values=ewma_ucl_values,
+        ewma_lcl_values=ewma_lcl_values,
+        ewma_lambda=ewma_lambda,
+        ewma_l=ewma_l,
         short_run_mode=characteristic.short_run_mode,
     )
 
@@ -1327,6 +1417,65 @@ async def set_limits(
             "calculated_at": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+
+@router.post("/{char_id}/cusum-reset")
+async def cusum_reset(
+    char_id: int,
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    sample_repo: SampleRepository = Depends(get_sample_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Reset the CUSUM accumulator at the current latest sample.
+
+    Sets the reset point so that chart-data will show S+=0 and S-=0 for
+    all samples up to and including the reset sample, and begin fresh
+    accumulation from samples after the reset point.
+
+    Requires engineer or admin role.
+    """
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found",
+        )
+
+    if characteristic.chart_type != "cusum":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CUSUM reset is only applicable to characteristics with chart_type='cusum'",
+        )
+
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
+    # Find the latest sample for this characteristic
+    from cassini.db.models.sample import Sample as SampleModel
+    latest_stmt = (
+        select(SampleModel)
+        .where(SampleModel.char_id == char_id)
+        .order_by(SampleModel.id.desc())
+        .limit(1)
+    )
+    result = await session.execute(latest_stmt)
+    latest_sample = result.scalar_one_or_none()
+
+    if latest_sample is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No samples exist for this characteristic",
+        )
+
+    characteristic.cusum_reset_after_sample_id = latest_sample.id
+    await session.commit()
+
+    return {
+        "reset_after_sample_id": latest_sample.id,
+        "reset_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.get("/{char_id}/rules", response_model=list[NelsonRuleConfig])

@@ -16,7 +16,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from cassini.utils.statistics import ZoneBoundaries as BaseZoneBoundaries
 
@@ -438,11 +438,19 @@ class RollingWindowManager:
             # Move to end (most recently used position)
             self._cache.move_to_end(char_id)
 
-    async def _load_window_from_db(self, char_id: int) -> RollingWindow:
+    async def _load_window_from_db(
+        self,
+        char_id: int,
+        value_transform: Callable[[list[float]], list[float]] | None = None,
+    ) -> RollingWindow:
         """Load rolling window from database.
 
         Args:
             char_id: Characteristic ID
+            value_transform: Optional callable that transforms raw measurement
+                values into the coordinate system used by zone boundaries
+                (e.g., short-run deviation or standardized transforms).
+                Signature: (raw_values) -> transformed_values.
 
         Returns:
             RollingWindow populated with samples from database
@@ -461,6 +469,13 @@ class RollingWindowManager:
         # Note: Boundaries will need to be set separately by the caller
         for data in sample_data:
             values = data["values"]
+
+            # Apply short-run transform if provided so that
+            # WindowSample.value is in the same coordinate system as
+            # the zone boundaries.
+            if value_transform is not None:
+                values = value_transform(values)
+
             value = sum(values) / len(values) if values else 0.0
 
             # Calculate range for subgroups (n > 1)
@@ -527,6 +542,7 @@ class RollingWindowManager:
         effective_lcl: float | None = None,
         stored_sigma: float | None = None,
         stored_center_line: float | None = None,
+        value_transform: Callable[[list[float]], list[float]] | None = None,
     ) -> WindowSample:
         """Add a new sample to the window.
 
@@ -544,6 +560,9 @@ class RollingWindowManager:
             effective_lcl: Per-point LCL for Mode B (variable limits)
             stored_sigma: Stored sigma for the characteristic
             stored_center_line: Stored center line for the characteristic
+            value_transform: Optional callable to transform raw DB measurement
+                values into the coordinate system of the zone boundaries
+                (used for short-run charts on cold-load from DB).
 
         Returns:
             WindowSample that was added
@@ -551,7 +570,9 @@ class RollingWindowManager:
         async with self._get_lock(char_id):
             # Get or create window
             if char_id not in self._cache:
-                window = await self._load_window_from_db(char_id)
+                window = await self._load_window_from_db(
+                    char_id, value_transform=value_transform
+                )
                 self._evict_lru()
                 self._cache[char_id] = window
             else:

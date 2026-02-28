@@ -4,6 +4,7 @@ import { Accordion, AccordionSection } from './Accordion'
 import { NELSON_SPARKLINES } from './NelsonSparklines'
 import { HelpTooltip } from '../HelpTooltip'
 import { cn } from '@/lib/utils'
+import { useLicense } from '@/hooks/useLicense'
 import { NELSON_RULES, NELSON_RULE_DETAILS } from '@/lib/nelson-rules'
 import type { RulePreset } from '@/types'
 
@@ -194,6 +195,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   { characteristicId, dataType, onDirty },
   ref,
 ) {
+  const { isCommercial } = useLicense()
   const { data: rulesData, isLoading } = useNelsonRules(characteristicId)
   const updateRules = useUpdateNelsonRules()
   const { data: presets } = useRulePresets()
@@ -383,43 +385,46 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
         </div>
       </div>
 
-      {/* Preset Selector + Quick Actions */}
-      <div className="bg-muted/30 border-border flex flex-wrap items-center gap-4 rounded-lg border p-3">
-        {presets && (
-          <PresetSelector
-            presets={presets}
-            selectedPresetId={selectedPresetId}
-            onSelect={handlePresetSelect}
-            disabled={applyPreset.isPending}
-          />
-        )}
-        <div className="border-border h-6 border-l" />
-        <span className="text-muted-foreground text-sm">Quick Actions:</span>
-        <button
-          onClick={handleEnableAll}
-          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
-        >
-          Enable All
-        </button>
-        <button
-          onClick={handleDisableAll}
-          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
-        >
-          Disable All
-        </button>
-        <button
-          onClick={handleResetDefaults}
-          className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
-        >
-          Reset to Defaults
-        </button>
-      </div>
+      {/* Preset Selector + Quick Actions (commercial only) */}
+      {isCommercial && (
+        <div className="bg-muted/30 border-border flex flex-wrap items-center gap-4 rounded-lg border p-3">
+          {presets && (
+            <PresetSelector
+              presets={presets}
+              selectedPresetId={selectedPresetId}
+              onSelect={handlePresetSelect}
+              disabled={applyPreset.isPending}
+            />
+          )}
+          <div className="border-border h-6 border-l" />
+          <span className="text-muted-foreground text-sm">Quick Actions:</span>
+          <button
+            onClick={handleEnableAll}
+            className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            Enable All
+          </button>
+          <button
+            onClick={handleDisableAll}
+            className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            Disable All
+          </button>
+          <button
+            onClick={handleResetDefaults}
+            className="border-border hover:bg-muted rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+      )}
 
       {/* Rules Table */}
       {dataType === 'attribute' && (
-        <p className="text-muted-foreground text-xs">
-          Attribute charts support Nelson Rules 1-4 only. Rules 5-8 require zone-based analysis that is not applicable to attribute data.
-        </p>
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          Rules 5&ndash;8 are not applicable to attribute (p/np/c/u) charts. Only
+          Rules 1&ndash;4 can be evaluated for attribute data.
+        </div>
       )}
       <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full">
@@ -463,7 +468,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{rule.name}</span>
-                          {isEnabled && (
+                          {isCommercial && isEnabled && (
                             <button
                               onClick={() => toggleParamExpand(rule.id)}
                               className={cn(
@@ -477,7 +482,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">{rule.shortDesc}</div>
-                        {isEnabled && isExpanded && (
+                        {isCommercial && isEnabled && isExpanded && (
                           <ParameterEditor
                             ruleId={rule.id}
                             parameters={config?.parameters ?? null}
@@ -540,7 +545,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       <Accordion defaultOpen={[]} className="mt-4">
         <AccordionSection id="rule-details" title="Rule Details & Troubleshooting Guide">
           <div className="space-y-6">
-            {NELSON_RULES.map((rule) => {
+            {NELSON_RULES.filter((rule) => dataType !== 'attribute' || rule.id <= 4).map((rule) => {
               const Sparkline = NELSON_SPARKLINES[rule.id]
               const details = NELSON_RULE_DETAILS[rule.id]
 

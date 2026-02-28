@@ -6,6 +6,7 @@ import { getStoredChartColors } from '@/lib/theme-presets'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
+import { StatNote } from './StatNote'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { EWMAChartSample } from '@/types'
 
@@ -393,6 +394,10 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
               <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
                 EWMA
               </span>
+              <StatNote>
+                EWMA smooths data using exponential weighting (&lambda;). Individual
+                outliers may not trigger alarms if the overall trend is stable.
+              </StatNote>
               <h3
                 className="text-foreground truncate text-sm leading-5 font-semibold"
                 title={breadcrumb}
@@ -408,6 +413,32 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
             )}
           </div>
+        </div>
+      )}
+
+      {/* EWMA parameters and notes */}
+      {hasData && (
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          {chartData?.ewma_lambda != null && (
+            <span className="text-xs text-zinc-400">
+              &lambda; = {chartData.ewma_lambda}, L = {chartData.ewma_l ?? 3}
+            </span>
+          )}
+          <span className="text-xs text-zinc-400 flex items-center gap-1">
+            <StatNote>
+              EWMA control limits are time-varying &mdash; they start narrow and
+              widen to steady-state as more data accumulates. This funnel shape is
+              statistically correct.
+            </StatNote>
+          </span>
+          {(chartData?.nominal_subgroup_size ?? 1) > 1 && (
+            <span className="text-xs text-zinc-400 flex items-center gap-1">
+              <StatNote>
+                Control limits use &sigma;/&radic;n &mdash; larger subgroups
+                produce tighter limits.
+              </StatNote>
+            </span>
+          )}
         </div>
       )}
 

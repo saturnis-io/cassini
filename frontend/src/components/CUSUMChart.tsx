@@ -2,10 +2,16 @@ import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/providers/AuthProvider'
+import { hasAccess } from '@/lib/roles'
+import { fetchApi } from '@/api/client'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
+import { StatNote } from './StatNote'
+import { RotateCcw } from 'lucide-react'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { CUSUMChartSample } from '@/types'
 
@@ -30,9 +36,33 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
   const { datetimeFormat } = useDateFormat()
+  const { role } = useAuth()
+  const queryClient = useQueryClient()
+  const canReset = hasAccess(role, 'engineer')
+
+  const handleResetAccumulator = async () => {
+    if (
+      !window.confirm(
+        'Reset CUSUM accumulator? This restarts accumulation from the current point.',
+      )
+    ) {
+      return
+    }
+    try {
+      await fetchApi(`characteristics/${characteristicId}/cusum-reset`, {
+        method: 'POST',
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['characteristics', 'chartData', characteristicId],
+      })
+    } catch (err) {
+      console.error('CUSUM reset failed:', err)
+    }
+  }
 
   const cusumPoints = chartData?.cusum_data_points ?? []
-  const h = chartData?.cusum_h ?? 5
+  const h = chartData?.control_limits?.ucl ?? chartData?.cusum_h ?? 5
+  const hDisplay = chartData?.cusum_h ?? 5
 
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
@@ -416,6 +446,11 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
               <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
                 CUSUM
               </span>
+              <StatNote>
+                CUSUM shows accumulated deviation from target, not raw
+                measurements. Small persistent shifts accumulate over time. Use the
+                X&#772; chart to see individual values.
+              </StatNote>
               <h3
                 className="text-foreground truncate text-sm leading-5 font-semibold"
                 title={breadcrumb}
@@ -431,6 +466,27 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
             )}
           </div>
+        </div>
+      )}
+
+      {/* CUSUM parameters and actions */}
+      {hasData && (
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          {chartData?.cusum_k != null && (
+            <span className="text-xs text-zinc-400">
+              K = {chartData.cusum_k}, H = {chartData.cusum_h}
+            </span>
+          )}
+          {canReset && (
+            <button
+              type="button"
+              onClick={handleResetAccumulator}
+              className="inline-flex items-center gap-1 rounded border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset Accumulator
+            </button>
+          )}
         </div>
       )}
 

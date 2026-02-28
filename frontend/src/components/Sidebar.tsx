@@ -28,6 +28,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useAuth } from '@/providers/AuthProvider'
 import { usePlant } from '@/providers/PlantProvider'
 import { canAccessView, type Role } from '@/lib/roles'
+import { useLicense } from '@/hooks/useLicense'
 import { HierarchyTodoList } from './HierarchyTodoList'
 
 interface NavItem {
@@ -36,6 +37,7 @@ interface NavItem {
   icon: React.ReactNode
   badge?: number
   requiredRole?: Role
+  commercial?: boolean
 }
 
 interface SidebarProps {
@@ -75,6 +77,7 @@ export function Sidebar({ className }: SidebarProps) {
   })
   const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
+  const { isCommercial } = useLicense()
   const location = useLocation()
 
   const isCollapsed = sidebarState === 'collapsed'
@@ -161,12 +164,14 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'msa',
       icon: <Microscope className="h-5 w-5" />,
       requiredRole: 'engineer',
+      commercial: true,
     },
     {
       path: '/fai',
       labelKey: 'fai',
       icon: <ClipboardCheck className="h-5 w-5" />,
       requiredRole: 'engineer',
+      commercial: true,
     },
     {
       path: '/doe',
@@ -182,6 +187,7 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'analytics',
       icon: <TrendingUp className="h-5 w-5" />,
       requiredRole: 'engineer',
+      commercial: true,
     },
     {
       path: '/connectivity',
@@ -194,6 +200,7 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'configuration',
       icon: <ListTree className="h-5 w-5" />,
       requiredRole: 'engineer',
+      commercial: true,
     },
     {
       path: '/settings',
@@ -215,18 +222,26 @@ export function Sidebar({ className }: SidebarProps) {
   // Dev tools nav item — only when sandbox mode is active and user is admin
   const showDevTools = devToolsStatus?.sandbox && canAccessView(role, '/dev-tools')
 
-  // Filter navigation items based on current role
+  // Filter navigation items based on current role and license
   const visibleMainItems = mainNavItems.filter(
-    (item) => !item.requiredRole || canAccessView(role, item.path),
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
   )
   const visibleStudyItems = studyNavItems.filter(
-    (item) => !item.requiredRole || canAccessView(role, item.path),
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
   )
   const visibleSystemItems = systemNavItems.filter(
-    (item) => !item.requiredRole || canAccessView(role, item.path),
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
   )
   const visibleAdminItems = adminNavItems.filter(
-    (item) => !item.requiredRole || canAccessView(role, item.path),
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
   )
 
   const renderNavItem = (item: NavItem, forMobile = false) => {

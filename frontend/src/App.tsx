@@ -60,6 +60,8 @@ import { PlantProvider } from '@/providers/PlantProvider'
 import { AuthProvider, useAuth } from '@/providers/AuthProvider'
 import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useLicense } from '@/hooks/useLicense'
+import { UpgradePage } from '@/pages/UpgradePage'
 
 /** Default stale time for React Query caches (ms) */
 const QUERY_STALE_TIME_MS = 10_000
@@ -137,6 +139,17 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate to="/change-password" replace />
   }
 
+  return <>{children}</>
+}
+
+/**
+ * License gate that shows an upgrade page for commercial-only routes.
+ * Renders nothing while the license status is still loading.
+ */
+function RequireCommercial({ children }: { children: ReactNode }) {
+  const { isCommercial, loaded } = useLicense()
+  if (!loaded) return null
+  if (!isCommercial) return <UpgradePage />
   return <>{children}</>
 }
 
@@ -229,10 +242,31 @@ function App() {
                   <Route index element={<Navigate to="monitor" replace />} />
                   <Route path="monitor" element={<MonitorTab />} />
                   <Route path="servers" element={<ServersTab />} />
-                  <Route path="browse" element={<BrowseTab />} />
                   <Route path="mapping" element={<MappingTab />} />
-                  <Route path="gages" element={<GagesTab />} />
-                  <Route path="integrations" element={<IntegrationsTab />} />
+                  <Route
+                    path="browse"
+                    element={
+                      <RequireCommercial>
+                        <BrowseTab />
+                      </RequireCommercial>
+                    }
+                  />
+                  <Route
+                    path="gages"
+                    element={
+                      <RequireCommercial>
+                        <GagesTab />
+                      </RequireCommercial>
+                    }
+                  />
+                  <Route
+                    path="integrations"
+                    element={
+                      <RequireCommercial>
+                        <IntegrationsTab />
+                      </RequireCommercial>
+                    }
+                  />
                 </Route>
                 <Route
                   path="configuration"
@@ -245,72 +279,95 @@ function App() {
                 <Route
                   path="msa"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <MSAPage />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <MSAPage />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="msa/:studyId"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <MSAStudyEditor />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <MSAStudyEditor />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="fai"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <FAIPage />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <FAIPage />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="fai/:reportId"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <FAIReportEditor />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <FAIReportEditor />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="analytics"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <AnalyticsPage />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <AnalyticsPage />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="doe"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <DOEPage />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <DOEPage />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="doe/new"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <DOEStudyEditor />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <DOEStudyEditor />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route
                   path="doe/:studyId"
                   element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <DOEStudyEditor />
-                    </ProtectedRoute>
+                    <RequireCommercial>
+                      <ProtectedRoute requiredRole="engineer">
+                        <DOEStudyEditor />
+                      </ProtectedRoute>
+                    </RequireCommercial>
                   }
                 />
                 <Route path="settings" element={<SettingsPage />}>
                   <Route index element={<Navigate to="account" replace />} />
                   <Route path="account" element={<AccountSettings />} />
                   <Route path="appearance" element={<AppearanceSettings />} />
-                  <Route path="notifications" element={<NotificationsSettings />} />
+                  <Route
+                    path="notifications"
+                    element={
+                      <RequireCommercial>
+                        <NotificationsSettings />
+                      </RequireCommercial>
+                    }
+                  />
                   <Route
                     path="branding"
                     element={
@@ -346,65 +403,81 @@ function App() {
                   <Route
                     path="api-keys"
                     element={
-                      <ProtectedRoute requiredRole="engineer">
-                        <ApiKeysSettings />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="engineer">
+                          <ApiKeysSettings />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="retention"
                     element={
-                      <ProtectedRoute requiredRole="engineer">
-                        <RetentionSettings />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="engineer">
+                          <RetentionSettings />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="reports"
                     element={
-                      <ProtectedRoute requiredRole="engineer">
-                        <ScheduledReports />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="engineer">
+                          <ScheduledReports />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="sso"
                     element={
-                      <ProtectedRoute requiredRole="admin">
-                        <SSOSettings />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="admin">
+                          <SSOSettings />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="audit-log"
                     element={
-                      <ProtectedRoute requiredRole="admin">
-                        <AuditLogViewer />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="admin">
+                          <AuditLogViewer />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="signatures"
                     element={
-                      <ProtectedRoute requiredRole="engineer">
-                        <SignatureSettingsPage />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="engineer">
+                          <SignatureSettingsPage />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="ai"
                     element={
-                      <ProtectedRoute requiredRole="admin">
-                        <AIConfigSettings />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="admin">
+                          <AIConfigSettings />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                   <Route
                     path="database"
                     element={
-                      <ProtectedRoute requiredRole="engineer">
-                        <DatabaseSettings />
-                      </ProtectedRoute>
+                      <RequireCommercial>
+                        <ProtectedRoute requiredRole="engineer">
+                          <DatabaseSettings />
+                        </ProtectedRoute>
+                      </RequireCommercial>
                     }
                   />
                 </Route>

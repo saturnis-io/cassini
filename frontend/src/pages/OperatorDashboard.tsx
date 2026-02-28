@@ -570,7 +570,9 @@ export function OperatorDashboard() {
                           </Explainable>
                         </span>
                       ) : undefined,
-                    content: <CapabilityCard characteristicId={selectedId} />,
+                    content: (
+                      <CapabilityCard characteristicId={selectedId} />
+                    ),
                   }] : []),
                   {
                     id: 'annotations',

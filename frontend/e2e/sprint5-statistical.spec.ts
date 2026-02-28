@@ -463,7 +463,7 @@ test.describe('A2: Custom Run Rules', () => {
     ).toBe(0)
   })
 
-  test('API — AIAG preset char has violations with 7-count rule', async ({ request }) => {
+  test('API — AIAG preset char has Rule 2 violations with 7-count', async ({ request }) => {
     const chartData = await apiGet(
       request,
       `/characteristics/${aiagCharId}/chart-data`,
@@ -473,11 +473,15 @@ test.describe('A2: Custom Run Rules', () => {
     expect(chartData).toBeTruthy()
     expect(chartData.data_points.length).toBeGreaterThanOrEqual(50)
 
-    // With 7 same-side values at idx 50-56 and AIAG consecutive_count=7,
-    // Rule 2 should still fire (the inline checker uses default 9, but
-    // the SPC engine should use the custom parameter)
-    // Note: seed uses InlineNelsonChecker with default params for seeding,
-    // but the actual SPC engine may recalculate with custom params
+    // AIAG preset uses consecutive_count=7 for Rule 2.
+    // With 7 same-side values baked at idx 50-56, Rule 2 should fire.
+    const rule2Violations = chartData.data_points.filter(
+      (p: { violation_rules: number[] }) => p.violation_rules.includes(2),
+    )
+    expect(
+      rule2Violations.length,
+      'AIAG Rule 2 (consecutive_count=7) should fire on 7 same-side pattern',
+    ).toBeGreaterThan(0)
   })
 
   test('API — all Plant 2 chars have chart data with 80 samples', async ({ request }) => {
