@@ -13,6 +13,7 @@ export function GalaxyPage() {
   const initialCharId = focusParam?.startsWith('planet:')
     ? parseInt(focusParam.split(':')[1], 10)
     : undefined
+  const kioskMode = searchParams.get('kiosk') === 'true'
 
   const { plants, selectedPlant, setSelectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
@@ -79,18 +80,21 @@ export function GalaxyPage() {
         onFocusChange={handleFocusChange}
         navigateToConstellationId={navConstellationId}
         navigateToCharId={navCharId}
+        kioskMode={kioskMode}
       />
-      <GalaxySidebar
-        plantId={plantId}
-        activeConstellationId={activeConstellationId}
-        activeCharacteristicId={activeCharacteristicId}
-        zoomLevel={zoomLevel}
-        onNodeClick={handleNodeClick}
-        onCharacteristicClick={handleCharacteristicClick}
-      />
+      {!kioskMode && (
+        <GalaxySidebar
+          plantId={plantId}
+          activeConstellationId={activeConstellationId}
+          activeCharacteristicId={activeCharacteristicId}
+          zoomLevel={zoomLevel}
+          onNodeClick={handleNodeClick}
+          onCharacteristicClick={handleCharacteristicClick}
+        />
+      )}
 
-      {/* Plant selector — top-right, only when user has 2+ plants */}
-      {plants.length >= 2 && (
+      {/* Plant selector — top-right, only when user has 2+ plants and not in kiosk mode */}
+      {!kioskMode && plants.length >= 2 && (
         <div className="absolute top-3 right-3 z-20">
           <div className="relative">
             <button

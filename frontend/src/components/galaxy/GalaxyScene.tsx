@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from 'react'
 import * as THREE from 'three'
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { ConstellationLines } from '@/lib/galaxy/ConstellationLines'
 import { DEFAULT_LOGIN_CONFIG } from '@/lib/galaxy/types'
@@ -16,6 +17,11 @@ import {
   timestampToAngle,
   cpkToColorHex,
 } from '@/lib/galaxy/data-mapping'
+import {
+  createPlanetLabel,
+  createControlLimitLabels,
+  disposeLabel,
+} from '@/components/galaxy/GalaxyLabel'
 
 interface GalaxySceneProps {
   className?: string
@@ -30,6 +36,8 @@ interface GalaxySceneProps {
   navigateToConstellationId?: number | null
   /** When changed, fly the camera to this planet */
   navigateToCharId?: number | null
+  /** Kiosk mode: slow auto-rotate camera, no click/scroll interaction needed */
+  kioskMode?: boolean
 }
 
 /** Shared color palette for all planet systems */
@@ -48,6 +56,7 @@ export function GalaxyScene({
   onFocusChange,
   navigateToConstellationId,
   navigateToCharId,
+  kioskMode = false,
 }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -76,9 +85,18 @@ export function GalaxyScene({
   // Layout positions ref (accessible from event handlers and animation loop)
   const positionsRef = useRef<Map<number, ConstellationPosition> | null>(null)
 
+  // CSS2DRenderer for labels
+  const labelRendererRef = useRef<CSS2DRenderer | null>(null)
+  const activeLabelRef = useRef<CSS2DObject | null>(null)
+  const activeControlLabelsRef = useRef<CSS2DObject[]>([])
+
   // Raycaster for click detection
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster())
   const pointerRef = useRef<THREE.Vector2>(new THREE.Vector2())
+
+  // Kiosk mode ref (accessible from animation loop)
+  const kioskModeRef = useRef(kioskMode)
+  kioskModeRef.current = kioskMode
 
   // Callback ref for focus changes
   const onFocusChangeRef = useRef(onFocusChange)
@@ -226,6 +244,20 @@ export function GalaxyScene({
   )
 
   // -------------------------------------------------------------------------
+  // Dismiss any active CSS2D labels
+  // -------------------------------------------------------------------------
+  const dismissLabels = useCallback(() => {
+    if (activeLabelRef.current) {
+      disposeLabel(activeLabelRef.current)
+      activeLabelRef.current = null
+    }
+    for (const cl of activeControlLabelsRef.current) {
+      disposeLabel(cl)
+    }
+    activeControlLabelsRef.current = []
+  }, [])
+
+  // -------------------------------------------------------------------------
   // Effect 1: Setup Three.js renderer, scene, camera, stars, animation loop
   // Runs once on mount. Does NOT depend on data.
   // -------------------------------------------------------------------------
@@ -239,6 +271,16 @@ export function GalaxyScene({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
+
+    // CSS2DRenderer overlay for labels
+    const labelRenderer = new CSS2DRenderer()
+    labelRenderer.setSize(container.clientWidth, container.clientHeight)
+    labelRenderer.domElement.style.position = 'absolute'
+    labelRenderer.domElement.style.top = '0'
+    labelRenderer.domElement.style.left = '0'
+    labelRenderer.domElement.style.pointerEvents = 'none'
+    container.appendChild(labelRenderer.domElement)
+    labelRendererRef.current = labelRenderer
 
     // Scene + fog (lower density for galaxy scale)
     const scene = new THREE.Scene()
@@ -331,6 +373,18 @@ export function GalaxyScene({
         }
       }
 
+      // Kiosk auto-rotate: orbit camera around Y axis when not animating
+      if (kioskModeRef.current && ctrl && !ctrl.isAnimating) {
+        const angle = 0.0002
+        const cosA = Math.cos(angle)
+        const sinA = Math.sin(angle)
+        const cx = camera.position.x * cosA - camera.position.z * sinA
+        const cz = camera.position.x * sinA + camera.position.z * cosA
+        camera.position.x = cx
+        camera.position.z = cz
+        camera.lookAt(0, 0, 0)
+      }
+
       // Update all planet systems
       for (const system of systemsRef.current.values()) {
         system.update(time)
@@ -345,6 +399,7 @@ export function GalaxyScene({
         starsRef.current.rotation.y += 0.0001
       }
       renderer.render(scene, camera)
+      labelRenderer.render(scene, camera)
     }
     animate()
 
@@ -356,24 +411,55 @@ export function GalaxyScene({
       if (!ctrl || ctrl.isAnimating) return
 
       const hit = findClickTarget(event)
-      if (!hit) return
+
+      if (!hit) {
+        // Click on empty space — dismiss any active label
+        dismissLabels()
+        return
+      }
 
       const currentZoom = ctrl.zoomLevel
 
       if (currentZoom === 'galaxy') {
         // At galaxy level, click flies to the clicked constellation
+        dismissLabels()
         ctrl.flyTo(hit.position, 'constellation', {
           constellationId: hit.constellationId,
         })
       } else if (currentZoom === 'constellation') {
-        // At constellation level, click flies to the specific planet
+        // At constellation level, show a label on the clicked planet
+        dismissLabels()
+
+        // Find the characteristic data for this planet
+        const charData = characteristics.find((c) => c.id === hit.charId)
+        if (charData) {
+          const system = systemsRef.current.get(hit.charId)
+          if (system) {
+            const label = createPlanetLabel(charData, capability)
+            system.group.add(label)
+            activeLabelRef.current = label
+          }
+        }
+
+        // Also fly to the planet
         ctrl.flyTo(hit.position, 'planet', {
           charId: hit.charId,
           constellationId: hit.constellationId,
         })
+      } else if (currentZoom === 'planet') {
+        // At planet level, show a label on the clicked planet
+        dismissLabels()
+
+        const charData = characteristics.find((c) => c.id === hit.charId)
+        if (charData) {
+          const system = systemsRef.current.get(hit.charId)
+          if (system) {
+            const label = createPlanetLabel(charData, capability)
+            system.group.add(label)
+            activeLabelRef.current = label
+          }
+        }
       }
-      // At planet level, clicks on other planets could also navigate
-      // but for now we ignore (user uses ESC to back out first)
     }
     renderer.domElement.addEventListener('pointerdown', handlePointerDown)
 
@@ -402,6 +488,10 @@ export function GalaxyScene({
     // -----------------------------------------------------------------------
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return
+
+      // Always dismiss labels on ESC
+      dismissLabels()
+
       const ctrl = controllerRef.current
       if (!ctrl || ctrl.isAnimating) return
 
@@ -421,6 +511,7 @@ export function GalaxyScene({
       camera.aspect = container.clientWidth / container.clientHeight
       camera.updateProjectionMatrix()
       renderer.setSize(container.clientWidth, container.clientHeight)
+      labelRenderer.setSize(container.clientWidth, container.clientHeight)
       const pr = Math.min(window.devicePixelRatio, 2)
       for (const system of systemsRef.current.values()) {
         system.setPixelRatio(pr)
@@ -452,6 +543,15 @@ export function GalaxyScene({
       // Dispose stars
       starsGeo.dispose()
       ;(starsMesh.material as THREE.Material).dispose()
+
+      // Dispose active labels
+      dismissLabels()
+
+      // Dispose CSS2DRenderer
+      if (container.contains(labelRenderer.domElement)) {
+        container.removeChild(labelRenderer.domElement)
+      }
+      labelRendererRef.current = null
 
       // Dispose renderer
       renderer.dispose()

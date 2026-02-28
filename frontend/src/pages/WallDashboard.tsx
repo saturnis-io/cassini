@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { X, Save, FolderOpen, Grid2x2 } from 'lucide-react'
+import { X, Save, FolderOpen, Grid2x2, Orbit } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristics, useChartData } from '@/api/hooks'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { useTheme } from '@/providers/ThemeProvider'
 import { WallChartCard } from '@/components/WallChartCard'
+import { GalaxyScene } from '@/components/galaxy/GalaxyScene'
 import { ControlChart } from '@/components/ControlChart'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
@@ -180,12 +182,17 @@ function ExpandedChartModal({
  */
 export function WallDashboard() {
   const { brandConfig } = useTheme()
+  const { selectedPlant } = usePlantContext()
+  const plantId = selectedPlant?.id ?? 0
   const [searchParams, setSearchParams] = useSearchParams()
   const [gridSize, setGridSize] = useState<GridSize>(() => {
     const param = searchParams.get('grid')
     return param && param in GRID_CONFIGS ? (param as GridSize) : '2x2'
   })
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [showGalaxy, setShowGalaxy] = useState(
+    () => searchParams.get('galaxy') === 'true',
+  )
 
   // Parse characteristic IDs from URL
   const charIds = useMemo(() => {
@@ -248,6 +255,21 @@ export function WallDashboard() {
     alert('Preset saved!')
   }, [gridSize, displayCharacteristics])
 
+  // Toggle galaxy cell
+  const handleToggleGalaxy = useCallback(() => {
+    setShowGalaxy((prev) => {
+      const next = !prev
+      const newParams = new URLSearchParams(searchParams)
+      if (next) {
+        newParams.set('galaxy', 'true')
+      } else {
+        newParams.delete('galaxy')
+      }
+      setSearchParams(newParams)
+      return next
+    })
+  }, [searchParams, setSearchParams])
+
   // Load preset
   const handleLoadPreset = useCallback(() => {
     const presets: DashboardPreset[] = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
@@ -294,6 +316,20 @@ export function WallDashboard() {
           <GridSizeSelector value={gridSize} onChange={handleGridSizeChange} />
 
           <button
+            onClick={handleToggleGalaxy}
+            className={cn(
+              'flex items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors',
+              showGalaxy
+                ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                : 'bg-muted hover:bg-muted/80',
+            )}
+            title={showGalaxy ? 'Remove galaxy cell' : 'Add galaxy cell'}
+          >
+            <Orbit className="h-4 w-4" />
+            <span className="hidden sm:inline">Galaxy</span>
+          </button>
+
+          <button
             onClick={handleSavePreset}
             className="bg-muted hover:bg-muted/80 flex items-center gap-2 rounded px-3 py-1.5 text-sm transition-colors"
             title="Save preset"
@@ -321,13 +357,34 @@ export function WallDashboard() {
           gridTemplateRows: `repeat(${gridConfig.rows}, 1fr)`,
         }}
       >
+        {/* Galaxy cell — simplified scene with no sidebar or click interaction */}
+        {showGalaxy && plantId > 0 && (
+          <div className="border-border bg-card relative overflow-hidden rounded-lg border">
+            <div className="absolute top-2 left-2 z-10 rounded bg-black/60 px-2 py-0.5 font-mono text-xs text-gray-400 backdrop-blur-sm">
+              Galaxy
+            </div>
+            <ErrorBoundary>
+              <GalaxyScene
+                className="h-full w-full"
+                plantId={plantId}
+                kioskMode
+              />
+            </ErrorBoundary>
+          </div>
+        )}
+
         {displayCharacteristics.map((char) => (
           <WallChartCard key={char.id} characteristicId={char.id} onExpand={setExpandedId} />
         ))}
 
         {/* Empty slots */}
         {Array.from({
-          length: Math.max(0, gridConfig.cols * gridConfig.rows - displayCharacteristics.length),
+          length: Math.max(
+            0,
+            gridConfig.cols * gridConfig.rows -
+              displayCharacteristics.length -
+              (showGalaxy && plantId > 0 ? 1 : 0),
+          ),
         }).map((_, i) => (
           <div
             key={`empty-${i}`}
