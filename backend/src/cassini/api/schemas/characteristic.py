@@ -395,6 +395,8 @@ class ChartDataResponse(BaseModel):
     cusum_target: float | None = None
     ewma_data_points: list[EWMAChartSample] = []
     ewma_target: float | None = None
+    ewma_ucl_values: list[float] | None = None
+    ewma_lcl_values: list[float] | None = None
     sigma_z: float | None = None
     short_run_mode: str | None = None
 

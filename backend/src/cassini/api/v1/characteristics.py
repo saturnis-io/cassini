@@ -739,7 +739,10 @@ async def _get_ewma_chart_data(
     session: AsyncSession,
 ) -> ChartDataResponse:
     """Build chart data response for EWMA characteristics."""
-    from cassini.core.engine.ewma_engine import calculate_ewma_limits, estimate_sigma_from_values
+    from cassini.core.engine.ewma_engine import (
+        calculate_ewma_limits,
+        estimate_sigma_from_values,
+    )
     from cassini.db.repositories import ViolationRepository
     from cassini.db.models.sample import Sample as SampleModel
     from sqlalchemy import and_
@@ -765,7 +768,32 @@ async def _get_ewma_chart_data(
     if sigma <= 0:
         sigma = 1.0
 
+    # Steady-state limits for backward compatibility
     ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l)
+
+    # Count total non-excluded samples to compute absolute 1-based indices
+    # for time-varying limits. The displayed window is the last N samples,
+    # so their absolute indices are (total - N + 1) through total.
+    total_count_stmt = select(func.count()).select_from(SampleModel).where(
+        SampleModel.char_id == char_id,
+        SampleModel.is_excluded == False,  # noqa: E712
+    )
+    total_non_excluded = (await session.execute(total_count_stmt)).scalar_one()
+
+    num_displayed = len(samples)
+    # Absolute 1-based start index for the first displayed sample
+    abs_start_index = max(1, total_non_excluded - num_displayed + 1)
+
+    # Compute per-point time-varying UCL/LCL arrays
+    ewma_ucl_values: list[float] = []
+    ewma_lcl_values: list[float] = []
+    for i in range(num_displayed):
+        pt_ucl, pt_lcl = calculate_ewma_limits(
+            target, sigma, ewma_lambda, ewma_l,
+            sample_index=abs_start_index + i,
+        )
+        ewma_ucl_values.append(pt_ucl)
+        ewma_lcl_values.append(pt_lcl)
 
     # Batch-load violations
     violation_repo = ViolationRepository(session)
@@ -840,6 +868,8 @@ async def _get_ewma_chart_data(
         data_type="variable",
         chart_type="ewma",
         ewma_target=target,
+        ewma_ucl_values=ewma_ucl_values,
+        ewma_lcl_values=ewma_lcl_values,
         short_run_mode=characteristic.short_run_mode,
     )
 

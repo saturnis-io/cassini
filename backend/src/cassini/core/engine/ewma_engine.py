@@ -7,7 +7,11 @@ EWMA formula:
     z_n = lambda * x_n + (1 - lambda) * z_(n-1)
     z_0 = target (process mean)
 
-Control limits:
+Time-varying control limits (exact):
+    UCL_i = target + L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
+    LCL_i = target - L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
+
+Steady-state (asymptotic) control limits:
     UCL = target + L * sigma * sqrt(lambda / (2 - lambda))
     LCL = target - L * sigma * sqrt(lambda / (2 - lambda))
 
@@ -15,6 +19,7 @@ Where:
     lambda = smoothing constant (0 < lambda <= 1), typical 0.2
     L = control limit multiplier, typical 2.7
     sigma = process standard deviation (estimated from historical data)
+    i = 1-based sample index (time-varying factor converges to 1 after ~20 samples)
 """
 
 import math
@@ -72,18 +77,29 @@ def calculate_ewma_limits(
     sigma: float,
     ewma_lambda: float,
     ewma_l: float,
+    sample_index: int = 0,
 ) -> tuple[float, float]:
     """Calculate EWMA control limits.
 
-    The steady-state EWMA control limits use the asymptotic formula:
+    When sample_index is 0 (default), returns steady-state (asymptotic) limits:
         UCL = target + L * sigma * sqrt(lambda / (2 - lambda))
         LCL = target - L * sigma * sqrt(lambda / (2 - lambda))
+
+    When sample_index > 0, returns time-varying (exact) limits:
+        UCL_i = target + L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
+        LCL_i = target - L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
+
+    The time-varying factor (1 - (1-lambda)^(2i)) starts near 0 for i=1 and
+    converges to 1 after ~20 samples. This provides tighter limits for early
+    samples, improving sensitivity to initial process shifts.
 
     Args:
         target: Process target/mean
         sigma: Process standard deviation
         ewma_lambda: Smoothing constant (0 < lambda <= 1)
         ewma_l: Control limit multiplier
+        sample_index: 1-based sample index for time-varying limits.
+            0 (default) returns steady-state limits for backward compatibility.
 
     Returns:
         Tuple of (UCL, LCL)
@@ -91,10 +107,56 @@ def calculate_ewma_limits(
     if sigma <= 0 or ewma_lambda <= 0 or ewma_lambda > 1:
         return (target, target)
 
-    limit_width = ewma_l * sigma * math.sqrt(ewma_lambda / (2.0 - ewma_lambda))
+    asymptotic_factor = ewma_lambda / (2.0 - ewma_lambda)
+
+    if sample_index > 0:
+        # Time-varying: multiply by (1 - (1 - lambda)^(2*i))
+        time_factor = 1.0 - math.pow(1.0 - ewma_lambda, 2.0 * sample_index)
+        limit_width = ewma_l * sigma * math.sqrt(asymptotic_factor * time_factor)
+    else:
+        # Steady-state (asymptotic) — backward compatible default
+        limit_width = ewma_l * sigma * math.sqrt(asymptotic_factor)
+
     ucl = target + limit_width
     lcl = target - limit_width
     return (ucl, lcl)
+
+
+def calculate_ewma_limit_arrays(
+    target: float,
+    sigma: float,
+    ewma_lambda: float,
+    ewma_l: float,
+    num_samples: int,
+) -> tuple[list[float], list[float]]:
+    """Calculate per-point time-varying EWMA control limit arrays.
+
+    Generates UCL and LCL values for each sample position (1-based index),
+    using the exact time-varying formula. Useful for chart rendering where
+    each point has its own control limits.
+
+    Args:
+        target: Process target/mean
+        sigma: Process standard deviation
+        ewma_lambda: Smoothing constant (0 < lambda <= 1)
+        ewma_l: Control limit multiplier
+        num_samples: Number of sample points to generate limits for
+
+    Returns:
+        Tuple of (ucl_values, lcl_values) where each is a list of floats
+        with length num_samples.
+    """
+    ucl_values: list[float] = []
+    lcl_values: list[float] = []
+
+    for i in range(1, num_samples + 1):
+        ucl, lcl = calculate_ewma_limits(
+            target, sigma, ewma_lambda, ewma_l, sample_index=i
+        )
+        ucl_values.append(ucl)
+        lcl_values.append(lcl)
+
+    return ucl_values, lcl_values
 
 
 def estimate_sigma_from_values(values: list[float]) -> float:
@@ -191,7 +253,7 @@ async def process_ewma_sample(
         if rule.is_enabled
     }
 
-    # Step 2: Load previous sample's EWMA value
+    # Step 2: Load previous sample's EWMA value and count existing samples
     prev_ewma = target  # z_0 = target (EWMA starts at process mean)
 
     recent_samples = await sample_repo.get_rolling_window(
@@ -201,6 +263,18 @@ async def process_ewma_sample(
         prev_sample = recent_samples[-1]
         if prev_sample.ewma_value is not None:
             prev_ewma = prev_sample.ewma_value
+
+    # Count total non-excluded samples to determine 1-based index for this new sample
+    from sqlalchemy import select as sa_select, func as sa_func
+    from cassini.db.models.sample import Sample as SampleModel
+
+    count_stmt = sa_select(sa_func.count()).select_from(SampleModel).where(
+        SampleModel.char_id == char_id,
+        SampleModel.is_excluded == False,  # noqa: E712
+    )
+    existing_count = (await sample_repo.session.execute(count_stmt)).scalar_one()
+    # This new sample will be the (existing_count + 1)-th non-excluded sample
+    sample_index = existing_count + 1
 
     # Step 3: Estimate sigma
     # Use stored_sigma if available, otherwise estimate from historical data
@@ -223,8 +297,10 @@ async def process_ewma_sample(
     # Step 4: Calculate new EWMA value
     ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
 
-    # Step 5: Calculate control limits
-    ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l)
+    # Step 5: Calculate time-varying control limits for this sample position
+    ucl, lcl = calculate_ewma_limits(
+        target, sigma, ewma_lambda, ewma_l, sample_index=sample_index
+    )
 
     # Step 6: Create sample with measurement and EWMA value
     sample = await sample_repo.create_with_measurements(
