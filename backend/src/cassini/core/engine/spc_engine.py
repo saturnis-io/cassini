@@ -416,6 +416,16 @@ class SPCEngine:
         effective_ucl = stats["effective_ucl"]
         effective_lcl = stats["effective_lcl"]
 
+        # Guard: standardized short-run mode requires a valid stored_sigma.
+        # Without it the Z-score transform is impossible and the chart would
+        # silently display raw (untransformed) values, misleading the user.
+        if char_short_run_mode == "standardized":
+            if not char_stored_sigma or char_stored_sigma <= 0:
+                raise ValueError(
+                    "Standardized short-run mode requires stored_sigma to be set. "
+                    "Run a capability study or set sigma manually first."
+                )
+
         # Short-run transformation: deviation or standardized mode
         # Transforms the computed values so the frontend receives pre-shifted data.
         # IMPORTANT: Also build transformed measurement values for the rolling window
