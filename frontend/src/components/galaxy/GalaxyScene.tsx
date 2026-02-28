@@ -142,7 +142,9 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
         linesRef.current.update(time, violatingIdsRef.current)
       }
 
-      starsMesh.rotation.y += 0.0001
+      if (starsRef.current) {
+        starsRef.current.rotation.y += 0.0001
+      }
       renderer.render(scene, camera)
     }
     animate()
@@ -247,15 +249,8 @@ export function GalaxyScene({ className, focusedCharId }: GalaxySceneProps) {
     scene.add(constellationLines.lineSegments)
     linesRef.current = constellationLines
 
-    // If there's already a focused char, upgrade it to full LOD
-    if (focusedCharId) {
-      const focused = systems.get(focusedCharId)
-      if (focused) {
-        focused.setLOD('full')
-        focusedSystemRef.current = focused
-      }
-    }
-  }, [positions, characteristics, focusedCharId])
+    // Note: focused char LOD promotion is handled by Effect 3 (focusedCharId watcher)
+  }, [positions, characteristics])
 
   // -------------------------------------------------------------------------
   // Effect 3: Manage focused planet LOD transitions
