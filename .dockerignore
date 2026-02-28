@@ -16,3 +16,7 @@ settings-redesign-playground.html
 e2e/
 playwright-report/
 test-results/
+tools/
+license_private.pem
+license_public.pem
+*.license.key
