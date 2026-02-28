@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+export type LODLevel = 'dot' | 'halo' | 'full'
+
 export interface GapConfig {
   in: number
   out: number
