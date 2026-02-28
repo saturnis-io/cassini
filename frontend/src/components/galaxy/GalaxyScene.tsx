@@ -4,6 +4,7 @@ import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { DEFAULT_LOGIN_CONFIG } from '@/lib/galaxy/types'
 import { useChartData } from '@/api/hooks/characteristics'
 import { useCapability } from '@/api/hooks/quality'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import {
   controlLimitsToGap,
   valueToRadius,
@@ -19,9 +20,15 @@ interface GalaxySceneProps {
 export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const systemRef = useRef<PlanetSystem | null>(null)
+  const { subscribe, unsubscribe, isConnected } = useWebSocketContext()
 
   // Fetch chart data and capability for the focused characteristic
-  const { data: chartData } = useChartData(characteristicId ?? 0, { limit: 25 })
+  // Disable polling when WebSocket is delivering live updates
+  const { data: chartData } = useChartData(
+    characteristicId ?? 0,
+    { limit: 25 },
+    { refetchInterval: isConnected ? false : 5000 },
+  )
   const { data: capability } = useCapability(characteristicId ?? 0)
 
   // Setup Three.js scene (runs once)
@@ -165,6 +172,13 @@ export function GalaxyScene({ className, characteristicId }: GalaxySceneProps) {
       system.setPlanetColor(new THREE.Color(hex))
     }
   }, [chartData, capability, characteristicId])
+
+  // Subscribe to WebSocket channel for live sample/violation updates
+  useEffect(() => {
+    if (!characteristicId) return
+    subscribe(characteristicId)
+    return () => unsubscribe(characteristicId)
+  }, [characteristicId, subscribe, unsubscribe])
 
   return (
     <div
