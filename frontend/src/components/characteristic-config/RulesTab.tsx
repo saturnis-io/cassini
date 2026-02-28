@@ -421,9 +421,10 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
 
       {/* Rules Table */}
       {dataType === 'attribute' && (
-        <p className="text-muted-foreground text-xs">
-          Attribute charts support Nelson Rules 1-4 only. Rules 5-8 require zone-based analysis that is not applicable to attribute data.
-        </p>
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          Rules 5&ndash;8 are not applicable to attribute (p/np/c/u) charts. Only
+          Rules 1&ndash;4 can be evaluated for attribute data.
+        </div>
       )}
       <div className="border-border overflow-hidden rounded-lg border">
         <table className="w-full">

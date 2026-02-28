@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { HelpTooltip } from '../HelpTooltip'
+import { StatNote } from '@/components/StatNote'
 import { LocalTimeRangeSelector, type TimeRangeState } from '../LocalTimeRangeSelector'
 import { RefreshCw, Calculator, Edit3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -632,9 +633,13 @@ export function LimitsTab({
                 </p>
               )}
               {formData.short_run_mode === 'standardized' && (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   Each point is plotted as (value - target) / sigma. Control limits become fixed at
-                  ±3.
+                  &plusmn;3.
+                  <StatNote>
+                    Standardized mode requires a stored &sigma; value to be
+                    configured. Submissions will be rejected without it.
+                  </StatNote>
                 </p>
               )}
             </div>

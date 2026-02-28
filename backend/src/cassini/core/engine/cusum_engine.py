@@ -166,14 +166,22 @@ async def process_cusum_sample(
     prev_cusum_high = 0.0
     prev_cusum_low = 0.0
 
+    reset_after_id = getattr(char, "cusum_reset_after_sample_id", None)
+
     # Get the most recent sample for this characteristic
     recent_samples = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=1, exclude_excluded=True
     )
     if recent_samples:
         prev_sample = recent_samples[-1]
-        prev_cusum_high = prev_sample.cusum_high if prev_sample.cusum_high is not None else 0.0
-        prev_cusum_low = prev_sample.cusum_low if prev_sample.cusum_low is not None else 0.0
+        # If a reset point is set and the previous sample is at or before it,
+        # start accumulating from 0 (fresh start)
+        if reset_after_id is not None and prev_sample.id <= reset_after_id:
+            prev_cusum_high = 0.0
+            prev_cusum_low = 0.0
+        else:
+            prev_cusum_high = prev_sample.cusum_high if prev_sample.cusum_high is not None else 0.0
+            prev_cusum_low = prev_sample.cusum_low if prev_sample.cusum_low is not None else 0.0
 
     # Step 4: Calculate new CUSUM values
     # k and h are now in measurement units (k_sigma*sigma, h_sigma*sigma)

@@ -5,6 +5,7 @@ import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { cn } from '@/lib/utils'
+import { StatNote } from './StatNote'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { AttributeChartSample } from '@/types'
 
@@ -444,15 +445,23 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
                 {chartTypeName}
               </span>
               {chartData?.sigma_z != null && (
-                <span className={cn(
-                  "flex-shrink-0 rounded-full border px-2 py-0.5 font-mono text-xs",
-                  chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
-                  chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
-                  "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
-                )}>
-                  <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
-                  {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
-                   chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                <span className="flex flex-shrink-0 items-center gap-1">
+                  <span className={cn(
+                    "rounded-full border px-2 py-0.5 font-mono text-xs",
+                    chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
+                    chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
+                    "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
+                  )}>
+                    <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
+                    {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
+                     chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                  </span>
+                  <StatNote>
+                    Laney p&prime;/u&prime; correction adjusts for
+                    over/underdispersion. &sigma;<sub>z</sub> &gt; 1 means data
+                    has more variation than the model assumes; &sigma;<sub>z</sub>{' '}
+                    &lt; 1 means less.
+                  </StatNote>
                 </span>
               )}
               <h3
@@ -470,6 +479,30 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Attribute chart notes */}
+      {hasData && (
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          {hasVariableLimits && (
+            <span className="flex items-center gap-1 text-xs text-zinc-400">
+              <StatNote>
+                Attribute chart limits vary per sample point based on sample size
+                (n). Larger samples produce tighter limits. This is expected
+                behavior.
+              </StatNote>
+            </span>
+          )}
+          {attrType === 'p' &&
+            chartData?.control_limits?.ucl != null &&
+            chartData.control_limits.ucl >= 0.999 && (
+              <span className="flex items-center gap-1 text-xs text-zinc-400">
+                <StatNote>
+                  UCL capped at 1.0 &mdash; a proportion cannot exceed 100%.
+                </StatNote>
+              </span>
+            )}
         </div>
       )}
 

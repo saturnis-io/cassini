@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { init } from '@/lib/echarts'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface ParetoChartProps {
   effects: { factor_name: string; effect: number }[]
@@ -15,6 +16,8 @@ interface EffectEntry {
 
 export function ParetoChart({ effects, interactions, significanceThreshold }: ParetoChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   useEffect(() => {
     if (!chartRef.current) return
@@ -58,6 +61,11 @@ export function ParetoChart({ effects, interactions, significanceThreshold }: Pa
       e.absEffect >= threshold ? '#3b82f6' : '#9ca3af',
     )
 
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : 'hsl(220, 15%, 40%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
+
     chart.setOption({
       tooltip: {
         trigger: 'axis',
@@ -82,11 +90,16 @@ export function ParetoChart({ effects, interactions, significanceThreshold }: Pa
         name: '|Effect|',
         nameLocation: 'middle',
         nameGap: 25,
+        nameTextStyle: { color: axisNameColor, fontSize: 12 },
+        axisLabel: { color: axisLabelColor, fontSize: 12 },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       yAxis: {
         type: 'category',
         data: labels,
-        axisLabel: { fontSize: 11 },
+        axisLabel: { fontSize: 12, color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
       },
       series: [
         {
@@ -110,7 +123,12 @@ export function ParetoChart({ effects, interactions, significanceThreshold }: Pa
                 label: {
                   formatter: `Threshold: ${threshold.toFixed(3)}`,
                   position: 'end',
-                  fontSize: 10,
+                  fontSize: 12,
+                  color: isDark ? '#e5e5e5' : '#333',
+                  textBorderWidth: 0,
+                  backgroundColor: isDark ? 'hsl(220, 10%, 20%)' : 'hsl(0, 0%, 96%)',
+                  borderRadius: 3,
+                  padding: [3, 6],
                 },
               },
             ],
@@ -126,7 +144,7 @@ export function ParetoChart({ effects, interactions, significanceThreshold }: Pa
       ro.disconnect()
       chart.dispose()
     }
-  }, [effects, interactions, significanceThreshold])
+  }, [effects, interactions, significanceThreshold, isDark])
 
   const totalEntries = effects.length + interactions.filter((ix) => ix.factor_names.length >= 2).length
 

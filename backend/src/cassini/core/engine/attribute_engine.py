@@ -396,7 +396,7 @@ def check_attribute_nelson_rules(
         sample_ids: Sample IDs corresponding to plotted_values
         enabled_rules: Set of rule IDs to check (default: all 4)
         rule_params: Optional dict mapping rule_id to parameter overrides
-            (e.g. {2: {"consecutive_points": 7}})
+            (e.g. {2: {"consecutive_count": 7}})
 
     Returns:
         List of AttributeRuleResult for triggered rules only
@@ -424,7 +424,7 @@ def check_attribute_nelson_rules(
     # Rule 2: N consecutive on same side of center (WARNING, default 9)
     if 2 in rules_to_check:
         r2_params = rule_params.get(2, {})
-        consecutive = r2_params.get("consecutive_points", 9)
+        consecutive = r2_params.get("consecutive_count", 9)
         result = _check_rule_2(plotted_values, center_line, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)
@@ -432,7 +432,7 @@ def check_attribute_nelson_rules(
     # Rule 3: N consecutive increasing/decreasing (WARNING, default 6)
     if 3 in rules_to_check:
         r3_params = rule_params.get(3, {})
-        consecutive = r3_params.get("consecutive_points", 6)
+        consecutive = r3_params.get("consecutive_count", 6)
         result = _check_rule_3(plotted_values, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)
@@ -440,7 +440,7 @@ def check_attribute_nelson_rules(
     # Rule 4: N consecutive alternating (WARNING, default 14)
     if 4 in rules_to_check:
         r4_params = rule_params.get(4, {})
-        consecutive = r4_params.get("consecutive_points", 14)
+        consecutive = r4_params.get("consecutive_count", 14)
         result = _check_rule_4(plotted_values, sample_ids, consecutive_points=consecutive)
         if result is not None:
             results.append(result)

@@ -7,30 +7,32 @@ import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
 import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle, BarChart3 } from 'lucide-react'
 import { useState, useMemo, lazy, Suspense } from 'react'
+import { StatNote } from '@/components/StatNote'
+import { usePlantContext } from '@/providers/PlantProvider'
 
 const DistributionAnalysis = lazy(() =>
   import('./DistributionAnalysis').then((m) => ({ default: m.DistributionAnalysis })),
 )
 
 /** Threshold-based color coding for capability indices */
-function capabilityColor(value: number | null): string {
+function capabilityColor(value: number | null, greenThreshold = 1.33, yellowThreshold = 1.0): string {
   if (value === null) return 'text-muted-foreground'
-  if (value >= 1.33) return 'text-success'
-  if (value >= 1.0) return 'text-warning'
+  if (value >= greenThreshold) return 'text-success'
+  if (value >= yellowThreshold) return 'text-warning'
   return 'text-destructive'
 }
 
-function capabilityBg(value: number | null): string {
+function capabilityBg(value: number | null, greenThreshold = 1.33, yellowThreshold = 1.0): string {
   if (value === null) return 'bg-muted/30'
-  if (value >= 1.33) return 'bg-success/10'
-  if (value >= 1.0) return 'bg-warning/10'
+  if (value >= greenThreshold) return 'bg-success/10'
+  if (value >= yellowThreshold) return 'bg-warning/10'
   return 'bg-destructive/10'
 }
 
-function capabilityLabel(value: number | null): string {
+function capabilityLabel(value: number | null, greenThreshold = 1.33, yellowThreshold = 1.0): string {
   if (value === null) return '--'
-  if (value >= 1.33) return 'Capable'
-  if (value >= 1.0) return 'Marginal'
+  if (value >= greenThreshold) return 'Capable'
+  if (value >= yellowThreshold) return 'Marginal'
   return 'Not Capable'
 }
 
@@ -42,12 +44,27 @@ const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   Cpm: 'Taguchi capability. Measures how closely the process hits a specific target value, not just staying within spec limits.',
 }
 
-function IndexCard({ label, value }: { label: string; value: number | null }) {
+function IndexCard({
+  label,
+  value,
+  greenThreshold = 1.33,
+  yellowThreshold = 1.0,
+}: {
+  label: string
+  value: number | null
+  greenThreshold?: number
+  yellowThreshold?: number
+}) {
   const [showTip, setShowTip] = useState(false)
   const description = CAPABILITY_DESCRIPTIONS[label]
 
+  const sigmaNote: Record<string, string> = {
+    Cp: 'Uses within-subgroup \u03C3 (R\u0304/d2) \u2014 measures short-term process potential assuming the process is centered.',
+    Pp: 'Uses overall \u03C3 \u2014 measures actual long-term performance including all sources of variation.',
+  }
+
   return (
-    <div className={cn('border-border relative rounded-lg border p-3 text-center', capabilityBg(value))}>
+    <div className={cn('border-border relative rounded-lg border p-3 text-center', capabilityBg(value, greenThreshold, yellowThreshold))}>
       <div className="text-muted-foreground mb-1 flex items-center justify-center gap-1 text-xs">
         {label}
         {description && (
@@ -62,12 +79,13 @@ function IndexCard({ label, value }: { label: string; value: number | null }) {
             <HelpCircle className="h-3 w-3" />
           </button>
         )}
+        {sigmaNote[label] && <StatNote>{sigmaNote[label]}</StatNote>}
       </div>
-      <div className={cn('text-lg font-bold tabular-nums', capabilityColor(value))}>
+      <div className={cn('text-lg font-bold tabular-nums', capabilityColor(value, greenThreshold, yellowThreshold))}>
         {value !== null ? value.toFixed(2) : '--'}
       </div>
-      <div className={cn('mt-0.5 text-[10px]', capabilityColor(value))}>
-        {capabilityLabel(value)}
+      <div className={cn('mt-0.5 text-[10px]', capabilityColor(value, greenThreshold, yellowThreshold))}>
+        {capabilityLabel(value, greenThreshold, yellowThreshold)}
       </div>
       {showTip && description && (
         <div className="bg-popover text-popover-foreground border-border absolute -top-2 left-1/2 z-50 w-52 -translate-x-1/2 -translate-y-full rounded-md border p-2 text-left text-[11px] leading-snug shadow-md">
@@ -181,6 +199,7 @@ interface CapabilityCardProps {
 
 export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const { role } = useAuth()
+  const { selectedPlant } = usePlantContext()
   const { data: capability, isLoading, error } = useCapability(characteristicId)
   const { data: history } = useCapabilityHistory(characteristicId)
   const { data: charData } = useCharacteristic(characteristicId)
@@ -190,6 +209,10 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const [showDistAnalysis, setShowDistAnalysis] = useState(false)
 
   const { isCommercial } = useLicense()
+
+  const greenThreshold = selectedPlant?.capability_green_threshold ?? 1.33
+  const yellowThreshold = selectedPlant?.capability_yellow_threshold ?? 1.0
+
   const canSaveSnapshot = hasAccess(role, 'engineer')
   const canFitDist = hasAccess(role, 'engineer') && isCommercial
 
@@ -294,11 +317,38 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           return (
             <div className={cn('grid gap-3', colsClass)}>
               {indices.map(({ label, value }) => (
-                <IndexCard key={label} label={label} value={value} />
+                <IndexCard
+                  key={label}
+                  label={label}
+                  value={value}
+                  greenThreshold={greenThreshold}
+                  yellowThreshold={yellowThreshold}
+                />
               ))}
             </div>
           )
         })()}
+
+        {/* Cp one-sided spec explanation */}
+        {capability.cp === null &&
+          (capability.usl === null || capability.lsl === null) &&
+          !(capability.usl === null && capability.lsl === null) && (
+            <div className="flex items-center gap-1 text-xs text-zinc-400">
+              Cp: N/A &mdash; requires bilateral spec limits
+              <StatNote>
+                Cp measures process capability relative to both specification
+                limits. For one-sided specs, use Cpk only.
+              </StatNote>
+            </div>
+          )}
+
+        {/* Sigma method note */}
+        <div className="flex items-center gap-1 text-xs text-zinc-400">
+          <StatNote>
+            &sigma; computed using R&#772;/d2 method (within-subgroup variation)
+            for Cp/Cpk, sample standard deviation for Pp/Ppk.
+          </StatNote>
+        </div>
 
         {/* Normality + Distribution method + Specs */}
         <div className="flex items-center justify-between text-xs">
@@ -334,7 +384,7 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
                 return (
                   <div key={key}>
                     <div className="text-muted-foreground">{label}</div>
-                    <div className={cn('font-bold tabular-nums', capabilityColor(val ?? null))}>
+                    <div className={cn('font-bold tabular-nums', capabilityColor(val ?? null, greenThreshold, yellowThreshold))}>
                       {val !== null && val !== undefined ? val.toFixed(2) : '--'}
                     </div>
                   </div>
@@ -347,7 +397,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
         {/* Cpk Trend Chart */}
         {history && history.length > 0 && (
           <div>
-            <div className="text-muted-foreground mb-1 text-xs font-medium">Cpk / Ppk Trend</div>
+            <div className="text-muted-foreground mb-1 flex items-center gap-1 text-xs font-medium">
+              Cpk / Ppk Trend
+              <StatNote>
+                Each snapshot was captured at a specific point in time. Current
+                capability values may differ as new data is collected.
+              </StatNote>
+            </div>
             <CpkTrendChart history={history} />
           </div>
         )}

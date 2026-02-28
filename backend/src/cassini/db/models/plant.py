@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, JSON, String, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -39,6 +39,14 @@ class Plant(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Capability thresholds
+    capability_green_threshold: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, server_default=text("1.33")
+    )
+    capability_yellow_threshold: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, server_default=text("1.0")
     )
 
     # Relationships

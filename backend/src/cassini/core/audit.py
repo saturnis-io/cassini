@@ -114,6 +114,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "dismiss"
     if "/purge" in path:
         return "purge"
+    if "/cusum-reset" in path:
+        return "reset"
     if "/forecast" in path:
         return "forecast"
     if "/test" in path:

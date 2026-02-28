@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet } from './helpers/api'
+import { API_BASE, getAuthToken, apiGet, apiPost } from './helpers/api'
 import { switchToPlant } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
@@ -325,6 +325,79 @@ test.describe('CUSUM & EWMA Charts', () => {
     expect(typeof point.ewma_value).toBe('number')
     expect(typeof point.excluded).toBe('boolean')
     expect(Array.isArray(point.violation_ids)).toBe(true)
+
+    // Verify time-varying per-point limit arrays exist
+    expect(chartData.ewma_ucl_values).toBeDefined()
+    expect(Array.isArray(chartData.ewma_ucl_values)).toBe(true)
+    expect(chartData.ewma_ucl_values.length).toBe(chartData.ewma_data_points.length)
+
+    expect(chartData.ewma_lcl_values).toBeDefined()
+    expect(Array.isArray(chartData.ewma_lcl_values)).toBe(true)
+    expect(chartData.ewma_lcl_values.length).toBe(chartData.ewma_data_points.length)
+
+    // Time-varying: first UCL should be narrower than steady-state UCL
+    // (funnel shape — tighter early, widens to asymptotic)
+    expect(chartData.ewma_ucl_values[0]).toBeLessThan(chartData.control_limits.ucl)
+    expect(chartData.ewma_lcl_values[0]).toBeGreaterThan(chartData.control_limits.lcl)
+
+    // Last point should be very close to steady-state (converges after ~20 samples)
+    const lastIdx = chartData.ewma_ucl_values.length - 1
+    expect(chartData.ewma_ucl_values[lastIdx]).toBeCloseTo(chartData.control_limits.ucl, 1)
+  })
+
+  // ── API: CUSUM/EWMA dispatch via /data-entry/submit ────────────────
+
+  test('submit via /data-entry/submit routes to CUSUM engine', async ({ request }) => {
+    const result = await apiPost(request, '/data-entry/submit', token, {
+      characteristic_id: cusumCharId,
+      measurements: [10.5],
+    })
+    expect(result.sample_id).toBeDefined()
+    expect(result.zone).toBe('cusum')
+    expect(result.in_control).toBeDefined()
+    expect(typeof result.mean).toBe('number')
+  })
+
+  test('submit via /data-entry/submit routes to EWMA engine', async ({ request }) => {
+    const result = await apiPost(request, '/data-entry/submit', token, {
+      characteristic_id: ewmaCharId,
+      measurements: [10.5],
+    })
+    expect(result.sample_id).toBeDefined()
+    expect(result.zone).toBe('ewma')
+    expect(result.in_control).toBeDefined()
+    expect(typeof result.mean).toBe('number')
+  })
+
+  // ── API: Standardized short-run guard ──────────────────────────────
+
+  test('standardized short-run rejects submission without stored_sigma', async ({ request }) => {
+    // Create a characteristic with standardized mode but no sigma
+    const charResult = await apiPost(request, '/characteristics/', token, {
+      name: 'Standardized No Sigma',
+      hierarchy_id: stationId,
+      short_run_mode: 'standardized',
+      subgroup_size: 1,
+      target_value: 10.0,
+      usl: 15.0,
+      lsl: 5.0,
+      // No stored_sigma — this should cause the guard to fire
+    })
+
+    // Submit a sample — should fail with 400/500 due to missing sigma
+    const response = await request.post(`${API_BASE}/samples/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        characteristic_id: charResult.id,
+        measurements: [10.0],
+      },
+    })
+
+    // Expect error — backend returns generic message (no str(e) leakage)
+    expect(response.status()).toBeGreaterThanOrEqual(400)
   })
 
   // ── Hierarchy: CUSUM characteristic visible ──────────────────────────

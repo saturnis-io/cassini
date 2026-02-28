@@ -26,6 +26,7 @@ const ACTION_LABELS: Record<string, string> = {
   recalculate: 'Recalculate',
   acknowledge: 'Acknowledge',
   export: 'Export',
+  reset: 'Reset',
   connect: 'Connect',
   disconnect: 'Disconnect',
   violation_created: 'Violation',

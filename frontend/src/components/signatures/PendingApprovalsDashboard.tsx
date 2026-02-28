@@ -25,6 +25,21 @@ const RESOURCE_LABELS: Record<string, string> = {
   report_release: 'Report Release',
   violation_disposition: 'Violation Disposition',
   user_management: 'User Management',
+  fai_report: 'First Article Inspection',
+  msa_study: 'MSA Study',
+  doe_study: 'DOE Study',
+  retention_purge: 'Data Purge',
+}
+
+function timeUntil(iso: string): string | null {
+  const diff = new Date(iso).getTime() - Date.now()
+  if (diff <= 0) return 'Expired'
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 60) return `Expires in ${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Expires in ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `Expires in ${days}d`
 }
 
 export function PendingApprovalsDashboard({ compact = false }: { compact?: boolean }) {
@@ -38,28 +53,8 @@ export function PendingApprovalsDashboard({ compact = false }: { compact?: boole
   // In compact mode, hide entirely when loading or when there are no pending approvals
   if (compact && (isLoading || items.length === 0)) return null
 
-  return (
-    <div className="bg-card border-border rounded-2xl border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Clock className="text-primary h-5 w-5" />
-          <h3 className="text-foreground text-sm font-semibold">
-            Pending Approvals{items.length > 0 && ` (${items.length})`}
-          </h3>
-        </div>
-      </div>
-
-      {isLoading && (
-        <div className="text-muted-foreground py-6 text-center text-sm">Loading...</div>
-      )}
-
-      {!isLoading && items.length === 0 && (
-        <div className="py-6 text-center">
-          <Inbox className="text-muted-foreground/50 mx-auto mb-2 h-8 w-8" />
-          <p className="text-muted-foreground text-sm">No pending approvals</p>
-        </div>
-      )}
-
+  const itemsList = (
+    <>
       <div className="space-y-2">
         {items.map((item: PendingApproval) => (
           <div
@@ -85,6 +80,18 @@ export function PendingApprovalsDashboard({ compact = false }: { compact?: boole
                 <p className="text-muted-foreground mt-1 pl-5 text-xs">
                   Initiated {relativeTime(item.initiated_at)} by {item.initiated_by}
                 </p>
+                {item.expires_at && (
+                  <p
+                    className={cn(
+                      'mt-0.5 pl-5 text-xs font-medium',
+                      timeUntil(item.expires_at) === 'Expired'
+                        ? 'text-destructive'
+                        : 'text-warning text-amber-500',
+                    )}
+                  >
+                    {timeUntil(item.expires_at)}
+                  </p>
+                )}
 
                 {/* Progress dots */}
                 <div className="mt-2 flex items-center gap-1 pl-5">
@@ -150,6 +157,34 @@ export function PendingApprovalsDashboard({ compact = false }: { compact?: boole
           resourceSummary={rejectTarget.resource_summary}
         />
       )}
+    </>
+  )
+
+  if (compact) return itemsList
+
+  return (
+    <div className="bg-card border-border rounded-2xl border p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="text-primary h-5 w-5" />
+          <h3 className="text-foreground text-sm font-semibold">
+            Pending Approvals{items.length > 0 && ` (${items.length})`}
+          </h3>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="text-muted-foreground py-6 text-center text-sm">Loading...</div>
+      )}
+
+      {!isLoading && items.length === 0 && (
+        <div className="py-6 text-center">
+          <Inbox className="text-muted-foreground/50 mx-auto mb-2 h-8 w-8" />
+          <p className="text-muted-foreground text-sm">No pending approvals</p>
+        </div>
+      )}
+
+      {itemsList}
     </div>
   )
 }

@@ -33,6 +33,8 @@ export interface Plant {
   code: string
   is_active: boolean
   settings: Record<string, unknown> | null
+  capability_green_threshold?: number | null
+  capability_yellow_threshold?: number | null
   created_at: string
   updated_at: string
 }
@@ -292,6 +294,9 @@ export interface ChartData {
   cusum_target?: number | null
   ewma_data_points?: EWMAChartSample[]
   ewma_target?: number | null
+  ewma_lambda?: number | null
+  ewma_l?: number | null
+  cusum_k?: number | null
   // Laney correction (Sprint 5 - A3)
   sigma_z?: number | null
   // Short-run chart mode (Sprint 6 - B2)

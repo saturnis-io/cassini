@@ -20,6 +20,7 @@ import type { AnomalyEvent } from '@/types/anomaly'
 import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
 import { Sparkles, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { StatNote } from './StatNote'
 
 interface ControlChartProps {
   characteristicId: number
@@ -1404,6 +1405,27 @@ export function ControlChart({
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Statistical notes for short-run and subgroup modes */}
+      {hasData && (
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          {shortRunMode === 'standardized' && (
+            <span className="flex items-center gap-1 text-xs text-zinc-400">
+              Standardized (Z-score) mode
+              <StatNote>
+                Values converted to Z-scores: Z = (X&#772; &minus; target) /
+                (&sigma;/&radic;n). Allows multiple part numbers on one chart.
+              </StatNote>
+            </span>
+          )}
+          {nominalN > 1 && (
+            <StatNote>
+              Control limits use &sigma;/&radic;n &mdash; larger subgroups
+              produce tighter limits.
+            </StatNote>
+          )}
         </div>
       )}
 

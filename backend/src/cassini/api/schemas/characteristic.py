@@ -399,6 +399,10 @@ class ChartDataResponse(BaseModel):
     ewma_lcl_values: list[float] | None = None
     sigma_z: float | None = None
     short_run_mode: str | None = None
+    limits_type: str | None = None
+    ewma_lambda: float | None = None
+    ewma_l: float | None = None
+    cusum_k: float | None = None
 
 
 class NelsonRuleConfig(BaseModel):

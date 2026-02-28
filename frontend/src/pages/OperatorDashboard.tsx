@@ -18,8 +18,6 @@ import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
-import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
-import { FeatureGate } from '@/components/FeatureGate'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
@@ -578,11 +576,6 @@ export function OperatorDashboard() {
             </div>
           )}
       </div>
-
-      {/* Pending Signature Approvals */}
-      <FeatureGate>
-        <PendingApprovalsDashboard compact />
-      </FeatureGate>
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}

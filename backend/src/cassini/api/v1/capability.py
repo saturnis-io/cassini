@@ -46,6 +46,11 @@ class CapabilityResponse(BaseModel):
     target: float | None = None
     sigma_within: float | None = None
     short_run_mode: str | None = None
+    sigma_source: str | None = None
+    sigma_method: str | None = None
+    cp_unavailable_reason: str | None = None
+    distribution_method_applied: str | None = None
+    transform_applied: str | None = None
 
 
 class CapabilityHistoryItem(BaseModel):
@@ -126,6 +131,12 @@ async def _get_char_and_values(
     return characteristic, all_values, sigma_within
 
 
+def _get_cp_unavailable_reason(characteristic: Characteristic) -> str | None:
+    if characteristic.usl is None or characteristic.lsl is None:
+        return "one_sided_spec"
+    return None
+
+
 # ---- Endpoints ----
 
 @router.get("/{char_id}/capability", response_model=CapabilityResponse)
@@ -150,10 +161,14 @@ async def get_capability(
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
         )
 
+    cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
+    sigma_source_within = "within_subgroup" if sigma_within is not None else None
+    sigma_method_str = "rbar_d2" if sigma_within is not None else None
+
     dist_method = getattr(characteristic, 'distribution_method', None)
     if dist_method and dist_method != "normal":
         import json
-        
+
         dist_params = None
         if characteristic.distribution_params:
             try:
@@ -170,6 +185,16 @@ async def get_capability(
             method=dist_method,
             distribution_params=dist_params,
         )
+
+        transform_applied = None
+        dist_method_applied = nn_result.method
+        if nn_result.method == "box_cox":
+            lam = getattr(characteristic, 'box_cox_lambda', None)
+            if lam is not None:
+                transform_applied = f"box_cox_lambda_{lam}"
+            else:
+                transform_applied = "box_cox"
+
         return CapabilityResponse(
             cp=nn_result.cp,
             cpk=nn_result.cpk,
@@ -186,6 +211,11 @@ async def get_capability(
             target=characteristic.target_value,
             sigma_within=sigma_within,
             short_run_mode=characteristic.short_run_mode,
+            sigma_source=sigma_source_within,
+            sigma_method=sigma_method_str,
+            cp_unavailable_reason=cp_unavailable_reason,
+            distribution_method_applied=dist_method_applied,
+            transform_applied=transform_applied,
         )
 
     result = calculate_capability(
@@ -212,6 +242,11 @@ async def get_capability(
         target=characteristic.target_value,
         sigma_within=sigma_within,
         short_run_mode=characteristic.short_run_mode,
+        sigma_source=sigma_source_within,
+        sigma_method=sigma_method_str,
+        cp_unavailable_reason=cp_unavailable_reason,
+        distribution_method_applied="normal",
+        transform_applied=None,
     )
 
 
@@ -329,6 +364,15 @@ async def save_capability_snapshot(
     )
     await session.commit()
 
+    cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
+    sigma_source_within = "within_subgroup" if sigma_within is not None else None
+    sigma_method_str = "rbar_d2" if sigma_within is not None else None
+    dist_method_applied = dist_method if (dist_method and dist_method != "normal") else "normal"
+    transform_applied = None
+    if dist_method and dist_method == "box_cox":
+        lam = getattr(characteristic, 'box_cox_lambda', None)
+        transform_applied = f"box_cox_lambda_{lam}" if lam is not None else "box_cox"
+
     return SnapshotResponse(
         id=snapshot.id,
         capability=CapabilityResponse(
@@ -346,5 +390,10 @@ async def save_capability_snapshot(
             lsl=characteristic.lsl,
             target=characteristic.target_value,
             sigma_within=sigma_within,
+            sigma_source=sigma_source_within,
+            sigma_method=sigma_method_str,
+            cp_unavailable_reason=cp_unavailable_reason,
+            distribution_method_applied=dist_method_applied,
+            transform_applied=transform_applied,
         ),
     )
