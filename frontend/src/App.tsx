@@ -49,6 +49,7 @@ import { AccountSettings } from '@/components/AccountSettings'
 import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
+import { GalaxyPage } from '@/pages/GalaxyPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
@@ -517,6 +518,14 @@ function App() {
                     <KioskLayout showStatusBar={false}>
                       <WallDashboard />
                     </KioskLayout>
+                  </AuthenticatedDisplayMode>
+                }
+              />
+              <Route
+                path="/galaxy"
+                element={
+                  <AuthenticatedDisplayMode>
+                    <GalaxyPage />
                   </AuthenticatedDisplayMode>
                 }
               />
