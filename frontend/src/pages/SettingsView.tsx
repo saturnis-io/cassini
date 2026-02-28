@@ -66,7 +66,7 @@ export function SettingsPage() {
   const { isCommercial } = useLicense()
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
       <div className="border-border bg-background/80 shrink-0 border-b px-6 pt-5 pb-5 backdrop-blur-sm">
         <h1 className="text-foreground text-xl font-bold tracking-tight">{t('title')}</h1>

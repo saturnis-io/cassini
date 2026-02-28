@@ -77,9 +77,9 @@ export function Layout() {
         <Sidebar />
 
         {/* Content area */}
-        <main className="flex-1 overflow-auto">
+        <main className="flex flex-1 flex-col overflow-auto">
           <LicenseExpiryBanner />
-          <div className="px-2 py-2 pb-16 md:px-4 md:py-3 md:pb-3">
+          <div className="flex min-h-0 flex-1 flex-col px-2 py-2 pb-16 md:px-4 md:py-3 md:pb-3">
             <Outlet />
           </div>
         </main>
