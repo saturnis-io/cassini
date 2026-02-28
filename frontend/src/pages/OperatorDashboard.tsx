@@ -19,7 +19,6 @@ import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
-import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
 import { exportApi } from '@/api/export.api'
 import { formatDisplayKey } from '@/lib/display-key'
@@ -610,9 +609,6 @@ export function OperatorDashboard() {
             </div>
           )}
       </div>
-
-      {/* Pending Signature Approvals */}
-      <PendingApprovalsDashboard compact />
 
       {/* Input Modal */}
       {inputModalOpen && <InputModal />}

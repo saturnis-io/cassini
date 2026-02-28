@@ -51,6 +51,7 @@ from cassini.db.repositories.workflow import (
     WorkflowRepository,
     WorkflowStepRepository,
 )
+from sqlalchemy import select
 
 logger = structlog.get_logger(__name__)
 
@@ -60,6 +61,118 @@ router = APIRouter(prefix="/api/v1/signatures", tags=["signatures"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _build_char_path(session: AsyncSession, char_id: int) -> str | None:
+    """Build hierarchy path + characteristic name like 'Line 2 > Cell 3 > Bore Diameter'."""
+    from cassini.db.models.characteristic import Characteristic
+    from cassini.db.models.hierarchy import Hierarchy
+
+    row = (
+        await session.execute(
+            select(Characteristic.name, Characteristic.hierarchy_id).where(
+                Characteristic.id == char_id
+            )
+        )
+    ).first()
+    if not row:
+        return None
+
+    path_parts: list[str] = []
+    current_id: int | None = row.hierarchy_id
+
+    while current_id is not None:
+        node = (
+            await session.execute(
+                select(Hierarchy.name, Hierarchy.parent_id).where(
+                    Hierarchy.id == current_id
+                )
+            )
+        ).first()
+        if node is None:
+            break
+        path_parts.insert(0, node.name)
+        current_id = node.parent_id
+
+    path_parts.append(row.name)
+    return " > ".join(path_parts)
+
+
+# Resource types that resolve against a characteristic
+_CHAR_BASED_TYPES = {
+    "characteristic",
+    "limit_change",
+    "config_change",
+    "sample_approval",
+    "violation_disposition",
+}
+
+_CHAR_PREFIXES: dict[str, str] = {
+    "limit_change": "Limit Change",
+    "config_change": "Config Change",
+    "sample_approval": "Sample",
+    "violation_disposition": "Violation",
+}
+
+
+async def _build_resource_summary(
+    session: AsyncSession, resource_type: str, resource_id: int
+) -> str:
+    """Build a human-readable summary for a workflow resource."""
+    try:
+        if resource_type == "fai_report":
+            from cassini.db.models.fai import FAIReport
+
+            row = (
+                await session.execute(
+                    select(FAIReport.part_number, FAIReport.part_name).where(
+                        FAIReport.id == resource_id
+                    )
+                )
+            ).first()
+            if row:
+                name = f" \u2014 {row.part_name}" if row.part_name else ""
+                return f"FAI: {row.part_number}{name}"
+        elif resource_type == "msa_study":
+            from cassini.db.models.msa import MSAStudy
+
+            row = (
+                await session.execute(
+                    select(MSAStudy.name, MSAStudy.study_type).where(
+                        MSAStudy.id == resource_id
+                    )
+                )
+            ).first()
+            if row:
+                return f"MSA: {row.name} ({row.study_type})"
+        elif resource_type == "doe_study":
+            from cassini.db.models.doe import DOEStudy
+
+            row = (
+                await session.execute(
+                    select(DOEStudy.name, DOEStudy.design_type).where(
+                        DOEStudy.id == resource_id
+                    )
+                )
+            ).first()
+            if row:
+                return f"DOE: {row.name} ({row.design_type})"
+        elif resource_type == "retention_purge":
+            return f"Data Purge \u2014 Plant #{resource_id}"
+        elif resource_type in _CHAR_BASED_TYPES:
+            char_path = await _build_char_path(session, resource_id)
+            if char_path:
+                prefix = _CHAR_PREFIXES.get(resource_type)
+                if prefix:
+                    return f"{prefix}: {char_path}"
+                return char_path
+    except Exception:
+        logger.warning(
+            "Failed to build resource summary",
+            resource_type=resource_type,
+            resource_id=resource_id,
+        )
+    return f"{resource_type} #{resource_id}"
 
 
 def _get_client_ip(request: Request) -> str | None:
@@ -132,26 +245,6 @@ async def execute_signature(
 
     await session.commit()
 
-    request.state.audit_context = {
-        "resource_type": body.resource_type,
-        "resource_id": body.resource_id,
-        "action": "sign",
-        "summary": f"Signed {body.resource_type.replace('_', ' ').title()} #{body.resource_id}"
-                   + (f" as {step_name}" if step_name else "")
-                   + (f" — {sig.meaning_display}" if sig.meaning_display else ""),
-        "fields": {
-            "resource_type": body.resource_type,
-            "resource_id": body.resource_id,
-            "meaning": sig.meaning_display,
-            "workflow_step": step_name,
-            "workflow_status": workflow_status,
-            "comment": body.comment,
-            "plant_id": plant_id,
-            "signature_id": sig.id,
-            "signer": sig.username,
-        },
-    }
-
     return SignResponse(
         signature_id=sig.id,
         signer_name=sig.username,
@@ -188,18 +281,6 @@ async def reject_workflow(
         ip_address=ip,
     )
     await session.commit()
-
-    request.state.audit_context = {
-        "resource_type": "signature",
-        "action": "reject",
-        "summary": f"Rejected workflow instance #{body.workflow_instance_id}",
-        "fields": {
-            "workflow_instance_id": body.workflow_instance_id,
-            "reason": body.reason,
-            "plant_id": plant_id,
-        },
-    }
-
     return {"message": "Workflow rejected"}
 
 
@@ -252,12 +333,17 @@ async def get_pending_approvals(
             if initiator:
                 initiator_name = initiator.username
 
+        summary = await _build_resource_summary(
+            session, inst.resource_type, inst.resource_id
+        )
+
         items.append(
             PendingApprovalItem(
                 workflow_instance_id=inst.id,
                 workflow_name=inst.workflow.name,
                 resource_type=inst.resource_type,
                 resource_id=inst.resource_id,
+                resource_summary=summary,
                 current_step=current_step.name if current_step else "Unknown",
                 step_number=inst.current_step,
                 total_steps=len(steps),
