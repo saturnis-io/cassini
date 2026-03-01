@@ -40,6 +40,9 @@ const MOON_SIZE_OLDEST = 0.05
 const MOON_OPACITY_NEWEST = 0.85
 const MOON_OPACITY_OLDEST = 0.04
 
+/** Invisible hit-target radius for easier moon click detection */
+const MOON_HIT_RADIUS = 0.4
+
 /** Ring shader only receives the newest N points for wake effects (perf) */
 const SHADER_MOON_LIMIT = 30
 
@@ -113,6 +116,8 @@ export class PlanetSystem {
   private ringGeo: THREE.BufferGeometry | null = null
   private ringShaderMat: THREE.ShaderMaterial | null = null
   private moonGeo: THREE.SphereGeometry | null = null
+  private moonHitGeo: THREE.SphereGeometry | null = null
+  private moonHitMat: THREE.MeshBasicMaterial | null = null
   private uMoonsArray: THREE.Vector3[] = []
   private uMoonStatusArray: number[] = []
 
@@ -338,6 +343,8 @@ export class PlanetSystem {
     this.ringGeo?.dispose()
     this.ringShaderMat?.dispose()
     this.moonGeo?.dispose()
+    this.moonHitGeo?.dispose()
+    this.moonHitMat?.dispose()
 
     this.planetGeo = null
     this.planetMat = null
@@ -348,6 +355,8 @@ export class PlanetSystem {
     this.ringShaderMat = null
     this.ringMesh = null
     this.moonGeo = null
+    this.moonHitGeo = null
+    this.moonHitMat = null
     this.uMoonsArray = []
     this.uMoonStatusArray = []
 
@@ -626,16 +635,21 @@ export class PlanetSystem {
     const { cream } = colors
 
     const moonGeo = new THREE.SphereGeometry(0.12, 16, 16)
+    this.moonHitGeo = new THREE.SphereGeometry(MOON_HIT_RADIUS, 8, 8)
+    this.moonHitMat = new THREE.MeshBasicMaterial({ visible: false })
 
     for (let i = 0; i < moonCount; i++) {
       const gap = gaps[i % gaps.length]
       const mat = new THREE.MeshBasicMaterial({ color: cream.clone() })
       const mesh = new THREE.Mesh(moonGeo, mat)
+      const hitMesh = new THREE.Mesh(this.moonHitGeo, this.moonHitMat)
       this.group.add(mesh)
+      this.group.add(hitMesh)
 
       const initialAngle = ((Math.PI * 2) / moonCount) * i + Math.random()
       this.moons.push({
         mesh,
+        hitMesh,
         angle: initialAngle,
         speed: 0.0015 + Math.random() * 0.001,
         gap,
@@ -805,11 +819,10 @@ export class PlanetSystem {
       status = (moon.currentRadius - (moon.gap.out - buffer)) / buffer
     status = Math.max(0, Math.min(1, status))
 
-    moon.mesh.position.set(
-      Math.cos(moon.angle) * moon.currentRadius,
-      0,
-      Math.sin(moon.angle) * moon.currentRadius,
-    )
+    const px = Math.cos(moon.angle) * moon.currentRadius
+    const pz = Math.sin(moon.angle) * moon.currentRadius
+    moon.mesh.position.set(px, 0, pz)
+    moon.hitMesh.position.set(px, 0, pz)
 
     ;(moon.mesh.material as THREE.MeshBasicMaterial).color.lerpColors(
       cream,
@@ -840,11 +853,10 @@ export class PlanetSystem {
     moon.angle = angle
     moon.currentRadius = radius
     moon.targetRadius = radius
-    moon.mesh.position.set(
-      Math.cos(angle) * radius,
-      0,
-      Math.sin(angle) * radius,
-    )
+    const px = Math.cos(angle) * radius
+    const pz = Math.sin(angle) * radius
+    moon.mesh.position.set(px, 0, pz)
+    moon.hitMesh.position.set(px, 0, pz)
     this.uMoonsArray[index].set(radius, angle, moon.gap.center)
   }
 
@@ -879,9 +891,10 @@ export class PlanetSystem {
 
     if (!this.ringShaderMat || !this.moonGeo) return
 
-    // Remove existing moon meshes from group and dispose materials
+    // Remove existing moon meshes and hit meshes from group and dispose materials
     this.moons.forEach((m) => {
       this.group.remove(m.mesh)
+      this.group.remove(m.hitMesh)
       ;(m.mesh.material as THREE.Material).dispose()
       if (m.anomalyTimeout) clearTimeout(m.anomalyTimeout)
     })
@@ -911,11 +924,16 @@ export class PlanetSystem {
       mesh.userData.baseScale = moonSize / 0.12
       this.group.add(mesh)
 
-      mesh.position.set(
-        Math.cos(sample.angle) * sample.radius,
-        0,
-        Math.sin(sample.angle) * sample.radius,
-      )
+      // Invisible hit target for easier click detection
+      if (!this.moonHitGeo) this.moonHitGeo = new THREE.SphereGeometry(MOON_HIT_RADIUS, 8, 8)
+      if (!this.moonHitMat) this.moonHitMat = new THREE.MeshBasicMaterial({ visible: false })
+      const hitMesh = new THREE.Mesh(this.moonHitGeo, this.moonHitMat)
+      this.group.add(hitMesh)
+
+      const px = Math.cos(sample.angle) * sample.radius
+      const pz = Math.sin(sample.angle) * sample.radius
+      mesh.position.set(px, 0, pz)
+      hitMesh.position.set(px, 0, pz)
 
       // Feed only the newest SHADER_MOON_LIMIT points to the ring shader
       const shaderSlot = i - (total - Math.min(total, SHADER_MOON_LIMIT))
@@ -944,6 +962,7 @@ export class PlanetSystem {
 
       return {
         mesh,
+        hitMesh,
         angle: sample.angle,
         speed: 0, // data moons don't orbit randomly
         gap: this.config.gaps[0] ?? { in: 14.5, out: 16.5, center: 15.5 },
@@ -1005,9 +1024,9 @@ export class PlanetSystem {
     this.pendingPlanetColor = color.clone()
   }
 
-  /** Return the moon mesh array for raycasting (read-only). */
+  /** Return the hit-target mesh array for raycasting (read-only). */
   getMoonMeshes(): THREE.Mesh[] {
-    return this.moons.map((m) => m.mesh)
+    return this.moons.map((m) => m.hitMesh)
   }
 
   /** Update the dot sprite's color directly (convenience for galaxy view). */

@@ -18,6 +18,8 @@ export interface PlanetColors {
 
 export interface MoonState {
   mesh: THREE.Mesh
+  /** Invisible larger sphere for easier click targeting */
+  hitMesh: THREE.Mesh
   angle: number
   speed: number
   gap: GapConfig
