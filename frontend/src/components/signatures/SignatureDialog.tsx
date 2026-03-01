@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PenLine, Loader2, AlertCircle } from 'lucide-react'
+import { PenLine, Loader2, AlertCircle, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMeanings, useSign } from '@/api/hooks'
 import type { SignatureMeaning } from '@/types/signature'
@@ -113,23 +113,30 @@ export function SignatureDialog({
           </div>
         )}
 
-        {/* Meaning selector */}
+        {/* Meaning selector — locked when workflow defines exactly one */}
         <div className="mb-4">
           <label className="text-foreground mb-1 block text-sm font-medium">
             Signature Meaning
           </label>
-          <select
-            value={meaningCode}
-            onChange={(e) => setMeaningCode(e.target.value)}
-            className="bg-background border-input focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          >
-            <option value="">Select meaning...</option>
-            {activeMeanings.map((m: SignatureMeaning) => (
-              <option key={m.code} value={m.code}>
-                {m.display_name}
-              </option>
-            ))}
-          </select>
+          {activeMeanings.length === 1 ? (
+            <div className="bg-muted border-input flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+              <Lock className="text-muted-foreground h-3.5 w-3.5 flex-shrink-0" />
+              <span className="text-foreground">{activeMeanings[0].display_name}</span>
+            </div>
+          ) : (
+            <select
+              value={meaningCode}
+              onChange={(e) => setMeaningCode(e.target.value)}
+              className="bg-background border-input focus:ring-ring w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            >
+              <option value="">Select meaning...</option>
+              {activeMeanings.map((m: SignatureMeaning) => (
+                <option key={m.code} value={m.code}>
+                  {m.display_name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Password input */}

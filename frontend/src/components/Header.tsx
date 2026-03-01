@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Sun,
@@ -187,13 +188,13 @@ export function Header({ className, plantSelector }: HeaderProps) {
         </button>
 
         {/* TODO: Temporary galaxy link — remove when Easter egg is implemented */}
-        <a
-          href="/galaxy"
+        <Link
+          to="/galaxy"
           className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
           title="Galaxy View"
         >
           <Globe className="h-4 w-4" />
-        </a>
+        </Link>
 
         {/* Show Your Work toggle */}
         <button

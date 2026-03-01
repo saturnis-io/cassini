@@ -175,6 +175,8 @@ class CharacteristicResponse(BaseModel):
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None
+    latest_cpk: float | None = None
+    latest_cp: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

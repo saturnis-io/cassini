@@ -3,6 +3,15 @@ import { toast } from 'sonner'
 import { violationApi } from '../quality.api'
 import { queryKeys, VIOLATION_STATS_REFETCH_MS } from './queryKeys'
 
+/** Invalidate all queries affected by violation status changes */
+function invalidateViolationDependents(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
+  queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+  queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
+  // Invalidate chartData so galaxy scene updates moon colors/sparks after ack
+  queryClient.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData'] })
+}
+
 // Violation hooks
 export function useViolations(params?: Parameters<typeof violationApi.list>[0]) {
   return useQuery({
@@ -64,8 +73,7 @@ export function useAcknowledgeViolation() {
       toast.success('Violation acknowledged')
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      invalidateViolationDependents(queryClient)
     },
   })
 }
@@ -90,8 +98,7 @@ export function useBatchAcknowledgeViolation() {
       }
       // Invalidate in onSuccess (before mutate-level onSuccess closes the dialog)
       // so the query cache is refreshed while the component is still mounted
-      queryClient.invalidateQueries({ queryKey: queryKeys.violations.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      invalidateViolationDependents(queryClient)
     },
     onError: (error: Error) => {
       toast.error(`Bulk acknowledge failed: ${error.message}`)

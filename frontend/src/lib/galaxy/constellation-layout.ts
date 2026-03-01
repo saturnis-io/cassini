@@ -58,6 +58,30 @@ function flattenTree(
 }
 
 /**
+ * Build a map from hierarchy node ID to its full breadcrumb path string.
+ * Walks the tree recursively, accumulating path segments like "Area > Line > Station".
+ * Top-level nodes (direct children of root) start the path — the plant/root name is excluded.
+ */
+export function buildHierarchyPathMap(
+  tree: HierarchyNode[],
+): Map<number, string> {
+  const pathMap = new Map<number, string>()
+
+  function walk(nodes: HierarchyNode[], prefix: string): void {
+    for (const node of nodes) {
+      const path = prefix ? `${prefix} > ${node.name}` : node.name
+      pathMap.set(node.id, path)
+      if (node.children && node.children.length > 0) {
+        walk(node.children, path)
+      }
+    }
+  }
+
+  walk(tree, '')
+  return pathMap
+}
+
+/**
  * Compute spatial positions for all characteristics in a plant, grouped by hierarchy.
  *
  * Uses a deterministic force-directed layout:
@@ -178,10 +202,11 @@ export function computeConstellationLayout(
   }
 
   // Force-directed simulation: 100 steps
-  const SPRING_REST = 15
+  // SPRING_REST must exceed halo ring radius (~30) to prevent visual overlap
+  const SPRING_REST = 55
   const SPRING_K = 0.05
-  const REPULSION_RANGE = 100
-  const REPULSION_STRENGTH = 500
+  const REPULSION_RANGE = 150
+  const REPULSION_STRENGTH = 2000
   const DAMPING = 0.85
   const STEPS = 100
 

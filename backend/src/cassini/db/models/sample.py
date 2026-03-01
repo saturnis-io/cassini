@@ -64,7 +64,8 @@ class Sample(Base):
 
     # Relationships
     characteristic: Mapped["Characteristic"] = relationship(
-        "Characteristic", back_populates="samples"
+        "Characteristic", back_populates="samples",
+        foreign_keys="[Sample.char_id]",
     )
     measurements: Mapped[list["Measurement"]] = relationship(
         "Measurement", back_populates="sample", cascade="all, delete-orphan"

@@ -109,6 +109,7 @@ class PendingApprovalItem(BaseModel):
     initiated_by: str | None
     initiated_at: datetime
     expires_at: datetime | None
+    step_meaning_code: str | None = None
     previous_signatures: list[PreviousSignatureInfo] = []
 
 

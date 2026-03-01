@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react'
 import {
   X,
   Clock,
-  BarChart3,
-  AlertTriangle,
   CheckCircle2,
-  ShieldAlert,
+  AlertTriangle,
+  ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -30,11 +29,13 @@ export function SampleDetailPanel({
   const { user } = useAuth()
   const [ackReason, setAckReason] = useState('')
   const [ackingId, setAckingId] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const acknowledgeMutation = useAcknowledgeViolation()
 
   // Fetch violations for this sample if there are any
   const hasViolations = sampleData.violation_ids.length > 0
+  const hasUnacked = sampleData.unacknowledged_violation_ids.length > 0
   const { data: violationsData } = useViolations(
     hasViolations
       ? {
@@ -72,117 +73,143 @@ export function SampleDetailPanel({
     )
   }
 
-  const formattedTimestamp = new Date(sampleData.timestamp).toLocaleString()
+  const formattedTime = new Date(sampleData.timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 
   return (
     <div
       className={cn(
-        'fixed top-0 right-0 bottom-0 z-[60] w-96 border-l border-white/10 bg-[#0D1117] shadow-2xl',
-        'explanation-panel-slide-in',
-        'flex flex-col overflow-hidden',
+        'fixed top-0 right-0 left-0 z-[60]',
+        'border-b border-white/10 bg-black/80 shadow-2xl backdrop-blur-md',
+        'animate-in slide-in-from-top duration-200',
       )}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-amber-400" />
-          <span className="font-mono text-sm font-semibold text-gray-200">
-            Sample Detail
-          </span>
+      {/* Main bar — single row of inline chips */}
+      <div className="flex items-center gap-3 px-4 py-2.5 font-mono">
+        {/* Timestamp chip */}
+        <div className="flex shrink-0 items-center gap-1.5 text-sm text-gray-400">
+          <Clock className="h-3.5 w-3.5" />
+          <span className="tabular-nums">{formattedTime}</span>
         </div>
-        <button
-          onClick={onClose}
-          className="cursor-pointer rounded-md p-1 text-gray-500 transition-colors hover:bg-white/10 hover:text-gray-300"
-          aria-label="Close sample detail panel"
-        >
-          <X className="h-4 w-4" />
-        </button>
+
+        <Separator />
+
+        {/* Mean */}
+        <Chip label="Mean" value={sampleData.mean.toFixed(4)} />
+
+        {/* Range */}
+        {sampleData.range != null && (
+          <>
+            <Separator />
+            <Chip label="Range" value={sampleData.range.toFixed(4)} />
+          </>
+        )}
+
+        {/* Std Dev */}
+        {sampleData.std_dev != null && (
+          <>
+            <Separator />
+            <Chip label="StdDev" value={sampleData.std_dev.toFixed(4)} />
+          </>
+        )}
+
+        {/* Zone */}
+        <Separator />
+        <Chip label="Zone" value={sampleData.zone} />
+
+        {/* Excluded badge */}
+        {sampleData.excluded && (
+          <>
+            <Separator />
+            <span className="rounded bg-yellow-900/30 px-1.5 py-0.5 text-xs text-yellow-400">
+              Excluded
+            </span>
+          </>
+        )}
+
+        {/* Violation badges — compact inline */}
+        {hasViolations && (
+          <>
+            <Separator />
+            <div className="flex items-center gap-1.5">
+              {sampleData.violation_rules.slice(0, 3).map((ruleId) => {
+                const rule = NELSON_RULES[ruleId]
+                return (
+                  <span
+                    key={ruleId}
+                    className={cn(
+                      'rounded px-1.5 py-0.5 text-xs font-medium',
+                      hasUnacked
+                        ? 'bg-red-900/50 text-red-400'
+                        : 'bg-amber-900/30 text-amber-500',
+                    )}
+                  >
+                    Rule {ruleId}{rule?.name ? `: ${rule.name}` : ''}
+                  </span>
+                )
+              })}
+              {sampleData.violation_rules.length > 3 && (
+                <span className="text-xs text-gray-500">
+                  +{sampleData.violation_rules.length - 3}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Expand toggle (if violations present) + Close button — pushed right */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {hasViolations && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white/10 hover:text-gray-200"
+            >
+              <span>{expanded ? 'Less' : 'Details'}</span>
+              <ChevronDown
+                className={cn(
+                  'h-3 w-3 transition-transform',
+                  expanded && 'rotate-180',
+                )}
+              />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="cursor-pointer rounded-md p-1 text-gray-500 transition-colors hover:bg-white/10 hover:text-gray-300"
+            aria-label="Close sample detail panel"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {/* Timestamp */}
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Clock className="h-3.5 w-3.5" />
-          <span className="font-mono">{formattedTimestamp}</span>
-        </div>
-
-        {/* Sample values */}
-        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
-            Sample Values
-          </h4>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Mean</span>
-              <span className="font-mono font-medium tabular-nums text-gray-200">
-                {sampleData.mean.toFixed(4)}
-              </span>
-            </div>
-            {sampleData.range != null && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Range</span>
-                <span className="font-mono font-medium tabular-nums text-gray-200">
-                  {sampleData.range.toFixed(4)}
-                </span>
-              </div>
-            )}
-            {sampleData.std_dev != null && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Std Dev</span>
-                <span className="font-mono font-medium tabular-nums text-gray-200">
-                  {sampleData.std_dev.toFixed(4)}
-                </span>
-              </div>
-            )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Zone</span>
-              <span className="font-mono text-xs text-gray-300">
-                {sampleData.zone}
-              </span>
-            </div>
-            {sampleData.excluded && (
-              <div className="mt-1 rounded bg-yellow-900/30 px-2 py-1 text-[11px] text-yellow-400">
-                Sample excluded from calculations
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Violation details */}
-        {hasViolations && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-red-400" />
-              <h4 className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
-                Violations ({sampleData.violation_ids.length})
-              </h4>
-            </div>
-
-            {/* Show rule summaries from chart data point */}
+      {/* Expandable detail row — violation details + acknowledge */}
+      {expanded && hasViolations && (
+        <div className="border-t border-white/5 px-4 py-3">
+          <div className="flex flex-wrap gap-3">
+            {/* Show rule summaries while API loads */}
             {sampleData.violation_rules.length > 0 &&
-              violations.length === 0 && (
-                <div className="space-y-2">
-                  {sampleData.violation_rules.map((ruleId) => {
-                    const rule = NELSON_RULES[ruleId]
-                    return (
-                      <div
-                        key={ruleId}
-                        className="rounded-lg border border-red-500/20 bg-red-950/20 p-3"
-                      >
-                        <div className="font-mono text-xs font-medium text-red-400">
-                          Rule {ruleId}: {rule?.name ?? 'Unknown'}
-                        </div>
-                        {rule?.description && (
-                          <div className="mt-1 text-[11px] text-gray-500">
-                            {rule.description}
-                          </div>
-                        )}
+              violations.length === 0 &&
+              sampleData.violation_rules.map((ruleId) => {
+                const rule = NELSON_RULES[ruleId]
+                return (
+                  <div
+                    key={ruleId}
+                    className="rounded border border-red-500/20 bg-red-950/20 px-3 py-2"
+                  >
+                    <div className="font-mono text-xs font-medium text-red-400">
+                      Rule {ruleId}: {rule?.name ?? 'Unknown'}
+                    </div>
+                    {rule?.description && (
+                      <div className="mt-0.5 text-[11px] text-gray-500">
+                        {rule.description}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                    )}
+                  </div>
+                )
+              })}
 
             {/* Full violation details from API */}
             {violations.map((violation) => {
@@ -193,7 +220,7 @@ export function SampleDetailPanel({
                 <div
                   key={violation.id}
                   className={cn(
-                    'rounded-lg border p-3',
+                    'min-w-[240px] max-w-[360px] rounded border px-3 py-2',
                     isUnacked
                       ? 'border-red-500/30 bg-red-950/20'
                       : 'border-white/10 bg-white/5',
@@ -226,31 +253,31 @@ export function SampleDetailPanel({
 
                   {/* Acknowledged state */}
                   {violation.acknowledged && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-green-400">
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-green-400">
                       <CheckCircle2 className="h-3 w-3" />
                       Acknowledged by {violation.ack_user}
                       {violation.ack_reason && (
                         <span className="text-gray-500">
                           {' '}
-                          — {violation.ack_reason}
+                          &mdash; {violation.ack_reason}
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Acknowledge button for unacked violations */}
+                  {/* Acknowledge form for unacked violations */}
                   {isUnacked && (
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 flex items-center gap-2">
                       <input
                         type="text"
-                        placeholder="Reason for acknowledgement..."
+                        placeholder="Reason..."
                         value={ackingId === violation.id ? ackReason : ''}
                         onFocus={() => setAckingId(violation.id)}
                         onChange={(e) => {
                           setAckingId(violation.id)
                           setAckReason(e.target.value)
                         }}
-                        className="w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-amber-500/50"
+                        className="min-w-0 flex-1 rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-amber-500/50"
                       />
                       <button
                         onClick={() => handleAcknowledge(violation.id)}
@@ -259,7 +286,7 @@ export function SampleDetailPanel({
                           (ackingId === violation.id && !ackReason.trim())
                         }
                         className={cn(
-                          'flex w-full cursor-pointer items-center justify-center gap-1.5 rounded px-2 py-1.5',
+                          'flex shrink-0 cursor-pointer items-center gap-1 rounded px-2 py-1',
                           'font-mono text-xs font-medium transition-colors',
                           'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30',
                           'disabled:cursor-not-allowed disabled:opacity-50',
@@ -267,11 +294,11 @@ export function SampleDetailPanel({
                       >
                         {acknowledgeMutation.isPending &&
                         ackingId === violation.id ? (
-                          <span>Acknowledging...</span>
+                          <span>...</span>
                         ) : (
                           <>
                             <CheckCircle2 className="h-3 w-3" />
-                            Acknowledge
+                            Ack
                           </>
                         )}
                       </button>
@@ -281,28 +308,41 @@ export function SampleDetailPanel({
               )
             })}
           </div>
-        )}
 
-        {/* No violations */}
-        {!hasViolations && (
-          <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-950/10 p-3 text-xs text-green-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>No violations on this sample</span>
-          </div>
-        )}
+          {/* Unacknowledged count summary */}
+          {hasUnacked && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>
+                {sampleData.unacknowledged_violation_ids.length} unacknowledged
+              </span>
+            </div>
+          )}
 
-        {/* Unacknowledged violation count */}
-        {sampleData.unacknowledged_violation_ids.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-950/10 p-3 text-xs text-amber-400">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>
-              {sampleData.unacknowledged_violation_ids.length} unacknowledged
-              violation
-              {sampleData.unacknowledged_violation_ids.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        )}
-      </div>
+          {/* No violations (shouldn't reach here, but safe) */}
+          {!hasViolations && (
+            <div className="flex items-center gap-2 text-xs text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>No violations</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
+}
+
+function Chip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex shrink-0 items-baseline gap-1.5">
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-gray-200">
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function Separator() {
+  return <div className="h-4 w-px shrink-0 bg-white/10" />
 }

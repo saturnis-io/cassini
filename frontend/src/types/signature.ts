@@ -122,6 +122,7 @@ export interface PendingApproval {
   initiated_by: string
   initiated_at: string
   expires_at: string | null
+  step_meaning_code: string | null
   previous_signatures: {
     step: string
     signer: string

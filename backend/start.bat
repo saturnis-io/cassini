@@ -98,11 +98,19 @@ REM Admin credentials (change via CASSINI_ADMIN_USERNAME / CASSINI_ADMIN_PASSWOR
 set "CASSINI_ADMIN_USERNAME=admin"
 set "CASSINI_ADMIN_PASSWORD=password"
 
+REM License tier: pass --commercial to enable enterprise features
+set "EDITION_LABEL=Community"
+if "%1"=="--commercial" (
+    set "CASSINI_DEV_COMMERCIAL=true"
+    set "EDITION_LABEL=Commercial (dev)"
+)
+
 REM Start the server
 echo.
 echo  %GREEN%→%R% Backend:  %GREEN%http://localhost:8000%R%
 echo  %GREEN%→%R% API Docs: %GREEN%http://localhost:8000/docs%R%
 echo  %DIM%  Sandbox mode enabled (dev tools available)%R%
+echo  %DIM%  Edition: %EDITION_LABEL%%R%
 echo  %DIM%  Login: admin / password%R%
 echo  %DIM%  Press Ctrl+C to stop%R%
 echo.

@@ -144,6 +144,9 @@ export function PendingApprovalsDashboard({ compact = false }: { compact?: boole
           resourceId={signTarget.resource_id}
           resourceSummary={signTarget.resource_summary}
           workflowInstanceId={signTarget.workflow_instance_id}
+          allowedMeanings={
+            signTarget.step_meaning_code ? [signTarget.step_meaning_code] : undefined
+          }
         />
       )}
 

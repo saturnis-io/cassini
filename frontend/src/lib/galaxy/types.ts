@@ -53,3 +53,9 @@ export const DEFAULT_LOGIN_CONFIG: Omit<PlanetSystemConfig, 'colors'> = {
   ],
   moonCount: 12,
 }
+
+export const DEFAULT_GALAXY_CONFIG: Omit<PlanetSystemConfig, 'colors'> = {
+  ...DEFAULT_LOGIN_CONFIG,
+  planetRadius: 9.0,
+  moonCount: 100,
+}

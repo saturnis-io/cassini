@@ -38,14 +38,14 @@ interface GalaxySidebarProps {
 
 /** UNS-compatible hierarchy type icons (same set as HierarchyTree) */
 const nodeTypeIcons: Record<string, React.ReactNode> = {
-  Folder: <Box className="h-3.5 w-3.5" />,
-  Enterprise: <Factory className="h-3.5 w-3.5" />,
-  Site: <Factory className="h-3.5 w-3.5" />,
-  Area: <Box className="h-3.5 w-3.5" />,
-  Line: <Cog className="h-3.5 w-3.5" />,
-  Cell: <Cpu className="h-3.5 w-3.5" />,
-  Equipment: <Settings className="h-3.5 w-3.5" />,
-  Tag: <Settings className="h-3.5 w-3.5" />,
+  Folder: <Box className="h-4 w-4" />,
+  Enterprise: <Factory className="h-4 w-4" />,
+  Site: <Factory className="h-4 w-4" />,
+  Area: <Box className="h-4 w-4" />,
+  Line: <Cog className="h-4 w-4" />,
+  Cell: <Cpu className="h-4 w-4" />,
+  Equipment: <Settings className="h-4 w-4" />,
+  Tag: <Settings className="h-4 w-4" />,
 }
 
 /**
@@ -316,24 +316,24 @@ export function GalaxySidebar({
       {collapsed ? (
         <button
           onClick={() => setCollapsed(false)}
-          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-br-lg bg-black/60 text-gray-400 backdrop-blur-md hover:text-white"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-br-lg bg-card/90 text-muted-foreground backdrop-blur-md hover:text-foreground"
           title="Show sidebar"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
       ) : (
-        <div className="flex h-full w-72 flex-col border-r border-white/10 bg-black/70 backdrop-blur-md">
+        <div className="flex h-full w-72 flex-col border-r border-border bg-card/90 backdrop-blur-md">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <div className="flex items-center gap-2">
-              <Orbit className="h-4 w-4 text-amber-400" />
-              <span className="font-mono text-xs font-semibold tracking-wider text-gray-200 uppercase">
+              <Orbit className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Navigator
               </span>
             </div>
             <button
               onClick={() => setCollapsed(true)}
-              className="cursor-pointer rounded p-1 text-gray-500 hover:bg-white/10 hover:text-gray-300"
+              className="cursor-pointer rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               title="Collapse sidebar"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -342,17 +342,17 @@ export function GalaxySidebar({
 
           {/* Breadcrumb */}
           {zoomLevel !== 'galaxy' && breadcrumb.length > 0 && (
-            <div className="border-b border-white/10 px-3 py-1.5">
-              <div className="flex flex-wrap items-center gap-1 font-mono text-[10px] text-gray-500">
-                <span className="text-amber-400/70">Galaxy</span>
+            <div className="border-b border-border px-3 py-1.5">
+              <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                <span className="text-primary/70">Galaxy</span>
                 {breadcrumb.map((crumb) => (
                   <span key={crumb.id} className="flex items-center gap-1">
-                    <span className="text-gray-600">&rsaquo;</span>
+                    <span className="text-border">&rsaquo;</span>
                     <span
                       className={cn(
                         crumb.id === activeConstellationId
-                          ? 'text-amber-300'
-                          : 'text-gray-400',
+                          ? 'text-primary'
+                          : 'text-muted-foreground',
                       )}
                     >
                       {crumb.name}
@@ -364,20 +364,20 @@ export function GalaxySidebar({
           )}
 
           {/* Search */}
-          <div className="border-b border-white/10 px-3 py-2">
+          <div className="border-b border-border px-3 py-2">
             <div className="relative">
-              <Search className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+              <Search className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 placeholder="Search..."
-                className="w-full rounded border border-white/10 bg-white/5 py-1 pr-7 pl-7 font-mono text-xs text-gray-300 placeholder-gray-600 outline-none focus:border-amber-400/40"
+                className="w-full rounded-[0.625rem] border border-border bg-input py-1.5 pr-7 pl-7 text-sm text-foreground placeholder:text-muted-foreground shadow-[inset_0_1px_2px_hsl(240_10%_80%/0.15)] outline-none focus:border-primary/50 focus:ring-1 focus:ring-ring"
               />
               {searchText && (
                 <button
                   onClick={() => setSearchText('')}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-gray-500 hover:text-gray-300"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -386,9 +386,9 @@ export function GalaxySidebar({
           </div>
 
           {/* Tree */}
-          <div className="flex-1 overflow-y-auto py-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+          <div className="flex-1 overflow-y-auto py-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border">
             {filteredNodes.length === 0 ? (
-              <div className="px-3 py-4 text-center font-mono text-xs text-gray-600">
+              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                 {debouncedSearch ? 'No matches' : 'No hierarchy data'}
               </div>
             ) : (
@@ -493,19 +493,19 @@ function SidebarTreeNode({
       {/* Node row */}
       <div
         className={cn(
-          'group flex cursor-pointer items-center gap-1.5 px-2 py-1',
-          'transition-colors hover:bg-white/5',
-          isActiveConstellation && level === 0 && 'bg-amber-400/10',
-          nameMatches && 'bg-amber-400/5',
+          'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5',
+          'transition-colors hover:bg-accent',
+          isActiveConstellation && level === 0 && 'bg-primary/10',
+          nameMatches && 'bg-primary/5',
         )}
-        style={{ paddingLeft: `${level * 14 + 8}px` }}
+        style={{ paddingLeft: `${level * 14 + 12}px` }}
         onClick={handleClick}
       >
         {/* Expand/collapse chevron */}
         {hasChildren ? (
           <button
             onClick={handleToggle}
-            className="cursor-pointer rounded p-0.5 text-gray-500 hover:bg-white/10 hover:text-gray-300"
+            className="cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           >
             {isExpanded ? (
               <ChevronDown className="h-3 w-3" />
@@ -518,16 +518,16 @@ function SidebarTreeNode({
         )}
 
         {/* Type icon */}
-        <span className={cn('text-gray-500', isActiveConstellation && 'text-amber-400/70')}>
-          {nodeTypeIcons[node.type] || <Box className="h-3.5 w-3.5" />}
+        <span className={cn('text-muted-foreground', isActiveConstellation && 'text-primary/70')}>
+          {nodeTypeIcons[node.type] || <Box className="h-4 w-4" />}
         </span>
 
         {/* Name */}
         <span
           className={cn(
-            'flex-1 truncate font-mono text-xs',
-            isActiveConstellation ? 'text-amber-200' : 'text-gray-400',
-            nameMatches && 'text-white',
+            'flex-1 truncate text-sm font-medium',
+            isActiveConstellation ? 'text-primary' : 'text-muted-foreground',
+            nameMatches && 'text-foreground',
           )}
         >
           {node.name}
@@ -535,7 +535,7 @@ function SidebarTreeNode({
 
         {/* Characteristic count badge */}
         {(node.characteristic_count ?? 0) > 0 && (
-          <span className="rounded bg-white/5 px-1 font-mono text-[10px] text-gray-600">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
             {node.characteristic_count}
           </span>
         )}
@@ -570,30 +570,30 @@ function SidebarTreeNode({
               <div
                 key={char.id}
                 className={cn(
-                  'group flex cursor-pointer items-center gap-2 px-2 py-1',
-                  'transition-colors hover:bg-white/5',
-                  isActive && 'bg-amber-400/15',
-                  charMatches && !isActive && 'bg-amber-400/5',
+                  'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5',
+                  'transition-colors hover:bg-accent',
+                  isActive && 'bg-primary/15',
+                  charMatches && !isActive && 'bg-primary/5',
                 )}
-                style={{ paddingLeft: `${(level + 1) * 14 + 8}px` }}
+                style={{ paddingLeft: `${(level + 1) * 14 + 12}px` }}
                 onClick={() => onCharacteristicClick(char.id)}
               >
                 <span className="w-4" />
                 {/* In-control status dot */}
                 <div
                   className={cn(
-                    'h-1.5 w-1.5 rounded-full',
+                    'h-2 w-2 shrink-0 rounded-full',
                     char.in_control === false
-                      ? 'bg-red-400 shadow-[0_0_4px_rgba(248,113,113,0.6)]'
-                      : 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]',
+                      ? 'bg-destructive shadow-[0_0_4px_color-mix(in_srgb,var(--color-destructive)_60%,transparent)]'
+                      : 'bg-success shadow-[0_0_4px_color-mix(in_srgb,var(--color-success)_40%,transparent)]',
                   )}
                 />
                 {/* Name */}
                 <span
                   className={cn(
-                    'flex-1 truncate font-mono text-xs',
-                    isActive ? 'text-amber-100' : 'text-gray-500',
-                    charMatches && !isActive && 'text-gray-300',
+                    'flex-1 truncate text-sm font-medium',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
+                    charMatches && !isActive && 'text-foreground',
                   )}
                 >
                   {char.name}

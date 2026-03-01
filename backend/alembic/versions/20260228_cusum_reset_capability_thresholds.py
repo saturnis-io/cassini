@@ -5,15 +5,15 @@ Adds:
 - plant.capability_green_threshold (Float, default 1.33)
 - plant.capability_yellow_threshold (Float, default 1.0)
 
-Revision ID: 039
-Revises: 038
+Revision ID: 045
+Revises: cb165ffbd0cf
 Create Date: 2026-02-28
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "039"
-down_revision = "038"
+revision = "045"
+down_revision = "cb165ffbd0cf"
 branch_labels = None
 depends_on = None
 

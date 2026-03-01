@@ -43,6 +43,22 @@ export class CameraController {
   private readonly _lerpPos = new THREE.Vector3()
   private readonly _lerpLook = new THREE.Vector3()
 
+  // Galaxy-level interaction state (drag-to-pan + scroll-to-zoom)
+  private galaxyDragActive = false
+  private galaxyDragStartX = 0
+  private galaxyDragStartY = 0
+  private readonly _panRight = new THREE.Vector3()
+  private readonly _panForward = new THREE.Vector3()
+
+  // Planet-level interaction state
+  private planetDragActive = false
+  private planetDragStartX = 0
+  private planetOrbitAngle = 0
+  private planetDistance = 46 // default distance from flyTo offset calc
+  private readonly PLANET_MIN_DIST = 25
+  private readonly PLANET_MAX_DIST = 100
+  private readonly PLANET_Y = 26 // fixed camera height at planet level
+
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
     this.currentLookAt = new THREE.Vector3(0, 0, 0)
@@ -66,6 +82,14 @@ export class CameraController {
 
   get isAnimating(): boolean {
     return this.progress < 1
+  }
+
+  get isDragging(): boolean {
+    return this.planetDragActive
+  }
+
+  get isGalaxyDragging(): boolean {
+    return this.galaxyDragActive
   }
 
   // ---------------------------------------------------------------------------
@@ -96,12 +120,14 @@ export class CameraController {
         this.targetLookAt.set(0, 0, 0)
         break
       case 'constellation':
-        this.targetPosition.set(target.x, 80, target.z + 120)
+        this.targetPosition.set(target.x, 140, target.z + 220)
         this.targetLookAt.copy(target)
         break
       case 'planet':
-        this.targetPosition.set(target.x + 20, 30, target.z + 50)
+        this.targetPosition.set(target.x + 16, 26, target.z + 40)
         this.targetLookAt.copy(target)
+        // Reset planet orbit state when flying to a new planet
+        this.resetPlanetOrbit()
         break
     }
 
@@ -177,6 +203,111 @@ export class CameraController {
     // Scroll in at constellation level -> caller should raycast and provide target
     // Scroll in at planet level -> already at deepest level
     return null
+  }
+
+  // ---------------------------------------------------------------------------
+  // Galaxy-level interaction: drag to pan, scroll to zoom
+  // ---------------------------------------------------------------------------
+
+  startGalaxyDrag(clientX: number, clientY: number): void {
+    this.galaxyDragActive = true
+    this.galaxyDragStartX = clientX
+    this.galaxyDragStartY = clientY
+
+    // Compute pan basis vectors from current camera orientation (projected to XZ)
+    this._panRight.setFromMatrixColumn(this.camera.matrixWorld, 0)
+    this._panRight.y = 0
+    this._panRight.normalize()
+
+    this._panForward.setFromMatrixColumn(this.camera.matrixWorld, 2)
+    this._panForward.y = 0
+    this._panForward.normalize()
+  }
+
+  updateGalaxyDrag(clientX: number, clientY: number): void {
+    if (!this.galaxyDragActive) return
+
+    const deltaX = clientX - this.galaxyDragStartX
+    const deltaY = clientY - this.galaxyDragStartY
+    this.galaxyDragStartX = clientX
+    this.galaxyDragStartY = clientY
+
+    // Scale pan speed by camera height for consistent feel
+    const panScale = this.camera.position.y * 0.003
+
+    // Apply pan to both camera position and lookAt target
+    this.camera.position.addScaledVector(this._panRight, -deltaX * panScale)
+    this.camera.position.addScaledVector(this._panForward, deltaY * panScale)
+    this.currentLookAt.addScaledVector(this._panRight, -deltaX * panScale)
+    this.currentLookAt.addScaledVector(this._panForward, deltaY * panScale)
+
+    this.camera.lookAt(this.currentLookAt)
+  }
+
+  endGalaxyDrag(): void {
+    this.galaxyDragActive = false
+  }
+
+  galaxyZoom(deltaY: number): void {
+    // Move camera along the camera-to-target direction
+    const dir = new THREE.Vector3()
+      .subVectors(this.camera.position, this.currentLookAt)
+    const dist = dir.length()
+    const newDist = Math.max(100, Math.min(1500, dist + deltaY * 0.5))
+    dir.normalize().multiplyScalar(newDist)
+    this.camera.position.copy(this.currentLookAt).add(dir)
+    this.camera.lookAt(this.currentLookAt)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Planet-level interaction: drag to rotate, scroll to zoom
+  // ---------------------------------------------------------------------------
+
+  startPlanetDrag(clientX: number): void {
+    this.planetDragActive = true
+    this.planetDragStartX = clientX
+  }
+
+  updatePlanetDrag(clientX: number): void {
+    if (!this.planetDragActive) return
+
+    const deltaX = clientX - this.planetDragStartX
+    this.planetDragStartX = clientX
+
+    // Convert pixel movement to radians (sensitivity: ~1 degree per 3 pixels)
+    this.planetOrbitAngle += deltaX * 0.006
+
+    this.applyPlanetOrbit()
+  }
+
+  endPlanetDrag(): void {
+    this.planetDragActive = false
+  }
+
+  planetZoom(deltaY: number): void {
+    // Zoom in/out by adjusting distance
+    const step = deltaY * 0.05
+    this.planetDistance = Math.max(
+      this.PLANET_MIN_DIST,
+      Math.min(this.PLANET_MAX_DIST, this.planetDistance + step),
+    )
+    this.applyPlanetOrbit()
+  }
+
+  private resetPlanetOrbit(): void {
+    this.planetOrbitAngle = 0
+    this.planetDistance = 46
+    this.planetDragActive = false
+  }
+
+  private applyPlanetOrbit(): void {
+    const target = this.currentLookAt
+    this.camera.position.x =
+      target.x + Math.sin(this.planetOrbitAngle) * this.planetDistance
+    this.camera.position.z =
+      target.z + Math.cos(this.planetOrbitAngle) * this.planetDistance
+    this.camera.position.y = this.PLANET_Y
+    this.camera.lookAt(target)
   }
 
   // ---------------------------------------------------------------------------

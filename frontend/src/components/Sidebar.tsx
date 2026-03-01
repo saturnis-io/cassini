@@ -200,7 +200,6 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'configuration',
       icon: <ListTree className="h-5 w-5" />,
       requiredRole: 'engineer',
-      commercial: true,
     },
     {
       path: '/settings',

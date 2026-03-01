@@ -3,11 +3,8 @@
  * Used with THREE.ShaderMaterial on a Points geometry.
  */
 
-export const ringVertexShader = /* glsl */ `
-  #define PI 3.14159265359
-  #define TWO_PI 6.28318530718
-  #define NUM_MOONS 12
-
+/** Shader body shared between the static export and the factory function. */
+const RING_VERTEX_BODY = /* glsl */ `
   uniform vec3 uMoons[NUM_MOONS];
   uniform float uMoonStatus[NUM_MOONS];
   uniform float uPixelRatio;
@@ -88,6 +85,22 @@ export const ringVertexShader = /* glsl */ `
     gl_PointSize = (10.0 / -mvPosition.z) * uPixelRatio * pointSizeMultiplier;
   }
 `
+
+const RING_VERTEX_DEFINES = /* glsl */ `
+  #define PI 3.14159265359
+  #define TWO_PI 6.28318530718
+`
+
+/**
+ * Create a ring vertex shader with the specified moon count baked in.
+ * The NUM_MOONS define controls the shader uniform array size.
+ */
+export function createRingVertexShader(numMoons: number): string {
+  return `${RING_VERTEX_DEFINES}  #define NUM_MOONS ${numMoons}\n${RING_VERTEX_BODY}`
+}
+
+/** Static export for login page (12 moons). */
+export const ringVertexShader = createRingVertexShader(12)
 
 export const ringFragmentShader = /* glsl */ `
   varying vec3 vColor;

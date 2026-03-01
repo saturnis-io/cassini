@@ -10,5 +10,5 @@ export interface LicenseStatus {
 }
 
 export async function getLicenseStatus(): Promise<LicenseStatus> {
-  return fetchApi<LicenseStatus>('license/status')
+  return fetchApi<LicenseStatus>('/license/status')
 }

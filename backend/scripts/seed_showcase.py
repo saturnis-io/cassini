@@ -1,8 +1,9 @@
 """Seed Cassini showcase database with rich demo data.
 
 Creates 3 industry-themed plants (automotive, aerospace, pharma) with full
-ISA-95 hierarchies, 8 users across 4 role levels, and 24 characteristics
-covering every chart type, distribution, and SPC feature.
+ISA-95 hierarchies, 8 users across 4 role levels, and 36 characteristics
+covering every chart type, distribution, and SPC feature. Equipment nodes
+have multiple sibling characteristics for realistic multi-measurement setups.
 
 Uses raw sqlite3 for speed (same pattern as seed_e2e.py).
 
@@ -538,16 +539,26 @@ def seed_foundation(cur: sqlite3.Cursor) -> None:
 # ── Characteristics ──────────────────────────────────────────────────────
 
 def seed_characteristics(cur: sqlite3.Cursor) -> None:
-    """Create all 24 characteristics across 3 plants."""
+    """Create all 36 characteristics across 3 plants.
+
+    Many equipment nodes have multiple characteristics (siblings) to reflect
+    real-world manufacturing where a single machine measures several dimensions.
+    """
 
     # ══════════════════════════════════════════════════════════════════════
-    # DETROIT (9 characteristics)
+    # DETROIT (13 characteristics)
     # ══════════════════════════════════════════════════════════════════════
 
     # 1. Crankshaft Bearing OD (X-bar R, n=5, NARRATIVE ARC)
     IDS["bearing_od"] = insert_char(cur, IDS["det_lathe"], "Crankshaft Bearing OD",
         subgroup_size=5, target_value=25.000, usl=25.050, lsl=24.950,
         ucl=25.030, lcl=24.970, stored_sigma=0.008, stored_center_line=25.000,
+        decimal_precision=4)
+
+    # 1b. Bearing Width (X-bar R, n=5, sibling to Bearing OD)
+    IDS["bearing_width"] = insert_char(cur, IDS["det_lathe"], "Bearing Width",
+        subgroup_size=5, target_value=18.000, usl=18.030, lsl=17.970,
+        ucl=18.018, lcl=17.982, stored_sigma=0.006, stored_center_line=18.000,
         decimal_precision=4)
 
     # 2. Surface Finish Ra (I-MR, Weibull distribution)
@@ -558,11 +569,23 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         distribution_params='{"type":"weibull","shape":2.5,"scale":1.2}',
         decimal_precision=3)
 
+    # 2b. Flatness (I-MR, sibling to Surface Finish on same mill)
+    IDS["flatness"] = insert_char(cur, IDS["det_mill"], "Flatness",
+        subgroup_size=1, target_value=0.015, usl=0.030, lsl=0.000,
+        ucl=0.025, lcl=0.005, stored_sigma=0.004, stored_center_line=0.015,
+        decimal_precision=4)
+
     # 3. Bore Diameter (X-bar S, n=8, short-run standardized)
     IDS["bore_dia"] = insert_char(cur, IDS["det_grinder"], "Bore Diameter",
         subgroup_size=8, target_value=50.000, usl=50.050, lsl=49.950,
         ucl=50.025, lcl=49.975, stored_sigma=0.010, stored_center_line=50.000,
         short_run_mode="standardized", decimal_precision=4)
+
+    # 3b. Bore Roundness (I-MR, sibling to Bore Diameter on same grinder)
+    IDS["bore_roundness"] = insert_char(cur, IDS["det_grinder"], "Bore Roundness",
+        subgroup_size=1, target_value=0.005, usl=0.012, lsl=0.000,
+        ucl=0.010, lcl=0.000, stored_sigma=0.002, stored_center_line=0.005,
+        decimal_precision=4)
 
     # 4. Pin Height (CUSUM)
     IDS["pin_height"] = insert_char(cur, IDS["det_cmm"], "Pin Height",
@@ -593,13 +616,19 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         data_type="attribute", attribute_chart_type="c", default_sample_size=1,
         decimal_precision=0)
 
+    # 8b. Film Thickness (X-bar R, n=3, sibling to Paint Defects on same booth)
+    IDS["film_thickness"] = insert_char(cur, IDS["det_spray"], "Film Thickness",
+        subgroup_size=3, target_value=75.0, usl=90.0, lsl=60.0,
+        ucl=82.0, lcl=68.0, stored_sigma=3.5, stored_center_line=75.0,
+        decimal_precision=1)
+
     # 9. Blemishes per m^2 (u-chart)
     IDS["blemishes"] = insert_char(cur, IDS["det_curing"], "Blemishes per m\u00b2",
         data_type="attribute", attribute_chart_type="u", default_sample_size=10,
         decimal_precision=2)
 
     # ══════════════════════════════════════════════════════════════════════
-    # WICHITA (7 characteristics)
+    # WICHITA (11 characteristics)
     # ══════════════════════════════════════════════════════════════════════
 
     # 10. Ply Thickness (X-bar R, n=5, AIAG preset, variable subgroups)
@@ -608,10 +637,22 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         ucl=0.260, lcl=0.240, stored_sigma=0.005, stored_center_line=0.250,
         decimal_precision=4)
 
+    # 10b. Fiber Volume Fraction (I-MR, sibling to Ply Thickness in Layup Room)
+    IDS["fiber_volume"] = insert_char(cur, IDS["ict_layup"], "Fiber Volume Fraction",
+        subgroup_size=1, target_value=60.0, usl=65.0, lsl=55.0,
+        ucl=63.0, lcl=57.0, stored_sigma=1.5, stored_center_line=60.0,
+        decimal_precision=1)
+
     # 11. Cure Temperature (I-MR, NARRATIVE ARC - anomaly detection)
     IDS["cure_temp"] = insert_char(cur, IDS["ict_autoclave"], "Cure Temperature",
         subgroup_size=1, target_value=177.0, usl=180.0, lsl=174.0,
         ucl=178.5, lcl=175.5, stored_sigma=0.50, stored_center_line=177.0,
+        decimal_precision=1)
+
+    # 11b. Cure Pressure (I-MR, sibling to Cure Temperature in Autoclave)
+    IDS["cure_pressure"] = insert_char(cur, IDS["ict_autoclave"], "Cure Pressure",
+        subgroup_size=1, target_value=85.0, usl=90.0, lsl=80.0,
+        ucl=88.0, lcl=82.0, stored_sigma=1.2, stored_center_line=85.0,
         decimal_precision=1)
 
     # 12. Turbine Blade Profile (X-bar S, n=8, Gamma distribution)
@@ -622,11 +663,23 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         distribution_params='{"type":"gamma","shape":5,"scale":0.3}',
         decimal_precision=4)
 
+    # 12b. Chord Length (X-bar R, n=5, sibling to Blade Profile on same CNC)
+    IDS["chord_length"] = insert_char(cur, IDS["ict_5axis"], "Chord Length",
+        subgroup_size=5, target_value=42.50, usl=42.80, lsl=42.20,
+        ucl=42.70, lcl=42.30, stored_sigma=0.08, stored_center_line=42.50,
+        decimal_precision=3)
+
     # 13. Rivet Grip Length (I-MR, short-run deviation mode)
     IDS["rivet_grip"] = insert_char(cur, IDS["ict_fastener"], "Rivet Grip Length",
         subgroup_size=1, target_value=6.350, usl=6.500, lsl=6.200,
         ucl=6.450, lcl=6.250, stored_sigma=0.030, stored_center_line=6.350,
         short_run_mode="deviation", decimal_precision=4)
+
+    # 13b. Hole Diameter (I-MR, sibling to Rivet Grip at Fastener Station)
+    IDS["hole_diameter"] = insert_char(cur, IDS["ict_fastener"], "Hole Diameter",
+        subgroup_size=1, target_value=4.826, usl=4.876, lsl=4.776,
+        ucl=4.860, lcl=4.792, stored_sigma=0.012, stored_center_line=4.826,
+        decimal_precision=4)
 
     # 14. Fastener Torque (EWMA, Wheeler preset)
     IDS["fastener_torque"] = insert_char(cur, IDS["ict_bench"], "Fastener Torque",
@@ -646,7 +699,7 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         decimal_precision=0)
 
     # ══════════════════════════════════════════════════════════════════════
-    # RTP (8 characteristics)
+    # RTP (12 characteristics)
     # ══════════════════════════════════════════════════════════════════════
 
     # 17. Active Ingredient Concentration (X-bar R, n=5, Lognormal)
@@ -655,6 +708,12 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         ucl=100.50, lcl=98.50, stored_sigma=0.40, stored_center_line=99.50,
         distribution_method="auto",
         distribution_params='{"type":"lognormal","mu":4.6,"sigma":0.05}',
+        decimal_precision=2)
+
+    # 17b. Reaction pH (I-MR, sibling to API Concentration in Reactor)
+    IDS["reaction_ph"] = insert_char(cur, IDS["rtp_reactor"], "Reaction pH",
+        subgroup_size=1, target_value=7.40, usl=7.80, lsl=7.00,
+        ucl=7.65, lcl=7.15, stored_sigma=0.10, stored_center_line=7.40,
         decimal_precision=2)
 
     # 18. Moisture Content % (I-MR)
@@ -674,6 +733,18 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         subgroup_size=1, target_value=200.0, usl=205.0, lsl=195.0,
         ucl=202.5, lcl=197.5, stored_sigma=1.00, stored_center_line=200.0,
         decimal_precision=1)
+
+    # 20b. Tablet Hardness (I-MR, sibling to Tablet Weight on same press)
+    IDS["tablet_hardness"] = insert_char(cur, IDS["rtp_tablet"], "Tablet Hardness",
+        subgroup_size=1, target_value=8.0, usl=12.0, lsl=4.0,
+        ucl=10.5, lcl=5.5, stored_sigma=1.20, stored_center_line=8.0,
+        decimal_precision=1)
+
+    # 20c. Tablet Thickness (I-MR, sibling to Tablet Weight on same press)
+    IDS["tablet_thickness"] = insert_char(cur, IDS["rtp_tablet"], "Tablet Thickness",
+        subgroup_size=1, target_value=4.00, usl=4.20, lsl=3.80,
+        ucl=4.12, lcl=3.88, stored_sigma=0.05, stored_center_line=4.00,
+        decimal_precision=3)
 
     # 21. Fill Volume (CUSUM, tight pharma tolerances)
     IDS["fill_volume"] = insert_char(cur, IDS["rtp_fill"], "Fill Volume",
@@ -695,6 +766,12 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
         distribution_params='{"type":"exponential","lambda":0.02}',
         decimal_precision=2)
 
+    # 23b. Impurity Level (I-MR, sibling to Assay % on same HPLC)
+    IDS["impurity_level"] = insert_char(cur, IDS["rtp_hplc"], "Impurity Level",
+        subgroup_size=1, target_value=0.10, usl=0.50, lsl=0.00,
+        ucl=0.35, lcl=0.00, stored_sigma=0.08, stored_center_line=0.10,
+        decimal_precision=3)
+
     # 24. Dissolution Rate (EWMA)
     IDS["dissolution"] = insert_char(cur, IDS["rtp_dissolution"], "Dissolution Rate",
         subgroup_size=1, target_value=85.0, usl=95.0, lsl=75.0,
@@ -704,15 +781,18 @@ def seed_characteristics(cur: sqlite3.Cursor) -> None:
 
     # ── Nelson rules for all 24 characteristics ──────────────────────────
     all_char_keys = [
-        # Detroit (9)
-        "bearing_od", "surface_finish", "bore_dia", "pin_height", "bolt_torque",
-        "solder_defects", "electrical_pf", "paint_defects", "blemishes",
-        # Wichita (7)
-        "ply_thickness", "cure_temp", "blade_profile", "rivet_grip", "fastener_torque",
-        "void_pct", "delam_count",
-        # RTP (8)
-        "api_conc", "moisture", "blend_unif", "tablet_weight", "fill_volume",
-        "seal_failures", "assay_pct", "dissolution",
+        # Detroit (13)
+        "bearing_od", "bearing_width", "surface_finish", "flatness",
+        "bore_dia", "bore_roundness", "pin_height", "bolt_torque",
+        "solder_defects", "electrical_pf", "paint_defects", "film_thickness", "blemishes",
+        # Wichita (11)
+        "ply_thickness", "fiber_volume", "cure_temp", "cure_pressure",
+        "blade_profile", "chord_length", "rivet_grip", "hole_diameter",
+        "fastener_torque", "void_pct", "delam_count",
+        # RTP (12)
+        "api_conc", "reaction_ph", "moisture", "blend_unif",
+        "tablet_weight", "tablet_hardness", "tablet_thickness",
+        "fill_volume", "seal_failures", "assay_pct", "impurity_level", "dissolution",
     ]
     for char_key in all_char_keys:
         insert_nelson_rules(cur, IDS[char_key])
@@ -790,6 +870,19 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
     for i in range(500):
         insert_sample(cur, IDS["surface_finish"], timestamps[i], values=[values_all[i]])
 
+    # ── Bearing Width (X-bar R, n=5, sibling to Bearing OD) ─────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        values = gen_normal(5, 18.000, 0.005)
+        insert_sample(cur, IDS["bearing_width"], timestamps[i], values=values)
+
+    # ── Flatness (I-MR, sibling to Surface Finish) ────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 0.015, 0.003)
+    for i in range(500):
+        val = max(0.0, raw_vals[i])  # flatness can't be negative
+        insert_sample(cur, IDS["flatness"], timestamps[i], values=[val])
+
     # ── Bore Diameter (X-bar S, n=8, short-run standardized) ──────────
     timestamps = make_timestamps(500, span_days=90)
     targets = [49.990, 50.000, 50.010]
@@ -801,6 +894,13 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
         mean_val = sum(values) / n_sub
         z = (mean_val - 50.000) / (sigma / math.sqrt(n_sub))
         insert_sample(cur, IDS["bore_dia"], timestamps[i], values=values, z_score=z)
+
+    # ── Bore Roundness (I-MR, sibling to Bore Diameter) ─────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 0.005, 0.0015)
+    for i in range(500):
+        val = max(0.0, raw_vals[i])  # roundness can't be negative
+        insert_sample(cur, IDS["bore_roundness"], timestamps[i], values=[val])
 
     # ── Pin Height (CUSUM, small shift at sample 300) ─────────────────
     timestamps = make_timestamps(500, span_days=90)
@@ -840,11 +940,35 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
             values = gen_normal(5, 0.250, 0.004)
             insert_sample(cur, IDS["ply_thickness"], timestamps[i], values=values)
 
+    # ── Film Thickness (X-bar R, n=3, sibling to Paint Defects) ─────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        values = gen_normal(3, 75.0, 2.8)
+        insert_sample(cur, IDS["film_thickness"], timestamps[i], values=values)
+
+    # ── Fiber Volume Fraction (I-MR, sibling to Ply Thickness) ────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 60.0, 1.2)
+    for i in range(500):
+        insert_sample(cur, IDS["fiber_volume"], timestamps[i], values=[raw_vals[i]])
+
+    # ── Cure Pressure (I-MR, sibling to Cure Temperature) ─────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 85.0, 0.9)
+    for i in range(500):
+        insert_sample(cur, IDS["cure_pressure"], timestamps[i], values=[raw_vals[i]])
+
     # ── Turbine Blade Profile (X-bar S, n=8, Gamma-ish) ──────────────
     timestamps = make_timestamps(500, span_days=90)
     for i in range(500):
         values = [2.150 + (random.gammavariate(5, 0.04) - 0.20) for _ in range(8)]
         insert_sample(cur, IDS["blade_profile"], timestamps[i], values=values)
+
+    # ── Chord Length (X-bar R, n=5, sibling to Blade Profile) ──────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        values = gen_normal(5, 42.50, 0.06)
+        insert_sample(cur, IDS["chord_length"], timestamps[i], values=values)
 
     # ── Rivet Grip Length (I-MR, deviation mode, multi-target) ────────
     timestamps = make_timestamps(500, span_days=90)
@@ -859,6 +983,12 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
             t = rivet_targets[2]
         val = random.gauss(t, 0.025)
         insert_sample(cur, IDS["rivet_grip"], timestamps[i], values=[val])
+
+    # ── Hole Diameter (I-MR, sibling to Rivet Grip) ────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 4.826, 0.010)
+    for i in range(500):
+        insert_sample(cur, IDS["hole_diameter"], timestamps[i], values=[raw_vals[i]])
 
     # ── Fastener Torque (EWMA, Wheeler, stable) ──────────────────────
     timestamps = make_timestamps(500, span_days=90)
@@ -876,6 +1006,12 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
         values = gen_lognormal(5, mu=4.6, sigma=0.05)
         insert_sample(cur, IDS["api_conc"], timestamps[i], values=values)
 
+    # ── Reaction pH (I-MR, sibling to API Concentration) ───────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 7.40, 0.08)
+    for i in range(500):
+        insert_sample(cur, IDS["reaction_ph"], timestamps[i], values=[raw_vals[i]])
+
     # ── Moisture Content (I-MR, normal) ──────────────────────────────
     timestamps = make_timestamps(500, span_days=90)
     raw_vals = gen_normal(500, 2.50, 0.20)
@@ -888,6 +1024,18 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
     for i in range(500):
         subgroup = all_vals[i * 8:(i + 1) * 8]
         insert_sample(cur, IDS["blend_unif"], timestamps[i], values=subgroup)
+
+    # ── Tablet Hardness (I-MR, sibling to Tablet Weight) ───────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 8.0, 0.9)
+    for i in range(500):
+        insert_sample(cur, IDS["tablet_hardness"], timestamps[i], values=[raw_vals[i]])
+
+    # ── Tablet Thickness (I-MR, sibling to Tablet Weight) ────────────
+    timestamps = make_timestamps(500, span_days=90)
+    raw_vals = gen_normal(500, 4.00, 0.04)
+    for i in range(500):
+        insert_sample(cur, IDS["tablet_thickness"], timestamps[i], values=[raw_vals[i]])
 
     # ── Fill Volume (CUSUM, tight pharma) ────────────────────────────
     timestamps = make_timestamps(500, span_days=90)
@@ -908,6 +1056,12 @@ def seed_variable_samples(cur: sqlite3.Cursor) -> None:
         val = 99.5 + random.expovariate(5.0)
         val = min(val, 101.5)  # cap at reasonable range
         insert_sample(cur, IDS["assay_pct"], timestamps[i], values=[val])
+
+    # ── Impurity Level (I-MR, sibling to Assay %) ──────────────────────
+    timestamps = make_timestamps(500, span_days=90)
+    for i in range(500):
+        val = max(0.0, random.expovariate(10.0))  # right-skewed, mostly low
+        insert_sample(cur, IDS["impurity_level"], timestamps[i], values=[val])
 
     # ── Dissolution Rate (EWMA, gradual changes) ────────────────────
     timestamps = make_timestamps(500, span_days=90)
@@ -1604,18 +1758,24 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
          30000, 1000, 500, now, now))
     IDS["rtp_opcua"] = cur.lastrowid
 
-    # ── OPC-UA Data Sources (10 characteristics) ───────────────────────
+    # ── OPC-UA Data Sources (16 characteristics) ───────────────────────
     opcua_mappings = [
         # (char_key, server_key, node_id)
         ("bearing_od", "det_opcua", "ns=2;s=Detroit.BearingOD"),
+        ("bearing_width", "det_opcua", "ns=2;s=Detroit.BearingWidth"),
         ("surface_finish", "det_opcua", "ns=2;s=Detroit.SurfaceFinish"),
+        ("flatness", "det_opcua", "ns=2;s=Detroit.Flatness"),
         ("bore_dia", "det_opcua", "ns=2;s=Detroit.BoreDiameter"),
+        ("bore_roundness", "det_opcua", "ns=2;s=Detroit.BoreRoundness"),
         ("pin_height", "det_opcua", "ns=2;s=Detroit.PinHeight"),
         ("cure_temp", "ict_opcua", "ns=2;s=Wichita.CureTemp"),
+        ("cure_pressure", "ict_opcua", "ns=2;s=Wichita.CurePressure"),
         ("blade_profile", "ict_opcua", "ns=2;s=Wichita.BladeProfile"),
+        ("chord_length", "ict_opcua", "ns=2;s=Wichita.ChordLength"),
         ("rivet_grip", "ict_opcua", "ns=2;s=Wichita.RivetGrip"),
         ("api_conc", "rtp_opcua", "ns=2;s=RTP.APIConcentration"),
         ("tablet_weight", "rtp_opcua", "ns=2;s=RTP.TabletWeight"),
+        ("tablet_hardness", "rtp_opcua", "ns=2;s=RTP.TabletHardness"),
         ("fill_volume", "rtp_opcua", "ns=2;s=RTP.FillVolume"),
     ]
 
@@ -1632,22 +1792,28 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
             VALUES (?, ?, ?, 500, 1000)""",
             (ds_id, IDS[server_key], node_id))
 
-    # ── MQTT Data Sources (14 characteristics) ─────────────────────────
+    # ── MQTT Data Sources (20 characteristics) ─────────────────────────
     mqtt_mappings = [
         # (char_key, broker_key, topic, metric_name)
         ("bolt_torque", "det_broker", "detroit/assembly/measurements", "bolt_torque"),
         ("solder_defects", "det_broker", "detroit/assembly/measurements", "solder_defects"),
         ("electrical_pf", "det_broker", "detroit/assembly/measurements", "electrical_pf"),
         ("paint_defects", "det_broker", "detroit/paint/measurements", "paint_defects"),
+        ("film_thickness", "det_broker", "detroit/paint/measurements", "film_thickness"),
         ("blemishes", "det_broker", "detroit/paint/measurements", "blemishes"),
         ("ply_thickness", "ict_broker", "wichita/composite/measurements", "ply_thickness"),
+        ("fiber_volume", "ict_broker", "wichita/composite/measurements", "fiber_volume"),
         ("fastener_torque", "ict_broker", "wichita/assembly/measurements", "fastener_torque"),
+        ("hole_diameter", "ict_broker", "wichita/assembly/measurements", "hole_diameter"),
         ("void_pct", "ict_broker", "wichita/ndt/measurements", "void_pct"),
         ("delam_count", "ict_broker", "wichita/ndt/measurements", "delam_count"),
         ("moisture", "rtp_broker", "rtp/api-mfg/measurements", "moisture"),
+        ("reaction_ph", "rtp_broker", "rtp/api-mfg/measurements", "reaction_ph"),
         ("blend_unif", "rtp_broker", "rtp/formulation/measurements", "blend_uniformity"),
+        ("tablet_thickness", "rtp_broker", "rtp/formulation/measurements", "tablet_thickness"),
         ("seal_failures", "rtp_broker", "rtp/packaging/measurements", "seal_failures"),
         ("assay_pct", "rtp_broker", "rtp/qc-lab/measurements", "assay_pct"),
+        ("impurity_level", "rtp_broker", "rtp/qc-lab/measurements", "impurity_level"),
         ("dissolution", "rtp_broker", "rtp/qc-lab/measurements", "dissolution_rate"),
     ]
 

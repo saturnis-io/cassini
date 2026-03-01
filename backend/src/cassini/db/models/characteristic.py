@@ -105,7 +105,8 @@ class Characteristic(Base):
         "CharacteristicRule", back_populates="characteristic", cascade="all, delete-orphan"
     )
     samples: Mapped[list["Sample"]] = relationship(
-        "Sample", back_populates="characteristic", cascade="all, delete-orphan"
+        "Sample", back_populates="characteristic", cascade="all, delete-orphan",
+        foreign_keys="[Sample.char_id]",
     )
     config: Mapped[Optional["CharacteristicConfig"]] = relationship(
         "CharacteristicConfig", back_populates="characteristic", uselist=False,

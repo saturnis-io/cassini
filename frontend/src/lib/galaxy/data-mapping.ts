@@ -66,6 +66,43 @@ export function timestampToAngle(index: number, total: number): number {
 }
 
 /**
+ * Spiral layout constants.
+ * Inner radius starts just outside planet core (10.5).
+ * Outer radius extends to the ring particle outer edge.
+ */
+const SPIRAL_INNER_RADIUS = 13.0
+const SPIRAL_OUTER_RADIUS = 31.0
+const SPIRAL_POINTS_PER_TURN = 25
+
+/**
+ * Compute position on an Archimedean spiral for a data point.
+ * Index 0 = oldest (near planet center), index total-1 = newest (outer edge).
+ *
+ * Returns the baseline radius (on the spiral arm) and the angle.
+ * The caller applies radial displacement from valueToRadius() on top.
+ */
+export function spiralPosition(
+  index: number,
+  total: number,
+): { baseRadius: number; angle: number; armSpacing: number } {
+  const totalTurns = Math.max(1, Math.ceil(total / SPIRAL_POINTS_PER_TURN))
+  const armSpacing = (SPIRAL_OUTER_RADIUS - SPIRAL_INNER_RADIUS) / totalTurns
+
+  if (total <= 1) return { baseRadius: SPIRAL_OUTER_RADIUS, angle: Math.PI / 2, armSpacing }
+
+  const fraction = index / (total - 1) // 0 = oldest, 1 = newest
+  const baseRadius =
+    SPIRAL_INNER_RADIUS + fraction * (SPIRAL_OUTER_RADIUS - SPIRAL_INNER_RADIUS)
+
+  // Counterclockwise from 12 o'clock, total angular sweep
+  const totalAngle = totalTurns * Math.PI * 2
+  const startAngle = Math.PI / 2
+  const angle = startAngle + fraction * totalAngle
+
+  return { baseRadius, angle, armSpacing }
+}
+
+/**
  * Determine planet color hex from Cpk value.
  */
 export function cpkToColorHex(

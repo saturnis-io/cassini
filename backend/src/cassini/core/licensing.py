@@ -22,9 +22,21 @@ class LicenseService:
         license_path: str | None,
         public_key_path: str | None = None,
         public_key: bytes | None = None,
+        dev_commercial: bool = False,
     ):
         self._claims: dict | None = None
         self._valid = False
+        self._dev_commercial = dev_commercial
+
+        if dev_commercial:
+            self._valid = True
+            self._claims = {
+                "tier": "enterprise",
+                "max_plants": 999,
+                "sub": "dev-toggle",
+            }
+            logger.info("DEV MODE: Running as Commercial Edition (CASSINI_DEV_COMMERCIAL=true)")
+            return
 
         # Resolve public key: explicit bytes (testing) > file path (production)
         resolved_key = public_key or self._load_public_key_file(public_key_path)

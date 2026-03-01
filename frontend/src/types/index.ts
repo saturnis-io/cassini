@@ -115,6 +115,9 @@ export interface Characteristic {
   short_run_mode?: 'deviation' | 'standardized' | null
   // Distribution fitting (Sprint 5 - A1)
   distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
+  // Capability fields (populated by list endpoint)
+  latest_cpk?: number | null
+  latest_cp?: number | null
   // Optional metadata fields
   unit?: string
   active?: boolean

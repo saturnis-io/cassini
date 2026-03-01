@@ -90,6 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     license_service = LicenseService(
         license_path=settings.license_file or None,
         public_key_path=settings.license_public_key_file or None,
+        dev_commercial=settings.dev_commercial,
     )
     app.state.license_service = license_service
     logger.info("License service initialized", edition=license_service.edition)
@@ -440,6 +441,7 @@ app.include_router(license_router)
 _license_svc = LicenseService(
     license_path=settings.license_file or None,
     public_key_path=settings.license_public_key_file or None,
+    dev_commercial=settings.dev_commercial,
 )
 if _license_svc.is_commercial:
     app.include_router(anomaly_router)

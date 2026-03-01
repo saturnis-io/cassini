@@ -1,13 +1,17 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Building2, ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GalaxyScene } from '@/components/galaxy/GalaxyScene'
 import { GalaxySidebar } from '@/components/galaxy/GalaxySidebar'
-import { SampleDetailPanel } from '@/components/galaxy/SampleDetailPanel'
+import { GalaxyControls } from '@/components/galaxy/GalaxyControls'
+import { PlanetOverlay } from '@/components/galaxy/PlanetOverlay'
+import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { useCharacteristics, useCapability, useHierarchyTreeByPlant } from '@/api/hooks'
 import { useChartData } from '@/api/hooks/characteristics'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
+import { buildHierarchyPathMap } from '@/lib/galaxy/constellation-layout'
 import type { ZoomLevel } from '@/lib/galaxy/CameraController'
 
 export function GalaxyPage() {
@@ -33,11 +37,32 @@ export function GalaxyPage() {
   // Sample detail panel state
   const [selectedMoonIndex, setSelectedMoonIndex] = useState<number | null>(null)
 
+  // Moon line toggle state
+  const [showTrace, setShowTrace] = useState(true)
+  const [showSpokes, setShowSpokes] = useState(false)
+
+  // Fetch characteristics and hierarchy for the plant (for PlanetOverlay)
+  const { data: charsData } = useCharacteristics({ plant_id: plantId, per_page: 5000 })
+  const { data: hierarchyTree } = useHierarchyTreeByPlant(plantId)
+  const hierarchyPathMap = useMemo(
+    () => (hierarchyTree ? buildHierarchyPathMap(hierarchyTree) : null),
+    [hierarchyTree],
+  )
+  const activeChar = activeCharacteristicId != null
+    ? charsData?.items?.find((c) => c.id === activeCharacteristicId) ?? null
+    : null
+  const activeCharPath = activeChar
+    ? hierarchyPathMap?.get(activeChar.hierarchy_id) ?? null
+    : null
+
+  // Fetch capability for the focused characteristic (for PlanetOverlay)
+  const { data: overlayCapability } = useCapability(activeCharacteristicId ?? 0)
+
   // Fetch chart data for the focused characteristic (needed for moon -> sample mapping)
   const { isConnected } = useWebSocketContext()
   const { data: chartData } = useChartData(
     activeCharacteristicId ?? 0,
-    { limit: 25 },
+    { limit: 100 },
     { refetchInterval: isConnected ? false : 5000 },
   )
 
@@ -55,6 +80,10 @@ export function GalaxyPage() {
     (newCharId: number | null, newZoomLevel: ZoomLevel, constellationId?: number | null) => {
       setZoomLevel(newZoomLevel)
       setActiveConstellationId(constellationId ?? null)
+
+      // Reset navigation targets so sidebar can re-trigger the same destination
+      setNavConstellationId(null)
+      setNavCharId(null)
 
       if (newZoomLevel === 'planet' && newCharId != null) {
         setActiveCharacteristicId(newCharId)
@@ -111,6 +140,8 @@ export function GalaxyPage() {
         navigateToCharId={navCharId}
         kioskMode={kioskMode}
         onMoonClick={handleMoonClick}
+        showTrace={showTrace}
+        showSpokes={showSpokes}
       />
       {!kioskMode && (
         <GalaxySidebar
@@ -123,6 +154,17 @@ export function GalaxyPage() {
         />
       )}
 
+      {/* Moon line controls — visible at planet zoom level */}
+      {!kioskMode && (
+        <GalaxyControls
+          visible={zoomLevel === 'planet'}
+          showTrace={showTrace}
+          showSpokes={showSpokes}
+          onToggleTrace={() => setShowTrace((v) => !v)}
+          onToggleSpokes={() => setShowSpokes((v) => !v)}
+        />
+      )}
+
       {/* Plant selector — top-right, only when user has 2+ plants and not in kiosk mode */}
       {!kioskMode && plants.length >= 2 && (
         <div className="absolute top-3 right-3 z-20">
@@ -130,22 +172,22 @@ export function GalaxyPage() {
             <button
               onClick={() => setPlantMenuOpen(!plantMenuOpen)}
               className={cn(
-                'flex items-center gap-2 rounded-lg border border-white/10 bg-black/60 px-3 py-1.5',
-                'font-mono text-xs text-gray-300 backdrop-blur-md',
-                'cursor-pointer transition-colors hover:bg-black/80 hover:text-white',
+                'flex items-center gap-2 rounded-lg border border-border bg-card/90 px-3 py-2',
+                'text-sm font-medium text-foreground shadow-sm backdrop-blur-md',
+                'cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground',
               )}
             >
-              <Building2 className="h-3.5 w-3.5 text-amber-400" />
+              <Building2 className="h-4 w-4 text-primary" />
               <span>{selectedPlant?.name}</span>
               <ChevronDown
                 className={cn(
-                  'h-3 w-3 text-gray-500 transition-transform',
+                  'h-3.5 w-3.5 text-muted-foreground transition-transform',
                   plantMenuOpen && 'rotate-180',
                 )}
               />
             </button>
             {plantMenuOpen && (
-              <div className="absolute top-full right-0 mt-1 min-w-full overflow-hidden rounded-lg border border-white/10 bg-black/80 shadow-xl backdrop-blur-md">
+              <div className="absolute top-full right-0 mt-1 min-w-full overflow-hidden rounded-lg border border-border bg-popover shadow-xl backdrop-blur-md">
                 {plants.map((plant) => (
                   <button
                     key={plant.id}
@@ -161,12 +203,12 @@ export function GalaxyPage() {
                     }}
                     className={cn(
                       'flex w-full cursor-pointer items-center justify-between gap-4 px-3 py-2 text-left',
-                      'font-mono text-xs transition-colors hover:bg-white/10',
-                      plant.id === plantId ? 'text-amber-300' : 'text-gray-400',
+                      'text-sm font-medium transition-colors hover:bg-accent',
+                      plant.id === plantId ? 'text-primary' : 'text-muted-foreground',
                     )}
                   >
                     <span>{plant.name}</span>
-                    {plant.id === plantId && <Check className="h-3 w-3 text-amber-400" />}
+                    {plant.id === plantId && <Check className="h-3.5 w-3.5 text-primary" />}
                   </button>
                 ))}
               </div>
@@ -175,11 +217,20 @@ export function GalaxyPage() {
         </div>
       )}
 
-      {/* Sample detail panel — slides in from right when a moon is clicked */}
+      {/* Planet metrics overlay — fixed top-left at planet zoom */}
+      {zoomLevel === 'planet' && activeChar && (
+        <PlanetOverlay
+          char={activeChar}
+          capability={overlayCapability ?? null}
+          hierarchyPath={activeCharPath}
+        />
+      )}
+
+      {/* Sample inspector modal — reuses the dashboard's full-featured modal */}
       {selectedSample && activeCharacteristicId != null && (
-        <SampleDetailPanel
-          sampleData={selectedSample}
-          charId={activeCharacteristicId}
+        <SampleInspectorModal
+          sampleId={selectedSample.sample_id}
+          characteristicId={activeCharacteristicId}
           onClose={handleSamplePanelClose}
         />
       )}

@@ -153,9 +153,9 @@ async def list_characteristics(
     plant_id: int | None = Query(None, description="Filter by plant ID"),
     in_control: bool | None = Query(None, description="Filter by in-control status of latest sample"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return"),
+    limit: int = Query(100, ge=1, le=10000, description="Maximum number of items to return"),
     page: int | None = Query(None, ge=1, description="Page number (1-indexed, alternative to offset)"),
-    per_page: int | None = Query(None, ge=1, le=1000, description="Items per page (alternative to limit)"),
+    per_page: int | None = Query(None, ge=1, le=10000, description="Items per page (alternative to limit)"),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> PaginatedResponse[CharacteristicResponse]:
@@ -216,11 +216,40 @@ async def list_characteristics(
         )
         violation_count_map = dict(violation_counts_result.all())
 
+        # Batch-query latest capability (Cpk/Cp) per characteristic
+        from cassini.db.models.capability import CapabilityHistory
+
+        latest_cap_subq = (
+            select(
+                CapabilityHistory.characteristic_id,
+                func.max(CapabilityHistory.calculated_at).label("max_at"),
+            )
+            .where(CapabilityHistory.characteristic_id.in_(char_ids))
+            .group_by(CapabilityHistory.characteristic_id)
+            .subquery()
+        )
+        cap_result = await session.execute(
+            select(
+                CapabilityHistory.characteristic_id,
+                CapabilityHistory.cpk,
+                CapabilityHistory.cp,
+            )
+            .join(
+                latest_cap_subq,
+                (CapabilityHistory.characteristic_id == latest_cap_subq.c.characteristic_id)
+                & (CapabilityHistory.calculated_at == latest_cap_subq.c.max_at),
+            )
+        )
+        cap_map = {row[0]: (row[1], row[2]) for row in cap_result.all()}
+
         items = []
         for char in characteristics:
             resp = CharacteristicResponse.model_validate(char)
             resp.sample_count = sample_count_map.get(char.id, 0)
             resp.unacknowledged_violations = violation_count_map.get(char.id, 0)
+            cap = cap_map.get(char.id)
+            if cap:
+                resp.latest_cpk, resp.latest_cp = cap
             items.append(resp)
     else:
         items = []

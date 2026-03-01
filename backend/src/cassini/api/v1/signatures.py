@@ -350,6 +350,7 @@ async def get_pending_approvals(
                 initiated_by=initiator_name,
                 initiated_at=inst.initiated_at,
                 expires_at=inst.expires_at,
+                step_meaning_code=current_step.meaning_code if current_step else None,
                 previous_signatures=prev_sigs,
             )
         )

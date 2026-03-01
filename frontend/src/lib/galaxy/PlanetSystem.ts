@@ -1,13 +1,20 @@
 import * as THREE from 'three'
-import { ringVertexShader, ringFragmentShader } from '@/components/login/saturn-shaders'
+import {
+  createRingVertexShader,
+  ringFragmentShader,
+} from '@/components/login/saturn-shaders'
 import {
   ringHaloVertexShader,
   ringHaloFragmentShader,
 } from '@/lib/galaxy/ring-halo-shader'
+import {
+  blackHoleVertexShader,
+  blackHoleFragmentShader,
+} from '@/lib/galaxy/black-hole-shader'
 import type { LODLevel, MoonState, PlanetSystemConfig } from '@/lib/galaxy/types'
 
 /** Particle counts for the halo LOD tier */
-const HALO_PLANET_PARTICLES = 500
+const HALO_PLANET_PARTICLES = 800
 const HALO_RING_PARTICLES = 2000
 const HALO_CORE_RADIUS_RATIO = 0.97 // relative to planetRadius
 const FULL_CORE_RADIUS_RATIO = 0.97 // relative to planetRadius (10.2 / 10.5 ≈ 0.97)
@@ -25,6 +32,54 @@ const RING_INNER_RADIUS = 12.0
 const RING_RADIAL_DEPTH = 20.0
 const RING_GAP_LEAK_PROBABILITY = 0.015
 const RING_VERTICAL_SPREAD = 0.04
+
+/** Moon sizing: uniform small dots matching login-page ring particles */
+const MOON_SIZE_NEWEST = 0.05
+const MOON_SIZE_OLDEST = 0.05
+/** Opacity: gentle fade toward center (inner spiral = oldest = most transparent) */
+const MOON_OPACITY_NEWEST = 0.85
+const MOON_OPACITY_OLDEST = 0.04
+
+/** Ring shader only receives the newest N points for wake effects (perf) */
+const SHADER_MOON_LIMIT = 30
+
+/** Black hole accretion disc particle count */
+const BLACK_HOLE_DISC_PARTICLES = 12000
+const BLACK_HOLE_INNER_RADIUS = 11.0
+const BLACK_HOLE_OUTER_RADIUS = 32.0
+
+/** Cached radial-gradient glow texture shared by all dot sprites */
+let glowTextureCache: THREE.CanvasTexture | null = null
+
+function getGlowTexture(): THREE.CanvasTexture {
+  if (glowTextureCache) return glowTextureCache
+
+  const size = 64
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const center = size / 2
+
+  const imageData = ctx.createImageData(size, size)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x - center) / center
+      const dy = (y - center) / center
+      const r = Math.sqrt(dx * dx + dy * dy)
+      const alpha = r <= 1 ? Math.exp(-4 * r * r) : 0
+      const idx = (y * size + x) * 4
+      imageData.data[idx] = 255
+      imageData.data[idx + 1] = 255
+      imageData.data[idx + 2] = 255
+      imageData.data[idx + 3] = Math.round(alpha * 255)
+    }
+  }
+  ctx.putImageData(imageData, 0, 0)
+
+  glowTextureCache = new THREE.CanvasTexture(canvas)
+  return glowTextureCache
+}
 
 /**
  * Reusable Three.js planet/ring/moon particle system.
@@ -73,6 +128,20 @@ export class PlanetSystem {
   // Dot-LOD resources (nullable — only present when LOD === 'dot')
   private dotSprite: THREE.Sprite | null = null
 
+  // Ring mesh references for rotation animation
+  private ringMesh: THREE.Points | null = null
+  private haloRingMesh: THREE.Points | null = null
+
+  // Skip default animated moons (galaxy view creates data-driven moons instead)
+  private readonly skipDefaultMoons: boolean
+  // Black hole mode: accretion disc + photon ring instead of Saturn rings
+  private readonly blackHoleMode: boolean
+
+  // Black hole resources
+  private blackHoleGeo: THREE.BufferGeometry | null = null
+  private blackHoleMat: THREE.ShaderMaterial | null = null
+  private blackHoleMesh: THREE.Points | null = null
+
   // Reusable scratch color to avoid GC pressure
   private readonly _tmpColor = new THREE.Color()
 
@@ -82,11 +151,18 @@ export class PlanetSystem {
     angle: number
     radius: number
     hasViolation: boolean
+    hasUnacknowledgedViolation?: boolean
   }> | null = null
 
-  constructor(config: PlanetSystemConfig, initialLOD: LODLevel = 'full') {
+  constructor(
+    config: PlanetSystemConfig,
+    initialLOD: LODLevel = 'full',
+    options?: { skipDefaultMoons?: boolean; blackHole?: boolean },
+  ) {
     this.config = config
     this.group = new THREE.Group()
+    this.skipDefaultMoons = options?.skipDefaultMoons ?? false
+    this.blackHoleMode = options?.blackHole ?? false
 
     // Build the requested initial LOD
     switch (initialLOD) {
@@ -161,13 +237,38 @@ export class PlanetSystem {
     this.coreGeo = core.geo
     this.coreMat = core.mat
 
-    const rings = this.createRings()
-    this.ringGeo = rings.geo
-    this.ringShaderMat = rings.mat
-    this.uMoonsArray = rings.uMoonsArray
-    this.uMoonStatusArray = rings.uMoonStatusArray
+    if (this.blackHoleMode) {
+      // Black hole: accretion disc + photon ring instead of Saturn rings
+      this.darkenPlanetCore()
+      const bh = this.createBlackHoleDisc()
+      this.blackHoleGeo = bh.geo
+      this.blackHoleMat = bh.mat
+      this.blackHoleMesh = bh.mesh
 
-    this.moonGeo = this.createMoons()
+      // Still need ring shader for moon wake effects (minimal version)
+      const rings = this.createRings()
+      this.ringGeo = rings.geo
+      this.ringShaderMat = rings.mat
+      this.ringMesh = rings.ringsMesh
+      // Hide the Saturn ring particles — keep only the shader uniforms
+      if (this.ringMesh) this.ringMesh.visible = false
+      this.uMoonsArray = rings.uMoonsArray
+      this.uMoonStatusArray = rings.uMoonStatusArray
+    } else {
+      const rings = this.createRings()
+      this.ringGeo = rings.geo
+      this.ringShaderMat = rings.mat
+      this.ringMesh = rings.ringsMesh
+      this.uMoonsArray = rings.uMoonsArray
+      this.uMoonStatusArray = rings.uMoonStatusArray
+    }
+
+    if (this.skipDefaultMoons) {
+      // Galaxy view: only create shared geometry, no animated moons
+      this.moonGeo = new THREE.SphereGeometry(0.12, 16, 16)
+    } else {
+      this.moonGeo = this.createMoons()
+    }
   }
 
   private buildHalo(): void {
@@ -183,17 +284,19 @@ export class PlanetSystem {
     const ring = this.createHaloRing()
     this.haloRingGeo = ring.geo
     this.haloRingMat = ring.mat
+    this.haloRingMesh = ring.ringsMesh
   }
 
   private buildDot(): void {
     const spriteMat = new THREE.SpriteMaterial({
+      map: getGlowTexture(),
       color: this.config.colors.gold,
       transparent: true,
       opacity: 0.9,
       blending: THREE.AdditiveBlending,
     })
     this.dotSprite = new THREE.Sprite(spriteMat)
-    this.dotSprite.scale.setScalar(0.5)
+    this.dotSprite.scale.setScalar(8.0)
     this.group.add(this.dotSprite)
   }
 
@@ -243,9 +346,16 @@ export class PlanetSystem {
     this.coreMat = null
     this.ringGeo = null
     this.ringShaderMat = null
+    this.ringMesh = null
     this.moonGeo = null
     this.uMoonsArray = []
     this.uMoonStatusArray = []
+
+    this.blackHoleGeo?.dispose()
+    this.blackHoleMat?.dispose()
+    this.blackHoleGeo = null
+    this.blackHoleMat = null
+    this.blackHoleMesh = null
   }
 
   private disposeHalo(): void {
@@ -263,6 +373,7 @@ export class PlanetSystem {
     this.haloCoreMat = null
     this.haloRingGeo = null
     this.haloRingMat = null
+    this.haloRingMesh = null
   }
 
   private disposeDot(): void {
@@ -387,7 +498,7 @@ export class PlanetSystem {
     const rings = new THREE.Points(geo, mat)
     this.group.add(rings)
 
-    return { geo, mat }
+    return { geo, mat, ringsMesh: rings }
   }
 
   private createPlanet(particleCount: number) {
@@ -399,19 +510,22 @@ export class PlanetSystem {
   }
 
   private createRings() {
-    const { moonCount, colors } = this.config
+    const { colors } = this.config
     const { orange } = colors
+
+    // Shader receives at most SHADER_MOON_LIMIT moons for performance
+    const shaderMoonCount = Math.min(this.config.moonCount, SHADER_MOON_LIMIT)
 
     const uMoonsArray: THREE.Vector3[] = []
     const uMoonStatusArray: number[] = []
-    for (let i = 0; i < moonCount; i++) {
+    for (let i = 0; i < shaderMoonCount; i++) {
       uMoonsArray.push(new THREE.Vector3())
       uMoonStatusArray.push(0)
     }
 
-    const { geo, mat } = this.buildRingParticles(
+    const { geo, mat, ringsMesh } = this.buildRingParticles(
       this.config.ringParticleCount,
-      { vertex: ringVertexShader, fragment: ringFragmentShader },
+      { vertex: createRingVertexShader(shaderMoonCount), fragment: ringFragmentShader },
       {
         uMoons: { value: uMoonsArray },
         uMoonStatus: { value: uMoonStatusArray },
@@ -421,7 +535,90 @@ export class PlanetSystem {
       },
     )
 
-    return { geo, mat: mat as THREE.ShaderMaterial, uMoonsArray, uMoonStatusArray }
+    return { geo, mat: mat as THREE.ShaderMaterial, uMoonsArray, uMoonStatusArray, ringsMesh }
+  }
+
+  /** Darken planet core particles to simulate an event horizon. */
+  private darkenPlanetCore(): void {
+    if (!this.planetGeo) return
+    const colAttr = this.planetGeo.getAttribute('color')
+    const dark = new THREE.Color(0x0a0a1a)
+    const rim = new THREE.Color(0x1a1040)
+    const posAttr = this.planetGeo.getAttribute('position')
+    const { planetRadius } = this.config
+
+    for (let i = 0; i < colAttr.count; i++) {
+      // Blend based on height: equator gets a subtle purple rim
+      const y = posAttr.getY(i) / planetRadius
+      const rimFactor = 1 - Math.abs(y)
+      this._tmpColor.copy(dark).lerp(rim, rimFactor * 0.4)
+      colAttr.setXYZ(i, this._tmpColor.r, this._tmpColor.g, this._tmpColor.b)
+    }
+    colAttr.needsUpdate = true
+  }
+
+  /** Create the black hole accretion disc + photon ring particle system. */
+  private createBlackHoleDisc() {
+    const count = BLACK_HOLE_DISC_PARTICLES
+    const positions = new Float32Array(count * 3)
+    const colors = new Float32Array(count * 3)
+    const phases = new Float32Array(count)
+
+    const photonColor = new THREE.Color(0xccccff) // pale blue-white
+    const innerGlow = new THREE.Color(0xffaa44) // warm orange
+    const outerGlow = new THREE.Color(0x443322) // dark amber
+
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2
+
+      // Distribution: denser near photon ring (r ≈ 12), sparser outward
+      const u = Math.random()
+      const radius =
+        BLACK_HOLE_INNER_RADIUS +
+        Math.pow(u, 0.7) * (BLACK_HOLE_OUTER_RADIUS - BLACK_HOLE_INNER_RADIUS)
+
+      // Slight vertical spread, tighter near center (thin disc)
+      const verticalSpread = 0.02 + ((radius - BLACK_HOLE_INNER_RADIUS) / 20) * 0.15
+      const y = (Math.random() - 0.5) * verticalSpread
+
+      positions[i * 3] = Math.cos(theta) * radius
+      positions[i * 3 + 1] = y
+      positions[i * 3 + 2] = Math.sin(theta) * radius
+
+      // Color: blue-white near core → orange → dark amber at edges
+      const t = (radius - BLACK_HOLE_INNER_RADIUS) / (BLACK_HOLE_OUTER_RADIUS - BLACK_HOLE_INNER_RADIUS)
+      const col = t < 0.1
+        ? photonColor.clone().lerp(innerGlow, t / 0.1)
+        : innerGlow.clone().lerp(outerGlow, (t - 0.1) / 0.9)
+      colors[i * 3] = col.r
+      colors[i * 3 + 1] = col.g
+      colors[i * 3 + 2] = col.b
+
+      // Random orbital phase offset
+      phases[i] = Math.random() * Math.PI * 2
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geo.setAttribute('orbitalPhase', new THREE.BufferAttribute(phases, 1))
+
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: blackHoleVertexShader,
+      fragmentShader: blackHoleFragmentShader,
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+
+    const mesh = new THREE.Points(geo, mat)
+    this.group.add(mesh)
+
+    return { geo, mat, mesh }
   }
 
   private createMoons(): THREE.SphereGeometry {
@@ -463,7 +660,7 @@ export class PlanetSystem {
   // ---------------------------------------------------------------------------
 
   private createHaloPlanet() {
-    return this.buildPlanetParticles(HALO_PLANET_PARTICLES, 0.18)
+    return this.buildPlanetParticles(HALO_PLANET_PARTICLES, 0.25)
   }
 
   private createHaloCore() {
@@ -471,13 +668,14 @@ export class PlanetSystem {
   }
 
   private createHaloRing() {
-    return this.buildRingParticles(
+    const result = this.buildRingParticles(
       HALO_RING_PARTICLES,
       { vertex: ringHaloVertexShader, fragment: ringHaloFragmentShader },
       {
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
       },
     )
+    return result
   }
 
   // ---------------------------------------------------------------------------
@@ -488,10 +686,13 @@ export class PlanetSystem {
     // Dot level: no animation needed
     if (this.currentLOD === 'dot') return
 
-    // Halo level: rotate planet slowly, no moon logic
+    // Halo level: rotate planet and ring slowly, no moon logic
     if (this.currentLOD === 'halo') {
       if (this.haloPlanet) {
         this.haloPlanet.rotation.y += 0.001
+      }
+      if (this.haloRingMesh) {
+        this.haloRingMesh.rotation.y += 0.0005
       }
       return
     }
@@ -500,15 +701,35 @@ export class PlanetSystem {
     if (this.ringShaderMat) {
       this.ringShaderMat.uniforms.uTime.value = time
     }
+    if (this.blackHoleMat) {
+      this.blackHoleMat.uniforms.uTime.value = time
+    }
     if (this.planet) {
       this.planet.rotation.y += 0.001
     }
+    // Note: ring mesh does NOT rotate — the shader computes wake positions
+    // in ring-local space, so rotating the mesh would desync wakes from moons.
 
     // Moon state machine (skip data-driven moons — they're stationary at their data positions)
     this.moons.forEach((moon, i) => {
       if (moon.speed === 0) return
       this.updateMoon(moon, i, time)
     })
+
+    // Pulse violation moons (data moons have speed === 0 and anomalyState === ANOMALY_SPIKE)
+    if (this.currentLOD === 'full') {
+      for (const moon of this.moons) {
+        if (moon.speed !== 0 || moon.anomalyState !== ANOMALY_SPIKE) continue
+        const baseScale = (moon.mesh.userData.baseScale as number) ?? 1
+        const pulse = 1 + 0.25 * Math.sin(time * 4 + moon.angle)
+        moon.mesh.scale.setScalar(baseScale * pulse)
+
+        const mat = moon.mesh.material as THREE.MeshBasicMaterial
+        if (mat.transparent) {
+          mat.opacity = 0.6 + 0.4 * Math.abs(Math.sin(time * 2.5 + moon.angle * 2))
+        }
+      }
+    }
   }
 
   private updateMoon(moon: MoonState, index: number, time: number): void {
@@ -648,7 +869,7 @@ export class PlanetSystem {
 
   /** Remove all existing moons and create new ones at data-driven positions. */
   setDataMoons(
-    samples: Array<{ angle: number; radius: number; hasViolation: boolean }>,
+    samples: Array<{ angle: number; radius: number; hasViolation: boolean; hasUnacknowledgedViolation?: boolean }>,
   ): void {
     // If not at full LOD, store for deferred application
     if (this.currentLOD !== 'full') {
@@ -670,12 +891,24 @@ export class PlanetSystem {
     const uniformStatus = this.ringShaderMat.uniforms.uMoonStatus
       .value as number[]
     const gapCenter = this.config.gaps[0]?.center ?? 15.5
+    const total = Math.min(samples.length, this.config.moonCount)
 
     this.moons = samples.slice(0, this.config.moonCount).map((sample, i) => {
+      // Age fraction: 0 = oldest, 1 = newest
+      const ageFraction = total > 1 ? i / (total - 1) : 1
+
       const mat = new THREE.MeshBasicMaterial({
         color: this.config.colors.cream.clone(),
+        transparent: true,
+        opacity:
+          MOON_OPACITY_OLDEST +
+          ageFraction * (MOON_OPACITY_NEWEST - MOON_OPACITY_OLDEST),
       })
+      const moonSize =
+        MOON_SIZE_OLDEST + ageFraction * (MOON_SIZE_NEWEST - MOON_SIZE_OLDEST)
       const mesh = new THREE.Mesh(this.moonGeo, mat)
+      mesh.scale.setScalar(moonSize / 0.12) // 0.12 is the base geo radius
+      mesh.userData.baseScale = moonSize / 0.12
       this.group.add(mesh)
 
       mesh.position.set(
@@ -684,18 +917,29 @@ export class PlanetSystem {
         Math.sin(sample.angle) * sample.radius,
       )
 
-      // Update shader uniforms for wake effects
-      if (i < uniformMoons.length) {
-        uniformMoons[i].set(sample.radius, sample.angle, gapCenter)
-        uniformStatus[i] = sample.hasViolation ? 0.8 : 0
+      // Feed only the newest SHADER_MOON_LIMIT points to the ring shader
+      const shaderSlot = i - (total - Math.min(total, SHADER_MOON_LIMIT))
+      if (shaderSlot >= 0 && shaderSlot < uniformMoons.length) {
+        uniformMoons[shaderSlot].set(sample.radius, sample.angle, gapCenter)
+        uniformStatus[shaderSlot] = sample.hasViolation ? 0.8 : 0
       }
 
       // Color and scale violation moons
+      const isUnacked = sample.hasUnacknowledgedViolation ?? sample.hasViolation
       if (sample.hasViolation) {
-        ;(mesh.material as THREE.MeshBasicMaterial).color.copy(
-          this.config.colors.orange,
-        )
-        mesh.scale.setScalar(1.6)
+        if (isUnacked) {
+          // Unacknowledged: bright orange, 1.4x scale
+          ;(mesh.material as THREE.MeshBasicMaterial).color.copy(
+            this.config.colors.orange,
+          )
+          mesh.scale.multiplyScalar(1.4)
+          mesh.userData.baseScale *= 1.4
+        } else {
+          // Acknowledged: muted amber, 1.15x scale
+          ;(mesh.material as THREE.MeshBasicMaterial).color.set('#9B7D4A')
+          mesh.scale.multiplyScalar(1.15)
+          mesh.userData.baseScale *= 1.15
+        }
       }
 
       return {
@@ -705,7 +949,7 @@ export class PlanetSystem {
         gap: this.config.gaps[0] ?? { in: 14.5, out: 16.5, center: 15.5 },
         currentRadius: sample.radius,
         targetRadius: sample.radius,
-        anomalyState: sample.hasViolation ? ANOMALY_SPIKE : ANOMALY_NORMAL,
+        anomalyState: isUnacked ? ANOMALY_SPIKE : ANOMALY_NORMAL,
         anomalyTarget: sample.radius,
         noiseOffset: 0,
         noiseFreq: 0,
@@ -717,9 +961,15 @@ export class PlanetSystem {
     })
 
     // Zero out unused uniform slots
-    for (let i = this.moons.length; i < uniformMoons.length; i++) {
+    const shaderCount = Math.min(total, SHADER_MOON_LIMIT)
+    for (let i = shaderCount; i < uniformMoons.length; i++) {
       uniformMoons[i].set(0, 0, 0)
       uniformStatus[i] = 0
+    }
+
+    // Hide accretion disc when data moons are present (sigma flow replaces it)
+    if (this.blackHoleMesh) {
+      this.blackHoleMesh.visible = this.moons.length === 0
     }
   }
 
