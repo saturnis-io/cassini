@@ -59,6 +59,17 @@ dashboard/client/dist/
 docs/internal/
 .playwright-cli/
 
+# Internal testing scripts
+.testing/
+.swarm/
+backend/oq_*.py
+
+# Stray pip artifacts
+backend/=*
+
+# Frontend test artifacts
+frontend/*.png
+
 # Test environment scripts (phase-specific start.bat files)
 backend/test-envs/
 frontend/test-envs/
