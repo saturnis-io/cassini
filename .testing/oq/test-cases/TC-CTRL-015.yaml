@@ -1,0 +1,75 @@
+id: TC-CTRL-015
+title: "Add point annotation to a specific data point"
+category: "Control Charts"
+subcategory: "Annotations"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.2 - Nonconformity and Corrective Action (documentation)"
+  - "IATF 16949 Section 10.2.3 - Problem Solving (root cause documentation)"
+  - "21 CFR Part 820.90 - Nonconforming Product (investigation notes)"
+
+preconditions:
+  description: >
+    A characteristic with chart data (30+ points) and calculated limits.
+    The test user has supervisor+ role (annotation creation requires
+    supervisor+).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Bore Diameter Annotations"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "30 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor. Navigate to /dashboard and select Bore Diameter Annotations."
+    verify: "Chart renders with 30 data points"
+    screenshot: false
+  - step: 2
+    action: "Click the annotation button in the chart toolbar"
+    verify: "Annotation creation mode or dialog activates"
+    screenshot: true
+  - step: 3
+    action: "Select a specific data point on the chart for the annotation"
+    verify: "The selected point is highlighted or indicated"
+    screenshot: false
+  - step: 4
+    action: "Enter annotation text: 'New cutting tool installed - expect reduced variation'"
+    verify: "Text is entered in the annotation dialog"
+    screenshot: false
+  - step: 5
+    action: "Save the annotation"
+    verify: >
+      Success notification. An annotation flag or marker appears on
+      the chart at the selected data point. The flag is visually
+      distinct from violation markers.
+    screenshot: true
+  - step: 6
+    action: "Hover over the annotation marker"
+    verify: >
+      A tooltip or popover shows the annotation text: 'New cutting tool
+      installed - expect reduced variation', along with the author and
+      creation timestamp.
+    screenshot: true
+
+expected_result: >
+  A point annotation is created and attached to a specific data point
+  on the chart. The annotation provides context for future analysis --
+  when reviewing historical data, engineers can understand what was
+  happening at the process when specific patterns occurred.
+
+pass_criteria: >
+  Annotation marker visible at the correct data point. Hover shows the
+  annotation text. API: GET /characteristics/{id}/annotations returns
+  the annotation with type=point, sample_id, and text.
+
+cleanup:
+  - "Delete the annotation via API: DELETE /characteristics/{id}/annotations/{ann_id}"
+  - "Delete seeded data via API"

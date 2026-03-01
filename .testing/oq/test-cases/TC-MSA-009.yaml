@@ -1,0 +1,47 @@
+id: TC-MSA-009
+title: "Nested ANOVA study for destructive testing"
+category: "MSA / Gage R&R"
+subcategory: "NestedStudy"
+priority: high
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Nested design for destructive testing"
+  - "IATF 16949 - Measurement System Analysis for destructive tests"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. No MSA study named 'OQ-GRR-Nested' exists."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /msa and click 'New Study'."
+    verify: "The study creation form is displayed."
+    screenshot: false
+  - step: 2
+    action: "Enter Name: 'OQ-GRR-Nested'. Select Type: 'Nested ANOVA (destructive testing)'. Set Operators to 3, Parts to 5, Replicates to 2. Click Create."
+    verify: "The study is created and the editor opens. Status badge shows 'Setup'. Configuration confirms: Nested ANOVA, 3 operators, 5 parts, 2 replicates."
+    screenshot: true
+  - step: 3
+    action: "Set operator names: 'Op-Destruct-A', 'Op-Destruct-B', 'Op-Destruct-C'. Save operators."
+    verify: "Three operators are listed."
+    screenshot: false
+  - step: 4
+    action: "Set 5 part names: 'NestPart-1' through 'NestPart-5'. Save parts."
+    verify: "Five parts are listed. Note: In a true nested design, each operator measures unique parts (15 total parts). Cassini uses 5 part slots and the nested ANOVA engine handles the non-crossed structure internally."
+    screenshot: false
+  - step: 5
+    action: "Navigate to the Data tab. Enter measurements for the nested design. Each operator measures their assigned parts with 2 replicates. Enter 30 measurements total (3 operators x 5 parts x 2 replicates). Use values spanning a realistic range (e.g., tensile strength values around 350 MPa with variation). Op-Destruct-A: Part1 (352, 351), Part2 (348, 349), Part3 (355, 354), Part4 (346, 347), Part5 (350, 351). Op-Destruct-B: Part1 (353, 352), Part2 (347, 348), Part3 (356, 355), Part4 (345, 346), Part5 (351, 350). Op-Destruct-C: Part1 (351, 352), Part2 (349, 348), Part3 (354, 355), Part4 (347, 346), Part5 (350, 351). Submit measurements."
+    verify: "All 30 cells are filled. Success notification appears. Study status changes to 'Collecting'."
+    screenshot: true
+  - step: 6
+    action: "Navigate to the Results tab and click 'Calculate'."
+    verify: "The calculation completes. Results display with: (1) Verdict banner showing method 'Nested ANOVA'. (2) Variance components table with EV, AV, GRR, PV, TV rows. (3) The Interaction row should be absent or null because nested designs cannot separate operator x part interaction from part variation (parts are not shared). (4) ndc value is displayed. (5) Study status changes to 'Complete'."
+    screenshot: true
+  - step: 7
+    action: "Verify that the pct_contribution_interaction field is null or not displayed."
+    verify: "The Interaction row in the variance components table is either absent or shows null/dash values. This is correct for nested designs because each operator measures unique parts, making it impossible to isolate the operator x part interaction effect."
+    screenshot: false
+expected_result: "A nested ANOVA study calculates successfully for destructive testing scenarios. Results show EV, AV, GRR, PV without an interaction term, reflecting the nested design structure."
+pass_criteria: "Study creates with 'Nested ANOVA' type. Calculation completes without error. Results display variance components without an interaction row. Method label shows 'Nested ANOVA'. Verdict follows AIAG thresholds."
+cleanup:
+  - "Delete MSA study 'OQ-GRR-Nested' via API: DELETE /msa/studies/{id}"

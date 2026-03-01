@@ -1,0 +1,37 @@
+id: TC-RPT-006
+title: "Operator cannot access reports page"
+category: "Reports & Export"
+subcategory: "Access"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Access controls must enforce role-based permissions"
+  - "ISO 13485 - Controlled access to quality system functions based on responsibility"
+  - "IATF 16949 - Separation of duties between data entry (operator) and analysis/reporting (supervisor+)"
+preconditions:
+  description: "A user with operator role exists (not supervisor or higher). Backend and frontend servers are running. No user is currently logged in."
+  seed_method: api
+  seed_data:
+    user: "Operator-role user with at least one plant assignment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login and log in as the operator user"
+    verify: "Login succeeds. Dashboard loads. The sidebar shows only the items appropriate for operator role: Dashboard, Data Entry, Violations, Settings."
+    screenshot: true
+  - step: 2
+    action: "Confirm that 'Reports' is NOT visible in the sidebar navigation"
+    verify: "The sidebar does not contain a 'Reports' link. Operators do not see the Reports navigation item."
+    screenshot: true
+  - step: 3
+    action: "Navigate directly to /reports by typing the URL in the browser address bar"
+    verify: "The application does NOT display the Reports page. Instead, the user is redirected to /dashboard. A toast notification appears indicating insufficient permissions (e.g., 'You need at least Supervisor access')."
+    screenshot: true
+  - step: 4
+    action: "Verify the dashboard is displayed after the redirect"
+    verify: "The dashboard page is shown. No report controls or report content is visible. The operator is safely redirected without seeing restricted content."
+    screenshot: false
+expected_result: "Operators are prevented from accessing the Reports page both through navigation (sidebar item hidden) and through direct URL access (redirect to dashboard with access denied message)."
+pass_criteria: "Reports sidebar item is not visible for operator. Direct navigation to /reports redirects to /dashboard. A permission-denied toast is displayed. No report content is ever shown to the operator."
+cleanup:
+  - "Log out to clean up the operator session"

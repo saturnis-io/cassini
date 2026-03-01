@@ -1,0 +1,63 @@
+id: TC-SIG-010
+title: "Password policy enforcement"
+category: "Electronic Signatures"
+subcategory: "PasswordPolicy"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.300 - Controls for identification codes/passwords"
+  - "ISO 27001 Annex A.9.4.3 - Password management system"
+  - "NIST SP 800-63B - Digital Identity Guidelines for memorized secrets"
+preconditions:
+  description: >
+    An admin user is logged in. The password policy for the plant has NOT been
+    configured (or is at default values). A test user exists whose password
+    can be changed.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    admin_user:
+      username: "oq-admin"
+      password: "Admin123!"
+      role: "admin"
+    test_user:
+      username: "oq-policy-test"
+      password: "OldPass123!"
+      role: "operator"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin. Navigate to /settings/signatures and expand the Password Policy section."
+    verify: "Password Policy section shows current settings. Fields include: Min Password Length, Require Uppercase, Require Lowercase, Require Digit, Require Special Character, Password Expiry Days, Max Failed Attempts, Lockout Duration, Password History Count."
+    screenshot: true
+  - step: 2
+    action: "Set the following policy: Min Password Length: 8, Require Uppercase: checked, Require Digit: checked, Require Special Character: checked. Leave other fields at defaults. Click Save."
+    verify: "Success notification. Policy is saved. The fields show the configured values."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: GET /signatures/password-policy?plant_id={plant_id}"
+    verify: "Response shows min_password_length=8, require_uppercase=true, require_digit=true, require_special=true."
+    screenshot: false
+  - step: 4
+    action: "Log in as the test user (oq-policy-test). Navigate to /settings/account. In the Change Password section, enter current password 'OldPass123!', then enter new password 'abc' and confirm it. Click Change Password."
+    verify: "An error message appears indicating the password does not meet policy requirements (too short, missing uppercase, missing digit, missing special character). The password is NOT changed."
+    screenshot: true
+  - step: 5
+    action: "Now enter new password 'Str0ng!Pass' and confirm it. Click Change Password."
+    verify: "Success notification. The password is changed successfully. The new password meets all policy requirements: length >= 8, has uppercase (S, P), has digit (0), has special character (!)."
+    screenshot: true
+  - step: 6
+    action: "Log out and log back in as oq-policy-test with the new password 'Str0ng!Pass'"
+    verify: "Login succeeds with the new password. Dashboard loads. This confirms the password was actually changed."
+    screenshot: true
+expected_result: >
+  Password policy is configured and enforced. A weak password ('abc') that
+  violates length, uppercase, digit, and special character requirements is
+  rejected. A strong password ('Str0ng!Pass') that meets all requirements
+  is accepted. The user can log in with the new password.
+pass_criteria: >
+  Policy saves successfully. Weak password is rejected with appropriate error
+  message. Strong password is accepted. Login with new password succeeds.
+cleanup:
+  - "Reset password policy to defaults via API: PUT /signatures/password-policy with all defaults"
+  - "Reset test user password or delete test user"

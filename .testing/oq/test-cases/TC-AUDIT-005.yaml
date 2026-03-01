@@ -1,0 +1,49 @@
+id: TC-AUDIT-005
+title: "Filter audit log by action type"
+category: "Audit Trail & Retention"
+subcategory: "Filters"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Ability to discern invalid or altered records"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation of monitoring data"
+preconditions:
+  description: >
+    An admin user exists. The audit log has entries of multiple action types
+    (at minimum: login, create, update). This can be ensured by logging in,
+    creating a characteristic, and updating it before running this test.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/audit-log"
+    verify: "Audit log viewer loads with all entries visible (no filters applied)"
+    screenshot: true
+  - step: 2
+    action: "Locate the action type filter control (dropdown or select) and select 'Create'"
+    verify: >
+      The table refreshes to show only entries with the action 'Create'.
+      Every visible row has the action column showing 'Create'. No 'Login',
+      'Update', 'Delete', or other action types are visible.
+    screenshot: true
+  - step: 3
+    action: "Change the action filter to 'Update'"
+    verify: >
+      The table refreshes to show only 'Update' entries. Every visible row
+      shows the action 'Update'. No 'Create' or other actions are visible.
+    screenshot: true
+  - step: 4
+    action: "Clear the action filter (select 'All' or remove the filter)"
+    verify: "The table returns to showing all action types. Multiple action types are visible in the list."
+    screenshot: false
+expected_result: >
+  Filtering the audit log by action type correctly narrows the displayed
+  results to only entries matching the selected action.
+pass_criteria: >
+  When filtered to 'Create', all visible rows show action 'Create'. When
+  filtered to 'Update', all visible rows show action 'Update'. When filter
+  is cleared, mixed action types are visible. API verification:
+  GET /audit/logs?action=create returns only create entries.
+cleanup:
+  - "No cleanup required"

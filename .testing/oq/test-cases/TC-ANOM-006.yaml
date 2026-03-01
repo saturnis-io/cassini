@@ -1,0 +1,56 @@
+id: TC-ANOM-006
+title: "Acknowledge anomaly event"
+category: "Anomaly Detection"
+subcategory: "Acknowledge"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.2 - Nonconformity and corrective action with documented response"
+  - "IATF 16949 - Reaction plans for detected process anomalies"
+  - "FDA Guidance on AI/ML - Human-in-the-loop oversight of AI findings"
+preconditions:
+  description: >
+    At least one anomaly event exists in an unacknowledged state
+    (is_acknowledged=false) for a characteristic. An operator or higher
+    user is logged in.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-operator"
+      role: "operator"
+    anomaly_event:
+      detector_type: "pelt"
+      event_type: "changepoint"
+      severity: "medium"
+      is_acknowledged: false
+      is_dismissed: false
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard, select the characteristic, and enable AI Insights. Locate the anomaly event list."
+    verify: "The event list shows at least one unacknowledged event. The event has no acknowledgment indicator (no checkmark or 'acknowledged' badge)."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Acknowledge' button (checkmark icon) on the unacknowledged event"
+    verify: "The event status updates. An acknowledgment indicator appears (checkmark, 'Acknowledged' badge, or visual de-emphasis). A success notification may appear."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: GET /anomaly/{char_id}/events/{event_id}"
+    verify: "Response shows: is_acknowledged=true, acknowledged_by='oq-operator' (the username of the acknowledging user), acknowledged_at (a valid datetime, close to the current time)."
+    screenshot: false
+  - step: 4
+    action: "Examine the event in the list"
+    verify: "The acknowledged event is visually distinct from unacknowledged events (e.g., grayed out, different icon, or moved to an 'acknowledged' section). It remains visible in the list but is de-emphasized."
+    screenshot: true
+expected_result: >
+  The anomaly event is successfully acknowledged. The event record updates
+  to show is_acknowledged=true with the acknowledging user's name and
+  timestamp. The UI reflects the acknowledged status with appropriate
+  visual treatment.
+pass_criteria: >
+  Acknowledge action succeeds without error. API returns is_acknowledged=true,
+  acknowledged_by matching the current user, and a valid acknowledged_at
+  timestamp. UI shows the event as acknowledged.
+cleanup:
+  - "No cleanup required -- acknowledgment is a persistent state change"

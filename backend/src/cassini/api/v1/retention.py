@@ -468,4 +468,18 @@ async def trigger_purge(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Purge completed but no history record found",
         )
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": plant_id,
+        "action": "purge",
+        "summary": f"Data purge completed: {latest.samples_deleted + latest.violations_deleted} records deleted",
+        "fields": {
+            "samples_deleted": latest.samples_deleted,
+            "violations_deleted": latest.violations_deleted,
+            "characteristics_processed": latest.characteristics_processed,
+            "triggered_by": user.username,
+        },
+    }
+
     return PurgeHistoryResponse.model_validate(latest)

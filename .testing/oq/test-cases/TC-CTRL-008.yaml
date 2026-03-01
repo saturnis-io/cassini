@@ -1,0 +1,71 @@
+id: TC-CTRL-008
+title: "CUSUM chart renders with cumulative sum data"
+category: "Control Charts"
+subcategory: "SpecialCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - CUSUM Chart"
+  - "ISO 7870-4 - Cumulative Sum Charts"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+
+preconditions:
+  description: >
+    A CUSUM characteristic must exist with target value, K (slack
+    allowance), and H (decision interval) parameters configured. At
+    least 25 samples should be seeded. The CUSUM chart is specifically
+    designed to detect small persistent shifts in the process mean.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Spindle Vibration CUSUM"
+      chart_type: "cusum"
+      subgroup_size: 1
+      data_type: "variable"
+      target: 5.00
+      cusum_k: 0.5
+      cusum_h: 5.0
+    samples: "25 measurements centered near 5.00 with slight upward drift"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Spindle Vibration CUSUM"
+    verify: >
+      CUSUM chart renders showing cumulative sum values. The chart plots
+      C+ (upper CUSUM) and C- (lower CUSUM) over time. Decision interval
+      lines at +H and -H are visible.
+    screenshot: true
+  - step: 2
+    action: "Inspect the chart layout"
+    verify: >
+      The CUSUM chart has a different layout than Shewhart charts:
+      - Y-axis shows cumulative sum values (can be positive or negative)
+      - Horizontal reference lines at +H (upper decision interval)
+        and -H (lower decision interval)
+      - Data may show two series (C+ and C-) or a combined CUSUM
+    screenshot: true
+  - step: 3
+    action: "Hover over a data point"
+    verify: "Tooltip shows: cumulative sum value(s), original measurement, timestamp"
+    screenshot: true
+
+expected_result: >
+  The CUSUM chart renders correctly with its specialized layout. The
+  cumulative sums accumulate deviations from the target: when the
+  process drifts upward, C+ increases toward +H; when it drifts
+  downward, C- decreases toward -H. A signal occurs when either
+  CUSUM exceeds its decision interval.
+
+pass_criteria: >
+  CUSUM chart is visible with cumulative sum data. Decision interval
+  lines at +/-H are present. Chart type is clearly distinguishable
+  from standard Shewhart charts. API chart-data returns CUSUM-specific
+  data structure.
+
+cleanup:
+  - "Delete seeded data via API"

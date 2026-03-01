@@ -1,0 +1,49 @@
+id: TC-VIOL-011
+title: "Batch acknowledge multiple violations simultaneously"
+category: "Violations & Rules"
+subcategory: "Acknowledge"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Batch operations with individual traceability"
+  - "IATF 16949 - Efficient reaction plan documentation"
+preconditions:
+  description: "At least 3 unacknowledged violations exist for a single characteristic. The logged-in user has supervisor role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-BatchAck"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 50
+      values_description: "25 normal samples (mean=10.0, sigma=0.02), then recalculate limits, then 3 extreme values (10.10, 10.11, 10.12) submitted separately to trigger 3 separate Rule 1 violations. Additionally, submit 9 values above centerline to trigger Rule 2, and 6 trending values to trigger Rule 3, giving at least 5 unacknowledged violations total."
+    post_seed:
+      - "Recalculate limits after first 25 samples"
+      - "Verify at least 3 unacknowledged violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as supervisor. Navigate to /violations."
+    verify: "The violations list shows at least 3 unacknowledged violations for 'OQ-VIOL-BatchAck'."
+    screenshot: true
+  - step: 2
+    action: "Select 3 violations using checkboxes or multi-select controls in the violations table."
+    verify: "3 violations are selected. A 'Batch Acknowledge' button or action becomes available (enabled)."
+    screenshot: true
+  - step: 3
+    action: "Click 'Batch Acknowledge'. Enter a reason (e.g., 'Setup Adjustment'). Submit the batch acknowledgment."
+    verify: "All 3 selected violations are acknowledged. A success notification indicates '3 violations acknowledged' or similar. The violations now show acknowledged=true with the supervisor's username and the reason 'Setup Adjustment'."
+    screenshot: true
+  - step: 4
+    action: "Verify each of the 3 violations individually."
+    verify: "Each of the 3 violations has: acknowledged=true, ack_user matching the supervisor username, ack_reason='Setup Adjustment', and an ack_timestamp. All 3 share the same reason but each has its own individual record."
+    screenshot: false
+expected_result: "A supervisor can acknowledge multiple violations at once using the batch acknowledge feature. Each violation is individually updated with the same reason and user but maintains its own acknowledgment record."
+pass_criteria: "All 3 selected violations change from unacknowledged to acknowledged. Each has the correct ack_user, ack_reason, and ack_timestamp. The operation completes in a single action."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-BatchAck' and all associated data via API"

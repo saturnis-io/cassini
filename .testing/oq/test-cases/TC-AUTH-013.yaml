@@ -1,0 +1,41 @@
+id: TC-AUTH-013
+title: "Create new user via admin user management"
+category: "Authentication & Accounts"
+subcategory: "UserMgmt"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Controlled user provisioning"
+  - "ISO 13485 - Personnel competence and access control documentation"
+  - "IATF 16949 - Defined responsibilities and authorities"
+preconditions:
+  description: "Admin user is logged in. No user with username 'oq-newuser' exists in the system."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /admin/users via the sidebar (Users link in the Admin section)"
+    verify: "The User Management page loads. A table of existing users is displayed. An 'Add User' button (or similar create action) is visible."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Add User' button"
+    verify: "A dialog or form opens with fields for username (required), password (required), and email (optional). Plant role assignment fields may also be present."
+    screenshot: true
+  - step: 3
+    action: "Enter 'oq-newuser' as the username, 'TestPass123!' as the password, and 'oqnew@test.local' as the email"
+    verify: "All fields are populated. The submit/create button is enabled."
+    screenshot: false
+  - step: 4
+    action: "Click the submit/create button"
+    verify: "The dialog closes (or a success message appears). The user table now includes a row for 'oq-newuser'. The new user is visible in the list with the correct username and email."
+    screenshot: true
+  - step: 5
+    action: "Log out. Log in as the newly created user: username 'oq-newuser', password 'TestPass123!'"
+    verify: "Login succeeds. The new user can authenticate with the credentials set during creation. The dashboard loads (though the user may have limited access if no plant role is assigned yet)."
+    screenshot: true
+expected_result: "An admin can create a new user through the User Management page. The new user appears in the user list and can log in with the provided credentials."
+pass_criteria: "User is created without error. User appears in the user list. New user can log in with the specified credentials. No duplicate username error (the username is unique)."
+cleanup:
+  - "Deactivate the test user: log in as admin, navigate to /admin/users, deactivate 'oq-newuser'"
+  - "Optionally permanently delete: DELETE /users/{id}/permanent"

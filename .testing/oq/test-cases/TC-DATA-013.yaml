@@ -1,0 +1,67 @@
+id: TC-DATA-013
+title: "Re-include excluded sample and verify limits restore"
+category: "Data Entry"
+subcategory: "SampleManagement"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Rational Subgrouping"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    Continuation from TC-DATA-012. The outlier sample at 10.15 is currently
+    excluded. The test user has supervisor+ role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "30 samples + 1 excluded outlier at 10.15"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor. Navigate to /dashboard and select Bore Diameter."
+    verify: "Chart shows 31 points. The excluded point at 10.15 has distinct styling."
+    screenshot: true
+  - step: 2
+    action: "Note the current UCL and LCL values (tighter limits from exclusion)"
+    verify: "UCL and LCL values recorded"
+    screenshot: false
+  - step: 3
+    action: "Click on the excluded point (10.15) to open sample inspector"
+    verify: "Sample inspector shows the sample as excluded (is_excluded = true)"
+    screenshot: false
+  - step: 4
+    action: "Click Include (or toggle exclusion off) in the sample inspector"
+    verify: >
+      Success notification. The point at 10.15 reverts to normal styling
+      (filled circle, standard color). Control limits recalculate to
+      include this point.
+    screenshot: true
+  - step: 5
+    action: "Compare UCL and LCL values after re-inclusion"
+    verify: >
+      UCL is wider (higher) than the excluded state because the outlier
+      now inflates the range/sigma estimate. Limits return to their
+      original pre-exclusion values.
+    screenshot: true
+
+expected_result: >
+  The re-included sample is restored to normal status. It is used
+  again in control limit calculations and Nelson Rule evaluation.
+  Limits widen to their original values. The chart styling returns
+  to normal.
+
+pass_criteria: >
+  API: PATCH /samples/{id}/exclude {is_excluded: false} returns
+  is_excluded=false. UCL/LCL values match the pre-exclusion values
+  from TC-DATA-012 step 2.
+
+cleanup:
+  - "Delete seeded samples via API"

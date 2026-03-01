@@ -1,5 +1,6 @@
 import { ShieldAlert, CheckCircle, User, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { NELSON_RULES, NELSON_RULE_DETAILS } from '@/lib/nelson-rules'
 import { NELSON_SPARKLINES } from '@/components/characteristic-config/NelsonSparklines'
 import { SeverityBadge } from './shared'
@@ -26,6 +27,7 @@ export function ViolationsSection({
   setAckReason,
   onAcknowledge,
 }: ViolationsSectionProps) {
+  const { formatDateTime } = useDateFormat()
   if (violations.length === 0) {
     return (
       <div className="text-muted-foreground py-8 text-center text-sm">
@@ -108,7 +110,7 @@ export function ViolationsSection({
                     )}
                     {v.ack_timestamp && (
                       <span className="text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {new Date(v.ack_timestamp).toLocaleString()}
+                        <Clock className="h-3 w-3" /> {formatDateTime(v.ack_timestamp)}
                       </span>
                     )}
                   </div>

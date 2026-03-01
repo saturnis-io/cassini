@@ -1,0 +1,53 @@
+id: TC-MSA-005
+title: "Calculate ANOVA Gage R&R and verify results structure"
+category: "MSA / Gage R&R"
+subcategory: "ANOVACalculation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - ANOVA method for Gage R&R calculation"
+  - "IATF 16949 - Measurement System Analysis requirements"
+  - "ISO 13485 - Validation of measurement processes"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study 'OQ-GRR-Crossed' exists with 3 operators, 10 parts, 2 replicates, and all 60 measurements entered. Study status is 'Collecting'. Measurement data uses a base value around 25.00mm with EV approximately 0.01, AV approximately 0.005, PV approximately 0.08 (designed to produce an acceptable result)."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+    operators: ["Op-A", "Op-B", "Op-C"]
+    parts: ["Part-01", "Part-02", "Part-03", "Part-04", "Part-05", "Part-06", "Part-07", "Part-08", "Part-09", "Part-10"]
+    measurements: "60 variable measurements with realistic EV/AV/PV ratios"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the MSA study 'OQ-GRR-Crossed' and navigate to the Results tab."
+    verify: "The Results tab is accessible. A 'Calculate' button is visible (results have not been computed yet, or previous results are shown with an option to recalculate)."
+    screenshot: true
+  - step: 2
+    action: "Click the 'Calculate' button to run the ANOVA Gage R&R analysis."
+    verify: "A loading indicator appears briefly while the calculation runs. After completion, the results panel displays with the following sections: (1) Verdict banner showing the overall assessment (Acceptable/Marginal/Unacceptable) with the %Study GRR value and the analysis method 'Crossed ANOVA', (2) ndc badge showing the Number of Distinct Categories, (3) Variance Components bar chart, (4) Variance components table, and (5) ANOVA table."
+    screenshot: true
+  - step: 3
+    action: "Examine the Variance Components table (the percentage breakdown table)."
+    verify: "The table has columns: Source, StdDev, %Contribution, %Study Var. If tolerance was provided, a P/T Ratio column is also present. The rows include: Repeatability (EV), Reproducibility (AV), Interaction (if present), Gage R&R (GRR) as a bold summary row, Part Variation (PV), and Total Variation (TV). All percentage values are numeric and displayed to 2 decimal places. %Contribution values across all sources sum to approximately 100%. Color coding is applied: green for values <= 10%, amber for 10-30%, red for > 30%."
+    screenshot: true
+  - step: 4
+    action: "Examine the ANOVA table."
+    verify: "The ANOVA table has columns: Source, SS, df, MS, F, p-value. The rows include: operator, part, interaction, and repeatability. SS, df, and MS values are displayed for all rows. F and p-value are displayed for operator, part, and interaction rows. The repeatability row has SS, df, and MS but no F or p-value (it is the error term). If any p-value is less than 0.05, it is highlighted in red indicating statistical significance. The part source should have a very large F value and p approximately 0, confirming parts are distinguishable."
+    screenshot: true
+  - step: 5
+    action: "Examine the Variance Components bar chart."
+    verify: "A horizontal bar chart is displayed showing %Contribution for each source: Repeatability (EV), Reproducibility (AV), Gage R&R (GRR), and Part Variation (PV). Bars are color-coded (green/amber/red) based on their percentage values. Part Variation should dominate (longest bar) if the measurement system is good."
+    screenshot: true
+  - step: 6
+    action: "Verify the study status has changed to 'Complete'."
+    verify: "The study status badge in the header shows 'Complete' (green) instead of 'Collecting'. Navigating back to /msa, the study row shows Status = 'Complete'."
+    screenshot: true
+expected_result: "The ANOVA Gage R&R calculation completes successfully. Results display all required components: verdict banner, ndc, variance components chart, variance components table with EV/AV/GRR/PV percentages, and full ANOVA table with SS/df/MS/F/p columns. Study status transitions to 'Complete'."
+pass_criteria: "All result sections are populated with numeric values. ANOVA table shows all required columns and rows. Variance component percentages sum to approximately 100%. Color coding matches AIAG thresholds. Study status is 'Complete'."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

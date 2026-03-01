@@ -1,0 +1,49 @@
+id: TC-CAP-002
+title: "Cpk for off-center process is less than Cp"
+category: "Capability Analysis"
+subcategory: "Cpk"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Process Capability Indices"
+  - "ISO 22514 - Cpk accounting for process centering"
+  - "IATF 16949 - Cpk >= 1.33 requirement for production"
+preconditions:
+  description: "A variable characteristic (X-bar/R, subgroup_size=5) exists with USL=10.05, LSL=9.95, and target=10.0. At least 60 subgroups have been submitted from an off-center distribution N(10.02, 0.015) -- shifted toward USL. Control limits have been calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Cpk-Shifted"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each, drawn from N(10.02, 0.015). The process mean is shifted 0.02 above the target (10.0) toward USL (10.05). Example subgroup: [10.032, 10.008, 10.025, 10.017, 10.028]. With mean=10.02 and sigma=0.015: Cpu = (10.05 - 10.02) / (3 * 0.015) = 0.03 / 0.045 = 0.67. Cpl = (10.02 - 9.95) / (3 * 0.015) = 0.07 / 0.045 = 1.56. Cpk = min(0.67, 1.56) = 0.67. Cp remains ~1.11. So Cpk << Cp, demonstrating the centering penalty."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Cpk-Shifted' from the hierarchy tree."
+    verify: "The control chart loads showing 60 subgroup points. The subgroup means are visibly centered above the midpoint of the spec limits, shifted toward USL."
+    screenshot: true
+  - step: 2
+    action: "Examine the Cpk value on the Capability Card."
+    verify: "Cpk is displayed and is significantly less than Cp. For the seeded data (mean=10.02, sigma=0.015), Cpk should be approximately 0.67 (acceptable range: 0.50 to 0.85). Cp should remain approximately 1.11 (same sigma, same spec width). The difference demonstrates that Cpk penalizes the off-center process."
+    screenshot: true
+  - step: 3
+    action: "Verify the Cpk color coding."
+    verify: "Cpk < 1.0, so it should be displayed in red, indicating the process is NOT capable. Despite Cp being around 1.11 (the process has the potential), the off-center mean means Cpk fails the capability test."
+    screenshot: true
+  - step: 4
+    action: "Compare Cp and Cpk values on the Capability Card."
+    verify: "Cp > Cpk. The gap between them (Cp - Cpk approximately 0.44) quantifies the centering loss. This confirms the process could meet spec if re-centered (Cp is adequate) but currently does not (Cpk is inadequate)."
+    screenshot: false
+expected_result: "For an off-center process, Cpk is significantly less than Cp, demonstrating that Cpk correctly accounts for process centering. The Cpk value reflects the worst-case side (closer to USL) and is displayed in red (< 1.0)."
+pass_criteria: "Cpk is displayed in the range 0.50-0.85. Cpk is red (< 1.0). Cp is displayed and is greater than Cpk. The difference between Cp and Cpk is clearly visible, demonstrating the centering penalty."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Cpk-Shifted' and all associated data via API"

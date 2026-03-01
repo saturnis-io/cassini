@@ -28,6 +28,7 @@ export const violationApi = {
     rule_id?: number
     characteristic_id?: number
     sample_id?: number
+    plant_id?: number
     start_date?: string
     end_date?: string
     page?: number
@@ -43,6 +44,7 @@ export const violationApi = {
     if (params?.characteristic_id)
       searchParams.set('characteristic_id', String(params.characteristic_id))
     if (params?.sample_id) searchParams.set('sample_id', String(params.sample_id))
+    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
     if (params?.start_date) searchParams.set('start_date', params.start_date)
     if (params?.end_date) searchParams.set('end_date', params.end_date)
     // Convert page/per_page to offset/limit for the backend
@@ -57,7 +59,12 @@ export const violationApi = {
 
   get: (id: number) => fetchApi<Violation>(`/violations/${id}`),
 
-  getStats: () => fetchApi<ViolationStats>('/violations/stats'),
+  getStats: (params?: { plant_id?: number }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.plant_id) searchParams.set('plant_id', String(params.plant_id))
+    const query = searchParams.toString()
+    return fetchApi<ViolationStats>(`/violations/stats${query ? `?${query}` : ''}`)
+  },
 
   acknowledge: (id: number, data: { reason: string; user: string }) =>
     fetchApi<Violation>(`/violations/${id}/acknowledge`, {

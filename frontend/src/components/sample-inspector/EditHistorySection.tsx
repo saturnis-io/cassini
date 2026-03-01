@@ -1,5 +1,6 @@
 import { History, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { SampleEditHistory } from '@/types'
 
 export interface EditHistorySectionProps {
@@ -8,6 +9,7 @@ export interface EditHistorySectionProps {
 }
 
 export function EditHistorySection({ history, precision }: EditHistorySectionProps) {
+  const { formatDateTime } = useDateFormat()
   if (history.length === 0) {
     return (
       <div className="text-muted-foreground py-8 text-center text-sm">
@@ -24,7 +26,7 @@ export function EditHistorySection({ history, precision }: EditHistorySectionPro
             <div className="flex items-center gap-2 text-xs">
               <History className="text-warning h-3.5 w-3.5" />
               <span className="text-muted-foreground">
-                {new Date(entry.edited_at).toLocaleString()}
+                {formatDateTime(entry.edited_at)}
               </span>
               {idx === 0 && (
                 <span className="bg-warning/10 text-warning rounded px-1.5 py-0.5 text-[10px] font-medium">

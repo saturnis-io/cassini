@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useUIStore } from '@/stores/uiStore'
 import { usePlants } from '@/api/hooks'
 import {
@@ -26,6 +27,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
 }
 
 export function FAIPage() {
+  const { formatDate } = useDateFormat()
   const navigate = useNavigate()
   const selectedPlantId = useUIStore((s) => s.selectedPlantId)
   const { data: plants } = usePlants()
@@ -101,18 +103,27 @@ export function FAIPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <select
-          value={statusFilter ?? ''}
-          onChange={(e) => setStatusFilter(e.target.value || undefined)}
-          className="border-border bg-card text-foreground rounded-lg border px-3 py-2 text-sm"
-        >
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="submitted">Submitted</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
+      <div className="flex items-center gap-2">
+        {[
+          { value: undefined, label: 'All' },
+          { value: 'draft', label: 'Draft' },
+          { value: 'submitted', label: 'Submitted' },
+          { value: 'approved', label: 'Approved' },
+          { value: 'rejected', label: 'Rejected' },
+        ].map((opt) => (
+          <button
+            key={opt.label}
+            onClick={() => setStatusFilter(opt.value)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              statusFilter === opt.value
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* Reports table */}
@@ -177,7 +188,7 @@ export function FAIPage() {
                       </span>
                     </td>
                     <td className="text-muted-foreground px-4 py-3">
-                      {new Date(report.created_at).toLocaleDateString()}
+                      {formatDate(report.created_at)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

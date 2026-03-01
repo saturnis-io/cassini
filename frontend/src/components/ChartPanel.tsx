@@ -5,6 +5,7 @@ import { ControlChart } from './ControlChart'
 import { AttributeChart } from './AttributeChart'
 import { CUSUMChart } from './CUSUMChart'
 import { EWMAChart } from './EWMAChart'
+import { ParetoChart } from './ParetoChart'
 import { DistributionHistogram } from './DistributionHistogram'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useChartData } from '@/api/hooks'
@@ -33,6 +34,8 @@ interface ChartPanelProps {
   onPointAnnotation?: (sampleId: number) => void
   /** Callback when a region is drag-selected on the chart */
   onRegionSelect?: (info: RegionSelection) => void
+  /** Highlight a specific sample on the chart (e.g. the inspected violation) */
+  highlightSampleId?: number
 }
 
 /**
@@ -55,6 +58,7 @@ export function ChartPanel({
   defaultHistogramHeight = 192,
   onPointAnnotation,
   onRegionSelect,
+  highlightSampleId,
 }: ChartPanelProps) {
   const isRightPosition = histogramPosition === 'right'
   const isBelowPosition = histogramPosition === 'below'
@@ -158,14 +162,16 @@ export function ChartPanel({
       <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
         <ErrorBoundary>
           {/* Route by user-selected chart type first, then fall back to backend metadata */}
-          {chartData?.data_type === 'attribute' ? (
-            <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
+          {chartType === 'pareto' ? (
+            <ParetoChart characteristicId={characteristicId} chartOptions={chartOptions} />
+          ) : chartData?.data_type === 'attribute' ? (
+            <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
           ) : (chartType === 'cusum' || chartData?.chart_type === 'cusum') &&
             chartData?.cusum_data_points?.length ? (
-            <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
+            <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
           ) : (chartType === 'ewma' || chartData?.chart_type === 'ewma') &&
             chartData?.ewma_data_points?.length ? (
-            <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} />
+            <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
           ) : (
             <ControlChart
               characteristicId={characteristicId}
@@ -178,6 +184,7 @@ export function ChartPanel({
               highlightedRange={hoveredBinRange}
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
+              highlightSampleId={highlightSampleId}
             />
           )}
         </ErrorBoundary>

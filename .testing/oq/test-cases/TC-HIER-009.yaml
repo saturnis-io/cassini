@@ -1,0 +1,78 @@
+id: TC-HIER-009
+title: "Hierarchy tree expands and collapses"
+category: "Plants & Hierarchy"
+subcategory: "Navigation"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5 - Documented information (navigability of quality records)"
+preconditions:
+  description: "User is logged in. A multi-level hierarchy exists: Department > Line > Station > Characteristic."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Tree Nav Plant"
+        code: "OQ09"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Tree Nav Dept"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Tree Nav Line"
+        type: "Line"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{line.id}"
+        name: "Tree Nav Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "Tree Nav Char"
+        subgroup_size: 1
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Tree Nav Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree loads showing at least the root node 'Tree Nav Dept'."
+    screenshot: true
+  - step: 2
+    action: "If 'Tree Nav Dept' is collapsed, click the expand arrow/chevron next to it."
+    verify: "'Tree Nav Line' appears as a child. The expand arrow changes to indicate expanded state."
+    screenshot: true
+  - step: 3
+    action: "Click the expand arrow next to 'Tree Nav Line'."
+    verify: "'Tree Nav Station' appears as a child of 'Tree Nav Line'."
+    screenshot: false
+  - step: 4
+    action: "Click the expand arrow next to 'Tree Nav Station'."
+    verify: "'Tree Nav Char' appears as a leaf node under 'Tree Nav Station'. Full tree path is visible: Dept > Line > Station > Characteristic."
+    screenshot: true
+  - step: 5
+    action: "Click the collapse arrow next to 'Tree Nav Dept' to collapse the entire branch."
+    verify: "All child nodes are hidden. Only 'Tree Nav Dept' with a collapsed indicator is visible."
+    screenshot: true
+  - step: 6
+    action: "Click expand on 'Tree Nav Dept' again."
+    verify: "The previously expanded child nodes reappear in the same structure."
+    screenshot: false
+expected_result: "Hierarchy tree supports expand and collapse at every level, correctly showing and hiding child nodes."
+pass_criteria: "All levels expand to show children and collapse to hide them. Expand/collapse state toggles correctly."
+cleanup:
+  - "Delete characteristic and hierarchy nodes via API"
+  - "Delete plant 'OQ09' via API: DELETE /plants/{id}"

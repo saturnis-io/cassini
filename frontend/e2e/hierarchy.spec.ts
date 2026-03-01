@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet } from './helpers/api'
-import { createPlant, createHierarchyNode } from './helpers/seed'
+import { createPlant, createHierarchyNode, switchToPlant } from './helpers/seed'
 
 test.describe('Hierarchy Management', () => {
   let token: string
@@ -18,17 +18,7 @@ test.describe('Hierarchy Management', () => {
     await loginAsAdmin(page)
 
     // Switch to our test plant via the plant selector
-    const plantSelector = page.locator('button[aria-haspopup="listbox"]')
-    await expect(plantSelector).toBeVisible({ timeout: 10000 })
-    await plantSelector.click()
-    const listbox = page.locator('[role="listbox"]')
-    await expect(listbox).toBeVisible({ timeout: 3000 })
-    const targetOption = listbox.locator('[role="option"]').filter({ hasText: 'Hierarchy Test Plant' })
-    if (await targetOption.isVisible({ timeout: 2000 })) {
-      await targetOption.click()
-    } else {
-      await page.keyboard.press('Escape')
-    }
+    await switchToPlant(page, 'Hierarchy Test Plant')
   })
 
   test('create department node in hierarchy', async ({ page }) => {
@@ -93,7 +83,14 @@ test.describe('Hierarchy Management', () => {
   test('create characteristic under hierarchy node', async ({ page, request }) => {
     // Create hierarchy via API (idempotent)
     const dept = await createHierarchyNode(request, token, plantId, 'Char Test Dept', 'Area')
-    const station = await createHierarchyNode(request, token, plantId, 'Char Test Station', 'Cell', dept.id)
+    const station = await createHierarchyNode(
+      request,
+      token,
+      plantId,
+      'Char Test Station',
+      'Cell',
+      dept.id,
+    )
 
     // Create a characteristic via API
     const res = await request.post('http://localhost:8000/api/v1/characteristics/', {

@@ -1,0 +1,51 @@
+id: TC-AUTH-005
+title: "Unauthenticated access redirects to login"
+category: "Authentication & Accounts"
+subcategory: "Login"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - System access limited to authorized individuals"
+  - "ISO 13485 - Prevention of unauthorized access to quality records"
+preconditions:
+  description: "No user is currently logged in. Browser has no stored tokens (clear cookies and localStorage for the application domain if needed)."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open a fresh browser window or incognito session. Navigate directly to /dashboard"
+    verify: "The browser redirects to /login. The dashboard content is not displayed at any point (no flash of authenticated content before redirect)."
+    screenshot: true
+  - step: 2
+    action: "Navigate directly to /data-entry"
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 3
+    action: "Navigate directly to /violations"
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 4
+    action: "Navigate directly to /admin/users"
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 5
+    action: "Navigate directly to /settings/account"
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 6
+    action: "Navigate directly to /kiosk"
+    verify: "Redirected to /login."
+    screenshot: false
+  - step: 7
+    action: "Navigate to /login"
+    verify: "Login page loads normally. This confirms the login page itself is accessible without authentication."
+    screenshot: false
+  - step: 8
+    action: "Navigate to /forgot-password"
+    verify: "Forgot password page loads normally. This confirms public pages are accessible."
+    screenshot: false
+expected_result: "All protected routes redirect unauthenticated users to /login. Public routes (/login, /forgot-password, /reset-password) are accessible without authentication."
+pass_criteria: "Every protected URL tested redirects to /login. Public URLs load without redirect. No authenticated content is ever visible to an unauthenticated user."
+cleanup:
+  - "No cleanup required"

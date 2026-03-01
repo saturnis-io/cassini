@@ -8,6 +8,9 @@ import {
   XCircle,
   Printer,
   Loader2,
+  FileText,
+  Package,
+  Ruler,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -26,14 +29,9 @@ import { FAIForm1 } from './FAIForm1'
 import { FAIForm2 } from './FAIForm2'
 import { FAIForm3 } from './FAIForm3'
 import { FAIPrintView } from './FAIPrintView'
+import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 
-const TABS = [
-  { key: 'form1', label: 'Form 1 — Part Number Accountability' },
-  { key: 'form2', label: 'Form 2 — Product Accountability' },
-  { key: 'form3', label: 'Form 3 — Characteristic Accountability' },
-] as const
-
-type TabKey = (typeof TABS)[number]['key']
+type TabKey = 'form1' | 'form2' | 'form3'
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
   draft: { label: 'Draft', bg: 'bg-gray-500/10', text: 'text-gray-600 dark:text-gray-400' },
@@ -271,23 +269,16 @@ export function FAIReportEditor() {
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="border-border flex border-b">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-              activeTab === tab.key
-                ? 'border-primary text-primary'
-                : 'text-muted-foreground hover:text-foreground border-transparent',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Step navigation */}
+      <StudySteps
+        steps={[
+          { key: 'form1', label: 'Form 1', icon: FileText },
+          { key: 'form2', label: 'Form 2', icon: Package },
+          { key: 'form3', label: 'Form 3', icon: Ruler },
+        ]}
+        activeKey={activeTab}
+        onStepClick={(key) => setActiveTab(key as TabKey)}
+      />
 
       {/* Tab content */}
       <div className="min-h-[400px]">

@@ -1,0 +1,67 @@
+id: TC-CHAR-020
+title: "Delete characteristic"
+category: "Characteristic Configuration"
+subcategory: "CRUD"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information (retention and disposition)"
+  - "21 CFR Part 11 - Audit trail for record deletion"
+preconditions:
+  description: "Engineer user is logged in. A characteristic exists with the name 'OQ-Delete-Me' under a station node."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Delete Char Plant"
+        code: "OQDC"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Del Char Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Del Char Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Delete-Me"
+        subgroup_size: 1
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, expand tree to locate 'OQ-Delete-Me' under 'Del Char Station'."
+    verify: "'OQ-Delete-Me' is visible as a leaf node in the tree."
+    screenshot: true
+  - step: 2
+    action: "Select 'OQ-Delete-Me'. Right-click and select 'Delete' (or use the toolbar delete button)."
+    verify: "A confirmation dialog appears warning that deleting the characteristic will remove all associated data (samples, violations, capability history)."
+    screenshot: true
+  - step: 3
+    action: "Confirm the deletion."
+    verify: "Characteristic is deleted. Success notification appears."
+    screenshot: false
+  - step: 4
+    action: "Verify 'OQ-Delete-Me' is no longer visible in the hierarchy tree."
+    verify: "The characteristic is removed from the tree. 'Del Char Station' shows no child characteristics."
+    screenshot: true
+  - step: 5
+    action: "Refresh the browser page."
+    verify: "After refresh, 'OQ-Delete-Me' is still not present. The deletion persisted."
+    screenshot: true
+expected_result: "Characteristic is permanently deleted along with all associated data. It is removed from the hierarchy tree."
+pass_criteria: "'OQ-Delete-Me' is removed from the tree and does not reappear after page refresh."
+cleanup:
+  - "Delete hierarchy nodes and plant via API (characteristic already deleted by test)"

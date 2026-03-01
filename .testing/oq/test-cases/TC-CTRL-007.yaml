@@ -1,0 +1,67 @@
+id: TC-CTRL-007
+title: "u-chart renders with defects per unit data"
+category: "Control Charts"
+subcategory: "AttributeCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - u-Chart (Defects Per Unit)"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    A u-chart characteristic must exist with at least 25 attribute
+    samples (defect count + units inspected, with varying units).
+    Control limits should be calculated. Variable inspection
+    opportunity sizes demonstrate per-point limits.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Assembly"
+    line: "QC-Station-1"
+    characteristic:
+      name: "Paint Defects u"
+      chart_type: "u"
+      subgroup_size: 1
+      data_type: "attribute"
+    samples: >
+      25 attribute samples with varying units_inspected (5-15 per subgroup)
+      and defect counts averaging ~0.5 defects per unit.
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Paint Defects u"
+    verify: >
+      u-chart renders showing 25 data points. Each point plots
+      u_i = defects_i / units_inspected_i (defects per unit).
+      Center line shows u-bar.
+    screenshot: true
+  - step: 2
+    action: "Inspect the control limit lines"
+    verify: >
+      UCL and LCL lines are stepped (variable inspection sizes):
+      u-bar = total_defects / total_units
+      UCL_i = u-bar + 3 * sqrt(u-bar / n_i)
+      LCL_i = u-bar - 3 * sqrt(u-bar / n_i) (may be 0)
+      Points with more units inspected have tighter limits.
+    screenshot: true
+  - step: 3
+    action: "Hover over a data point"
+    verify: "Tooltip shows: defects per unit (decimal), defect count, units inspected, timestamp"
+    screenshot: true
+
+expected_result: >
+  The u-chart correctly plots defects per unit with per-point control
+  limits that account for varying inspection opportunity sizes. This
+  chart is used when the number of units inspected varies between
+  subgroups (different production lot sizes per shift).
+
+pass_criteria: >
+  Chart shows 25 points with stepped limits. CL = u-bar.
+  Points with larger n_i have narrower limits. LCL >= 0.
+
+cleanup:
+  - "Delete seeded data via API"

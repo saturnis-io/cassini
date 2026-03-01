@@ -1,0 +1,55 @@
+id: TC-FAI-007
+title: "Approve FAI report (different user from submitter)"
+category: "First Article Inspection"
+subcategory: "Approval"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C - FAI approval by authorized personnel"
+  - "AS9100 Rev D Section 8.6 - Authorization for release of products"
+  - "21 CFR Part 11 - Electronic signatures and approvals"
+  - "IATF 16949 - Product approval by authorized personnel"
+preconditions:
+  description: "A FAI report 'OQ-PART-001' exists in 'submitted' status, submitted by the engineer user (oq-engineer). An admin user (admin / admin) exists who is a DIFFERENT user from the submitter. The admin user is NOT the same person who submitted the report."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      status: "submitted"
+      submitted_by: "oq-engineer"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log out of the current session (if logged in as the submitting engineer)."
+    verify: "The user is logged out and the login page is displayed."
+    screenshot: false
+  - step: 2
+    action: "Log in as the admin user (admin / admin). This must be a different user from the one who submitted the report."
+    verify: "Dashboard loads. The user identity in the header shows 'admin' (not the engineer who submitted)."
+    screenshot: false
+  - step: 3
+    action: "Navigate to /fai. Locate the report 'OQ-PART-001' in the list."
+    verify: "The report appears in the list with Status = 'Submitted' (blue badge)."
+    screenshot: true
+  - step: 4
+    action: "Click on the report row to open it."
+    verify: "The report editor loads in read-only mode. Status shows 'Submitted'. An 'Approve' button and a 'Reject' button are visible in the action bar."
+    screenshot: true
+  - step: 5
+    action: "Click the 'Approve' button."
+    verify: "The approval action completes. The status badge changes from 'Submitted' (blue) to 'Approved' (green). A success notification appears confirming the report was approved. The approved_by and approved_at fields are set. The approved timestamp is displayed."
+    screenshot: true
+  - step: 6
+    action: "Navigate back to /fai and verify the updated status in the list."
+    verify: "The reports table shows 'OQ-PART-001' with Status = 'Approved' (green badge). The delete button is not available for approved reports."
+    screenshot: true
+  - step: 7
+    action: "Reopen the approved report to verify it is fully locked."
+    verify: "The report is in read-only mode. Status shows 'Approved'. The approval timestamp and approver information are displayed. No edit, submit, or approve/reject buttons are shown -- the report is in its final state."
+    screenshot: true
+expected_result: "The FAI report is approved by a user different from the submitter. Status transitions from 'submitted' to 'approved'. The approved_by and approved_at fields are recorded. The report is permanently locked."
+pass_criteria: "Approval succeeds when performed by a different user than the submitter. Status changes to 'Approved'. Approval timestamp is recorded. Report is fully read-only after approval. Approved status appears in the list with green badge."
+cleanup:
+  - "Delete FAI report via API if possible, or leave as approved (approved reports may not be deletable via UI)"

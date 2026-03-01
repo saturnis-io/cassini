@@ -127,6 +127,7 @@ export function useDeleteCharacteristic() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Characteristic deleted')
     },
     onError: (error: Error) => {
@@ -156,6 +157,7 @@ export function useSubmitAttributeData() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.characteristics.detail(variables.characteristic_id),
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Attribute data submitted')
     },
     onError: (error: Error) => {
@@ -186,6 +188,7 @@ export function useRecalculateLimits() {
       queryClient.invalidateQueries({
         queryKey: ['characteristics', 'chartData', variables.id],
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Control limits recalculated')
     },
     onError: (error: Error) => {
@@ -210,6 +213,7 @@ export function useSetManualLimits() {
       queryClient.invalidateQueries({
         queryKey: ['characteristics', 'chartData', variables.id],
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Control limits set manually')
     },
     onError: (error: Error) => {
@@ -236,6 +240,7 @@ export function useUpdateCharacteristic() {
       queryClient.invalidateQueries({
         queryKey: ['characteristics', 'chartData', variables.id],
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Characteristic saved')
     },
     onError: (error: Error) => {
@@ -257,6 +262,7 @@ export function useChangeMode() {
         queryKey: ['characteristics', 'chartData', variables.id],
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success(`Mode changed to ${data.new_mode} (${data.samples_migrated} samples migrated)`)
     },
     onError: (error: Error) => {
@@ -289,6 +295,7 @@ export function useUpdateNelsonRules() {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.rules(variables.id) })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', variables.id] })
       queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Nelson rules updated')
     },
     onError: (error: Error) => {
@@ -317,6 +324,7 @@ export function useUpdateCharacteristicConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', variables.id] })
       queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(variables.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Configuration saved')
     },
     onError: (error: Error) => {

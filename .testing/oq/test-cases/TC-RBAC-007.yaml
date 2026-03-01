@@ -1,0 +1,62 @@
+id: TC-RBAC-007
+title: "Engineer CANNOT access user management"
+category: "RBAC & Security"
+subcategory: "EngineerAccess"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - User account management restricted to system administrators"
+  - "ISO 27001 - Privileged access management (identity admin separated from functional admin)"
+  - "SOC 2 - Access control: user provisioning restricted to authorized personnel"
+preconditions:
+  description: >
+    An engineer user 'oq-engineer' exists with engineer role at OQ-Plant-RBAC.
+    The user management page is at /admin/users and requires admin role.
+  seed_method: api
+  seed_data:
+    users:
+      - username: "oq-engineer"
+        password: "Engineer123!"
+        role: "engineer"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-engineer'"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Examine the sidebar navigation for 'Users' link"
+    verify: >
+      The sidebar does NOT show a 'Users' link (or 'User Management').
+      The admin section of the sidebar is empty or not rendered because
+      the engineer role (level 3) does not meet the admin (level 4)
+      requirement. The sidebar shows engineer-level items but no admin
+      items.
+    screenshot: true
+  - step: 3
+    action: "Manually navigate to /admin/users by typing the URL in the address bar"
+    verify: >
+      The user is redirected to /dashboard. A toast notification appears
+      with the message: 'Access Denied -- This page requires Administrator
+      or higher privileges.' (or similar). The user management page does
+      NOT load. No user list is visible.
+    screenshot: true
+  - step: 4
+    action: "Verify the user is back on the dashboard"
+    verify: >
+      The URL shows /dashboard. The dashboard content is displayed.
+      The ProtectedRoute component for /admin/users correctly blocked
+      the engineer's access.
+    screenshot: false
+expected_result: >
+  An engineer user is denied access to user management both via sidebar
+  (link not visible) and via direct URL (redirected with toast). This
+  ensures separation between technical configuration (engineer) and
+  identity administration (admin), a key security principle.
+pass_criteria: >
+  Sidebar does not show Users link. Direct navigation to /admin/users
+  redirects to /dashboard. Access denied toast displayed. User management
+  page never renders.
+cleanup:
+  - "No cleanup required"

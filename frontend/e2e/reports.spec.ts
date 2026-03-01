@@ -18,28 +18,33 @@ test.describe('Reports', () => {
     await switchToPlant(page, 'Reports Plant')
   })
 
-  test('reports page loads with template list', async ({ page }) => {
+  test('reports page loads with controls bar', async ({ page }) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
-    await expect(page.getByRole('heading', { name: 'Report Templates' })).toBeVisible({
-      timeout: 10000,
-    })
+    // The reports page has a template dropdown select with aria-label
+    await expect(
+      page.locator('select[aria-label="Report template"]'),
+    ).toBeVisible({ timeout: 10000 })
 
-    await test.info().attach('reports-template-list', {
+    await test.info().attach('reports-controls-bar', {
       body: await page.screenshot(),
       contentType: 'image/png',
     })
   })
 
-  test('all four templates are listed', async ({ page }) => {
+  test('template dropdown lists all four templates', async ({ page }) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
-    await expect(page.getByText('Characteristic Summary')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Capability Analysis')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Violation Summary')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Trend Analysis')).toBeVisible({ timeout: 5000 })
+    const select = page.locator('select[aria-label="Report template"]')
+    await expect(select).toBeVisible({ timeout: 5000 })
+
+    // Check that all four template options exist in the dropdown
+    await expect(select.locator('option', { hasText: 'Characteristic Summary' })).toBeAttached()
+    await expect(select.locator('option', { hasText: 'Capability Analysis' })).toBeAttached()
+    await expect(select.locator('option', { hasText: 'Violation Summary' })).toBeAttached()
+    await expect(select.locator('option', { hasText: 'Trend Analysis' })).toBeAttached()
 
     await test.info().attach('reports-all-templates', {
       body: await page.screenshot(),
@@ -47,16 +52,18 @@ test.describe('Reports', () => {
     })
   })
 
-  test('selecting template shows breadcrumb', async ({ page }) => {
+  test('selecting template shows report or no-char state', async ({ page }) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
-    // Click the template button (first match to avoid strict mode)
-    await page.getByText('Characteristic Summary').first().click()
+    // Select a template from the dropdown
+    const select = page.locator('select[aria-label="Report template"]')
+    await select.selectOption({ label: 'Characteristic Summary' })
     await page.waitForTimeout(1000)
 
-    // After selection, the breadcrumb "Templates" label should appear
-    await expect(page.getByText('Templates').first()).toBeVisible({ timeout: 5000 })
+    // Without a characteristic selected, either the no-char state or template state shows
+    // NoCharacteristicState shows "No characteristic selected"
+    await expect(page.getByText('No characteristic selected').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('reports-template-selected', {
       body: await page.screenshot(),
@@ -64,25 +71,31 @@ test.describe('Reports', () => {
     })
   })
 
-  test('characteristic selector in left panel', async ({ page }) => {
+  test('no-characteristic state shows prompt', async ({ page }) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
-    // The left panel has a "Characteristic" heading for the selector section
-    await expect(page.getByRole('heading', { name: 'Characteristic' })).toBeVisible({ timeout: 5000 })
+    // Without selecting a characteristic, the NoCharacteristicState is shown
+    await expect(
+      page.getByText('No characteristic selected'),
+    ).toBeVisible({ timeout: 5000 })
 
-    await test.info().attach('reports-characteristic-selector', {
+    await test.info().attach('reports-no-char-state', {
       body: await page.screenshot(),
       contentType: 'image/png',
     })
   })
 
-  test('empty state without template selection', async ({ page }) => {
+  test('no template selected shows prompt', async ({ page }) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
+    // With no characteristic and no template, the no-char state appears
+    // If we had a characteristic selected but no template, it would say "No template selected"
+    // Test the default empty state
     await expect(
-      page.getByText('Select a report template to get started'),
+      page.getByText('No characteristic selected')
+        .or(page.getByText('No template selected')),
     ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('reports-empty-state', {

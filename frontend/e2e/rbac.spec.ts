@@ -77,10 +77,29 @@ test.describe('RBAC', () => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
 
+    // Configuration and Connectivity are engineer+ items, should not be in sidebar
     await expect(page.getByRole('link', { name: 'Configuration' })).not.toBeVisible()
     await expect(page.getByRole('link', { name: 'Connectivity' })).not.toBeVisible()
 
     await test.info().attach('operator-sidebar', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('operator can access personal settings', async ({ page }) => {
+    await loginAsUser(page, 'rbac-operator', 'RbacOper123!')
+    await switchToPlant(page, 'RBAC Plant')
+
+    // Settings route is accessible to all roles (personal tabs: account, appearance, notifications)
+    await page.goto('/settings')
+    await page.waitForTimeout(2000)
+
+    // Should redirect to /settings/account and show account page
+    await expect(page).toHaveURL(/\/settings\/account/)
+    await expect(page.locator('body')).toBeVisible()
+
+    await test.info().attach('operator-personal-settings', {
       body: await page.screenshot(),
       contentType: 'image/png',
     })
@@ -109,17 +128,20 @@ test.describe('RBAC', () => {
     await page.goto('/violations')
     await page.waitForTimeout(3000)
 
-    // Switch to "All" filter to see all violations
-    const allButton = page.getByRole('button', { name: 'All', exact: true })
+    // The violations page defaults to "required" filter (pending).
+    // Switch to "All" to see all violations including those that can be acknowledged.
+    // The filter buttons use i18n keys — "All" maps to t('filters.all')
+    const allButton = page.locator('button').filter({ hasText: /^All$/ })
     if (await allButton.isVisible({ timeout: 3000 })) {
       await allButton.click()
       await page.waitForTimeout(1000)
     }
 
-    // Wait for table to render
+    // Wait for table to render (desktop layout is hidden on small screens, use md:block)
     const table = page.locator('table')
     await expect(table).toBeVisible({ timeout: 5000 })
 
+    // Acknowledge button text comes from i18n: tCommon('buttons.acknowledge') = "Acknowledge"
     const ackButton = page.getByRole('button', { name: 'Acknowledge', exact: true }).first()
     await expect(ackButton).toBeVisible({ timeout: 5000 })
 
@@ -159,15 +181,19 @@ test.describe('RBAC', () => {
     })
   })
 
-  test('engineer sees API Keys and Retention tabs', async ({ page }) => {
+  test('engineer sees API Keys and Retention tabs in settings', async ({ page }) => {
     await loginAsUser(page, 'rbac-engineer', 'RbacEng123!')
     await switchToPlant(page, 'RBAC Plant')
 
     await page.goto('/settings')
     await page.waitForTimeout(2000)
 
-    await expect(page.getByText('API Keys')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Retention')).toBeVisible({ timeout: 5000 })
+    // Settings sidebar uses i18n keys. API Keys = t('tabs.apiKeys'), Retention = t('tabs.retention')
+    // The settings nav renders NavLink items with translated text
+    const settingsNav = page.locator('nav[aria-label="Settings navigation"]')
+    await expect(settingsNav).toBeVisible({ timeout: 5000 })
+    await expect(settingsNav.getByText('API Keys')).toBeVisible({ timeout: 5000 })
+    await expect(settingsNav.getByText('Retention')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('engineer-settings-tabs', {
       body: await page.screenshot(),

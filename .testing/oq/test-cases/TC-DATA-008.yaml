@@ -1,0 +1,58 @@
+id: TC-DATA-008
+title: "CSV import - validate mapped data and review errors"
+category: "Data Entry"
+subcategory: "CSVImport"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 8.5.1 - Control of Production (data validation)"
+  - "21 CFR Part 11 Section 11.10(f) - Operational System Checks"
+
+preconditions:
+  description: >
+    Continuation from TC-DATA-007. Column mapping is complete. The CSV
+    contains 15 rows, of which 13 have valid numeric values and 2 have
+    intentional errors (one empty value row, one non-numeric value row)
+    for validation testing.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Pin Length"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    csv_file:
+      name: "test-pin-length-with-errors.csv"
+      valid_rows: 13
+      invalid_rows: 2
+      error_types: ["empty_value", "non_numeric_value"]
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "In the import wizard Step 3 (Validate), review the validation results"
+    verify: >
+      Validation summary displays: total rows, valid row count (13),
+      invalid/error row count (2). Error details list the specific rows
+      and reasons (e.g., 'Row 8: empty measurement value',
+      'Row 12: non-numeric measurement value').
+    screenshot: true
+  - step: 2
+    action: "Scroll through the error details to confirm both invalid rows are identified"
+    verify: >
+      Each error row shows the row index, the problematic value, and
+      the validation reason. Valid rows are indicated as ready to import.
+    screenshot: true
+
+expected_result: >
+  The validation step correctly identifies 13 valid rows and 2 invalid
+  rows. Error messages are specific and actionable, telling the user
+  exactly which row and which field failed validation.
+
+pass_criteria: >
+  valid_count = 13, error_count = 2. Each error row has a descriptive
+  reason. No valid rows are incorrectly flagged as invalid.
+
+cleanup: []

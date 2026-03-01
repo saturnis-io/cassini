@@ -187,6 +187,7 @@ export function useFitDistribution() {
     mutationFn: (charId: number) => distributionApi.fitDistribution(charId),
     onSuccess: (_, charId) => {
       qc.invalidateQueries({ queryKey: ['nonnormal-capability', charId] })
+      qc.invalidateQueries({ queryKey: queryKeys.explain.all })
     },
   })
 }
@@ -209,6 +210,7 @@ export function useUpdateDistributionConfig() {
       qc.invalidateQueries({ queryKey: ['nonnormal-capability', variables.charId] })
       qc.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.charId) })
       qc.invalidateQueries({ queryKey: queryKeys.capability.current(variables.charId) })
+      qc.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Distribution configuration saved')
     },
     onError: (error: Error) => {
@@ -243,6 +245,7 @@ export function useSaveCapabilitySnapshot() {
     onSuccess: (_data, charId) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.capability.current(charId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.capability.history(charId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Capability snapshot saved')
     },
     onError: (error: Error) => {
@@ -272,6 +275,7 @@ export function useApplyPreset() {
       qc.invalidateQueries({ queryKey: queryKeys.characteristics.rules(charId) })
       qc.invalidateQueries({ queryKey: [...queryKeys.characteristics.all, 'chartData', charId] })
       qc.invalidateQueries({ queryKey: queryKeys.capability.current(charId) })
+      qc.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Rule preset applied')
     },
     onError: (error: Error) => {
@@ -398,6 +402,7 @@ export function useSubmitMSAMeasurements() {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit measurements: ${error.message}`)
@@ -414,6 +419,7 @@ export function useCalculateMSA() {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Gage R&R analysis complete')
     },
     onError: (error: Error) => {
@@ -437,6 +443,7 @@ export function useSubmitMSAAttributeMeasurements() {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.measurements(variables.studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(variables.studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
     },
     onError: (error: Error) => {
       toast.error(`Failed to submit attribute measurements: ${error.message}`)
@@ -453,6 +460,7 @@ export function useCalculateAttributeMSA() {
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Attribute MSA analysis complete')
     },
     onError: (error: Error) => {

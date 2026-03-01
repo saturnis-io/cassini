@@ -1,0 +1,89 @@
+id: TC-RBAC-010
+title: "API returns 403 Forbidden for unauthorized role"
+category: "RBAC & Security"
+subcategory: "APIAuth"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Backend enforcement of access controls (not just UI)"
+  - "ISO 27001 - Defense in depth (server-side authorization)"
+  - "SOC 2 - Logical access security at the API layer"
+preconditions:
+  description: >
+    An operator user 'oq-operator' exists with operator role at OQ-Plant-RBAC.
+    The operator can authenticate and obtain a valid JWT access token.
+    The POST /characteristics endpoint requires engineer+ role. A hierarchy
+    node exists for the target plant (needed for the characteristic
+    creation request body).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-RBAC"
+    department: "Quality"
+    line: "Inspection-1"
+    users:
+      - username: "oq-operator"
+        password: "Operator123!"
+        role: "operator"
+        plant: "OQ-Plant-RBAC"
+execution_mode: api
+ui_proof_frequency: n/a
+steps:
+  - step: 1
+    action: >
+      Authenticate as 'oq-operator' via API:
+      POST /auth/login with body {"username": "oq-operator", "password": "Operator123!"}
+    verify: >
+      Response status 200. Response body contains access_token. The user
+      is authenticated with operator role.
+    screenshot: false
+  - step: 2
+    action: >
+      Using the operator's access token, attempt to create a characteristic:
+      POST /characteristics with body {"hierarchy_id": {id}, "name": "Unauthorized-Char",
+      "subgroup_size": 1, "chart_type": "i_mr", "data_type": "variable"}
+      Include Authorization: Bearer {operator_token} header.
+    verify: >
+      Response status is 403 Forbidden. The response body contains an
+      error message indicating insufficient privileges. The characteristic
+      is NOT created. This confirms backend enforcement of RBAC -- the
+      operator token does not grant access to engineer-level endpoints.
+    screenshot: false
+  - step: 3
+    action: >
+      Using the operator's access token, attempt to access the user list:
+      GET /users with Authorization: Bearer {operator_token} header.
+    verify: >
+      Response status is 403 Forbidden. The user list is NOT returned.
+      Admin-only endpoints reject operator tokens.
+    screenshot: false
+  - step: 4
+    action: >
+      Using the operator's access token, attempt to access the audit log:
+      GET /audit/logs with Authorization: Bearer {operator_token} header.
+    verify: >
+      Response status is 403 Forbidden. Audit logs are NOT returned.
+      Admin-only endpoints are protected at the API layer.
+    screenshot: false
+  - step: 5
+    action: >
+      Using the operator's access token, make a legitimate operator request:
+      POST /samples with body {"characteristic_id": {id}, "measurements": [10.01]}
+      Include Authorization: Bearer {operator_token} header.
+    verify: >
+      Response status is 200 or 201 (success). The sample is created.
+      This confirms the operator token works for operator-level endpoints --
+      the 403 responses above are not due to a broken token but due to
+      insufficient role.
+    screenshot: false
+expected_result: >
+  The API enforces RBAC at the server level, not just the UI level.
+  An operator's JWT token is rejected with 403 Forbidden when accessing
+  engineer-level or admin-level endpoints. The same token works correctly
+  for operator-level endpoints. This demonstrates defense in depth --
+  even if the UI is bypassed, the API prevents unauthorized actions.
+pass_criteria: >
+  POST /characteristics returns 403 with operator token. GET /users
+  returns 403. GET /audit/logs returns 403. POST /samples returns 200/201
+  (operator-level endpoint succeeds). No characteristic is created by
+  the unauthorized request.
+cleanup:
+  - "Delete the sample created in step 5 via API: DELETE /samples/{id}"

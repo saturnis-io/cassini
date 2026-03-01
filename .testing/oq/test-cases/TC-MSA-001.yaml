@@ -1,0 +1,44 @@
+id: TC-MSA-001
+title: "Create a crossed Gage R&R study"
+category: "MSA / Gage R&R"
+subcategory: "StudyCreation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Gage Repeatability and Reproducibility study design"
+  - "IATF 16949 - Measurement System Analysis"
+  - "ISO 13485 - Measurement equipment validation"
+preconditions:
+  description: "Engineer user is logged in. A plant exists and is selected. No MSA study named 'OQ-GRR-Crossed' exists for this plant."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as an engineer user (oq-engineer / OqTest123!) and ensure a plant is selected in the header plant switcher."
+    verify: "Dashboard loads successfully. Plant name is visible in the header."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /msa using the sidebar 'MSA' link under the Studies section."
+    verify: "The Measurement System Analysis page loads. The page heading reads 'Measurement System Analysis' with subheading 'Gage R&R and Attribute Agreement studies'. A 'New Study' button is visible in the top-right. Status filter tabs (All, Setup, Collecting, Complete) are displayed."
+    screenshot: true
+  - step: 3
+    action: "Click the 'New Study' button."
+    verify: "The MSA Study Editor page loads at /msa/new. A study creation form is displayed with fields for: Name, Type (dropdown with Crossed ANOVA, Range Method, Nested ANOVA, Attribute Agreement), Operators count, Parts count, Replicates count, Tolerance (optional), and optional Characteristic picker."
+    screenshot: true
+  - step: 4
+    action: "Enter 'OQ-GRR-Crossed' in the Name field. Select 'Crossed ANOVA (standard Gage R&R)' from the Type dropdown. Set Operators to 3, Parts to 10, Replicates to 2. Leave Tolerance blank. Leave Characteristic unlinked."
+    verify: "All fields accept the input values. Name shows 'OQ-GRR-Crossed'. Type shows 'Crossed ANOVA (standard Gage R&R)'. Operators = 3, Parts = 10, Replicates = 2."
+    screenshot: true
+  - step: 5
+    action: "Click the Create / Save button to create the study."
+    verify: "The study is created successfully. The page transitions to the study editor for the new study. The study status badge shows 'Setup' (blue). The study name 'OQ-GRR-Crossed' is displayed in the header. The Overview tab is active showing configuration details: Type = Crossed ANOVA, 3 operators, 10 parts, 2 replicates."
+    screenshot: true
+  - step: 6
+    action: "Navigate back to /msa to verify the study appears in the list."
+    verify: "The MSA studies table lists 'OQ-GRR-Crossed' with Type = 'Crossed ANOVA', Status = 'Setup', Operators = 3, Parts = 10, and a recent creation date."
+    screenshot: true
+expected_result: "A new crossed ANOVA Gage R&R study is created with the specified parameters (3 operators, 10 parts, 2 replicates) and appears in the MSA study list with 'Setup' status."
+pass_criteria: "Study appears in /msa list with correct name, type, operator count, part count, and 'Setup' status badge. Clicking the study row navigates to the study editor showing all configuration details."
+cleanup:
+  - "Delete MSA study 'OQ-GRR-Crossed' via API: DELETE /msa/studies/{id}"

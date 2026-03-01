@@ -22,31 +22,40 @@ test.describe('Settings', () => {
 
   test('navigate to settings and verify tabs render', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForURL('**/settings/appearance', { timeout: 10000 })
+    // Settings now defaults to /settings/account
+    await page.waitForURL('**/settings/account', { timeout: 10000 })
 
     // Settings page header
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
 
-    // Sidebar tabs should be visible
+    // Personal group sidebar tabs should be visible
+    await expect(page.getByRole('link', { name: 'Account' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Appearance' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Notifications' })).toBeVisible()
 
-    await test.info().attach('settings-appearance-tab', {
+    await test.info().attach('settings-account-tab', {
       body: await page.screenshot(),
       contentType: 'image/png',
     })
   })
 
   test('settings admin tabs are visible for admin user', async ({ page }) => {
-    await page.goto('/settings/appearance')
+    await page.goto('/settings/account')
     await page.waitForTimeout(2000)
 
-    // Admin-level tabs
-    await expect(page.getByText('Branding')).toBeVisible()
-    await expect(page.getByText('Sites')).toBeVisible()
-    await expect(page.getByText('API Keys')).toBeVisible()
-    await expect(page.getByText('Retention')).toBeVisible()
-    await expect(page.getByText('Database')).toBeVisible()
+    // Organization group
+    await expect(page.getByRole('link', { name: 'Sites' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Branding' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Email & Webhooks' })).toBeVisible()
+
+    // Security & Compliance group
+    await expect(page.getByRole('link', { name: 'API Keys' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'SSO' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Audit Log' })).toBeVisible()
+
+    // Data & Infrastructure group
+    await expect(page.getByRole('link', { name: 'Retention' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Database' })).toBeVisible()
 
     await test.info().attach('settings-admin-sidebar', {
       body: await page.screenshot(),

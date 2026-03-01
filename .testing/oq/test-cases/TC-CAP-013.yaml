@@ -1,0 +1,48 @@
+id: TC-CAP-013
+title: "Distribution Analysis Q-Q plot shows observed vs theoretical quantiles"
+category: "Capability Analysis"
+subcategory: "Distribution"
+priority: medium
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Normality assessment methods"
+  - "ISO 22514 - Graphical methods for distribution assessment"
+preconditions:
+  description: "A variable characteristic exists with spec limits and at least 60 subgroups of normally distributed data. The Distribution Analysis modal is accessible. The logged-in user has engineer role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-QQPlot"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements from N(10.0, 0.015). Normal data ensures the Q-Q plot points should follow the diagonal line closely."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-QQPlot'. Open the Distribution Analysis modal."
+    verify: "The Distribution Analysis modal opens."
+    screenshot: false
+  - step: 2
+    action: "Locate the Q-Q (Quantile-Quantile) plot within the modal."
+    verify: "A Q-Q plot is displayed. The plot shows: (a) X-axis labeled 'Theoretical Quantiles' (from the fitted normal distribution). (b) Y-axis labeled 'Observed Quantiles' or 'Sample Quantiles' (from the actual data). (c) A diagonal reference line representing perfect agreement between observed and theoretical distributions. (d) Individual data points plotted as dots."
+    screenshot: true
+  - step: 3
+    action: "Examine the data points on the Q-Q plot."
+    verify: "For normally distributed data, the data points (dots) should closely follow the diagonal reference line. Minor deviations at the tails are acceptable, but the overall pattern should be linear. This visual confirmation supports the Shapiro-Wilk numerical test result."
+    screenshot: true
+  - step: 4
+    action: "Assess the Q-Q plot for normality."
+    verify: "The points form a roughly straight line along the diagonal, confirming the data follows a normal distribution. If the data were skewed, points would curve away from the line at the tails. If the data were heavy-tailed, points would deviate at both extremes."
+    screenshot: false
+expected_result: "The Q-Q plot provides a graphical assessment of distributional fit by plotting observed quantiles against theoretical quantiles. For normal data, points follow the diagonal line closely."
+pass_criteria: "Q-Q plot renders with labeled axes (Theoretical and Observed Quantiles). A diagonal reference line is present. Data points closely follow the diagonal for the normal data. The plot is clearly readable."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-QQPlot' and all associated data via API"

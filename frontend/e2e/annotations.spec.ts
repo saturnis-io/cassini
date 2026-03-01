@@ -14,7 +14,11 @@ test.describe('Annotations', () => {
     characteristicId = getManifest().annotations.char_id
 
     // Get a sample ID from pre-seeded data for point annotations
-    const samples = await apiGet(request, `/samples/?characteristic_id=${characteristicId}&limit=1`, token)
+    const samples = await apiGet(
+      request,
+      `/samples/?characteristic_id=${characteristicId}&limit=1`,
+      token,
+    )
     sampleId = samples.items?.[0]?.id ?? samples[0]?.id
   })
 
@@ -30,6 +34,16 @@ test.describe('Annotations', () => {
     await expandHierarchyToChar(page)
     await page.getByText('Test Char').first().click()
     await page.waitForTimeout(2000)
+    // Wait for chart to fully load before interacting with BottomDrawer tabs
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 15000 })
+  }
+
+  /** Open the Annotations tab in the BottomDrawer */
+  async function openAnnotationsTab(page: import('@playwright/test').Page) {
+    const annotationsTab = page.getByRole('button', { name: /^Annotations/ }).last()
+    await expect(annotationsTab).toBeVisible({ timeout: 15000 })
+    await annotationsTab.click()
+    await page.waitForTimeout(500)
   }
 
   test('create point annotation via API and verify', async ({ request }) => {
@@ -67,7 +81,9 @@ test.describe('Annotations', () => {
     expect(period).toBeTruthy()
   })
 
-  test('annotation list visible on dashboard after selecting characteristic', async ({ page }) => {
+  test('annotation list visible on dashboard after selecting characteristic', async ({
+    page,
+  }) => {
     await selectTestChar(page)
 
     // Chart should load with annotations visible (canvas or annotation indicator)
@@ -81,10 +97,11 @@ test.describe('Annotations', () => {
 
   test('annotation dialog opens from toolbar', async ({ page }) => {
     await selectTestChar(page)
+    await openAnnotationsTab(page)
 
-    // showAnnotations defaults to true in the store, so the panel is already visible.
     // Wait for the "Add period annotation" button (appears once annotations finish loading).
-    const addButton = page.locator('button[title="Add period annotation"]')
+    // Button text is "Add period annotation" (no-annotations state) or has title attr (with annotations)
+    const addButton = page.getByRole('button', { name: /Add period annotation|Add$/ }).first()
     await expect(addButton).toBeVisible({ timeout: 10000 })
     await addButton.click()
     await page.waitForTimeout(1000)
@@ -101,9 +118,10 @@ test.describe('Annotations', () => {
 
   test('annotation text is required', async ({ page }) => {
     await selectTestChar(page)
+    await openAnnotationsTab(page)
 
-    // showAnnotations defaults to true — panel already visible
-    const addButton = page.locator('button[title="Add period annotation"]')
+    // Button text is "Add period annotation" (no-annotations state) or has title attr (with annotations)
+    const addButton = page.getByRole('button', { name: /Add period annotation|Add$/ }).first()
     await expect(addButton).toBeVisible({ timeout: 10000 })
     await addButton.click()
     await page.waitForTimeout(1000)
@@ -121,9 +139,10 @@ test.describe('Annotations', () => {
 
   test('screenshot of annotation dialog', async ({ page }) => {
     await selectTestChar(page)
+    await openAnnotationsTab(page)
 
-    // showAnnotations defaults to true — panel already visible
-    const addButton = page.locator('button[title="Add period annotation"]')
+    // Button text is "Add period annotation" (no-annotations state) or has title attr (with annotations)
+    const addButton = page.getByRole('button', { name: /Add period annotation|Add$/ }).first()
     await expect(addButton).toBeVisible({ timeout: 10000 })
     await addButton.click()
     await page.waitForTimeout(1000)

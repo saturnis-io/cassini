@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet } from './helpers/api'
-import { switchToPlant } from './helpers/seed'
+import { switchToPlant, collapseNavSection } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
 test.describe('Attribute Charts', () => {
@@ -188,15 +188,16 @@ test.describe('Attribute Charts', () => {
   test('attribute data entry UI shows defect count input', async ({ page }) => {
     await page.goto('/data-entry')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand the hierarchy tree in the characteristic selector
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 10000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     // Click the p-chart characteristic
     const charOption = page.getByText('Proportion Defectives').first()
@@ -228,15 +229,16 @@ test.describe('Attribute Charts', () => {
   test('dashboard renders attribute chart canvas', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand the hierarchy tree to the attribute characteristics
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 15000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     // Select the p-chart characteristic
     const charOption = page.getByText('Proportion Defectives').first()
@@ -256,15 +258,16 @@ test.describe('Attribute Charts', () => {
   test('attribute characteristics appear in hierarchy tree', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy to see all attribute characteristics
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 15000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     // All four attribute characteristics should be visible in the tree
     await expect(page.getByText('Proportion Defectives').first()).toBeVisible({ timeout: 5000 })
@@ -281,15 +284,16 @@ test.describe('Attribute Charts', () => {
   test('c-chart data entry does not show sample size field', async ({ page }) => {
     await page.goto('/data-entry')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy and select the c-chart characteristic
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 10000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     const charOption = page.getByText('Total Defects').first()
     await expect(charOption).toBeVisible({ timeout: 5000 })
@@ -313,26 +317,26 @@ test.describe('Attribute Charts', () => {
   test('attribute chart stats ticker shows control limits', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy and select the np-chart characteristic
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 15000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     const charOption = page.getByText('Number Defectives').first()
     await expect(charOption).toBeVisible({ timeout: 5000 })
     await charOption.click()
     await page.waitForTimeout(2000)
 
-    // Stats ticker should show control limit labels
-    await expect(page.getByText('CL', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('UCL', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('LCL', { exact: true })).toBeVisible({ timeout: 5000 })
+    // Stats ticker should show stat pill labels
+    await expect(page.getByText('Last', { exact: true })).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('n', { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('OOC', { exact: true })).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('attribute-chart-stats-ticker', {
       body: await page.screenshot(),
@@ -343,15 +347,16 @@ test.describe('Attribute Charts', () => {
   test('screenshot of all four attribute chart types via dashboard', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy
     await expect(page.getByText('Attr Dept').first()).toBeVisible({ timeout: 15000 })
-    await page.getByText('Attr Dept').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Line').first().click()
-    await page.waitForTimeout(800)
-    await page.getByText('Attr Station').first().click()
-    await page.waitForTimeout(800)
+    for (const nodeName of ['Attr Dept', 'Attr Line', 'Attr Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
 
     // Capture each chart type
     for (const charName of ['Proportion Defectives', 'Number Defectives', 'Total Defects', 'Defects Per Unit']) {

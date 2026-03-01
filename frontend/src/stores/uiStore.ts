@@ -73,7 +73,7 @@ export const useUIStore = create<UIState>()(
 
       // Sidebar width — clamped to [200, 450]
       sidebarWidth: 260,
-      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(450, width)) }),
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(600, width)) }),
 
       // Offline awareness
       isOffline: !navigator.onLine,

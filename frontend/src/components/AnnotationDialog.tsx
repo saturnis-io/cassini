@@ -9,6 +9,8 @@
 import { useState, useMemo } from 'react'
 import { X, MapPin, CalendarRange, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/providers/ThemeProvider'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useCreateAnnotation } from '@/api/hooks'
 import { annotationSchema } from '@/schemas/characteristics'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -40,8 +42,10 @@ export function AnnotationDialog({
   prefillStartTime,
   prefillEndTime,
 }: AnnotationDialogProps) {
+  const { brandConfig } = useTheme()
+  const { formatDate: fmtDate } = useDateFormat()
   const [text, setText] = useState('')
-  const [color, setColor] = useState<string>('')
+  const [color, setColor] = useState<string>(brandConfig.primaryColor)
 
   // Period mode: default to prefill values or last 1 hour
   const now = new Date()
@@ -131,8 +135,7 @@ export function AnnotationDialog({
     setActiveDate(newDate)
   }
 
-  const formatDateDisplay = (date: Date) =>
-    date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const formatDateDisplay = (date: Date) => fmtDate(date)
 
   const formatTimeDisplay = (date: Date) =>
     date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true })
@@ -377,20 +380,20 @@ export function AnnotationDialog({
 
           {/* Color picker */}
           <div className="mb-6">
-            <label className="mb-1.5 block text-sm font-medium">Color (optional)</label>
+            <label className="mb-1.5 block text-sm font-medium">Color</label>
             <div className="flex items-center gap-3">
               <input
                 type="color"
-                value={color || '#6366f1'}
+                value={color}
                 onChange={(e) => setColor(e.target.value)}
                 className="border-border h-8 w-8 cursor-pointer rounded border"
               />
               <span className="text-muted-foreground text-sm">
-                {color || 'Default (theme primary)'}
+                {color === brandConfig.primaryColor ? 'Brand default' : color}
               </span>
-              {color && (
+              {color !== brandConfig.primaryColor && (
                 <button
-                  onClick={() => setColor('')}
+                  onClick={() => setColor(brandConfig.primaryColor)}
                   className="text-muted-foreground hover:text-foreground text-xs underline"
                 >
                   Reset

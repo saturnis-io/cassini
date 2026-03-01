@@ -269,26 +269,60 @@ async def resolve_plant_id_for_characteristic(
     characteristic_id: int,
     session: AsyncSession,
 ) -> int:
-    """Resolve the plant_id that a characteristic belongs to via hierarchy."""
+    """Resolve the plant_id that a characteristic belongs to via hierarchy.
+
+    Child hierarchy nodes (Line, Equipment, Cell) may have plant_id=NULL.
+    This function walks up the hierarchy tree via parent_id until it finds
+    a node with plant_id set.
+    """
     from sqlalchemy import select as sa_select
 
     from cassini.db.models.characteristic import Characteristic
     from cassini.db.models.hierarchy import Hierarchy
 
-    row = (
+    # First, get the hierarchy_id for the characteristic
+    char_row = (
         await session.execute(
-            sa_select(Hierarchy.plant_id)
-            .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
-            .where(Characteristic.id == characteristic_id)
+            sa_select(Characteristic.hierarchy_id).where(
+                Characteristic.id == characteristic_id
+            )
         )
     ).scalar_one_or_none()
 
-    if row is None:
+    if char_row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {characteristic_id} not found",
         )
-    return row
+
+    hierarchy_id = char_row
+
+    # Walk up the hierarchy tree to find the plant_id
+    # Max depth of 20 prevents infinite loops from bad data
+    for _ in range(20):
+        row = (
+            await session.execute(
+                sa_select(Hierarchy.plant_id, Hierarchy.parent_id).where(
+                    Hierarchy.id == hierarchy_id
+                )
+            )
+        ).one_or_none()
+
+        if row is None:
+            break
+
+        if row.plant_id is not None:
+            return row.plant_id
+
+        # Move to parent node
+        if row.parent_id is None:
+            break
+        hierarchy_id = row.parent_id
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Could not resolve plant for characteristic {characteristic_id}",
+    )
 
 
 def get_license_service(request: Request) -> LicenseService:

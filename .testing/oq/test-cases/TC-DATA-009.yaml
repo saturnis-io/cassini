@@ -1,0 +1,58 @@
+id: TC-DATA-009
+title: "CSV import - confirm import and verify samples created"
+category: "Data Entry"
+subcategory: "CSVImport"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information"
+  - "21 CFR Part 11 Section 11.10(e) - Electronic Records (bulk data integrity)"
+  - "IATF 16949 Section 9.1.1.1 - Data migration traceability"
+
+preconditions:
+  description: >
+    Continuation from TC-DATA-008. Validation passed with 13 valid rows.
+    The user is on the confirmation step of the import wizard.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Pin Length"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Click Confirm / Import in the import wizard (Step 4)"
+    verify: >
+      Import completes. Success message shows: imported = 13, errors = 2
+      (the 2 invalid rows are skipped). Wizard closes or shows completion
+      summary.
+    screenshot: true
+  - step: 2
+    action: "Navigate to /dashboard and select the Pin Length characteristic"
+    verify: >
+      Control chart shows 13 new data points. Points are plotted at the
+      correct values from the CSV file. Timestamps match the CSV data
+      (if timestamp column was mapped).
+    screenshot: true
+  - step: 3
+    action: "Verify via API: GET /samples/?characteristic_id={id}&limit=20"
+    verify: "Response contains at least 13 samples with correct measurement values"
+    screenshot: false
+
+expected_result: >
+  All 13 valid rows from the CSV are imported as individual samples.
+  The 2 invalid rows are skipped without affecting the valid imports.
+  Each sample has the correct measurement value, timestamp, batch number,
+  and operator ID from the mapped CSV columns.
+
+pass_criteria: >
+  imported = 13. Dashboard shows 13 data points. API confirms 13+ samples
+  exist for the characteristic with correct values.
+
+cleanup:
+  - "Delete imported samples via API: iterate and DELETE /samples/{id}"

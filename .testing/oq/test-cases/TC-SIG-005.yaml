@@ -1,0 +1,64 @@
+id: TC-SIG-005
+title: "Sign pending approval step"
+category: "Electronic Signatures"
+subcategory: "Approval"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Sequential multi-step signing with role enforcement"
+  - "AS9102 Rev C - Engineer review as prerequisite for management approval"
+  - "IATF 16949 - Documented evidence of review and authorization"
+preconditions:
+  description: >
+    A workflow instance exists in pending status at Step 1 (Engineer Review,
+    min_role: engineer). An engineer user is logged in and has the required
+    role at the plant. The engineer knows their password. Meaning 'reviewed'
+    exists.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-engineer"
+      password: "TestPass123!"
+      role: "engineer"
+    workflow_instance:
+      workflow_name: "OQ-Approval-Flow"
+      current_step: 1
+      status: "pending"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the engineer user. Navigate to /settings/signatures and open the Pending Approvals section."
+    verify: "Pending Approvals shows at least one item: 'OQ-Approval-Flow', current step 'Engineer Review' (Step 1 of 2)."
+    screenshot: true
+  - step: 2
+    action: "Click on the pending approval item to open the signing dialog"
+    verify: "The SignatureDialog opens. It shows the workflow name, current step name ('Engineer Review'), and the resource being approved. Password field, meaning selector (pre-filled or showing 'Reviewed'), and Sign button are visible."
+    screenshot: true
+  - step: 3
+    action: "Enter the engineer's password in the Password field. Confirm 'Reviewed' is selected as the meaning. Click 'Sign'."
+    verify: "Success notification appears. The dialog closes. The pending item is updated."
+    screenshot: true
+  - step: 4
+    action: "Check the Pending Approvals section again"
+    verify: "If the current user is also eligible for Step 2, the item now shows 'Admin Approval' (Step 2 of 2). If the current user is only an engineer (not admin), the item may no longer appear in their pending list (it moved to admins' pending list)."
+    screenshot: true
+  - step: 5
+    action: "Verify via API: POST /signatures/sign was called. Check the response."
+    verify: "SignResponse includes signature_id, signer_name='oq-engineer', meaning='Reviewed', workflow_status (either 'pending' for next step or 'completed'), workflow_step='Engineer Review'."
+    screenshot: false
+  - step: 6
+    action: "Verify pending approvals via API: GET /signatures/pending?plant_id={plant_id} as an admin user"
+    verify: "The item now shows current_step='Admin Approval', step_number=2. The previous_signatures array includes one entry with step='Engineer Review', signer='oq-engineer'."
+    screenshot: false
+expected_result: >
+  The engineer successfully signs Step 1 (Engineer Review) of the workflow.
+  The workflow advances to Step 2 (Admin Approval). The signature is recorded
+  with correct signer, timestamp, meaning. Step 2 becomes the pending step
+  for admin users.
+pass_criteria: >
+  Step 1 signature succeeds. Workflow advances to Step 2. Previous signatures
+  include the Step 1 signature. Pending approvals for admin users now show
+  Step 2. The signature record includes hash and is_valid=true.
+cleanup:
+  - "Complete or reject the remaining workflow step to clean up"

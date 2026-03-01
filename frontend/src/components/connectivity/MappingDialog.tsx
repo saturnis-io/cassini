@@ -24,6 +24,7 @@ interface MappingDialogProps {
     brokerId?: number
     metricName?: string
     triggerTag?: string
+    jsonPath?: string
     // OPC-UA-specific
     nodeId?: string
     serverId?: number
@@ -67,6 +68,7 @@ export function MappingDialog({
       broker_id: editData?.brokerId ?? null,
       metric_name: editData?.metricName ?? '',
       trigger_tag: editData?.triggerTag ?? '',
+      json_path: editData?.jsonPath ?? '',
     }
   })
 
@@ -81,6 +83,7 @@ export function MappingDialog({
         broker_id: number | null
         metric_name: string
         trigger_tag: string
+        json_path: string
       }
       return tagApi.createMapping({
         characteristic_id: characteristicId!,
@@ -89,6 +92,7 @@ export function MappingDialog({
         trigger_tag: fields.trigger_tag || null,
         broker_id: fields.broker_id!,
         metric_name: fields.metric_name || null,
+        json_path: fields.json_path || null,
       })
     },
     onSuccess: () => {
@@ -160,6 +164,7 @@ export function MappingDialog({
         broker_id: null,
         metric_name: '',
         trigger_tag: '',
+        json_path: '',
       })
     } else {
       setProtocolFields({

@@ -1,0 +1,51 @@
+id: TC-SIG-008
+title: "SHA-256 hash verification on signature"
+category: "Electronic Signatures"
+subcategory: "HashVerification"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(a) - Validation of systems to ensure accuracy and integrity"
+  - "21 CFR Part 11 Section 11.10(c) - Protection of records to enable their accurate and ready retrieval"
+  - "ISO 13485 Section 4.2.5 - Ensuring integrity of quality records"
+preconditions:
+  description: >
+    A standalone signature exists for a known resource. The resource has NOT
+    been modified since the signature was created. A user is logged in with
+    at least view access.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    signature:
+      resource_type: "capability_snapshot"
+      resource_id: 1
+      signer: "oq-engineer"
+      meaning_code: "reviewed"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the signature history for the signed resource. Locate the signature record."
+    verify: "The signature record is visible. It shows the signer name, timestamp, and meaning. A verification badge or 'Verify' button is present."
+    screenshot: true
+  - step: 2
+    action: "Click the verification badge or 'Verify' button for the signature"
+    verify: "The system triggers hash verification. The badge updates to show the verification result. For an unmodified resource, it should show 'Valid' or a green checkmark."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: GET /signatures/verify/{signature_id}"
+    verify: "Response includes: signature_id, is_valid=true, hash_match=true, stored_hash (non-empty SHA-256 hex string), current_hash (non-empty SHA-256 hex string matching stored_hash), signature_chain_valid=true, signer_name, timestamp, meaning."
+    screenshot: false
+  - step: 4
+    action: "Confirm the stored_hash and current_hash values are identical 64-character hexadecimal strings"
+    verify: "Both hashes are 64-character hex strings (SHA-256 output). stored_hash === current_hash, confirming the resource has not been tampered with since signing."
+    screenshot: false
+expected_result: >
+  The SHA-256 hash verification confirms the signature is valid and the
+  resource has not been modified since signing. The stored hash matches the
+  current hash, proving tamper detection is functional.
+pass_criteria: >
+  Verification endpoint returns is_valid=true and hash_match=true. The
+  stored_hash and current_hash are identical non-empty SHA-256 hex strings.
+  signature_chain_valid=true confirms the complete signature chain is intact.
+cleanup:
+  - "No cleanup required -- verification is a read-only operation"

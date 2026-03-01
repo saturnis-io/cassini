@@ -6,6 +6,7 @@
 import { useState, useMemo } from 'react'
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { TimePicker } from './TimePicker'
 
 interface DateTimePickerProps {
@@ -31,6 +32,7 @@ export function DateTimePicker({
   label,
   clearable = true,
 }: DateTimePickerProps) {
+  const { formatDateTime } = useDateFormat()
   const [isOpen, setIsOpen] = useState(false)
   const [viewMonth, setViewMonth] = useState(() => {
     if (value) {
@@ -95,13 +97,7 @@ export function DateTimePicker({
   }
 
   const formatDisplay = (date: Date) => {
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatDateTime(date)
   }
 
   const isSameDay = (d1: Date | null, d2: Date | null) => {

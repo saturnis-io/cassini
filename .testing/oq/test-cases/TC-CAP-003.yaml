@@ -1,0 +1,48 @@
+id: TC-CAP-003
+title: "Pp and Ppk calculated using overall sigma"
+category: "Capability Analysis"
+subcategory: "Pp"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Process Performance Indices"
+  - "ISO 22514 - Distinction between capability and performance"
+preconditions:
+  description: "A variable characteristic (X-bar/R, subgroup_size=5) exists with USL=10.05, LSL=9.95, and target=10.0. At least 60 subgroups have been submitted from N(10.0, 0.015). Control limits have been calculated. The process is stable, so Pp should be close to Cp. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Pp"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each, drawn from N(10.0, 0.015). Same data profile as TC-CAP-001. For a stable process with no special causes, the overall sigma (s) should be very close to the within-subgroup sigma (sigma_w). Therefore Pp should approximate Cp and Ppk should approximate Cpk."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Pp' from the hierarchy tree."
+    verify: "The Capability Card is visible below the control chart."
+    screenshot: true
+  - step: 2
+    action: "Examine Pp and Ppk values on the Capability Card."
+    verify: "Pp and Ppk are both displayed alongside Cp and Cpk. For a stable, centered process: Pp should be close to Cp (both approximately 1.11). Ppk should be close to Cpk. The small differences between Cp/Pp and Cpk/Ppk reflect the difference between within-subgroup sigma (R-bar/d2) and overall sigma (standard deviation of all measurements)."
+    screenshot: true
+  - step: 3
+    action: "Compare the Cp vs Pp and Cpk vs Ppk values."
+    verify: "For a stable process: (a) Pp <= Cp (overall sigma includes between-subgroup variation, so Pp is typically slightly lower). (b) Ppk <= Cpk. (c) The ratios Pp/Cp and Ppk/Cpk should be close to 1.0 (indicating stability). A large gap between Cp and Pp would indicate between-subgroup variation (special causes)."
+    screenshot: false
+  - step: 4
+    action: "Verify via API: call GET /characteristics/{id}/capability."
+    verify: "The API response includes all four indices: cp, cpk, pp, ppk. The sigma_within field shows the within-subgroup sigma used for Cp/Cpk."
+    screenshot: false
+expected_result: "Pp and Ppk are calculated using overall sigma (standard deviation of all individual measurements) and displayed alongside Cp and Cpk. For a stable process, Pp approximately equals Cp and Ppk approximately equals Cpk."
+pass_criteria: "Pp and Ppk are displayed on the Capability Card. Pp is close to Cp (within 15%). Ppk is close to Cpk (within 15%). All four indices are present in the API response."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Pp' and all associated data via API"

@@ -25,7 +25,7 @@ test.describe.serial('Scheduled Reports', () => {
         }
       }
     } catch {
-      // Schedule list may fail if plant has no schedules or endpoint returns empty — safe to ignore
+      // Schedule list may fail if plant has no schedules or endpoint returns empty -- safe to ignore
     }
   })
 
@@ -44,7 +44,7 @@ test.describe.serial('Scheduled Reports', () => {
         }
       }
     } catch {
-      // Best-effort — ignore errors
+      // Best-effort -- ignore errors
     }
   })
 
@@ -57,6 +57,7 @@ test.describe.serial('Scheduled Reports', () => {
     await page.goto('/settings/reports')
     await page.waitForTimeout(2000)
 
+    // ScheduledReports renders an h2 with "Scheduled Reports"
     await expect(
       page.getByRole('heading', { name: 'Scheduled Reports' }),
     ).toBeVisible({ timeout: 10000 })
@@ -87,7 +88,7 @@ test.describe.serial('Scheduled Reports', () => {
     await page.getByRole('button', { name: 'New Schedule' }).click()
     await page.waitForTimeout(1000)
 
-    // Dialog overlay should appear with title (no role="dialog", uses fixed overlay)
+    // Dialog overlay uses fixed inset-0 z-50
     const dialog = page.locator('.fixed.inset-0').last()
     await expect(dialog).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('New Report Schedule').first()).toBeVisible({ timeout: 3000 })
@@ -108,7 +109,7 @@ test.describe.serial('Scheduled Reports', () => {
     // Name input
     await expect(page.getByPlaceholder('Weekly SPC Summary')).toBeVisible({ timeout: 5000 })
 
-    // Frequency label — use .first() since text may appear in both label and dropdown value
+    // Frequency label -- use .first() since text may appear in both label and dropdown value
     await expect(page.getByText('Frequency').first()).toBeVisible({ timeout: 3000 })
 
     // Recipients email input
@@ -156,7 +157,7 @@ test.describe.serial('Scheduled Reports', () => {
     await page.getByRole('button', { name: 'Create Schedule' }).click()
     await page.waitForTimeout(3000)
 
-    // Verify schedule appears in list
+    // Verify schedule appears in list (ScheduleCard renders schedule name in h3)
     await expect(page.getByText('E2E Daily Report').first()).toBeVisible({ timeout: 10000 })
 
     await test.info().attach('schedule-created', {
@@ -170,7 +171,7 @@ test.describe.serial('Scheduled Reports', () => {
     await page.waitForTimeout(2000)
 
     await expect(page.getByText('E2E Daily Report').first()).toBeVisible({ timeout: 10000 })
-    // "Active" badge text — use .first() to avoid matching both the badge and checkbox label
+    // "Active" badge text in the ScheduleCard
     await expect(page.getByText('Active').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('schedule-active-badge', {
@@ -185,7 +186,7 @@ test.describe.serial('Scheduled Reports', () => {
 
     await expect(page.getByText('E2E Daily Report').first()).toBeVisible({ timeout: 10000 })
 
-    // Click the play/run now button
+    // Click the play/run now button (title="Run now")
     const runBtn = page.getByTitle('Run now').first()
     await expect(runBtn).toBeVisible({ timeout: 5000 })
     await runBtn.click()
@@ -203,7 +204,7 @@ test.describe.serial('Scheduled Reports', () => {
 
     await expect(page.getByText('E2E Daily Report').first()).toBeVisible({ timeout: 10000 })
 
-    // Click edit button
+    // Click edit button (title="Edit")
     const editBtn = page.getByTitle('Edit').first()
     await expect(editBtn).toBeVisible({ timeout: 5000 })
     await editBtn.click()
@@ -241,13 +242,13 @@ test.describe.serial('Scheduled Reports', () => {
 
     await expect(page.getByText('E2E Updated Report').first()).toBeVisible({ timeout: 10000 })
 
-    // Click delete button
+    // Click delete button (title="Delete")
     const deleteBtn = page.getByTitle('Delete').first()
     await expect(deleteBtn).toBeVisible({ timeout: 5000 })
     await deleteBtn.click()
     await page.waitForTimeout(1000)
 
-    // Confirmation dialog
+    // Confirmation dialog with "Delete Schedule" heading
     await expect(page.getByText('Delete Schedule').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('schedule-delete-confirm', {
@@ -255,7 +256,7 @@ test.describe.serial('Scheduled Reports', () => {
       contentType: 'image/png',
     })
 
-    // Confirm deletion — use .last() to hit the red Delete button (not the title text)
+    // Confirm deletion -- use .last() to hit the red Delete button (not the title text)
     await page.getByRole('button', { name: 'Delete' }).last().click()
     await page.waitForTimeout(3000)
 
@@ -275,14 +276,15 @@ test.describe.serial('Scheduled Reports', () => {
     await page.getByRole('button', { name: 'New Schedule' }).click()
     await page.waitForTimeout(1000)
 
-    // Dialog overlay (no role="dialog", uses fixed overlay)
+    // Dialog overlay (fixed inset-0 z-50)
     const dialog = page.locator('.fixed.inset-0').last()
     await expect(dialog).toBeVisible({ timeout: 5000 })
 
     await page.getByRole('button', { name: 'Cancel' }).click()
     await page.waitForTimeout(500)
 
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    // After cancel, dialog should close. Check the "New Report Schedule" heading is gone.
+    await expect(page.getByText('New Report Schedule')).not.toBeVisible({ timeout: 5000 })
 
     await test.info().attach('schedule-cancel-dialog', {
       body: await page.screenshot(),

@@ -1,0 +1,51 @@
+id: TC-HIER-004
+title: "Switch active plant via header dropdown"
+category: "Plants & Hierarchy"
+subcategory: "Navigation"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5 - Documented information (data isolation between sites)"
+preconditions:
+  description: "Admin user is logged in. At least two plants exist (Default and a second plant). Each plant has at least one hierarchy node with a characteristic containing sample data."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Switch Test Plant"
+        code: "OQ04"
+        is_active: true
+    hierarchy_node:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Switch Test Dept"
+        type: "Area"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Verify the current active plant in the header. Note which plant is displayed."
+    verify: "Header shows the current plant name (e.g., 'Default')."
+    screenshot: true
+  - step: 2
+    action: "Click the plant switcher dropdown in the header."
+    verify: "Dropdown opens showing all available plants including 'OQ Switch Test Plant'."
+    screenshot: true
+  - step: 3
+    action: "Select 'OQ Switch Test Plant' from the dropdown."
+    verify: "Plant switcher updates to show 'OQ Switch Test Plant'. Page content reloads."
+    screenshot: true
+  - step: 4
+    action: "Navigate to the Configuration page (/configuration)."
+    verify: "Hierarchy tree shows only nodes belonging to 'OQ Switch Test Plant' (e.g., 'Switch Test Dept'). No nodes from the Default plant are visible."
+    screenshot: true
+  - step: 5
+    action: "Switch back to the Default plant via the header dropdown."
+    verify: "Header updates to 'Default'. Configuration page shows the Default plant's hierarchy tree."
+    screenshot: true
+expected_result: "Plant switching via the header dropdown correctly changes the active context, and all data displayed (hierarchy, charts, dashboard) reflects only the selected plant."
+pass_criteria: "After switching plants, the hierarchy tree shows only the switched-to plant's data. Switching back restores the original plant's data."
+cleanup:
+  - "Delete plant 'OQ04' via API: DELETE /plants/{id}"

@@ -1,11 +1,14 @@
-import React, { Suspense, useEffect, useState, type FormEvent } from 'react'
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import React, { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/providers/AuthProvider'
+import { useTheme } from '@/providers/ThemeProvider'
 import { useOIDCProviders } from '@/api/hooks'
 import { oidcApi } from '@/api/client'
 import { setAccessToken } from '@/api/client'
 import { CassiniLogo } from '@/components/login/CassiniLogo'
+import { deriveLogoColors } from '@/lib/brand-engine'
+import type { BrandConfig as FullBrandConfig } from '@/lib/brand-engine'
 
 const SaturnScene = React.lazy(() => import('@/components/login/SaturnScene'))
 
@@ -19,6 +22,7 @@ export function LoginPage() {
   const { t } = useTranslation('auth')
   const { t: tCommon } = useTranslation('common')
   const { login, isAuthenticated, setOidcProviderId } = useAuth()
+  const { fullBrandConfig } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -98,12 +102,62 @@ export function LoginPage() {
 
   const hasProviders = oidcProviders && oidcProviders.length > 0
 
+  // Derive Saturn scene colors from brand config — memoize on individual hex values
+  // to avoid rebuilding the entire Three.js scene on unrelated brand config changes
+  const saturnNavy = fullBrandConfig?.accent?.hex ?? '#080C16'
+  const saturnGold = fullBrandConfig?.primary?.hex ?? '#D4AF37'
+  const saturnOrange = fullBrandConfig?.destructive?.hex ?? '#E05A3D'
+  const saturnColors = useMemo(
+    () => ({
+      navy: saturnNavy,
+      gold: saturnGold,
+      cream: '#F4F1DE',
+      orange: saturnOrange,
+      muted: '#4B5563',
+    }),
+    [saturnNavy, saturnGold, saturnOrange],
+  )
+
+  // Derive logo colors from brand config
+  const logoColors = useMemo(() => {
+    if (!fullBrandConfig) return undefined
+    const derived = deriveLogoColors(fullBrandConfig as FullBrandConfig)
+    return {
+      planet: derived.planet,
+      ring: derived.ring,
+      line: derived.line,
+      dot: derived.dot,
+    }
+  }, [fullBrandConfig])
+
+  // Resolved brand primary color for UI accents
+  const primaryColor = fullBrandConfig?.primary?.hex ?? '#D4AF37'
+
   return (
     <div className="cassini-login relative min-h-screen overflow-hidden">
-      {/* Three.js Saturn background */}
-      <Suspense fallback={<div className="fixed inset-0 bg-[#080C16]" />}>
-        <SaturnScene />
-      </Suspense>
+      {/* Background: static image or animated Saturn scene */}
+      {fullBrandConfig?.loginMode === 'static' && fullBrandConfig?.loginBackgroundUrl ? (
+        <div className="fixed inset-0 z-0">
+          <img
+            src={fullBrandConfig.loginBackgroundUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            aria-hidden="true"
+          />
+          <div className="absolute inset-0 bg-black/50" />
+        </div>
+      ) : (
+        <Suspense
+          fallback={
+            <div
+              className="fixed inset-0"
+              style={{ background: saturnColors?.navy ?? '#080C16' }}
+            />
+          }
+        >
+          <SaturnScene brandColors={saturnColors} />
+        </Suspense>
+      )}
 
       {/* Login form overlay */}
       <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
@@ -112,7 +166,7 @@ export function LoginPage() {
           <div className="control-panel p-8">
             {/* Mission Patch Emblem */}
             <div className="mb-8 flex select-none flex-col items-center text-center">
-              <CassiniLogo size={164} className="mb-2" />
+              <CassiniLogo size={164} className="mb-2" brandColors={logoColors} />
             </div>
 
             {/* Divider */}
@@ -143,7 +197,7 @@ export function LoginPage() {
                 <label
                   htmlFor="username"
                   className="block text-xs font-mono tracking-widest uppercase"
-                  style={{ color: '#D4AF37' }}
+                  style={{ color: primaryColor }}
                 >
                   {t('username')}
                 </label>
@@ -166,19 +220,18 @@ export function LoginPage() {
                   <label
                     htmlFor="password"
                     className="block text-xs font-mono tracking-widest uppercase"
-                    style={{ color: '#D4AF37' }}
+                    style={{ color: primaryColor }}
                   >
                     {t('password')}
                   </label>
-                  <a
-                    href="#"
+                  <Link
+                    to="/forgot-password"
                     className="text-[10px] font-mono uppercase transition-colors hover:text-[#F4F1DE]"
                     style={{ color: '#4B5563' }}
                     tabIndex={-1}
-                    onClick={(e) => e.preventDefault()}
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
                 <input
                   id="password"
@@ -228,14 +281,14 @@ export function LoginPage() {
               <>
                 {/* Divider */}
                 <div className="my-5 flex items-center gap-3">
-                  <div className="h-px flex-1" style={{ backgroundColor: 'rgba(212, 175, 55, 0.2)' }} />
+                  <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
                   <span
                     className="text-xs font-mono tracking-wider uppercase"
                     style={{ color: '#4B5563' }}
                   >
                     {tCommon('or')}
                   </span>
-                  <div className="h-px flex-1" style={{ backgroundColor: 'rgba(212, 175, 55, 0.2)' }} />
+                  <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
                 </div>
 
                 {/* SSO Buttons */}
@@ -248,12 +301,12 @@ export function LoginPage() {
                       disabled={ssoLoading !== null}
                       className="w-full px-4 py-2.5 text-sm font-mono tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                       style={{
-                        border: '1px solid rgba(212, 175, 55, 0.3)',
-                        color: '#D4AF37',
+                        border: `1px solid ${primaryColor}4D`,
+                        color: primaryColor,
                         background: 'transparent',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(212, 175, 55, 0.1)'
+                        e.currentTarget.style.background = `${primaryColor}1A`
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent'
@@ -273,7 +326,7 @@ export function LoginPage() {
               <div className="mt-4 text-center">
                 <div
                   className="mx-auto h-6 w-6 animate-spin rounded-full border-4 border-t-transparent"
-                  style={{ borderColor: '#D4AF37', borderTopColor: 'transparent' }}
+                  style={{ borderColor: primaryColor, borderTopColor: 'transparent' }}
                 />
                 <p className="mt-2 text-sm" style={{ color: '#4B5563' }}>
                   {t('completingSso')}

@@ -1,0 +1,69 @@
+id: TC-AUDIT-009
+title: "Override retention at hierarchy level"
+category: "Audit Trail & Retention"
+subcategory: "Inheritance"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Retention periods may vary by document type"
+  - "IATF 16949 - Different record types may have different retention requirements"
+  - "AS9100 - Contract-specific retention requirements for aerospace records"
+preconditions:
+  description: >
+    An engineer or admin user exists. A plant with a hierarchy exists
+    (at least one department node). A global retention default is set
+    (e.g., 365 days from TC-AUDIT-008). The retention settings page
+    includes an Overrides tab with a tree browser.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Retention"
+    department: "Assembly"
+    line: "Line-A"
+    global_retention:
+      retention_type: "time_delta"
+      retention_value: 365
+      retention_unit: "days"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer or admin and navigate to /settings/retention"
+    verify: "Retention settings page loads"
+    screenshot: false
+  - step: 2
+    action: "Switch to the Overrides tab"
+    verify: >
+      The Overrides tab shows a tree browser of the plant hierarchy and/or
+      a list of existing overrides. The tree shows departments and lines.
+    screenshot: true
+  - step: 3
+    action: "Select the 'Assembly' department node in the tree browser"
+    verify: "The selected node is highlighted. An override form appears for this hierarchy node."
+    screenshot: false
+  - step: 4
+    action: "Set the retention type to 'Time-based', value 730, unit 'days' and save"
+    verify: >
+      Success toast appears. The override is shown in the overrides list:
+      'Assembly: 730 days'. The hierarchy node now has an explicit override
+      distinct from the global default of 365 days.
+    screenshot: true
+  - step: 5
+    action: "Verify the inheritance chain by checking a characteristic under Assembly"
+    verify: >
+      If a characteristic exists under Assembly > Line-A, its effective
+      policy should resolve to 730 days (inherited from the Assembly
+      department override, not the 365-day global default). The inheritance
+      chain should display: Global (365d) -> Assembly (730d override) ->
+      characteristic (inherits 730d).
+    screenshot: true
+expected_result: >
+  A hierarchy-level retention override of 730 days is successfully set
+  for the Assembly department. Child nodes without their own overrides
+  inherit this 730-day policy instead of the 365-day global default.
+pass_criteria: >
+  Override saves without error. Override appears in the overrides list.
+  Effective policy for a child characteristic resolves to 730 days.
+  API verification: GET /retention/hierarchy/{assembly_id} returns
+  retention_value=730. GET /retention/characteristic/{char_id}/effective
+  returns source='hierarchy', retention_value=730.
+cleanup:
+  - "Delete the hierarchy override: DELETE /retention/hierarchy/{assembly_id}"

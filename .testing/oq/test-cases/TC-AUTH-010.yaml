@@ -1,0 +1,35 @@
+id: TC-AUTH-010
+title: "Reset password with invalid or expired token"
+category: "Authentication & Accounts"
+subcategory: "Password"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Prevention of unauthorized credential changes"
+  - "OWASP Authentication - Token validation and expiry"
+preconditions:
+  description: "No valid password reset token with the value 'invalid-token-12345' exists in the system. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reset-password?token=invalid-token-12345"
+    verify: "The reset password page loads. Depending on implementation, either: (a) the page loads with password fields but submission will fail, or (b) the page immediately shows an error."
+    screenshot: true
+  - step: 2
+    action: "If password fields are displayed, enter a new password ('AttemptedPass123!') and submit the form"
+    verify: "An error message is displayed: 'Invalid or expired reset token'. The password is NOT changed. No success message appears."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /reset-password?token= (empty token)"
+    verify: "An error is displayed or the page does not allow submission. No password can be changed without a valid token."
+    screenshot: false
+  - step: 4
+    action: "Navigate to /reset-password (no token parameter at all)"
+    verify: "An error is displayed or the page indicates that a token is required."
+    screenshot: false
+expected_result: "Invalid, expired, or missing reset tokens are rejected. No password change occurs. The system clearly communicates that the token is invalid."
+pass_criteria: "Error message 'Invalid or expired reset token' is displayed for the fabricated token. No password change occurs. The system does not crash or show a blank page -- it handles the error gracefully."
+cleanup:
+  - "No cleanup required"

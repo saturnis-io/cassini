@@ -196,7 +196,12 @@ export const tagApi = {
   deleteMapping: (characteristicId: number) =>
     fetchApi<void>(`/tags/map/${characteristicId}`, { method: 'DELETE' }),
 
-  preview: (data: { broker_id: number; topic: string; duration_seconds?: number }) =>
+  preview: (data: {
+    broker_id: number
+    topic: string
+    duration_seconds?: number
+    json_path?: string | null
+  }) =>
     fetchApi<TagPreviewResponse>('/tags/preview', {
       method: 'POST',
       body: JSON.stringify(data),

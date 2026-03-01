@@ -1,0 +1,106 @@
+id: TC-ANLYT-005
+title: "Correlation heatmap renders with r-values and color scale"
+category: "Advanced Analytics"
+subcategory: "Correlation"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation of data"
+  - "Six Sigma DMAIC Analyze phase - Correlation analysis for root cause identification"
+preconditions:
+  description: >
+    An engineer user is logged in. At least 3 variable-data characteristics
+    exist in the active plant, each with 30+ data points. Data should have
+    known correlations for verification: Char-A and Char-B positively
+    correlated (r > 0.5), Char-A and Char-C weakly correlated (|r| < 0.3).
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Correlation Plant"
+        code: "OQCR"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Correlation Dept"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Correlation Line"
+        type: "Line"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{line.id}"
+        name: "Correlation Station"
+        type: "Equipment"
+    characteristic_a:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Corr-A"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 10.00
+    characteristic_b:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Corr-B"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 25.00
+    characteristic_c:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        name: "OQ-Corr-C"
+        hierarchy_id: "{station.id}"
+        chart_type: "i_mr"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 5.00
+    note: "Seed 30+ samples for each characteristic with correlated values using POST /samples/batch. Char-B values = 2.5 * Char-A + small noise. Char-C values = random (uncorrelated with A)."
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to the plant and navigate to /analytics?tab=correlation."
+    verify: "Correlation tab loads with the characteristic multi-selector, method selector (Pearson/Spearman), and optional PCA checkbox."
+    screenshot: true
+  - step: 2
+    action: "Use the characteristic selector to choose all 3 characteristics: OQ-Corr-A, OQ-Corr-B, OQ-Corr-C."
+    verify: "All three characteristics appear as selected items. The selection count shows 3."
+    screenshot: true
+  - step: 3
+    action: "Ensure the method is set to 'Pearson'. Click 'Compute' to run the correlation analysis."
+    verify: "A loading indicator appears. Computation completes and the correlation heatmap renders."
+    screenshot: true
+  - step: 4
+    action: "Observe the correlation heatmap."
+    verify: "The heatmap displays a 3x3 matrix with characteristic names on both axes. Each cell shows its r-value. The diagonal cells show r=1.00 (self-correlation). Color intensity maps to |r| -- strongly correlated pairs show intense color, weakly correlated pairs show faint color. The color scale legend is visible."
+    screenshot: true
+  - step: 5
+    action: "Check the r-value between OQ-Corr-A and OQ-Corr-B."
+    verify: "The r-value is positive and strong (r > 0.5), reflecting the seeded correlation between these characteristics. The cell has a strong color."
+    screenshot: false
+  - step: 6
+    action: "Check the r-value between OQ-Corr-A and OQ-Corr-C."
+    verify: "The r-value is near zero (|r| < 0.3), reflecting the seeded independence. The cell has a weak/faint color."
+    screenshot: false
+expected_result: "The correlation heatmap renders correctly with a 3x3 matrix showing Pearson r-values. Color intensity correctly maps to correlation strength. Known correlations in the seeded data are reflected in the computed values."
+pass_criteria: "Heatmap renders with 3x3 matrix. All r-values visible. Color scale present. API verification: POST /multivariate/correlation/compute returns a matrix with 3x3 values and p_values."
+cleanup:
+  - "Delete characteristics and samples via API"
+  - "Delete hierarchy nodes and plant via API"

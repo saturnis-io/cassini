@@ -1,0 +1,71 @@
+id: TC-CHAR-010
+title: "Set manual control limits (override auto-calculated)"
+category: "Characteristic Configuration"
+subcategory: "ControlLimits"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - Frozen control limits and manual override"
+  - "ISO 7870-2 - Control chart limits"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Manual Limits Plant"
+        code: "OQML"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "ML Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "ML Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Manual-Limits"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Manual-Limits' in the tree."
+    verify: "Config panel opens."
+    screenshot: false
+  - step: 2
+    action: "Open the Limits tab. Locate the control limits section (UCL, CL, LCL)."
+    verify: "Control limit fields are visible. They may be empty (no data submitted yet) or show auto-calculated values."
+    screenshot: true
+  - step: 3
+    action: "Enter manual control limits: UCL = 10.030, CL = 10.000, LCL = 9.970."
+    verify: "Fields accept numeric input."
+    screenshot: true
+  - step: 4
+    action: "Click Save."
+    verify: "Save completes. Success notification."
+    screenshot: false
+  - step: 5
+    action: "Refresh the browser page (F5). Navigate back to 'OQ-Manual-Limits', open Limits tab."
+    verify: "UCL = 10.030, CL = 10.000, LCL = 9.970 are displayed after refresh."
+    screenshot: true
+  - step: 6
+    action: "Navigate to the dashboard or chart view for this characteristic."
+    verify: "The control chart displays the manually set control limit lines at 10.030 (UCL), 10.000 (CL), and 9.970 (LCL)."
+    screenshot: true
+expected_result: "Manual control limits override any auto-calculated values and are used on the control chart display."
+pass_criteria: "Control limit fields show UCL=10.030, CL=10.000, LCL=9.970 after save. Chart displays these limits."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

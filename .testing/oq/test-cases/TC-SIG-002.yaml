@@ -1,0 +1,59 @@
+id: TC-SIG-002
+title: "Add steps to workflow"
+category: "Electronic Signatures"
+subcategory: "Workflow"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Multi-level approval with role-based authority"
+  - "AS9100/AS9102 - Separation of duties in approval workflows"
+  - "ISO 13485 Section 7.3.5 - Design and development verification/validation"
+preconditions:
+  description: >
+    An engineer user is logged in. A workflow named 'OQ-Approval-Flow' exists
+    for the active plant with no steps (created by TC-SIG-001 or via API).
+    Signature meanings 'reviewed' and 'approved' exist for the plant.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    workflow:
+      name: "OQ-Approval-Flow"
+      resource_type: "fai_report"
+    meanings:
+      - code: "reviewed"
+        display_name: "Reviewed"
+      - code: "approved"
+        display_name: "Approved"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/signatures and expand the Workflow Config section"
+    verify: "Workflow list is visible. 'OQ-Approval-Flow' is listed."
+    screenshot: true
+  - step: 2
+    action: "Click on 'OQ-Approval-Flow' to expand its details"
+    verify: "Workflow detail expands showing an empty steps list and an 'Add Step' button."
+    screenshot: true
+  - step: 3
+    action: "Click 'Add Step'. Fill in: Step Order: 1, Name: 'Engineer Review', Minimum Role: 'engineer', Meaning Code: 'reviewed'. Leave Is Required checked. Click Save."
+    verify: "Step 1 'Engineer Review' appears in the step list with role=engineer, meaning=reviewed."
+    screenshot: true
+  - step: 4
+    action: "Click 'Add Step' again. Fill in: Step Order: 2, Name: 'Admin Approval', Minimum Role: 'admin', Meaning Code: 'approved'. Leave Is Required checked. Click Save."
+    verify: "Step 2 'Admin Approval' appears in the step list with role=admin, meaning=approved. Both steps are listed in order."
+    screenshot: true
+  - step: 5
+    action: "Verify the steps via API: GET /signatures/workflows/{workflow_id}/steps?plant_id={plant_id}"
+    verify: "Response includes 2 step objects: Step 1 (step_order=1, name='Engineer Review', min_role='engineer', meaning_code='reviewed') and Step 2 (step_order=2, name='Admin Approval', min_role='admin', meaning_code='approved')."
+    screenshot: false
+expected_result: >
+  Two workflow steps are successfully added to the OQ-Approval-Flow workflow.
+  Step 1 requires engineer role with 'reviewed' meaning. Step 2 requires admin
+  role with 'approved' meaning. Steps appear in the correct order.
+pass_criteria: >
+  Both steps are created without error. Steps display in correct order in the
+  UI. API returns both steps with correct step_order, name, min_role, and
+  meaning_code values.
+cleanup:
+  - "Delete steps via API: DELETE /signatures/workflows/steps/{step_id}?plant_id={plant_id}"
+  - "Delete workflow via API: DELETE /signatures/workflows/{workflow_id}?plant_id={plant_id}"

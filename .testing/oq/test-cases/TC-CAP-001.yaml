@@ -1,0 +1,50 @@
+id: TC-CAP-001
+title: "Cp calculated correctly for a centered process"
+category: "Capability Analysis"
+subcategory: "Cp"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Process Capability Indices"
+  - "ISO 22514 - Statistical methods in process management"
+  - "IATF 16949 - Process capability requirements (Cpk >= 1.33)"
+preconditions:
+  description: "A variable characteristic (X-bar/R, subgroup_size=5) exists with USL=10.05, LSL=9.95, and target=10.0. At least 60 subgroups of 5 measurements have been submitted from a centered normal distribution N(10.0, 0.015). Control limits have been calculated. The process is centered on the target value. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Cp"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each, drawn from N(10.0, 0.015). Each subgroup should have 5 values centered near 10.0 with spread approximately 0.015. Example subgroup: [10.012, 9.988, 10.005, 9.997, 10.008]. The overall mean should be very close to 10.0 (centered between spec limits). With sigma approximately 0.015, expected Cp = (10.05 - 9.95) / (6 * 0.015) = 0.10 / 0.09 = approximately 1.11. The actual Cp will vary with the random data but should be in the range 0.96-1.26."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify stored_sigma is established"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Cp' from the hierarchy tree."
+    verify: "The control chart loads showing 60 subgroup points. Below the chart, the Capability Card is visible showing capability indices."
+    screenshot: true
+  - step: 2
+    action: "Examine the Cp value on the Capability Card."
+    verify: "Cp is displayed with a numeric value. For the seeded data (spec width = 0.10, sigma approximately 0.015), Cp should be approximately 1.11 (acceptable range: 0.96 to 1.26, accounting for sampling variation). The Cp value represents the process potential -- how well the process could perform if perfectly centered."
+    screenshot: true
+  - step: 3
+    action: "Verify the Cp color coding."
+    verify: "If Cp >= 1.33: green (capable). If 1.0 <= Cp < 1.33: yellow (marginal). If Cp < 1.0: red (not capable). For expected Cp around 1.11, the color should be yellow."
+    screenshot: false
+  - step: 4
+    action: "Verify the spec limits are displayed on the Capability Card."
+    verify: "USL=10.05 and LSL=9.95 are shown on the Capability Card. The sample count shows approximately 300 (60 subgroups x 5 measurements)."
+    screenshot: false
+expected_result: "Cp is correctly calculated as (USL - LSL) / (6 * sigma_within) for a centered process. The value approximately matches the theoretical calculation and is displayed with appropriate color coding."
+pass_criteria: "Cp is displayed and falls within the expected range (0.96-1.26 for sigma=0.015, spec width=0.10). Color coding matches the threshold (yellow for 1.0-1.33 range). USL and LSL are correctly displayed."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Cp' and all associated data via API"

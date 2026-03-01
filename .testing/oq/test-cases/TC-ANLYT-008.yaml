@@ -1,0 +1,59 @@
+id: TC-ANLYT-008
+title: "DOE -- create factorial design study with 2 factors"
+category: "Advanced Analytics"
+subcategory: "DOE"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.2 - Nonconformity and corrective action (root cause analysis)"
+  - "Six Sigma DMAIC Improve phase - Design of Experiments for process optimization"
+  - "AIAG APQP Section 2.13 - Design of Experiments"
+preconditions:
+  description: >
+    An engineer user is logged in. A plant exists. No prior DOE studies
+    are required. This test creates a new 2-factor, 2-level full factorial
+    study (2^2 = 4 runs) and generates the design matrix.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ DOE Plant"
+        code: "OQDE"
+        is_active: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to the OQ DOE Plant and navigate to /doe."
+    verify: "The DOE page loads showing the study list. The header shows 'Design of Experiments'. A 'New Study' button is visible. Status filter tabs (All, Design, Collecting, Analyzed) are visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'New Study'."
+    verify: "The study creation form or page loads (navigates to /doe/new or opens a dialog). Fields are visible for study name, design type, response name, response unit, and factors."
+    screenshot: true
+  - step: 3
+    action: "Enter: Name: 'OQ Temperature Study', Design Type: 'Full Factorial', Response Name: 'Surface Roughness', Response Unit: 'um'."
+    verify: "All fields accept input. Design type shows 'Full Factorial' selected."
+    screenshot: true
+  - step: 4
+    action: "Add Factor 1: Name: 'Temperature', Low Level: 180, High Level: 220, Unit: 'degC'."
+    verify: "Factor 1 appears in the factor list with name 'Temperature', levels 180/220, unit 'degC'."
+    screenshot: false
+  - step: 5
+    action: "Add Factor 2: Name: 'Pressure', Low Level: 50, High Level: 100, Unit: 'MPa'."
+    verify: "Factor 2 appears in the factor list with name 'Pressure', levels 50/100, unit 'MPa'. Two factors are now listed."
+    screenshot: true
+  - step: 6
+    action: "Click Create/Submit to create the DOE study."
+    verify: "Study is created successfully. The study detail page loads showing status 'Design'. The study card shows: name 'OQ Temperature Study', design type 'Full Factorial', 2 factors, 0 runs, status 'Design'."
+    screenshot: true
+  - step: 7
+    action: "Click 'Generate Design' to generate the design matrix."
+    verify: "The design matrix is generated with 4 runs (2^2 = 4 for a 2-factor full factorial). The run table shows 4 rows with columns for run order, standard order, Temperature (-1/+1), and Pressure (-1/+1). Study status transitions to 'Collecting'."
+    screenshot: true
+expected_result: "A 2^2 full factorial DOE study is created with 2 factors (Temperature and Pressure). The design matrix is generated with exactly 4 runs. Factor levels are coded as -1 (low) and +1 (high). Study transitions from 'Design' to 'Collecting' status."
+pass_criteria: "Study creation succeeds. Design generation produces 4 runs. API verification: GET /doe/studies/{id} shows status='collecting', 2 factors, 4 runs. GET /doe/studies/{id}/runs returns 4 run entries with coded factor_values."
+cleanup:
+  - "Delete DOE study via API: DELETE /doe/studies/{study_id}"
+  - "Delete plant via API"

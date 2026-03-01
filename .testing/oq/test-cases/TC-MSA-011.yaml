@@ -1,0 +1,47 @@
+id: TC-MSA-011
+title: "Attribute MSA with Fleiss' Kappa (3+ raters)"
+category: "MSA / Gage R&R"
+subcategory: "AttributeMSA"
+priority: high
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Attribute Agreement Analysis with multiple appraisers"
+  - "IATF 16949 - Multi-appraiser measurement system evaluation"
+preconditions:
+  description: "Engineer user is logged in. A plant is selected. No MSA study named 'OQ-Attribute-Fleiss' exists."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /msa and click 'New Study'."
+    verify: "The study creation form is displayed."
+    screenshot: false
+  - step: 2
+    action: "Enter Name: 'OQ-Attribute-Fleiss'. Select Type: 'Attribute Agreement Analysis'. Set Operators to 3, Parts to 30, Replicates to 2. Click Create."
+    verify: "The study is created and the editor opens. Status badge shows 'Setup'. Configuration confirms: Attribute Agreement, 3 operators (raters), 30 parts (items), 2 replicates (trials)."
+    screenshot: true
+  - step: 3
+    action: "Set operator (rater) names: 'Inspector-A', 'Inspector-B', 'Inspector-C'. Save operators."
+    verify: "Three operators are listed: Inspector-A, Inspector-B, Inspector-C."
+    screenshot: false
+  - step: 4
+    action: "Set 30 part names: 'Sample-01' through 'Sample-30'. Save parts."
+    verify: "Thirty parts are listed."
+    screenshot: false
+  - step: 5
+    action: "Navigate to the Data tab. Enter categorical ratings for all cells. Use categories like 'good', 'marginal', 'reject' to test multi-category kappa (not just binary pass/fail). Enter data with approximately 80% overall agreement across all 3 raters. Submit attribute measurements."
+    verify: "All 180 cells (3 raters x 30 items x 2 replicates) are filled with categorical values. Success notification appears. Study status changes to 'Collecting'."
+    screenshot: true
+  - step: 6
+    action: "Navigate to the Results tab and click 'Calculate'."
+    verify: "The calculation completes. Results display attribute MSA metrics: (1) Fleiss' Kappa value for all 3 raters combined -- this is the primary multi-rater agreement statistic. (2) Cohen's Kappa values for each pair: 'Inspector-A vs Inspector-B', 'Inspector-A vs Inspector-C', 'Inspector-B vs Inspector-C' (3 pairs total for 3 raters). (3) Within-Appraiser agreement for each inspector (self-consistency). (4) Between-Appraiser agreement percentage. (5) Verdict based on Fleiss' kappa."
+    screenshot: true
+  - step: 7
+    action: "Compare the Cohen's Kappa pairwise values with the overall Fleiss' Kappa."
+    verify: "Three pairwise Cohen's kappa values are displayed (one per pair). The Fleiss' kappa value is a single overall statistic that captures multi-rater agreement beyond what pairwise comparison provides. The Fleiss' kappa should be in a similar range as the pairwise Cohen's kappa values but is not simply their average. Both the individual pair kappas and the overall Fleiss' kappa are displayed numerically."
+    screenshot: true
+expected_result: "An attribute MSA study with 3 raters and multi-category ratings calculates Fleiss' Kappa correctly. Results show all pairwise Cohen's kappa values, the overall Fleiss' kappa, within-appraiser agreement per rater, and a verdict."
+pass_criteria: "Study creates with 3 operators for attribute agreement. Calculation produces Fleiss' kappa. Three pairwise Cohen's kappa values are displayed (one for each operator pair). Within-appraiser agreement percentages are shown for all 3 inspectors. Verdict reflects AIAG thresholds for kappa interpretation."
+cleanup:
+  - "Delete MSA study 'OQ-Attribute-Fleiss' via API: DELETE /msa/studies/{id}"

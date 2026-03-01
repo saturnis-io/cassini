@@ -1,0 +1,55 @@
+id: TC-CHAR-006
+title: "Create u-chart characteristic"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Manual - u Chart (Section III)"
+  - "ISO 7870-1 - Attribute control charts"
+preconditions:
+  description: "Engineer user is logged in. A station node exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ U-Chart Plant"
+        code: "OQUC"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "U-Chart Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "U-Chart Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'U-Chart Station'."
+    verify: "Station node selected."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Characteristic'. Enter: Name: 'OQ-Defects-Per-Unit', Data Type: Attribute, Attribute Chart Type: u (defects per unit), Default Sample Size: 25."
+    verify: "u chart type is selectable. Sample size field is relevant because u-charts allow variable sample sizes."
+    screenshot: true
+  - step: 3
+    action: "Click Create/Save."
+    verify: "Characteristic created."
+    screenshot: false
+  - step: 4
+    action: "Open config panel for 'OQ-Defects-Per-Unit'."
+    verify: "Config shows: Data Type = Attribute, Attribute Chart Type = u, Default Sample Size = 25."
+    screenshot: true
+expected_result: "A u-chart (defects per unit with variable sample size) attribute characteristic is created."
+pass_criteria: "Characteristic shows data_type=attribute, attribute_chart_type=u, default_sample_size=25."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

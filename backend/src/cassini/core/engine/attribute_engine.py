@@ -22,6 +22,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from cassini.core.explain import ExplanationCollector
+from cassini.core.events.events import ViolationCreatedEvent
+from cassini.core.events.bus import event_bus as global_event_bus
+
 if TYPE_CHECKING:
     from cassini.db.repositories import (
         CharacteristicRepository,
@@ -116,6 +120,7 @@ class AttributeProcessingResult:
 def calculate_attribute_limits(
     chart_type: str,
     samples: list[dict],
+    collector: ExplanationCollector | None = None,
 ) -> AttributeLimits:
     """Calculate attribute control limits from historical sample data.
 
@@ -125,6 +130,7 @@ def calculate_attribute_limits(
             - defect_count (int): Number of defects/defectives
             - sample_size (int, optional): Number of items inspected (p/np charts)
             - units_inspected (int, optional): Number of inspection units (u chart)
+        collector: Optional ExplanationCollector for Show Your Work instrumentation
 
     Returns:
         AttributeLimits with center_line, ucl, lcl
@@ -139,19 +145,22 @@ def calculate_attribute_limits(
         raise ValueError("No samples provided for limit calculation")
 
     if chart_type == "p":
-        return _calculate_p_limits(samples)
+        return _calculate_p_limits(samples, collector)
     elif chart_type == "np":
-        return _calculate_np_limits(samples)
+        return _calculate_np_limits(samples, collector)
     elif chart_type == "c":
-        return _calculate_c_limits(samples)
+        return _calculate_c_limits(samples, collector)
     elif chart_type == "u":
-        return _calculate_u_limits(samples)
+        return _calculate_u_limits(samples, collector)
 
     # Unreachable due to validation above, but satisfies type checker
     raise ValueError(f"Unsupported chart type: {chart_type}")
 
 
-def _calculate_p_limits(samples: list[dict]) -> AttributeLimits:
+def _calculate_p_limits(
+    samples: list[dict],
+    collector: ExplanationCollector | None = None,
+) -> AttributeLimits:
     """p-chart: fraction defective.
 
     p-bar = total_defects / total_inspected
@@ -169,12 +178,57 @@ def _calculate_p_limits(samples: list[dict]) -> AttributeLimits:
         total_defects += s["defect_count"]
         total_inspected += n
 
+    if collector:
+        collector.input("k (samples)", len(samples))
+        collector.input("total_defects", total_defects)
+        collector.input("total_inspected", total_inspected)
+
     p_bar = total_defects / total_inspected
     n_bar = total_inspected / len(samples)
 
+    if collector:
+        collector.step(
+            label="p-bar (Center Line)",
+            formula_latex=r"\bar{p} = \frac{\sum d_i}{\sum n_i}",
+            substitution_latex=rf"\bar{{p}} = \frac{{{total_defects}}}{{{total_inspected}}}",
+            result=float(p_bar),
+        )
+        collector.step(
+            label="n-bar (Average Sample Size)",
+            formula_latex=r"\bar{n} = \frac{\sum n_i}{k}",
+            substitution_latex=rf"\bar{{n}} = \frac{{{total_inspected}}}{{{len(samples)}}}",
+            result=float(n_bar),
+        )
+
     sigma = math.sqrt(p_bar * (1 - p_bar) / n_bar) if p_bar > 0 and p_bar < 1 else 0
+
+    if collector:
+        collector.step(
+            label="sigma (Standard Deviation)",
+            formula_latex=r"\sigma = \sqrt{\frac{\bar{p}(1 - \bar{p})}{\bar{n}}}",
+            substitution_latex=(
+                rf"\sigma = \sqrt{{\frac{{{round(p_bar, 6)} \times {round(1 - p_bar, 6)}}}"
+                rf"{{{round(n_bar, 6)}}}}}"
+            ),
+            result=float(sigma),
+        )
+
     ucl = min(p_bar + 3 * sigma, 1.0)  # p-chart UCL capped at 1.0 (probability)
     lcl = max(0.0, p_bar - 3 * sigma)
+
+    if collector:
+        collector.step(
+            label="UCL (Upper Control Limit)",
+            formula_latex=r"UCL = \min(\bar{p} + 3\sigma, 1.0)",
+            substitution_latex=rf"UCL = \min({round(p_bar, 6)} + 3 \times {round(sigma, 6)}, 1.0)",
+            result=float(ucl),
+        )
+        collector.step(
+            label="LCL (Lower Control Limit)",
+            formula_latex=r"LCL = \max(0, \bar{p} - 3\sigma)",
+            substitution_latex=rf"LCL = \max(0, {round(p_bar, 6)} - 3 \times {round(sigma, 6)})",
+            result=float(lcl),
+        )
 
     return AttributeLimits(
         center_line=p_bar,
@@ -186,7 +240,10 @@ def _calculate_p_limits(samples: list[dict]) -> AttributeLimits:
     )
 
 
-def _calculate_np_limits(samples: list[dict]) -> AttributeLimits:
+def _calculate_np_limits(
+    samples: list[dict],
+    collector: ExplanationCollector | None = None,
+) -> AttributeLimits:
     """np-chart: number defective (fixed sample size).
 
     np-bar = mean(defect_counts)
@@ -210,9 +267,48 @@ def _calculate_np_limits(samples: list[dict]) -> AttributeLimits:
     np_bar = sum(defect_counts) / len(defect_counts)
     p_bar = np_bar / n
 
+    if collector:
+        collector.input("k (samples)", len(samples))
+        collector.input("n (sample size)", n)
+        collector.step(
+            label="np-bar (Center Line)",
+            formula_latex=r"\overline{np} = \frac{\sum d_i}{k}",
+            substitution_latex=rf"\overline{{np}} = \frac{{{sum(defect_counts)}}}{{{len(defect_counts)}}}",
+            result=float(np_bar),
+        )
+        collector.step(
+            label="p-bar (Fraction Defective)",
+            formula_latex=r"\bar{p} = \frac{\overline{np}}{n}",
+            substitution_latex=rf"\bar{{p}} = \frac{{{round(np_bar, 6)}}}{{{n}}}",
+            result=float(p_bar),
+        )
+
     sigma = math.sqrt(np_bar * (1 - p_bar)) if p_bar > 0 and p_bar < 1 else 0
+
+    if collector:
+        collector.step(
+            label="sigma (Standard Deviation)",
+            formula_latex=r"\sigma = \sqrt{\overline{np} \times (1 - \bar{p})}",
+            substitution_latex=rf"\sigma = \sqrt{{{round(np_bar, 6)} \times (1 - {round(p_bar, 6)})}}",
+            result=float(sigma),
+        )
+
     ucl = np_bar + 3 * sigma
     lcl = max(0.0, np_bar - 3 * sigma)
+
+    if collector:
+        collector.step(
+            label="UCL (Upper Control Limit)",
+            formula_latex=r"UCL = \overline{np} + 3\sigma",
+            substitution_latex=rf"UCL = {round(np_bar, 6)} + 3 \times {round(sigma, 6)}",
+            result=float(ucl),
+        )
+        collector.step(
+            label="LCL (Lower Control Limit)",
+            formula_latex=r"LCL = \max(0, \overline{np} - 3\sigma)",
+            substitution_latex=rf"LCL = \max(0, {round(np_bar, 6)} - 3 \times {round(sigma, 6)})",
+            result=float(lcl),
+        )
 
     return AttributeLimits(
         center_line=np_bar,
@@ -224,7 +320,10 @@ def _calculate_np_limits(samples: list[dict]) -> AttributeLimits:
     )
 
 
-def _calculate_c_limits(samples: list[dict]) -> AttributeLimits:
+def _calculate_c_limits(
+    samples: list[dict],
+    collector: ExplanationCollector | None = None,
+) -> AttributeLimits:
     """c-chart: defect count per unit (fixed inspection area/size).
 
     c-bar = mean(defect_counts)
@@ -234,9 +333,42 @@ def _calculate_c_limits(samples: list[dict]) -> AttributeLimits:
     defect_counts = [s["defect_count"] for s in samples]
     c_bar = sum(defect_counts) / len(defect_counts)
 
+    if collector:
+        collector.input("k (samples)", len(samples))
+        collector.input("total_defects", sum(defect_counts))
+        collector.step(
+            label="c-bar (Center Line)",
+            formula_latex=r"\bar{c} = \frac{\sum c_i}{k}",
+            substitution_latex=rf"\bar{{c}} = \frac{{{sum(defect_counts)}}}{{{len(defect_counts)}}}",
+            result=float(c_bar),
+        )
+
     sigma = math.sqrt(c_bar) if c_bar > 0 else 0
+
+    if collector:
+        collector.step(
+            label="sigma (Standard Deviation)",
+            formula_latex=r"\sigma = \sqrt{\bar{c}}",
+            substitution_latex=rf"\sigma = \sqrt{{{round(c_bar, 6)}}}",
+            result=float(sigma),
+        )
+
     ucl = c_bar + 3 * sigma
     lcl = max(0.0, c_bar - 3 * sigma)
+
+    if collector:
+        collector.step(
+            label="UCL (Upper Control Limit)",
+            formula_latex=r"UCL = \bar{c} + 3\sigma",
+            substitution_latex=rf"UCL = {round(c_bar, 6)} + 3 \times {round(sigma, 6)}",
+            result=float(ucl),
+        )
+        collector.step(
+            label="LCL (Lower Control Limit)",
+            formula_latex=r"LCL = \max(0, \bar{c} - 3\sigma)",
+            substitution_latex=rf"LCL = \max(0, {round(c_bar, 6)} - 3 \times {round(sigma, 6)})",
+            result=float(lcl),
+        )
 
     return AttributeLimits(
         center_line=c_bar,
@@ -248,7 +380,10 @@ def _calculate_c_limits(samples: list[dict]) -> AttributeLimits:
     )
 
 
-def _calculate_u_limits(samples: list[dict]) -> AttributeLimits:
+def _calculate_u_limits(
+    samples: list[dict],
+    collector: ExplanationCollector | None = None,
+) -> AttributeLimits:
     """u-chart: defect rate (variable inspection units).
 
     u-bar = total_defects / total_units
@@ -266,12 +401,54 @@ def _calculate_u_limits(samples: list[dict]) -> AttributeLimits:
         total_defects += s["defect_count"]
         total_units += n
 
+    if collector:
+        collector.input("k (samples)", len(samples))
+        collector.input("total_defects", total_defects)
+        collector.input("total_units", total_units)
+
     u_bar = total_defects / total_units
     n_bar = total_units / len(samples)
 
+    if collector:
+        collector.step(
+            label="u-bar (Center Line)",
+            formula_latex=r"\bar{u} = \frac{\sum c_i}{\sum n_i}",
+            substitution_latex=rf"\bar{{u}} = \frac{{{total_defects}}}{{{total_units}}}",
+            result=float(u_bar),
+        )
+        collector.step(
+            label="n-bar (Average Inspection Units)",
+            formula_latex=r"\bar{n} = \frac{\sum n_i}{k}",
+            substitution_latex=rf"\bar{{n}} = \frac{{{total_units}}}{{{len(samples)}}}",
+            result=float(n_bar),
+        )
+
     sigma = math.sqrt(u_bar / n_bar) if u_bar > 0 else 0
+
+    if collector:
+        collector.step(
+            label="sigma (Standard Deviation)",
+            formula_latex=r"\sigma = \sqrt{\frac{\bar{u}}{\bar{n}}}",
+            substitution_latex=rf"\sigma = \sqrt{{\frac{{{round(u_bar, 6)}}}{{{round(n_bar, 6)}}}}}",
+            result=float(sigma),
+        )
+
     ucl = u_bar + 3 * sigma
     lcl = max(0.0, u_bar - 3 * sigma)
+
+    if collector:
+        collector.step(
+            label="UCL (Upper Control Limit)",
+            formula_latex=r"UCL = \bar{u} + 3\sigma",
+            substitution_latex=rf"UCL = {round(u_bar, 6)} + 3 \times {round(sigma, 6)}",
+            result=float(ucl),
+        )
+        collector.step(
+            label="LCL (Lower Control Limit)",
+            formula_latex=r"LCL = \max(0, \bar{u} - 3\sigma)",
+            substitution_latex=rf"LCL = \max(0, {round(u_bar, 6)} - 3 \times {round(sigma, 6)})",
+            result=float(lcl),
+        )
 
     return AttributeLimits(
         center_line=u_bar,
@@ -564,6 +741,7 @@ def calculate_laney_sigma_z(
     chart_type: str,
     samples: list[dict],
     center_line: float,
+    collector: ExplanationCollector | None = None,
 ) -> float:
     """Calculate Laney overdispersion correction factor sigma_z.
 
@@ -610,13 +788,54 @@ def calculate_laney_sigma_z(
     if len(z_values) < 3:
         return 1.0
 
+    if collector:
+        if chart_type == "p":
+            collector.step(
+                label="Z_i (Standardized Residuals)",
+                formula_latex=r"Z_i = \frac{p_i - \bar{p}}{\sqrt{\bar{p}(1-\bar{p})/n_i}}",
+                substitution_latex=rf"Z_1 = {round(z_values[0], 6)}, \ldots, Z_{{{len(z_values)}}} = {round(z_values[-1], 6)}",
+                result=round(float(sum(z_values) / len(z_values)), 6),
+                note=f"{len(z_values)} Z values computed from {len(samples)} samples",
+            )
+        else:  # u-chart
+            collector.step(
+                label="Z_i (Standardized Residuals)",
+                formula_latex=r"Z_i = \frac{u_i - \bar{u}}{\sqrt{\bar{u}/n_i}}",
+                substitution_latex=rf"Z_1 = {round(z_values[0], 6)}, \ldots, Z_{{{len(z_values)}}} = {round(z_values[-1], 6)}",
+                result=round(float(sum(z_values) / len(z_values)), 6),
+                note=f"{len(z_values)} Z values computed from {len(samples)} samples",
+            )
+
     # Moving range of Z values
     moving_ranges = [abs(z_values[i] - z_values[i - 1]) for i in range(1, len(z_values))]
     mr_bar = sum(moving_ranges) / len(moving_ranges)
 
+    if collector:
+        collector.step(
+            label="MR-bar (Mean Moving Range of Z)",
+            formula_latex=r"\overline{MR}_Z = \frac{\sum |Z_i - Z_{i-1}|}{k-1}",
+            substitution_latex=rf"\overline{{MR}}_Z = \frac{{{round(sum(moving_ranges), 6)}}}{{{len(moving_ranges)}}}",
+            result=float(mr_bar),
+        )
+
     # sigma_z = MR_bar / d2 (d2 = 1.128 for span of 2)
     D2 = 1.128
     sigma_z = mr_bar / D2
+
+    if collector:
+        collector.step(
+            label="d2 (Unbiasing Constant)",
+            formula_latex=r"d_2 = 1.128 \text{ (for moving range span of 2)}",
+            substitution_latex=r"d_2 = 1.128",
+            result=D2,
+        )
+        collector.step(
+            label="sigma_z (Laney Correction Factor)",
+            formula_latex=r"\sigma_z = \frac{\overline{MR}_Z}{d_2}",
+            substitution_latex=rf"\sigma_z = \frac{{{round(mr_bar, 6)}}}{{{D2}}}",
+            result=float(max(sigma_z, 0.001)),
+            note="~1.0 means no overdispersion; >1.0 indicates overdispersion",
+        )
 
     # Guard against zero
     return max(sigma_z, 0.001)
@@ -670,6 +889,7 @@ async def process_attribute_sample(
     sample_repo: "SampleRepository",
     char_repo: "CharacteristicRepository",
     violation_repo: "ViolationRepository",
+    event_bus=None,
 ) -> AttributeProcessingResult:
     """Full attribute sample processing pipeline.
 
@@ -868,6 +1088,18 @@ async def process_attribute_sample(
             requires_acknowledgement=requires_ack,
         )
         violations.append(result)
+
+        # Publish event for notification dispatch
+        bus = event_bus or global_event_bus
+        if bus:
+            await bus.publish(ViolationCreatedEvent(
+                violation_id=violation_record.id,
+                sample_id=sample.id,
+                characteristic_id=char_id,
+                rule_id=result.rule_id,
+                rule_name=result.rule_name,
+                severity=result.severity,
+            ))
 
     # Get the effective limits for this point
     if ucl_values and lcl_values:

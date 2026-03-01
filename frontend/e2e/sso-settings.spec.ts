@@ -98,7 +98,7 @@ test.describe.serial('SSO Settings', () => {
 
     // Auto-provision checkbox
     await expect(
-      page.getByText('Auto-provision new users on first SSO login'),
+      page.getByText('Auto-provision users'),
     ).toBeVisible({ timeout: 3000 })
 
     // Create Provider button

@@ -100,9 +100,11 @@ export function useChartDragSelect(
         // Use 'grid' finder — {xAxisIndex:0} returns NaN in ECharts 6
         const leftCoord = chart.convertFromPixel('grid', [leftPx, 0])
         const rightCoord = chart.convertFromPixel('grid', [rightPx, 0])
+
         if (!leftCoord || !rightCoord) return
         const leftX = Array.isArray(leftCoord) ? leftCoord[0] : leftCoord
         const rightX = Array.isArray(rightCoord) ? rightCoord[0] : rightCoord
+
         if (leftX == null || rightX == null || isNaN(leftX) || isNaN(rightX)) return
 
         let startIndex: number
@@ -132,7 +134,7 @@ export function useChartDragSelect(
 
         onSelectRef.current?.({ startIndex, endIndex })
       } catch {
-        // convertFromPixel can fail if chart isn't fully initialized
+        // convertFromPixel can throw if chart is mid-update
       }
     }
 

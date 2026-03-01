@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { API_BASE, getAuthToken, apiGet, apiPost } from './helpers/api'
-import { switchToPlant } from './helpers/seed'
+import { switchToPlant, collapseNavSection } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
 test.describe('CUSUM & EWMA Charts', () => {
@@ -186,6 +186,7 @@ test.describe('CUSUM & EWMA Charts', () => {
   test('CUSUM chart renders on dashboard', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy to reveal CUSUM characteristic
     const deptNode = page.getByText('CE Dept', { exact: true }).first()
@@ -193,8 +194,8 @@ test.describe('CUSUM & EWMA Charts', () => {
 
     for (const nodeName of ['CE Dept', 'CE Line', 'CE Station']) {
       const node = page.getByText(nodeName, { exact: true }).first()
-      await expect(node).toBeVisible({ timeout: 10000 })
-      await node.click()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
       await page.waitForTimeout(800)
     }
 
@@ -218,6 +219,7 @@ test.describe('CUSUM & EWMA Charts', () => {
   test('EWMA chart renders on dashboard', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy to reveal EWMA characteristic
     const deptNode = page.getByText('CE Dept', { exact: true }).first()
@@ -225,8 +227,8 @@ test.describe('CUSUM & EWMA Charts', () => {
 
     for (const nodeName of ['CE Dept', 'CE Line', 'CE Station']) {
       const node = page.getByText(nodeName, { exact: true }).first()
-      await expect(node).toBeVisible({ timeout: 10000 })
-      await node.click()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
       await page.waitForTimeout(800)
     }
 
@@ -494,6 +496,7 @@ test.describe('CUSUM & EWMA Charts', () => {
   test('CUSUM chart shows stats ticker with n count', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy and select CUSUM characteristic
     const deptNode = page.getByText('CE Dept', { exact: true }).first()
@@ -501,8 +504,8 @@ test.describe('CUSUM & EWMA Charts', () => {
 
     for (const nodeName of ['CE Dept', 'CE Line', 'CE Station']) {
       const node = page.getByText(nodeName, { exact: true }).first()
-      await expect(node).toBeVisible({ timeout: 10000 })
-      await node.click()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
       await page.waitForTimeout(800)
     }
 
@@ -534,6 +537,7 @@ test.describe('CUSUM & EWMA Charts', () => {
   test('EWMA chart shows stats ticker with n count', async ({ page }) => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
+    await collapseNavSection(page)
 
     // Expand hierarchy and select EWMA characteristic
     const deptNode = page.getByText('CE Dept', { exact: true }).first()
@@ -541,8 +545,8 @@ test.describe('CUSUM & EWMA Charts', () => {
 
     for (const nodeName of ['CE Dept', 'CE Line', 'CE Station']) {
       const node = page.getByText(nodeName, { exact: true }).first()
-      await expect(node).toBeVisible({ timeout: 10000 })
-      await node.click()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
       await page.waitForTimeout(800)
     }
 

@@ -13,7 +13,7 @@ class SmtpConfigResponse(BaseModel):
     id: int
     server: str
     port: int
-    username: Optional[str] = None
+    username_set: bool = False
     password_set: bool = False
     use_tls: bool = True
     from_address: str
@@ -79,6 +79,7 @@ class NotificationPreferenceItem(BaseModel):
     event_type: str
     channel: str
     is_enabled: bool = True
+    severity_filter: str = "all"
 
 
 class NotificationPreferenceResponse(BaseModel):
@@ -87,6 +88,7 @@ class NotificationPreferenceResponse(BaseModel):
     event_type: str
     channel: str
     is_enabled: bool
+    severity_filter: str = "all"
 
     model_config = {"from_attributes": True}
 

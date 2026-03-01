@@ -1,0 +1,57 @@
+id: TC-ANOM-002
+title: "Configure anomaly detector settings with persistence"
+category: "Anomaly Detection"
+subcategory: "Config"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.1.5 - Monitoring and measuring resources"
+  - "21 CFR Part 11 Section 11.10(a) - System validation ensuring accuracy"
+  - "IATF 16949 - Statistical tool configuration traceability"
+preconditions:
+  description: >
+    An engineer or admin user is logged in. A characteristic exists for
+    which anomaly detection can be configured. The config is either at
+    defaults or a known state.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-engineer"
+      role: "engineer"
+    characteristic:
+      name: "OQ-Bore-Diameter-Anomaly"
+      chart_type: "i_mr"
+      subgroup_size: 1
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the anomaly configuration for the test characteristic (via /settings/ai or the per-characteristic config API)"
+    verify: "Config page or section loads showing current detector settings."
+    screenshot: true
+  - step: 2
+    action: "Enable PELT detector. Enable K-S detector. Disable Isolation Forest detector. Set PELT model to 'l2', min segment to 10. Set K-S alpha to 0.01, reference window to 300, test window to 75."
+    verify: "PELT toggle is on. K-S toggle is on. Isolation Forest toggle is off. Parameter fields show the entered values."
+    screenshot: true
+  - step: 3
+    action: "Click Save"
+    verify: "Success notification appears. Settings are saved."
+    screenshot: true
+  - step: 4
+    action: "Reload the page (F5 or navigate away and back)"
+    verify: "The page reloads. PELT is still enabled. K-S is still enabled. Isolation Forest is still disabled. PELT model shows 'l2', min segment shows 10. K-S alpha shows 0.01, reference window shows 300, test window shows 75. All settings persisted correctly."
+    screenshot: true
+  - step: 5
+    action: "Verify via API: GET /anomaly/{char_id}/config"
+    verify: "Response shows: pelt_enabled=true, pelt_model='l2', pelt_min_segment=10, ks_enabled=true, ks_alpha=0.01, ks_reference_window=300, ks_test_window=75, iforest_enabled=false."
+    screenshot: false
+expected_result: >
+  Anomaly detector configuration is saved and persists across page reloads.
+  PELT and K-S are enabled with custom parameters. Isolation Forest is
+  disabled. All parameter values survive a full page refresh.
+pass_criteria: >
+  Save completes without error. All configured values persist after reload.
+  API confirms the exact values that were set in the UI. Disabled detectors
+  remain disabled.
+cleanup:
+  - "Reset config to defaults via API: DELETE /anomaly/{char_id}/config"

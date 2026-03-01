@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Play, Loader2, Clock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { characteristicApi } from '@/api/client'
 import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
@@ -15,6 +16,7 @@ import { PCABiplot } from './PCABiplot'
  * Multi-select characteristics, choose method, run analysis, see results.
  */
 export function CorrelationTab() {
+  const { formatDateTime } = useDateFormat()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
@@ -95,6 +97,7 @@ export function CorrelationTab() {
             <HierarchyMultiSelector
               selectedIds={selectedCharIds}
               onSelectionChange={setSelectedCharIds}
+              plantId={plantId}
               className="border-border max-h-64 rounded-lg border"
             />
 
@@ -235,7 +238,7 @@ export function CorrelationTab() {
                     <p className="text-muted-foreground text-xs">
                       {result.method ?? 'pearson'} &middot;{' '}
                       {result.created_at
-                        ? new Date(result.created_at).toLocaleString()
+                        ? formatDateTime(result.created_at)
                         : 'Unknown date'}
                     </p>
                   </div>

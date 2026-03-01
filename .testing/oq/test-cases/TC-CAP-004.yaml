@@ -1,0 +1,48 @@
+id: TC-CAP-004
+title: "Cpm calculated when target value is set"
+category: "Capability Analysis"
+subcategory: "Cpm"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Taguchi Capability Index"
+  - "ISO 22514 - Process capability with target reference"
+preconditions:
+  description: "A variable characteristic (X-bar/R, subgroup_size=5) exists with USL=10.05, LSL=9.95, and target=10.0. At least 60 subgroups have been submitted from a centered distribution N(10.0, 0.015). Control limits calculated. The process mean is very close to the target, so Cpm should be very close to Cp. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-Cpm"
+      chart_type: null
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 60
+      values_description: "60 subgroups of 5 measurements each from N(10.0, 0.015). The process mean should be very close to 10.0 (the target). For a perfectly centered process, Cpm = Cp because the Taguchi penalty sqrt(sigma^2 + (mean - target)^2) reduces to sigma when mean = target. Expected Cpm approximately 1.11."
+    post_seed:
+      - "Recalculate control limits"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-Cpm' from the hierarchy tree."
+    verify: "The Capability Card shows Cp, Cpk, Pp, Ppk, and Cpm. All five indices are displayed."
+    screenshot: true
+  - step: 2
+    action: "Examine the Cpm value."
+    verify: "Cpm is displayed. For a centered process (mean approximately equals target=10.0), Cpm should be very close to Cp (within 5-10%). This confirms that Cpm = Cp / sqrt(1 + ((mean - target)/sigma)^2) reduces to approximately Cp when mean is near target."
+    screenshot: true
+  - step: 3
+    action: "Verify Cpm has appropriate color coding."
+    verify: "Cpm uses the same green/yellow/red thresholds as Cpk. For expected Cpm around 1.11, the color should be yellow (1.0 <= Cpm < 1.33)."
+    screenshot: false
+  - step: 4
+    action: "Verify via API: call GET /characteristics/{id}/capability."
+    verify: "The API response includes 'cpm' field with a non-null numeric value. The 'target' field shows 10.0."
+    screenshot: false
+expected_result: "Cpm (Taguchi capability index) is calculated when a target value is set on the characteristic. For a process centered on target, Cpm approximately equals Cp. Cpm penalizes deviation from target."
+pass_criteria: "Cpm is displayed on the Capability Card. Cpm is close to Cp for the centered process. The target value (10.0) is shown. If the characteristic had no target, Cpm would be null."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-Cpm' and all associated data via API"

@@ -14,6 +14,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { applyFormat } from '@/lib/date-format'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlant } from '@/providers/PlantProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import {
@@ -365,7 +367,7 @@ export function RetentionSettings() {
 // Purge Activity Panel
 // ------------------------------------------------------------------
 
-function formatRelativeTime(dateStr: string): string {
+function formatRelativeTime(dateStr: string, dateFmt: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -377,7 +379,7 @@ function formatRelativeTime(dateStr: string): string {
   if (diffMin < 60) return `${diffMin}m ago`
   if (diffHrs < 24) return `${diffHrs}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
+  return applyFormat(date, dateFmt)
 }
 
 function formatCountdown(dateStr: string): string {
@@ -407,6 +409,7 @@ function StatusIcon({ status }: { status: string }) {
 }
 
 function PurgeActivityPanel({ plantId }: { plantId: number }) {
+  const { dateFormat } = useDateFormat()
   const { user } = useAuth()
   const { data: activity = [], isLoading: activityLoading } = useRetentionActivity(plantId)
   const { data: nextPurge, isLoading: nextLoading } = useNextPurge(plantId)
@@ -495,7 +498,7 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
             <div className="bg-card border-border rounded-lg border p-3">
               <p className="text-muted-foreground mb-1 text-xs">Last run</p>
               <p className="text-sm font-medium">
-                {nextPurge.last_run ? formatRelativeTime(nextPurge.last_run.started_at) : 'Never'}
+                {nextPurge.last_run ? formatRelativeTime(nextPurge.last_run.started_at, dateFormat) : 'Never'}
               </p>
             </div>
           </div>
@@ -594,6 +597,7 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
 }
 
 function PurgeHistoryRow({ run }: { run: PurgeHistory }) {
+  const { dateFormat } = useDateFormat()
   const duration = run.completed_at
     ? `${Math.max(1, Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000))}s`
     : run.status === 'running'
@@ -625,7 +629,7 @@ function PurgeHistoryRow({ run }: { run: PurgeHistory }) {
           </p>
         )}
       </td>
-      <td className="text-muted-foreground py-2">{formatRelativeTime(run.started_at)}</td>
+      <td className="text-muted-foreground py-2">{formatRelativeTime(run.started_at, dateFormat)}</td>
       <td className="py-2 text-right font-mono">{run.samples_deleted.toLocaleString()}</td>
       <td className="py-2 text-right font-mono">{run.violations_deleted.toLocaleString()}</td>
       <td className="py-2 text-right font-mono">

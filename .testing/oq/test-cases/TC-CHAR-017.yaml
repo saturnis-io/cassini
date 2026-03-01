@@ -1,0 +1,68 @@
+id: TC-CHAR-017
+title: "Enable short-run Z-score (standardized) mode"
+category: "Characteristic Configuration"
+subcategory: "ShortRun"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Manual - Short-run SPC techniques"
+  - "ISO 7870-8 - Charting techniques for short production runs"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists with target value and sigma established. Not CUSUM or EWMA."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Z-Score Plant"
+        code: "OQZS"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "ZS Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "ZS Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-ZScore-Mode"
+        subgroup_size: 5
+        data_type: "variable"
+        target_value: 50.0
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-ZScore-Mode' in the tree."
+    verify: "Config panel opens. Target value shows 50.0."
+    screenshot: false
+  - step: 2
+    action: "Locate the short-run mode setting. Select 'Standardized' (Z-score) mode."
+    verify: "Short-run mode shows 'Standardized' or 'Z-score' selected."
+    screenshot: true
+  - step: 3
+    action: "Click Save."
+    verify: "Save completes. Characteristic configured for standardized short-run mode."
+    screenshot: false
+  - step: 4
+    action: "Navigate to the chart view for this characteristic."
+    verify: "Chart Y-axis label indicates Z-score or standardized values (dimensionless). Values are expressed as standard deviations from the target mean. The axis should be centered near 0."
+    screenshot: true
+  - step: 5
+    action: "Refresh the page and verify persistence."
+    verify: "short_run_mode = 'standardized' is still set after refresh."
+    screenshot: true
+expected_result: "Short-run Z-score (standardized) mode is enabled. Chart displays dimensionless Z-scores using the formula Z = (X-bar - Target) / (sigma / sqrt(n))."
+pass_criteria: "short_run_mode='standardized' is saved. Chart displays standardized Z-score values on the Y-axis."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

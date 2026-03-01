@@ -1,0 +1,72 @@
+id: TC-DATA-001
+title: "Submit single measurement for I-MR characteristic"
+category: "Data Entry"
+subcategory: "ManualEntry"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "21 CFR Part 820.90 - Nonconforming Product (traceability)"
+
+preconditions:
+  description: >
+    An I-MR (Individuals / Moving Range) characteristic must exist under a
+    department and line in the active plant, with subgroup_size=1 and
+    data_type=variable. The test user must have at least operator role at
+    the plant. No prior samples are required.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Machining"
+    line: "CNC-Line-1"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator user and navigate to /data-entry"
+    verify: "Data entry page loads with hierarchy tree in left sidebar"
+    screenshot: true
+  - step: 2
+    action: "Select the 'OQ-Plant-Data' plant from the header plant switcher"
+    verify: "Hierarchy tree refreshes to show OQ-Plant-Data departments"
+    screenshot: false
+  - step: 3
+    action: "Expand Machining > CNC-Line-1 in the hierarchy tree and click 'Bore Diameter'"
+    verify: "Data entry form appears with a single measurement input field (subgroup_size=1)"
+    screenshot: true
+  - step: 4
+    action: "Enter 10.02 in the measurement field"
+    verify: "Value 10.02 is displayed in the input field"
+    screenshot: false
+  - step: 5
+    action: "Click the Submit button"
+    verify: "Success toast notification appears. The input field clears for the next entry."
+    screenshot: true
+  - step: 6
+    action: "Navigate to /dashboard and select the Bore Diameter characteristic"
+    verify: "The control chart shows the newly submitted point at value 10.02"
+    screenshot: true
+
+expected_result: >
+  A single measurement of 10.02 is submitted successfully for the I-MR
+  characteristic. The system creates a Sample record with one Measurement
+  record. The value appears on the Individuals chart on the dashboard.
+
+pass_criteria: >
+  Submit returns success (no error toast). Navigating to the dashboard
+  confirms the data point at 10.02 is visible on the chart. API verification:
+  GET /samples/?characteristic_id={id} returns at least one sample with
+  measurements=[10.02] and mean=10.02.
+
+cleanup:
+  - "Delete the submitted sample via API: DELETE /samples/{sample_id}"

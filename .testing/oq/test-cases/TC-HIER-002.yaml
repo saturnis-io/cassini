@@ -1,0 +1,49 @@
+id: TC-HIER-002
+title: "Edit plant name and description"
+category: "Plants & Hierarchy"
+subcategory: "Plants"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of documented information"
+preconditions:
+  description: "Admin user is logged in. A plant with code 'OQ02' exists for editing."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Edit Test Plant"
+        code: "OQ02"
+        is_active: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Settings > Sites (/settings/sites)."
+    verify: "Plant list loads. 'OQ Edit Test Plant' (OQ02) is visible."
+    screenshot: true
+  - step: 2
+    action: "Click on 'OQ Edit Test Plant' to select it for editing."
+    verify: "Plant edit form or inline editing controls appear with current values populated."
+    screenshot: false
+  - step: 3
+    action: "Change the plant name to 'OQ Edited Plant Name'."
+    verify: "Name field accepts the new value."
+    screenshot: false
+  - step: 4
+    action: "Click Save / Update."
+    verify: "Save completes without errors. Success notification appears."
+    screenshot: false
+  - step: 5
+    action: "Verify the updated name in the plant list."
+    verify: "'OQ Edited Plant Name' is displayed in the list. Code remains 'OQ02'."
+    screenshot: true
+  - step: 6
+    action: "Refresh the browser page (F5)."
+    verify: "After reload, the plant still shows 'OQ Edited Plant Name'. Change persisted to the database."
+    screenshot: true
+expected_result: "Plant name is successfully updated and the change persists across page reloads."
+pass_criteria: "Plant list shows updated name 'OQ Edited Plant Name' after save and after browser refresh. Plant code remains unchanged."
+cleanup:
+  - "Delete plant 'OQ02' via API: DELETE /plants/{id}"

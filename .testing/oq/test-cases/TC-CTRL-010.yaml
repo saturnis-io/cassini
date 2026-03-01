@@ -1,0 +1,78 @@
+id: TC-CTRL-010
+title: "Control limits auto-calculate with sufficient data"
+category: "Control Charts"
+subcategory: "ControlLimits"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Control Limit Calculation"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "ISO 7870-2 - Shewhart Control Charts"
+
+preconditions:
+  description: >
+    An X-bar/R characteristic exists with NO control limits (ucl, lcl,
+    center_line all null). At least 25 subgroups of 5 measurements will
+    be seeded, then limits will be recalculated to verify auto-calculation.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Valve Bore XbarR"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+    samples: "25 subgroups of 5 measurements centered at 10.00, sigma ~0.02"
+
+execution_mode: api-verify
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Verify initial state: GET /characteristics/{id} confirms ucl and lcl are null"
+    verify: "Response shows ucl=null, lcl=null, stored_center_line=null"
+    screenshot: false
+  - step: 2
+    action: "Seed 25 subgroups via POST /samples/batch"
+    verify: "Batch import returns imported=25, failed=0"
+    screenshot: false
+  - step: 3
+    action: "Trigger limit recalculation: POST /characteristics/{id}/recalculate-limits"
+    verify: >
+      Response includes calculated limits:
+      ucl (non-null, > center_line),
+      lcl (non-null, < center_line),
+      center_line (approximately 10.00, the grand mean).
+      sample_count >= 25.
+    screenshot: false
+  - step: 4
+    action: "Navigate to /dashboard and select Valve Bore XbarR"
+    verify: >
+      Chart now shows UCL, CL, and LCL lines that were not present before.
+      All 25 data points are plotted with the new limits applied.
+    screenshot: true
+  - step: 5
+    action: "Verify limit values mathematically"
+    verify: >
+      CL = grand mean of 25 subgroup means.
+      R-bar = average of 25 subgroup ranges.
+      UCL = CL + A2 * R-bar (A2 = 0.577 for n=5).
+      LCL = CL - A2 * R-bar.
+      Values match within floating point tolerance.
+    screenshot: false
+
+expected_result: >
+  Control limits are correctly calculated from the seeded data using
+  AIAG standard constants. The limits were null before calculation and
+  are now populated with mathematically correct values.
+
+pass_criteria: >
+  ucl, lcl, center_line are all non-null after recalculation. UCL > CL > LCL.
+  Values match hand-calculated limits within 0.001 tolerance.
+
+cleanup:
+  - "Delete seeded samples and characteristic via API"

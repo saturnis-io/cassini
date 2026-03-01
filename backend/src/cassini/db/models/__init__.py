@@ -3,6 +3,7 @@
 from cassini.db.models.annotation import Annotation
 from cassini.db.models.anomaly import AnomalyDetectorConfig, AnomalyEvent, AnomalyModelState
 from cassini.db.models.api_key import APIKey
+from cassini.db.models.auth_token import EmailVerificationToken, PasswordResetToken
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.broker import MQTTBroker
 from cassini.db.models.capability import CapabilityHistory
@@ -45,6 +46,7 @@ from cassini.db.models.report_schedule import ReportRun, ReportSchedule
 from cassini.db.models.retention_policy import RetentionPolicy
 from cassini.db.models.rule_preset import RulePreset
 from cassini.db.models.sample import Measurement, Sample
+from cassini.db.models.system_settings import SystemSettings
 from cassini.db.models.signature import (
     ElectronicSignature,
     PasswordPolicy,
@@ -130,6 +132,11 @@ __all__ = [
     "MultivariateSample",
     "PredictionConfig",
     "PredictionModel",
+    # Auth tokens
+    "EmailVerificationToken",
+    "PasswordResetToken",
+    # System settings
+    "SystemSettings",
     # Enums
     "DataSourceType",
     "HierarchyType",

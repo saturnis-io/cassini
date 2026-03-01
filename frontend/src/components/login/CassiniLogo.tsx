@@ -20,6 +20,23 @@ interface CassiniLogoProps {
   className?: string
   /** Override color for monotone variant (default: navy) */
   color?: string
+  /** Brand color overrides — each defaults to the existing hardcoded value */
+  brandColors?: {
+    planet?: string // planet outline/stroke color (default: CREAM)
+    ring?: string // decorative ring border in mission patch (default: GOLD)
+    line?: string // SPC chart zigzag line + data points (default: GOLD)
+    dot?: string // anomaly/OOC dot (default: ORANGE)
+  }
+}
+
+interface ResolvedColors {
+  navy: string
+  panel: string
+  cream: string
+  ring: string
+  line: string
+  orange: string
+  muted: string
 }
 
 const NAVY = '#080C16'
@@ -29,23 +46,47 @@ const GOLD = '#D4AF37'
 const ORANGE = '#E05A3D'
 const MUTED = '#4B5563'
 
-export function CassiniLogo({ variant = 'patch', size, className, color }: CassiniLogoProps) {
+export function CassiniLogo({
+  variant = 'patch',
+  size,
+  className,
+  color,
+  brandColors,
+}: CassiniLogoProps) {
+  const resolvedColors: ResolvedColors = {
+    navy: NAVY,
+    panel: PANEL,
+    cream: brandColors?.planet ?? CREAM,
+    ring: brandColors?.ring ?? GOLD,
+    line: brandColors?.line ?? GOLD,
+    orange: brandColors?.dot ?? ORANGE,
+    muted: MUTED,
+  }
+
   switch (variant) {
     case 'patch':
-      return <MissionPatch size={size ?? 164} className={className} />
+      return <MissionPatch size={size ?? 164} className={className} colors={resolvedColors} />
     case 'icon':
-      return <IconMark size={size ?? 48} className={className} />
+      return <IconMark size={size ?? 48} className={className} colors={resolvedColors} />
     case 'horizontal':
-      return <HorizontalLockup height={size ?? 48} className={className} />
+      return <HorizontalLockup height={size ?? 48} className={className} colors={resolvedColors} />
     case 'stacked':
-      return <StackedLockup height={size ?? 140} className={className} />
+      return <StackedLockup height={size ?? 140} className={className} colors={resolvedColors} />
     case 'monotone':
       return <MonotoneLockup height={size ?? 48} className={className} color={color ?? NAVY} />
   }
 }
 
 /** NASA/Apollo mission-patch emblem with curved text, control limits, and planet. */
-function MissionPatch({ size, className }: { size: number; className?: string }) {
+function MissionPatch({
+  size,
+  className,
+  colors,
+}: {
+  size: number
+  className?: string
+  colors: ResolvedColors
+}) {
   return (
     <svg
       width={size}
@@ -57,8 +98,8 @@ function MissionPatch({ size, className }: { size: number; className?: string })
       aria-label="Cassini SPC logo"
     >
       {/* Outer borders */}
-      <circle cx="100" cy="100" r="96" fill={PANEL} stroke={MUTED} strokeWidth="2" />
-      <circle cx="100" cy="100" r="88" stroke={GOLD} strokeWidth="1.5" opacity="0.8" />
+      <circle cx="100" cy="100" r="96" fill={colors.panel} stroke={colors.muted} strokeWidth="2" />
+      <circle cx="100" cy="100" r="88" stroke={colors.ring} strokeWidth="1.5" opacity="0.8" />
 
       {/* Text paths */}
       <defs>
@@ -66,7 +107,7 @@ function MissionPatch({ size, className }: { size: number; className?: string })
         <path id="textPathBot" d="M 25 100 A 75 75 0 0 0 175 100" />
       </defs>
 
-      {/* CASSINI top text */}
+      {/* CASSINI top text — always light for readability on dark patch */}
       <text
         fill={CREAM}
         fontFamily="Sansation, sans-serif"
@@ -81,7 +122,7 @@ function MissionPatch({ size, className }: { size: number; className?: string })
 
       {/* SATURNIS - SPC bottom text */}
       <text
-        fill={MUTED}
+        fill={colors.muted}
         fontFamily="monospace"
         fontSize="13"
         fontWeight="bold"
@@ -93,33 +134,59 @@ function MissionPatch({ size, className }: { size: number; className?: string })
       </text>
 
       {/* UCL/LCL dashed centerlines */}
-      <line x1="25" y1="80" x2="175" y2="80" stroke={MUTED} strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-      <line x1="25" y1="120" x2="175" y2="120" stroke={MUTED} strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+      <line
+        x1="25"
+        y1="80"
+        x2="175"
+        y2="80"
+        stroke={colors.muted}
+        strokeWidth="1"
+        strokeDasharray="4 4"
+        opacity="0.6"
+      />
+      <line
+        x1="25"
+        y1="120"
+        x2="175"
+        y2="120"
+        stroke={colors.muted}
+        strokeWidth="1"
+        strokeDasharray="4 4"
+        opacity="0.6"
+      />
 
       {/* Planet body */}
-      <circle cx="100" cy="100" r="28" fill={NAVY} stroke={CREAM} strokeWidth="3" />
+      <circle cx="100" cy="100" r="28" fill={colors.navy} stroke={colors.cream} strokeWidth="3" />
 
-      {/* The Ring / Control Chart Centerline */}
+      {/* SPC Control Chart Line */}
       <path
         d="M 25 100 L 60 100 L 80 70 L 120 130 L 140 100 L 175 100"
-        stroke={GOLD}
+        stroke={colors.line}
         strokeWidth="4"
         strokeLinejoin="bevel"
         fill="none"
       />
 
       {/* Normal Data Points */}
-      <circle cx="60" cy="100" r="3" fill={PANEL} stroke={GOLD} strokeWidth="2" />
-      <circle cx="140" cy="100" r="3" fill={PANEL} stroke={GOLD} strokeWidth="2" />
+      <circle cx="60" cy="100" r="3" fill={colors.panel} stroke={colors.line} strokeWidth="2" />
+      <circle cx="140" cy="100" r="3" fill={colors.panel} stroke={colors.line} strokeWidth="2" />
 
       {/* OOC Dot (Anomaly breaching the LCL) */}
-      <circle cx="120" cy="130" r="5" fill={ORANGE} />
+      <circle cx="120" cy="130" r="5" fill={colors.orange} />
     </svg>
   )
 }
 
 /** Standalone icon — planet, SPC line, anomaly dot. Square aspect ratio. */
-function IconMark({ size, className }: { size: number; className?: string }) {
+function IconMark({
+  size,
+  className,
+  colors,
+}: {
+  size: number
+  className?: string
+  colors: ResolvedColors
+}) {
   return (
     <svg
       width={size}
@@ -130,21 +197,29 @@ function IconMark({ size, className }: { size: number; className?: string }) {
       className={className}
       aria-label="Cassini logo"
     >
-      <circle cx="50" cy="50" r="32" fill={NAVY} stroke={CREAM} strokeWidth="4" />
+      <circle cx="50" cy="50" r="32" fill={colors.navy} stroke={colors.cream} strokeWidth="4" />
       <path
         d="M 5 50 L 25 50 L 38 20 L 62 80 L 75 50 L 95 50"
-        stroke={GOLD}
+        stroke={colors.line}
         strokeWidth="6"
         strokeLinejoin="bevel"
         fill="none"
       />
-      <circle cx="62" cy="80" r="7" fill={ORANGE} />
+      <circle cx="62" cy="80" r="7" fill={colors.orange} />
     </svg>
   )
 }
 
 /** Icon + "CASSINI" wordmark. 5:1 aspect ratio. */
-function HorizontalLockup({ height, className }: { height: number; className?: string }) {
+function HorizontalLockup({
+  height,
+  className,
+  colors,
+}: {
+  height: number
+  className?: string
+  colors: ResolvedColors
+}) {
   const width = height * (250 / 50)
   return (
     <svg
@@ -157,20 +232,20 @@ function HorizontalLockup({ height, className }: { height: number; className?: s
       aria-label="Cassini logo"
     >
       <g>
-        <circle cx="25" cy="25" r="16" fill={NAVY} stroke={CREAM} strokeWidth="2.5" />
+        <circle cx="25" cy="25" r="16" fill={colors.navy} stroke={colors.cream} strokeWidth="2.5" />
         <path
           d="M 0 25 L 12 25 L 18 12 L 32 38 L 38 25 L 50 25"
-          stroke={GOLD}
+          stroke={colors.line}
           strokeWidth="3"
           strokeLinejoin="bevel"
           fill="none"
         />
-        <circle cx="32" cy="38" r="3.5" fill={ORANGE} />
+        <circle cx="32" cy="38" r="3.5" fill={colors.orange} />
       </g>
       <text
         x="65"
         y="34"
-        fill={CREAM}
+        fill={colors.cream}
         fontFamily="Sansation, sans-serif"
         fontSize="28"
         fontWeight="bold"
@@ -183,7 +258,15 @@ function HorizontalLockup({ height, className }: { height: number; className?: s
 }
 
 /** Icon above wordmark + subtitle. ~1.3:1 aspect ratio. */
-function StackedLockup({ height, className }: { height: number; className?: string }) {
+function StackedLockup({
+  height,
+  className,
+  colors,
+}: {
+  height: number
+  className?: string
+  colors: ResolvedColors
+}) {
   const width = height * (180 / 140)
   return (
     <svg
@@ -196,20 +279,20 @@ function StackedLockup({ height, className }: { height: number; className?: stri
       aria-label="Cassini logo"
     >
       <g transform="translate(40, 0)">
-        <circle cx="50" cy="50" r="28" fill={NAVY} stroke={CREAM} strokeWidth="3.5" />
+        <circle cx="50" cy="50" r="28" fill={colors.navy} stroke={colors.cream} strokeWidth="3.5" />
         <path
           d="M 10 50 L 30 50 L 40 25 L 60 75 L 70 50 L 90 50"
-          stroke={GOLD}
+          stroke={colors.line}
           strokeWidth="4.5"
           strokeLinejoin="bevel"
           fill="none"
         />
-        <circle cx="60" cy="75" r="5" fill={ORANGE} />
+        <circle cx="60" cy="75" r="5" fill={colors.orange} />
       </g>
       <text
         x="90"
         y="115"
-        fill={CREAM}
+        fill={colors.cream}
         fontFamily="Sansation, sans-serif"
         fontSize="26"
         fontWeight="bold"
@@ -221,7 +304,7 @@ function StackedLockup({ height, className }: { height: number; className?: stri
       <text
         x="90"
         y="132"
-        fill={MUTED}
+        fill={colors.muted}
         fontFamily="monospace"
         fontSize="10"
         fontWeight="bold"

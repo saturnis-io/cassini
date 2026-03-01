@@ -1,0 +1,72 @@
+id: TC-CHAR-009
+title: "Set specification limits (USL, LSL, Target)"
+category: "Characteristic Configuration"
+subcategory: "SpecLimits"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - Process capability and specification limits"
+  - "ISO 22514-2 - Estimating and evaluating the capability and performance of processes"
+  - "ISO 9001:2015 Section 8.2.2 - Determination of requirements related to products"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists with no spec limits set."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Spec Limits Plant"
+        code: "OQSL"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Spec Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Spec Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Spec-Diameter"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Spec-Diameter' in the tree."
+    verify: "Characteristic config panel opens on the right."
+    screenshot: false
+  - step: 2
+    action: "Open the Limits tab (or equivalent section for spec limits)."
+    verify: "Limits tab shows fields for USL, LSL, and Target. Currently all empty or null."
+    screenshot: true
+  - step: 3
+    action: "Enter: USL = 10.05, LSL = 9.95, Target = 10.0."
+    verify: "Fields accept numeric input. USL > LSL is valid."
+    screenshot: true
+  - step: 4
+    action: "Click Save."
+    verify: "Save completes without errors. Success notification appears."
+    screenshot: false
+  - step: 5
+    action: "Refresh the browser page (F5)."
+    verify: "Page reloads. Navigate back to 'OQ-Spec-Diameter' and open the Limits tab."
+    screenshot: false
+  - step: 6
+    action: "Verify spec limit values persisted."
+    verify: "USL = 10.05, LSL = 9.95, Target = 10.0 are displayed in the Limits tab after refresh."
+    screenshot: true
+expected_result: "Specification limits are saved and persist across page reloads. Values match the engineering drawing requirements."
+pass_criteria: "USL=10.05, LSL=9.95, Target=10.0 are displayed correctly in the Limits tab after save and after browser refresh."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

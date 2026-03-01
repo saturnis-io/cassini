@@ -71,6 +71,14 @@ class CharacteristicCreate(BaseModel):
         None, pattern=r"^(deviation|standardized)$",
         description="Short-run chart mode: deviation (subtract target) or standardized (Z-score)"
     )
+    distribution_method: str | None = Field(
+        None,
+        description="Distribution fitting method for non-normal capability (e.g. 'lognormal', 'weibull', 'auto')"
+    )
+    use_laney_correction: bool = Field(
+        default=False,
+        description="Enable Laney p'/u' overdispersion correction (p/u charts only)"
+    )
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -126,6 +134,10 @@ class CharacteristicUpdate(BaseModel):
     decimal_precision: int | None = Field(None, ge=0, le=10)
     use_laney_correction: bool | None = None
     short_run_mode: str | None = Field(None, pattern=r"^(deviation|standardized)$")
+    distribution_method: str | None = Field(
+        None,
+        description="Distribution fitting method for non-normal capability"
+    )
 
 
 class CharacteristicResponse(BaseModel):

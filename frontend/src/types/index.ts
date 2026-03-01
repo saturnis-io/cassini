@@ -3,6 +3,8 @@ export interface AuthUser {
   id: number
   username: string
   email: string | null
+  full_name: string | null
+  pending_email: string | null
   is_active: boolean
   plant_roles: PlantRole[]
 }
@@ -484,6 +486,7 @@ export interface TagMappingCreate {
   trigger_tag: string | null
   broker_id: number
   metric_name: string | null
+  json_path: string | null
 }
 
 export interface TagMappingResponse {
@@ -495,6 +498,7 @@ export interface TagMappingResponse {
   broker_id: number | null
   broker_name: string | null
   metric_name: string | null
+  json_path: string | null
   data_source_id: number
   is_active: boolean
 }
@@ -942,4 +946,59 @@ export interface DistributionFitResponse {
   fits: DistributionFitResultData[]
   best_fit: DistributionFitResultData | null
   recommendation: string
+}
+
+// Brand config types (server-side)
+export interface BrandColorSeedDTO {
+  hex: string
+  light_override?: string | null
+  dark_override?: string | null
+}
+
+export interface LogoColorsDTO {
+  planet?: string | null
+  ring?: string | null
+  line?: string | null
+  dot?: string | null
+}
+
+export interface BrandConfigDTO {
+  app_name?: string | null
+  logo_url?: string | null
+  logo_colors?: LogoColorsDTO | null
+  primary?: BrandColorSeedDTO | null
+  accent?: BrandColorSeedDTO | null
+  destructive?: BrandColorSeedDTO | null
+  warning?: BrandColorSeedDTO | null
+  success?: BrandColorSeedDTO | null
+  heading_font?: string | null
+  body_font?: string | null
+  visual_style?: string | null
+  login_mode?: string | null
+  login_background_url?: string | null
+  preset_id?: string | null
+}
+
+// Display key format (site-wide)
+export interface DisplayKeyFormatDTO {
+  date_pattern: string
+  separator: '-' | '.' | '/' | '#'
+  number_placement: 'after' | 'before'
+  number_digits: number
+}
+
+// System settings
+export interface SystemSettings {
+  date_format: string
+  datetime_format: string
+  brand_config?: BrandConfigDTO | null
+  display_key_format?: DisplayKeyFormatDTO | null
+  updated_at: string
+}
+
+export interface SystemSettingsUpdate {
+  date_format?: string
+  datetime_format?: string
+  brand_config?: BrandConfigDTO | null
+  display_key_format?: DisplayKeyFormatDTO | null
 }

@@ -1,0 +1,69 @@
+id: TC-CHAR-015
+title: "Configure sampling plan (subgroup size and frequency)"
+category: "Characteristic Configuration"
+subcategory: "Sampling"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Manual - Rational subgrouping"
+  - "ISO 3951-1 - Sampling procedures for inspection by variables"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring requirements"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists with subgroup size 5."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Sampling Plant"
+        code: "OQSP"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "Sampling Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "Sampling Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-Sampling-Plan"
+        subgroup_size: 5
+        data_type: "variable"
+        min_measurements: 3
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-Sampling-Plan' in the tree."
+    verify: "Config panel opens."
+    screenshot: false
+  - step: 2
+    action: "Open the Sampling tab (or equivalent section for sampling configuration)."
+    verify: "Sampling configuration shows fields for subgroup size, min measurements, warn below count, and decimal precision."
+    screenshot: true
+  - step: 3
+    action: "Verify subgroup size is 5 (set during creation). Set min_measurements to 3, warn_below_count to 4, decimal_precision to 4."
+    verify: "Fields accept the values. min_measurements <= subgroup_size constraint is met."
+    screenshot: true
+  - step: 4
+    action: "Click Save."
+    verify: "Save completes without errors."
+    screenshot: false
+  - step: 5
+    action: "Refresh browser, navigate back, open Sampling tab."
+    verify: "Values persist: subgroup_size=5, min_measurements=3, warn_below_count=4, decimal_precision=4."
+    screenshot: true
+expected_result: "Sampling plan configuration saves correctly with all parameters, including minimum measurements and warning thresholds."
+pass_criteria: "All sampling parameters (subgroup_size, min_measurements, warn_below_count, decimal_precision) display correct values after save and refresh."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

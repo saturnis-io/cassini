@@ -1,6 +1,7 @@
 import { useCharacteristic, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useUIStore } from '@/stores/uiStore'
+import { Explainable } from '@/components/Explainable'
 import { ChevronRight, ListTree } from 'lucide-react'
 
 export function CharacteristicContextBar() {
@@ -38,8 +39,24 @@ export function CharacteristicContextBar() {
       <div className="text-muted-foreground ml-auto flex shrink-0 items-center gap-3 text-xs">
         <span>n={char.subgroup_size ?? 1}</span>
         {char.target_value != null && <span>Target: {char.target_value}</span>}
-        {char.ucl != null && <span>UCL: {char.ucl.toFixed(precision)}</span>}
-        {char.lcl != null && <span>LCL: {char.lcl.toFixed(precision)}</span>}
+        {char.ucl != null && (
+          <Explainable
+            metric="ucl"
+            resourceId={charId!}
+            resourceType={char.data_type === 'attribute' ? 'attribute' : 'control-limits'}
+          >
+            <span>UCL: {char.ucl.toFixed(precision)}</span>
+          </Explainable>
+        )}
+        {char.lcl != null && (
+          <Explainable
+            metric="lcl"
+            resourceId={charId!}
+            resourceType={char.data_type === 'attribute' ? 'attribute' : 'control-limits'}
+          >
+            <span>LCL: {char.lcl.toFixed(precision)}</span>
+          </Explainable>
+        )}
 
         {/* Expand sidebar hint when collapsed */}
         {sidebarState === 'collapsed' && (

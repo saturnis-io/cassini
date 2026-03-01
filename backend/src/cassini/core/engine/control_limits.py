@@ -10,8 +10,9 @@ Calculation methods:
 - n>10: S-bar / c4 method
 """
 
-import structlog
+import json
 import math
+import structlog
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from cassini.core.events import ControlLimitsUpdatedEvent, EventBus
+from cassini.core.explain import ExplanationCollector
 from cassini.utils.constants import get_c4, get_d2
 from cassini.utils.statistics import (
     estimate_sigma_moving_range,
@@ -112,6 +114,7 @@ class ControlLimitService:
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         last_n: int | None = None,
+        collector: ExplanationCollector | None = None,
     ) -> CalculationResult:
         """Calculate control limits from historical data.
 
@@ -176,14 +179,16 @@ class ControlLimitService:
 
         # Calculate limits based on method
         if method == "moving_range":
-            center_line, ucl, lcl, sigma = self._calculate_moving_range(samples)
+            center_line, ucl, lcl, sigma = self._calculate_moving_range(
+                samples, collector=collector
+            )
         elif method == "r_bar_d2":
             center_line, ucl, lcl, sigma = self._calculate_r_bar(
-                samples, subgroup_size
+                samples, subgroup_size, collector=collector
             )
         else:  # s_bar_c4
             center_line, ucl, lcl, sigma = self._calculate_s_bar(
-                samples, subgroup_size
+                samples, subgroup_size, collector=collector
             )
 
         return CalculationResult(
@@ -255,6 +260,15 @@ class ControlLimitService:
         characteristic.stored_sigma = result.sigma
         characteristic.stored_center_line = result.center_line
 
+        # Store the calculation parameters so Show Your Work can replay exactly
+        characteristic.limits_calc_params = json.dumps({
+            "exclude_ooc": exclude_ooc,
+            "min_samples": min_samples,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "last_n": last_n,
+        })
+
         # Commit changes
         await self._char_repo.session.commit()
 
@@ -313,7 +327,9 @@ class ControlLimitService:
             return "s_bar_c4"
 
     def _calculate_moving_range(
-        self, samples: list
+        self,
+        samples: list,
+        collector: ExplanationCollector | None = None,
     ) -> tuple[float, float, float, float]:
         """Calculate limits for individuals chart (n=1).
 
@@ -326,6 +342,7 @@ class ControlLimitService:
 
         Args:
             samples: List of Sample objects with measurements
+            collector: Optional ExplanationCollector for Show Your Work
 
         Returns:
             Tuple of (center_line, ucl, lcl, sigma)
@@ -344,20 +361,107 @@ class ControlLimitService:
             if measurement_values:
                 values.append(float(np.mean(measurement_values)))
 
+        if collector:
+            collector.input("n (subgroup size)", 1)
+            collector.input("k (samples)", len(values))
+
         # Calculate center line (X-bar)
         center_line = float(np.mean(values))
 
+        if collector:
+            collector.input("\u0078\u0304", round(center_line, 6))
+            collector.step(
+                label="X-bar (Grand Mean)",
+                formula_latex=r"\bar{x} = \frac{\sum x_i}{k}",
+                substitution_latex=(
+                    r"\bar{x} = \frac{"
+                    + str(round(sum(values), 6))
+                    + r"}{"
+                    + str(len(values))
+                    + r"}"
+                ),
+                result=center_line,
+                note="Mean of individual values",
+            )
+
         # Estimate sigma using moving range
         sigma = estimate_sigma_moving_range(values, span=2)
+
+        if collector:
+            # Compute moving ranges for step instrumentation
+            arr = np.asarray(values, dtype=np.float64)
+            moving_ranges = np.abs(np.diff(arr))
+            mr_bar = float(np.mean(moving_ranges))
+            d2 = get_d2(2)
+
+            collector.step(
+                label="MR-bar (Mean Moving Range)",
+                formula_latex=r"\overline{MR} = \frac{\sum |x_i - x_{i-1}|}{k-1}",
+                substitution_latex=(
+                    r"\overline{MR} = \frac{"
+                    + str(round(float(np.sum(moving_ranges)), 6))
+                    + r"}{"
+                    + str(len(moving_ranges))
+                    + r"}"
+                ),
+                result=mr_bar,
+                note="Mean of consecutive absolute differences (span=2)",
+            )
+            collector.step(
+                label="d2 constant (span=2)",
+                formula_latex=r"d_2 = 1.128 \text{ (for span } n=2\text{)}",
+                substitution_latex=r"d_2 = 1.128",
+                result=d2,
+                note="From ASTM E2587 constants table",
+            )
+            collector.step(
+                label="\u03c3 (Process Sigma)",
+                formula_latex=r"\sigma = \frac{\overline{MR}}{d_2}",
+                substitution_latex=(
+                    r"\sigma = \frac{"
+                    + str(round(mr_bar, 6))
+                    + r"}{"
+                    + str(d2)
+                    + r"}"
+                ),
+                result=sigma,
+            )
 
         # Calculate control limits (3-sigma)
         ucl = center_line + 3 * sigma
         lcl = center_line - 3 * sigma
 
+        if collector:
+            collector.step(
+                label="UCL (Upper Control Limit)",
+                formula_latex=r"UCL = \bar{x} + 3\sigma",
+                substitution_latex=(
+                    r"UCL = "
+                    + str(round(center_line, 6))
+                    + r" + 3 \times "
+                    + str(round(sigma, 6))
+                ),
+                result=ucl,
+            )
+            collector.step(
+                label="LCL (Lower Control Limit)",
+                formula_latex=r"LCL = \bar{x} - 3\sigma",
+                substitution_latex=(
+                    r"LCL = "
+                    + str(round(center_line, 6))
+                    + r" - 3 \times "
+                    + str(round(sigma, 6))
+                ),
+                result=lcl,
+            )
+
         return center_line, ucl, lcl, sigma
 
     def _calculate_r_bar(
-        self, samples: list, subgroup_size: int
+        self,
+        samples: list,
+        subgroup_size: int,
+        collector: ExplanationCollector | None = None,
     ) -> tuple[float, float, float, float]:
         """Calculate limits using R-bar/d2 method.
 
@@ -375,6 +479,7 @@ class ControlLimitService:
         Args:
             samples: List of Sample objects with measurements
             subgroup_size: Size of subgroups
+            collector: Optional ExplanationCollector for Show Your Work
 
         Returns:
             Tuple of (center_line, ucl, lcl, sigma)
@@ -390,21 +495,120 @@ class ControlLimitService:
                 subgroup_means.append(float(np.mean(arr)))
                 subgroup_ranges.append(float(np.ptp(arr)))
 
+        if collector:
+            collector.input("n (subgroup size)", subgroup_size)
+            collector.input("k (subgroups)", len(subgroup_means))
+
         # Calculate center line (X-double-bar)
         center_line = float(np.mean(subgroup_means))
+
+        if collector:
+            collector.input("\u0078\u0304\u0304", round(center_line, 6))
+            collector.step(
+                label="X-double-bar (Grand Mean)",
+                formula_latex=r"\bar{\bar{x}} = \frac{\sum \bar{x}_i}{k}",
+                substitution_latex=(
+                    r"\bar{\bar{x}} = \frac{"
+                    + str(round(sum(subgroup_means), 6))
+                    + r"}{"
+                    + str(len(subgroup_means))
+                    + r"}"
+                ),
+                result=center_line,
+                note="Mean of subgroup means",
+            )
 
         # Estimate process sigma using R-bar method
         sigma = estimate_sigma_rbar(subgroup_ranges, subgroup_size)
 
+        if collector:
+            r_bar = float(np.mean(subgroup_ranges))
+            d2 = get_d2(subgroup_size)
+
+            collector.step(
+                label="R-bar (Mean Range)",
+                formula_latex=r"\bar{R} = \frac{\sum R_i}{k}",
+                substitution_latex=(
+                    r"\bar{R} = \frac{"
+                    + str(round(sum(subgroup_ranges), 6))
+                    + r"}{"
+                    + str(len(subgroup_ranges))
+                    + r"}"
+                ),
+                result=r_bar,
+                note="Mean of subgroup ranges",
+            )
+            collector.step(
+                label="d2 constant",
+                formula_latex=r"d_2(n=" + str(subgroup_size) + r")",
+                substitution_latex=r"d_2 = " + str(d2),
+                result=d2,
+                note="From ASTM E2587 constants table",
+            )
+            collector.step(
+                label="\u03c3 (Process Sigma)",
+                formula_latex=r"\sigma = \frac{\bar{R}}{d_2}",
+                substitution_latex=(
+                    r"\sigma = \frac{"
+                    + str(round(r_bar, 6))
+                    + r"}{"
+                    + str(d2)
+                    + r"}"
+                ),
+                result=sigma,
+            )
+
         # Control limits use sigma of the mean (sigma / sqrt(n))
         sigma_xbar = sigma / math.sqrt(subgroup_size)
+
+        if collector:
+            collector.step(
+                label="sigma_xbar (Sigma of the Mean)",
+                formula_latex=r"\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}",
+                substitution_latex=(
+                    r"\sigma_{\bar{x}} = \frac{"
+                    + str(round(sigma, 6))
+                    + r"}{\sqrt{"
+                    + str(subgroup_size)
+                    + r"}}"
+                ),
+                result=sigma_xbar,
+            )
+
         ucl = center_line + 3 * sigma_xbar
         lcl = center_line - 3 * sigma_xbar
+
+        if collector:
+            collector.step(
+                label="UCL (Upper Control Limit)",
+                formula_latex=r"UCL = \bar{\bar{x}} + 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"UCL = "
+                    + str(round(center_line, 6))
+                    + r" + 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=ucl,
+            )
+            collector.step(
+                label="LCL (Lower Control Limit)",
+                formula_latex=r"LCL = \bar{\bar{x}} - 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"LCL = "
+                    + str(round(center_line, 6))
+                    + r" - 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=lcl,
+            )
 
         return center_line, ucl, lcl, sigma
 
     def _calculate_s_bar(
-        self, samples: list, subgroup_size: int
+        self,
+        samples: list,
+        subgroup_size: int,
+        collector: ExplanationCollector | None = None,
     ) -> tuple[float, float, float, float]:
         """Calculate limits using S-bar/c4 method.
 
@@ -422,6 +626,7 @@ class ControlLimitService:
         Args:
             samples: List of Sample objects with measurements
             subgroup_size: Size of subgroups
+            collector: Optional ExplanationCollector for Show Your Work
 
         Returns:
             Tuple of (center_line, ucl, lcl, sigma)
@@ -437,15 +642,111 @@ class ControlLimitService:
                 subgroup_means.append(float(np.mean(arr)))
                 subgroup_stds.append(float(np.std(arr, ddof=1)))
 
+        if collector:
+            collector.input("n (subgroup size)", subgroup_size)
+            collector.input("k (subgroups)", len(subgroup_means))
+
         # Calculate center line (X-double-bar)
         center_line = float(np.mean(subgroup_means))
+
+        if collector:
+            collector.input("\u0078\u0304\u0304", round(center_line, 6))
+            collector.step(
+                label="X-double-bar (Grand Mean)",
+                formula_latex=r"\bar{\bar{x}} = \frac{\sum \bar{x}_i}{k}",
+                substitution_latex=(
+                    r"\bar{\bar{x}} = \frac{"
+                    + str(round(sum(subgroup_means), 6))
+                    + r"}{"
+                    + str(len(subgroup_means))
+                    + r"}"
+                ),
+                result=center_line,
+                note="Mean of subgroup means",
+            )
 
         # Estimate process sigma using S-bar method
         sigma = estimate_sigma_sbar(subgroup_stds, subgroup_size)
 
+        if collector:
+            s_bar = float(np.mean(subgroup_stds))
+            c4 = get_c4(subgroup_size)
+
+            collector.step(
+                label="S-bar (Mean Standard Deviation)",
+                formula_latex=r"\bar{S} = \frac{\sum S_i}{k}",
+                substitution_latex=(
+                    r"\bar{S} = \frac{"
+                    + str(round(sum(subgroup_stds), 6))
+                    + r"}{"
+                    + str(len(subgroup_stds))
+                    + r"}"
+                ),
+                result=s_bar,
+                note="Mean of subgroup standard deviations",
+            )
+            collector.step(
+                label="c4 constant",
+                formula_latex=r"c_4(n=" + str(subgroup_size) + r")",
+                substitution_latex=r"c_4 = " + str(c4),
+                result=c4,
+                note="From ASTM E2587 constants table",
+            )
+            collector.step(
+                label="\u03c3 (Process Sigma)",
+                formula_latex=r"\sigma = \frac{\bar{S}}{c_4}",
+                substitution_latex=(
+                    r"\sigma = \frac{"
+                    + str(round(s_bar, 6))
+                    + r"}{"
+                    + str(c4)
+                    + r"}"
+                ),
+                result=sigma,
+            )
+
         # Control limits use sigma of the mean (sigma / sqrt(n))
         sigma_xbar = sigma / math.sqrt(subgroup_size)
+
+        if collector:
+            collector.step(
+                label="sigma_xbar (Sigma of the Mean)",
+                formula_latex=r"\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}",
+                substitution_latex=(
+                    r"\sigma_{\bar{x}} = \frac{"
+                    + str(round(sigma, 6))
+                    + r"}{\sqrt{"
+                    + str(subgroup_size)
+                    + r"}}"
+                ),
+                result=sigma_xbar,
+            )
+
         ucl = center_line + 3 * sigma_xbar
         lcl = center_line - 3 * sigma_xbar
+
+        if collector:
+            collector.step(
+                label="UCL (Upper Control Limit)",
+                formula_latex=r"UCL = \bar{\bar{x}} + 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"UCL = "
+                    + str(round(center_line, 6))
+                    + r" + 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=ucl,
+            )
+            collector.step(
+                label="LCL (Lower Control Limit)",
+                formula_latex=r"LCL = \bar{\bar{x}} - 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"LCL = "
+                    + str(round(center_line, 6))
+                    + r" - 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=lcl,
+            )
 
         return center_line, ucl, lcl, sigma

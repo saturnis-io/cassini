@@ -1,0 +1,32 @@
+id: TC-CONN-008
+title: "Gages tab loads and renders bridge list"
+category: "Connectivity"
+subcategory: "Gages"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Gage management requires visibility into connected measurement instruments"
+  - "ISO 13485 - Measurement equipment must be identified and their status visible"
+  - "AS9100 - Calibrated instrument connections must be documented"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/gages"
+    verify: "The Gages tab loads. The page header shows 'Gage Bridges' with a count of registered bridges (e.g., '0 bridges registered' if none exist). A 'Register Bridge' button is visible in the top-right area."
+    screenshot: true
+  - step: 2
+    action: "If no bridges are registered, observe the empty state"
+    verify: "An empty state message is displayed indicating no gage bridges are registered, with guidance on how to register one. The 'Register Bridge' button is the clear call-to-action."
+    screenshot: true
+  - step: 3
+    action: "If bridges exist, observe the bridge list"
+    verify: "Each bridge shows its name, last heartbeat timestamp (or 'Never' if no heartbeat received), and an online/offline status indicator. Clicking a bridge expands or navigates to its port configuration."
+    screenshot: false
+expected_result: "The Gages tab renders correctly, showing either the bridge list with status information or an empty state prompt. The Register Bridge button is always visible."
+pass_criteria: "Gages tab loads without errors. Bridge count is displayed. Register Bridge button is present. Empty state or bridge list renders correctly."
+cleanup:
+  - "No cleanup required"

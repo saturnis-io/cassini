@@ -1,0 +1,72 @@
+id: TC-RBAC-004
+title: "Supervisor can access reports page"
+category: "RBAC & Security"
+subcategory: "SupervisorAccess"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation by management"
+  - "IATF 16949 - Management review inputs include process performance data"
+  - "21 CFR Part 11 - Role-appropriate access to quality records"
+preconditions:
+  description: >
+    A supervisor user exists with role 'supervisor' at a specific plant.
+    The plant has characteristics with data so reports have content.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-RBAC"
+    department: "Quality"
+    line: "Inspection-1"
+    characteristic:
+      name: "OQ-RBAC-Char"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    users:
+      - username: "oq-supervisor"
+        password: "Supervisor123!"
+        full_name: "OQ Supervisor User"
+        role: "supervisor"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-supervisor' with password 'Supervisor123!'"
+    verify: "Login succeeds. Dashboard loads."
+    screenshot: false
+  - step: 2
+    action: "Examine the sidebar navigation"
+    verify: >
+      The sidebar shows the following items (supervisor-level):
+      - Dashboard
+      - Data Entry
+      - Violations
+      - Reports
+      The sidebar does NOT show: MSA, FAI, DOE, Analytics, Connectivity,
+      Configuration, Users. Reports is visible because supervisor (level 2)
+      meets the supervisor requirement.
+    screenshot: true
+  - step: 3
+    action: "Click 'Reports' in the sidebar"
+    verify: >
+      The reports page loads at /reports. The page displays report
+      generation options, characteristic selection, and report output
+      area. The supervisor can view and generate reports.
+    screenshot: true
+  - step: 4
+    action: "Verify the supervisor also has all operator-level access"
+    verify: >
+      Click through Dashboard, Data Entry, and Violations in the sidebar.
+      All three pages load successfully. The supervisor inherits all
+      operator permissions.
+    screenshot: false
+expected_result: >
+  A supervisor user can access Reports in addition to all operator-level
+  pages. The sidebar correctly shows four items. Reports page loads and
+  is functional. This confirms the hierarchical role model where each
+  level includes all permissions of lower levels.
+pass_criteria: >
+  Login succeeds. Sidebar shows 4 items including Reports. /reports loads
+  without error. /dashboard, /data-entry, /violations all accessible.
+cleanup:
+  - "Log out the supervisor user"

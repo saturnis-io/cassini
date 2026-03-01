@@ -13,6 +13,8 @@ import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { formatDisplayKey } from '@/lib/display-key'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 
 interface RangeChartProps {
   characteristicId: number
@@ -86,6 +88,7 @@ export function RangeChart({
     chartOptions ?? { limit: 50 },
   )
   const chartColors = useChartColors()
+  const { axisFormats } = useDateFormat()
   const xAxisMode = useDashboardStore((state) => state.xAxisMode)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
@@ -393,15 +396,11 @@ export function RangeChart({
             formatter: (value: number) => {
               const d = new Date(value)
               if (dataTimeRangeMs > 86400000 * 30) {
-                // > 30 days: "Feb 14"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                return applyFormat(d, axisFormats.short)
               } else if (dataTimeRangeMs > 86400000) {
-                // > 1 day: "Feb 14 09:00"
-                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-                  + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                return applyFormat(d, axisFormats.medium)
               }
-              // < 1 day: "09:15"
-              return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              return applyFormat(d, axisFormats.timeOnly)
             },
           },
           splitLine: { show: false },
@@ -537,6 +536,7 @@ export function RangeChart({
     highlightedIndex,
     rangeWindow,
     showBrush,
+    axisFormats,
   ])
 
   // Mouse event handlers

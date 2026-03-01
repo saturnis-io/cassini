@@ -1,0 +1,49 @@
+id: TC-MSA-006
+title: "Verify %GRR result and color coding"
+category: "MSA / Gage R&R"
+subcategory: "ANOVACalculation"
+priority: critical
+regulatory_relevance:
+  - "AIAG MSA 4th Edition - Acceptance criteria: <10% acceptable, 10-30% marginal, >30% unacceptable"
+  - "IATF 16949 - Measurement system acceptance thresholds"
+preconditions:
+  description: "Engineer user is logged in. A crossed ANOVA MSA study 'OQ-GRR-Crossed' has been calculated with data designed so that measurement system variation (EV + AV) is small relative to part variation, producing %GRR < 10% (acceptable). The Results tab is displayed."
+  seed_method: api
+  seed_data:
+    study:
+      name: "OQ-GRR-Crossed"
+      study_type: "crossed_anova"
+      num_operators: 3
+      num_parts: 10
+      num_replicates: 2
+    operators: ["Op-A", "Op-B", "Op-C"]
+    parts: ["Part-01", "Part-02", "Part-03", "Part-04", "Part-05", "Part-06", "Part-07", "Part-08", "Part-09", "Part-10"]
+    measurements: "60 measurements designed for %GRR < 10%"
+    calculated: true
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the completed MSA study 'OQ-GRR-Crossed' and navigate to the Results tab."
+    verify: "The Results tab displays the Gage R&R results. The verdict banner is visible at the top of the results section."
+    screenshot: false
+  - step: 2
+    action: "Examine the verdict banner at the top of the results."
+    verify: "The verdict banner shows 'Acceptable' in green text on a green-tinted background. The %Study GRR value is displayed and is less than 10%. The banner also shows the method name 'Crossed ANOVA' and a note '(<= 10%)' indicating the threshold met."
+    screenshot: true
+  - step: 3
+    action: "Examine the %Study GRR value in the variance components table (the Gage R&R summary row under '%Study Var' column)."
+    verify: "The %Study Var value for Gage R&R is displayed in green color (indicating <= 10%) and matches the value shown in the verdict banner. The value is displayed to 2 decimal places."
+    screenshot: true
+  - step: 4
+    action: "Examine the %Contribution column for all sources."
+    verify: "The %Contribution for Gage R&R is a small percentage (should be well below 10% with the test data). The %Contribution for Part Variation dominates (should be close to or above 90%). The background color of the %Contribution cells matches the AIAG thresholds: green for <= 10%, amber for 10-30%, red for > 30%. All %Contribution values sum to approximately 100%."
+    screenshot: true
+  - step: 5
+    action: "Examine the Interpretation Guide section below the results tables."
+    verify: "An interpretation guide is displayed explaining the AIAG MSA 4th Edition thresholds: '%Study GRR <= 10% = Acceptable measurement system', '%Study GRR 10-30% = Marginal', '%Study GRR > 30% = Unacceptable'. Additional notes on P/T Ratio and ndc thresholds are shown."
+    screenshot: true
+expected_result: "The %GRR value is less than 10%, the verdict is 'Acceptable', and all color coding follows AIAG MSA 4th Edition thresholds (green for acceptable, amber for marginal, red for unacceptable)."
+pass_criteria: "%Study GRR < 10%. Verdict banner shows 'Acceptable' in green. %Contribution for Part Variation > %Contribution for GRR. Color coding is correctly applied to all percentage values in the table. Interpretation guide is present and accurate."
+cleanup:
+  - "Delete MSA study via API: DELETE /msa/studies/{id}"

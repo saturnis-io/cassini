@@ -1,0 +1,63 @@
+id: TC-DATA-011
+title: "Delete a submitted sample"
+category: "Data Entry"
+subcategory: "SampleManagement"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(e) - Audit Trail (deletion logging)"
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists with at least 2 submitted samples so
+    that deleting one still leaves data on the chart. The test user has
+    supervisor role or higher (deletion requires supervisor+).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples:
+      - measurements: [10.02]
+      - measurements: [10.04]
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as supervisor and navigate to /dashboard. Select Bore Diameter characteristic."
+    verify: "Chart shows 2 data points"
+    screenshot: true
+  - step: 2
+    action: "Click on the first data point (10.02) to open sample inspector"
+    verify: "Sample inspector shows measurement = 10.02"
+    screenshot: false
+  - step: 3
+    action: "Click Delete in the sample inspector. Confirm the deletion when prompted."
+    verify: >
+      Confirmation dialog appears. After confirming, success notification.
+      The data point at 10.02 is removed from the chart. Only the point
+      at 10.04 remains.
+    screenshot: true
+  - step: 4
+    action: "Verify via API: GET /samples/?characteristic_id={id}"
+    verify: "Only 1 sample remains (the one at 10.04). The deleted sample is gone."
+    screenshot: false
+
+expected_result: >
+  The sample is permanently deleted along with its measurements and any
+  associated violations (cascade delete via FK). The chart updates to
+  reflect the removal. The audit trail logs the deletion (via
+  AuditMiddleware on the DELETE request).
+
+pass_criteria: >
+  Chart shows one fewer point after deletion. API confirms only 1
+  sample remains. No 404 errors when re-fetching chart data. Rolling
+  window is invalidated and rebuilt.
+
+cleanup:
+  - "Delete remaining sample via API: DELETE /samples/{sample_id}"

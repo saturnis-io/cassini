@@ -39,10 +39,7 @@ test.describe('Notification Settings', () => {
         token,
       )
       for (const wh of all) {
-        if (
-          wh.name === 'E2E Seed Hook' ||
-          wh.name === 'E2E Created Hook'
-        ) {
+        if (wh.name === 'E2E Seed Hook' || wh.name === 'E2E Created Hook') {
           await apiDelete(request, `/notifications/webhooks/${wh.id}`, token)
         }
       }
@@ -51,17 +48,15 @@ test.describe('Notification Settings', () => {
     }
   })
 
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
-    await page.goto('/settings/notifications')
-    await page.waitForTimeout(2000)
-  })
-
   // ---------------------------------------------------------------------------
-  // SMTP Configuration
+  // SMTP Configuration — now lives at /settings/email-webhooks
   // ---------------------------------------------------------------------------
 
   test('SMTP section renders', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     await expect(
       page.getByRole('heading', { name: 'SMTP Configuration' }),
     ).toBeVisible({ timeout: 10000 })
@@ -73,6 +68,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('SMTP form fields visible', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     // Server field
     await expect(page.getByPlaceholder('smtp.example.com')).toBeVisible({
       timeout: 5000,
@@ -82,8 +81,8 @@ test.describe('Notification Settings', () => {
     const portInput = page.locator('input[type="number"]').first()
     await expect(portInput).toBeVisible({ timeout: 5000 })
 
-    // Username field
-    await expect(page.getByPlaceholder('Optional').first()).toBeVisible({
+    // Username field (placeholder changes based on whether one is already configured)
+    await expect(page.getByPlaceholder(/Optional|configured/).first()).toBeVisible({
       timeout: 5000,
     })
 
@@ -103,6 +102,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('SMTP TLS toggle visible', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     await expect(page.getByText('Use TLS')).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('Enable STARTTLS encryption')).toBeVisible({
       timeout: 5000,
@@ -115,6 +118,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('SMTP Active toggle visible', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     await expect(page.getByText('Active').first()).toBeVisible({
       timeout: 5000,
     })
@@ -129,6 +136,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('SMTP Save button works with form data', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     // Verify Save button exists
     const saveButton = page.getByRole('button', { name: 'Save' })
     await expect(saveButton).toBeVisible({ timeout: 5000 })
@@ -144,7 +155,7 @@ test.describe('Notification Settings', () => {
 
     const fromInput = page.getByPlaceholder('noreply@example.com')
     await fromInput.clear()
-    await fromInput.fill('test@openspc.local')
+    await fromInput.fill('test@cassini.local')
 
     await test.info().attach('smtp-form-filled', {
       body: await page.screenshot(),
@@ -162,18 +173,22 @@ test.describe('Notification Settings', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Webhook Configuration
+  // Webhook Configuration — now lives at /settings/email-webhooks
   // ---------------------------------------------------------------------------
 
   test('Webhooks section renders', async ({ page }) => {
-    await expect(
-      page.getByRole('heading', { name: 'Webhooks' }),
-    ).toBeVisible({ timeout: 10000 })
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
+    await expect(page.getByRole('heading', { name: 'Webhooks' })).toBeVisible({
+      timeout: 10000,
+    })
 
     // Add button should be visible
-    await expect(
-      page.getByRole('button', { name: 'Add' }),
-    ).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('button', { name: 'Add' })).toBeVisible({
+      timeout: 5000,
+    })
 
     await test.info().attach('webhooks-section-renders', {
       body: await page.screenshot(),
@@ -182,6 +197,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('Add webhook via create form', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     // Click Add to open create form
     await page.getByRole('button', { name: 'Add' }).click()
 
@@ -206,7 +225,7 @@ test.describe('Notification Settings', () => {
     await createButton.click()
     await page.waitForTimeout(2000)
 
-    // Verify the webhook appears in the list (use exact: true to avoid matching toast notification text)
+    // Verify the webhook appears in the list
     await expect(page.getByText('E2E Created Hook', { exact: true })).toBeVisible({
       timeout: 10000,
     })
@@ -218,6 +237,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('Webhook shows in list with details', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     // Verify the API-seeded webhook is listed with its details
     await expect(page.getByText('E2E Seed Hook')).toBeVisible({
       timeout: 10000,
@@ -236,6 +259,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('Delete webhook removes it from list', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/email-webhooks')
+    await page.waitForTimeout(2000)
+
     // Ensure the seed webhook exists before attempting delete
     await expect(page.getByText('E2E Seed Hook')).toBeVisible({
       timeout: 10000,
@@ -247,9 +274,11 @@ test.describe('Notification Settings', () => {
     })
 
     // Find the delete button for the seed webhook.
-    // The webhook row is: div.border > div (name area) + div (buttons area with delete button)
-    // Use a tight locator: find the row container that has the webhook name text
-    const webhookRow = page.locator('div.border').filter({ hasText: 'E2E Seed Hook' }).first()
+    // The webhook row is: div.bg-background.rounded-lg.border with webhook name + delete button
+    const webhookRow = page
+      .locator('div.rounded-lg.border')
+      .filter({ hasText: 'E2E Seed Hook' })
+      .first()
     await expect(webhookRow).toBeVisible({ timeout: 5000 })
     const deleteButton = webhookRow.getByTitle('Delete webhook')
     await expect(deleteButton).toBeVisible({ timeout: 5000 })
@@ -268,10 +297,14 @@ test.describe('Notification Settings', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // Notification Preferences
+  // Notification Preferences — lives at /settings/notifications (personal prefs)
   // ---------------------------------------------------------------------------
 
   test('Preferences section renders', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/notifications')
+    await page.waitForTimeout(2000)
+
     await expect(
       page.getByRole('heading', { name: 'Notification Preferences' }),
     ).toBeVisible({ timeout: 10000 })
@@ -283,6 +316,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('Preferences table shows events and channels', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/notifications')
+    await page.waitForTimeout(2000)
+
     // Column headers
     await expect(page.getByText('Event').first()).toBeVisible({
       timeout: 5000,
@@ -304,10 +341,10 @@ test.describe('Notification Settings', () => {
 
     // Event descriptions
     await expect(
-      page.getByText('When a Nelson rule violation occurs'),
+      page.getByText('Nelson rule violation on a control chart'),
     ).toBeVisible({ timeout: 5000 })
     await expect(
-      page.getByText('When control limits are recalculated'),
+      page.getByText('Control limits recalculated'),
     ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('preferences-table-content', {
@@ -317,6 +354,10 @@ test.describe('Notification Settings', () => {
   })
 
   test('Toggle a notification preference', async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/settings/notifications')
+    await page.waitForTimeout(2000)
+
     // Wait for the preferences section to load
     await expect(page.getByText('Violation Detected')).toBeVisible({
       timeout: 10000,
@@ -324,14 +365,15 @@ test.describe('Notification Settings', () => {
 
     // Find the first toggle button in the preferences section
     // The preferences section contains toggle buttons (rounded-full) for each event x channel
-    const preferencesSection = page.locator('div').filter({
-      has: page.getByRole('heading', { name: 'Notification Preferences' }),
-    }).first()
+    const preferencesSection = page
+      .locator('div')
+      .filter({
+        has: page.getByRole('heading', { name: 'Notification Preferences' }),
+      })
+      .first()
 
     // Get the first toggle within the preferences grid rows
-    const firstToggle = preferencesSection
-      .locator('button.rounded-full')
-      .first()
+    const firstToggle = preferencesSection.locator('button.rounded-full').first()
 
     await expect(firstToggle).toBeVisible({ timeout: 5000 })
 

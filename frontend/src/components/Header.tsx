@@ -1,14 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Sun, Moon, Monitor, User, LogOut, ChevronDown, Menu, Bell } from 'lucide-react'
+import {
+  Sun,
+  Moon,
+  Monitor,
+  User,
+  LogOut,
+  ChevronDown,
+  Menu,
+  Sigma,
+  Bell,
+  Globe,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useAuth } from '@/providers/AuthProvider'
 import { ROLE_LABELS } from '@/lib/roles'
 import { useUIStore } from '@/stores/uiStore'
+import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
 import { usePendingApprovals } from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
+import { CassiniLogo } from '@/components/login/CassiniLogo'
+import { deriveLogoColors } from '@/lib/brand-engine'
 
 interface HeaderProps {
   className?: string
@@ -28,15 +42,18 @@ interface HeaderProps {
 export function Header({ className, plantSelector }: HeaderProps) {
   const { t } = useTranslation('auth')
   const { t: tNav } = useTranslation('navigation')
-  const { theme, setTheme, brandConfig } = useTheme()
+  const { theme, setTheme, brandConfig, fullBrandConfig } = useTheme()
   const { user, role, logout } = useAuth()
   const { appName, logoUrl } = brandConfig
-  const defaultLogo = '/header-logo.svg'
+
+  const derivedLogoColors = useMemo(() => deriveLogoColors(fullBrandConfig), [fullBrandConfig])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [pendingMenuOpen, setPendingMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const pendingMenuRef = useRef<HTMLDivElement>(null)
   const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
+  const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
+  const toggleShowYourWork = useShowYourWorkStore((s) => s.toggle)
   const { selectedPlant } = usePlant()
   const { data: pendingData } = usePendingApprovals(selectedPlant?.id)
   const pendingCount = pendingData?.items?.length ?? 0
@@ -90,7 +107,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
   return (
     <header
-      className={cn('bg-card flex h-12 items-center justify-between border-b px-4', className)}
+      className={cn('bg-card relative z-10 flex h-12 items-center justify-between border-b px-4', className)}
     >
       {/* Left: Hamburger (mobile) + Logo and app name */}
       <div className="flex items-center gap-2.5">
@@ -101,14 +118,18 @@ export function Header({ className, plantSelector }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <img
-          src={logoUrl || defaultLogo}
-          alt={`${appName} logo`}
-          className="h-9 w-9 object-contain"
-        />
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={`${appName} logo`}
+            className="h-9 w-9 object-contain"
+          />
+        ) : (
+          <CassiniLogo variant="icon" size={36} brandColors={derivedLogoColors} />
+        )}
         <span
           className="hidden text-lg font-bold sm:inline"
-          style={{ fontFamily: "'Sansation', sans-serif" }}
+          style={{ fontFamily: 'var(--font-heading)' }}
         >
           {appName}
         </span>
@@ -163,6 +184,32 @@ export function Header({ className, plantSelector }: HeaderProps) {
         >
           {getThemeIcon()}
           <span className="hidden sm:inline">{getThemeLabel()}</span>
+        </button>
+
+        {/* TODO: Temporary galaxy link — remove when Easter egg is implemented */}
+        <a
+          href="/galaxy"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
+          title="Galaxy View"
+        >
+          <Globe className="h-4 w-4" />
+        </a>
+
+        {/* Show Your Work toggle */}
+        <button
+          onClick={toggleShowYourWork}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
+            showYourWorkEnabled
+              ? 'bg-primary/10 text-primary border-primary/30 border'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+          )}
+          title={showYourWorkEnabled ? 'Show Your Work: ON' : 'Show Your Work: OFF'}
+        >
+          <Sigma className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {showYourWorkEnabled ? 'Showing Work' : 'Show Work'}
+          </span>
         </button>
 
         {/* User menu */}

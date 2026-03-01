@@ -22,6 +22,7 @@ class TagMappingCreate(BaseModel):
     trigger_tag: str | None = Field(None, max_length=500)
     broker_id: int
     metric_name: str | None = Field(None, max_length=255)
+    json_path: str | None = Field(None, max_length=500)
 
 
 class TagMappingResponse(BaseModel):
@@ -36,6 +37,7 @@ class TagMappingResponse(BaseModel):
     broker_id: int | None = None
     broker_name: str | None = None
     metric_name: str | None = None
+    json_path: str | None = None
     is_active: bool = True
 
 
@@ -54,6 +56,7 @@ class TagPreviewRequest(BaseModel):
     broker_id: int
     topic: str = Field(..., min_length=1, max_length=500)
     duration_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
+    json_path: str | None = Field(None, max_length=500)
 
 
 class TagPreviewResponse(BaseModel):

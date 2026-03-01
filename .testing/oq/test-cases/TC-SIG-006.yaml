@@ -1,0 +1,59 @@
+id: TC-SIG-006
+title: "Reject pending approval"
+category: "Electronic Signatures"
+subcategory: "Rejection"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Documented rejection with reason in electronic records"
+  - "ISO 13485 Section 8.3 - Control of nonconforming outputs with documented disposition"
+  - "AS9102 - FAI rejection with documented rationale"
+preconditions:
+  description: >
+    A workflow instance exists in pending status at Step 1 (Engineer Review).
+    An engineer user is logged in with the required role. The engineer knows
+    their password. The workflow has at least one pending step.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-engineer"
+      password: "TestPass123!"
+      role: "engineer"
+    workflow_instance:
+      workflow_name: "OQ-Approval-Flow"
+      current_step: 1
+      status: "pending"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the engineer user. Navigate to /settings/signatures and open the Pending Approvals section."
+    verify: "Pending Approvals shows the workflow instance with current step 'Engineer Review'."
+    screenshot: true
+  - step: 2
+    action: "Click on the pending approval item. Instead of signing, click the 'Reject' button."
+    verify: "The RejectDialog opens. It shows fields for: Password input and Reason text area. A 'Reject' or 'Confirm Rejection' button is visible."
+    screenshot: true
+  - step: 3
+    action: "Enter the engineer's password. Enter reason: 'Insufficient data -- FAI report missing dimensional measurements for features 5-8'. Click 'Reject' or 'Confirm Rejection'."
+    verify: "Success notification appears indicating the workflow was rejected. The dialog closes."
+    screenshot: true
+  - step: 4
+    action: "Check the Pending Approvals section"
+    verify: "The rejected item no longer appears in the pending approvals list."
+    screenshot: true
+  - step: 5
+    action: "Verify via API: POST /signatures/reject returns success"
+    verify: "Response is { message: 'Workflow rejected' }. The workflow instance status is 'rejected'."
+    screenshot: false
+expected_result: >
+  The engineer rejects the workflow step with a documented reason. The
+  workflow status changes to 'rejected'. The rejection reason is recorded.
+  The item is removed from the Pending Approvals dashboard. No further
+  steps can be signed on this workflow instance.
+pass_criteria: >
+  Rejection completes without error. Reason 'Insufficient data -- FAI report
+  missing dimensional measurements for features 5-8' is recorded. Workflow
+  status is 'rejected'. Item no longer appears in pending approvals.
+cleanup:
+  - "No cleanup required -- rejected workflow instances are historical records"

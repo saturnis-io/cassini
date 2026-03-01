@@ -1,0 +1,45 @@
+id: TC-VIOL-004
+title: "Nelson Rule 4 -- 14 consecutive points alternating up and down"
+category: "Violations & Rules"
+subcategory: "NelsonRule4"
+priority: high
+regulatory_relevance:
+  - "ISO 7870-2 - Control Charts, Rule 4 (alternating pattern)"
+  - "AIAG SPC Reference Manual - Special cause test #4 (systematic variation)"
+preconditions:
+  description: "A variable characteristic (I-MR, subgroup_size=1) exists with all 8 Nelson rules enabled. 20 in-control samples have been submitted and control limits calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Rule4"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 20
+      values_description: "20 samples from a normal distribution around 10.0 with sigma approximately 0.02. Use a non-alternating pattern to avoid pre-existing Rule 4 triggers. Example: 10.01, 10.02, 9.99, 9.98, 10.01, 10.00, 9.97, 10.03, 10.01, 9.99, 10.00, 10.02, 9.98, 10.01, 10.00, 9.99, 10.02, 10.01, 9.98, 10.00. After submission, recalculate control limits."
+    post_seed:
+      - "Recalculate control limits via POST /characteristics/{id}/recalculate-limits"
+      - "Verify no Rule 4 violations exist"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /data-entry. Select 'OQ-VIOL-Rule4'. Submit 14 consecutive samples that alternate up and down relative to each other: 10.02, 9.98, 10.03, 9.97, 10.02, 9.98, 10.03, 9.97, 10.02, 9.98, 10.03, 9.97, 10.02, 9.98. Each value alternates direction from the previous. Submit each individually."
+    verify: "The first 13 alternating samples do not trigger Rule 4. On the 14th alternating sample, the response includes a violation with rule_id=4. The notification indicates an alternating/oscillation pattern."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /dashboard and select 'OQ-VIOL-Rule4'."
+    verify: "The control chart shows all 34 points. The last 14 points display a clear zigzag (sawtooth) pattern. A WARNING violation marker is visible at the 14th alternating point."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /violations."
+    verify: "A violation exists for 'OQ-VIOL-Rule4' with rule_id=4, severity='WARNING'. The rule_name indicates alternating or oscillation."
+    screenshot: false
+expected_result: "Submitting 14 consecutively alternating measurements triggers a Nelson Rule 4 violation with WARNING severity, indicating over-adjustment or two-stream mixing."
+pass_criteria: "Rule 4 violation is created with rule_id=4 and severity=WARNING. The violation triggers on the 14th consecutive alternating point. The zigzag pattern is visible on the chart."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Rule4' and all associated data via API"

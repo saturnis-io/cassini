@@ -1,0 +1,76 @@
+id: TC-CTRL-011
+title: "Specification limit lines display on chart"
+category: "Control Charts"
+subcategory: "ControlLimits"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Specification Limits vs Control Limits"
+  - "ISO 9001:2015 Section 8.5.1 - Control of Production (specification compliance)"
+  - "IATF 16949 Section 8.3.5.2 - Manufacturing Process Design Output"
+
+preconditions:
+  description: >
+    An I-MR characteristic must exist with both spec limits (USL=10.10,
+    LSL=9.90) and control limits calculated from 30+ samples. The spec
+    limits should be WIDER than the control limits (the process is
+    capable) to clearly distinguish the two line types.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Bore Diameter Spec"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+    samples: "30 measurements centered at 10.00, sigma ~0.015"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Bore Diameter Spec"
+    verify: "Chart renders with both control limits and spec limits visible"
+    screenshot: true
+  - step: 2
+    action: "Identify the spec limit lines vs control limit lines"
+    verify: >
+      Spec limit lines (USL at 10.10, LSL at 9.90) are visually distinct
+      from control limit lines (UCL, LCL). Different line styles are
+      used (e.g., spec limits may be solid red while control limits
+      are dashed blue, or similar visual differentiation).
+    screenshot: true
+  - step: 3
+    action: "Verify the target line if displayed"
+    verify: >
+      A target reference line at 10.00 may be shown (typically as a
+      distinct third line style). The target is the engineering
+      nominal, not the process center line.
+    screenshot: false
+  - step: 4
+    action: "Verify via API: GET /characteristics/{id}/chart-data"
+    verify: >
+      Response includes spec_limits: {usl: 10.10, lsl: 9.90, target: 10.00}
+      separately from control_limits: {ucl: ..., lcl: ..., center_line: ...}
+    screenshot: false
+
+expected_result: >
+  Spec limits and control limits are both displayed on the chart with
+  clear visual differentiation. This distinction is critical in SPC:
+  control limits come from the PROCESS (statistical calculation from
+  data), while spec limits come from the ENGINEERING requirement
+  (customer or design tolerance). A process can be in statistical
+  control but out of specification (not capable), or in specification
+  but out of control (unstable).
+
+pass_criteria: >
+  Both USL and LSL lines visible at 10.10 and 9.90. UCL and LCL lines
+  visible at different Y-values. Different visual styles distinguish
+  spec from control limits. API confirms both limit sets.
+
+cleanup:
+  - "Delete seeded data via API"

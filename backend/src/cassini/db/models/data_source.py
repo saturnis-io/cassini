@@ -89,6 +89,7 @@ class MQTTDataSource(DataSource):
     )
     topic: Mapped[str] = mapped_column(String(500), nullable=False)
     metric_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    json_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     trigger_tag: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     broker: Mapped[Optional["MQTTBroker"]] = relationship("MQTTBroker")

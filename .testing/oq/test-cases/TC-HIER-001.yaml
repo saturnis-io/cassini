@@ -1,0 +1,47 @@
+id: TC-HIER-001
+title: "Create a new plant"
+category: "Plants & Hierarchy"
+subcategory: "Plants"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 4.3 - Determining the scope of the quality management system"
+  - "ISO 9001:2015 Section 7.5 - Documented information"
+preconditions:
+  description: "Admin user exists and is logged in. No plant with code 'OQ01' exists."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin user (admin / admin)."
+    verify: "Dashboard loads successfully. User is authenticated."
+    screenshot: false
+  - step: 2
+    action: "Navigate to Settings > Sites (/settings/sites)."
+    verify: "Plant management page loads. Existing plants are listed (at minimum, the Default plant)."
+    screenshot: true
+  - step: 3
+    action: "Click the 'Add Plant' button."
+    verify: "Plant creation form or dialog appears with fields for Name, Code, and Active toggle."
+    screenshot: true
+  - step: 4
+    action: "Enter Name: 'OQ Test Plant Alpha', Code: 'OQ01'. Leave Active toggled on."
+    verify: "Fields accept input. Code auto-uppercases or is already uppercase."
+    screenshot: false
+  - step: 5
+    action: "Click Save / Create."
+    verify: "Plant is created without errors. A success notification appears."
+    screenshot: false
+  - step: 6
+    action: "Verify the new plant appears in the plant list on /settings/sites."
+    verify: "'OQ Test Plant Alpha' with code 'OQ01' is visible in the list. Active status is true."
+    screenshot: true
+  - step: 7
+    action: "Open the plant switcher in the header bar."
+    verify: "'OQ Test Plant Alpha' appears as an option in the plant switcher dropdown."
+    screenshot: true
+expected_result: "A new plant is successfully created with the specified name and code, appears in both the settings list and the header plant switcher, and is immediately available for use."
+pass_criteria: "Plant appears in /settings/sites list with correct name and code. Plant appears in the header plant switcher dropdown."
+cleanup:
+  - "Delete plant 'OQ01' via API: DELETE /plants/{id}"

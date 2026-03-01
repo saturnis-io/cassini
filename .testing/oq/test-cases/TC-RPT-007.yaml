@@ -1,0 +1,41 @@
+id: TC-RPT-007
+title: "Report filters by date range"
+category: "Reports & Export"
+subcategory: "Filtering"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Reports must accurately represent the specified time period"
+  - "ISO 13485 - Management review data must correspond to the review period"
+  - "IATF 16949 - Periodic capability reports must cover the specified production window"
+preconditions:
+  description: "Logged in as supervisor or higher. A characteristic exists with sample data spread across multiple dates (at least samples on 3 different days). The Characteristic Summary template is selected."
+  seed_method: api
+  seed_data:
+    characteristic: "Variable characteristic with samples across at least a 7-day span"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports. Select 'Characteristic Summary' template. Select a characteristic with data spanning multiple dates."
+    verify: "Report preview renders showing data points from the default time range."
+    screenshot: false
+  - step: 2
+    action: "Note the number of data points shown in the control chart and the count in the statistics section"
+    verify: "The report shows a baseline count of data points (e.g., 50 points from the default 'Last 50 points' range)."
+    screenshot: true
+  - step: 3
+    action: "Use the TimeRangeSelector to switch to 'Duration' mode and set it to 'Last 24 hours'"
+    verify: "The report preview updates. If sample data was entered more than 24 hours ago, the chart should show fewer data points than the previous view. If all data is within 24 hours, the count may be the same."
+    screenshot: true
+  - step: 4
+    action: "Switch the TimeRangeSelector to 'Custom' mode. Set the start date to 3 days ago and end date to 1 day ago."
+    verify: "The report preview updates to show only data points with timestamps within the specified range. Data points outside the custom range are excluded. The statistics section recalculates based on only the filtered data."
+    screenshot: true
+  - step: 5
+    action: "Set the custom date range to a period with no data (e.g., a date range far in the past)"
+    verify: "The report preview shows empty sections. The control chart shows no data points. Statistics show N/A or zero counts. No error is displayed -- an empty date range is handled gracefully."
+    screenshot: true
+expected_result: "The time range filter controls which data appears in the report. Changing the time range updates the chart, statistics, and violations to reflect only data within the selected window."
+pass_criteria: "Changing time range visibly changes the report content. Custom date range limits data to the specified window. Empty date range shows empty report without errors. Statistics recalculate for the filtered data."
+cleanup:
+  - "No cleanup required"

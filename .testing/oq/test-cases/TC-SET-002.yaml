@@ -1,0 +1,42 @@
+id: TC-SET-002
+title: "Change theme to dark mode and verify persistence"
+category: "Settings & Admin"
+subcategory: "Appearance"
+priority: medium
+regulatory_relevance:
+  - "ISO 9241-303 - Requirements for electronic visual displays (readability)"
+  - "Usability: Operator preference for dark mode in low-light manufacturing environments"
+preconditions:
+  description: >
+    Any authenticated user is logged in. The current theme is set to the
+    default (light mode). The application is running in a browser with
+    localStorage enabled.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/appearance."
+    verify: "The Appearance settings tab loads. Theme selector is visible showing the current theme (likely 'Light'). Visual style selector is also visible."
+    screenshot: true
+  - step: 2
+    action: "Select 'Dark' theme from the theme selector."
+    verify: "The UI immediately switches to dark mode. Background colors change to dark tones. Text changes to light colors. The transition is smooth (no flash of unstyled content). No page reload occurs."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /dashboard."
+    verify: "The dashboard page renders in dark mode. Charts, sidebar, and header all use dark theme colors."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page (F5 or Ctrl+R)."
+    verify: "After refresh, the application remains in dark mode. The theme preference was persisted to localStorage and restored on page load."
+    screenshot: true
+  - step: 5
+    action: "Navigate back to /settings/appearance. Select 'Light' theme to restore the default."
+    verify: "The UI switches back to light mode immediately. Background returns to light colors, text to dark colors."
+    screenshot: false
+expected_result: "Dark mode applies immediately without page reload. The preference persists across page refreshes via localStorage. Switching back to light mode also applies immediately."
+pass_criteria: "Theme change is instant (no reload). Dark mode persists after F5 refresh. All pages render correctly in dark mode (no broken styles or invisible text)."
+cleanup:
+  - "Ensure theme is reset to 'Light' for subsequent tests"

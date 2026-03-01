@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pencil, Trash2, MessageSquare, Clock, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 import type { Annotation } from '@/types'
 
@@ -18,6 +19,7 @@ export function AnnotationDetailPopover({
   anchorPosition,
   onClose,
 }: AnnotationDetailPopoverProps) {
+  const { formatDateTime } = useDateFormat()
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(annotation.text)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -125,12 +127,7 @@ export function AnnotationDetailPopover({
                       <div key={entry.id} className="text-muted-foreground text-[11px]">
                         <div className="mb-0.5 flex items-center gap-1.5">
                           <span className="text-[10px]">
-                            {new Date(entry.changed_at).toLocaleString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatDateTime(entry.changed_at)}
                           </span>
                           {entry.changed_by && (
                             <span className="text-[10px]">&mdash; {entry.changed_by}</span>
@@ -159,12 +156,12 @@ export function AnnotationDetailPopover({
             )}
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <Clock className="h-3 w-3" />
-              <span>Created {new Date(annotation.created_at).toLocaleString()}</span>
+              <span>Created {formatDateTime(annotation.created_at)}</span>
             </div>
             {annotation.updated_at !== annotation.created_at && (
               <div className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Clock className="h-3 w-3" />
-                <span>Updated {new Date(annotation.updated_at).toLocaleString()}</span>
+                <span>Updated {formatDateTime(annotation.updated_at)}</span>
               </div>
             )}
           </div>

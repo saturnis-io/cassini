@@ -1,0 +1,61 @@
+id: TC-AUDIT-004
+title: "Audit trail captures DELETE operations"
+category: "Audit Trail & Retention"
+subcategory: "AuditLog"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Record deletions must be attributable and non-repudiable"
+  - "ISO 9001:2015 Section 7.5.3 - Disposition of documented information"
+  - "IATF 16949 - Controlled disposal of quality records"
+preconditions:
+  description: >
+    An engineer or admin user exists. A characteristic named 'OQ-Audit-Delete-Test'
+    exists that can be deleted via the configuration page or API.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Audit"
+    department: "Quality"
+    line: "Inspection-Line-1"
+    characteristic:
+      name: "OQ-Audit-Delete-Test"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer or admin and navigate to /configuration"
+    verify: "Configuration page loads with hierarchy tree"
+    screenshot: false
+  - step: 2
+    action: "Select the 'OQ-Audit-Delete-Test' characteristic in the hierarchy tree"
+    verify: "The characteristic detail panel loads"
+    screenshot: false
+  - step: 3
+    action: "Delete the characteristic (click delete button, confirm deletion in the dialog)"
+    verify: "Success toast appears confirming deletion. The characteristic is removed from the hierarchy tree."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /settings/audit-log"
+    verify: "Audit log viewer loads"
+    screenshot: false
+  - step: 5
+    action: "Look for the most recent entries in the audit log"
+    verify: >
+      A 'Delete' action entry is visible for resource type 'Characteristic'.
+      The entry shows: the current user's username, action 'Delete', resource
+      type 'Characteristic', and the resource ID of the deleted characteristic.
+      The timestamp is within the last few minutes.
+    screenshot: true
+expected_result: >
+  Deleting a characteristic generates an audit trail entry with action
+  'delete', resource type 'characteristic', attributed to the logged-in
+  user with a recent timestamp.
+pass_criteria: >
+  The audit log contains a 'delete' entry for the characteristic with the
+  correct username and resource ID. API verification:
+  GET /audit/logs?action=delete&resource_type=characteristic returns a
+  recent entry matching the deleted resource.
+cleanup:
+  - "No cleanup required -- characteristic has been deleted as part of the test"

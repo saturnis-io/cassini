@@ -7,6 +7,7 @@ import { useFormValidation } from '@/hooks/useFormValidation'
 import { sampleEditSchema } from '@/schemas/data-entry'
 import { inputErrorClass } from '@/lib/validation'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Sample } from '@/types'
 import { formatDisplayKey } from '@/lib/display-key'
 
@@ -17,6 +18,7 @@ interface SampleEditModalProps {
 }
 
 export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProps) {
+  const { formatDateTime } = useDateFormat()
   const [measurements, setMeasurements] = useState<string[]>([])
   const [reason, setReason] = useState('')
   const updateSample = useUpdateSample()
@@ -99,7 +101,7 @@ export function SampleEditModal({ isOpen, sample, onClose }: SampleEditModalProp
         <div className="space-y-4">
           {/* Sample Info */}
           <div className="text-muted-foreground text-sm">
-            <span>Timestamp: {new Date(sample.timestamp).toLocaleString()}</span>
+            <span>Timestamp: {formatDateTime(sample.timestamp)}</span>
           </div>
 
           {/* Measurement Inputs */}

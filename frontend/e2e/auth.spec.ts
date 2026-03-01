@@ -12,7 +12,7 @@ test.describe('Authentication', () => {
 
     await page.locator('#username').fill('admin')
     await page.locator('#password').fill('admin')
-    await page.getByRole('button', { name: 'Sign In' }).click()
+    await page.getByRole('button', { name: 'Log In' }).click()
     await page.waitForURL('**/dashboard', { timeout: 15000 })
     await expect(page).toHaveURL(/\/dashboard/)
 
@@ -26,10 +26,15 @@ test.describe('Authentication', () => {
     await page.goto('/login')
     await page.locator('#username').fill('admin')
     await page.locator('#password').fill('wrongpassword')
-    await page.getByRole('button', { name: 'Sign In' }).click()
+    await page.getByRole('button', { name: 'Log In' }).click()
 
-    // Error message should appear
-    await expect(page.locator('.bg-destructive\\/10')).toBeVisible({ timeout: 5000 })
+    // Wait for the request to complete — button returns from "Signing in..." to "Log In"
+    await expect(page.getByRole('button', { name: 'Log In' })).toBeVisible({ timeout: 15000 })
+
+    // Error message should appear (styled with inline rgba background)
+    await expect(
+      page.locator('div').filter({ hasText: /Invalid|credentials|failed|error/i }).first(),
+    ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('login-error-message', {
       body: await page.screenshot(),

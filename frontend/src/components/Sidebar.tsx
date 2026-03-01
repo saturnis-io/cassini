@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -26,6 +26,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { useViolationStats, useDevToolsStatus } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useAuth } from '@/providers/AuthProvider'
+import { usePlant } from '@/providers/PlantProvider'
 import { canAccessView, type Role } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
 import { HierarchyTodoList } from './HierarchyTodoList'
@@ -63,10 +64,16 @@ export function Sidebar({ className }: SidebarProps) {
     setMobileSidebarOpen,
     characteristicsPanelOpen,
     setCharacteristicsPanelOpen,
+    navSectionCollapsed,
+    setNavSectionCollapsed,
+    sidebarWidth,
+    setSidebarWidth,
   } = useUIStore()
   const wsConnected = useDashboardStore((state) => state.wsConnected)
+  const { selectedPlant } = usePlant()
   const { data: stats } = useViolationStats({
     refetchInterval: wsConnected ? false : undefined,
+    plant_id: selectedPlant?.id,
   })
   const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
@@ -75,6 +82,42 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isCollapsed = sidebarState === 'collapsed'
   const isHidden = sidebarState === 'hidden'
+
+  // Drag-to-resize sidebar width
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeStartRef = useRef({ x: 0, width: 0 })
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      resizeStartRef.current = { x: e.clientX, width: sidebarWidth }
+      setIsResizing(true)
+    },
+    [sidebarWidth],
+  )
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeStartRef.current.x
+      setSidebarWidth(resizeStartRef.current.width + delta)
+    }
+
+    const handleMouseUp = () => setIsResizing(false)
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+    }
+  }, [isResizing, setSidebarWidth])
 
   // Only show the Characteristics tree on pages that use it
   const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(
@@ -115,19 +158,7 @@ export function Sidebar({ className }: SidebarProps) {
     },
   ]
 
-  const secondaryNavItems: NavItem[] = [
-    {
-      path: '/connectivity',
-      labelKey: 'connectivity',
-      icon: <Network className="h-5 w-5" />,
-      requiredRole: 'engineer',
-    },
-    {
-      path: '/configuration',
-      labelKey: 'configuration',
-      icon: <ListTree className="h-5 w-5" />,
-      requiredRole: 'engineer',
-    },
+  const studyNavItems: NavItem[] = [
     {
       path: '/msa',
       labelKey: 'msa',
@@ -143,6 +174,15 @@ export function Sidebar({ className }: SidebarProps) {
       commercial: true,
     },
     {
+      path: '/doe',
+      labelKey: 'doe',
+      icon: <FlaskConical className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+  ]
+
+  const systemNavItems: NavItem[] = [
+    {
       path: '/analytics',
       labelKey: 'analytics',
       icon: <TrendingUp className="h-5 w-5" />,
@@ -150,9 +190,15 @@ export function Sidebar({ className }: SidebarProps) {
       commercial: true,
     },
     {
-      path: '/doe',
-      labelKey: 'doe',
-      icon: <FlaskConical className="h-5 w-5" />,
+      path: '/connectivity',
+      labelKey: 'connectivity',
+      icon: <Network className="h-5 w-5" />,
+      requiredRole: 'engineer',
+    },
+    {
+      path: '/configuration',
+      labelKey: 'configuration',
+      icon: <ListTree className="h-5 w-5" />,
       requiredRole: 'engineer',
       commercial: true,
     },
@@ -162,6 +208,9 @@ export function Sidebar({ className }: SidebarProps) {
       icon: <Settings className="h-5 w-5" />,
       requiredRole: 'engineer',
     },
+  ]
+
+  const adminNavItems: NavItem[] = [
     {
       path: '/admin/users',
       labelKey: 'users',
@@ -179,7 +228,17 @@ export function Sidebar({ className }: SidebarProps) {
       (!item.requiredRole || canAccessView(role, item.path)) &&
       (!item.commercial || isCommercial),
   )
-  const visibleSecondaryItems = secondaryNavItems.filter(
+  const visibleStudyItems = studyNavItems.filter(
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
+  )
+  const visibleSystemItems = systemNavItems.filter(
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      (!item.commercial || isCommercial),
+  )
+  const visibleAdminItems = adminNavItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
       (!item.commercial || isCommercial),
@@ -223,14 +282,41 @@ export function Sidebar({ className }: SidebarProps) {
     )
   }
 
+  const sectionLabel = (text: string, forMobile: boolean) =>
+    (!forMobile && isCollapsed) ? null : (
+      <div className="text-muted-foreground px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider">
+        {text}
+      </div>
+    )
+
   const navContent = (forMobile = false) => (
     <>
       {visibleMainItems.map((item) => renderNavItem(item, forMobile))}
 
-      {/* Divider - only show if there are secondary items */}
-      {visibleSecondaryItems.length > 0 && <div className="my-2 border-t" />}
+      {/* Studies section */}
+      {visibleStudyItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {sectionLabel('Studies', forMobile)}
+          {visibleStudyItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
 
-      {visibleSecondaryItems.map((item) => renderNavItem(item, forMobile))}
+      {/* System section */}
+      {visibleSystemItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {visibleSystemItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
+
+      {/* Admin section */}
+      {visibleAdminItems.length > 0 && (
+        <>
+          <div className="my-2 border-t" />
+          {visibleAdminItems.map((item) => renderNavItem(item, forMobile))}
+        </>
+      )}
 
       {/* Dev Tools — sandbox mode only */}
       {showDevTools && (
@@ -297,7 +383,7 @@ export function Sidebar({ className }: SidebarProps) {
             'bg-card relative hidden h-full flex-col border-r transition-[width] duration-200 ease-in-out md:flex',
             className,
           )}
-          style={{ width: isCollapsed ? 56 : 260 }}
+          style={{ width: isCollapsed ? 56 : sidebarWidth }}
         >
           {/* ── Collapse/expand toggle — top of sidebar ── */}
           <div className="border-border flex h-10 shrink-0 items-center border-b px-2">
@@ -320,48 +406,83 @@ export function Sidebar({ className }: SidebarProps) {
             </button>
           </div>
 
-          {/* ── Navigation items — always visible, never collapses ── */}
-          <nav className="space-y-0.5 overflow-y-auto px-2 py-2">{navContent(false)}</nav>
-
-          {/* ── Characteristics section — only on dashboard/data-entry/reports ── */}
-          {showCharacteristics && (
+          {/* ── Sidebar content: two layouts based on page type ── */}
+          {!isCollapsed && showCharacteristics ? (
+            /* Characteristic pages (expanded): collapsible nav + flex-1 characteristics */
             <>
+              {/* Collapsible navigation */}
+              <div className="shrink-0">
+                <button
+                  onClick={() => setNavSectionCollapsed(!navSectionCollapsed)}
+                  className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 py-2 text-[10px] font-semibold uppercase tracking-wider"
+                >
+                  <span>Navigation</span>
+                  {navSectionCollapsed ? (
+                    <ChevronRight className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </button>
+                {!navSectionCollapsed && (
+                  <nav className="space-y-0.5 px-2 pb-2">
+                    {navContent(false)}
+                  </nav>
+                )}
+              </div>
+
               <div className="border-border mx-2 border-t" />
 
-              {isCollapsed ? (
-                /* Collapsed: tree icon that expands sidebar */
-                <div className="flex flex-col items-center py-2">
-                  <button
-                    onClick={toggleSidebar}
-                    className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-10 w-10 items-center justify-center rounded-lg transition-colors"
-                    title="Show characteristics"
-                  >
-                    <ListTree className="h-5 w-5" />
-                  </button>
-                </div>
-              ) : (
-                /* Expanded: collapsible characteristics panel */
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <button
-                    onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
-                    className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider"
-                  >
-                    <span>Characteristics</span>
-                    {characteristicsPanelOpen ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                  </button>
-
-                  {characteristicsPanelOpen && (
-                    <div className="min-h-0 flex-1">
-                      <HierarchyTodoList embedded className="h-full" />
-                    </div>
+              {/* Characteristics — takes all remaining space */}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <button
+                  onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
+                  className="text-muted-foreground hover:text-foreground flex w-full shrink-0 items-center justify-between px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                >
+                  <span>Characteristics</span>
+                  {characteristicsPanelOpen ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
                   )}
-                </div>
+                </button>
+                {characteristicsPanelOpen && (
+                  <div className="min-h-0 flex-1">
+                    <HierarchyTodoList embedded className="h-full" />
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Non-characteristic pages or collapsed sidebar: normal layout */
+            <>
+              <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
+                {navContent(false)}
+              </nav>
+              {showCharacteristics && isCollapsed && (
+                <>
+                  <div className="border-border mx-2 border-t" />
+                  <div className="flex flex-col items-center py-2">
+                    <button
+                      onClick={toggleSidebar}
+                      className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-10 w-10 items-center justify-center rounded-lg transition-colors"
+                      title="Show characteristics"
+                    >
+                      <ListTree className="h-5 w-5" />
+                    </button>
+                  </div>
+                </>
               )}
             </>
+          )}
+
+          {/* Resize handle — right edge */}
+          {!isCollapsed && (
+            <div
+              className="group absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize"
+              onMouseDown={handleResizeStart}
+            >
+              <div className="bg-primary/0 group-hover:bg-primary/30 absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors" />
+            </div>
           )}
         </aside>
       )}

@@ -1,0 +1,62 @@
+id: TC-SET-014
+title: "Assign engineer role to user for a plant"
+category: "Settings & Admin"
+subcategory: "RBAC"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Limiting system access to authorized individuals"
+  - "21 CFR Part 11 Section 11.10(g) - Use of authority checks to control system access"
+  - "ISO 13485 Section 6.2 - Ensuring personnel competence through role assignment"
+  - "AS9100 Section 7.2 - Separation of duties via role hierarchy"
+preconditions:
+  description: >
+    An admin user is logged in. A user 'oq-newuser' exists (from TC-SET-013
+    or seeded via API) with no plant roles assigned. A plant exists to
+    assign the role against.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Role Plant"
+        code: "OQRP"
+        is_active: true
+    user:
+      method: POST
+      endpoint: "/users/"
+      body:
+        username: "oq-roleuser"
+        password: "OqRole123!"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /admin/users. Find 'oq-roleuser' in the user table."
+    verify: "User 'oq-roleuser' is visible in the table. No plant roles are listed for this user."
+    screenshot: true
+  - step: 2
+    action: "Click on the 'oq-roleuser' row to open the user detail/edit view."
+    verify: "User detail view opens showing the user's information and a role assignment section. The role assignment section shows plant selection and role selection controls."
+    screenshot: true
+  - step: 3
+    action: "In the role assignment section, select plant 'OQ Role Plant' and role 'engineer'."
+    verify: "Plant dropdown shows 'OQ Role Plant'. Role dropdown shows 'engineer'."
+    screenshot: true
+  - step: 4
+    action: "Click 'Assign' or 'Save' to assign the role."
+    verify: "Success indication. The user's role list now shows: OQ Role Plant = engineer. The role assignment is immediately effective."
+    screenshot: true
+  - step: 5
+    action: "Log out. Log in as 'oq-roleuser' with password 'OqRole123!'."
+    verify: "Login succeeds. After selecting 'OQ Role Plant', the sidebar shows engineer-level items: Dashboard, Data Entry, Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Settings. The engineer-restricted items are visible."
+    screenshot: true
+  - step: 6
+    action: "Navigate to /settings."
+    verify: "The settings page shows engineer-appropriate tabs including Signatures, API Keys, Database, Retention, Reports (in addition to the personal tabs). Admin-only tabs (Sites, Branding, Localization, Email & Webhooks, SSO, Audit Log, AI) are NOT visible."
+    screenshot: true
+expected_result: "The engineer role is assigned to 'oq-roleuser' for 'OQ Role Plant'. The user can log in and sees engineer-level navigation and settings tabs. Admin-only features remain hidden."
+pass_criteria: "Role assignment succeeds. Logging in as the user shows engineer-level sidebar. Settings page shows engineer-appropriate tabs. API verification: GET /users/{user_id} shows plant_roles including {plant_id: X, role: 'engineer'}."
+cleanup:
+  - "Delete user via API: DELETE /users/{user_id} then DELETE /users/{user_id}/permanent"
+  - "Delete plant via API"

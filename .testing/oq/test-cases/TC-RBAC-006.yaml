@@ -1,0 +1,58 @@
+id: TC-RBAC-006
+title: "Engineer can access Connectivity Hub"
+category: "RBAC & Security"
+subcategory: "EngineerAccess"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.1.5 - Monitoring and measuring resources"
+  - "IATF 16949 - Control of data collection equipment and connectivity"
+  - "IEC 62443 - Industrial communication network security (authorized configuration)"
+preconditions:
+  description: >
+    An engineer user 'oq-engineer' exists with engineer role at OQ-Plant-RBAC.
+    The Connectivity page is at /connectivity and requires engineer+ role.
+  seed_method: api
+  seed_data:
+    users:
+      - username: "oq-engineer"
+        password: "Engineer123!"
+        role: "engineer"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-engineer' and navigate to /connectivity"
+    verify: >
+      The Connectivity Hub page loads at /connectivity. The page shows
+      a tabbed interface with tabs for: Monitor, Servers, Browse,
+      Mapping, Gages, and Integrations.
+    screenshot: true
+  - step: 2
+    action: "Click through each tab to verify they load"
+    verify: >
+      - Monitor tab: Shows connection status for configured data sources
+      - Servers tab: Lists MQTT brokers and OPC-UA servers
+      - Browse tab: OPC-UA node browser interface
+      - Mapping tab: Tag-to-characteristic mapping configuration
+      - Gages tab: Gage bridge and serial port configuration
+      - Integrations tab: ERP connector configuration
+      Each tab loads without access denied errors.
+    screenshot: true
+  - step: 3
+    action: "Verify the connectivity link is visible in the sidebar"
+    verify: >
+      The sidebar shows 'Connectivity' (with network icon) in the system
+      section. This confirms the engineer role meets the connectivity
+      page requirement.
+    screenshot: false
+expected_result: >
+  An engineer user can access the full Connectivity Hub with all tabs.
+  This allows engineers to configure data sources, manage gage bridges,
+  and set up ERP integrations -- all part of the quality engineer's
+  responsibility for data collection infrastructure.
+pass_criteria: >
+  /connectivity loads without error. All 6 tabs are accessible and
+  load their content. No access denied errors. Sidebar shows Connectivity.
+cleanup:
+  - "No cleanup required"

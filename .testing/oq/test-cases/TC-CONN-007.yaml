@@ -1,0 +1,36 @@
+id: TC-CONN-007
+title: "Delete OPC-UA server configuration"
+category: "Connectivity"
+subcategory: "OPCUA"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Removal of measurement system components must be documented"
+  - "21 CFR Part 11 - Configuration deletion is an auditable event"
+preconditions:
+  description: "Logged in as engineer or higher. An OPC-UA server named 'OQ Delete OPC-UA' exists in the server list."
+  seed_method: api
+  seed_data:
+    server: "OPC-UA server named 'OQ Delete OPC-UA' with any valid endpoint"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads showing 'OQ Delete OPC-UA' in the list."
+    screenshot: true
+  - step: 2
+    action: "Click the delete button (trash icon) on the 'OQ Delete OPC-UA' server row"
+    verify: "A confirmation dialog appears asking to confirm deletion."
+    screenshot: true
+  - step: 3
+    action: "Confirm the deletion"
+    verify: "A success toast appears. The server 'OQ Delete OPC-UA' is removed from the list."
+    screenshot: true
+  - step: 4
+    action: "Navigate away and back to the Servers tab"
+    verify: "The server is still absent. Deletion persisted to the backend."
+    screenshot: false
+expected_result: "An OPC-UA server can be deleted with confirmation. The deletion persists across navigation."
+pass_criteria: "Delete requires confirmation. After confirmation, server is removed. Toast confirms deletion. Server does not reappear."
+cleanup:
+  - "No cleanup required -- the test server has been deleted"

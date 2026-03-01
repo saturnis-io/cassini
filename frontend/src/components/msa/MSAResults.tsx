@@ -2,11 +2,15 @@ import { useMemo, useState, useRef, useCallback } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
+import { Explainable } from '@/components/Explainable'
+import { IshikawaDiagram } from '@/components/IshikawaDiagram'
 import type { ECOption } from '@/lib/echarts'
 import type { GageRRResult } from '@/api/client'
+import type { IshikawaResult } from '@/api/hooks/useIshikawa'
 
 interface MSAResultsProps {
   result: GageRRResult
+  studyId: number
 }
 
 const VERDICT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -96,8 +100,62 @@ function pctBg(pct: number): string {
   return 'bg-red-500/10'
 }
 
-export function MSAResults({ result }: MSAResultsProps) {
+/** Transform GageRRResult into IshikawaResult for fishbone visualization */
+function grrToIshikawa(result: GageRRResult): IshikawaResult {
+  const categories = [
+    {
+      name: 'Measurement',
+      eta_squared: result.pct_contribution_ev / 100,
+      p_value: null,
+      significant: result.pct_contribution_ev > 10,
+      sufficient_data: true,
+      factors: [{ name: `EV (${result.repeatability_ev.toFixed(4)})`, sample_count: 0 }],
+      detail: 'Equipment Variation (Repeatability)',
+    },
+    {
+      name: 'Personnel',
+      eta_squared: result.pct_contribution_av / 100,
+      p_value: null,
+      significant: result.pct_contribution_av > 10,
+      sufficient_data: true,
+      factors: [
+        { name: `AV (${result.reproducibility_av.toFixed(4)})`, sample_count: 0 },
+        ...(result.pct_contribution_interaction != null
+          ? [{ name: `Interaction (${result.pct_contribution_interaction.toFixed(1)}%)`, sample_count: 0 }]
+          : []),
+      ],
+      detail: 'Appraiser Variation (Reproducibility)',
+    },
+    {
+      name: 'Material',
+      eta_squared: result.pct_contribution_pv / 100,
+      p_value: null,
+      significant: result.pct_contribution_pv > 50,
+      sufficient_data: true,
+      factors: [{ name: `PV (${result.part_variation.toFixed(4)})`, sample_count: 0 }],
+      detail: 'Part Variation',
+    },
+    // Empty categories to complete the fishbone
+    { name: 'Method', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+    { name: 'Equipment', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+    { name: 'Environment', eta_squared: null, p_value: null, significant: false, sufficient_data: false, factors: [], detail: '' },
+  ]
+
+  return {
+    effect: 'Measurement Variation',
+    total_variance: result.total_variation ** 2,
+    sample_count: 0,
+    categories,
+    analysis_window: { start_date: null, end_date: null, limit: null },
+    warnings: [],
+  }
+}
+
+export function MSAResults({ result, studyId }: MSAResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.unacceptable
+  const [varianceView, setVarianceView] = useState<'bar' | 'fishbone'>('bar')
+
+  const fishboneData = useMemo(() => grrToIshikawa(result), [result])
 
   // Variance components bar chart
   const chartOption = useMemo<ECOption>(() => {
@@ -161,31 +219,72 @@ export function MSAResults({ result }: MSAResultsProps) {
             {METHOD_LABELS[result.method] ?? result.method}
           </span>
           <span className="text-muted-foreground text-xs">
-            %Study GRR = {result.pct_study_grr.toFixed(1)}%
+            %Study GRR ={' '}
+            <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
+              {result.pct_study_grr.toFixed(1)}%
+            </Explainable>
             {result.pct_study_grr < 10 ? ' (\u226410%)' : result.pct_study_grr <= 30 ? ' (10-30%)' : ' (>30%)'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">ndc =</span>
-          <span
-            className={cn(
-              'rounded-full px-3 py-1 text-sm font-bold',
-              result.ndc >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
-            )}
-          >
-            {result.ndc}
-          </span>
+          <Explainable metric="ndc" resourceId={studyId} resourceType="msa">
+            <span
+              className={cn(
+                'rounded-full px-3 py-1 text-sm font-bold',
+                result.ndc >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
+              )}
+            >
+              {result.ndc}
+            </span>
+          </Explainable>
           <Tip id="ndc" />
         </div>
       </div>
 
       {/* Variance components chart */}
       <div className="border-border rounded-xl border p-4">
-        <h3 className="mb-2 text-sm font-medium">
-          % Contribution (Variance Components)
-          <Tip id="pct_contribution" />
-        </h3>
-        <div ref={containerRef} style={{ width: '100%', height: 200 }} />
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-medium">
+            % Contribution (Variance Components)
+            <Tip id="pct_contribution" />
+          </h3>
+          <div className="bg-muted inline-flex rounded-md p-0.5 text-xs">
+            <button
+              onClick={() => setVarianceView('bar')}
+              className={cn(
+                'rounded px-2.5 py-1 font-medium transition-colors',
+                varianceView === 'bar'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Bar Chart
+            </button>
+            <button
+              onClick={() => setVarianceView('fishbone')}
+              className={cn(
+                'rounded px-2.5 py-1 font-medium transition-colors',
+                varianceView === 'fishbone'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Fishbone
+            </button>
+          </div>
+        </div>
+        <div
+          ref={containerRef}
+          style={{
+            width: '100%',
+            height: 200,
+            display: varianceView === 'bar' ? 'block' : 'none',
+          }}
+        />
+        {varianceView === 'fishbone' && (
+          <IshikawaDiagram data={fishboneData} height={280} />
+        )}
       </div>
 
       {/* %Contribution table */}
@@ -222,7 +321,9 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_ev.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_ev))}>
-                {result.pct_study_ev.toFixed(2)}%
+                <Explainable metric="pct_study_ev" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_ev.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
@@ -236,7 +337,9 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_av.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_av))}>
-                {result.pct_study_av.toFixed(2)}%
+                <Explainable metric="pct_study_av" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_av.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
@@ -266,11 +369,15 @@ export function MSAResults({ result }: MSAResultsProps) {
                 {result.pct_contribution_grr.toFixed(2)}%
               </td>
               <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_study_grr))}>
-                {result.pct_study_grr.toFixed(2)}%
+                <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
+                  {result.pct_study_grr.toFixed(2)}%
+                </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && (
                 <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_tolerance_grr))}>
-                  {result.pct_tolerance_grr.toFixed(2)}%
+                  <Explainable metric="pct_tolerance_grr" resourceId={studyId} resourceType="msa">
+                    {result.pct_tolerance_grr.toFixed(2)}%
+                  </Explainable>
                 </td>
               )}
             </tr>
@@ -337,7 +444,11 @@ export function MSAResults({ result }: MSAResultsProps) {
                   <td className="px-4 py-2 text-right tabular-nums">{row.df ?? '-'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{row.MS != null ? row.MS.toFixed(6) : '-'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
-                    {row.F != null ? row.F.toFixed(4) : '-'}
+                    {row.F != null && ['operator', 'part', 'interaction'].includes(source) ? (
+                      <Explainable metric={`f_${source}`} resourceId={studyId} resourceType="msa">
+                        {row.F.toFixed(4)}
+                      </Explainable>
+                    ) : row.F != null ? row.F.toFixed(4) : '-'}
                   </td>
                   <td
                     className={cn(

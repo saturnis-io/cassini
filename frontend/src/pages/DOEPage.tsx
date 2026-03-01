@@ -8,6 +8,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useDOEStudies, useDeleteStudy } from '@/api/hooks'
 
@@ -31,15 +32,8 @@ const STATUS_FILTERS = [
   { value: 'analyzed', label: 'Analyzed' },
 ] as const
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 export function DOEPage() {
+  const { formatDate } = useDateFormat()
   const navigate = useNavigate()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0

@@ -1,0 +1,41 @@
+id: TC-CONN-012
+title: "Monitor tab shows server status cards"
+category: "Connectivity"
+subcategory: "Monitor"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Real-time visibility into data collection system health is required for production oversight"
+  - "ISO 13485 - Monitoring of measurement system availability supports quality management"
+  - "21 CFR Part 11 - Data acquisition system status must be observable by authorized personnel"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected. At least one MQTT broker or OPC-UA server is configured (from previous CONN tests or seeded). Alternatively, test with no servers to verify empty state."
+  seed_method: api
+  seed_data:
+    servers: "At least one MQTT broker and/or OPC-UA server configured for the selected plant"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/monitor (or /connectivity, which defaults to the Monitor tab)"
+    verify: "The Monitor tab loads. A brief loading indicator may appear while server statuses are fetched."
+    screenshot: false
+  - step: 2
+    action: "Observe the connectivity metrics section at the top"
+    verify: "The ConnectivityMetrics component shows aggregate counts: total servers configured, number connected, number disconnected, and messages per second (likely 0 without active data flow)."
+    screenshot: true
+  - step: 3
+    action: "Observe the data flow pipeline visualization"
+    verify: "The DataFlowPipeline component shows a visual representation of the data path: sources (MQTT/OPC-UA/Serial) through the message broker into the SPC engine. Connection lines may be grayed out for disconnected sources."
+    screenshot: true
+  - step: 4
+    action: "Observe the server status grid"
+    verify: "The ServerStatusGrid shows status cards for each configured server. Each card displays: server name, protocol type (MQTT or OPC-UA), connection status (Connected/Disconnected), and relevant details. For servers without a real endpoint, status shows 'Disconnected' (expected). Cards may include a button to navigate to the server's configuration."
+    screenshot: true
+  - step: 5
+    action: "If no servers are configured, observe the empty state instead"
+    verify: "When no servers are configured, the Monitor tab shows an empty state with a message like 'No servers configured' and a prompt to add servers via the Servers tab."
+    screenshot: true
+expected_result: "The Monitor tab provides a real-time operational dashboard showing connectivity health at a glance. Server status cards display connection state for each configured server."
+pass_criteria: "Monitor tab loads without errors. Connectivity metrics section shows counts. Server status cards (or empty state) render correctly. Status auto-refreshes (cards update periodically via 5-second polling)."
+cleanup:
+  - "No cleanup required -- Monitor tab is read-only"

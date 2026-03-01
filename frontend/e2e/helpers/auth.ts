@@ -8,7 +8,7 @@ export async function loginAsAdmin(page: Page) {
   await page.goto('/login')
   await page.locator('#username').fill('admin')
   await page.locator('#password').fill('admin')
-  await page.getByRole('button', { name: 'Sign In', exact: true }).click()
+  await page.getByRole('button', { name: 'Log In', exact: true }).click()
   await page.waitForURL('**/dashboard', { timeout: 15000 })
   await expect(page.locator('body')).toBeVisible()
 }
@@ -21,7 +21,7 @@ export async function loginAsUser(page: Page, username: string, password: string
   await page.goto('/login')
   await page.locator('#username').fill(username)
   await page.locator('#password').fill(password)
-  await page.getByRole('button', { name: 'Sign In', exact: true }).click()
+  await page.getByRole('button', { name: 'Log In', exact: true }).click()
   await page.waitForURL('**/dashboard', { timeout: 15000 })
   await expect(page.locator('body')).toBeVisible()
 }

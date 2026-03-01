@@ -77,6 +77,7 @@ async def list_mappings(
                 broker_id=src.broker_id,
                 broker_name=broker.name if broker else None,
                 metric_name=src.metric_name,
+                json_path=src.json_path,
                 is_active=src.is_active,
             )
         )
@@ -117,6 +118,17 @@ async def create_mapping(
             detail=f"Broker {data.broker_id} not found"
         )
 
+    # Validate json_path syntax if provided
+    if data.json_path:
+        try:
+            from jsonpath_ng import parse as jsonpath_parse
+            jsonpath_parse(data.json_path)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid JSONPath expression: {data.json_path}"
+            )
+
     # Delete existing data source if present
     ds_repo = DataSourceRepository(session)
     await ds_repo.delete_for_characteristic(data.characteristic_id)
@@ -129,6 +141,7 @@ async def create_mapping(
         metric_name=data.metric_name,
         trigger_tag=data.trigger_tag,
         trigger_strategy=data.trigger_strategy,
+        json_path=data.json_path,
     )
 
     await session.commit()
@@ -151,6 +164,7 @@ async def create_mapping(
         broker_id=broker.id,
         broker_name=broker.name,
         metric_name=source.metric_name,
+        json_path=source.json_path,
         is_active=source.is_active,
     )
 
@@ -233,14 +247,34 @@ async def preview_topic(
 
             # Non-SparkplugB or fallback: decode as UTF-8 text
             raw = payload.decode("utf-8", errors="replace")[:200]
-            # Try to parse as float, otherwise keep as string
-            try:
-                value: float | str | bool = float(raw.strip())
-            except ValueError:
-                if raw.strip().lower() in ("true", "false"):
-                    value = raw.strip().lower() == "true"
-                else:
-                    value = raw.strip()
+
+            # If json_path provided, extract from JSON
+            if data.json_path:
+                try:
+                    import json
+                    from jsonpath_ng import parse as jsonpath_parse
+                    parsed = json.loads(raw)
+                    expr = jsonpath_parse(data.json_path)
+                    matches = expr.find(parsed)
+                    if matches:
+                        extracted = matches[0].value
+                        try:
+                            value: float | str | bool = float(extracted)
+                        except (TypeError, ValueError):
+                            value = str(extracted)
+                    else:
+                        value = f"[no match for {data.json_path}]"
+                except json.JSONDecodeError:
+                    value = f"[not valid JSON: {raw[:50]}]"
+            else:
+                # Original behavior — try float, then bool, then string
+                try:
+                    value = float(raw.strip())
+                except ValueError:
+                    if raw.strip().lower() in ("true", "false"):
+                        value = raw.strip().lower() == "true"
+                    else:
+                        value = raw.strip()
 
             collected_values.append(
                 TagPreviewValue(

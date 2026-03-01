@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useERPSyncLogs } from '@/api/hooks'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -20,6 +21,7 @@ const PAGE_SIZE = 10
  * Shows status, direction, record counts, timestamps, and expandable error details.
  */
 export function SyncLogViewer({ connectorId }: { connectorId: number }) {
+  const { formatDateTime } = useDateFormat()
   const [page, setPage] = useState(0)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const { data, isLoading } = useERPSyncLogs(
@@ -115,7 +117,7 @@ export function SyncLogViewer({ connectorId }: { connectorId: number }) {
                         )}
                       </td>
                       <td className="text-muted-foreground py-1.5 pr-2">
-                        {new Date(log.started_at).toLocaleString()}
+                        {formatDateTime(log.started_at)}
                       </td>
                       <td className="text-muted-foreground py-1.5">
                         {duration !== null ? `${duration}s` : '--'}

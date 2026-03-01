@@ -1,0 +1,48 @@
+id: TC-CAP-015
+title: "Insufficient data warning for capability calculation"
+category: "Capability Analysis"
+subcategory: "Cpk"
+priority: medium
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Minimum sample size for capability studies"
+  - "ISO 22514 - Statistical significance of capability estimates"
+preconditions:
+  description: "A variable characteristic exists with USL=10.05, LSL=9.95, and target=10.0. Only 5 individual samples have been submitted (well below the recommended 30+ subgroups for meaningful capability). Control limits may or may not be calculated. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-InsufficientData"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.05
+      lsl: 9.95
+      target_value: 10.0
+    samples:
+      count: 5
+      values_description: "Only 5 individual measurements: 10.01, 9.99, 10.02, 9.98, 10.00. This is far below the minimum 30 subgroups recommended by AIAG for a capability study. Control limits may be calculated but the capability estimate is unreliable."
+    post_seed:
+      - "Recalculate control limits (may succeed with 5 samples but limits are unreliable)"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-InsufficientData'."
+    verify: "The control chart loads showing only 5 data points."
+    screenshot: true
+  - step: 2
+    action: "Examine the Capability Card below the control chart."
+    verify: "The Capability Card either: (a) Shows a warning message indicating insufficient data for reliable capability analysis (e.g., 'Insufficient data: 5 measurements. At least 30 subgroups recommended for reliable capability estimates'), or (b) Displays the capability indices but with a warning indicator (yellow warning icon, cautionary text) noting the low sample count, or (c) Shows the sample count prominently (sample_count=5) so the user can judge reliability."
+    screenshot: true
+  - step: 3
+    action: "Verify via API: call GET /characteristics/{id}/capability."
+    verify: "The API either: (a) Returns capability indices with sample_count=5, allowing the consumer to assess reliability, or (b) Returns a warning or reduced-confidence indication. The response includes sample_count=5, making the limited data basis transparent."
+    screenshot: false
+  - step: 4
+    action: "If capability indices are displayed, verify they are reasonable but unstable."
+    verify: "With only 5 data points, the calculated indices may be present but should not be relied upon for production decisions. The sample_count field clearly shows 5, enabling the engineer to recognize the limitation."
+    screenshot: false
+expected_result: "When insufficient data exists for a reliable capability study (fewer than 20-30 subgroups), the system either displays a warning message or shows the capability indices with a clear indication of the low sample count, preventing over-reliance on statistically unreliable estimates."
+pass_criteria: "The system communicates the data limitation clearly -- either through a warning message, a visual indicator, or by prominently displaying the low sample count. The user is not misled into thinking 5 samples constitute a reliable capability study."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-InsufficientData' and all associated data via API"

@@ -1,0 +1,80 @@
+id: TC-AUTH-015
+title: "Login as each role level and verify appropriate sidebar visibility"
+category: "Authentication & Accounts"
+subcategory: "RBAC"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Authority checks; limiting system access to authorized individuals"
+  - "ISO 13485 - Role-appropriate access to quality management system"
+  - "IATF 16949 - Defined organizational roles with appropriate access"
+  - "AS9100 - Separation of duties enforcement"
+preconditions:
+  description: "Four test users exist, each with a different role at the same plant. Use the OQ config credentials or create via API: oq-operator (operator), oq-supervisor (supervisor), oq-engineer (engineer), admin (admin). All users have passwords matching the OQ config (OqTest123! for test users, 'admin' for admin). At least one plant exists."
+  seed_method: api
+  seed_data:
+    users:
+      - username: "oq-operator"
+        password: "OqTest123!"
+        role: "operator"
+      - username: "oq-supervisor"
+        password: "OqTest123!"
+        role: "supervisor"
+      - username: "oq-engineer"
+        password: "OqTest123!"
+        role: "engineer"
+      - username: "admin"
+        password: "admin"
+        role: "admin"
+    notes: "Each user must have the specified role at the same plant. Create users and assign roles via POST /users/ and POST /users/{id}/roles."
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as oq-operator / OqTest123!"
+    verify: "Dashboard loads. Sidebar shows: Dashboard, Data Entry, Violations. Sidebar does NOT show: Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Users. Settings IS visible (personal tabs accessible to all)."
+    screenshot: true
+  - step: 2
+    action: "Navigate to /reports by typing the URL directly"
+    verify: "Access is denied or the user is redirected. Operators cannot access supervisor-level routes."
+    screenshot: true
+  - step: 3
+    action: "Navigate to /settings/account"
+    verify: "Account settings page loads. Only personal tabs are visible in the settings sidebar: Account, Appearance, Notifications. Organization, security, and data tabs are NOT visible."
+    screenshot: true
+  - step: 4
+    action: "Log out. Log in as oq-supervisor / OqTest123!"
+    verify: "Dashboard loads. Sidebar shows: Dashboard, Data Entry, Violations, Reports. Sidebar does NOT show: MSA, FAI, DOE, Analytics, Connectivity, Configuration, Users."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /configuration by typing the URL directly"
+    verify: "Access is denied or the user is redirected. Supervisors cannot access engineer-level routes."
+    screenshot: true
+  - step: 6
+    action: "Log out. Log in as oq-engineer / OqTest123!"
+    verify: "Dashboard loads. Sidebar shows: Dashboard, Data Entry, Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Settings. Sidebar does NOT show: Users (admin section)."
+    screenshot: true
+  - step: 7
+    action: "Navigate to /settings"
+    verify: "Settings page loads. Visible tabs include personal tabs (Account, Appearance, Notifications) plus engineer-level tabs (Signatures, API Keys, Database, Retention, Reports). Admin-only tabs (Sites, Branding, Localization, Email & Webhooks, SSO, Audit Log, AI) are NOT visible."
+    screenshot: true
+  - step: 8
+    action: "Navigate to /admin/users by typing the URL directly"
+    verify: "Access is denied. Engineers cannot access admin-level routes."
+    screenshot: true
+  - step: 9
+    action: "Log out. Log in as admin / admin"
+    verify: "Dashboard loads. Sidebar shows ALL items: Dashboard, Data Entry, Violations, Reports, MSA, FAI, DOE, Analytics, Connectivity, Configuration, Settings, Users."
+    screenshot: true
+  - step: 10
+    action: "Navigate to /settings"
+    verify: "Settings page loads. ALL tabs are visible including admin-only tabs: Sites, Branding, Localization, Email & Webhooks, SSO, Audit Log, AI."
+    screenshot: true
+  - step: 11
+    action: "Navigate to /admin/users"
+    verify: "User Management page loads successfully. The admin has full access to all routes."
+    screenshot: true
+expected_result: "Each role level sees only the sidebar items and settings tabs appropriate to their privilege level. The role hierarchy is strictly enforced: operator < supervisor < engineer < admin. Both sidebar visibility and direct URL access are gated by role."
+pass_criteria: "For each of the 4 roles: (1) sidebar items match the expected set for that role, (2) direct URL access to higher-privilege routes is blocked, (3) settings tabs match the expected set. All 4 roles tested in sequence."
+cleanup:
+  - "Log out the final user"
+  - "Optionally deactivate test users (oq-operator, oq-supervisor, oq-engineer) if not needed for other tests"

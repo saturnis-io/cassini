@@ -283,6 +283,7 @@ function CreateGroupDialog({
             <HierarchyMultiSelector
               selectedIds={selectedCharIds}
               onSelectionChange={setSelectedCharIds}
+              plantId={plantId}
               className="border-border max-h-48 rounded-lg border"
             />
 

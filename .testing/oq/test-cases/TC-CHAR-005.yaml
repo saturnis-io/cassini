@@ -1,0 +1,55 @@
+id: TC-CHAR-005
+title: "Create c-chart characteristic"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Manual - c Chart (Section III)"
+  - "ISO 7870-1 - Attribute control charts"
+preconditions:
+  description: "Engineer user is logged in. A station node exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ C-Chart Plant"
+        code: "OQCC"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "C-Chart Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "C-Chart Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'C-Chart Station'."
+    verify: "Station node selected."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Characteristic'. Enter: Name: 'OQ-Scratch-Count', Data Type: Attribute, Attribute Chart Type: c (defect count)."
+    verify: "c chart type is selectable. This chart counts defects per inspection unit with a fixed area of opportunity."
+    screenshot: true
+  - step: 3
+    action: "Click Create/Save."
+    verify: "Characteristic created."
+    screenshot: false
+  - step: 4
+    action: "Open config panel for 'OQ-Scratch-Count'."
+    verify: "Config shows: Data Type = Attribute, Attribute Chart Type = c."
+    screenshot: true
+expected_result: "A c-chart (defect count per unit) attribute characteristic is created."
+pass_criteria: "Characteristic shows data_type=attribute, attribute_chart_type=c."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

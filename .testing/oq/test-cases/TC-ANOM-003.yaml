@@ -1,0 +1,74 @@
+id: TC-ANOM-003
+title: "Run on-demand anomaly analysis with mean shift"
+category: "Anomaly Detection"
+subcategory: "Analysis"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation of data"
+  - "IATF 16949 Section 9.1.1.1 - Statistical process control analysis"
+  - "ICH Q10 - Continuous improvement through advanced analytics"
+preconditions:
+  description: >
+    An engineer user is logged in. A characteristic exists with at least
+    100 samples: 50 samples at a nominal value (mean=10.00) followed by
+    50 samples at a shifted value (mean=10.05) to create a detectable mean
+    shift at approximately sample 50. PELT detector is enabled. The anomaly
+    detection service is initialized on the backend.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-engineer"
+      password: "TestPass123!"
+      role: "engineer"
+    characteristic:
+      name: "OQ-Bore-Diameter-Shift"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      usl: 10.10
+      lsl: 9.90
+      target: 10.00
+    samples:
+      - count: 50
+        value: 10.00
+      - count: 50
+        value: 10.05
+    anomaly_config:
+      is_enabled: true
+      pelt_enabled: true
+      ks_enabled: true
+      iforest_enabled: false
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select the 'OQ-Bore-Diameter-Shift' characteristic."
+    verify: "The control chart loads showing 100 data points. The first 50 points are around 10.00 and the last 50 are around 10.05."
+    screenshot: true
+  - step: 2
+    action: "Enable the 'AI Insights' toggle in the chart toolbar"
+    verify: "The AI Insights toggle activates (highlighted/enabled state). The anomaly overlay layer is now active on the chart."
+    screenshot: true
+  - step: 3
+    action: "Click the 'Analyze' button (or trigger on-demand analysis from the AI Insights panel)"
+    verify: "A loading indicator appears. The analysis runs. After completion, a notification or status update indicates the analysis is complete and shows the number of events detected."
+    screenshot: true
+  - step: 4
+    action: "Verify via API: POST /anomaly/{char_id}/analyze"
+    verify: "Response includes: characteristic_id matching the char, events_detected >= 1, events array with at least one event. The event should have detector_type='pelt', event_type='changepoint', and a summary describing the detected shift."
+    screenshot: false
+  - step: 5
+    action: "Examine the analysis results"
+    verify: "At least one changepoint event is detected near sample 50 (where the mean shifted from 10.00 to 10.05). The event has a severity level and a human-readable summary."
+    screenshot: true
+expected_result: >
+  On-demand analysis successfully runs all enabled detectors (PELT and K-S)
+  against the characteristic's 100 samples. PELT detects a changepoint near
+  sample 50 where the mean shifts from 10.00 to 10.05. At least one anomaly
+  event is created and returned.
+pass_criteria: >
+  Analysis completes without error. At least one event is detected.
+  events_detected >= 1. The PELT detector identifies a changepoint. The event
+  record includes detector_type, event_type, severity, and summary fields.
+cleanup:
+  - "Anomaly events persist for the characteristic -- no cleanup needed unless resetting"

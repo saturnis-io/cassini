@@ -1,5 +1,6 @@
 import {
   Columns2,
+  Download,
   Eye,
   EyeOff,
   ArrowLeftRight,
@@ -29,6 +30,7 @@ interface ChartToolbarProps {
   onAttributeChartTypeChange?: (chartType: string) => void
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
+  onExportExcel?: () => void
 }
 
 /**
@@ -69,6 +71,7 @@ export function ChartToolbar({
   onAttributeChartTypeChange,
   onComparisonToggle,
   onChangeSecondary,
+  onExportExcel,
 }: ChartToolbarProps) {
   const { isCommercial } = useLicense()
   const {
@@ -169,6 +172,16 @@ export function ChartToolbar({
           {showSpecLimits ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">LSL/USL</span>
         </ToolbarBtn>
+
+        {onExportExcel && (
+          <>
+            <ToolbarBtn onClick={onExportExcel} title="Export data to Excel">
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </ToolbarBtn>
+            <div className="bg-border/40 mx-0.5 h-4 w-px" />
+          </>
+        )}
 
         <div className="bg-border/40 mx-0.5 h-4 w-px" />
 

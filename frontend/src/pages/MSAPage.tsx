@@ -8,6 +8,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useMSAStudies, useDeleteMSAStudy } from '@/api/hooks'
 
@@ -24,14 +25,6 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
   complete: { bg: 'bg-green-500/10', text: 'text-green-500', label: 'Complete' },
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 const STATUS_FILTERS = [
   { value: undefined, label: 'All' },
   { value: 'setup', label: 'Setup' },
@@ -40,6 +33,7 @@ const STATUS_FILTERS = [
 ] as const
 
 export function MSAPage() {
+  const { formatDate } = useDateFormat()
   const navigate = useNavigate()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0

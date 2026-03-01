@@ -45,7 +45,7 @@ export const queryKeys = {
     all: ['violations'] as const,
     list: (params?: object) => [...queryKeys.violations.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.violations.all, 'detail', id] as const,
-    stats: () => [...queryKeys.violations.all, 'stats'] as const,
+    stats: (params?: { plant_id?: number }) => [...queryKeys.violations.all, 'stats', params] as const,
   },
   annotations: {
     all: ['annotations'] as const,
@@ -128,6 +128,21 @@ export const queryKeys = {
     list: (plantId: number) => [...queryKeys.gageBridges.all, 'list', plantId] as const,
     detail: (id: number) => [...queryKeys.gageBridges.all, 'detail', id] as const,
     profiles: ['gageBridges', 'profiles'] as const,
+  },
+  systemSettings: {
+    all: ['systemSettings'] as const,
+    current: () => ['systemSettings', 'current'] as const,
+  },
+  explain: {
+    all: ['explain'] as const,
+    capability: (metric: string, charId: string | number, chartOptions?: object) =>
+      ['explain', 'capability', metric, charId, chartOptions] as const,
+    msa: (metric: string, studyId: string | number) =>
+      ['explain', 'msa', metric, studyId] as const,
+    controlLimits: (metric: string, charId: string | number) =>
+      ['explain', 'control-limits', metric, charId] as const,
+    attribute: (metric: string, charId: string | number) =>
+      ['explain', 'attribute', metric, charId] as const,
   },
 }
 

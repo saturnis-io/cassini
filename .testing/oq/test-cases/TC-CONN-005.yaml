@@ -1,0 +1,40 @@
+id: TC-CONN-005
+title: "Add OPC-UA server configuration"
+category: "Connectivity"
+subcategory: "OPCUA"
+priority: high
+regulatory_relevance:
+  - "IATF 16949 - Industrial automation data sources must be documented with connection parameters"
+  - "AS9100 - Measurement system configuration must be traceable"
+  - "21 CFR Part 11 - Data acquisition systems must be validated and documented"
+preconditions:
+  description: "Logged in as engineer or higher. A plant is selected. No OPC-UA servers with the test name exist."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /connectivity/servers"
+    verify: "The Servers tab loads."
+    screenshot: false
+  - step: 2
+    action: "Click 'Add Server' and select 'OPC-UA' as the protocol"
+    verify: "The OPC-UA server configuration form opens with fields: Name, Endpoint URL (default 'opc.tcp://'), Auth Mode (default 'Anonymous'), Security Policy (default 'None'), Security Mode (default 'None'), Session Timeout (default 30000 ms), Publishing Interval (default 1000 ms), Sampling Interval (default 250 ms)."
+    screenshot: true
+  - step: 3
+    action: "Fill in the form: Name='OQ Test OPC-UA', Endpoint URL='opc.tcp://192.168.1.200:4840'. Leave Auth Mode as 'Anonymous'. Leave security settings at defaults."
+    verify: "Name field shows 'OQ Test OPC-UA'. Endpoint URL shows the full OPC-UA address."
+    screenshot: false
+  - step: 4
+    action: "Click 'Save'"
+    verify: "A success toast notification appears. The form closes. The Servers tab list shows the new server 'OQ Test OPC-UA' with an 'OPC-UA' protocol badge and endpoint 'opc.tcp://192.168.1.200:4840'. Connection status may show 'Disconnected' (expected without a real OPC-UA server)."
+    screenshot: true
+  - step: 5
+    action: "Optionally click the 'Test Connection' button on the new server"
+    verify: "The test executes and returns a connection error (expected -- no OPC-UA server is running at that address). The error is displayed gracefully in the UI, not as a crash or unhandled exception."
+    screenshot: true
+expected_result: "A new OPC-UA server configuration can be created through the form. The server appears in the list with correct details and handles connection test failures gracefully."
+pass_criteria: "OPC-UA form accepts all fields. Save succeeds with toast. Server appears in list with OPC-UA badge. Connection test failure is displayed gracefully."
+cleanup:
+  - "Delete 'OQ Test OPC-UA' via the server list delete action"

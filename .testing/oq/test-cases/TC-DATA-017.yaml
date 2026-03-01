@@ -1,0 +1,65 @@
+id: TC-DATA-017
+title: "Reject non-numeric input in measurement field"
+category: "Data Entry"
+subcategory: "Validation"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 8.5.1 - Control of Production (input validation)"
+  - "21 CFR Part 11 Section 11.10(f) - Operational System Checks"
+  - "IATF 16949 Section 8.5.1.1 - Control Plan (data integrity)"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists. The test user has operator role.
+    This test verifies that the system rejects invalid (non-numeric)
+    measurement input at both the frontend and backend layers.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry. Select Bore Diameter."
+    verify: "Data entry form appears with a single measurement input field"
+    screenshot: false
+  - step: 2
+    action: "Enter 'abc' in the measurement field"
+    verify: >
+      The input field shows a validation error (red border, error message
+      such as 'Must be a number'). The Submit button is disabled or will
+      prevent submission.
+    screenshot: true
+  - step: 3
+    action: "Attempt to click Submit (if not disabled)"
+    verify: "Submission is blocked. An error message is shown. No sample is created."
+    screenshot: true
+  - step: 4
+    action: "Clear the field and enter '10.02' (valid numeric value)"
+    verify: "Validation error clears. Submit button becomes enabled."
+    screenshot: false
+  - step: 5
+    action: >
+      Backend verification: Send POST /samples/ with body
+      {"characteristic_id": {id}, "measurements": ["abc"]}
+    verify: "Response 422 or 400. No sample created. Error detail indicates validation failure."
+    screenshot: false
+
+expected_result: >
+  Non-numeric measurement values are rejected at both the frontend
+  (input validation) and backend (Pydantic schema validation) layers.
+  No sample is persisted when invalid data is submitted.
+
+pass_criteria: >
+  Frontend: validation error visible, submit blocked. Backend: 422 or
+  400 status code returned. GET /samples/ confirms no new sample was
+  created with the invalid data.
+
+cleanup: []

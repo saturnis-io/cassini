@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { History } from 'lucide-react'
 import { useSampleEditHistory } from '@/api/hooks'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { cn } from '@/lib/utils'
 
 interface EditHistoryTooltipProps {
@@ -9,6 +10,7 @@ interface EditHistoryTooltipProps {
 }
 
 export function EditHistoryTooltip({ sampleId, editCount }: EditHistoryTooltipProps) {
+  const { formatDateTime } = useDateFormat()
   const [isOpen, setIsOpen] = useState(false)
   const { data: history, isLoading } = useSampleEditHistory(isOpen ? sampleId : null)
 
@@ -61,7 +63,7 @@ export function EditHistoryTooltip({ sampleId, editCount }: EditHistoryTooltipPr
                   <div key={entry.id} className="px-3 py-2.5 text-sm">
                     <div className="mb-1 flex items-center justify-between">
                       <span className="text-muted-foreground text-xs">
-                        {new Date(entry.edited_at).toLocaleString()}
+                        {formatDateTime(entry.edited_at)}
                       </span>
                       {idx === 0 && (
                         <span className="bg-warning/10 text-warning rounded px-1.5 py-0.5 text-xs">

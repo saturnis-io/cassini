@@ -1,0 +1,67 @@
+id: TC-CHAR-001
+title: "Create X-bar-R characteristic with subgroup size 5"
+category: "Characteristic Configuration"
+subcategory: "ChartType"
+priority: critical
+regulatory_relevance:
+  - "AIAG SPC Manual - X-bar-R chart setup (Section III)"
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring, measurement, analysis, and evaluation"
+preconditions:
+  description: "Engineer user is logged in. A station node exists in the hierarchy to attach the characteristic to."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ Chart Type Plant"
+        code: "OQCT"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "CT Department"
+        type: "Area"
+    line:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "CT Line"
+        type: "Line"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{line.id}"
+        name: "CT Station"
+        type: "Equipment"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Switch to 'OQ Chart Type Plant' and navigate to Configuration (/configuration)."
+    verify: "Hierarchy tree shows CT Department > CT Line > CT Station."
+    screenshot: false
+  - step: 2
+    action: "Select 'CT Station' in the tree. Click 'Add Characteristic'."
+    verify: "Characteristic creation form appears."
+    screenshot: true
+  - step: 3
+    action: "Enter: Name: 'OQ-Diameter', Data Type: Variable, Subgroup Size: 5."
+    verify: "Fields accept input. Chart type automatically resolves to X-bar-R for subgroup size >= 2."
+    screenshot: true
+  - step: 4
+    action: "Click Create/Save."
+    verify: "Characteristic created successfully. Appears as leaf node under CT Station."
+    screenshot: false
+  - step: 5
+    action: "Click on 'OQ-Diameter' to open its configuration panel."
+    verify: "Config panel shows: Name = 'OQ-Diameter', Subgroup Size = 5, Chart Type = X-bar-R (or equivalent designation for means + ranges chart). Data type shows Variable."
+    screenshot: true
+expected_result: "An X-bar-R characteristic with subgroup size 5 is created. The configuration panel correctly shows X-bar-R chart type with subgroup size 5."
+pass_criteria: "Characteristic 'OQ-Diameter' exists with subgroup_size=5 and chart type indicating X-bar-R (subgroup means and ranges)."
+cleanup:
+  - "Delete characteristic via API: DELETE /characteristics/{id}"
+  - "Delete hierarchy nodes and plant via API"

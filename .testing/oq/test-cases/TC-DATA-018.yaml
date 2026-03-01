@@ -1,0 +1,86 @@
+id: TC-DATA-018
+title: "Submit data to CUSUM and EWMA characteristics"
+category: "Data Entry"
+subcategory: "ManualEntry"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "AIAG SPC Reference Manual - CUSUM and EWMA Charts"
+
+preconditions:
+  description: >
+    Two characteristics exist: one CUSUM and one EWMA, both with
+    data_type=variable, subgroup_size=1. CUSUM requires target, K, and
+    H parameters. EWMA requires target, lambda, and L parameters. The
+    test user has operator+ role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Machining"
+    line: "CNC-Line-1"
+    characteristics:
+      - name: "Spindle Vibration (CUSUM)"
+        chart_type: "cusum"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 5.00
+        cusum_k: 0.5
+        cusum_h: 5.0
+      - name: "Spindle Vibration (EWMA)"
+        chart_type: "ewma"
+        subgroup_size: 1
+        data_type: "variable"
+        target: 5.00
+        ewma_lambda: 0.2
+        ewma_l: 2.7
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Select Spindle Vibration (CUSUM) from the hierarchy tree"
+    verify: "Data entry form appears with a single measurement input field"
+    screenshot: true
+  - step: 3
+    action: "Enter 5.3 and click Submit"
+    verify: >
+      Success toast notification. The CUSUM engine processes the sample:
+      deviation from target = 5.3 - 5.0 = 0.3. Cumulative sums updated.
+    screenshot: true
+  - step: 4
+    action: "Navigate to /dashboard and select Spindle Vibration (CUSUM)"
+    verify: "CUSUM chart renders showing the cumulative sum point"
+    screenshot: true
+  - step: 5
+    action: "Navigate back to /data-entry. Select Spindle Vibration (EWMA)."
+    verify: "Data entry form appears for EWMA characteristic"
+    screenshot: false
+  - step: 6
+    action: "Enter 5.3 and click Submit"
+    verify: >
+      Success toast notification. The EWMA engine processes the sample:
+      EWMA_t = lambda * X_t + (1-lambda) * EWMA_{t-1} computed.
+    screenshot: true
+  - step: 7
+    action: "Navigate to /dashboard and select Spindle Vibration (EWMA)"
+    verify: "EWMA chart renders showing the exponentially weighted moving average point"
+    screenshot: true
+
+expected_result: >
+  Both CUSUM and EWMA characteristics accept data entry through the
+  same UI as standard Shewhart charts. The samples router auto-detects
+  the chart type and routes to the correct engine (cusum_engine or
+  ewma_engine). Charts render with their specialized layouts.
+
+pass_criteria: >
+  Both submissions return success. CUSUM chart shows cumulative sum
+  values. EWMA chart shows weighted average values. API confirms
+  samples were created for both characteristics.
+
+cleanup:
+  - "Delete submitted samples via API"

@@ -1,0 +1,66 @@
+id: TC-CTRL-006
+title: "c-chart renders with defect count data"
+category: "Control Charts"
+subcategory: "AttributeCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - c-Chart (Count of Defects)"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    A c-chart characteristic must exist with at least 25 attribute
+    samples (defect count per fixed inspection unit). Control limits
+    should be calculated. The c-chart uses Poisson distribution
+    assumptions.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Assembly"
+    line: "QC-Station-1"
+    characteristic:
+      name: "Scratch Count c"
+      chart_type: "c"
+      subgroup_size: 1
+      data_type: "attribute"
+    samples: >
+      25 attribute samples with defect counts averaging ~8 per unit
+      (Poisson-distributed).
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Scratch Count c"
+    verify: >
+      c-chart renders showing 25 data points. Each point plots the
+      raw defect count. Center line shows c-bar (average defect count).
+    screenshot: true
+  - step: 2
+    action: "Inspect the control limit lines"
+    verify: >
+      Straight horizontal lines:
+      c-bar = sum(defects) / k
+      UCL = c-bar + 3 * sqrt(c-bar)
+      LCL = c-bar - 3 * sqrt(c-bar) (may be 0)
+      This uses the Poisson property: variance = mean.
+    screenshot: true
+  - step: 3
+    action: "Hover over a data point"
+    verify: "Tooltip shows: defect count (integer), timestamp"
+    screenshot: true
+
+expected_result: >
+  The c-chart correctly plots defect counts per constant inspection
+  unit with Poisson-based control limits. Limits are symmetric around
+  c-bar, with sigma = sqrt(c-bar). This chart is standard for counting
+  defects in a fixed area, volume, or time period.
+
+pass_criteria: >
+  Chart shows 25 points. UCL = c-bar + 3*sqrt(c-bar). LCL >= 0.
+  Y-axis values are integers.
+
+cleanup:
+  - "Delete seeded data via API"

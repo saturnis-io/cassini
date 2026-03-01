@@ -55,7 +55,7 @@ async def get_smtp_config(
         id=config.id,
         server=config.server,
         port=config.port,
-        username=config.username,
+        username_set=config.username is not None and config.username != "",
         password_set=config.password is not None and config.password != "",
         use_tls=config.use_tls,
         from_address=config.from_address,
@@ -106,7 +106,7 @@ async def update_smtp_config(
         id=config.id,
         server=config.server,
         port=config.port,
-        username=config.username,
+        username_set=config.username is not None and config.username != "",
         password_set=config.password is not None and config.password != "",
         use_tls=config.use_tls,
         from_address=config.from_address,
@@ -353,6 +353,7 @@ async def update_preferences(
             event_type=item.event_type,
             channel=item.channel,
             is_enabled=item.is_enabled,
+            severity_filter=item.severity_filter,
         )
         session.add(pref)
         new_prefs.append(pref)

@@ -3,7 +3,10 @@ import { graphic } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
+import { Explainable } from '@/components/Explainable'
 import { cn } from '@/lib/utils'
 import { StatNote } from './StatNote'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
@@ -18,6 +21,8 @@ interface AttributeChartProps {
   }
   /** Callback when a data point is clicked — opens Sample Inspector */
   onPointAnnotation?: (sampleId: number) => void
+  /** Highlight a specific sample on the chart (e.g. the inspected violation) */
+  highlightSampleId?: number
 }
 
 const Y_AXIS_LABELS: Record<string, string> = {
@@ -34,13 +39,14 @@ const CHART_TYPE_NAMES: Record<string, string> = {
   u: 'u-chart',
 }
 
-export function AttributeChart({ characteristicId, chartOptions, onPointAnnotation }: AttributeChartProps) {
+export function AttributeChart({ characteristicId, chartOptions, onPointAnnotation, highlightSampleId }: AttributeChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
+  const { datetimeFormat } = useDateFormat()
 
   const attrType = chartData?.attribute_chart_type ?? ''
   const attrPoints = chartData?.attribute_data_points ?? []
@@ -93,6 +99,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     // Custom renderItem for data points (violation markers)
     const localPoints = attrPoints
     const localColors = chartColors
+    const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: any, api: any) => {
@@ -108,19 +115,39 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
       const isViolation = point.violation_rules.length > 0
       const isAcked = isViolation && point.unacknowledged_violation_ids.length === 0
       const isExcluded = point.excluded
+      const isInspected = localHighlightSampleId != null && point.sample_id === localHighlightSampleId
       const primaryRule = getPrimaryViolationRule(point.violation_rules)
 
       const ackedColor = 'hsl(357, 30%, 55%)'
-      const fillColor = isExcluded
-        ? localColors.excludedPoint
-        : isViolation && isAcked
-          ? ackedColor
-          : isViolation
-            ? localColors.violationPoint
-            : localColors.normalPoint
+      const fillColor = isInspected
+        ? 'hsl(180, 100%, 50%)'
+        : isExcluded
+          ? localColors.excludedPoint
+          : isViolation && isAcked
+            ? ackedColor
+            : isViolation
+              ? localColors.violationPoint
+              : localColors.normalPoint
 
-      const baseRadius = isViolation ? 6 : 4
+      const baseRadius = isInspected ? 7 : isViolation ? 6 : 4
       const children: Record<string, unknown>[] = []
+
+      // Inspected point glow rings
+      if (isInspected) {
+        const ringColor = 'hsl(180, 100%, 50%)'
+        children.push(
+          {
+            type: 'circle',
+            shape: { cx, cy, r: baseRadius + 6 },
+            style: { fill: 'none', stroke: ringColor, lineWidth: 2.5, opacity: 0.8, shadowBlur: 8, shadowColor: ringColor },
+          },
+          {
+            type: 'circle',
+            shape: { cx, cy, r: baseRadius + 10 },
+            style: { fill: 'none', stroke: ringColor, lineWidth: 1, opacity: 0.3 },
+          },
+        )
+      }
 
       if (isViolation) {
         if (isAcked) {
@@ -223,6 +250,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
       },
       tooltip: {
         trigger: 'item' as const,
+        appendTo: () => document.body,
         transitionDuration: 0,
         formatter: (params: unknown) => {
           const p = params as { dataIndex: number; seriesType: string }
@@ -236,7 +264,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
           if (point.sample_size != null) html += `<div>Sample size: ${point.sample_size}</div>`
           if (point.units_inspected != null)
             html += `<div>Units inspected: ${point.units_inspected}</div>`
-          html += `<div style="opacity:0.7">${new Date(point.timestamp).toLocaleString()}</div>`
+          html += `<div style="opacity:0.7">${applyFormat(new Date(point.timestamp), datetimeFormat)}</div>`
 
           if (point.violation_rules.length > 0) {
             html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
@@ -407,7 +435,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     }
 
     return option
-  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors])
+  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors, highlightSampleId])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {
@@ -445,24 +473,26 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
                 {chartTypeName}
               </span>
               {chartData?.sigma_z != null && (
-                <span className="flex flex-shrink-0 items-center gap-1">
-                  <span className={cn(
-                    "rounded-full border px-2 py-0.5 font-mono text-xs",
-                    chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
-                    chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
-                    "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
-                  )}>
-                    <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
-                    {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
-                     chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                <Explainable metric="sigma_z" resourceId={characteristicId} resourceType="attribute">
+                  <span className="flex flex-shrink-0 items-center gap-1">
+                    <span className={cn(
+                      "rounded-full border px-2 py-0.5 font-mono text-xs",
+                      chartData.sigma_z > 1.1 ? "border-amber-700/30 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" :
+                      chartData.sigma_z < 0.9 ? "border-blue-700/30 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200" :
+                      "border-green-700/30 bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
+                    )}>
+                      <span>&#963;</span><sub>z</sub> = {chartData.sigma_z.toFixed(3)}
+                      {chartData.sigma_z > 1.1 ? ' (overdispersion)' :
+                       chartData.sigma_z < 0.9 ? ' (underdispersion)' : ' (nominal)'}
+                    </span>
+                    <StatNote>
+                      Laney p&prime;/u&prime; correction adjusts for
+                      over/underdispersion. &sigma;<sub>z</sub> &gt; 1 means data
+                      has more variation than the model assumes; &sigma;<sub>z</sub>{' '}
+                      &lt; 1 means less.
+                    </StatNote>
                   </span>
-                  <StatNote>
-                    Laney p&prime;/u&prime; correction adjusts for
-                    over/underdispersion. &sigma;<sub>z</sub> &gt; 1 means data
-                    has more variation than the model assumes; &sigma;<sub>z</sub>{' '}
-                    &lt; 1 means less.
-                  </StatNote>
-                </span>
+                </Explainable>
               )}
               <h3
                 className="text-foreground truncate text-sm leading-5 font-semibold"

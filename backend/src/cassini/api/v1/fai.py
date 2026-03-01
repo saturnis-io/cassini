@@ -7,7 +7,7 @@ Provides CRUD for FAI reports and items, status workflow
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -335,6 +335,7 @@ async def delete_item(
 @router.post("/reports/{report_id}/submit", response_model=FAIReportResponse)
 async def submit_report(
     report_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
@@ -361,6 +362,19 @@ async def submit_report(
     await session.commit()
     await session.refresh(report)
 
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report.id,
+        "action": "submit",
+        "summary": f"FAI Report '{report.part_number} Rev {report.revision}' submitted for approval",
+        "fields": {
+            "report_name": f"{report.part_number} Rev {report.revision}",
+            "part_number": report.part_number,
+            "serial_number": report.serial_number,
+            "plant_id": report.plant_id,
+        },
+    }
+
     logger.info("fai_report_submitted", report_id=report_id, user=user.username)
     return FAIReportResponse.model_validate(report)
 
@@ -368,6 +382,7 @@ async def submit_report(
 @router.post("/reports/{report_id}/approve", response_model=FAIReportResponse)
 async def approve_report(
     report_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
@@ -409,6 +424,19 @@ async def approve_report(
     await session.commit()
     await session.refresh(report)
 
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report.id,
+        "action": "approve",
+        "summary": f"FAI Report '{report.part_number} Rev {report.revision}' approved",
+        "fields": {
+            "report_name": f"{report.part_number} Rev {report.revision}",
+            "part_number": report.part_number,
+            "approved_by": user.username,
+            "plant_id": report.plant_id,
+        },
+    }
+
     logger.info("fai_report_approved", report_id=report_id, user=user.username)
     return FAIReportResponse.model_validate(report)
 
@@ -417,6 +445,7 @@ async def approve_report(
 async def reject_report(
     report_id: int,
     body: FAIRejectRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
@@ -438,6 +467,19 @@ async def reject_report(
 
     await session.commit()
     await session.refresh(report)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report.id,
+        "action": "reject",
+        "summary": f"FAI Report '{report.part_number} Rev {report.revision}' rejected",
+        "fields": {
+            "report_name": f"{report.part_number} Rev {report.revision}",
+            "rejected_by": user.username,
+            "reason": body.reason,
+            "plant_id": report.plant_id,
+        },
+    }
 
     logger.info("fai_report_rejected", report_id=report_id, user=user.username, reason=body.reason)
     return FAIReportResponse.model_validate(report)

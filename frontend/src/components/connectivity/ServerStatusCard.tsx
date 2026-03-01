@@ -1,5 +1,7 @@
 import { Wifi, Server, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { applyFormat } from '@/lib/date-format'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { BrokerConnectionStatus, OPCUAServerConnectionStatus } from '@/types'
 
 type Protocol = 'mqtt' | 'opcua'
@@ -15,6 +17,7 @@ interface ServerStatusCardProps {
  * Styled to resemble an industrial HMI status panel.
  */
 export function ServerStatusCard({ protocol, status }: ServerStatusCardProps) {
+  const { dateFormat } = useDateFormat()
   const isConnected = status.is_connected
 
   const serverName =
@@ -153,7 +156,7 @@ export function ServerStatusCard({ protocol, status }: ServerStatusCardProps) {
               {lastConnected ? (
                 <>
                   <Clock className="text-muted-foreground h-3 w-3" />
-                  {formatRelativeTime(lastConnected)}
+                  {formatRelativeTime(lastConnected, dateFormat)}
                 </>
               ) : (
                 <span className="text-muted-foreground">--</span>
@@ -175,7 +178,7 @@ export function ServerStatusCard({ protocol, status }: ServerStatusCardProps) {
   )
 }
 
-function formatRelativeTime(date: Date): string {
+function formatRelativeTime(date: Date, dateFmt: string): string {
   const now = Date.now()
   const diff = now - date.getTime()
   const seconds = Math.floor(diff / 1000)
@@ -185,5 +188,5 @@ function formatRelativeTime(date: Date): string {
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ago`
-  return date.toLocaleDateString()
+  return applyFormat(date, dateFmt)
 }

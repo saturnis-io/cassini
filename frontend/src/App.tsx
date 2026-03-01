@@ -16,11 +16,12 @@ import { DataEntryView } from '@/pages/DataEntryView'
 import { SettingsPage } from '@/pages/SettingsView'
 import { AppearanceSettings } from '@/components/AppearanceSettings'
 import { NotificationsSettings } from '@/components/NotificationsSettings'
-import { ThemeCustomizer } from '@/components/ThemeCustomizer'
+import { BrandingSettings } from '@/components/settings/BrandingSettings'
 import { PlantSettings } from '@/components/PlantSettings'
 import { ApiKeysSettings } from '@/components/ApiKeysSettings'
 import { DatabaseSettings } from '@/components/DatabaseSettings'
 import { RetentionSettings } from '@/components/RetentionSettings'
+import { LocalizationSettings } from '@/components/LocalizationSettings'
 import { ScheduledReports } from '@/components/settings/ScheduledReports'
 import { AuditLogViewer } from '@/components/AuditLogViewer'
 import { SSOSettings } from '@/components/SSOSettings'
@@ -44,9 +45,14 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { DOEPage } from '@/pages/DOEPage'
 import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
 import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
+import { AccountSettings } from '@/components/AccountSettings'
+import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
+import { GalaxyPage } from '@/pages/GalaxyPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ChangePasswordPage } from '@/pages/ChangePasswordPage'
 import { KioskLayout } from '@/components/KioskLayout'
 import { WebSocketProvider } from '@/providers/WebSocketProvider'
@@ -195,6 +201,8 @@ function App() {
             <Routes>
               {/* Login page - outside auth gate, no providers needed */}
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Force password change - outside main layout, user has token but must change password */}
               <Route path="/change-password" element={<ChangePasswordPage />} />
@@ -349,15 +357,9 @@ function App() {
                     </RequireCommercial>
                   }
                 />
-                <Route
-                  path="settings"
-                  element={
-                    <ProtectedRoute requiredRole="engineer">
-                      <SettingsPage />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<Navigate to="appearance" replace />} />
+                <Route path="settings" element={<SettingsPage />}>
+                  <Route index element={<Navigate to="account" replace />} />
+                  <Route path="account" element={<AccountSettings />} />
                   <Route path="appearance" element={<AppearanceSettings />} />
                   <Route
                     path="notifications"
@@ -371,7 +373,7 @@ function App() {
                     path="branding"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <ThemeCustomizer />
+                        <BrandingSettings />
                       </ProtectedRoute>
                     }
                   />
@@ -384,10 +386,28 @@ function App() {
                     }
                   />
                   <Route
+                    path="localization"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <LocalizationSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="email-webhooks"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <EmailWebhookSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="api-keys"
                     element={
                       <RequireCommercial>
-                        <ApiKeysSettings />
+                        <ProtectedRoute requiredRole="engineer">
+                          <ApiKeysSettings />
+                        </ProtectedRoute>
                       </RequireCommercial>
                     }
                   />
@@ -395,7 +415,9 @@ function App() {
                     path="retention"
                     element={
                       <RequireCommercial>
-                        <RetentionSettings />
+                        <ProtectedRoute requiredRole="engineer">
+                          <RetentionSettings />
+                        </ProtectedRoute>
                       </RequireCommercial>
                     }
                   />
@@ -403,7 +425,9 @@ function App() {
                     path="reports"
                     element={
                       <RequireCommercial>
-                        <ScheduledReports />
+                        <ProtectedRoute requiredRole="engineer">
+                          <ScheduledReports />
+                        </ProtectedRoute>
                       </RequireCommercial>
                     }
                   />
@@ -431,7 +455,9 @@ function App() {
                     path="signatures"
                     element={
                       <RequireCommercial>
-                        <SignatureSettingsPage />
+                        <ProtectedRoute requiredRole="engineer">
+                          <SignatureSettingsPage />
+                        </ProtectedRoute>
                       </RequireCommercial>
                     }
                   />
@@ -449,7 +475,9 @@ function App() {
                     path="database"
                     element={
                       <RequireCommercial>
-                        <DatabaseSettings />
+                        <ProtectedRoute requiredRole="engineer">
+                          <DatabaseSettings />
+                        </ProtectedRoute>
                       </RequireCommercial>
                     }
                   />
@@ -490,6 +518,14 @@ function App() {
                     <KioskLayout showStatusBar={false}>
                       <WallDashboard />
                     </KioskLayout>
+                  </AuthenticatedDisplayMode>
+                }
+              />
+              <Route
+                path="/galaxy"
+                element={
+                  <AuthenticatedDisplayMode>
+                    <GalaxyPage />
                   </AuthenticatedDisplayMode>
                 }
               />

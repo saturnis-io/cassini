@@ -10,6 +10,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import {
@@ -50,6 +51,7 @@ type DetailPanel = 'mappings' | 'schedule' | 'logs' | 'webhook' | null
  * Expandable to show mappings, schedule, logs, and webhook config.
  */
 export function ConnectorCard({ connector }: { connector: ERPConnector }) {
+  const { formatDateTime } = useDateFormat()
   const { role } = useAuth()
   const isAdmin = hasAccess(role, 'admin')
   const testMutation = useTestERPConnection()
@@ -94,7 +96,7 @@ export function ConnectorCard({ connector }: { connector: ERPConnector }) {
       {/* Metadata */}
       {connector.last_sync_at && (
         <div className="text-muted-foreground text-xs">
-          Last sync: {new Date(connector.last_sync_at).toLocaleString()}
+          Last sync: {formatDateTime(connector.last_sync_at)}
         </div>
       )}
       {connector.last_error && (

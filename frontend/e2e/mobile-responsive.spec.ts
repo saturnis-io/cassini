@@ -24,15 +24,13 @@ test.describe('Mobile & Responsive', () => {
     await page.waitForTimeout(2000)
 
     // The full sidebar should not be visible on mobile
-    // Look for a hamburger/menu button instead
-    const menuButton = page.locator('button[aria-label="Toggle menu"]').first()
-    const hasMenu = await menuButton.isVisible({ timeout: 5000 }).catch(() => false)
+    // Look for the hamburger/menu button with the known aria-label
+    const menuButton = page.locator('button[aria-label="Toggle navigation menu"]')
+    await expect(menuButton).toBeVisible({ timeout: 5000 })
 
-    // If no aria-label, look for a menu icon button in the header
-    if (!hasMenu) {
-      const headerMenuBtn = page.locator('header button').first()
-      await expect(headerMenuBtn).toBeVisible({ timeout: 5000 })
-    }
+    // Mobile bottom nav should be visible
+    const bottomNav = page.locator('nav.fixed.bottom-0')
+    await expect(bottomNav).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('mobile-sidebar-hidden', {
       body: await page.screenshot(),
@@ -45,28 +43,23 @@ test.describe('Mobile & Responsive', () => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
 
-    // Find and click the menu button (first button in header area)
-    const menuButton = page.locator('button[aria-label="Toggle menu"]').first()
-    const hasLabeledMenu = await menuButton.isVisible({ timeout: 3000 }).catch(() => false)
-
-    if (hasLabeledMenu) {
-      await menuButton.click()
-    } else {
-      // Try clicking the first header button (likely hamburger)
-      const headerBtn = page.locator('header button, [class*="fixed"] button').first()
-      if (await headerBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await headerBtn.click()
-      }
-    }
+    // Click the hamburger menu button
+    const menuButton = page.locator('button[aria-label="Toggle navigation menu"]')
+    await expect(menuButton).toBeVisible({ timeout: 5000 })
+    await menuButton.click()
     await page.waitForTimeout(1000)
 
     // After clicking, sidebar overlay should appear with navigation links
     const dashboardLink = page.getByText('Dashboard', { exact: true }).first()
-    const sidebarVisible = await dashboardLink.isVisible({ timeout: 5000 }).catch(() => false)
+    await expect(dashboardLink).toBeVisible({ timeout: 5000 })
 
-    if (sidebarVisible) {
-      await expect(dashboardLink).toBeVisible()
-    }
+    // Verify other nav links are visible in the mobile sidebar
+    await expect(page.getByText('Data Entry', { exact: true }).first()).toBeVisible({
+      timeout: 3000,
+    })
+    await expect(page.getByText('Violations', { exact: true }).first()).toBeVisible({
+      timeout: 3000,
+    })
 
     await test.info().attach('mobile-sidebar-opened', {
       body: await page.screenshot(),
@@ -79,30 +72,43 @@ test.describe('Mobile & Responsive', () => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
 
-    // Open sidebar
-    const menuButton = page.locator('button[aria-label="Toggle menu"]').first()
-    const hasLabeledMenu = await menuButton.isVisible({ timeout: 3000 }).catch(() => false)
-    if (hasLabeledMenu) {
-      await menuButton.click()
-    } else {
-      const headerBtn = page.locator('header button').first()
-      if (await headerBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await headerBtn.click()
-      }
-    }
+    // Open sidebar via hamburger
+    const menuButton = page.locator('button[aria-label="Toggle navigation menu"]')
+    await expect(menuButton).toBeVisible({ timeout: 5000 })
+    await menuButton.click()
     await page.waitForTimeout(1000)
 
-    // Click "Data Entry" nav link
+    // Click "Data Entry" nav link in the sidebar overlay
     const dataEntryLink = page.getByText('Data Entry', { exact: true }).first()
-    if (await dataEntryLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await dataEntryLink.click()
-      await page.waitForTimeout(2000)
+    await expect(dataEntryLink).toBeVisible({ timeout: 3000 })
+    await dataEntryLink.click()
+    await page.waitForTimeout(2000)
 
-      // Should navigate to data-entry page
-      await expect(page).toHaveURL(/data-entry/)
-    }
+    // Should navigate to data-entry page
+    await expect(page).toHaveURL(/data-entry/)
 
     await test.info().attach('mobile-navigation-data-entry', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('mobile bottom nav is visible', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+
+    // MobileNav bottom bar should be visible on mobile (md:hidden)
+    const bottomNav = page.locator('nav.fixed.bottom-0')
+    await expect(bottomNav).toBeVisible({ timeout: 5000 })
+
+    // Verify bottom nav tabs: Dashboard, Data Entry, Violations, More
+    await expect(bottomNav.getByText('Dashboard')).toBeVisible({ timeout: 3000 })
+    await expect(bottomNav.getByText('Data Entry')).toBeVisible({ timeout: 3000 })
+    await expect(bottomNav.getByText('Violations')).toBeVisible({ timeout: 3000 })
+    await expect(bottomNav.getByText('More')).toBeVisible({ timeout: 3000 })
+
+    await test.info().attach('mobile-bottom-nav', {
       body: await page.screenshot(),
       contentType: 'image/png',
     })
@@ -124,7 +130,9 @@ test.describe('Mobile & Responsive', () => {
     // Login form should be visible and usable
     await expect(page.locator('#username')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('#password')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(
+      page.getByRole('button', { name: 'Log In', exact: true }),
+    ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('mobile-login-page', {
       body: await page.screenshot(),
@@ -178,6 +186,10 @@ test.describe('Mobile & Responsive', () => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.waitForTimeout(1000)
 
+    // Mobile bottom nav should appear
+    const bottomNav = page.locator('nav.fixed.bottom-0')
+    await expect(bottomNav).toBeVisible({ timeout: 5000 })
+
     await test.info().attach('mobile-after-resize', {
       body: await page.screenshot(),
       contentType: 'image/png',
@@ -221,7 +233,7 @@ test.describe('Mobile & Responsive', () => {
 
     // PWA manifest link (optional — may not be present yet)
     const manifest = page.locator('link[rel="manifest"]')
-    const hasManifest = await manifest.count().then(c => c > 0)
+    const hasManifest = await manifest.count().then((c) => c > 0)
     // Just log whether manifest exists — not a hard requirement
     if (hasManifest) {
       await expect(manifest).toBeAttached()

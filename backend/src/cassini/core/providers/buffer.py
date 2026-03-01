@@ -28,7 +28,17 @@ class TagConfig:
     trigger_strategy: str = "on_change"
     trigger_tag: str | None = None
     metric_name: str | None = None
+    json_path: str | None = None
     buffer_timeout_seconds: float = 60.0
+    _json_path_expr: object = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self):
+        if self.json_path:
+            try:
+                from jsonpath_ng import parse as jsonpath_parse
+                self._json_path_expr = jsonpath_parse(self.json_path)
+            except Exception:
+                self._json_path_expr = None
 
 
 @dataclass

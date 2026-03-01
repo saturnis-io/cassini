@@ -11,10 +11,14 @@ export function useViolations(params?: Parameters<typeof violationApi.list>[0]) 
   })
 }
 
-export function useViolationStats(config?: { refetchInterval?: number | false }) {
+export function useViolationStats(config?: {
+  refetchInterval?: number | false
+  plant_id?: number
+}) {
+  const params = config?.plant_id ? { plant_id: config.plant_id } : undefined
   return useQuery({
-    queryKey: queryKeys.violations.stats(),
-    queryFn: violationApi.getStats,
+    queryKey: queryKeys.violations.stats(params),
+    queryFn: () => violationApi.getStats(params),
     refetchInterval: config?.refetchInterval ?? VIOLATION_STATS_REFETCH_MS,
   })
 }

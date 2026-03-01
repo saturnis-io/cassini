@@ -1,0 +1,63 @@
+id: TC-DATA-003
+title: "Submit attribute data for p-chart (proportion defective)"
+category: "Data Entry"
+subcategory: "AttributeEntry"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "AIAG SPC Reference Manual - Attribute Charts"
+
+preconditions:
+  description: >
+    A p-chart characteristic must exist with data_type=attribute and
+    chart_type=p. The p-chart requires defect count and sample size
+    inputs. The test user has operator role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Assembly"
+    line: "Final-Inspect"
+    characteristic:
+      name: "Solder Defect Rate"
+      chart_type: "p"
+      subgroup_size: 1
+      data_type: "attribute"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Select OQ-Plant-Data, expand Assembly > Final-Inspect, click 'Solder Defect Rate'"
+    verify: "Attribute data entry form appears with fields for defect count and sample size"
+    screenshot: true
+  - step: 3
+    action: "Enter defect count = 3, sample size = 50"
+    verify: "Both fields show entered values"
+    screenshot: false
+  - step: 4
+    action: "Click Submit"
+    verify: "Success toast notification. The plotted value p = 3/50 = 0.06 is computed."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /dashboard and select the Solder Defect Rate characteristic"
+    verify: "p-chart shows a new data point at approximately 0.06 (proportion defective)"
+    screenshot: true
+
+expected_result: >
+  An attribute sample with 3 defectives out of 50 inspected is submitted.
+  The attribute SPC engine computes the plotted value as p = 3/50 = 0.06
+  and evaluates Nelson Rules 1-4.
+
+pass_criteria: >
+  Submit returns success. Dashboard shows p-chart with the new point at
+  0.06. API verification via data-entry/submit-attribute or samples list
+  confirms defect_count=3, sample_size=50.
+
+cleanup:
+  - "Delete the submitted sample via API"

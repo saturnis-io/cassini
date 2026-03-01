@@ -1,0 +1,41 @@
+id: TC-SET-005
+title: "Send SMTP test email"
+category: "Settings & Admin"
+subcategory: "SMTP"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 - Notification system operational verification"
+  - "ISO 9001:2015 Section 7.4 - Communication effectiveness verification"
+preconditions:
+  description: >
+    An admin user is logged in. SMTP configuration has been saved
+    (from TC-SET-004 or pre-configured). Note: In an OQ environment
+    without a real SMTP server, the test email will fail to send, which
+    is an expected outcome. The test verifies the test email function
+    exists and provides clear feedback (success or specific error).
+  seed_method: none
+  seed_data:
+    note: "SMTP configuration should be saved prior to this test. If no real SMTP server is available, a connection error is the expected result."
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/email-webhooks. Verify SMTP settings are configured."
+    verify: "SMTP section shows configured host, port, and username. Password is masked."
+    screenshot: false
+  - step: 2
+    action: "Locate the 'Test Email' or 'Send Test' button in the SMTP section. Click it."
+    verify: "A dialog or inline form appears asking for a recipient email address."
+    screenshot: true
+  - step: 3
+    action: "Enter a test recipient address (e.g., 'test@example.com'). Click Send."
+    verify: "The system attempts to send the test email. One of two outcomes: (A) SUCCESS: A success message appears ('Test email sent successfully'). Check the recipient inbox for the email. (B) EXPECTED FAILURE: A clear error message appears indicating the connection failed (e.g., 'SMTP connection refused', 'Connection timed out'). This is expected in OQ environments without a real SMTP server. The error message must NOT expose internal server details (no stack traces)."
+    screenshot: true
+  - step: 4
+    action: "Verify the error/success message provides actionable information."
+    verify: "If success: message confirms email was sent. If failure: message identifies the issue (connection refused, authentication failed, etc.) without exposing sensitive server internals."
+    screenshot: false
+expected_result: "The test email function is accessible and provides clear feedback. In environments with a real SMTP server, the test email sends successfully. In environments without SMTP, a clear connection error is displayed."
+pass_criteria: "Test email button exists and is functional. The function provides a clear success or failure message. No internal server errors or stack traces are exposed to the user."
+cleanup:
+  - "No cleanup required"

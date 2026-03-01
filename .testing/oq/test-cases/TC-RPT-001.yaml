@@ -1,0 +1,40 @@
+id: TC-RPT-001
+title: "Reports page accessible to supervisor+"
+category: "Reports & Export"
+subcategory: "Access"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Controlled access to quality records and reports"
+  - "ISO 13485 - Management review requires authorized access to SPC reports"
+  - "IATF 16949 - Controlled distribution of process capability data"
+preconditions:
+  description: "A user with supervisor role exists and has at least one plant assignment. Backend and frontend servers are running. No user is currently logged in."
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /login and log in as a user with supervisor role (or admin, who inherits supervisor)"
+    verify: "Login succeeds. Dashboard loads with sidebar navigation visible."
+    screenshot: false
+  - step: 2
+    action: "Look at the sidebar navigation on the left side of the page"
+    verify: "The 'Reports' item is visible in the sidebar. Supervisors and above see this item; operators do not."
+    screenshot: true
+  - step: 3
+    action: "Click 'Reports' in the sidebar"
+    verify: "The page navigates to /reports. The Reports page loads with three visible control areas: (1) a template dropdown with a 'Select template...' placeholder, (2) a TimeRangeSelector for adjusting the data window, and (3) an Export dropdown button on the right."
+    screenshot: true
+  - step: 4
+    action: "Observe the template dropdown options by clicking it"
+    verify: "The dropdown lists four report templates: 'Characteristic Summary', 'Capability Analysis', 'Violation Summary', and 'Trend Analysis'."
+    screenshot: true
+  - step: 5
+    action: "Observe the main content area below the controls bar"
+    verify: "A 'No characteristic selected' empty state is displayed since no characteristic has been picked yet. The Export dropdown is disabled."
+    screenshot: false
+expected_result: "Supervisor-level users can access the Reports page. The page loads with template selection, time range controls, and export functionality. The four standard report templates are available."
+pass_criteria: "Reports page loads at /reports. Template dropdown shows 4 templates. Time range selector is present. Export dropdown is present (disabled until data is selected). No errors in console."
+cleanup:
+  - "No cleanup required -- session can be reused or cleared by subsequent tests"

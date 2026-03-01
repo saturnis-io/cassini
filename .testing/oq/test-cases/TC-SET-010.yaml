@@ -1,0 +1,40 @@
+id: TC-SET-010
+title: "SSO/OIDC configuration page loads with provider form"
+category: "Settings & Admin"
+subcategory: "SSO"
+priority: medium
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Secure authentication mechanisms"
+  - "ISO 27001 - Federated identity management"
+  - "NIST SP 800-63 - Authentication assurance levels"
+preconditions:
+  description: >
+    An admin user is logged in. The SSO settings tab is accessible.
+    No OIDC providers are configured (or existing ones are visible).
+    Note: Actual SSO integration is NOT tested here -- only the
+    configuration form structure is validated.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/sso."
+    verify: "SSO settings tab loads. An OIDC provider configuration area is visible."
+    screenshot: true
+  - step: 2
+    action: "Observe the SSO configuration interface."
+    verify: "The page shows either: (A) A list of configured OIDC providers (if any exist) with options to edit/delete, plus an 'Add Provider' button. (B) An empty state with an 'Add Provider' button if no providers are configured. The configuration form (visible or accessible via Add Provider) includes fields for: Client ID, Client Secret, Discovery URL (or individual endpoint URLs), and provider name."
+    screenshot: true
+  - step: 3
+    action: "Click 'Add Provider' (if no providers exist) or verify the form fields."
+    verify: "The provider configuration form is accessible with fields for: (1) Provider name (text input). (2) Client ID (text input). (3) Client Secret (text/password input). (4) Discovery URL (text input for .well-known/openid-configuration URL). Optional sections may include claim mapping and plant-role mapping configuration."
+    screenshot: true
+  - step: 4
+    action: "Cancel or close the form without saving (to avoid creating a broken provider)."
+    verify: "The form closes without creating a provider. The SSO tab returns to its previous state."
+    screenshot: false
+expected_result: "The SSO configuration page loads with an OIDC provider management interface. The configuration form includes all required OAuth 2.0 / OIDC fields (client ID, client secret, discovery URL)."
+pass_criteria: "SSO tab loads without errors. Provider form fields are present and functional. The form can be opened and cancelled without side effects."
+cleanup:
+  - "No cleanup required -- no provider was created"

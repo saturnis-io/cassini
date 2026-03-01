@@ -1,0 +1,71 @@
+id: TC-DISP-001
+title: "Kiosk mode loads fullscreen with chart"
+category: "Display Modes"
+subcategory: "Kiosk"
+priority: high
+regulatory_relevance:
+  - "Lean Manufacturing - Visual management at the point of use"
+  - "ISO 9001:2015 Section 8.5.1 - Control of production (monitoring at workstation)"
+  - "IATF 16949 Section 8.5.1.1 - Control plans require process monitoring"
+preconditions:
+  description: >
+    An operator (or higher) user exists with access to a plant that has at
+    least one characteristic with sample data. The characteristic has
+    control limits calculated so a control chart can render. Backend and
+    frontend servers are running.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Display"
+    department: "Production"
+    line: "Line-1"
+    characteristic:
+      name: "OQ-Kiosk-Chart"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+    samples:
+      count: 30
+      values: [10.02, 9.98, 10.01, 9.99, 10.00]
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as operator user"
+    verify: "Dashboard loads. User is authenticated."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /kiosk (type the URL directly in the browser address bar)"
+    verify: >
+      The kiosk view loads. The screen shows a fullscreen chart layout.
+      A control chart is rendered filling most of the viewport (using
+      calc(100vh - 220px) height). The characteristic name is displayed
+      in a large heading at the top. A status indicator (colored dot) is
+      visible next to the name.
+    screenshot: true
+  - step: 3
+    action: "Verify the chart renders data points and control limits"
+    verify: >
+      The control chart shows data points (plotted values), control limit
+      lines (UCL, center line, LCL), and the chart fills the available
+      space. A stats bar at the bottom shows: Current value, UCL, and LCL.
+    screenshot: true
+  - step: 4
+    action: "Verify that the sidebar and header are NOT visible"
+    verify: >
+      There is no sidebar navigation on the left. There is no application
+      header/toolbar at the top. The page uses the KioskLayout which strips
+      all standard application chrome. Only the chart, heading, stats bar,
+      and status indicator are visible.
+    screenshot: true
+expected_result: >
+  Kiosk mode renders a fullscreen control chart with no sidebar or header.
+  The chart fills the viewport with large, readable content. Status
+  indicator and stats bar provide at-a-glance process information.
+pass_criteria: >
+  Chart renders successfully with data points and control limits visible.
+  No sidebar or header visible. Stats bar shows current value, UCL, LCL.
+  Status indicator displays correct color (green for in-control process).
+cleanup:
+  - "No cleanup required -- navigating away from /kiosk returns to normal layout"

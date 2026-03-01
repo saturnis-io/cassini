@@ -17,6 +17,11 @@ export const ringVertexShader = /* glsl */ `
   attribute vec3 color;
   varying vec3 vColor;
 
+  // Pseudo-random function for the sparkle/flicker effect
+  float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+  }
+
   void main() {
     float r = length(position.xz);
     float theta = atan(position.z, position.x);
@@ -24,6 +29,7 @@ export const ringVertexShader = /* glsl */ `
     float dy = 0.0;
     vec3 finalColor = color;
     vec3 newPos = position;
+    float pointSizeMultiplier = 1.0;
 
     for(int i = 0; i < NUM_MOONS; i++) {
       float mR = uMoons[i].x;
@@ -61,8 +67,13 @@ export const ringVertexShader = /* glsl */ `
         newPos.z += (position.z / r) * radialPush;
 
         if (status > 0.0) {
-          float colorMix = damping * radialAtten * status * (0.8 + 0.4 * wave);
-          finalColor = mix(finalColor, uAlertColor, clamp(colorMix, 0.0, 1.0));
+          float flicker = random(position.xz + uTime * 2.0);
+          float heat = damping * radialAtten * status * (0.6 + 0.4 * wave);
+
+          // Plasma wake: intense heat with flickering flame colors and enlarged particles
+          vec3 flameColor = mix(uAlertColor, vec3(1.0, 0.9, 0.6), heat * flicker * 2.5);
+          finalColor = mix(finalColor, flameColor, clamp(heat * 3.0, 0.0, 1.0));
+          pointSizeMultiplier += (flicker * heat * 5.0);
         }
       }
     }
@@ -72,7 +83,9 @@ export const ringVertexShader = /* glsl */ `
 
     vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
-    gl_PointSize = (10.0 / -mvPosition.z) * uPixelRatio;
+
+    // Apply the dynamic sparkle/fire size multiplier
+    gl_PointSize = (10.0 / -mvPosition.z) * uPixelRatio * pointSizeMultiplier;
   }
 `
 

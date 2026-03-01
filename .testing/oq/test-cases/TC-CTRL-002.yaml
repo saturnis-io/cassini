@@ -1,0 +1,64 @@
+id: TC-CTRL-002
+title: "X-bar/R range chart renders below means chart with own limits"
+category: "Control Charts"
+subcategory: "VariableCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Dual Chart Layout"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+
+preconditions:
+  description: >
+    Same as TC-CTRL-001. X-bar/R characteristic with 30+ subgroups and
+    calculated limits. This test focuses specifically on the R (Range)
+    chart as the secondary chart.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Shaft Diameter XbarR"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+    samples: "30 subgroups of 5, centered at 25.00"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select the Shaft Diameter XbarR characteristic"
+    verify: "Dual chart layout renders: X-bar chart (top) and R chart (bottom)"
+    screenshot: true
+  - step: 2
+    action: "Inspect the R chart (lower panel)"
+    verify: >
+      R chart has its own set of limit lines:
+      UCL_R = D4 * R-bar (D4 = 2.114 for n=5)
+      CL_R = R-bar (average range)
+      LCL_R = D3 * R-bar (D3 = 0 for n=5, so LCL = 0 or not shown)
+      Data points represent the range (max - min) of each subgroup.
+    screenshot: true
+  - step: 3
+    action: "Hover over a point on the R chart"
+    verify: >
+      Tooltip shows the range value for that subgroup, the timestamp,
+      and the zone classification.
+    screenshot: true
+
+expected_result: >
+  The R chart renders as an independent chart below the X-bar chart.
+  It has its own Y-axis scale (range values, not means), its own
+  UCL/CL/LCL lines based on D3/D4 constants, and its own zone
+  classification. This is critical because a process can be in
+  control on the means chart but out of control on the range chart
+  (indicating increased within-subgroup variation).
+
+pass_criteria: >
+  R chart has distinct limit values from the X-bar chart. R chart CL
+  equals the average range. All range values are non-negative. LCL is
+  zero or not displayed for n<=6 (D3=0). Tooltip shows range value.
+
+cleanup:
+  - "Delete seeded data via API"

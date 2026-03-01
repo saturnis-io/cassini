@@ -1,0 +1,78 @@
+id: TC-CTRL-019
+title: "Short-run Z-score (standardized) mode chart renders correctly"
+category: "Control Charts"
+subcategory: "ShortRun"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Short Run SPC (Standardized Charts)"
+  - "IATF 16949 Section 9.1.1.1 - SPC for high-mix/low-volume"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    An X-bar/R characteristic exists with short_run_mode='z_score',
+    target value set, and stored_sigma set. Subgroup size > 1. At
+    least 25 subgroups seeded. Z-score mode standardizes:
+    Z = (X-bar - Target) / (sigma / sqrt(n)), enabling mixed-part
+    monitoring with fully normalized scales.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Mixed Part Z-Score"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+      target: 25.00
+      stored_sigma: 0.03
+      short_run_mode: "z_score"
+    samples: "25 subgroups of 5, centered at 25.00"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Mixed Part Z-Score"
+    verify: >
+      Chart renders with Y-axis showing Z-score values (typically
+      between -3 and +3 for an in-control process). NOT raw measurements.
+    screenshot: true
+  - step: 2
+    action: "Inspect the Y-axis labels"
+    verify: >
+      Y-axis shows standardized values. The axis label may include 'Z'
+      or 'Standardized'. Values are dimensionless (no units). Control
+      limits should be at approximately +3 and -3.
+    screenshot: true
+  - step: 3
+    action: "Verify the control limit positions"
+    verify: >
+      UCL is at approximately +3, LCL at approximately -3, CL at 0.
+      These are the standard 3-sigma limits on the Z-score scale.
+      The formula used is Z = (X-bar - target) / (sigma / sqrt(n))
+      where sigma is stored_sigma and n is subgroup_size.
+    screenshot: true
+  - step: 4
+    action: "Hover over a data point"
+    verify: >
+      Tooltip shows the Z-score value and optionally the original
+      subgroup mean and measurements.
+    screenshot: true
+
+expected_result: >
+  The Z-score chart fully standardizes all values so that different
+  part numbers with different targets and sigma values can be plotted
+  on the same chart with universal +/-3 limits. This is critical for
+  job-shop environments with many low-volume parts.
+
+pass_criteria: >
+  Y-axis shows Z-scores (dimensionless, typically -4 to +4). UCL at
+  +3, LCL at -3, CL at 0. The sigma divisor uses sigma/sqrt(n) for
+  subgroup means (not raw sigma). Most points fall between -2 and +2.
+
+cleanup:
+  - "Delete seeded data via API"

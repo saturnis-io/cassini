@@ -1,0 +1,51 @@
+id: TC-VIOL-015
+title: "Attribute charts only trigger Nelson rules 1-4, not rules 5-8"
+category: "Violations & Rules"
+subcategory: "Configuration"
+priority: high
+regulatory_relevance:
+  - "ISO 7870-2 - Appropriate application of control chart rules"
+  - "AIAG SPC Reference Manual - Attribute chart interpretation limitations"
+preconditions:
+  description: "A p-chart (attribute, proportion defective) characteristic exists with all 8 Nelson rules enabled. At least 25 subgroups have been submitted with a stable defect rate to establish control limits. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-AttrRules"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "attribute"
+      attribute_chart_type: "p"
+      default_sample_size: 100
+      usl: null
+      lsl: null
+    samples:
+      count: 25
+      values_description: "25 attribute samples for a p-chart. Each sample represents defect counts from a sample size of 100. Use a stable defect rate around 5 defects per 100 (p=0.05). Example defect counts: 5, 4, 6, 5, 3, 7, 5, 4, 6, 5, 4, 5, 6, 3, 7, 5, 4, 6, 5, 4, 5, 6, 3, 5, 4. After submission, recalculate control limits."
+    post_seed:
+      - "Recalculate limits"
+      - "Enable all 8 Nelson rules via PUT /characteristics/{id}/rules (all is_enabled=true)"
+      - "Verify no violations exist"
+execution_mode: api-verify
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Verify all 8 rules are enabled on the p-chart characteristic by calling GET /characteristics/{id}/rules."
+    verify: "All 8 rules return is_enabled=true. The system accepts the configuration even though rules 5-8 will not be evaluated for attribute charts."
+    screenshot: false
+  - step: 2
+    action: "Submit attribute data patterns that would trigger Rule 5 if it were evaluated. For a p-chart, submit 3 consecutive samples where 2 of 3 have defect counts well above the average (in Zone A, between 2-sigma and 3-sigma of the attribute control limits). For example, if the average is 5 per 100, submit counts of 12, 6, 13 (where 12 and 13 are beyond 2-sigma for the p-chart)."
+    verify: "The samples are submitted successfully. The SPC engine evaluates only rules 1-4 against the attribute data. No Rule 5 violation is generated. If the values are extreme enough to also trigger Rule 1, that is expected (Rule 1 applies to attribute charts). But Rule 5 specifically should NOT appear."
+    screenshot: false
+  - step: 3
+    action: "Call GET /violations?characteristic_id={id} to list all violations."
+    verify: "Any violations that exist have rule_id in {1, 2, 3, 4}. No violation has rule_id=5, 6, 7, or 8. This confirms that the backend correctly limits attribute chart evaluation to rules 1-4."
+    screenshot: false
+  - step: 4
+    action: "Verify via GET /violations/stats?characteristic_id={id}."
+    verify: "The by_rule breakdown contains only rule IDs 1-4 (if any violations exist). No entries for rule IDs 5, 6, 7, or 8."
+    screenshot: false
+expected_result: "Attribute charts (p, np, c, u) only evaluate Nelson rules 1-4 even when all 8 rules are enabled. Rules 5-8 are zone-based and are silently ignored for attribute data because discrete distributions do not support zone-based analysis."
+pass_criteria: "No Rule 5, 6, 7, or 8 violation is generated for the attribute chart. The backend correctly intersects configured rules with {1, 2, 3, 4} for attribute characteristics. Rules 1-4 still function normally on the attribute chart."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-AttrRules' and all associated data via API"

@@ -3,19 +3,26 @@
   "subtitle": "Configure system settings and integrations",
   "groups": {
     "personal": "Personal",
-    "administration": "Administration"
+    "organization": "Organization",
+    "security": "Security & Compliance",
+    "data": "Data & Infrastructure",
+    "integrations": "Integrations"
   },
   "tabs": {
     "appearance": "Appearance",
     "notifications": "Notifications",
-    "branding": "Branding",
     "sites": "Sites",
-    "apiKeys": "API Keys",
-    "retention": "Retention",
-    "reports": "Reports",
+    "branding": "Branding",
+    "localization": "Localization",
     "sso": "SSO",
     "signatures": "Signatures",
+    "apiKeys": "API Keys",
     "auditLog": "Audit Log",
-    "database": "Database"
+    "database": "Database",
+    "retention": "Retention",
+    "reports": "Reports",
+    "ai": "AI Config",
+    "account": "Account",
+    "emailWebhooks": "Email & Webhooks"
   }
 }

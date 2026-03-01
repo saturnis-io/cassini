@@ -1,0 +1,77 @@
+id: TC-ANLYT-009
+title: "DOE -- enter response data for all runs"
+category: "Advanced Analytics"
+subcategory: "DOE"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring, measurement, analysis"
+  - "Six Sigma DMAIC Improve phase - Experimental data collection"
+preconditions:
+  description: >
+    An engineer user is logged in. A DOE study exists in 'collecting' status
+    with 4 generated runs (from TC-ANLYT-008 or seeded via API). All runs
+    have null response_value fields. This test enters response values for
+    each run to complete data collection.
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ DOE Data Plant"
+        code: "OQDD"
+        is_active: true
+    study:
+      method: POST
+      endpoint: "/doe/studies"
+      body:
+        plant_id: "{plant_id}"
+        name: "OQ Run Data Study"
+        design_type: "full_factorial"
+        response_name: "Surface Roughness"
+        response_unit: "um"
+        factors:
+          - name: "Temperature"
+            low_level: 180
+            high_level: 220
+            unit: "degC"
+          - name: "Pressure"
+            low_level: 50
+            high_level: 100
+            unit: "MPa"
+    generate:
+      method: POST
+      endpoint: "/doe/studies/{study.id}/generate"
+      body: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to the DOE study detail page (click the study card on /doe or navigate to /doe/{study_id})."
+    verify: "Study detail loads showing status 'Collecting'. The run table shows 4 runs with factor values but empty response columns."
+    screenshot: true
+  - step: 2
+    action: "Enter response value 3.2 for Run 1 (low Temperature, low Pressure)."
+    verify: "The response field for Run 1 shows 3.2."
+    screenshot: false
+  - step: 3
+    action: "Enter response value 4.1 for Run 2 (high Temperature, low Pressure)."
+    verify: "The response field for Run 2 shows 4.1."
+    screenshot: false
+  - step: 4
+    action: "Enter response value 2.8 for Run 3 (low Temperature, high Pressure)."
+    verify: "The response field for Run 3 shows 2.8."
+    screenshot: false
+  - step: 5
+    action: "Enter response value 5.5 for Run 4 (high Temperature, high Pressure)."
+    verify: "The response field for Run 4 shows 5.5."
+    screenshot: true
+  - step: 6
+    action: "Click Save/Submit to save all run data."
+    verify: "Success indication (toast or inline message). All 4 runs now show their response values. The completed run count shows 4/4."
+    screenshot: true
+expected_result: "Response values are entered and saved for all 4 runs. The run data table shows all runs with both factor values and response values populated."
+pass_criteria: "All runs accept numeric response values. Save completes without error. API verification: GET /doe/studies/{id}/runs returns 4 runs, each with non-null response_value (3.2, 4.1, 2.8, 5.5) and non-null completed_at timestamps."
+cleanup:
+  - "Delete DOE study via API: DELETE /doe/studies/{study_id}"
+  - "Delete plant via API"

@@ -1,0 +1,54 @@
+id: TC-AUDIT-006
+title: "Filter audit log by user"
+category: "Audit Trail & Retention"
+subcategory: "Filters"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Ability to identify specific user actions (attributability)"
+  - "ISO 13485 - User-specific record traceability"
+preconditions:
+  description: >
+    An admin user exists. At least two different users have performed actions
+    in the system (e.g., admin and an engineer). The audit log contains
+    entries from both users. This may require pre-seeding a second user
+    and having them perform an action.
+  seed_method: api
+  seed_data:
+    users:
+      - username: "oq-audit-user"
+        password: "AuditTest123!"
+        role: "engineer"
+        plant: "OQ-Plant-Audit"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin and navigate to /settings/audit-log"
+    verify: "Audit log viewer loads showing entries from multiple users"
+    screenshot: true
+  - step: 2
+    action: "Locate the user filter control and filter by the admin user (user_id or username)"
+    verify: >
+      The table refreshes to show only entries attributed to the admin user.
+      Every visible row shows 'admin' in the username column. No entries
+      from other users are visible.
+    screenshot: true
+  - step: 3
+    action: "Change the filter to show entries from 'oq-audit-user' (if they have performed actions)"
+    verify: >
+      The table refreshes to show only entries from the oq-audit-user.
+      If this user has no entries, the table shows an empty state or zero results.
+    screenshot: true
+  - step: 4
+    action: "Clear the user filter"
+    verify: "The table returns to showing entries from all users"
+    screenshot: false
+expected_result: >
+  Filtering the audit log by user correctly shows only entries attributed
+  to the selected user, supporting user-specific record traceability.
+pass_criteria: >
+  When filtered by admin user, all visible rows show 'admin' username.
+  When filter is cleared, entries from multiple users appear. API verification:
+  GET /audit/logs?user_id={admin_id} returns only admin's entries.
+cleanup:
+  - "Delete user 'oq-audit-user' via API if created"

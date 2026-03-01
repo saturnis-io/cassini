@@ -9,6 +9,9 @@ import {
   Table2,
   Check,
   AlertTriangle,
+  Eye,
+  ClipboardList,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -36,6 +39,7 @@ import type {
 } from '@/api/client'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
+import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'
@@ -63,13 +67,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
   complete: { label: 'Complete', bg: 'bg-green-500/10', text: 'text-green-500' },
 }
 
-const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'data', label: 'Data Entry' },
-  { key: 'results', label: 'Results' },
-] as const
-
-type TabKey = (typeof TABS)[number]['key']
+type TabKey = 'overview' | 'data' | 'results'
 
 // ── Helpers ──
 
@@ -668,23 +666,16 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="border-border flex border-b">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'border-b-2 px-4 py-3 text-sm font-medium transition-colors',
-              activeTab === tab.key
-                ? 'border-primary text-primary'
-                : 'text-muted-foreground hover:text-foreground border-transparent',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Step navigation */}
+      <StudySteps
+        steps={[
+          { key: 'overview', label: 'Overview', icon: Eye },
+          { key: 'data', label: 'Data Entry', icon: ClipboardList },
+          { key: 'results', label: 'Results', icon: BarChart3, completed: isComplete },
+        ]}
+        activeKey={activeTab}
+        onStepClick={(key) => setActiveTab(key as TabKey)}
+      />
 
       {/* Tab content */}
       <div className="min-h-[400px]">
@@ -818,9 +809,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
             ) : results ? (
               <>
                 {isAttribute ? (
-                  <AttributeMSAResults result={results as AttributeMSAResult} />
+                  <AttributeMSAResults result={results as AttributeMSAResult} studyId={studyId} />
                 ) : (
-                  <MSAResults result={results as GageRRResult} />
+                  <MSAResults result={results as GageRRResult} studyId={studyId} />
                 )}
 
                 {readOnlyData && (

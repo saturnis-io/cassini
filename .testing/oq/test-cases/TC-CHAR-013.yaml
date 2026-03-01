@@ -1,0 +1,63 @@
+id: TC-CHAR-013
+title: "Apply WECO rule preset"
+category: "Characteristic Configuration"
+subcategory: "RulePresets"
+priority: high
+regulatory_relevance:
+  - "Western Electric - Statistical Quality Control Handbook (1956)"
+  - "ISO 7870-2 - Shewhart control charts (pattern detection)"
+preconditions:
+  description: "Engineer user is logged in. A variable characteristic exists."
+  seed_method: api
+  seed_data:
+    plant:
+      method: POST
+      endpoint: "/plants"
+      body:
+        name: "OQ WECO Preset Plant"
+        code: "OQWE"
+        is_active: true
+    department:
+      method: POST
+      endpoint: "/plants/{plant_id}/hierarchies"
+      body:
+        name: "WECO Dept"
+        type: "Area"
+    station:
+      method: POST
+      endpoint: "/hierarchy"
+      body:
+        parent_id: "{department.id}"
+        name: "WECO Station"
+        type: "Equipment"
+    characteristic:
+      method: POST
+      endpoint: "/characteristics"
+      body:
+        hierarchy_id: "{station.id}"
+        name: "OQ-WECO-Preset"
+        subgroup_size: 5
+        data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to Configuration, select 'OQ-WECO-Preset', open Rules tab."
+    verify: "Rules tab loads showing current rule configuration."
+    screenshot: true
+  - step: 2
+    action: "Select 'WECO' (Western Electric) from the preset dropdown."
+    verify: "WECO preset is available."
+    screenshot: false
+  - step: 3
+    action: "Click 'Apply Preset'."
+    verify: "Rules update to match WECO configuration: Rules 1-4 enabled with Western Electric parameters."
+    screenshot: true
+  - step: 4
+    action: "Verify the specific rules that are enabled and their descriptions match the Western Electric standard."
+    verify: "Rule 1 (1 point beyond 3-sigma), Rule 2 (consecutive same side), Rule 3 (trending), Rule 4 (alternating) are enabled with WECO-specific parameters."
+    screenshot: true
+expected_result: "WECO rule preset applies the Western Electric Company's original pattern detection rules correctly."
+pass_criteria: "WECO preset rules are applied. Rules 1-4 enabled with correct WECO parameters."
+cleanup:
+  - "Delete characteristic, hierarchy nodes, and plant via API"

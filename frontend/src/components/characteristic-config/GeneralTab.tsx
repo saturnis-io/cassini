@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { ProtocolBadge } from '../connectivity/ProtocolBadge'
@@ -55,6 +56,7 @@ export function GeneralTab({
   hierarchyPath = [],
   onChange,
 }: GeneralTabProps) {
+  const { formatDate } = useDateFormat()
   return (
     <Accordion defaultOpen={['identity']} className="space-y-3">
       {/* Identity Section - Default Open */}
@@ -149,7 +151,7 @@ export function GeneralTab({
             <span className="text-muted-foreground">Created</span>
             <p className="font-medium">
               {characteristic.created_at
-                ? new Date(characteristic.created_at).toLocaleDateString()
+                ? formatDate(characteristic.created_at)
                 : '—'}
             </p>
           </div>
@@ -157,7 +159,7 @@ export function GeneralTab({
             <span className="text-muted-foreground">Last Modified</span>
             <p className="font-medium">
               {characteristic.updated_at
-                ? new Date(characteristic.updated_at).toLocaleDateString()
+                ? formatDate(characteristic.updated_at)
                 : '—'}
             </p>
           </div>

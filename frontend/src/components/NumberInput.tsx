@@ -158,10 +158,10 @@ export function NumberInput({
   return (
     <div
       className={cn(
-        'relative flex items-center',
+        'relative flex items-center overflow-hidden',
         'bg-background border-input rounded-lg border',
-        'focus-within:ring-primary/20 focus-within:border-primary focus-within:ring-2',
-        'transition-colors',
+        'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20',
+        'transition-all',
         disabled && 'cursor-not-allowed opacity-50',
         sizeClasses[size],
         className,
@@ -190,7 +190,7 @@ export function NumberInput({
         }}
         className={cn(
           'h-full min-w-0 flex-1 border-0 bg-transparent px-3',
-          'focus:shadow-none focus:outline-none',
+          'focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0',
           // Hide native spinners via CSS as well
           '[&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:hidden',
           '[&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:hidden',

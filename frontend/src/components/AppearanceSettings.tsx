@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useTheme } from '@/providers/ThemeProvider'
+import { useTheme, type VisualStyle } from '@/providers/ThemeProvider'
 import {
   Sun,
   Moon,
@@ -8,7 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  AlertTriangle,
+  Paintbrush,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -20,18 +20,6 @@ import {
   applyChartColors,
   type ChartColors,
 } from '@/lib/theme-presets'
-import {
-  getDisplayKeyFormat,
-  saveDisplayKeyFormat,
-  validateFormat,
-  getFormatWarnings,
-  previewDisplayKey,
-  DEFAULT_FORMAT,
-  DATE_PATTERN_PRESETS,
-  SEPARATOR_OPTIONS,
-  NUMBER_DIGITS_OPTIONS,
-  type DisplayKeyFormat,
-} from '@/lib/display-key'
 import { toast } from 'sonner'
 
 type ThemeOption = 'light' | 'dark' | 'system'
@@ -146,12 +134,18 @@ function ColorInput({ label, value, onChange, description }: ColorInputProps) {
   )
 }
 
-type AppearanceSubTab = 'theme' | 'chart-colors' | 'display-key'
+type AppearanceSubTab = 'theme' | 'visual-style' | 'chart-colors'
 
 const SUB_TABS: { id: AppearanceSubTab; label: string }[] = [
   { id: 'theme', label: 'Theme' },
+  { id: 'visual-style', label: 'Visual Style' },
   { id: 'chart-colors', label: 'Chart Colors' },
-  { id: 'display-key', label: 'Display Key' },
+]
+
+const VISUAL_STYLE_OPTIONS: { value: VisualStyle; label: string; desc: string }[] = [
+  { value: 'modern', label: 'Modern', desc: 'Clean, rounded, standard look' },
+  { value: 'retro', label: 'Retro', desc: 'Sharp edges, monospace accents, industrial control-panel feel' },
+  { value: 'glass', label: 'Glass', desc: 'Frosted panels, blur effects, rounded and luminous' },
 ]
 
 export function AppearanceSettings() {
@@ -161,32 +155,6 @@ export function AppearanceSettings() {
   const [colors, setColors] = useState<ChartColors>(getStoredChartColors())
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-
-  // Display Key Format state
-  const [dkFormat, setDkFormat] = useState<DisplayKeyFormat>(getDisplayKeyFormat)
-  const [dkHasChanges, setDkHasChanges] = useState(false)
-  const dkErrors = validateFormat(dkFormat)
-  const dkWarnings = getFormatWarnings(dkFormat)
-  const dkPreview = previewDisplayKey(dkFormat)
-
-  const handleDkChange = <K extends keyof DisplayKeyFormat>(key: K, value: DisplayKeyFormat[K]) => {
-    setDkFormat((prev) => ({ ...prev, [key]: value }))
-    setDkHasChanges(true)
-  }
-
-  const handleDkSave = () => {
-    if (dkErrors.length > 0) return
-    saveDisplayKeyFormat(dkFormat)
-    setDkHasChanges(false)
-    toast.success('Display key format saved')
-  }
-
-  const handleDkReset = () => {
-    setDkFormat(DEFAULT_FORMAT)
-    saveDisplayKeyFormat(DEFAULT_FORMAT)
-    setDkHasChanges(false)
-    toast.success('Display key format reset to default')
-  }
 
   // Apply colors on mount
   useEffect(() => {
@@ -273,65 +241,37 @@ export function AppearanceSettings() {
         </div>
       )}
 
-      {/* Visual Style */}
-      {subTab === 'theme' && (
+
+      {/* Visual Style — personal preference */}
+      {subTab === 'visual-style' && (
         <div className="bg-muted rounded-xl p-6">
-          <h3 className="mb-2 font-semibold">Visual Style</h3>
+          <div className="mb-2 flex items-center gap-2">
+            <Paintbrush className="h-5 w-5" />
+            <h3 className="font-semibold">Visual Style</h3>
+          </div>
           <p className="text-muted-foreground mb-4 text-sm">
-            Choose a visual style for the interface.
+            Choose your personal visual style preference. Your organization may set a default, but
+            you can override it here.
           </p>
           <div className="grid grid-cols-3 gap-3">
-            <button
-              onClick={() => setVisualStyle('modern')}
-              className={cn(
-                'rounded-lg border-2 p-4 text-left transition-all',
-                visualStyle === 'modern'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50',
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Modern</span>
-                {visualStyle === 'modern' && <Check className="text-primary h-4 w-4" />}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Clean, rounded, standard look
-              </p>
-            </button>
-            <button
-              onClick={() => setVisualStyle('retro')}
-              className={cn(
-                'rounded-lg border-2 p-4 text-left transition-all',
-                visualStyle === 'retro'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50',
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Retro</span>
-                {visualStyle === 'retro' && <Check className="text-primary h-4 w-4" />}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Sharp edges, monospace accents, industrial control-panel feel
-              </p>
-            </button>
-            <button
-              onClick={() => setVisualStyle('glass')}
-              className={cn(
-                'rounded-lg border-2 p-4 text-left transition-all',
-                visualStyle === 'glass'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50',
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Glass</span>
-                {visualStyle === 'glass' && <Check className="text-primary h-4 w-4" />}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Frosted panels, blur effects, rounded and luminous
-              </p>
-            </button>
+            {VISUAL_STYLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setVisualStyle(opt.value)}
+                className={cn(
+                  'rounded-lg border-2 p-4 text-left transition-all',
+                  visualStyle === opt.value
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50',
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{opt.label}</span>
+                  {visualStyle === opt.value && <Check className="text-primary h-4 w-4" />}
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">{opt.desc}</p>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -567,200 +507,6 @@ export function AppearanceSettings() {
         </>
       )}
 
-      {/* Display Key Format */}
-      {subTab === 'display-key' && (
-        <div className="bg-muted rounded-xl p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">Sample Display Key Format</h3>
-              <p className="text-muted-foreground mt-0.5 text-sm">
-                Configure how sample identifiers appear in charts and tables
-              </p>
-            </div>
-            <button
-              onClick={handleDkReset}
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset
-            </button>
-          </div>
-
-          {/* Live Preview */}
-          <div className="bg-background border-border mb-5 rounded-lg border p-4 text-center">
-            <div className="text-muted-foreground mb-1 text-xs">Preview</div>
-            <div className="font-mono text-xl font-semibold tracking-wide">{dkPreview}</div>
-            <div className="text-muted-foreground mt-1 text-xs">Sample 42 of today</div>
-          </div>
-
-          <div className="space-y-4">
-            {/* Date Pattern */}
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <label className="text-sm font-medium">Date Pattern</label>
-                  <p className="text-muted-foreground text-xs">
-                    Tokens:{' '}
-                    <code className="bg-background rounded px-1 py-0.5 text-[11px]">YYYY</code>{' '}
-                    <code className="bg-background rounded px-1 py-0.5 text-[11px]">YY</code>{' '}
-                    <code className="bg-background rounded px-1 py-0.5 text-[11px]">MM</code>{' '}
-                    <code className="bg-background rounded px-1 py-0.5 text-[11px]">MMM</code>{' '}
-                    <code className="bg-background rounded px-1 py-0.5 text-[11px]">DD</code>
-                  </p>
-                </div>
-                <input
-                  type="text"
-                  value={dkFormat.datePattern}
-                  onChange={(e) => handleDkChange('datePattern', e.target.value)}
-                  placeholder="e.g. YYMMDD"
-                  className="bg-background border-input focus:ring-ring w-48 rounded-lg border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-                />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {DATE_PATTERN_PRESETS.map((p) => (
-                  <button
-                    key={p.pattern}
-                    onClick={() => handleDkChange('datePattern', p.pattern)}
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 font-mono text-xs transition-all',
-                      dkFormat.datePattern === p.pattern
-                        ? 'border-primary bg-primary/10 text-primary font-semibold'
-                        : 'border-border hover:border-primary/50 text-muted-foreground',
-                    )}
-                    title={p.pattern}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Separator */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <label className="text-sm font-medium">Separator</label>
-                <p className="text-muted-foreground text-xs">Character between date and number</p>
-              </div>
-              <div className="flex gap-2">
-                {SEPARATOR_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => handleDkChange('separator', opt.value)}
-                    className={cn(
-                      'h-9 w-12 rounded-lg border-2 font-mono text-sm font-semibold transition-all',
-                      dkFormat.separator === opt.value
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:border-primary/50',
-                    )}
-                    title={opt.label}
-                  >
-                    {opt.value}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Number Placement */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <label className="text-sm font-medium">Number Placement</label>
-                <p className="text-muted-foreground text-xs">Where the sequence number appears</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleDkChange('numberPlacement', 'after')}
-                  className={cn(
-                    'rounded-lg border-2 px-3 py-2 text-sm transition-all',
-                    dkFormat.numberPlacement === 'after'
-                      ? 'border-primary bg-primary/10 text-primary font-medium'
-                      : 'border-border hover:border-primary/50',
-                  )}
-                >
-                  After date
-                </button>
-                <button
-                  onClick={() => handleDkChange('numberPlacement', 'before')}
-                  className={cn(
-                    'rounded-lg border-2 px-3 py-2 text-sm transition-all',
-                    dkFormat.numberPlacement === 'before'
-                      ? 'border-primary bg-primary/10 text-primary font-medium'
-                      : 'border-border hover:border-primary/50',
-                  )}
-                >
-                  Before date
-                </button>
-              </div>
-            </div>
-
-            {/* Number Digits */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <label className="text-sm font-medium">Number Digits</label>
-                <p className="text-muted-foreground text-xs">
-                  Zero-padding for the sequence number
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {NUMBER_DIGITS_OPTIONS.map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => handleDkChange('numberDigits', n)}
-                    className={cn(
-                      'h-9 w-12 rounded-lg border-2 font-mono text-sm transition-all',
-                      dkFormat.numberDigits === n
-                        ? 'border-primary bg-primary/10 text-primary font-semibold'
-                        : 'border-border hover:border-primary/50',
-                    )}
-                  >
-                    {String(42).padStart(n, '0')}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Validation Warnings */}
-          {dkWarnings.length > 0 && (
-            <div className="mt-4 space-y-1">
-              {dkWarnings.map((w, i) => (
-                <div key={i} className="text-warning flex items-center gap-2 text-xs">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  <span>{w}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Validation Errors */}
-          {dkErrors.length > 0 && (
-            <div className="mt-4 space-y-1">
-              {dkErrors.map((e, i) => (
-                <div key={i} className="text-destructive text-xs">
-                  {e}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Save Button */}
-          {dkHasChanges && (
-            <div className="border-border mt-4 flex justify-end border-t pt-4">
-              <button
-                onClick={handleDkSave}
-                disabled={dkErrors.length > 0}
-                className={cn(
-                  'rounded-lg px-4 py-2 text-sm font-medium',
-                  dkErrors.length > 0
-                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90',
-                )}
-              >
-                Save Format
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

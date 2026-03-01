@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Explainable } from '@/components/Explainable'
 import type { AttributeMSAResult } from '@/api/client'
 
 interface AttributeMSAResultsProps {
   result: AttributeMSAResult
+  studyId: number
 }
 
 const TOOLTIPS: Record<string, string> = {
@@ -68,7 +70,7 @@ function kappaBg(k: number): string {
   return 'bg-red-500/10'
 }
 
-export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
+export function AttributeMSAResults({ result, studyId }: AttributeMSAResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.unacceptable
 
   return (
@@ -83,15 +85,17 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground text-sm">Fleiss' Kappa =<Tip id="fleiss_kappa" /></span>
-          <span
-            className={cn(
-              'rounded-full px-3 py-1 text-sm font-bold',
-              kappaBg(result.fleiss_kappa),
-              kappaClass(result.fleiss_kappa),
-            )}
-          >
-            {result.fleiss_kappa.toFixed(4)}
-          </span>
+          <Explainable metric="fleiss_kappa" resourceId={studyId} resourceType="msa">
+            <span
+              className={cn(
+                'rounded-full px-3 py-1 text-sm font-bold',
+                kappaBg(result.fleiss_kappa),
+                kappaClass(result.fleiss_kappa),
+              )}
+            >
+              {result.fleiss_kappa.toFixed(4)}
+            </span>
+          </Explainable>
         </div>
       </div>
 
@@ -132,15 +136,17 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
               Percentage of parts where all appraisers agreed on every replicate
             </p>
           </div>
-          <span
-            className={cn(
-              'rounded-lg px-4 py-2 text-lg font-bold',
-              agreePctClass(result.between_appraiser),
-              result.between_appraiser >= 90 ? 'bg-green-500/10' : result.between_appraiser >= 70 ? 'bg-amber-500/10' : 'bg-red-500/10',
-            )}
-          >
-            {result.between_appraiser.toFixed(1)}%
-          </span>
+          <Explainable metric="between_appraiser" resourceId={studyId} resourceType="msa">
+            <span
+              className={cn(
+                'rounded-lg px-4 py-2 text-lg font-bold',
+                agreePctClass(result.between_appraiser),
+                result.between_appraiser >= 90 ? 'bg-green-500/10' : result.between_appraiser >= 70 ? 'bg-amber-500/10' : 'bg-red-500/10',
+              )}
+            >
+              {result.between_appraiser.toFixed(1)}%
+            </span>
+          </Explainable>
         </div>
       </div>
 
@@ -195,7 +201,9 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
               <tr key={pair} className="border-border/50 border-t">
                 <td className="px-4 py-2 font-medium">{pair}</td>
                 <td className={cn('px-4 py-2 text-right tabular-nums font-medium', kappaClass(kappa))}>
-                  {kappa.toFixed(4)}
+                  <Explainable metric="cohens_kappa" resourceId={studyId} resourceType="msa">
+                    {kappa.toFixed(4)}
+                  </Explainable>
                 </td>
                 <td className={cn('px-4 py-2 text-right text-xs', kappaClass(kappa))}>
                   {kappa >= 0.75
@@ -219,15 +227,17 @@ export function AttributeMSAResults({ result }: AttributeMSAResultsProps) {
               Multi-rater agreement statistic accounting for chance agreement
             </p>
           </div>
-          <span
-            className={cn(
-              'rounded-lg px-4 py-2 text-lg font-bold',
-              kappaBg(result.fleiss_kappa),
-              kappaClass(result.fleiss_kappa),
-            )}
-          >
-            {result.fleiss_kappa.toFixed(4)}
-          </span>
+          <Explainable metric="fleiss_kappa" resourceId={studyId} resourceType="msa">
+            <span
+              className={cn(
+                'rounded-lg px-4 py-2 text-lg font-bold',
+                kappaBg(result.fleiss_kappa),
+                kappaClass(result.fleiss_kappa),
+              )}
+            >
+              {result.fleiss_kappa.toFixed(4)}
+            </span>
+          </Explainable>
         </div>
       </div>
 

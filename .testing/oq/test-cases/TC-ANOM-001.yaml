@@ -1,0 +1,57 @@
+id: TC-ANOM-001
+title: "AI/ML anomaly detection config page loads"
+category: "Anomaly Detection"
+subcategory: "Config"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 10.1 - Improvement through data analysis and evaluation"
+  - "ICH Q10 - Pharmaceutical quality system knowledge management"
+  - "IATF 16949 Section 9.1.1 - Monitoring, measurement, analysis, and evaluation"
+preconditions:
+  description: >
+    An admin user is logged in. The AI settings page is accessible. A
+    characteristic exists for which anomaly config can be viewed or created.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Anomaly"
+    user:
+      username: "oq-admin"
+      role: "admin"
+    characteristic:
+      name: "OQ-Bore-Diameter-Anomaly"
+      chart_type: "i_mr"
+      subgroup_size: 1
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as admin. Navigate to /settings/ai (or the AI/ML configuration section in Settings)."
+    verify: "The AI settings page loads. The page shows configuration sections for anomaly detection algorithms."
+    screenshot: true
+  - step: 2
+    action: "Examine the page content for algorithm toggles"
+    verify: "Three detector sections are visible: PELT (changepoint detection), K-S Test (distribution shift detection), and Isolation Forest (multivariate outlier detection). Each section has an enable/disable toggle."
+    screenshot: true
+  - step: 3
+    action: "Examine the sensitivity and parameter controls"
+    verify: "Each detector section shows its configurable parameters. PELT: model type (l2/rbf/normal), penalty, min segment size. K-S: reference window, test window, alpha. Isolation Forest: contamination, number of estimators, min training samples, retrain interval."
+    screenshot: true
+  - step: 4
+    action: "Examine the notification settings"
+    verify: "Notification toggle options are visible: 'Notify on changepoint', 'Notify on anomaly score', 'Notify on distribution shift'. An anomaly score threshold slider or input is present."
+    screenshot: true
+  - step: 5
+    action: "Verify via API: GET /anomaly/{char_id}/config"
+    verify: "Response returns a valid AnomalyConfigResponse with all fields: is_enabled, pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment, iforest_enabled, iforest_contamination, iforest_n_estimators, iforest_min_training, iforest_retrain_interval, ks_enabled, ks_reference_window, ks_test_window, ks_alpha, notify_on_changepoint, notify_on_anomaly_score, notify_on_distribution_shift, anomaly_score_threshold."
+    screenshot: false
+expected_result: >
+  The AI/ML configuration page loads successfully and displays all three
+  detector algorithm sections (PELT, K-S, Isolation Forest) with their
+  respective enable/disable toggles and parameter controls. Notification
+  settings are also visible.
+pass_criteria: >
+  Page loads without error. All three detector sections are visible. Each
+  detector has toggle and parameter controls. API returns valid config with
+  all expected fields.
+cleanup:
+  - "No cleanup required -- read-only operation"

@@ -1,0 +1,45 @@
+id: TC-AUTH-009
+title: "Reset password with valid token"
+category: "Authentication & Accounts"
+subcategory: "Password"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 - Secure password reset mechanism"
+  - "ISO 13485 - Controlled credential recovery"
+preconditions:
+  description: "A valid password reset token has been generated for a test user. This requires API-level setup: create a user, call POST /auth/forgot-password with their identifier, then extract the raw token from the database (token_hash is SHA-256 of the raw token) or from the email content. Alternatively, use the backend seed script to pre-generate a token."
+  seed_method: api
+  seed_data:
+    setup_steps:
+      - "Create test user via POST /users/ with username 'oq-reset-user', password 'OldPass123!', email 'reset@test.local'"
+      - "Assign operator role at a plant via POST /users/{id}/roles"
+      - "Call POST /auth/forgot-password with identifier 'oq-reset-user'"
+      - "Extract the raw token from the PasswordResetToken table or email (token is in the reset URL path)"
+    notes: "The raw token (not the hash) must be known to construct the reset URL"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reset-password?token={valid_raw_token} where {valid_raw_token} is the token generated in preconditions"
+    verify: "The reset password page loads. It displays fields for 'New Password' and 'Confirm New Password' (or a single password field with confirmation). No error message is shown."
+    screenshot: true
+  - step: 2
+    action: "Enter a new password ('ResetSecure789!') in the new password field and confirm it"
+    verify: "Password fields accept input. The submit button is enabled."
+    screenshot: false
+  - step: 3
+    action: "Click the submit button"
+    verify: "A success message is displayed: 'Password has been reset successfully. Please log in with your new password.' The user may be shown a link to the login page or automatically redirected."
+    screenshot: true
+  - step: 4
+    action: "Navigate to /login and log in with username 'oq-reset-user' and the new password 'ResetSecure789!'"
+    verify: "Login succeeds. The dashboard loads. This confirms the password was actually changed."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /login and attempt to log in with the OLD password 'OldPass123!'"
+    verify: "Login fails with 'Invalid username or password'. The old password no longer works."
+    screenshot: false
+expected_result: "A valid reset token allows the user to set a new password. After reset, the new password works for login and the old password is rejected."
+pass_criteria: "Reset page loads without error. Password change succeeds. Login with new password works. Login with old password fails. Token is consumed (cannot be reused)."
+cleanup:
+  - "Delete or deactivate the oq-reset-user test user via API: DELETE /users/{id}"

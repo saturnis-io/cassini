@@ -1,0 +1,69 @@
+id: TC-CTRL-013
+title: "Chart tooltip displays on hover with correct values"
+category: "Control Charts"
+subcategory: "Interactions"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (data accessibility)"
+  - "21 CFR Part 11 Section 11.10(b) - Ability to Generate Accurate Copies"
+
+preconditions:
+  description: >
+    An X-bar/R characteristic with 30+ subgroups of 5 measurements and
+    calculated limits. This test verifies the tooltip interaction that
+    provides detailed information about each data point.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Shaft Diameter XbarR"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+    samples: "30 subgroups of 5 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Shaft Diameter XbarR"
+    verify: "X-bar/R chart renders with 30 data points"
+    screenshot: false
+  - step: 2
+    action: "Hover the mouse cursor over a data point on the X-bar chart"
+    verify: >
+      A tooltip appears near the cursor showing:
+      - Subgroup mean value (e.g., 25.003)
+      - Timestamp (date and time of the sample)
+      - Individual measurements in the subgroup (e.g., [25.01, 24.99, 25.00, 25.02, 24.99])
+      - Zone classification (e.g., "Zone C" or "In Control")
+    screenshot: true
+  - step: 3
+    action: "Move the cursor to a different data point"
+    verify: "Tooltip updates to show the values for the new point"
+    screenshot: false
+  - step: 4
+    action: "Hover over a point on the R chart (range chart)"
+    verify: >
+      Tooltip shows the range value for that subgroup and the timestamp.
+    screenshot: true
+  - step: 5
+    action: "Move the cursor away from all data points"
+    verify: "Tooltip disappears cleanly (no lingering ghost tooltips)"
+    screenshot: false
+
+expected_result: >
+  The tooltip provides immediate access to detailed point information
+  without requiring a click. Values displayed in the tooltip must
+  exactly match the underlying data. This supports real-time process
+  monitoring by operators who need quick data verification.
+
+pass_criteria: >
+  Tooltip appears on hover, disappears on mouse-out. Displayed values
+  match the API data for that sample. Subgroup measurements are listed.
+  Tooltip is legible and does not clip at chart boundaries.
+
+cleanup:
+  - "Delete seeded data via API"

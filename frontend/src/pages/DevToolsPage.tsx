@@ -18,6 +18,8 @@ import {
   Usb,
   Building2,
   BrainCircuit,
+  Wine,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -36,6 +38,8 @@ const SCRIPT_ICONS: Record<string, React.ReactNode> = {
   test_sprint7: <Usb className="h-6 w-6" />,
   test_sprint8: <Building2 className="h-6 w-6" />,
   test_sprint9: <BrainCircuit className="h-6 w-6" />,
+  distillery: <Wine className="h-6 w-6" />,
+  showcase: <Sparkles className="h-6 w-6" />,
 }
 
 export function DevToolsPage() {

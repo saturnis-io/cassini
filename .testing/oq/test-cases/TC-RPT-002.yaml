@@ -1,0 +1,41 @@
+id: TC-RPT-002
+title: "Generate SPC summary report for a characteristic"
+category: "Reports & Export"
+subcategory: "Generation"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic records must accurately reflect process data"
+  - "ISO 13485 - Quality records for management review must be complete and accurate"
+  - "IATF 16949 - Process performance reports must include control chart evidence"
+preconditions:
+  description: "Logged in as supervisor or higher. At least one characteristic exists with sample data (minimum 10 data points). A plant is selected."
+  seed_method: api
+  seed_data:
+    characteristic: "Variable characteristic with subgroup_size=1 and at least 20 samples"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /reports"
+    verify: "Reports page loads with controls bar."
+    screenshot: false
+  - step: 2
+    action: "Select 'Characteristic Summary' from the template dropdown"
+    verify: "Template dropdown now shows 'Characteristic Summary' as the selected value. The main content area shows a 'No characteristic selected' empty state (template chosen, but no characteristic yet)."
+    screenshot: false
+  - step: 3
+    action: "Use the CharacteristicContextBar to select a characteristic that has sample data. Click the hierarchy picker, navigate to a department > line > characteristic."
+    verify: "The CharacteristicContextBar shows the selected characteristic name. The report preview begins loading below the controls."
+    screenshot: false
+  - step: 4
+    action: "Wait for the report preview to fully render"
+    verify: "The Characteristic Summary report renders with the following sections visible: (1) Header with characteristic name, chart type, and date range. (2) Control chart image showing data points with control limits. (3) Statistics section showing descriptive statistics (mean, std dev, min, max, count). (4) Violations section listing any violations in the date range. (5) Samples listing."
+    screenshot: true
+  - step: 5
+    action: "Scroll through the report preview to verify all sections are present"
+    verify: "All sections defined in the Characteristic Summary template are rendered: header, controlChart, statistics, violations, annotations, samples. The control chart shows data points and control limit lines."
+    screenshot: true
+expected_result: "Selecting a template and characteristic generates a complete report preview with all expected sections. The control chart renders with actual data points and control limits."
+pass_criteria: "Report preview renders without errors. Control chart image is visible. Statistics section shows calculated values (not N/A). At least one section contains data from the selected characteristic."
+cleanup:
+  - "No cleanup required"

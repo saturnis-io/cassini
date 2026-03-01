@@ -15,6 +15,7 @@ export interface MappingRowData {
   triggerStrategy: string
   isActive: boolean
   hasError?: boolean
+  jsonPath?: string | null
 }
 
 interface MappingRowProps {

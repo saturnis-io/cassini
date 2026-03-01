@@ -31,12 +31,14 @@ from cassini.api.v1.distributions import router as distributions_router
 from cassini.api.v1.fai import router as fai_router
 from cassini.api.v1.gage_bridges import router as gage_bridges_router
 from cassini.api.v1.import_router import router as import_router
+from cassini.api.v1.ishikawa import router as ishikawa_router
 from cassini.api.v1.msa import router as msa_router
 from cassini.api.v1.hierarchy import router as hierarchy_router
 from cassini.api.v1.notifications import router as notifications_router
 from cassini.api.v1.oidc import router as oidc_router
 from cassini.api.v1.push import router as push_router
 from cassini.api.v1.erp_connectors import router as erp_router
+from cassini.api.v1.explain import router as explain_router
 from cassini.api.v1.hierarchy import plant_hierarchy_router
 from cassini.api.v1.plants import router as plants_router
 from cassini.api.v1.providers import router as providers_router
@@ -45,6 +47,7 @@ from cassini.api.v1.rule_presets import router as rule_presets_router
 from cassini.api.v1.scheduled_reports import router as scheduled_reports_router
 from cassini.api.v1.samples import router as samples_router
 from cassini.api.v1.signatures import router as signatures_router
+from cassini.api.v1.system_settings import router as system_settings_router
 from cassini.api.v1.users import router as users_router
 from cassini.api.v1.tags import router as tags_router
 from cassini.api.v1.multivariate import router as multivariate_router
@@ -245,6 +248,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         audit_service = AuditService(db.session)
         app.state.audit_service = audit_service
 
+        # Wire audit service into background event subscribers
+        notification_dispatcher._audit_service = audit_service
+        anomaly_detector._audit_service = audit_service
+
         async def _audit_violation_created(event):
             await audit_service.log_event(
                 action="violation_created",
@@ -441,8 +448,10 @@ if _license_svc.is_commercial:
     app.include_router(opcua_servers_router)
     app.include_router(database_admin_router)
     app.include_router(distributions_router)
+    app.include_router(explain_router)
     app.include_router(fai_router)
     app.include_router(gage_bridges_router)
+    app.include_router(ishikawa_router)
     app.include_router(msa_router)
     app.include_router(notifications_router)
     app.include_router(oidc_router)
@@ -450,6 +459,7 @@ if _license_svc.is_commercial:
     app.include_router(rule_presets_router)
     app.include_router(scheduled_reports_router)
     app.include_router(signatures_router)
+    app.include_router(system_settings_router)
     app.include_router(push_router)
     app.include_router(erp_router)
     app.include_router(multivariate_router)
@@ -457,7 +467,7 @@ if _license_svc.is_commercial:
     app.include_router(ai_analysis_router)
     app.include_router(doe_router)
     logger.info("Commercial license detected — enterprise routers registered",
-                router_count=21)
+                router_count=24)
 else:
     logger.info("Community edition — enterprise routers not registered")
 

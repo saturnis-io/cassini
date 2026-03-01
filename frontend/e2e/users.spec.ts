@@ -22,7 +22,9 @@ test.describe('Users', () => {
     await page.goto('/admin/users')
     await page.waitForTimeout(2000)
 
-    await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible({
+      timeout: 10000,
+    })
     await expect(page.getByRole('button', { name: 'Create User' })).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('user-management-page-loaded', {
@@ -39,20 +41,20 @@ test.describe('Users', () => {
     await page.getByRole('button', { name: 'Create User' }).click()
     await page.waitForTimeout(500)
 
-    // Wait for the create user form/dialog to appear
-    const createSection = page.locator('main').last()
-    await expect(createSection.getByPlaceholder('Enter username')).toBeVisible({ timeout: 5000 })
+    // Wait for the create user dialog to appear (fixed overlay)
+    const dialog = page.locator('.fixed').filter({ has: page.getByPlaceholder('Enter username') })
+    await expect(dialog.getByPlaceholder('Enter username')).toBeVisible({ timeout: 5000 })
 
     // Fill username
-    await createSection.getByPlaceholder('Enter username').fill('e2e-users-test')
+    await dialog.getByPlaceholder('Enter username').fill('e2e-users-test')
     await page.waitForTimeout(300)
 
     // Fill password
-    await createSection.getByPlaceholder('Minimum 8 characters').fill('TestPass123!')
+    await dialog.getByPlaceholder('Minimum 8 characters').fill('TestPass123!')
     await page.waitForTimeout(300)
 
-    // Fill confirm password
-    await createSection.getByPlaceholder('Confirm password').fill('TestPass123!')
+    // Fill confirm password (appears after password is filled)
+    await dialog.getByPlaceholder('Confirm password').fill('TestPass123!')
     await page.waitForTimeout(300)
 
     await test.info().attach('create-user-form-filled', {
@@ -80,7 +82,9 @@ test.describe('Users', () => {
     // The admin user should always be visible in the table
     const table = page.locator('table')
     await expect(table).toBeVisible({ timeout: 5000 })
-    await expect(table.locator('td').getByText('admin', { exact: true }).first()).toBeVisible({ timeout: 5000 })
+    await expect(
+      table.locator('td').getByText('admin', { exact: true }).first(),
+    ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('admin-user-in-table', {
       body: await page.screenshot(),
@@ -155,8 +159,8 @@ test.describe('Users', () => {
       contentType: 'image/png',
     })
 
-    // Dismiss without confirming
-    await page.keyboard.press('Escape')
+    // Dismiss without confirming — click Cancel button in the dialog
+    await page.getByRole('button', { name: 'Cancel' }).click()
     await page.waitForTimeout(500)
   })
 
@@ -192,7 +196,10 @@ test.describe('Users', () => {
     await page.waitForTimeout(2000)
 
     // Show inactive users so we can see the deactivated user
-    const showInactiveCheckbox = page.locator('label').filter({ hasText: 'Show inactive' }).locator('input[type="checkbox"]')
+    const showInactiveCheckbox = page
+      .locator('label')
+      .filter({ hasText: 'Show inactive' })
+      .locator('input[type="checkbox"]')
     await showInactiveCheckbox.check()
     await page.waitForTimeout(1000)
 
@@ -241,7 +248,9 @@ test.describe('Users', () => {
 
     // Admin user should still be visible
     const table = page.locator('table')
-    await expect(table.locator('td').getByText('admin', { exact: true }).first()).toBeVisible({ timeout: 5000 })
+    await expect(
+      table.locator('td').getByText('admin', { exact: true }).first(),
+    ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('search-filtered-to-admin', {
       body: await page.screenshot(),

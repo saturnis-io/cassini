@@ -329,21 +329,48 @@ export async function switchToPlant(page: Page, plantName: string) {
 }
 
 /**
+ * Collapse the sidebar Navigation section to give the Characteristics tree more room.
+ * On /dashboard, /data-entry, /reports the sidebar has two collapsible sections:
+ * Navigation (expanded by default, takes most space) and Characteristics (tree).
+ * When Navigation is expanded, tree nodes are pushed off-screen.
+ */
+export async function collapseNavSection(page: Page) {
+  const navToggle = page.getByRole('button', { name: 'Navigation', exact: true })
+  try {
+    if (await navToggle.isVisible({ timeout: 2000 })) {
+      // Only collapse if currently expanded — check if a nav link is visible
+      const navLink = page.locator('aside a[href="/data-entry"]').first()
+      if (await navLink.isVisible().catch(() => false)) {
+        await navToggle.click()
+        await page.waitForTimeout(300)
+      }
+    }
+  } catch {
+    // Navigation toggle not present (e.g., configuration page) — skip
+  }
+}
+
+/**
  * Expand the hierarchy tree on the dashboard to reveal "Test Char".
  * The tree is collapsed by default and loads asynchronously after plant switch.
  * Waits for loading to finish, then clicks through:
  * Test Dept → Test Line → Test Station → (Test Char becomes visible)
  */
 export async function expandHierarchyToChar(page: Page) {
+  // Collapse Navigation section to reveal the Characteristics tree
+  await collapseNavSection(page)
+
   // Wait for hierarchy data to load — the first node may take time after plant switch
   // Use .first() because multiple plants may share identical node names
   const firstNode = page.getByText('Test Dept', { exact: true }).first()
   await expect(firstNode).toBeVisible({ timeout: 15000 })
 
   // Expand each tree level by clicking on it
+  // Use force:true because the sidebar footer can overlap tree nodes at the bottom
   for (const nodeName of ['Test Dept', 'Test Line', 'Test Station']) {
     const node = page.getByText(nodeName, { exact: true }).first()
-    await node.click()
+    await node.scrollIntoViewIfNeeded()
+    await node.click({ force: true })
     await page.waitForTimeout(800)
   }
   // Wait for characteristic to appear
@@ -361,14 +388,16 @@ export async function expandSelectorToChar(page: Page) {
   await expect(firstNode).toBeVisible({ timeout: 15000 })
 
   // Click each tree node to expand it
+  // Use force:true because the sidebar footer can overlap tree nodes at the bottom
   for (const nodeName of ['Test Dept', 'Test Line', 'Test Station']) {
     const node = page.getByText(nodeName, { exact: true }).first()
-    await node.click()
+    await node.scrollIntoViewIfNeeded()
+    await node.click({ force: true })
     await page.waitForTimeout(800)
   }
   // Click the characteristic to select it
   await expect(page.getByText('Test Char').first()).toBeVisible({ timeout: 10000 })
-  await page.getByText('Test Char').first().click()
+  await page.getByText('Test Char').first().click({ force: true })
   await page.waitForTimeout(1000)
 }
 

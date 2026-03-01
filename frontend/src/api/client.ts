@@ -62,7 +62,7 @@ export interface SmtpConfigResponse {
   id: number
   server: string
   port: number
-  username: string | null
+  username_set: boolean
   password_set: boolean
   use_tls: boolean
   from_address: string
@@ -116,12 +116,14 @@ export interface NotificationPreference {
   event_type: string
   channel: string
   is_enabled: boolean
+  severity_filter?: string
 }
 
 export interface NotificationPreferenceItem {
   event_type: string
   channel: string
   is_enabled: boolean
+  severity_filter?: string
 }
 
 // ---- OIDC SSO Types ----

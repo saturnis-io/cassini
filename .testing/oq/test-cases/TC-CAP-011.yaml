@@ -1,0 +1,49 @@
+id: TC-CAP-011
+title: "Box-Cox auto-detection for skewed data"
+category: "Capability Analysis"
+subcategory: "NonNormal"
+priority: medium
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Data transformation methods"
+  - "ISO 22514 - Process capability with data transformation"
+preconditions:
+  description: "A variable characteristic exists with USL and LSL set. At least 100 individual measurements from a right-skewed distribution have been submitted. The distribution method is set to 'auto' or left at default to allow auto-detection. The logged-in user has engineer role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-CAP-BoxCox"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 25.0
+      lsl: 1.0
+      target_value: 10.0
+    samples:
+      count: 100
+      values_description: "100 individual measurements from a right-skewed distribution. Use a lognormal or chi-squared distribution to generate obviously non-normal data. Example: exp(N(2.0, 0.3)) produces values with mean around 7.5, right-skewed. Example values: 5.8, 8.2, 6.1, 12.4, 7.3, 9.8, 5.5, 10.1, 6.8, 14.2, ... The Shapiro-Wilk test should strongly reject normality (p << 0.05). Box-Cox should find a lambda near 0 (log transform) or 0.5 (sqrt transform)."
+    post_seed:
+      - "Recalculate control limits"
+      - "Do NOT set a specific distribution_method -- leave at default to test auto-detection"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /dashboard. Select 'OQ-CAP-BoxCox'. Open the Distribution Analysis modal from the Capability Card."
+    verify: "The Distribution Analysis modal opens. The Shapiro-Wilk normality test result is displayed, showing a low p-value (< 0.05), indicating the data is not normally distributed."
+    screenshot: true
+  - step: 2
+    action: "Examine the distribution fitting results in the modal."
+    verify: "The modal shows distribution comparison results. If auto-detection is available, the system should recommend or apply a Box-Cox transformation. The Box-Cox lambda value is displayed (expected near 0 for log-transform or 0.5 for sqrt-transform). The transformation that best normalizes the data is identified."
+    screenshot: true
+  - step: 3
+    action: "If the modal allows selecting a distribution method or applying the Box-Cox transform, apply it."
+    verify: "After applying the Box-Cox transform or setting the distribution method, the capability indices are recalculated using the transformed data. The new capability values should more accurately reflect the process's ability to meet specifications."
+    screenshot: true
+  - step: 4
+    action: "Verify via API: call GET /characteristics/{id}/capability."
+    verify: "The API returns capability indices. If box_cox_lambda is set on the characteristic, the calculation uses the transformation. The normality_test result and is_normal flag reflect the original (untransformed) data's normality."
+    screenshot: false
+expected_result: "The Box-Cox auto-detection identifies the optimal power transformation for skewed data. The lambda value is near 0 (log) or 0.5 (sqrt) for right-skewed data. Applying the transformation enables more accurate capability analysis."
+pass_criteria: "Box-Cox lambda is identified and displayed. The lambda value is appropriate for the data's skewness. Capability indices are calculable after applying the transformation. The Shapiro-Wilk test correctly identifies the data as non-normal."
+cleanup:
+  - "Delete characteristic 'OQ-CAP-BoxCox' and all associated data via API"

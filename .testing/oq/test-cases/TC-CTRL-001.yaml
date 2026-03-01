@@ -1,0 +1,77 @@
+id: TC-CTRL-001
+title: "X-bar/R chart renders with UCL/CL/LCL lines"
+category: "Control Charts"
+subcategory: "VariableCharts"
+priority: critical
+regulatory_relevance:
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+  - "AIAG SPC Reference Manual - X-bar/R Chart Construction"
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation"
+
+preconditions:
+  description: >
+    An X-bar/R characteristic (subgroup_size=5) must exist with at least
+    30 subgroups of data so that control limits are well-established.
+    Limits should be calculated (UCL, CL, LCL all non-null). The test
+    user has operator+ role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Machining"
+    line: "Lathe-01"
+    characteristic:
+      name: "Shaft Diameter XbarR"
+      chart_type: "xbar_r"
+      subgroup_size: 5
+      data_type: "variable"
+      usl: 25.10
+      lsl: 24.90
+      target: 25.00
+    samples: "30 subgroups of 5 measurements, centered at 25.00, sigma ~0.03"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /dashboard"
+    verify: "Dashboard loads with hierarchy tree"
+    screenshot: false
+  - step: 2
+    action: "Select OQ-Plant-Ctrl plant, expand Machining > Lathe-01, click 'Shaft Diameter XbarR'"
+    verify: >
+      X-bar chart renders in the main panel showing 30 data points
+      (subgroup means). Three horizontal lines are visible: UCL (top,
+      dashed), CL (middle), LCL (bottom, dashed). Data points are
+      connected and plotted chronologically.
+    screenshot: true
+  - step: 3
+    action: "Scroll down or look below the X-bar chart"
+    verify: >
+      R chart (Range chart) renders below the X-bar chart. It shows 30
+      range values (max - min per subgroup) with its own UCL, CL, and
+      LCL lines.
+    screenshot: true
+  - step: 4
+    action: "Verify UCL/CL/LCL values in the chart legend or quick stats panel"
+    verify: >
+      X-bar chart: CL approximately 25.00 (grand mean), UCL = CL + A2*R-bar,
+      LCL = CL - A2*R-bar (A2 = 0.577 for n=5).
+      R chart: CL = R-bar, UCL = D4*R-bar (D4 = 2.114 for n=5),
+      LCL = D3*R-bar (D3 = 0 for n=5, so LCL = 0).
+    screenshot: true
+
+expected_result: >
+  The X-bar/R chart renders as a dual-panel layout. The X-bar chart shows
+  subgroup means with 3-sigma control limits calculated using A2 and R-bar
+  constants per AIAG/ASTM standards. The R chart shows subgroup ranges
+  with D3/D4-based limits. Both charts share the same time axis.
+
+pass_criteria: >
+  Both charts visible with data points and UCL/CL/LCL lines. UCL > CL > LCL.
+  At least 30 points plotted on each. API: GET /characteristics/{id}/chart-data
+  returns control_limits with non-null ucl, lcl, center_line.
+
+cleanup:
+  - "Delete seeded samples and characteristic via API"

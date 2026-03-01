@@ -1,0 +1,57 @@
+id: TC-DATA-007
+title: "CSV import - map columns to characteristic fields"
+category: "Data Entry"
+subcategory: "CSVImport"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Control of Documented Information"
+  - "21 CFR Part 11 Section 11.10(e) - Electronic Records (field mapping traceability)"
+
+preconditions:
+  description: >
+    Continuation from TC-DATA-006. The CSV file has been uploaded and
+    column preview is displayed. The target characteristic (Pin Length,
+    I-MR, subgroup_size=1) is available for mapping.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Machining"
+    line: "CNC-Line-1"
+    characteristic:
+      name: "Pin Length"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "In the import wizard (Step 2: Map Columns), select the target characteristic 'Pin Length'"
+    verify: "Characteristic is selected. Mapping dropdowns appear for each required field."
+    screenshot: true
+  - step: 2
+    action: >
+      Map the CSV columns: 'Value' -> measurement_1, 'Timestamp' -> timestamp,
+      'Batch' -> batch_number, 'Operator' -> operator_id
+    verify: >
+      Each dropdown shows the mapped CSV column. The mapping UI indicates
+      all required fields are satisfied (measurement_1 is required;
+      timestamp, batch_number, operator_id are optional).
+    screenshot: true
+  - step: 3
+    action: "Click Next / Validate to proceed to the validation step"
+    verify: "Wizard advances to Step 3: Validate"
+    screenshot: false
+
+expected_result: >
+  Column mapping is configured correctly. The system associates each CSV
+  column with the appropriate characteristic field. Required fields are
+  mapped and the wizard allows progression to validation.
+
+pass_criteria: >
+  Mapping UI shows all four columns mapped. No 'unmapped required field'
+  errors. The Next/Validate button is enabled.
+
+cleanup: []

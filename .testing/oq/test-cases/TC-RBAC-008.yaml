@@ -1,0 +1,88 @@
+id: TC-RBAC-008
+title: "Admin can access all pages"
+category: "RBAC & Security"
+subcategory: "AdminAccess"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - System administrator access for audit and configuration"
+  - "ISO 9001:2015 Section 5.3 - Top management authority over quality system"
+  - "IATF 16949 - Management responsibility for quality system administration"
+preconditions:
+  description: >
+    The default admin user exists (username: 'admin', password: 'admin')
+    with admin role at the active plant. The plant has hierarchy,
+    characteristics, and sample data. All application features are
+    deployed and accessible.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'admin' with password 'admin'"
+    verify: >
+      Login succeeds. Dashboard loads. The sidebar shows the full
+      navigation including all sections: main, studies, system, and admin.
+    screenshot: true
+  - step: 2
+    action: "Navigate to /dashboard"
+    verify: "Dashboard loads with control chart area and characteristic list"
+    screenshot: false
+  - step: 3
+    action: "Navigate to /data-entry"
+    verify: "Data entry page loads with hierarchy tree and entry form"
+    screenshot: false
+  - step: 4
+    action: "Navigate to /violations"
+    verify: "Violations page loads with violation list"
+    screenshot: false
+  - step: 5
+    action: "Navigate to /reports"
+    verify: "Reports page loads with report generation options"
+    screenshot: false
+  - step: 6
+    action: "Navigate to /configuration"
+    verify: "Configuration page loads with hierarchy tree and config panel"
+    screenshot: false
+  - step: 7
+    action: "Navigate to /connectivity"
+    verify: "Connectivity Hub loads with all tabs (Monitor, Servers, Browse, Mapping, Gages, Integrations)"
+    screenshot: false
+  - step: 8
+    action: "Navigate to /msa"
+    verify: "MSA page loads with study list"
+    screenshot: false
+  - step: 9
+    action: "Navigate to /fai"
+    verify: "FAI page loads with report list"
+    screenshot: false
+  - step: 10
+    action: "Navigate to /analytics"
+    verify: "Analytics page loads"
+    screenshot: false
+  - step: 11
+    action: "Navigate to /settings"
+    verify: "Settings page loads with all sub-tabs visible"
+    screenshot: false
+  - step: 12
+    action: "Navigate to /admin/users"
+    verify: >
+      User management page loads with the user list table. Create, edit,
+      and deactivate controls are visible. This confirms admin-level
+      access to identity management.
+    screenshot: true
+  - step: 13
+    action: "Navigate to /settings/audit-log"
+    verify: "Audit log viewer loads with entries (admin-only feature)"
+    screenshot: true
+expected_result: >
+  An admin user can access every page in the application without any
+  access denied errors. The sidebar shows the full navigation including
+  the Users link in the admin section. This confirms the admin role
+  (level 4) has unrestricted access.
+pass_criteria: >
+  All 13+ pages load without error or redirect. No access denied toasts.
+  Sidebar shows full navigation including Users. /admin/users and
+  /settings/audit-log are accessible (admin-only features).
+cleanup:
+  - "No cleanup required"

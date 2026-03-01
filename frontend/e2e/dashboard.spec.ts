@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet, apiPost } from './helpers/api'
+import { getAuthToken, apiGet } from './helpers/api'
 import { switchToPlant, expandHierarchyToChar } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
@@ -48,6 +48,7 @@ test.describe('Dashboard', () => {
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
 
+    // OperatorDashboard uses i18n key 'selectCharacteristic' which renders this text
     await expect(
       page.getByText('Select a characteristic from the list to view its control chart'),
     ).toBeVisible({ timeout: 5000 })
@@ -70,14 +71,12 @@ test.describe('Dashboard', () => {
     })
   })
 
-  test('stats ticker shows CL, UCL, LCL, n, OOC', async ({ page }) => {
+  test('stats ticker shows Last, n, OOC pills', async ({ page }) => {
     await selectTestChar(page)
 
-    // Verify each stat pill is visible in the stats ticker bar
-    // Use exact: true to avoid CL matching UCL/LCL, and n matching random text
-    await expect(page.getByText('CL', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('UCL', { exact: true })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('LCL', { exact: true })).toBeVisible({ timeout: 5000 })
+    // Current stats ticker uses i18n-translated labels: Last, n, OOC, Cpk
+    // CL/UCL/LCL are no longer shown as separate pills in the stats ticker
+    await expect(page.getByText('Last', { exact: true })).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('n', { exact: true })).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('OOC', { exact: true }).first()).toBeVisible({ timeout: 5000 })
 
@@ -91,12 +90,11 @@ test.describe('Dashboard', () => {
     await selectTestChar(page)
     await page.waitForTimeout(1000)
 
-    // Each StatPill has <span>label</span><span>value</span>
-    // Find the "n" label span and get the next sibling (value span)
+    // Each StatPill has icon + label span + value span (font-semibold tabular-nums)
     const nLabel = page.getByText('n', { exact: true })
     await expect(nLabel).toBeVisible({ timeout: 5000 })
 
-    // Get the value span (font-semibold sibling) within the same pill container
+    // Get the value span within the same pill container
     const nPill = nLabel.locator('..')
     const valueSpan = nPill.locator('.font-semibold')
     const nText = await valueSpan.textContent()
@@ -114,7 +112,7 @@ test.describe('Dashboard', () => {
     await selectTestChar(page)
     await page.waitForTimeout(1000)
 
-    // Find the stats bar and extract the OOC value
+    // Stats ticker is a flex container with overflow-x-auto
     const statsBar = page.locator('.overflow-x-auto').filter({ hasText: 'OOC' })
     await expect(statsBar).toBeVisible({ timeout: 5000 })
 
@@ -134,7 +132,7 @@ test.describe('Dashboard', () => {
     await selectTestChar(page)
 
     // Test Char has USL=12, LSL=8, so Cpk should be computed
-    // Use .first() — "Cpk" appears in both stats ticker and capability panel
+    // Cpk is now wrapped in <Explainable> but the label text is still visible
     await expect(page.getByText('Cpk').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('dashboard-cpk-stat', {
@@ -146,10 +144,12 @@ test.describe('Dashboard', () => {
   test('chart toolbar renders with controls', async ({ page }) => {
     await selectTestChar(page)
 
-    // The ChartToolbar contains TimeRangeSelector, Zoom button, LSL/USL toggle, Compare button
-    await expect(page.getByText('Zoom')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('LSL/USL')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Compare')).toBeVisible({ timeout: 5000 })
+    // ChartToolbar button labels are inside <span className="hidden sm:inline">
+    // They render as text inside ToolbarBtn components with title attributes
+    // Use title attribute selectors for reliability across viewport sizes
+    await expect(page.locator('button[title*="range slider"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('button[title*="spec limits"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('button[title*="Compare"]')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('dashboard-toolbar', {
       body: await page.screenshot(),
@@ -188,8 +188,8 @@ test.describe('Dashboard', () => {
   test('spec limits toggle is visible', async ({ page }) => {
     await selectTestChar(page)
 
-    // The toolbar has a "LSL/USL" button that toggles spec limits visibility
-    const specLimitsButton = page.getByText('LSL/USL')
+    // The toolbar has a button with title containing "spec limits"
+    const specLimitsButton = page.locator('button[title*="spec limits"]')
     await expect(specLimitsButton).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('dashboard-spec-limits-toggle', {

@@ -6,7 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -63,6 +63,7 @@ class Characteristic(Base):
     # Stored parameters for Mode A (STANDARDIZED) and Mode B (VARIABLE_LIMITS)
     stored_sigma: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     stored_center_line: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    limits_calc_params: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Attribute chart configuration
     data_type: Mapped[str] = mapped_column(String(20), default="variable", nullable=False)

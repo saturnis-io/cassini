@@ -11,6 +11,7 @@ import { useSamples, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Sample } from '@/types'
 
 interface BoxWhiskerChartProps {
@@ -193,6 +194,7 @@ export function BoxWhiskerChart({
   yAxisDomain: externalYDomain,
   hideLegend = false,
 }: BoxWhiskerChartProps) {
+  const { formatDateTime } = useDateFormat()
   // Fetch samples with measurements
   const { data: samplesData, isLoading: samplesLoading } = useSamples({
     characteristic_id: characteristicId,
@@ -730,7 +732,7 @@ export function BoxWhiskerChart({
           >
             <div className="mb-1 font-semibold">Sample #{hoveredBoxData.index}</div>
             <div className="text-muted-foreground mb-2 text-xs">
-              {new Date(hoveredBoxData.timestamp).toLocaleString()}
+              {formatDateTime(hoveredBoxData.timestamp)}
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
               <span className="text-muted-foreground">Max:</span>

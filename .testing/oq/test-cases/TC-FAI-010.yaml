@@ -1,0 +1,67 @@
+id: TC-FAI-010
+title: "Separation of duties -- submitter cannot approve own report"
+category: "First Article Inspection"
+subcategory: "Security"
+priority: critical
+regulatory_relevance:
+  - "AS9102 Rev C - Separation of duties for FAI approval"
+  - "AS9100 Rev D Section 8.6 - Independent verification and authorization"
+  - "21 CFR Part 11 Section 11.10(g) - Authority checks for electronic signatures"
+  - "IATF 16949 - Separation of responsibilities in product approval"
+  - "ISO 13485 Section 8.2.6 - Verification of purchased product (independence)"
+preconditions:
+  description: "An engineer user (oq-engineer) is logged in. A draft FAI report 'OQ-PART-003' exists with Form 3 items and is ready for submission. The engineer will submit and then attempt to approve the same report without switching users."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-003"
+      part_name: "Separation Test Widget"
+      revision: "A"
+      status: "draft"
+    items:
+      - balloon_number: 1
+        characteristic_name: "Test Dimension"
+        nominal: 10.00
+        usl: 10.05
+        lsl: 9.95
+        actual_value: 10.01
+        result: "pass"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as the engineer user (oq-engineer / OqTest123!)."
+    verify: "Dashboard loads. User identity shows the engineer user."
+    screenshot: false
+  - step: 2
+    action: "Navigate to /fai. Open report 'OQ-PART-003'."
+    verify: "Report editor loads. Status shows 'Draft'."
+    screenshot: false
+  - step: 3
+    action: "Click the 'Submit' button to submit the report for approval."
+    verify: "Status changes to 'Submitted' (blue). The submitted_by is set to the current engineer user. A success notification appears."
+    screenshot: true
+  - step: 4
+    action: "While still logged in as the same engineer user who just submitted the report, look for the Approve button."
+    verify: "The Approve and Reject buttons may or may not be visible to the submitter. Examine the UI state."
+    screenshot: true
+  - step: 5
+    action: "Attempt to approve the report by clicking the 'Approve' button (if visible). If the Approve button is hidden for the submitter, note this as a UI-level enforcement."
+    verify: "One of two outcomes occurs: (A) The 'Approve' button is hidden or disabled for the user who submitted, preventing the attempt entirely (UI-level enforcement). OR (B) The 'Approve' button is visible and clickable, but clicking it results in an error message indicating that the same person who submitted cannot approve the report. The error message should reference separation of duties. The report status remains 'Submitted' -- it does NOT change to 'Approved'. This is the CRITICAL check: self-approval must be blocked."
+    screenshot: true
+  - step: 6
+    action: "If the UI did not block the attempt (outcome B from step 5), verify the error message content."
+    verify: "The error message clearly states that the approver cannot be the same person who submitted the report. The phrasing should reference 'separation of duties' or equivalent. The backend returns HTTP 403 with message: 'Separation of duties: the approver cannot be the same person who submitted the report'."
+    screenshot: true
+  - step: 7
+    action: "Verify the report status is still 'Submitted' (the self-approval was blocked)."
+    verify: "The status badge still shows 'Submitted' (blue). The report was NOT approved. Navigating to /fai confirms the report is still in 'Submitted' status."
+    screenshot: true
+  - step: 8
+    action: "Log out and log in as a different user (admin / admin). Navigate to the report and approve it."
+    verify: "The different user can successfully approve the report. Status changes to 'Approved' (green). This confirms that the separation of duties enforcement specifically blocks self-approval, not all approvals."
+    screenshot: true
+expected_result: "The system enforces separation of duties: the user who submits an FAI report cannot approve the same report. Self-approval is blocked either at the UI level (button hidden) or the API level (HTTP 403 error). A different user can successfully approve the report."
+pass_criteria: "Self-approval is blocked. The submitter cannot approve their own report. Error message references separation of duties. Report remains in 'Submitted' status after failed self-approval attempt. A different user can approve the report successfully."
+cleanup:
+  - "Delete FAI report 'OQ-PART-003' via API if in draft/submitted status"

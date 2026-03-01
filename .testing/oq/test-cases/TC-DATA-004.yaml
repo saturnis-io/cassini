@@ -1,0 +1,62 @@
+id: TC-DATA-004
+title: "Submit attribute data for c-chart (defect count)"
+category: "Data Entry"
+subcategory: "AttributeEntry"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "AIAG SPC Reference Manual - c-Chart (Count of Defects)"
+
+preconditions:
+  description: >
+    A c-chart characteristic must exist with data_type=attribute and
+    chart_type=c. The c-chart requires only a defect count input
+    (fixed inspection unit / opportunity area). The test user has
+    operator role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Assembly"
+    line: "Final-Inspect"
+    characteristic:
+      name: "Scratch Count Per Board"
+      chart_type: "c"
+      subgroup_size: 1
+      data_type: "attribute"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Select OQ-Plant-Data, navigate to Assembly > Final-Inspect > Scratch Count Per Board"
+    verify: "Attribute entry form appears with a defect count field. No sample size field (c-chart uses fixed opportunity)."
+    screenshot: true
+  - step: 3
+    action: "Enter defect count = 7"
+    verify: "Field shows value 7"
+    screenshot: false
+  - step: 4
+    action: "Click Submit"
+    verify: "Success toast notification. Sample created with defect_count=7."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /dashboard and select the Scratch Count Per Board characteristic"
+    verify: "c-chart shows a new data point at 7"
+    screenshot: true
+
+expected_result: >
+  A c-chart attribute sample with defect count 7 is submitted. The plotted
+  value on the c-chart is 7 (raw count). Control limits are based on the
+  Poisson distribution: UCL = c-bar + 3*sqrt(c-bar).
+
+pass_criteria: >
+  Submit succeeds. Chart point appears at value 7. No sample_size or
+  units_inspected fields are required or stored for c-chart data.
+
+cleanup:
+  - "Delete the submitted sample via API"

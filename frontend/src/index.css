@@ -77,6 +77,10 @@
   --chart-control-line-glow: 0 0 4px hsl(357 80% 52% / 0.3);
   --chart-center-line-glow: none;
 
+  /* Font families — overridable by brand engine */
+  --font-heading: 'Sansation', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
   /* Shadows - Clean, professional */
   --shadow-xs: 0 1px 2px hsl(30 9% 16% / 0.04);
   --shadow-sm: 0 2px 4px hsl(30 9% 16% / 0.04), 0 1px 2px hsl(30 9% 16% / 0.02);
@@ -96,7 +100,7 @@ body {
   background-attachment: fixed;
   color: var(--color-foreground);
   font-family:
-    'Inter',
+    var(--font-body),
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
@@ -127,18 +131,37 @@ button:disabled,
   cursor: not-allowed;
 }
 
-/* Card styling */
+/* Card styling — subtle top-to-bottom gradient + bottom shadow for lift */
 .bg-card {
-  background: hsl(0 0% 100%);
-  border: 1px solid hsl(240 6% 92%);
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 100%) 0%,
+    hsl(240 10% 98%) 100%
+  );
+  border: 1px solid hsl(240 6% 90%);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100%),
+    var(--shadow-sm);
 }
 
-/* Popover styling */
-.bg-popover {
+/* Structural elements — flat surface, no card gradient */
+header.bg-card,
+aside.bg-card {
   background: hsl(0 0% 100%);
-  border: 1px solid hsl(240 6% 90%);
-  box-shadow: var(--shadow-xl);
+  box-shadow: none;
+}
+
+/* Popover styling — elevated with stronger shadow */
+.bg-popover {
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 100%) 0%,
+    hsl(240 8% 99%) 100%
+  );
+  border: 1px solid hsl(240 6% 88%);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100%),
+    var(--shadow-xl);
 }
 
 /* Smooth micro-interactions */
@@ -175,7 +198,7 @@ button:disabled,
   }
 }
 
-/* Input styling - Clean and modern
+/* Input styling — subtle inset with inner shadow for depth
  * Wrapped in @layer base so Tailwind utility classes (e.g. border-0, bg-transparent)
  * can override these defaults in composed components like NumberInput.
  */
@@ -183,9 +206,10 @@ button:disabled,
   input,
   select,
   textarea {
-    background: hsl(0 0% 100%);
+    background: hsl(240 10% 98%);
     border: 1px solid hsl(240 6% 88%);
     border-radius: 0.625rem;
+    box-shadow: inset 0 1px 2px hsl(240 10% 80% / 0.15);
     transition: all 180ms ease;
   }
 
@@ -200,7 +224,9 @@ button:disabled,
   textarea:focus {
     background: hsl(0 0% 100%);
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+    box-shadow:
+      inset 0 1px 2px hsl(240 10% 80% / 0.1),
+      0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
     outline: none;
   }
 
@@ -244,6 +270,20 @@ button:not(:disabled):active {
   box-shadow:
     var(--shadow-md),
     0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+/* Primary buttons: disabled state needs strong text contrast */
+.bg-primary:disabled,
+button.bg-primary:disabled {
+  background: var(--color-muted);
+  box-shadow: none;
+  transform: none;
+}
+
+.dark .bg-primary:disabled,
+.dark button.bg-primary:disabled {
+  background: hsl(220 12% 22%);
+  color: hsl(220 5% 62%);
 }
 
 /* SPC Chart zone styles - Soft, modern fills */
@@ -353,7 +393,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Sansation', 'Inter', sans-serif;
+  font-family: var(--font-heading), 'Inter', sans-serif;
   font-weight: 700;
   letter-spacing: -0.025em;
 }
@@ -407,9 +447,9 @@ h6 {
   --color-foreground: hsl(0 0% 95%);
 
   /* Card surfaces - Elevated dark */
-  --color-card: hsl(220 30% 12%);
+  --color-card: hsl(220 25% 13%);
   --color-card-foreground: hsl(0 0% 95%);
-  --color-popover: hsl(220 20% 18%);
+  --color-popover: hsl(220 20% 20%);
   --color-popover-foreground: hsl(0 0% 95%);
 
   /* Primary - Bright Cassini Gold */
@@ -417,15 +457,15 @@ h6 {
   --color-primary-foreground: hsl(0 0% 100%);
 
   /* Secondary - Dark elevated */
-  --color-secondary: hsl(220 10% 18%);
+  --color-secondary: hsl(220 12% 18%);
   --color-secondary-foreground: hsl(0 0% 90%);
 
   /* Muted - Subtle dark */
-  --color-muted: hsl(220 10% 20%);
-  --color-muted-foreground: hsl(220 5% 60%);
+  --color-muted: hsl(220 12% 19%);
+  --color-muted-foreground: hsl(220 5% 62%);
 
   /* Accent - Slightly lighter than card for hover visibility */
-  --color-accent: hsl(220 25% 18%);
+  --color-accent: hsl(220 20% 20%);
   --color-accent-foreground: hsl(0 0% 93%);
 
   /* Semantic colors - Brightened for dark mode */
@@ -436,10 +476,17 @@ h6 {
   --color-success: hsl(104 60% 50%);
   --color-success-foreground: hsl(0 0% 100%);
 
-  /* Borders and inputs */
-  --color-border: hsl(220 10% 22%);
-  --color-input: hsl(220 10% 18%);
+  /* Borders and inputs — boosted for visibility */
+  --color-border: hsl(220 12% 26%);
+  --color-input: hsl(220 15% 15%);
   --color-ring: hsl(46 70% 58% / 0.4);
+
+  /* Dark mode shadows — high opacity for actual depth on dark surfaces */
+  --shadow-xs: 0 1px 2px hsl(220 60% 3% / 0.4);
+  --shadow-sm: 0 2px 6px hsl(220 60% 3% / 0.4), 0 1px 2px hsl(220 60% 3% / 0.3);
+  --shadow-md: 0 4px 12px hsl(220 60% 3% / 0.5), 0 2px 4px hsl(220 60% 3% / 0.3);
+  --shadow-lg: 0 12px 32px hsl(220 60% 3% / 0.55), 0 4px 8px hsl(220 60% 3% / 0.3);
+  --shadow-xl: 0 20px 48px hsl(220 60% 2% / 0.6), 0 8px 16px hsl(220 60% 3% / 0.4);
 
   /* SPC Zone colors - Brightened for dark mode */
   --color-zone-c: hsl(104 60% 50%);
@@ -474,42 +521,63 @@ h6 {
   );
 }
 
-/* Dark mode card styling */
+/* Dark mode card styling — top-edge highlight + visible shadow for depth */
 .dark .bg-card {
-  background: hsl(220 20% 13%);
-  border-color: hsl(220 10% 20%);
+  background: linear-gradient(
+    180deg,
+    hsl(220 22% 15%) 0%,
+    hsl(220 22% 12%) 100%
+  );
+  border-color: hsl(220 12% 24%);
+  box-shadow:
+    inset 0 1px 0 hsl(220 20% 20%),
+    var(--shadow-sm);
+}
+
+/* Dark mode structural elements — flat surface, no card gradient/shadow */
+.dark header.bg-card,
+.dark aside.bg-card {
+  background: hsl(220 22% 13%);
+  box-shadow: none;
 }
 
 /* Dark mode popover styling */
 .dark .bg-popover {
-  background: hsl(220 20% 20%);
-  border-color: hsl(220 10% 28%);
+  background: linear-gradient(
+    180deg,
+    hsl(220 20% 22%) 0%,
+    hsl(220 20% 19%) 100%
+  );
+  border-color: hsl(220 12% 30%);
   box-shadow:
-    var(--shadow-xl),
-    0 0 0 1px hsl(220 10% 25%);
+    inset 0 1px 0 hsl(220 18% 26%),
+    var(--shadow-xl);
 }
 
-/* Dark mode input styling */
+/* Dark mode input styling — darker than card for inset/well appearance */
 @layer base {
   .dark input,
   .dark select,
   .dark textarea {
-    background: hsl(220 10% 15%);
-    border-color: hsl(220 10% 22%);
+    background: hsl(220 15% 10%);
+    border-color: hsl(220 12% 20%);
+    box-shadow: inset 0 1px 3px hsl(220 60% 3% / 0.4);
   }
 
   .dark input:hover,
   .dark select:hover,
   .dark textarea:hover {
-    border-color: hsl(220 10% 30%);
+    border-color: hsl(220 12% 30%);
   }
 
   .dark input:focus,
   .dark select:focus,
   .dark textarea:focus {
-    background: hsl(220 10% 17%);
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+    background: hsl(220 15% 11%);
+    border-color: color-mix(in srgb, var(--color-primary) 70%, hsl(220 15% 30%));
+    box-shadow:
+      inset 0 1px 3px hsl(220 60% 3% / 0.4),
+      0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 }
 
@@ -748,8 +816,27 @@ h6 {
   .dark.glass input,
   .dark.glass select,
   .dark.glass textarea {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--color-foreground);
+  }
+
+  /* Select option elements render in OS-native dropdowns —
+     force dark background so text is readable */
+  .dark.glass select option,
+  .dark select option {
+    background: hsl(220 25% 13%);
+    color: hsl(0 0% 95%);
+  }
+
+  .dark.glass input:focus,
+  .dark.glass select:focus,
+  .dark.glass textarea:focus {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--color-primary);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.2),
+      0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
   }
 }
 
@@ -773,6 +860,35 @@ input[type='number']::-webkit-inner-spin-button {
 input[type='number'] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
+}
+
+/* Explanation panel slide-in animation */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.explanation-panel-slide-in {
+  animation: slide-in-from-right 200ms ease-out;
+}
+
+@media (max-width: 768px) {
+  @keyframes slide-in-from-bottom {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .explanation-panel-slide-in {
+    animation: slide-in-from-bottom 200ms ease-out;
+  }
 }
 
 /* Safe area for notch devices */
@@ -862,4 +978,27 @@ input[type='number'] {
 .cassini-login .cassini-checkbox:checked {
   background: #D4AF37;
   border-color: #D4AF37;
+}
+
+/* ========== Sonner Toast Overrides ========== */
+[data-sonner-toast] [data-close-button] {
+  position: absolute !important;
+  top: 6px !important;
+  right: 6px !important;
+  left: auto !important;
+  transform: none !important;
+  border: 1px solid var(--border) !important;
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  opacity: 1;
+  background: var(--muted) !important;
+}
+
+[data-sonner-toast] {
+  padding-right: 2rem !important;
 }

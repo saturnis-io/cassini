@@ -156,6 +156,7 @@ class TagProvider(DataProvider):
                 trigger_strategy=src.trigger_strategy,
                 trigger_tag=src.trigger_tag,
                 metric_name=src.metric_name,
+                json_path=src.json_path,
             )
 
             self._configs[char.id] = config
@@ -278,17 +279,33 @@ class TagProvider(DataProvider):
     async def _handle_plain_message(
         self, topic: str, payload: bytes, char_ids: list[int]
     ) -> None:
-        """Handle a plain (non-SparkplugB) message by parsing as float."""
-        try:
-            value = float(payload.decode().strip())
-        except (ValueError, UnicodeDecodeError) as e:
-            logger.error(
-                "payload_parse_failed",
-                topic=topic,
-                payload=repr(payload),
-                error=str(e),
-            )
-            return
+        """Handle a plain (non-SparkplugB) message.
+
+        If any characteristic on this topic has a json_path configured,
+        the payload is parsed as JSON once and reused. Otherwise falls
+        back to raw float parsing.
+        """
+        raw = payload.decode("utf-8", errors="replace").strip()
+
+        # Check if any char on this topic needs JSON parsing
+        needs_json = any(
+            self._configs.get(cid) and self._configs[cid].json_path
+            for cid in char_ids
+        )
+
+        parsed_json = None
+        if needs_json:
+            import json
+            try:
+                parsed_json = json.loads(raw)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(
+                    "json_parse_failed",
+                    topic=topic,
+                    payload=raw[:200],
+                    error=str(e),
+                )
+                # Fall through — chars without json_path can still try raw float
 
         for char_id in char_ids:
             config = self._configs.get(char_id)
@@ -296,8 +313,74 @@ class TagProvider(DataProvider):
             if not config or not buffer:
                 continue
 
-            logger.debug("received_value", value=value, topic=topic, characteristic_id=char_id)
-            await self._dispatch_value(char_id, config, buffer, value)
+            value: float | None = None
+
+            if config.json_path:
+                # JSON path extraction
+                if parsed_json is None:
+                    logger.debug(
+                        "skipping_json_path_no_json",
+                        characteristic_id=char_id,
+                        topic=topic,
+                    )
+                    continue
+
+                matches = []
+                try:
+                    expr = config._json_path_expr
+                    if expr is None:
+                        from jsonpath_ng import parse as jsonpath_parse
+                        expr = jsonpath_parse(config.json_path)
+                        config._json_path_expr = expr
+                    matches = expr.find(parsed_json)
+                    if not matches:
+                        logger.debug(
+                            "json_path_no_match",
+                            characteristic_id=char_id,
+                            json_path=config.json_path,
+                            topic=topic,
+                        )
+                        continue
+                    value = float(matches[0].value)
+                except (TypeError, ValueError) as e:
+                    logger.warning(
+                        "json_path_not_numeric",
+                        characteristic_id=char_id,
+                        json_path=config.json_path,
+                        matched_value=repr(matches[0].value) if matches else None,
+                        error=str(e),
+                    )
+                    continue
+                except Exception as e:
+                    logger.warning(
+                        "json_path_eval_failed",
+                        characteristic_id=char_id,
+                        json_path=config.json_path,
+                        error=str(e),
+                    )
+                    continue
+            else:
+                # Raw float parsing (original behavior)
+                try:
+                    value = float(raw)
+                except ValueError as e:
+                    logger.error(
+                        "payload_parse_failed",
+                        topic=topic,
+                        payload=repr(payload),
+                        error=str(e),
+                    )
+                    return  # No point trying other chars — same raw payload
+
+            if value is not None:
+                logger.debug(
+                    "received_value",
+                    value=value,
+                    topic=topic,
+                    characteristic_id=char_id,
+                    json_path=config.json_path,
+                )
+                await self._dispatch_value(char_id, config, buffer, value)
 
     async def _dispatch_value(
         self, char_id: int, config: TagConfig, buffer: SubgroupBuffer, value: float

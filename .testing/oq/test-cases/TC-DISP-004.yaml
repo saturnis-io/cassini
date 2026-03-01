@@ -1,0 +1,72 @@
+id: TC-DISP-004
+title: "Wall dashboard has no status bar and shows large readable charts"
+category: "Display Modes"
+subcategory: "WallDashboard"
+priority: medium
+regulatory_relevance:
+  - "Lean Manufacturing - Information radiator design for distance viewing"
+  - "ISO 9001:2015 Section 7.1.4 - Appropriate environment for monitoring"
+preconditions:
+  description: >
+    An operator user exists and is logged in. The wall dashboard is
+    accessible at /wall-dashboard. At least one characteristic with
+    data exists.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Display"
+    department: "Production"
+    line: "Line-1"
+    characteristic:
+      name: "OQ-Wall-NoStatus"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /wall-dashboard"
+    verify: "Wall dashboard loads with chart grid"
+    screenshot: false
+  - step: 2
+    action: "Verify there is NO status bar at the bottom of the screen"
+    verify: >
+      Unlike kiosk mode (which has a connection status footer bar), the
+      wall dashboard uses KioskLayout with showStatusBar=false. There is
+      no footer bar showing WebSocket connection status or branding at the
+      bottom of the page. The chart grid extends toward the bottom of the
+      viewport for maximum chart real estate.
+    screenshot: true
+  - step: 3
+    action: "Verify the charts are large and readable"
+    verify: >
+      Each chart card in the grid is sized proportionally to the grid
+      configuration. In a 2x2 grid, each chart occupies roughly 1/4 of
+      the available viewport. Text (characteristic names, axis labels) is
+      readable. The forced dark mode provides high contrast for distance
+      viewing on production floor monitors.
+    screenshot: true
+  - step: 4
+    action: "Verify there is no sidebar navigation"
+    verify: >
+      No sidebar navigation is present. The wall dashboard uses KioskLayout
+      which strips all standard application chrome. Only the minimal
+      toolbar (title, grid selector, save/load buttons) and the chart
+      grid are visible.
+    screenshot: true
+  - step: 5
+    action: "Verify the brand badge is visible but minimal"
+    verify: >
+      A small brand logo and application name appear in the top-right
+      corner at reduced opacity. This provides subtle branding without
+      obscuring chart content.
+    screenshot: true
+expected_result: >
+  Wall dashboard maximizes chart real estate by removing the status bar,
+  sidebar, and header. Charts are large and readable with forced dark
+  mode for factory floor contrast. Brand badge is subtle.
+pass_criteria: >
+  No status bar at bottom. No sidebar. Charts fill available space.
+  Dark mode active. Brand badge visible but unobtrusive.
+cleanup:
+  - "No cleanup required"

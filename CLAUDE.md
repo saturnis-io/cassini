@@ -44,6 +44,19 @@ cassini-bridge run                  # Run bridge agent
 - **Styling**: Tailwind CSS v4, Prettier with `prettier-plugin-tailwindcss`
 - **Visual styles**: Retro (default, sharp corners, monospace) or Glass (frosted, rounded) — independent of light/dark
 
+### Show Your Work (Explain API)
+A trust feature for regulated industries — lets users see exactly how every statistical value was computed.
+- **Toggle**: Header button enables "Show Your Work" mode. When on, all statistical values get dotted underlines via `<Explainable>` wrapper
+- **Click**: Clicking any underlined value opens a slide-out `<ExplanationPanel>` showing the formula (KaTeX-rendered), step-by-step computation, inputs, and AIAG citation
+- **Backend**: `api/v1/explain.py` router, `core/explain.py` (ExplanationCollector pattern), `api/schemas/explain.py`
+- **Frontend**: `stores/showYourWorkStore.ts` (Zustand toggle + active metric), `components/Explainable.tsx` (wrapper), `components/ExplanationPanel.tsx` (slide-out), `api/explain.api.ts` + `api/hooks/useExplanation.ts`
+- **ExplanationCollector**: Optional `collector` param on `calculate_capability()`. When provided, captures computation steps inline via `if collector:` guards. Zero overhead when None.
+- **Two data modes** in the explain API (CRITICAL — values must match what the caller displays):
+  1. **With chart options** (`start_date`/`end_date`/`limit`): Uses subgroup means + sigma from means — matches dashboard `quickStats`
+  2. **Without chart options**: Flattens individual measurements + uses `stored_sigma` (R-bar/d2) — matches capability GET endpoint / CapabilityCard
+- **Step filtering**: `METRIC_STEP_PREFIXES` dict filters the collector's full step list to only the computation chain for the requested metric (e.g. Cpk only shows Cpu/Cpl/Cpk steps, not Ppk)
+- **Wrapping new values**: Use `<Explainable metric="cpk" resourceId={charId} chartOptions={...}>` around any value that should be explainable. Pass `chartOptions` matching the data window so the explanation value matches the display
+
 ### Key Conventions
 - **Prettier**: No semicolons, single quotes, trailing commas, 100 char width
 - **TypeScript**: Strict mode, `noUnusedLocals`, `noUnusedParameters`
@@ -93,6 +106,8 @@ Every approval/sign-off workflow SHOULD integrate with the signature system (`co
 - **Query invalidation**: `useUpdateCharacteristic` must invalidate `['characteristics', 'chartData', id]` — doesn't match `['characteristics', 'detail', id]`
 - **CharacteristicForm onChange**: Type is `(field: string, value: string | boolean)` — checkboxes pass booleans
 - **localStorage keys**: Use `cassini-` prefix (migration from `openspc-` in main.tsx)
+- **Show Your Work value matching**: The explain API's returned value MUST exactly match what the caller displays. Dashboard quickStats uses subgroup means + sigma of means; CapabilityCard uses individual measurements + stored_sigma. Pass `chartOptions` (limit/startDate/endDate) through `<Explainable>` to select the correct mode. If you add a new `<Explainable>` wrapper, verify the explain API path matches the data source of the displayed value
+- **ExplanationPanel z-index**: Uses `z-[60]` to render above modals (modals are z-50). Do not lower this
 
 ## Data Model Notes
 - **DataSource**: Polymorphic JTI — base `data_source` + `mqtt_data_source`, `opcua_data_source`. No `provider_type` column. Check `char.data_source is None` for manual
@@ -114,3 +129,66 @@ Every approval/sign-off workflow SHOULD integrate with the signature system (`co
 - `.planning/gap-closure/ROADMAP.md` — Feature roadmap (source of truth for scope)
 - `.planning/gap-closure/DECISIONS.md` — Architecture Decision Records (append-only)
 - `.planning/CURRENT-STATE.md` — Codebase baseline assessment
+
+<!-- gitnexus:start -->
+# GitNexus MCP
+
+This project is indexed by GitNexus as **SPC-client** (6907 symbols, 20555 relationships, 300 execution flows).
+
+GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
+
+## Always Start Here
+
+For any task involving code understanding, debugging, impact analysis, or refactoring, you must:
+
+1. **Read `gitnexus://repo/{name}/context`** — codebase overview + check index freshness
+2. **Match your task to a skill below** and **read that skill file**
+3. **Follow the skill's workflow and checklist**
+
+> If step 1 warns the index is stale, run `npx gitnexus analyze` in the terminal first.
+
+## Skills
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/refactoring/SKILL.md` |
+
+## Tools Reference
+
+| Tool | What it gives you |
+|------|-------------------|
+| `query` | Process-grouped code intelligence — execution flows related to a concept |
+| `context` | 360-degree symbol view — categorized refs, processes it participates in |
+| `impact` | Symbol blast radius — what breaks at depth 1/2/3 with confidence |
+| `detect_changes` | Git-diff impact — what do your current changes affect |
+| `rename` | Multi-file coordinated rename with confidence-tagged edits |
+| `cypher` | Raw graph queries (read `gitnexus://repo/{name}/schema` first) |
+| `list_repos` | Discover indexed repos |
+
+## Resources Reference
+
+Lightweight reads (~100-500 tokens) for navigation:
+
+| Resource | Content |
+|----------|---------|
+| `gitnexus://repo/{name}/context` | Stats, staleness check |
+| `gitnexus://repo/{name}/clusters` | All functional areas with cohesion scores |
+| `gitnexus://repo/{name}/cluster/{clusterName}` | Area members |
+| `gitnexus://repo/{name}/processes` | All execution flows |
+| `gitnexus://repo/{name}/process/{processName}` | Step-by-step trace |
+| `gitnexus://repo/{name}/schema` | Graph schema for Cypher |
+
+## Graph Schema
+
+**Nodes:** File, Function, Class, Interface, Method, Community, Process
+**Edges (via CodeRelation.type):** CALLS, IMPORTS, EXTENDS, IMPLEMENTS, DEFINES, MEMBER_OF, STEP_IN_PROCESS
+
+```cypher
+MATCH (caller)-[:CodeRelation {type: 'CALLS'}]->(f:Function {name: "myFunc"})
+RETURN caller.name, caller.filePath
+```
+
+<!-- gitnexus:end -->

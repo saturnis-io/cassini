@@ -1,0 +1,75 @@
+id: TC-RBAC-001
+title: "Operator can access dashboard and sees correct sidebar"
+category: "RBAC & Security"
+subcategory: "OperatorAccess"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Access limited to authorized individuals with appropriate privileges"
+  - "ISO 9001:2015 Section 7.2 - Competence and awareness (role-appropriate access)"
+  - "IATF 16949 - Defined responsibilities and authorities"
+preconditions:
+  description: >
+    An operator user exists with role 'operator' at a specific plant.
+    The plant has at least one characteristic with sample data so the
+    dashboard is not empty. The user's credentials are known.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-RBAC"
+    department: "Quality"
+    line: "Inspection-1"
+    characteristic:
+      name: "OQ-RBAC-Char"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+    users:
+      - username: "oq-operator"
+        password: "Operator123!"
+        full_name: "OQ Operator User"
+        role: "operator"
+        plant: "OQ-Plant-RBAC"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as 'oq-operator' with password 'Operator123!'"
+    verify: >
+      Login succeeds. The dashboard loads at /dashboard. The user's name
+      is displayed in the header area.
+    screenshot: true
+  - step: 2
+    action: "Examine the sidebar navigation"
+    verify: >
+      The sidebar shows the following items (operator-level):
+      - Dashboard
+      - Data Entry
+      - Violations
+      The sidebar does NOT show: Reports, MSA, FAI, DOE, Analytics,
+      Connectivity, Configuration, Settings, Users. These items are
+      hidden because the operator role does not have access.
+    screenshot: true
+  - step: 3
+    action: "Click 'Dashboard' in the sidebar"
+    verify: "The dashboard page loads with the control chart area and characteristic list"
+    screenshot: false
+  - step: 4
+    action: "Click 'Data Entry' in the sidebar"
+    verify: "The data entry page loads at /data-entry with the hierarchy tree and entry form"
+    screenshot: true
+  - step: 5
+    action: "Click 'Violations' in the sidebar"
+    verify: "The violations page loads at /violations showing the violations list"
+    screenshot: true
+expected_result: >
+  An operator user can access Dashboard, Data Entry, and Violations. The
+  sidebar correctly shows only these three items, hiding all higher-privilege
+  features. This implements the principle of least privilege -- operators
+  see only what they need to do their job.
+pass_criteria: >
+  Login succeeds. /dashboard, /data-entry, and /violations all load without
+  error. Sidebar shows exactly 3 items (Dashboard, Data Entry, Violations).
+  No engineer or admin items visible in sidebar.
+cleanup:
+  - "Log out the operator user"

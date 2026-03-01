@@ -1,19 +1,28 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
+import {
+  type BrandConfig as FullBrandConfig,
+  hexToHsl,
+  hslToCssString,
+  resolveFullPalette,
+  isValidHexColor,
+} from '@/lib/brand-engine'
+import { findPairing, loadFontPairing } from '@/lib/font-pairings'
+import { systemSettingsApi } from '@/api/system-settings.api'
+import { setServerDisplayKeyFormat, type DisplayKeyFormat } from '@/lib/display-key'
+import type { BrandConfigDTO, DisplayKeyFormatDTO } from '@/types'
 
 type Theme = 'light' | 'dark' | 'system'
 export type VisualStyle = 'modern' | 'retro' | 'glass'
 
 /**
- * Brand customization configuration
+ * Legacy brand config shape — kept for backward compatibility.
+ * Components that access .primaryColor, .accentColor, .appName, .logoUrl
+ * still work via this interface.
  */
 export interface BrandConfig {
-  /** Primary color (hex format, e.g., '#004A98') */
   primaryColor: string
-  /** Accent color (hex format, e.g., '#62CBC9') */
   accentColor: string
-  /** Custom logo URL or data URI */
   logoUrl: string | null
-  /** Custom app name to override 'Cassini' */
   appName: string
 }
 
@@ -27,10 +36,14 @@ interface ThemeContextValue {
   visualStyle: VisualStyle
   setVisualStyle: (style: VisualStyle) => void
 
-  // Brand customization
+  // Brand customization — legacy shape for existing consumers
   brandConfig: BrandConfig
   setBrandConfig: (config: Partial<BrandConfig>) => void
   resetBrandConfig: () => void
+
+  // Full brand config from brand-engine (new consumers)
+  fullBrandConfig: FullBrandConfig
+  setFullBrandConfig: (config: Partial<FullBrandConfig>) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -39,14 +52,22 @@ const THEME_STORAGE_KEY = 'cassini-theme'
 const BRAND_STORAGE_KEY = 'cassini-brand'
 const VISUAL_STYLE_KEY = 'cassini-visual-style'
 
-/**
- * Default brand configuration
- */
-const DEFAULT_BRAND_CONFIG: BrandConfig = {
-  primaryColor: '#D4AF37', // Cassini Gold
-  accentColor: '#080C16', // Deep Space Navy
-  logoUrl: null,
+/** Default full brand config (Cassini defaults) */
+const DEFAULT_FULL_BRAND_CONFIG: FullBrandConfig = {
   appName: 'Cassini',
+  logoUrl: null,
+  logoColors: null,
+  primary: { hex: '#D4AF37' },
+  accent: { hex: '#080C16' },
+  destructive: null,
+  warning: null,
+  success: null,
+  headingFont: 'Sansation',
+  bodyFont: 'Inter',
+  visualStyle: null,
+  loginMode: null,
+  loginBackgroundUrl: null,
+  presetId: null,
 }
 
 function getStoredTheme(): Theme {
@@ -58,18 +79,31 @@ function getStoredTheme(): Theme {
   return 'system'
 }
 
-function getStoredBrandConfig(): BrandConfig {
-  if (typeof window === 'undefined') return DEFAULT_BRAND_CONFIG
+/**
+ * Read the full brand config from localStorage, merging with defaults.
+ */
+function getStoredFullBrandConfig(): FullBrandConfig {
+  if (typeof window === 'undefined') return DEFAULT_FULL_BRAND_CONFIG
   try {
     const stored = localStorage.getItem(BRAND_STORAGE_KEY)
     if (stored) {
       const parsed = JSON.parse(stored)
-      return { ...DEFAULT_BRAND_CONFIG, ...parsed }
+      // Handle legacy format (primaryColor/accentColor) migrating to full format
+      if (parsed.primaryColor && !parsed.primary) {
+        return {
+          ...DEFAULT_FULL_BRAND_CONFIG,
+          appName: parsed.appName ?? DEFAULT_FULL_BRAND_CONFIG.appName,
+          logoUrl: parsed.logoUrl ?? DEFAULT_FULL_BRAND_CONFIG.logoUrl,
+          primary: { hex: parsed.primaryColor },
+          accent: { hex: parsed.accentColor ?? '#080C16' },
+        }
+      }
+      return { ...DEFAULT_FULL_BRAND_CONFIG, ...parsed }
     }
   } catch {
     // Invalid JSON, use defaults
   }
-  return DEFAULT_BRAND_CONFIG
+  return DEFAULT_FULL_BRAND_CONFIG
 }
 
 function getStoredVisualStyle(): VisualStyle {
@@ -87,63 +121,118 @@ function getSystemTheme(): 'light' | 'dark' {
 }
 
 /**
- * Validate hex color format
+ * Convert a server BrandConfigDTO (snake_case) to the client FullBrandConfig (camelCase).
  */
-function isValidHexColor(color: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(color)
-}
+function dtoToFullBrandConfig(dto: BrandConfigDTO): Partial<FullBrandConfig> {
+  const result: Partial<FullBrandConfig> = {}
 
-/**
- * Convert hex color to HSL values for Tailwind CSS variables
- */
-function hexToHsl(hex: string): string {
-  // Remove # if present
-  hex = hex.replace('#', '')
-
-  const r = parseInt(hex.substring(0, 2), 16) / 255
-  const g = parseInt(hex.substring(2, 4), 16) / 255
-  const b = parseInt(hex.substring(4, 6), 16) / 255
-
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  let h = 0
-  let s = 0
-  const l = (max + min) / 2
-
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-
-    switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6
-        break
-      case g:
-        h = ((b - r) / d + 2) / 6
-        break
-      case b:
-        h = ((r - g) / d + 4) / 6
-        break
+  if (dto.app_name != null) result.appName = dto.app_name
+  if (dto.logo_url != null) result.logoUrl = dto.logo_url
+  if (dto.logo_colors != null) {
+    result.logoColors = {
+      planet: dto.logo_colors.planet,
+      ring: dto.logo_colors.ring,
+      line: dto.logo_colors.line,
+      dot: dto.logo_colors.dot,
     }
   }
+  if (dto.primary != null) {
+    result.primary = {
+      hex: dto.primary.hex,
+      lightOverride: dto.primary.light_override,
+      darkOverride: dto.primary.dark_override,
+    }
+  }
+  if (dto.accent != null) {
+    result.accent = {
+      hex: dto.accent.hex,
+      lightOverride: dto.accent.light_override,
+      darkOverride: dto.accent.dark_override,
+    }
+  }
+  if (dto.destructive != null) {
+    result.destructive = {
+      hex: dto.destructive.hex,
+      lightOverride: dto.destructive.light_override,
+      darkOverride: dto.destructive.dark_override,
+    }
+  }
+  if (dto.warning != null) {
+    result.warning = {
+      hex: dto.warning.hex,
+      lightOverride: dto.warning.light_override,
+      darkOverride: dto.warning.dark_override,
+    }
+  }
+  if (dto.success != null) {
+    result.success = {
+      hex: dto.success.hex,
+      lightOverride: dto.success.light_override,
+      darkOverride: dto.success.dark_override,
+    }
+  }
+  if (dto.heading_font != null) result.headingFont = dto.heading_font
+  if (dto.body_font != null) result.bodyFont = dto.body_font
+  if (dto.visual_style != null) {
+    result.visualStyle = dto.visual_style as FullBrandConfig['visualStyle']
+  }
+  if (dto.login_mode != null) {
+    result.loginMode = dto.login_mode as FullBrandConfig['loginMode']
+  }
+  if (dto.login_background_url != null) result.loginBackgroundUrl = dto.login_background_url
+  if (dto.preset_id != null) result.presetId = dto.preset_id
 
-  // Return as HSL values for CSS
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
+  return result
 }
 
 /**
- * Apply brand colors as CSS custom properties.
- *
- * NOTE: --color-accent is intentionally NOT set here. It is a semantic UI
- * color used for hover/focus backgrounds across the app and must remain
- * a soft, readable tint defined in CSS themes (index.css @theme / .dark).
- * Brand identity is expressed through --color-primary only.
+ * Derive a legacy BrandConfig from a FullBrandConfig for backward compatibility.
  */
-function applyBrandColors(config: BrandConfig) {
-  const root = document.documentElement
+function toLegacyBrandConfig(full: FullBrandConfig): BrandConfig {
+  return {
+    primaryColor: full.primary?.hex ?? '#D4AF37',
+    accentColor: full.accent?.hex ?? '#080C16',
+    logoUrl: full.logoUrl ?? null,
+    appName: full.appName ?? 'Cassini',
+  }
+}
 
-  if (isValidHexColor(config.primaryColor)) {
-    root.style.setProperty('--color-primary', `hsl(${hexToHsl(config.primaryColor)})`)
+/**
+ * Convert an HSL object from brand-engine to a CSS value string for custom properties.
+ */
+function hexToCssHsl(hex: string): string {
+  const { h, s, l } = hexToHsl(hex)
+  return hslToCssString(h, s, l)
+}
+
+/**
+ * Apply brand colors and fonts as CSS custom properties.
+ *
+ * Uses resolveFullPalette from brand-engine to get WCAG-compliant colors
+ * for the current mode, then sets CSS vars on :root.
+ */
+function applyBrandColors(config: FullBrandConfig, mode: 'light' | 'dark') {
+  const root = document.documentElement
+  const palette = resolveFullPalette(config, mode)
+
+  // Set color CSS vars using HSL format for Tailwind compatibility
+  root.style.setProperty('--color-primary', `hsl(${hexToCssHsl(palette.primary)})`)
+  root.style.setProperty('--color-destructive', `hsl(${hexToCssHsl(palette.destructive)})`)
+  root.style.setProperty('--color-warning', `hsl(${hexToCssHsl(palette.warning)})`)
+  root.style.setProperty('--color-success', `hsl(${hexToCssHsl(palette.success)})`)
+
+  // Set font CSS vars
+  const headingFont = config.headingFont ?? 'Sansation'
+  const bodyFont = config.bodyFont ?? 'Inter'
+  root.style.setProperty('--font-heading', `'${headingFont}', sans-serif`)
+  root.style.setProperty('--font-body', `'${bodyFont}', sans-serif`)
+
+  // Load font pairing if fonts changed
+  const pairing = findPairing(headingFont, bodyFont)
+  if (pairing) {
+    loadFontPairing(pairing).catch(() => {
+      // Font loading failed — fall back to existing fonts silently
+    })
   }
 }
 
@@ -156,8 +245,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
     theme === 'system' ? getSystemTheme() : theme,
   )
-  const [brandConfig, setBrandConfigState] = useState<BrandConfig>(getStoredBrandConfig)
+  const [fullBrandConfig, setFullBrandConfigState] =
+    useState<FullBrandConfig>(getStoredFullBrandConfig)
   const [visualStyle, setVisualStyleState] = useState<VisualStyle>(getStoredVisualStyle)
+  const serverFetched = useRef(false)
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme)
@@ -169,45 +260,98 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     localStorage.setItem(VISUAL_STYLE_KEY, style)
   }, [])
 
-  const setBrandConfig = useCallback((config: Partial<BrandConfig>) => {
-    setBrandConfigState((prev) => {
-      // Validate colors before applying
-      const newConfig = { ...prev }
-
-      if (config.primaryColor !== undefined) {
-        if (isValidHexColor(config.primaryColor)) {
-          newConfig.primaryColor = config.primaryColor
-        }
-      }
-      if (config.accentColor !== undefined) {
-        if (isValidHexColor(config.accentColor)) {
-          newConfig.accentColor = config.accentColor
-        }
-      }
-      if (config.logoUrl !== undefined) {
-        newConfig.logoUrl = config.logoUrl
-      }
-      if (config.appName !== undefined) {
-        newConfig.appName = config.appName || 'Cassini'
-      }
-
-      // Persist to localStorage
+  /**
+   * Update the full brand config. Merges with current state and persists.
+   */
+  const setFullBrandConfig = useCallback((config: Partial<FullBrandConfig>) => {
+    setFullBrandConfigState((prev) => {
+      const newConfig = { ...prev, ...config }
       localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(newConfig))
-
       return newConfig
     })
   }, [])
 
+  /**
+   * Legacy setBrandConfig — accepts the old shape (primaryColor, accentColor, etc.)
+   * and translates to full brand config updates.
+   */
+  const setBrandConfig = useCallback(
+    (config: Partial<BrandConfig>) => {
+      setFullBrandConfigState((prev) => {
+        const newConfig = { ...prev }
+
+        if (config.primaryColor !== undefined) {
+          if (isValidHexColor(config.primaryColor)) {
+            newConfig.primary = { ...newConfig.primary, hex: config.primaryColor }
+          }
+        }
+        if (config.accentColor !== undefined) {
+          if (isValidHexColor(config.accentColor)) {
+            newConfig.accent = { ...newConfig.accent, hex: config.accentColor }
+          }
+        }
+        if (config.logoUrl !== undefined) {
+          newConfig.logoUrl = config.logoUrl
+        }
+        if (config.appName !== undefined) {
+          newConfig.appName = config.appName || 'Cassini'
+        }
+
+        localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(newConfig))
+        return newConfig
+      })
+    },
+    [],
+  )
+
   const resetBrandConfig = useCallback(() => {
-    setBrandConfigState(DEFAULT_BRAND_CONFIG)
+    setFullBrandConfigState(DEFAULT_FULL_BRAND_CONFIG)
     localStorage.removeItem(BRAND_STORAGE_KEY)
     // Reset CSS variables to theme defaults
     const root = document.documentElement
     root.style.removeProperty('--color-primary')
+    root.style.removeProperty('--color-destructive')
+    root.style.removeProperty('--color-warning')
+    root.style.removeProperty('--color-success')
+    root.style.removeProperty('--font-heading')
+    root.style.removeProperty('--font-body')
   }, [])
 
-  // Apply theme to document - intentional DOM sync
+  // Fetch resolved settings from server on mount (fire-and-forget)
+  useEffect(() => {
+    if (serverFetched.current) return
+    serverFetched.current = true
 
+    systemSettingsApi
+      .getResolved()
+      .then((settings) => {
+        if (settings.brand_config) {
+          const serverConfig = dtoToFullBrandConfig(settings.brand_config)
+          setFullBrandConfigState((prev) => {
+            // Server values win over localStorage, merged with defaults
+            const merged = { ...DEFAULT_FULL_BRAND_CONFIG, ...prev, ...serverConfig }
+            localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(merged))
+            return merged
+          })
+        }
+        // Push display key format into the display-key module cache
+        if (settings.display_key_format) {
+          const dkf = settings.display_key_format as DisplayKeyFormatDTO
+          const format: DisplayKeyFormat = {
+            datePattern: dkf.date_pattern,
+            separator: dkf.separator,
+            numberPlacement: dkf.number_placement,
+            numberDigits: dkf.number_digits,
+          }
+          setServerDisplayKeyFormat(format)
+        }
+      })
+      .catch(() => {
+        // Server unavailable — use localStorage/defaults silently
+      })
+  }, [])
+
+  // Apply theme to document
   useEffect(() => {
     const root = document.documentElement
     const resolved = theme === 'system' ? getSystemTheme() : theme
@@ -220,10 +364,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [theme])
 
-  // Apply brand colors when config changes
+  // Apply brand colors when config or resolved theme changes
   useEffect(() => {
-    applyBrandColors(brandConfig)
-  }, [brandConfig])
+    applyBrandColors(fullBrandConfig, resolvedTheme)
+  }, [fullBrandConfig, resolvedTheme])
 
   // Apply visual style class to document
   useEffect(() => {
@@ -250,6 +394,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [theme])
 
+  // Derive the legacy brandConfig from the full config
+  const legacyBrandConfig = toLegacyBrandConfig(fullBrandConfig)
+
   return (
     <ThemeContext.Provider
       value={{
@@ -258,9 +405,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         resolvedTheme,
         visualStyle,
         setVisualStyle,
-        brandConfig,
+        brandConfig: legacyBrandConfig,
         setBrandConfig,
         resetBrandConfig,
+        fullBrandConfig,
+        setFullBrandConfig,
       }}
     >
       {children}

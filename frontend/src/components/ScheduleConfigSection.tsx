@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Clock, Calendar, Repeat, Tag, ChevronRight, CircleOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import { NumberInput } from './NumberInput'
 import { TimePicker } from './TimePicker'
 import { HelpTooltip } from './HelpTooltip'
@@ -84,6 +85,7 @@ const CRON_TEMPLATES = [
 ]
 
 export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSectionProps) {
+  const { formatDate } = useDateFormat()
   const handleTypeChange = (type: ScheduleType) => {
     // Set defaults for each type
     const defaults: Record<ScheduleType, Partial<ScheduleConfig>> = {
@@ -213,11 +215,7 @@ export function ScheduleConfigSection({ value, onChange }: ScheduleConfigSection
               >
                 <ChevronRight className={cn('h-3 w-3', idx === 0 && 'text-primary')} />
                 <span>
-                  {time.toLocaleDateString(undefined, {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatDate(time)}
                   {' at '}
                   {time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </span>

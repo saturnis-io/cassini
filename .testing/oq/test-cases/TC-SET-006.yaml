@@ -1,0 +1,42 @@
+id: TC-SET-006
+title: "Create outbound webhook with event types"
+category: "Settings & Admin"
+subcategory: "Webhooks"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.4 - Communication with external systems"
+  - "IATF 16949 - Customer notification of nonconforming product"
+  - "21 CFR Part 11 - System integration and data integrity"
+preconditions:
+  description: >
+    An admin user is logged in. The Email & Webhooks settings tab is
+    accessible. No webhooks are configured yet (or new ones can be added).
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/email-webhooks. Scroll to the Webhooks section."
+    verify: "Webhooks section is visible. If no webhooks exist, an empty state or 'No webhooks configured' message is shown. An 'Add Webhook' button is visible."
+    screenshot: true
+  - step: 2
+    action: "Click 'Add Webhook'."
+    verify: "A webhook creation form or dialog appears with fields for URL, secret, event types, and optional description."
+    screenshot: true
+  - step: 3
+    action: "Enter: URL: 'https://httpbin.org/post', Secret: 'oq-test-secret-2026'. Select event types: 'violation' and 'sample_created' (or equivalent event checkboxes)."
+    verify: "URL field shows the httpbin URL. Secret field accepts input (may be masked). Two event types are selected/checked."
+    screenshot: true
+  - step: 4
+    action: "Click Save/Create to create the webhook."
+    verify: "Success indication. The webhook appears in the webhook list showing: URL = 'https://httpbin.org/post', 2 event types selected, active status."
+    screenshot: true
+  - step: 5
+    action: "Navigate away and return to /settings/email-webhooks."
+    verify: "The webhook persists in the list with the correct URL and event types."
+    screenshot: false
+expected_result: "An outbound webhook is created with a target URL, HMAC signing secret, and selected event types (violation, sample_created). The webhook appears in the configuration list and persists across navigation."
+pass_criteria: "Webhook creation succeeds. The webhook appears in the list with correct URL and event types. API verification: GET /webhooks returns an entry with the configured URL and event_types."
+cleanup:
+  - "Delete webhook via API: DELETE /webhooks/{webhook_id}"

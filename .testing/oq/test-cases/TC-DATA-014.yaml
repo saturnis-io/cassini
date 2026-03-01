@@ -1,0 +1,64 @@
+id: TC-DATA-014
+title: "Submit data via API with authentication"
+category: "Data Entry"
+subcategory: "APIEntry"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "21 CFR Part 11 Section 11.10(d) - Authority Checks (API key authentication)"
+  - "IATF 16949 Section 9.1.1.1 - Automated data collection"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists. An API key has been created with
+    permission for this characteristic. The API key value is available
+    for the test.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    api_key:
+      name: "OQ-Test-Key"
+      characteristic_ids: ["{characteristic_id}"]
+
+execution_mode: api-verify
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: >
+      Send POST /data-entry/submit with headers:
+      X-API-Key: {api_key_value}, Content-Type: application/json.
+      Body: {"characteristic_id": {id}, "measurements": [10.03],
+      "batch_number": "LOT-OQ-001", "operator_id": "OP-TEST"}
+    verify: >
+      Response status 201 Created. Body contains sample_id (integer > 0),
+      mean = 10.03, in_control (boolean), zone (string), violations (array).
+    screenshot: false
+  - step: 2
+    action: "Send GET /samples/{sample_id} with JWT auth to verify the sample was stored"
+    verify: >
+      Response contains measurements = [10.03], batch_number = "LOT-OQ-001",
+      operator_id = "OP-TEST", char_id matches the target characteristic.
+    screenshot: false
+  - step: 3
+    action: "Navigate to /dashboard in the browser and select Bore Diameter"
+    verify: "The newly submitted data point at 10.03 appears on the control chart"
+    screenshot: true
+
+expected_result: >
+  API-submitted data is processed identically to manually entered data.
+  The sample passes through the SPC engine, Nelson Rules are evaluated,
+  and the data appears on the dashboard chart.
+
+pass_criteria: >
+  201 response with valid sample_id. GET confirms stored values match
+  submission. Dashboard chart shows the data point.
+
+cleanup:
+  - "Delete the sample: DELETE /samples/{sample_id}"
+  - "Delete the API key"

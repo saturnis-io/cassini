@@ -1,0 +1,35 @@
+id: TC-ANLYT-007
+title: "Predictions tab loads and displays interface"
+category: "Advanced Analytics"
+subcategory: "Predictions"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and evaluation, including trend analysis"
+  - "IATF 16949 Section 9.1.1.1 - Statistical process monitoring and reaction plans"
+preconditions:
+  description: >
+    An engineer user is logged in with access to the active plant.
+    The Predictions tab is a newer feature that provides time-series
+    forecasting capabilities. It may show an empty state if no prediction
+    models are configured, which is acceptable for this initial load test.
+  seed_method: none
+  seed_data: {}
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer and navigate to /analytics?tab=predictions."
+    verify: "The Predictions tab loads. The URL query parameter shows tab=predictions."
+    screenshot: true
+  - step: 2
+    action: "Observe the Predictions tab content."
+    verify: "The predictions interface renders. This may include: (1) A characteristic selector for choosing which characteristic to predict. (2) Configuration options for prediction models (horizon, confidence interval). (3) An empty state message if no predictions have been configured or computed. The tab should NOT show an error or blank white page."
+    screenshot: true
+  - step: 3
+    action: "If a characteristic selector is present, select a characteristic that has data."
+    verify: "The prediction interface responds to the selection. If a prediction model exists, forecast data renders. If no model exists, an appropriate empty state or prompt is shown (e.g., 'Configure prediction model' or 'No predictions available')."
+    screenshot: true
+expected_result: "The Predictions tab loads without errors and displays its interface. If no prediction models are configured, an appropriate empty state is shown rather than an error."
+pass_criteria: "Predictions tab renders without JavaScript errors. The interface is functional (selectors work, buttons are clickable). No blank/error state."
+cleanup:
+  - "No cleanup required -- no data was created"

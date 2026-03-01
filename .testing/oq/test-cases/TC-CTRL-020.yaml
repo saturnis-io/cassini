@@ -1,0 +1,76 @@
+id: TC-CTRL-020
+title: "Laney p' chart with overdispersion correction"
+category: "Control Charts"
+subcategory: "AttributeCharts"
+priority: high
+regulatory_relevance:
+  - "AIAG SPC Reference Manual - Attribute Charts (overdispersion)"
+  - "Laney, D.B. (2002) - Improved Control Charts for Attributes"
+  - "IATF 16949 Section 9.1.1.1 - Statistical Process Control"
+
+preconditions:
+  description: >
+    A p-chart characteristic must exist with use_laney_correction=true.
+    At least 25 attribute samples with large sample sizes (>100 per
+    subgroup) to demonstrate overdispersion. The Laney correction
+    adjusts limits by a sigma-Z factor calculated from the between-
+    subgroup variation of standardized residuals.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    department: "Assembly"
+    line: "QC-Station-1"
+    characteristic:
+      name: "Solder Defect Laney p'"
+      chart_type: "p"
+      subgroup_size: 1
+      data_type: "attribute"
+      use_laney_correction: true
+    samples: >
+      25 attribute samples with sample sizes of 200-300 each and
+      defect rates averaging 3% but with overdispersion (more
+      variation than binomial predicts).
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Solder Defect Laney p'"
+    verify: >
+      Laney p' chart renders showing attribute data with control limits.
+      A sigma-Z badge or indicator is visible on the chart, showing
+      the calculated sigma-Z value (typically > 1.0 for overdispersed
+      data, < 1.0 for underdispersed).
+    screenshot: true
+  - step: 2
+    action: "Inspect the sigma-Z badge value"
+    verify: >
+      sigma-Z > 1.0 (indicating overdispersion -- the data has more
+      variation than the standard binomial model predicts). The exact
+      value should be displayed (e.g., sigma-Z = 1.45).
+    screenshot: true
+  - step: 3
+    action: "Compare limits visually to a standard p-chart"
+    verify: >
+      The Laney-corrected limits are WIDER than standard p-chart limits
+      because sigma-Z > 1 inflates the control limits. This reduces
+      false alarm rate for overdispersed data:
+      Laney UCL = p-bar + 3 * sigma-Z * sqrt(p-bar(1-p-bar)/n)
+    screenshot: true
+
+expected_result: >
+  The Laney p' chart correctly applies the overdispersion correction.
+  The sigma-Z factor is calculated from the moving range of
+  standardized residuals and used to widen the control limits. This
+  prevents the excessive false alarms that standard p-charts produce
+  with large sample sizes or when multiple defect streams are combined.
+
+pass_criteria: >
+  sigma-Z badge visible with value > 0. Limits are wider than standard
+  p-chart limits for the same data. Chart type is identifiable as
+  Laney p' (not standard p). API chart-data returns the sigma-Z value.
+
+cleanup:
+  - "Delete seeded data via API"

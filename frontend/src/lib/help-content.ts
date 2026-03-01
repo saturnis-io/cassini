@@ -292,6 +292,40 @@ export const helpContent: Record<string, HelpContent> = {
       'Shows median, quartiles, and outliers. Useful for comparing distributions across groups, shifts, or time periods. Outliers are typically defined as points beyond 1.5 * IQR from quartiles.',
   },
 
+  // Branding — semantic colors and contrast
+  'brand-semantic-colors': {
+    title: 'Semantic Colors',
+    description:
+      'These colors carry meaning throughout the application, independent of your brand palette.',
+    details:
+      'Destructive is used for delete buttons, error messages, and critical alerts. Warning appears on caution banners, expiring items, and attention-needed badges. Success is used for confirmations, passing checks, and positive indicators like "Cpk OK".',
+  },
+  'brand-contrast-ratio': {
+    title: 'WCAG AA Contrast Ratio',
+    description:
+      'Measures readability of this color as text against the background.',
+    details:
+      'WCAG 2.x requires a minimum 4.5:1 contrast ratio for normal-sized text to be accessible. Ratios below this threshold mean some users may struggle to read text in that color. The system auto-adjusts colors per mode, but if you set a manual override, verify it still passes.',
+  },
+  'brand-color-destructive': {
+    title: 'Destructive',
+    description: 'Color for irreversible or dangerous actions.',
+    details:
+      'Applied to delete buttons, error toasts, critical violation markers, and "out of control" badges throughout the application.',
+  },
+  'brand-color-warning': {
+    title: 'Warning',
+    description: 'Color for caution and attention-needed states.',
+    details:
+      'Applied to warning alerts, Nelson rule badges, expiring retention notices, capability caution indicators, and "needs review" statuses.',
+  },
+  'brand-color-success': {
+    title: 'Success',
+    description: 'Color for positive outcomes and confirmations.',
+    details:
+      'Applied to success toasts, "Cpk OK" indicators, approved FAI reports, passing MSA studies, and WCAG AA contrast badges.',
+  },
+
   // When to recalculate control limits
   'recalculate-limits': {
     title: 'When to Recalculate Control Limits',

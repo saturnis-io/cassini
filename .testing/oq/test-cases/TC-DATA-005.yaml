@@ -1,0 +1,61 @@
+id: TC-DATA-005
+title: "Submit attribute data for u-chart (defects per unit)"
+category: "Data Entry"
+subcategory: "AttributeEntry"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement"
+  - "AIAG SPC Reference Manual - u-Chart (Defects Per Unit)"
+
+preconditions:
+  description: >
+    A u-chart characteristic must exist with data_type=attribute and
+    chart_type=u. The u-chart requires defect count and units inspected
+    inputs (variable inspection opportunity). The test user has operator role.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    department: "Assembly"
+    line: "Final-Inspect"
+    characteristic:
+      name: "Paint Defects Per Panel"
+      chart_type: "u"
+      subgroup_size: 1
+      data_type: "attribute"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Log in as operator and navigate to /data-entry"
+    verify: "Data entry page loads"
+    screenshot: false
+  - step: 2
+    action: "Select OQ-Plant-Data, navigate to Assembly > Final-Inspect > Paint Defects Per Panel"
+    verify: "Attribute entry form appears with fields for defect count and units inspected"
+    screenshot: true
+  - step: 3
+    action: "Enter defect count = 5, units inspected = 10"
+    verify: "Both fields show entered values"
+    screenshot: false
+  - step: 4
+    action: "Click Submit"
+    verify: "Success toast notification. Plotted value u = 5/10 = 0.50 computed."
+    screenshot: true
+  - step: 5
+    action: "Navigate to /dashboard and select the Paint Defects Per Panel characteristic"
+    verify: "u-chart shows a new data point at 0.50 (defects per unit)"
+    screenshot: true
+
+expected_result: >
+  A u-chart attribute sample with 5 defects across 10 units inspected is
+  submitted. The plotted value is u = 5/10 = 0.50. Control limits vary
+  per point based on units inspected: UCL_i = u-bar + 3*sqrt(u-bar/n_i).
+
+pass_criteria: >
+  Submit succeeds. Chart shows point at 0.50. API confirms
+  defect_count=5, units_inspected=10.
+
+cleanup:
+  - "Delete the submitted sample via API"

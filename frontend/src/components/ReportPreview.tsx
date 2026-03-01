@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability } from '@/api/hooks'
 import { useTheme } from '@/providers/ThemeProvider'
 import { ControlChart } from '@/components/ControlChart'
@@ -45,6 +47,8 @@ function hasChartPoints(chartData: ChartData): boolean {
  */
 function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
   const { containerRef, chartRef } = useECharts(opts)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const [dataURL, setDataURL] = useState<string | null>(null)
 
   // Capture a static image after the chart has rendered
@@ -54,14 +58,15 @@ function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
       const chart = chartRef.current
       if (!chart) return
       try {
-        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+        const bgColor = isDark ? 'hsl(220, 25%, 13%)' : '#fff'
+        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: bgColor })
         setDataURL(url)
       } catch {
         // Chart may not be ready yet
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [chartRef, opts.option])
+  }, [chartRef, opts.option, isDark])
 
   return { containerRef, dataURL }
 }
@@ -88,6 +93,7 @@ export function ReportPreview({
 }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
   const { brandConfig } = useTheme()
+  const { formatDateTime } = useDateFormat()
 
   // Fetch data for primary characteristic using the provided chart options
   const { data: chartData, isLoading: chartLoading } = useChartData(
@@ -148,7 +154,7 @@ export function ReportPreview({
             </div>
           </div>
           <div className="text-muted-foreground text-right text-sm">
-            <div>Generated: {new Date().toLocaleString()}</div>
+            <div>Generated: {formatDateTime(new Date())}</div>
             {characteristic && <div>Characteristic: {characteristic.name}</div>}
           </div>
         </div>
@@ -199,6 +205,8 @@ function ReportSectionComponent({
   characteristicId,
   chartOptions,
 }: SectionProps) {
+  const { formatDate, formatDateTime } = useDateFormat()
+
   switch (section) {
     case 'header':
       return (
@@ -217,7 +225,7 @@ function ReportSectionComponent({
             )}
           </div>
           <div className="text-muted-foreground mt-1 text-xs">
-            Generated: {new Date().toLocaleString()}
+            Generated: {formatDateTime(new Date())}
           </div>
         </div>
       )
@@ -291,7 +299,7 @@ function ReportSectionComponent({
                 {violations.slice(0, 10).map((v) => (
                   <tr key={v.id} className="border-border/50 border-b">
                     <td className="py-2">
-                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                      {v.created_at ? formatDate(v.created_at) : '-'}
                     </td>
                     <td className="py-2">
                       Rule {v.rule_id}: {v.rule_name}
@@ -353,7 +361,7 @@ function ReportSectionComponent({
                 {violations.map((v) => (
                   <tr key={v.id} className="border-border/50 border-b">
                     <td className="py-2">
-                      {v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}
+                      {v.created_at ? formatDate(v.created_at) : '-'}
                     </td>
                     <td className="py-2">{v.characteristic_name || '-'}</td>
                     <td className="py-2">Rule {v.rule_id}</td>
@@ -402,7 +410,7 @@ function ReportSectionComponent({
               <tbody>
                 {annotations.map((a) => (
                   <tr key={a.id} className="border-border/50 border-b">
-                    <td className="py-2">{new Date(a.created_at).toLocaleDateString()}</td>
+                    <td className="py-2">{formatDate(a.created_at)}</td>
                     <td className="py-2">
                       <span
                         className={cn(
@@ -421,19 +429,9 @@ function ReportSectionComponent({
                     <td className="text-muted-foreground py-2 text-xs">
                       {a.annotation_type === 'period' && a.start_time && a.end_time ? (
                         <>
-                          {new Date(a.start_time).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDateTime(a.start_time)}
                           {' — '}
-                          {new Date(a.end_time).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDateTime(a.end_time)}
                         </>
                       ) : a.annotation_type === 'point' ? (
                         <span>Sample #{a.sample_id}</span>
@@ -500,7 +498,7 @@ function ReportSectionComponent({
             <tbody>
               {sampleRows.map((dp) => (
                 <tr key={dp.sample_id} className="border-border/50 border-b">
-                  <td className="py-2">{new Date(dp.timestamp).toLocaleString()}</td>
+                  <td className="py-2">{formatDateTime(dp.timestamp)}</td>
                   <td className="py-2 text-right font-mono">{dp.value.toFixed(4)}</td>
                   <td className="py-2 text-right">{dp.extra}</td>
                   <td className="py-2 text-center">
@@ -587,6 +585,9 @@ function ReportHistogramSection({
   chartData: ChartData
   characteristicId?: number
 }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   // Always use raw measurements for the histogram
   const values = getChartMeasurements(chartData)
 
@@ -683,13 +684,13 @@ function ReportHistogramSection({
         type: 'value' as const,
         min: binMin,
         max: binMax,
-        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
-        splitLine: { show: true, lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
+        splitLine: { show: true, lineStyle: { type: 'dashed' as const, color: isDark ? 'hsl(220, 10%, 25%)' : 'hsl(240 6% 90%)' } },
       },
       yAxis: {
         type: 'value' as const,
         max: Math.ceil(maxCount * 1.1),
-        axisLabel: { fontSize: 10 },
+        axisLabel: { fontSize: 10, color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
       },
       tooltip: {
         trigger: 'item' as const,
@@ -702,7 +703,7 @@ function ReportHistogramSection({
           type: 'bar' as const,
           data: bins.map((b) => [b.binCenter, b.count]),
           barWidth: `${(100 / binCount) * 0.8}%`,
-          itemStyle: { color: 'hsl(212 100% 45%)', opacity: 0.7 },
+          itemStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)', opacity: 0.7 },
           markLine: {
             silent: true,
             symbol: 'none',
@@ -711,7 +712,7 @@ function ReportHistogramSection({
         },
       ],
     }
-  }, [values, capability])
+  }, [values, capability, isDark])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 
@@ -965,6 +966,10 @@ function ReportInterpretationSection({ chartData }: { chartData: ChartData }) {
  * Trend chart section for reports (ECharts)
  */
 function ReportTrendSection({ chartData }: { chartData: ChartData }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const { dateFormat, datetimeFormat } = useDateFormat()
+
   // Build a unified array of {timestamp, value} from whichever data source is populated
   const trendPoints = useMemo(() => {
     if (chartData.chart_type === 'cusum' && chartData.cusum_data_points?.length) {
@@ -992,7 +997,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
       const windowSlice = trendPoints.slice(windowStart, i + 1)
       const ma = windowSlice.reduce((sum, p) => sum + p.value, 0) / windowSlice.length
       return {
-        date: new Date(dp.timestamp).toLocaleDateString(),
+        date: applyFormat(new Date(dp.timestamp), dateFormat),
         timestamp: dp.timestamp,
         value: dp.value,
         ma: i >= windowSize - 1 ? ma : null,
@@ -1036,14 +1041,14 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
         type: 'category' as const,
         boundaryGap: false,
         data: trendData.map((d) => d.date),
-        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)) },
+        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(trendData.length / 6)), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
       },
       yAxis: {
         type: 'value' as const,
         min: minVal - padding,
         max: maxVal + padding,
-        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2) },
-        splitLine: { lineStyle: { type: 'dashed' as const, color: 'hsl(240 6% 90%)' } },
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(2), color: isDark ? 'hsl(220, 5%, 70%)' : undefined },
+        splitLine: { lineStyle: { type: 'dashed' as const, color: isDark ? 'hsl(220, 10%, 25%)' : 'hsl(240 6% 90%)' } },
       },
       tooltip: {
         trigger: 'axis' as const,
@@ -1055,7 +1060,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
               params[0]?.axisValue ? trendData.findIndex((d) => d.date === params[0].axisValue) : 0
             ]
           if (!item) return ''
-          let html = `${new Date(item.timestamp).toLocaleString()}<br/>Value: ${item.value.toFixed(4)}`
+          let html = `${applyFormat(new Date(item.timestamp), datetimeFormat)}<br/>Value: ${item.value.toFixed(4)}`
           if (item.ma != null) html += `<br/>MA(${windowSize}): ${item.ma.toFixed(4)}`
           return html
         },
@@ -1068,8 +1073,8 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
           smooth: false,
           symbol: 'circle',
           symbolSize: 4,
-          lineStyle: { color: 'hsl(212 100% 45%)', width: 1 },
-          itemStyle: { color: 'hsl(212 100% 45%)' },
+          lineStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)', width: 1 },
+          itemStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)' },
           markLine:
             markLineData.length > 0
               ? { silent: true, symbol: 'none', data: markLineData }
@@ -1086,7 +1091,7 @@ function ReportTrendSection({ chartData }: { chartData: ChartData }) {
         },
       ],
     }
-  }, [trendPoints, chartData])
+  }, [trendPoints, chartData, isDark])
 
   const { containerRef, dataURL } = useStaticChart({ option, notMerge: true })
 

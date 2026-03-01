@@ -7,10 +7,17 @@ const TEST_DB = path.join(BACKEND_DIR, 'test-e2e.db')
 const MANIFEST = path.join(BACKEND_DIR, 'e2e-manifest.json')
 
 export default function globalSetup() {
-  // Delete test DB if it exists so we start fresh
+  // Reset test DB so we start fresh
   if (fs.existsSync(TEST_DB)) {
-    fs.unlinkSync(TEST_DB)
-    console.log('[global-setup] Deleted existing test-e2e.db')
+    try {
+      fs.unlinkSync(TEST_DB)
+      console.log('[global-setup] Deleted existing test-e2e.db')
+    } catch {
+      // File locked by a running server (reuseExistingServer) — drop all tables in-place
+      console.log('[global-setup] DB locked by running server, resetting in-place...')
+      execSync(`python scripts/reset_e2e_db.py "${TEST_DB}"`, { cwd: BACKEND_DIR, stdio: 'pipe' })
+      console.log('[global-setup] Tables dropped in-place')
+    }
   }
 
   // Run alembic migrations to create a fresh schema

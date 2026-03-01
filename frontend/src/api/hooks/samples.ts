@@ -20,6 +20,7 @@ export function useSubmitSample() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.characteristics.detail(variables.characteristic_id),
       })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success(`Sample recorded (ID: ${data.sample_id})`)
     },
     onError: (error: Error) => {
@@ -82,6 +83,7 @@ export function useExcludeSample() {
           queryKey: ['characteristics', 'chartData', data.characteristic_id],
         })
       }
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
     },
   })
 }
@@ -94,6 +96,7 @@ export function useDeleteSample() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Sample deleted')
     },
     onError: (error: Error) => {
@@ -121,6 +124,7 @@ export function useUpdateSample() {
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.samples.editHistory(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Sample updated')
     },
     onError: (error: Error) => {

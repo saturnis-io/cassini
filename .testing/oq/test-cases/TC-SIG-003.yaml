@@ -1,0 +1,65 @@
+id: TC-SIG-003
+title: "Execute standalone signature"
+category: "Electronic Signatures"
+subcategory: "Standalone"
+priority: critical
+regulatory_relevance:
+  - "21 CFR Part 11 - Electronic signature with unique user ID, password, meaning, and timestamp"
+  - "ISO 13485 Section 4.2.4 - Control of records with documented approval"
+  - "GMP - Attribution, timestamp, and meaning for all approvals"
+preconditions:
+  description: >
+    An engineer user is logged in. A signature meaning 'reviewed' exists for the
+    plant. A signable resource exists (e.g., a capability snapshot or any resource
+    that supports standalone signing). The user knows their password.
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Signatures"
+    user:
+      username: "oq-engineer"
+      password: "TestPass123!"
+      role: "engineer"
+    meaning:
+      code: "reviewed"
+      display_name: "Reviewed"
+    resource:
+      type: "capability_snapshot"
+      id: 1
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to a page that has a signable resource (e.g., a capability snapshot detail, or trigger a standalone sign via the signature UI). Locate and click the 'Sign' button."
+    verify: "The SignatureDialog modal opens. It shows fields for: Password input, Meaning selector dropdown, optional Comment text area, and Sign/Cancel buttons."
+    screenshot: true
+  - step: 2
+    action: "Enter the user's current password in the Password field"
+    verify: "Password field shows masked characters."
+    screenshot: false
+  - step: 3
+    action: "Select 'Reviewed' from the Meaning dropdown"
+    verify: "The meaning 'Reviewed' is selected in the dropdown."
+    screenshot: false
+  - step: 4
+    action: "Click the 'Sign' button"
+    verify: "A success notification appears. The SignatureDialog closes. The resource now shows a signature indicator (badge or stamp) showing the signer's name, timestamp, and 'Reviewed' meaning."
+    screenshot: true
+  - step: 5
+    action: "Verify via API: GET /signatures/resource/capability_snapshot/1"
+    verify: "Response includes a signature record with username='oq-engineer', meaning_code='reviewed', meaning_display='Reviewed', is_valid=true, and a non-empty resource_hash and signature_hash."
+    screenshot: false
+  - step: 6
+    action: "Note the signature_id and verify via API: GET /signatures/verify/{signature_id}"
+    verify: "Response shows is_valid=true, hash_match=true (resource not modified since signing), signer_name='oq-engineer', meaning='Reviewed'."
+    screenshot: false
+expected_result: >
+  A standalone electronic signature is successfully executed. The signature
+  records the signer's identity, timestamp, meaning ('Reviewed'), and SHA-256
+  hash of the resource content. Verification confirms the signature is valid
+  and the hash matches.
+pass_criteria: >
+  Signature creation succeeds. SignatureDialog closes after signing. Signature
+  record returned by API includes correct username, meaning, valid hashes, and
+  is_valid=true. Verification endpoint confirms hash_match=true.
+cleanup:
+  - "No cleanup required -- signatures are immutable records"

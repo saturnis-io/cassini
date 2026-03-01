@@ -1,0 +1,63 @@
+id: TC-CTRL-017
+title: "Time range filter limits visible data points"
+category: "Control Charts"
+subcategory: "Toolbar"
+priority: high
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.3 - Analysis and Evaluation (data filtering)"
+
+preconditions:
+  description: >
+    A characteristic with at least 50 data points. The chart toolbar
+    provides controls for filtering the visible time range (e.g.,
+    'last N points' or date range selectors).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Ctrl"
+    characteristic:
+      name: "Pin Length IMR"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+    samples: "50 measurements"
+    post_seed: "POST /characteristics/{id}/recalculate-limits"
+
+execution_mode: ui
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: "Navigate to /dashboard and select Pin Length IMR"
+    verify: "Chart renders with data points (default view)"
+    screenshot: true
+  - step: 2
+    action: "Use the toolbar filter to set 'last 20 points'"
+    verify: "Chart updates to show only the 20 most recent data points"
+    screenshot: true
+  - step: 3
+    action: "Count the visible data points on the chart"
+    verify: "Exactly 20 points are visible. Older data is hidden."
+    screenshot: false
+  - step: 4
+    action: "Change the filter to 'last 10 points'"
+    verify: "Chart updates to show only 10 points"
+    screenshot: true
+  - step: 5
+    action: "Remove the filter (show all / reset)"
+    verify: "Chart returns to showing all available data points"
+    screenshot: false
+
+expected_result: >
+  The time range filter correctly limits the number of visible data
+  points on the chart. Control limits may recalculate based on the
+  visible window (depending on implementation) or remain based on
+  the full dataset. This supports process monitoring workflows
+  where operators focus on recent data.
+
+pass_criteria: >
+  Filtered view shows exactly the requested number of points.
+  Chart re-renders without artifacts. Limit lines remain visible.
+  Resetting the filter restores the full view.
+
+cleanup:
+  - "Delete seeded data via API"

@@ -1,0 +1,60 @@
+id: TC-AUDIT-008
+title: "Set global retention default policy"
+category: "Audit Trail & Retention"
+subcategory: "RetentionPolicy"
+priority: critical
+regulatory_relevance:
+  - "ISO 9001:2015 Section 7.5.3 - Retention and disposition of documented information"
+  - "IATF 16949 - Defined retention periods for quality records (15 years for PPAP)"
+  - "21 CFR Part 11 - Electronic records preserved for required duration"
+  - "FDA 21 CFR 820.184 - Device History Record retention"
+preconditions:
+  description: >
+    An engineer or admin user exists with access to a plant. The retention
+    settings page is accessible at /settings/retention. No global default
+    retention policy is currently set (or it can be overwritten).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Retention"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Log in as engineer or admin and navigate to /settings/retention"
+    verify: >
+      The retention settings page loads. The Policy tab is active (or can
+      be selected). The current global default is shown (either 'Forever'
+      if none set, or the existing policy).
+    screenshot: true
+  - step: 2
+    action: "On the Policy tab, set the retention type to 'Time-based' (time_delta)"
+    verify: "Additional fields appear: retention value (number) and retention unit (days/months/years)"
+    screenshot: false
+  - step: 3
+    action: "Enter 365 for the retention value and select 'days' for the unit"
+    verify: "Value 365 is displayed in the input. Unit shows 'days'."
+    screenshot: false
+  - step: 4
+    action: "Click Save"
+    verify: >
+      Success toast appears confirming the retention policy was saved.
+      The policy display updates to show: 'Time-based: 365 days' (or
+      equivalent formatting). The policy persists -- refreshing the page
+      still shows 365 days.
+    screenshot: true
+  - step: 5
+    action: "Refresh the browser page (F5) and verify persistence"
+    verify: >
+      After page reload, /settings/retention still shows the global default
+      as 'Time-based: 365 days'. The value was persisted to the database.
+    screenshot: true
+expected_result: >
+  The global retention default is successfully set to 365 days (time_delta).
+  The policy persists across page refreshes. All hierarchy nodes and
+  characteristics without explicit overrides will inherit this policy.
+pass_criteria: >
+  Save completes without error. Page refresh shows the saved policy.
+  API verification: GET /retention/default?plant_id={id} returns
+  retention_type='time_delta', retention_value=365, retention_unit='days'.
+cleanup:
+  - "Optionally reset retention default to 'forever' via API: PUT /retention/default"

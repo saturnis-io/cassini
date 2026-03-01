@@ -142,6 +142,7 @@ class ViolationRepository(BaseRepository[Violation]):
 
     async def list_violations(
         self,
+        plant_id: int | None = None,
         characteristic_id: int | None = None,
         sample_id: int | None = None,
         acknowledged: bool | None = None,
@@ -156,6 +157,7 @@ class ViolationRepository(BaseRepository[Violation]):
         """List violations with comprehensive filtering.
 
         Args:
+            plant_id: Filter by plant ID (via characteristic → hierarchy)
             characteristic_id: Filter by characteristic ID
             sample_id: Filter by sample ID
             acknowledged: Filter by acknowledgment status
@@ -171,17 +173,21 @@ class ViolationRepository(BaseRepository[Violation]):
             Tuple of (violations list, total count)
 
         Example:
-            # Get unacknowledged critical violations
+            # Get unacknowledged critical violations for a plant
             violations, total = await repo.list_violations(
+                plant_id=1,
                 acknowledged=False,
                 severity="CRITICAL",
                 limit=20
             )
         """
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
         from cassini.db.models.sample import Sample
 
-        # Determine if we need a Sample join (only for date filters)
+        # Determine which joins we need
         need_sample_join = start_date is not None or end_date is not None
+        need_plant_join = plant_id is not None
 
         # Build base query - load sample and its characteristic for context
         stmt = (
@@ -193,9 +199,15 @@ class ViolationRepository(BaseRepository[Violation]):
 
         if need_sample_join:
             stmt = stmt.join(Sample, Violation.sample_id == Sample.id)
+        if need_plant_join:
+            stmt = stmt.join(
+                Characteristic, Violation.char_id == Characteristic.id
+            ).join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id)
 
         # Apply filters
         filters = []
+        if plant_id is not None:
+            filters.append(Hierarchy.plant_id == plant_id)
         if characteristic_id is not None:
             filters.append(Violation.char_id == characteristic_id)
         if sample_id is not None:
@@ -220,6 +232,10 @@ class ViolationRepository(BaseRepository[Violation]):
         count_stmt = select(func.count()).select_from(Violation)
         if need_sample_join:
             count_stmt = count_stmt.join(Sample)
+        if need_plant_join:
+            count_stmt = count_stmt.join(
+                Characteristic, Violation.char_id == Characteristic.id
+            ).join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id)
         if filters:
             count_stmt = count_stmt.where(and_(*filters))
         count_result = await self.session.execute(count_stmt)

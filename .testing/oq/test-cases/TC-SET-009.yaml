@@ -1,0 +1,45 @@
+id: TC-SET-009
+title: "Revoke API key and verify removal"
+category: "Settings & Admin"
+subcategory: "APIKeys"
+priority: high
+regulatory_relevance:
+  - "21 CFR Part 11 Section 11.10(d) - Authority checks, ability to revoke access"
+  - "ISO 27001 - Access control management, credential revocation"
+  - "NIST SP 800-63 - Token revocation and lifecycle management"
+preconditions:
+  description: >
+    An engineer or admin user is logged in. At least one API key exists
+    (created in TC-SET-008 or seeded via API). The API Keys settings tab
+    is accessible.
+  seed_method: api
+  seed_data:
+    api_key:
+      method: POST
+      endpoint: "/api-keys"
+      body:
+        name: "OQ-Revoke-Key"
+        description: "Key to be revoked in TC-SET-009"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /settings/api-keys."
+    verify: "API Keys tab loads. The key 'OQ-Revoke-Key' (or 'OQ-Test-Key' from TC-SET-008) is visible in the key list with its name and created date."
+    screenshot: true
+  - step: 2
+    action: "Find the key to revoke. Click the Revoke/Delete button (trash icon or 'Revoke' text)."
+    verify: "A confirmation dialog or prompt appears asking to confirm the revocation. The dialog warns that this action is irreversible and any systems using this key will lose access."
+    screenshot: true
+  - step: 3
+    action: "Confirm the revocation by clicking 'Revoke' or 'Delete' in the confirmation dialog."
+    verify: "Success indication (toast or inline message). The key is removed from the list. The API key table no longer shows the revoked key."
+    screenshot: true
+  - step: 4
+    action: "Refresh the page."
+    verify: "The key remains absent from the list. The revocation is permanent."
+    screenshot: false
+expected_result: "The API key is revoked and permanently removed from the list. The revocation is irreversible. Any external system using the revoked key will receive authentication failures."
+pass_criteria: "Key disappears from the list after revocation. Page refresh confirms removal. API verification: GET /api-keys no longer includes the revoked key."
+cleanup:
+  - "No cleanup required -- the key has been deleted"

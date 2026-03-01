@@ -7,9 +7,6 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
-  MessageSquare,
-  ChevronDown,
-  ChevronUp,
   Pencil,
   Trash2,
   MapPin,
@@ -18,6 +15,8 @@ import {
   Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { applyFormat } from '@/lib/date-format'
 import { useAnnotations, useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import type { Annotation } from '@/types'
@@ -74,15 +73,14 @@ function isAnnotationHighlighted(ann: Annotation, hoveredIds: Set<number> | null
   return false
 }
 
-function formatTimeRangeShort(startIso: string, endIso: string): string {
+function formatTimeRangeShort(startIso: string, endIso: string, dateFmt: string): string {
   const start = new Date(startIso)
   const end = new Date(endIso)
-  const timeFmt: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
-  const dateFmt: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  const timeFmtOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
   if (start.toDateString() === end.toDateString()) {
-    return `${start.toLocaleDateString(undefined, dateFmt)} ${start.toLocaleTimeString(undefined, timeFmt)}–${end.toLocaleTimeString(undefined, timeFmt)}`
+    return `${applyFormat(start, dateFmt)} ${start.toLocaleTimeString(undefined, timeFmtOpts)}–${end.toLocaleTimeString(undefined, timeFmtOpts)}`
   }
-  return `${start.toLocaleDateString(undefined, dateFmt)} – ${end.toLocaleDateString(undefined, dateFmt)}`
+  return `${applyFormat(start, dateFmt)} – ${applyFormat(end, dateFmt)}`
 }
 
 export function AnnotationListPanel({
@@ -92,9 +90,9 @@ export function AnnotationListPanel({
   className,
   onAddAnnotation,
 }: AnnotationListPanelProps) {
+  const { dateFormat, formatDateTime } = useDateFormat()
   const { data: annotations, isLoading } = useAnnotations(characteristicId, true)
   const { hoveredSampleIds } = useChartHoverSync(characteristicId)
-  const [expanded, setExpanded] = useState(true)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -149,57 +147,45 @@ export function AnnotationListPanel({
         className,
       )}
     >
-      {/* Header */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setExpanded(!expanded)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded) } }}
-        className="hover:bg-muted/50 flex w-full cursor-pointer items-center justify-between px-3 py-1.5 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <MessageSquare className="text-warning h-4 w-4" />
-          <span className="text-sm font-semibold">Annotations</span>
-          {totalCount > 0 && (
-            <span className="bg-warning/10 text-warning rounded-full px-1.5 py-0.5 text-xs font-medium">
-              {visibleCount < totalCount ? `${visibleCount}/${totalCount}` : totalCount}
-            </span>
-          )}
+      {visibleCount === 0 ? (
+        <div className="text-muted-foreground px-4 py-6 text-center text-sm">
+          {totalCount > 0
+            ? 'No annotations in the current viewport. Adjust the range slider to see more.'
+            : (
+              <div className="space-y-2">
+                <p>No annotations yet.</p>
+                <p className="text-muted-foreground/70 text-xs">
+                  Click a data point to annotate it
+                  {onAddAnnotation && ', or use the button below for a period annotation'}.
+                </p>
+                {onAddAnnotation && (
+                  <button
+                    onClick={onAddAnnotation}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted/60 inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add period annotation</span>
+                  </button>
+                )}
+              </div>
+            )}
         </div>
-        <div className="flex items-center gap-1">
+      ) : (
+        <div>
           {onAddAnnotation && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onAddAnnotation()
-              }}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors"
-              title="Add period annotation"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Add</span>
-            </button>
-          )}
-          {expanded ? (
-            <ChevronUp className="text-muted-foreground h-4 w-4" />
-          ) : (
-            <ChevronDown className="text-muted-foreground h-4 w-4" />
-          )}
-        </div>
-      </div>
-
-      {/* List */}
-      {expanded && (
-        <div className="border-border border-t">
-          {visibleCount === 0 ? (
-            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
-              {totalCount > 0
-                ? 'No annotations in the current viewport. Adjust the range slider to see more.'
-                : 'No annotations yet. Click a data point to annotate it, or use Add above for a period annotation.'}
+            <div className="flex justify-end px-3 py-1">
+              <button
+                onClick={onAddAnnotation}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors"
+                title="Add period annotation"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add</span>
+              </button>
             </div>
-          ) : (
-            <div className="divide-border max-h-48 divide-y overflow-y-auto">
-              {filteredAnnotations.map((ann) => {
+          )}
+          <div className="divide-border max-h-48 divide-y overflow-y-auto">
+            {filteredAnnotations.map((ann) => {
                 const highlighted = isAnnotationHighlighted(ann, hoveredSampleIds)
                 const isEditing = editingId === ann.id
                 const isDeleting = deletingId === ann.id
@@ -230,18 +216,13 @@ export function AnnotationListPanel({
                             <span className="flex items-center gap-1">
                               <CalendarRange className="h-3 w-3" />
                               {ann.start_time && ann.end_time
-                                ? formatTimeRangeShort(ann.start_time, ann.end_time)
+                                ? formatTimeRangeShort(ann.start_time, ann.end_time, dateFormat)
                                 : 'Period'}
                             </span>
                           )}
                           <span className="ml-auto">
                             {ann.created_by && <span>{ann.created_by} · </span>}
-                            {new Date(ann.created_at).toLocaleString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatDateTime(ann.created_at)}
                           </span>
                         </div>
 
@@ -285,12 +266,7 @@ export function AnnotationListPanel({
                                   className="text-muted-foreground flex items-start gap-2 text-[11px]"
                                 >
                                   <span className="mt-0.5 flex-shrink-0 text-[10px]">
-                                    {new Date(entry.changed_at).toLocaleString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
+                                    {formatDateTime(entry.changed_at)}
                                   </span>
                                   <span className="min-w-0 break-words italic">
                                     &ldquo;{entry.previous_text}&rdquo;
@@ -366,8 +342,7 @@ export function AnnotationListPanel({
                   </div>
                 )
               })}
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>

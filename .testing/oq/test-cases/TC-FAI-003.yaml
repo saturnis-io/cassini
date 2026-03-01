@@ -1,0 +1,49 @@
+id: TC-FAI-003
+title: "Fill Form 2 -- Product Accountability"
+category: "First Article Inspection"
+subcategory: "Form2"
+priority: high
+regulatory_relevance:
+  - "AS9102 Rev C Form 2 - Product Accountability"
+  - "AS9100 Rev D Section 8.4.2 - Type and extent of control of external provision"
+  - "IATF 16949 - Supplier quality management"
+preconditions:
+  description: "Engineer user is logged in. A draft FAI report 'OQ-PART-001' exists with Form 1 data filled. The report editor is open."
+  seed_method: api
+  seed_data:
+    report:
+      part_number: "OQ-PART-001"
+      part_name: "Test Widget Bracket"
+      revision: "A"
+      serial_number: "SN-2026-001"
+      lot_number: "LOT-2026-Q1-001"
+      drawing_number: "DWG-TW-001-A"
+      organization_name: "Saturnis Manufacturing"
+      status: "draft"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Open the FAI report 'OQ-PART-001' and navigate to the Form 2 tab."
+    verify: "The Form 2 tab is active. Fields for material information, special processes, and functional test results are displayed. Fields are editable (report is in draft status)."
+    screenshot: true
+  - step: 2
+    action: "Enter Material Supplier: 'Alcoa Howmet'. Enter Material Spec: 'Al 6061-T6 per AMS 4027'."
+    verify: "Material supplier shows 'Alcoa Howmet'. Material specification shows 'Al 6061-T6 per AMS 4027'."
+    screenshot: true
+  - step: 3
+    action: "Enter Special Processes information. Add process entries such as: 'Type II Anodize per MIL-A-8625', 'Heat Treat per AMS 2770'. The field may accept a text input or structured JSON input depending on the UI implementation."
+    verify: "Special processes information is entered and displayed. The field shows the anodize and heat treatment specifications."
+    screenshot: true
+  - step: 4
+    action: "Click Save to persist Form 2 data."
+    verify: "A success notification appears confirming the report was updated."
+    screenshot: false
+  - step: 5
+    action: "Refresh the page (F5), reopen the report, and navigate to the Form 2 tab."
+    verify: "After page reload, Form 2 shows: Material Supplier = 'Alcoa Howmet', Material Spec = 'Al 6061-T6 per AMS 4027', Special Processes includes anodize and heat treat entries. All data persisted correctly."
+    screenshot: true
+expected_result: "All AS9102 Form 2 fields (material supplier, material specification, special processes) are filled, saved, and persist correctly."
+pass_criteria: "Form 2 fields accept input. Material supplier, material spec, and special processes are stored. Data persists after save and page refresh."
+cleanup:
+  - "Delete FAI report via API: DELETE /fai/reports/{id}"

@@ -1,0 +1,62 @@
+id: TC-DATA-016
+title: "Submit data with explicit timestamp"
+category: "Data Entry"
+subcategory: "ManualEntry"
+priority: medium
+regulatory_relevance:
+  - "ISO 9001:2015 Section 9.1.1 - Monitoring and Measurement (temporal traceability)"
+  - "21 CFR Part 11 Section 11.10(e) - Date/time stamped audit trails"
+
+preconditions:
+  description: >
+    An I-MR characteristic exists. The test user has operator+ role.
+    This test verifies that user-provided timestamps are honored (for
+    historical data entry or backdated measurements).
+  seed_method: api
+  seed_data:
+    plant: "OQ-Plant-Data"
+    characteristic:
+      name: "Bore Diameter"
+      chart_type: "i_mr"
+      subgroup_size: 1
+      data_type: "variable"
+
+execution_mode: api-verify
+ui_proof_frequency: major-release
+
+steps:
+  - step: 1
+    action: >
+      Send POST /samples/batch with JWT auth. Body:
+      {"characteristic_id": {id}, "samples": [
+        {"measurements": [10.02], "timestamp": "2026-01-15T09:30:00Z"},
+        {"measurements": [10.04], "timestamp": "2026-01-15T10:00:00Z"},
+        {"measurements": [10.01], "timestamp": "2026-01-15T10:30:00Z"}
+      ], "skip_rule_evaluation": true}
+    verify: "Response 200. imported = 3, failed = 0."
+    screenshot: false
+  - step: 2
+    action: "Send GET /samples/?characteristic_id={id}&sort_dir=asc"
+    verify: >
+      Samples are returned in timestamp order. Timestamps match the
+      submitted values: 2026-01-15T09:30:00, 2026-01-15T10:00:00,
+      2026-01-15T10:30:00.
+    screenshot: false
+  - step: 3
+    action: "Navigate to /dashboard and select Bore Diameter. Set time range to include January 15."
+    verify: >
+      Chart plots the 3 points at the correct positions on the time axis,
+      spaced 30 minutes apart.
+    screenshot: true
+
+expected_result: >
+  User-provided timestamps are stored and used for chart positioning.
+  This supports historical data entry, backfill scenarios, and
+  time-specific measurement recording.
+
+pass_criteria: >
+  All 3 samples stored with the exact submitted timestamps. Chart
+  positions correspond to the provided times.
+
+cleanup:
+  - "Delete the 3 samples via API"

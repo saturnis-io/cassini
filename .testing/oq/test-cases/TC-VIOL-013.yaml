@@ -1,0 +1,54 @@
+id: TC-VIOL-013
+title: "Violation statistics show counts by rule type and severity"
+category: "Violations & Rules"
+subcategory: "Statistics"
+priority: medium
+regulatory_relevance:
+  - "ISO 7870-2 - Statistical monitoring of control chart effectiveness"
+  - "IATF 16949 - Process performance metrics"
+preconditions:
+  description: "Multiple violations of different rule types and severities exist in the system. Ideally, violations from Rules 1, 2, and 3 are present to test grouping. The logged-in user has operator role or higher."
+  seed_method: api
+  seed_data:
+    characteristic:
+      name: "OQ-VIOL-Stats"
+      chart_type: null
+      subgroup_size: 1
+      data_type: "variable"
+      usl: 10.10
+      lsl: 9.90
+      target_value: 10.0
+    samples:
+      count: 50
+      values_description: "25 normal samples (mean=10.0, sigma=0.02), recalculate limits, then: (1) submit 10.10 for Rule 1 CRITICAL violation, (2) submit 9 values above CL (e.g., 10.015 through 10.014) for Rule 2 WARNING violation, (3) submit 6 increasing values (10.00-10.05) for Rule 3 WARNING violation. This creates at least 3 violations: 1 CRITICAL (Rule 1) and 2 WARNING (Rules 2, 3)."
+    post_seed:
+      - "Recalculate limits after first 25 samples"
+      - "Generate violations by submitting appropriate patterns"
+      - "Verify at least 3 violations of different types exist via GET /violations/stats"
+execution_mode: ui
+ui_proof_frequency: major-release
+steps:
+  - step: 1
+    action: "Navigate to /violations. Locate the statistics section (may be a summary panel, header area, or dedicated stats view)."
+    verify: "Violation statistics are displayed showing aggregate counts."
+    screenshot: true
+  - step: 2
+    action: "Examine the counts by rule type."
+    verify: "Statistics show a breakdown by rule ID or rule name. For example: Rule 1 = 1, Rule 2 = 1, Rule 3 = 1 (or similar counts matching the seeded violations). Each rule type has its own count."
+    screenshot: true
+  - step: 3
+    action: "Examine the counts by severity."
+    verify: "Statistics show a breakdown by severity: CRITICAL count (from Rule 1 violations) and WARNING count (from Rule 2 and Rule 3 violations). The total matches the sum of all individual violations."
+    screenshot: false
+  - step: 4
+    action: "Verify the total and unacknowledged counts."
+    verify: "The total violation count matches the number of violations in the list. The unacknowledged count equals the total (since none have been acknowledged in this test). If some were previously acknowledged, the unacknowledged count should be total minus acknowledged."
+    screenshot: false
+  - step: 5
+    action: "Optionally verify via API: call GET /violations/stats?characteristic_id={id}."
+    verify: "The API response matches what is displayed in the UI: total, unacknowledged, by_rule (dict mapping rule_id to count), by_severity (dict mapping CRITICAL/WARNING to count)."
+    screenshot: false
+expected_result: "Violation statistics accurately reflect the counts of violations by rule type and severity, providing a quick overview of process health."
+pass_criteria: "Total count matches actual violations. By_rule breakdown is accurate per rule ID. By_severity breakdown correctly categorizes CRITICAL vs WARNING. Unacknowledged count matches violations not yet acknowledged."
+cleanup:
+  - "Delete characteristic 'OQ-VIOL-Stats' and all associated data via API"
