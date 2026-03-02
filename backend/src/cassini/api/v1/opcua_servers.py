@@ -34,6 +34,19 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/opcua-servers", tags=["opcua-servers"])
 
 
+def _server_response(server: OPCUAServer) -> OPCUAServerResponse:
+    """Build OPCUAServerResponse with cert presence flags."""
+    data = {
+        c.key: getattr(server, c.key)
+        for c in server.__table__.columns
+        if c.key not in ("password", "ca_cert_pem", "client_cert_pem", "client_key_pem")
+    }
+    data["has_ca_cert"] = server.ca_cert_pem is not None
+    data["has_client_cert"] = server.client_cert_pem is not None and server.client_key_pem is not None
+    data["tls_insecure"] = server.tls_insecure
+    return OPCUAServerResponse(**data)
+
+
 # Dependency for OPCUAServerRepository
 async def get_opcua_server_repository(
     session: AsyncSession = Depends(get_db_session),
@@ -74,7 +87,7 @@ async def list_opcua_servers(
     result = await session.execute(stmt)
     servers = list(result.scalars().all())
 
-    items = [OPCUAServerResponse.model_validate(server) for server in servers]
+    items = [_server_response(server) for server in servers]
 
     return PaginatedResponse(
         items=items,
@@ -117,10 +130,16 @@ async def create_opcua_server(
         create_data["username"] = None
         create_data["password"] = None
 
+    # Encrypt cert PEM fields if provided
+    for cert_field in ("ca_cert_pem", "client_cert_pem", "client_key_pem"):
+        if create_data.get(cert_field):
+            key = get_encryption_key()
+            create_data[cert_field] = encrypt_password(create_data[cert_field], key)
+
     server = await repo.create(**create_data)
     await session.commit()
 
-    return OPCUAServerResponse.model_validate(server)
+    return _server_response(server)
 
 
 # -----------------------------------------------------------------------
@@ -138,6 +157,10 @@ async def test_opcua_connection(
     Attempts to connect with provided settings and returns success/failure.
     Does not persist any configuration.
     """
+    import os
+    import tempfile
+
+    cert_files: list[str] = []
     try:
         from asyncua import Client, ua
 
@@ -147,6 +170,24 @@ async def test_opcua_connection(
         if data.auth_mode == "username_password":
             client.set_user(data.username)
             client.set_password(data.password)
+
+        # Set up TLS security for test if certs are provided (not encrypted)
+        if data.security_policy != "None" and data.client_cert_pem and data.client_key_pem:
+            for pem_content in [data.client_cert_pem, data.client_key_pem]:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pem", mode="w")
+                tmp.write(pem_content)
+                tmp.close()
+                cert_files.append(tmp.name)
+
+            parts = [data.security_policy, data.security_mode, cert_files[0], cert_files[1]]
+            if data.ca_cert_pem and not data.tls_insecure:
+                ca_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pem", mode="w")
+                ca_tmp.write(data.ca_cert_pem)
+                ca_tmp.close()
+                cert_files.append(ca_tmp.name)
+                parts.append(ca_tmp.name)
+
+            await client.set_security_string(",".join(parts))
 
         await client.connect()
         latency = (asyncio.get_event_loop().time() - start_time) * 1000
@@ -185,6 +226,12 @@ async def test_opcua_connection(
             success=False,
             message=f"Connection failed: {str(e)}",
         )
+    finally:
+        for f in cert_files:
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
 
 
 @router.get("/all/status", response_model=OPCUAAllStatesResponse)
@@ -259,7 +306,7 @@ async def get_opcua_server(
             detail=f"OPC-UA server {server_id} not found",
         )
 
-    return OPCUAServerResponse.model_validate(server)
+    return _server_response(server)
 
 
 @router.patch("/{server_id}", response_model=OPCUAServerResponse)
@@ -300,13 +347,18 @@ async def update_opcua_server(
     if "password" in update_data and update_data["password"] is not None:
         update_data["password"] = encrypt_password(update_data["password"], key)
 
+    # Encrypt cert PEM fields if provided
+    for cert_field in ("ca_cert_pem", "client_cert_pem", "client_key_pem"):
+        if cert_field in update_data and update_data[cert_field] is not None:
+            update_data[cert_field] = encrypt_password(update_data[cert_field], key)
+
     for field, value in update_data.items():
         setattr(server, field, value)
 
     await session.commit()
     await session.refresh(server)
 
-    return OPCUAServerResponse.model_validate(server)
+    return _server_response(server)
 
 
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

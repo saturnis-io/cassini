@@ -50,6 +50,10 @@ export const brokerApi = {
     client_id?: string
     keepalive?: number
     use_tls?: boolean
+    ca_cert_pem?: string | null
+    client_cert_pem?: string | null
+    client_key_pem?: string | null
+    tls_insecure?: boolean
     is_active?: boolean
     plant_id?: number | null
     outbound_enabled?: boolean
@@ -62,7 +66,17 @@ export const brokerApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: number, data: Partial<MQTTBroker & { password?: string }>) =>
+  update: (
+    id: number,
+    data: Partial<
+      MQTTBroker & {
+        password?: string
+        ca_cert_pem?: string | null
+        client_cert_pem?: string | null
+        client_key_pem?: string | null
+      }
+    >,
+  ) =>
     fetchApi<MQTTBroker>(`/brokers/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -87,6 +101,10 @@ export const brokerApi = {
     username?: string
     password?: string
     use_tls?: boolean
+    ca_cert_pem?: string | null
+    client_cert_pem?: string | null
+    client_key_pem?: string | null
+    tls_insecure?: boolean
   }) =>
     fetchApi<BrokerTestResult>('/brokers/test', {
       method: 'POST',

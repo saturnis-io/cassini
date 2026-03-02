@@ -319,9 +319,10 @@ class MQTTManager:
             old_client = self._clients[broker.id]
             await old_client.disconnect()
 
-        # Decrypt credentials if stored encrypted
+        # Decrypt credentials and build TLS context
         username = broker.username
         password = broker.password
+        key = None
         try:
             key = get_encryption_key()
             if username:
@@ -338,6 +339,33 @@ class MQTTManager:
             username = broker.username
             password = broker.password
 
+        # Build TLS context if enabled
+        tls_context = None
+        tls_insecure = False
+        if broker.use_tls:
+            tls_insecure = broker.tls_insecure
+            if key is None:
+                try:
+                    key = get_encryption_key()
+                except Exception as e:
+                    logger.error("tls_encryption_key_failed", error=str(e))
+            if key is not None:
+                from cassini.core.tls_utils import build_ssl_context
+                tls_context = build_ssl_context(
+                    ca_cert_pem=broker.ca_cert_pem,
+                    client_cert_pem=broker.client_cert_pem,
+                    client_key_pem=broker.client_key_pem,
+                    encryption_key=key,
+                    insecure=tls_insecure,
+                )
+            else:
+                # Fallback: basic TLS without custom certs
+                import ssl
+                tls_context = ssl.create_default_context()
+                if tls_insecure:
+                    tls_context.check_hostname = False
+                    tls_context.verify_mode = ssl.CERT_NONE
+
         # Create config from database model
         config = MQTTConfig(
             host=broker.host,
@@ -347,6 +375,8 @@ class MQTTManager:
             client_id=broker.client_id,
             keepalive=broker.keepalive,
             max_reconnect_delay=broker.max_reconnect_delay,
+            tls_context=tls_context,
+            tls_insecure=tls_insecure,
         )
 
         # Initialize state

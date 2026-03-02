@@ -6,6 +6,7 @@ configurations from the database and tracking connection state.
 """
 
 import asyncio
+import os
 import structlog
 from dataclasses import dataclass
 from datetime import datetime
@@ -58,6 +59,7 @@ class OPCUAManager:
         self._clients: dict[int, OPCUAClient] = {}  # server_id -> client
         self._states: dict[int, OPCUAConnectionState] = {}  # server_id -> state
         self._browsing_services: dict[int, object] = {}  # server_id -> NodeBrowsingService
+        self._cert_paths: dict[int, tuple[str | None, ...]] = {}  # server_id -> temp cert file paths
 
     # --- Properties ---
 
@@ -176,6 +178,15 @@ class OPCUAManager:
         await client.disconnect()
         del self._clients[server_id]
 
+        # Clean up temp cert files
+        paths = self._cert_paths.pop(server_id, ())
+        for p in paths:
+            if p:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
         if server_id in self._states:
             self._states[server_id].is_connected = False
             self._states[server_id].error_message = "Disconnected"
@@ -203,6 +214,18 @@ class OPCUAManager:
             username = decrypt_password(server.username, key)
             password = decrypt_password(server.password, key) if server.password else None
 
+        # Decrypt cert PEM to temp files if security policy is configured
+        cert_paths: tuple[str | None, ...] = (None, None, None)
+        if server.security_policy != "None" and (server.ca_cert_pem or server.client_cert_pem):
+            from cassini.core.tls_utils import decrypt_and_write_cert_files
+            key = get_encryption_key()
+            cert_paths = decrypt_and_write_cert_files(
+                ca_cert_pem=server.ca_cert_pem,
+                client_cert_pem=server.client_cert_pem,
+                client_key_pem=server.client_key_pem,
+                encryption_key=key,
+            )
+
         config = OPCUAConfig(
             endpoint_url=server.endpoint_url,
             auth_mode=server.auth_mode,
@@ -213,6 +236,10 @@ class OPCUAManager:
             session_timeout=server.session_timeout,
             publishing_interval=server.publishing_interval,
             sampling_interval=server.sampling_interval,
+            ca_cert_path=cert_paths[0],
+            client_cert_path=cert_paths[1],
+            client_key_path=cert_paths[2],
+            tls_insecure=server.tls_insecure,
         )
 
         self._states[server.id] = OPCUAConnectionState(
@@ -225,6 +252,7 @@ class OPCUAManager:
             client = OPCUAClient(config)
             await client.connect()  # Non-blocking
             self._clients[server.id] = client
+            self._cert_paths[server.id] = cert_paths
             self._states[server.id].is_connected = client.is_connected
 
             if client.is_connected:
@@ -273,6 +301,16 @@ class OPCUAManager:
                 )
             except asyncio.TimeoutError:
                 logger.warning("opcua_manager_shutdown_timeout")
+
+        # Clean up all temp cert files
+        for paths in self._cert_paths.values():
+            for p in paths:
+                if p:
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
+        self._cert_paths.clear()
 
         self._clients.clear()
         self._states.clear()

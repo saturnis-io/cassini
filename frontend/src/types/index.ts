@@ -428,6 +428,9 @@ export interface MQTTBroker {
   keepalive: number
   max_reconnect_delay: number
   use_tls: boolean
+  has_ca_cert: boolean
+  has_client_cert: boolean
+  tls_insecure: boolean
   is_active: boolean
   plant_id: number | null
   outbound_enabled: boolean
@@ -634,6 +637,9 @@ export interface OPCUAServer {
   username: string | null
   security_policy: string
   security_mode: string
+  has_ca_cert: boolean
+  has_client_cert: boolean
+  tls_insecure: boolean
   is_active: boolean
   session_timeout: number
   publishing_interval: number
@@ -655,6 +661,10 @@ export interface OPCUAServerCreate {
   publishing_interval?: number
   sampling_interval?: number
   plant_id?: number
+  ca_cert_pem?: string | null
+  client_cert_pem?: string | null
+  client_key_pem?: string | null
+  tls_insecure?: boolean
 }
 
 export interface OPCUAServerUpdate {
@@ -669,6 +679,10 @@ export interface OPCUAServerUpdate {
   session_timeout?: number
   publishing_interval?: number
   sampling_interval?: number
+  ca_cert_pem?: string | null
+  client_cert_pem?: string | null
+  client_key_pem?: string | null
+  tls_insecure?: boolean
 }
 
 export interface OPCUAServerStatus {

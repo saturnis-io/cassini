@@ -319,6 +319,12 @@ function getAuthSummary(
 ): { icon: React.ReactNode; label: string } | null {
   if (protocol === 'mqtt') {
     const broker = server as MQTTBroker
+    if (broker.use_tls && broker.has_client_cert) {
+      return { icon: <ShieldCheck className="h-3 w-3" />, label: 'mTLS' }
+    }
+    if (broker.use_tls && broker.has_ca_cert) {
+      return { icon: <Lock className="h-3 w-3" />, label: 'TLS + CA' }
+    }
     if (broker.use_tls) {
       return { icon: <Lock className="h-3 w-3" />, label: 'TLS' }
     }
@@ -328,6 +334,19 @@ function getAuthSummary(
     return { icon: <ShieldOff className="h-3 w-3" />, label: 'No Auth' }
   } else {
     const srv = server as OPCUAServer
+    const mode = srv.security_mode !== 'None' ? srv.security_mode : null
+    if (srv.has_client_cert) {
+      return {
+        icon: <ShieldCheck className="h-3 w-3" />,
+        label: mode ? `${mode} + mTLS` : 'mTLS',
+      }
+    }
+    if (srv.has_ca_cert) {
+      return {
+        icon: <Lock className="h-3 w-3" />,
+        label: mode ? `${mode} + CA` : 'CA',
+      }
+    }
     if (srv.auth_mode === 'username_password') {
       return { icon: <ShieldCheck className="h-3 w-3" />, label: 'Username/Password' }
     }

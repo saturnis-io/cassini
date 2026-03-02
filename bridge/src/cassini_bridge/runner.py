@@ -37,6 +37,11 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
         username=config.mqtt_username,
         password=config.mqtt_password,
         client_id=f"cassini-bridge-{config.bridge_id}",
+        use_tls=config.mqtt_use_tls,
+        ca_cert_pem=config.mqtt_ca_cert_pem,
+        client_cert_pem=config.mqtt_client_cert_pem,
+        client_key_pem=config.mqtt_client_key_pem,
+        tls_insecure=config.mqtt_tls_insecure,
     )
     publisher.connect()
 

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -40,6 +40,10 @@ class MQTTBroker(Base):
     keepalive: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     max_reconnect_delay: Mapped[int] = mapped_column(Integer, default=300, nullable=False)
     use_tls: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ca_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    client_key_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tls_insecure: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     payload_format: Mapped[str] = mapped_column(
         String(20), default="json", nullable=False, server_default="json"

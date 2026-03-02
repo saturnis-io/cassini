@@ -1,6 +1,6 @@
 # Deployment Guide
 
-> Production deployment for OpenSPC -- from a single server to Kubernetes.
+> Production deployment for Cassini SPC -- from a single server to Kubernetes.
 
 ---
 
@@ -11,9 +11,10 @@
 3. [Small Deployment (Single Server)](#3-small-deployment-single-server)
 4. [Medium Deployment (Separate Services)](#4-medium-deployment-separate-services)
 5. [Large Deployment (Containerized / HA)](#5-large-deployment-containerized--ha)
-6. [Security Checklist](#6-security-checklist)
-7. [Monitoring](#7-monitoring)
-8. [Environment Variables Reference](#8-environment-variables-reference)
+6. [Docker + Caddy (HTTPS)](#6-docker--caddy-https)
+7. [Security Checklist](#7-security-checklist)
+8. [Monitoring](#8-monitoring)
+9. [Environment Variables Reference](#9-environment-variables-reference)
 
 ---
 
@@ -790,7 +791,81 @@ Key considerations for Kubernetes deployments:
 
 ---
 
-## 6. Security Checklist
+## 6. Docker + Caddy (HTTPS)
+
+For production deployments with automatic HTTPS, use the production overlay with Caddy as a reverse proxy:
+
+```bash
+# Set your domain and JWT secret
+export CASSINI_DOMAIN=spc.example.com
+export JWT_SECRET=$(openssl rand -hex 32)
+
+# Start with HTTPS
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+Caddy automatically:
+
+- Obtains Let's Encrypt certificates for public domains
+- Generates self-signed certificates for localhost/internal use
+- Handles certificate renewal before expiry
+- Adds security headers (HSTS, X-Frame-Options, X-Content-Type-Options)
+
+### DNS Setup
+
+Before starting, create a DNS record pointing to your server:
+
+| Record Type | Name | Value |
+|-------------|------|-------|
+| A | spc.example.com | Your server's public IP address |
+
+For internal deployments, use your organization's internal DNS or add an entry to `/etc/hosts`.
+
+### Verifying HTTPS
+
+```bash
+curl -v https://spc.example.com/api/v1/health
+```
+
+You should see a valid TLS handshake and `{"status": "healthy"}` in the response.
+
+### Custom Certificates
+
+For internal CAs or corporate certificates, edit the `Caddyfile`:
+
+```caddy
+spc.internal.company.com {
+    tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
+    reverse_proxy cassini:8000
+}
+```
+
+Mount the certificate files by adding a volume in `docker-compose.prod.yml`:
+
+```yaml
+services:
+  caddy:
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+```
+
+### Direct Backend Access
+
+By default, the backend is also exposed on port 8000. To restrict access to HTTPS only (through Caddy), set `CASSINI_PORT` to empty in your environment:
+
+```bash
+export CASSINI_PORT=
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+See the [Security Guide](security-guide.md) for a complete production security walkthrough including TLS for MQTT and OPC-UA.
+
+---
+
+## 7. Security Checklist
 
 Verify each item before going live.
 
@@ -812,7 +887,10 @@ Verify each item before going live.
 - [ ] `OPENSPC_CORS_ORIGINS` lists only your actual frontend domain(s)
 - [ ] Firewall rules restrict database access to the app server only
 - [ ] If using MQTT: broker connections use TLS where the network is untrusted
+- [ ] If using MQTT: "Skip TLS verification" is unchecked for all production brokers
 - [ ] If using OPC-UA: server connections use encrypted endpoints where the network is untrusted
+- [ ] If using OPC-UA: security policy is set to Basic256Sha256 for production connections
+- [ ] If using gage bridges: bridge-to-broker connections use TLS over untrusted networks
 
 ### Application Configuration
 
@@ -828,7 +906,7 @@ Verify each item before going live.
 
 ---
 
-## 7. Monitoring
+## 8. Monitoring
 
 ### Health Endpoint
 
@@ -903,7 +981,7 @@ For centralized log collection, configure a log shipper (Filebeat, Promtail, Flu
 
 ---
 
-## 8. Environment Variables Reference
+## 9. Environment Variables Reference
 
 All environment variables use the `OPENSPC_` prefix. The backend reads them via [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) from both environment variables and a `.env` file.
 
@@ -940,6 +1018,9 @@ All environment variables use the `OPENSPC_` prefix. The backend reads them via 
 ## Cross-References
 
 - [Getting Started](getting-started.md) -- Development setup and first run
+- [Connectivity Guide](connectivity-guide.md) -- MQTT, OPC-UA, gage bridge, and ERP setup
+- [Gage Bridge Setup](gage-bridge-setup.md) -- RS-232/USB gage integration
+- [Security Guide](security-guide.md) -- TLS certificates, HTTPS, and encryption
 - [Administration Guide](administration.md) -- User management, roles, plant configuration
 - [Architecture](architecture.md) -- System design and component diagrams
 - [API Reference](api-reference.md) -- REST API endpoints and WebSocket protocol

@@ -307,6 +307,7 @@ async def get_my_config(
         if broker is not None:
             username: str | None = None
             password: str | None = None
+            key: bytes | None = None
             try:
                 from cassini.db.dialects import decrypt_password, get_encryption_key
 
@@ -330,6 +331,25 @@ async def get_my_config(
                 "use_tls": broker.use_tls,
                 "client_id": broker.client_id,
             }
+
+            # Include decrypted certs for TLS-enabled brokers
+            if broker.use_tls and key is not None:
+                if broker.ca_cert_pem:
+                    try:
+                        mqtt_config["ca_cert_pem"] = decrypt_password(broker.ca_cert_pem, key)
+                    except Exception:
+                        logger.warning("broker_ca_cert_decrypt_failed", broker_id=broker.id)
+                if broker.client_cert_pem:
+                    try:
+                        mqtt_config["client_cert_pem"] = decrypt_password(broker.client_cert_pem, key)
+                    except Exception:
+                        logger.warning("broker_client_cert_decrypt_failed", broker_id=broker.id)
+                if broker.client_key_pem:
+                    try:
+                        mqtt_config["client_key_pem"] = decrypt_password(broker.client_key_pem, key)
+                    except Exception:
+                        logger.warning("broker_client_key_decrypt_failed", broker_id=broker.id)
+                mqtt_config["tls_insecure"] = broker.tls_insecure
 
     active_ports = [
         {
@@ -476,6 +496,7 @@ async def get_bridge_config(
             # Decrypt credentials — never send raw encrypted values
             username: str | None = None
             password: str | None = None
+            key: bytes | None = None
             try:
                 from cassini.db.dialects import decrypt_password, get_encryption_key
 
@@ -499,6 +520,25 @@ async def get_bridge_config(
                 "use_tls": broker.use_tls,
                 "client_id": broker.client_id,
             }
+
+            # Include decrypted certs for TLS-enabled brokers
+            if broker.use_tls and key is not None:
+                if broker.ca_cert_pem:
+                    try:
+                        mqtt_config["ca_cert_pem"] = decrypt_password(broker.ca_cert_pem, key)
+                    except Exception:
+                        logger.warning("broker_ca_cert_decrypt_failed", broker_id=broker.id)
+                if broker.client_cert_pem:
+                    try:
+                        mqtt_config["client_cert_pem"] = decrypt_password(broker.client_cert_pem, key)
+                    except Exception:
+                        logger.warning("broker_client_cert_decrypt_failed", broker_id=broker.id)
+                if broker.client_key_pem:
+                    try:
+                        mqtt_config["client_key_pem"] = decrypt_password(broker.client_key_pem, key)
+                    except Exception:
+                        logger.warning("broker_client_key_decrypt_failed", broker_id=broker.id)
+                mqtt_config["tls_insecure"] = broker.tls_insecure
 
     # Collect active ports
     active_ports = [

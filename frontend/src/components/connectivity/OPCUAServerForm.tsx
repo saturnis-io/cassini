@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { X } from 'lucide-react'
 import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
+import { TlsCertificateSection, type CertAction } from './TlsCertificateSection'
 import { usePlant } from '@/providers/PlantProvider'
 import { opcuaApi } from '@/api/client'
 import { opcuaServerSchema } from '@/schemas/connectivity'
@@ -24,6 +25,10 @@ interface OPCUAFormData {
   session_timeout: number
   publishing_interval: number
   sampling_interval: number
+  tls_insecure: boolean
+  ca_cert_pem: string
+  client_cert_pem: string
+  client_key_pem: string
 }
 
 const defaultFormData: OPCUAFormData = {
@@ -37,6 +42,10 @@ const defaultFormData: OPCUAFormData = {
   session_timeout: 30000,
   publishing_interval: 1000,
   sampling_interval: 250,
+  tls_insecure: false,
+  ca_cert_pem: '',
+  client_cert_pem: '',
+  client_key_pem: '',
 }
 
 interface OPCUAServerFormProps {
@@ -66,8 +75,24 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
           session_timeout: server.session_timeout,
           publishing_interval: server.publishing_interval,
           sampling_interval: server.sampling_interval,
+          tls_insecure: server.tls_insecure,
+          ca_cert_pem: '',
+          client_cert_pem: '',
+          client_key_pem: '',
         }
       : defaultFormData,
+  )
+
+  const [showTlsCerts, setShowTlsCerts] = useState(
+    server
+      ? server.security_policy !== 'None' || server.has_ca_cert || server.has_client_cert
+      : false,
+  )
+  const [caCertAction, setCaCertAction] = useState<CertAction>(
+    server?.has_ca_cert ? 'keep' : 'replace',
+  )
+  const [clientCertAction, setClientCertAction] = useState<CertAction>(
+    server?.has_client_cert ? 'keep' : 'replace',
   )
 
   const { validate, getError } = useFormValidation(opcuaServerSchema)
@@ -102,7 +127,7 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
     const validated = validate(formData)
     if (!validated) return
 
-    const data: Omit<OPCUAServerCreate, 'plant_id'> = {
+    const data: Record<string, unknown> = {
       name: validated.name,
       endpoint_url: validated.endpoint_url,
       auth_mode: validated.auth_mode,
@@ -119,13 +144,31 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
         : {}),
     }
 
+    if (showTlsCerts) {
+      data.tls_insecure = validated.tls_insecure
+
+      if (caCertAction === 'replace' && validated.ca_cert_pem) {
+        data.ca_cert_pem = validated.ca_cert_pem
+      } else if (caCertAction === 'remove') {
+        data.ca_cert_pem = null
+      }
+
+      if (clientCertAction === 'replace' && validated.client_cert_pem) {
+        data.client_cert_pem = validated.client_cert_pem
+        data.client_key_pem = validated.client_key_pem
+      } else if (clientCertAction === 'remove') {
+        data.client_cert_pem = null
+        data.client_key_pem = null
+      }
+    }
+
     if (isEditing && server) {
-      updateMutation.mutate({ id: server.id, data })
+      updateMutation.mutate({ id: server.id, data: data as Parameters<typeof opcuaApi.update>[1] })
     } else {
       createMutation.mutate({
         ...data,
         plant_id: selectedPlant?.id ?? undefined,
-      })
+      } as OPCUAServerCreate)
     }
   }
 
@@ -138,6 +181,14 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
         ? {
             username: formData.username || undefined,
             password: formData.password || undefined,
+          }
+        : {}),
+      ...(showTlsCerts
+        ? {
+            tls_insecure: formData.tls_insecure,
+            ca_cert_pem: formData.ca_cert_pem || undefined,
+            client_cert_pem: formData.client_cert_pem || undefined,
+            client_key_pem: formData.client_key_pem || undefined,
           }
         : {}),
     }
@@ -293,7 +344,41 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
                 <option value="SignAndEncrypt">Sign and Encrypt</option>
               </select>
             </div>
+
+            {/* TLS Certificates toggle */}
+            <div className="col-span-2 flex items-center gap-3 pt-2">
+              <input
+                type="checkbox"
+                id="opcua_tls_certs"
+                checked={showTlsCerts}
+                onChange={(e) => setShowTlsCerts(e.target.checked)}
+                className="border-input rounded"
+              />
+              <label htmlFor="opcua_tls_certs" className="text-sm">
+                Configure TLS certificates
+              </label>
+            </div>
           </div>
+
+          {showTlsCerts && (
+            <TlsCertificateSection
+              hasCaCert={server?.has_ca_cert ?? false}
+              hasClientCert={server?.has_client_cert ?? false}
+              caCertPem={formData.ca_cert_pem}
+              clientCertPem={formData.client_cert_pem}
+              clientKeyPem={formData.client_key_pem}
+              tlsInsecure={formData.tls_insecure}
+              caCertAction={caCertAction}
+              clientCertAction={clientCertAction}
+              onChange={(field, value) =>
+                setFormData({ ...formData, [field]: value })
+              }
+              onCaCertAction={setCaCertAction}
+              onClientCertAction={setClientCertAction}
+              getError={getError}
+              isEditing={isEditing}
+            />
+          )}
         </div>
 
         {/* Timing */}

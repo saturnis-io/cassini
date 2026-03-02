@@ -30,6 +30,10 @@ class BrokerCreate(BaseModel):
     keepalive: int = Field(default=60, ge=5, le=3600)
     max_reconnect_delay: int = Field(default=300, ge=10, le=3600)
     use_tls: bool = False
+    ca_cert_pem: str | None = Field(None, description="PEM-encoded CA certificate")
+    client_cert_pem: str | None = Field(None, description="PEM-encoded client certificate")
+    client_key_pem: str | None = Field(None, description="PEM-encoded client private key")
+    tls_insecure: bool = Field(default=False, description="Skip TLS hostname verification")
     is_active: bool = True
     plant_id: int | None = Field(None, description="Plant/site this broker belongs to")
     outbound_enabled: bool = False
@@ -53,6 +57,10 @@ class BrokerUpdate(BaseModel):
     keepalive: int | None = Field(None, ge=5, le=3600)
     max_reconnect_delay: int | None = Field(None, ge=10, le=3600)
     use_tls: bool | None = None
+    ca_cert_pem: str | None = Field(None, description="PEM-encoded CA certificate")
+    client_cert_pem: str | None = Field(None, description="PEM-encoded client certificate")
+    client_key_pem: str | None = Field(None, description="PEM-encoded client private key")
+    tls_insecure: bool | None = None
     is_active: bool | None = None
     outbound_enabled: bool | None = None
     outbound_topic_prefix: str | None = Field(None, max_length=200)
@@ -75,6 +83,9 @@ class BrokerResponse(BaseModel):
     keepalive: int
     max_reconnect_delay: int
     use_tls: bool
+    has_ca_cert: bool = False
+    has_client_cert: bool = False
+    tls_insecure: bool = False
     is_active: bool
     plant_id: int | None = None
     outbound_enabled: bool
@@ -123,6 +134,10 @@ class BrokerTestRequest(BaseModel):
     username: str | None = None
     password: str | None = None
     use_tls: bool = False
+    ca_cert_pem: str | None = None
+    client_cert_pem: str | None = None
+    client_key_pem: str | None = None
+    tls_insecure: bool = False
 
 
 class BrokerTestResponse(BaseModel):

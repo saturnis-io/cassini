@@ -317,10 +317,13 @@ The database resets and populates with the selected dataset. You will be logged 
 
 ## Next Steps
 
-Now that you have a working OpenSPC instance, explore further:
+Now that Cassini is running, explore these guides:
 
-- **[User Guide](user-guide.md)** -- Detailed walkthrough of every feature for daily use
+- **[Connectivity Guide](connectivity-guide.md)** -- Set up MQTT brokers, OPC-UA servers, and ERP connectors
+- **[Gage Bridge Setup](gage-bridge-setup.md)** -- Connect RS-232/USB gages to Cassini
+- **[Security Guide](security-guide.md)** -- TLS certificates, HTTPS, and production security
+- **[Deployment Guide](deployment.md)** -- Production deployment with Docker, PostgreSQL, and HTTPS
+- **[User Guide](user-guide.md)** -- Complete feature reference for daily use
 - **[Administration Guide](administration.md)** -- User management, roles, plants, and system configuration
-- **[Architecture Guide](architecture.md)** -- How OpenSPC works under the hood, with system diagrams
+- **[Architecture Guide](architecture.md)** -- How Cassini works under the hood, with system diagrams
 - **[API Reference](api-reference.md)** -- REST API documentation for integrations
-- **[Deployment Guide](deployment.md)** -- Running OpenSPC in production (single server, multi-server, containerized)

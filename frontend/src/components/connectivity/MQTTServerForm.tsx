@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { brokerApi } from '@/api/client'
 import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
+import { TlsCertificateSection, type CertAction } from './TlsCertificateSection'
 import { usePlant } from '@/providers/PlantProvider'
 import { mqttBrokerSchema } from '@/schemas/connectivity'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -22,6 +23,10 @@ interface BrokerFormData {
   client_id: string
   keepalive: number
   use_tls: boolean
+  tls_insecure: boolean
+  ca_cert_pem: string
+  client_cert_pem: string
+  client_key_pem: string
   outbound_enabled: boolean
   outbound_topic_prefix: string
   outbound_format: 'json' | 'sparkplug'
@@ -37,6 +42,10 @@ const defaultFormData: BrokerFormData = {
   client_id: 'openspc-client',
   keepalive: 60,
   use_tls: false,
+  tls_insecure: false,
+  ca_cert_pem: '',
+  client_cert_pem: '',
+  client_key_pem: '',
   outbound_enabled: false,
   outbound_topic_prefix: 'openspc',
   outbound_format: 'json',
@@ -69,12 +78,23 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
           client_id: broker.client_id,
           keepalive: broker.keepalive,
           use_tls: broker.use_tls,
+          tls_insecure: broker.tls_insecure,
+          ca_cert_pem: '',
+          client_cert_pem: '',
+          client_key_pem: '',
           outbound_enabled: broker.outbound_enabled,
           outbound_topic_prefix: broker.outbound_topic_prefix,
           outbound_format: broker.outbound_format,
           outbound_rate_limit: broker.outbound_rate_limit,
         }
       : defaultFormData,
+  )
+
+  const [caCertAction, setCaCertAction] = useState<CertAction>(
+    broker?.has_ca_cert ? 'keep' : 'replace',
+  )
+  const [clientCertAction, setClientCertAction] = useState<CertAction>(
+    broker?.has_client_cert ? 'keep' : 'replace',
   )
 
   const { validate, getError } = useFormValidation(mqttBrokerSchema)
@@ -92,7 +112,7 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<MQTTBroker & { password?: string }> }) =>
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof brokerApi.update>[1] }) =>
       brokerApi.update(id, data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['brokers'] })
@@ -109,16 +129,43 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
     const validated = validate(formData)
     if (!validated) return
 
-    const data = {
+    const data: Record<string, unknown> = {
       ...validated,
       username: validated.username || undefined,
       password: validated.password || undefined,
     }
 
+    // Remove cert fields from base — we'll add them conditionally
+    delete data.ca_cert_pem
+    delete data.client_cert_pem
+    delete data.client_key_pem
+
+    if (validated.use_tls) {
+      data.tls_insecure = validated.tls_insecure
+
+      // CA cert: action-based payload
+      if (caCertAction === 'replace' && validated.ca_cert_pem) {
+        data.ca_cert_pem = validated.ca_cert_pem
+      } else if (caCertAction === 'remove') {
+        data.ca_cert_pem = null
+      }
+
+      // Client cert: action-based payload
+      if (clientCertAction === 'replace' && validated.client_cert_pem) {
+        data.client_cert_pem = validated.client_cert_pem
+        data.client_key_pem = validated.client_key_pem
+      } else if (clientCertAction === 'remove') {
+        data.client_cert_pem = null
+        data.client_key_pem = null
+      }
+    } else {
+      delete data.tls_insecure
+    }
+
     if (isEditing && broker) {
       updateMutation.mutate({ id: broker.id, data })
     } else {
-      createMutation.mutate({ ...data, plant_id: selectedPlant?.id ?? undefined })
+      createMutation.mutate({ ...data, plant_id: selectedPlant?.id ?? undefined } as Parameters<typeof brokerApi.create>[0])
     }
   }
 
@@ -129,6 +176,14 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
       username: formData.username || undefined,
       password: formData.password || undefined,
       use_tls: formData.use_tls,
+      ...(formData.use_tls
+        ? {
+            tls_insecure: formData.tls_insecure,
+            ca_cert_pem: formData.ca_cert_pem || undefined,
+            client_cert_pem: formData.client_cert_pem || undefined,
+            client_key_pem: formData.client_key_pem || undefined,
+          }
+        : {}),
     })
     return { success: result.success, message: result.message }
   }
@@ -267,7 +322,16 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
               type="checkbox"
               id="mqtt_use_tls"
               checked={formData.use_tls}
-              onChange={(e) => setFormData({ ...formData, use_tls: e.target.checked })}
+              onChange={(e) => {
+                const useTls = e.target.checked
+                const portSwitch =
+                  useTls && formData.port === 1883
+                    ? 8883
+                    : !useTls && formData.port === 8883
+                      ? 1883
+                      : formData.port
+                setFormData({ ...formData, use_tls: useTls, port: portSwitch })
+              }}
               className="border-input rounded"
             />
             <label htmlFor="mqtt_use_tls" className="text-sm">
@@ -275,6 +339,27 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
             </label>
           </div>
         </div>
+
+        {/* TLS Certificates Section */}
+        {formData.use_tls && (
+          <TlsCertificateSection
+            hasCaCert={broker?.has_ca_cert ?? false}
+            hasClientCert={broker?.has_client_cert ?? false}
+            caCertPem={formData.ca_cert_pem}
+            clientCertPem={formData.client_cert_pem}
+            clientKeyPem={formData.client_key_pem}
+            tlsInsecure={formData.tls_insecure}
+            caCertAction={caCertAction}
+            clientCertAction={clientCertAction}
+            onChange={(field, value) =>
+              setFormData({ ...formData, [field]: value })
+            }
+            onCaCertAction={setCaCertAction}
+            onClientCertAction={setClientCertAction}
+            getError={getError}
+            isEditing={isEditing}
+          />
+        )}
 
         {/* Outbound Publishing Section */}
         <div className="border-border border-t pt-5">

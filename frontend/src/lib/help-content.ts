@@ -326,6 +326,37 @@ export const helpContent: Record<string, HelpContent> = {
       'Applied to success toasts, "Cpk OK" indicators, approved FAI reports, passing MSA studies, and WCAG AA contrast badges.',
   },
 
+  // TLS Certificate Configuration
+  'tls-ca-cert': {
+    title: 'CA Certificate',
+    description:
+      'The Certificate Authority (CA) certificate used to verify the server\'s identity.',
+    details:
+      'Paste the PEM-encoded CA certificate provided by your IT team or certificate authority. This ensures your client only connects to trusted servers. Required when using self-signed or internal CA certificates.',
+  },
+  'tls-client-cert': {
+    title: 'Client Certificate',
+    description:
+      'Your client certificate for mutual TLS (mTLS) authentication.',
+    details:
+      'Used when the server requires clients to prove their identity with a certificate. Must be paired with a private key. Your IT team or PKI administrator provides this.',
+  },
+  'tls-client-key': {
+    title: 'Client Private Key',
+    description:
+      'The private key that pairs with your client certificate.',
+    details:
+      'Must match the client certificate above. Keep this secret — never share it. PEM format, typically starts with "-----BEGIN PRIVATE KEY-----" or "-----BEGIN RSA PRIVATE KEY-----".',
+  },
+  'tls-insecure': {
+    title: 'Skip Certificate Verification',
+    description:
+      'Disables server certificate validation. Only use for testing with self-signed certificates.',
+    details:
+      'When enabled, the client will accept any server certificate without verifying it against a CA. This makes the connection vulnerable to man-in-the-middle attacks. Never use in production.',
+    severity: 'WARNING',
+  },
+
   // When to recalculate control limits
   'recalculate-limits': {
     title: 'When to Recalculate Control Limits',

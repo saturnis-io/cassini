@@ -6,6 +6,7 @@ automatic reconnection, topic subscription management, and graceful shutdown.
 
 import asyncio
 import contextlib
+import ssl
 import structlog
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -38,6 +39,8 @@ class MQTTConfig:
     client_id: str = "openspc-server"
     keepalive: int = 60
     max_reconnect_delay: int = 30
+    tls_context: ssl.SSLContext | None = None
+    tls_insecure: bool = False
 
 
 class MQTTClient:
@@ -257,6 +260,8 @@ class MQTTClient:
                 password=self._config.password,
                 identifier=self._config.client_id,
                 keepalive=self._config.keepalive,
+                tls_context=self._config.tls_context,
+                tls_insecure_set=self._config.tls_insecure,
             )
             await self._client.__aenter__()
             self._connected = True

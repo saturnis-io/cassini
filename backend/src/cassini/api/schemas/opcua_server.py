@@ -23,6 +23,10 @@ class OPCUAServerCreate(BaseModel):
     security_mode: str = Field(
         default="None", pattern=r"^(None|Sign|SignAndEncrypt)$"
     )
+    ca_cert_pem: str | None = Field(None, description="PEM-encoded CA/server certificate")
+    client_cert_pem: str | None = Field(None, description="PEM-encoded client certificate")
+    client_key_pem: str | None = Field(None, description="PEM-encoded client private key")
+    tls_insecure: bool = Field(default=False, description="Skip certificate verification")
     is_active: bool = True
     session_timeout: int = Field(default=30000, ge=1000, le=300000)
     publishing_interval: int = Field(default=1000, ge=50, le=60000)
@@ -48,6 +52,10 @@ class OPCUAServerUpdate(BaseModel):
     security_mode: str | None = Field(
         None, pattern=r"^(None|Sign|SignAndEncrypt)$"
     )
+    ca_cert_pem: str | None = None
+    client_cert_pem: str | None = None
+    client_key_pem: str | None = None
+    tls_insecure: bool | None = None
     is_active: bool | None = None
     session_timeout: int | None = Field(None, ge=1000, le=300000)
     publishing_interval: int | None = Field(None, ge=50, le=60000)
@@ -55,7 +63,7 @@ class OPCUAServerUpdate(BaseModel):
 
 
 class OPCUAServerResponse(BaseModel):
-    """Response schema. Password is NEVER returned."""
+    """Response schema. Password and raw PEM certs are NEVER returned."""
 
     id: int
     name: str
@@ -64,6 +72,9 @@ class OPCUAServerResponse(BaseModel):
     username: str | None
     security_policy: str
     security_mode: str
+    has_ca_cert: bool = False
+    has_client_cert: bool = False
+    tls_insecure: bool = False
     is_active: bool
     session_timeout: int
     publishing_interval: int
@@ -98,6 +109,12 @@ class OPCUAServerTestRequest(BaseModel):
     )
     username: str | None = None
     password: str | None = None
+    security_policy: str = Field(default="None", pattern=r"^(None|Basic256Sha256)$")
+    security_mode: str = Field(default="None", pattern=r"^(None|Sign|SignAndEncrypt)$")
+    ca_cert_pem: str | None = None
+    client_cert_pem: str | None = None
+    client_key_pem: str | None = None
+    tls_insecure: bool = False
     timeout: float = Field(default=5.0, ge=1.0, le=30.0)
 
 

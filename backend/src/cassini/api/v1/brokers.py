@@ -31,6 +31,23 @@ from cassini.db.repositories import BrokerRepository
 router = APIRouter(prefix="/api/v1/brokers", tags=["brokers"])
 
 
+def _broker_response(broker: MQTTBroker) -> BrokerResponse:
+    """Build a BrokerResponse with cert presence flags.
+
+    Excludes raw PEM data and password from the response,
+    replacing cert fields with boolean presence indicators.
+    """
+    data = {
+        c.key: getattr(broker, c.key)
+        for c in broker.__table__.columns
+        if c.key not in ("password", "ca_cert_pem", "client_cert_pem", "client_key_pem")
+    }
+    data["has_ca_cert"] = broker.ca_cert_pem is not None
+    data["has_client_cert"] = broker.client_cert_pem is not None and broker.client_key_pem is not None
+    data["tls_insecure"] = broker.tls_insecure
+    return BrokerResponse(**data)
+
+
 # Dependency for BrokerRepository
 async def get_broker_repository(
     session: AsyncSession = Depends(get_db_session),
@@ -73,7 +90,7 @@ async def list_brokers(
     brokers = list(result.scalars().all())
 
     # Convert to response models
-    items = [BrokerResponse.model_validate(broker) for broker in brokers]
+    items = [_broker_response(broker) for broker in brokers]
 
     return PaginatedResponse(
         items=items,
@@ -111,10 +128,16 @@ async def create_broker(
         key = get_encryption_key()
         create_data["username"] = encrypt_password(create_data["username"], key)
 
+    # Encrypt cert PEM fields if provided
+    for cert_field in ("ca_cert_pem", "client_cert_pem", "client_key_pem"):
+        if create_data.get(cert_field):
+            key = get_encryption_key()
+            create_data[cert_field] = encrypt_password(create_data[cert_field], key)
+
     broker = await repo.create(**create_data)
     await session.commit()
 
-    return BrokerResponse.model_validate(broker)
+    return _broker_response(broker)
 
 
 # -----------------------------------------------------------------------
@@ -232,6 +255,19 @@ async def test_broker_connection(
     try:
         import aiomqtt
 
+        # Build TLS context if needed
+        tls_context = None
+        if data.use_tls:
+            from cassini.core.tls_utils import build_ssl_context
+            tls_context = build_ssl_context(
+                ca_cert_pem=data.ca_cert_pem,
+                client_cert_pem=data.client_cert_pem,
+                client_key_pem=data.client_key_pem,
+                encryption_key=b"",  # Not encrypted in test request
+                encrypted=False,
+                insecure=data.tls_insecure,
+            )
+
         # Create config for test connection
         start_time = asyncio.get_event_loop().time()
 
@@ -242,6 +278,8 @@ async def test_broker_connection(
             password=data.password,
             identifier="openspc-test-client",
             timeout=5.0,
+            tls_context=tls_context,
+            tls_insecure_set=data.tls_insecure if data.use_tls else False,
         ) as client:
             # Connection successful
             latency = (asyncio.get_event_loop().time() - start_time) * 1000
@@ -291,7 +329,7 @@ async def get_broker(
             detail=f"Broker {broker_id} not found"
         )
 
-    return BrokerResponse.model_validate(broker)
+    return _broker_response(broker)
 
 
 @router.patch("/{broker_id}", response_model=BrokerResponse)
@@ -332,13 +370,19 @@ async def update_broker(
         enc_key = get_encryption_key()
         update_data["username"] = encrypt_password(update_data["username"], enc_key)
 
+    # Encrypt cert PEM fields if provided
+    for cert_field in ("ca_cert_pem", "client_cert_pem", "client_key_pem"):
+        if cert_field in update_data and update_data[cert_field]:
+            enc_key = get_encryption_key()
+            update_data[cert_field] = encrypt_password(update_data[cert_field], enc_key)
+
     for key, value in update_data.items():
         setattr(broker, key, value)
 
     await session.commit()
     await session.refresh(broker)
 
-    return BrokerResponse.model_validate(broker)
+    return _broker_response(broker)
 
 
 @router.delete("/{broker_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -382,7 +426,7 @@ async def activate_broker(
         )
 
     await session.commit()
-    return BrokerResponse.model_validate(broker)
+    return _broker_response(broker)
 
 
 @router.get("/{broker_id}/status", response_model=BrokerConnectionStatus)

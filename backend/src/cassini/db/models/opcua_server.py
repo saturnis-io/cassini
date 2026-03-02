@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -43,6 +43,10 @@ class OPCUAServer(Base):
     security_mode: Mapped[str] = mapped_column(
         String(50), default="None", nullable=False
     )
+    ca_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    client_cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    client_key_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tls_insecure: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     session_timeout: Mapped[int] = mapped_column(
         Integer, default=30000, nullable=False

@@ -29,6 +29,11 @@ class BridgeConfig:
     mqtt_port: int = 1883
     mqtt_username: str | None = None
     mqtt_password: str | None = None
+    mqtt_use_tls: bool = False
+    mqtt_ca_cert_pem: str | None = None
+    mqtt_client_cert_pem: str | None = None
+    mqtt_client_key_pem: str | None = None
+    mqtt_tls_insecure: bool = False
     heartbeat_interval: int = 30
     ports: list[PortConfig] = field(default_factory=list)
 
@@ -47,6 +52,11 @@ def load_from_api(server_url: str, api_key: str) -> BridgeConfig:
         mqtt_port=mqtt.get("port", 1883),
         mqtt_username=mqtt.get("username"),
         mqtt_password=mqtt.get("password"),
+        mqtt_use_tls=mqtt.get("use_tls", False),
+        mqtt_ca_cert_pem=mqtt.get("ca_cert_pem"),
+        mqtt_client_cert_pem=mqtt.get("client_cert_pem"),
+        mqtt_client_key_pem=mqtt.get("client_key_pem"),
+        mqtt_tls_insecure=mqtt.get("tls_insecure", False),
         heartbeat_interval=data.get("heartbeat_interval", 30),
     )
     for p in data.get("ports", []):
@@ -69,12 +79,18 @@ def load_from_yaml(path: Path) -> BridgeConfig:
     with open(path) as f:
         raw = yaml.safe_load(f)
 
+    mqtt_conf = raw.get("mqtt", {})
     config = BridgeConfig(
         bridge_id=raw.get("bridge_id", 0),
-        mqtt_host=raw.get("mqtt", {}).get("host", "localhost"),
-        mqtt_port=raw.get("mqtt", {}).get("port", 1883),
-        mqtt_username=raw.get("mqtt", {}).get("username"),
-        mqtt_password=raw.get("mqtt", {}).get("password"),
+        mqtt_host=mqtt_conf.get("host", "localhost"),
+        mqtt_port=mqtt_conf.get("port", 1883),
+        mqtt_username=mqtt_conf.get("username"),
+        mqtt_password=mqtt_conf.get("password"),
+        mqtt_use_tls=mqtt_conf.get("use_tls", False),
+        mqtt_ca_cert_pem=mqtt_conf.get("ca_cert_pem"),
+        mqtt_client_cert_pem=mqtt_conf.get("client_cert_pem"),
+        mqtt_client_key_pem=mqtt_conf.get("client_key_pem"),
+        mqtt_tls_insecure=mqtt_conf.get("tls_insecure", False),
     )
     for p in raw.get("ports", []):
         config.ports.append(PortConfig(**p))

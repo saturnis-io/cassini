@@ -46,6 +46,10 @@ class OPCUAConfig:
     session_timeout: int = 30000
     publishing_interval: int = 1000
     sampling_interval: int = 250
+    ca_cert_path: str | None = None
+    client_cert_path: str | None = None
+    client_key_path: str | None = None
+    tls_insecure: bool = False
     connect_timeout: float = 10.0
     max_reconnect_delay: int = 30
     watchdog_interval: float = 5.0
@@ -220,6 +224,24 @@ class OPCUAClient:
             if self._config.auth_mode == "username_password":
                 client.set_user(self._config.username)
                 client.set_password(self._config.password)
+
+            # Set up TLS security if policy is not None
+            if (
+                self._config.security_policy != "None"
+                and self._config.client_cert_path
+                and self._config.client_key_path
+            ):
+                parts = [
+                    self._config.security_policy,
+                    self._config.security_mode,
+                    self._config.client_cert_path,
+                    self._config.client_key_path,
+                ]
+                # Include server cert for trust verification unless insecure
+                if self._config.ca_cert_path and not self._config.tls_insecure:
+                    parts.append(self._config.ca_cert_path)
+                security_string = ",".join(parts)
+                await client.set_security_string(security_string)
 
             await client.connect()
             self._client = client

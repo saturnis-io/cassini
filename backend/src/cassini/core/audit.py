@@ -147,6 +147,7 @@ def _method_to_action(method: str, path: str) -> str:
 _SENSITIVE_KEYS = frozenset({
     "password", "secret", "api_key", "token", "credential",
     "client_secret", "auth_config", "p256dh", "auth_key",
+    "ca_cert_pem", "client_cert_pem", "client_key_pem",
 })
 
 

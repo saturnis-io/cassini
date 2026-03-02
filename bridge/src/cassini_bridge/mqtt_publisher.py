@@ -1,6 +1,7 @@
 """MQTT publisher for gage readings and heartbeat."""
 import json
 import logging
+import os
 import threading
 import time
 
@@ -23,12 +24,59 @@ class GageMQTTPublisher:
         username: str | None = None,
         password: str | None = None,
         client_id: str = "cassini-bridge",
+        use_tls: bool = False,
+        ca_cert_pem: str | None = None,
+        client_cert_pem: str | None = None,
+        client_key_pem: str | None = None,
+        tls_insecure: bool = False,
     ):
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         if username:
             self.client.username_pw_set(username, password)
         self._host = host
         self._port = port
+        self._cert_files: list[str] = []  # temp files to clean up
+
+        if use_tls:
+            import ssl
+            import tempfile
+
+            ca_path = None
+            cert_path = None
+            key_path = None
+
+            # Write PEM certs to temp files for paho
+            if ca_cert_pem:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pem", mode="w")
+                tmp.write(ca_cert_pem)
+                tmp.close()
+                ca_path = tmp.name
+                self._cert_files.append(ca_path)
+
+            if client_cert_pem:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pem", mode="w")
+                tmp.write(client_cert_pem)
+                tmp.close()
+                cert_path = tmp.name
+                self._cert_files.append(cert_path)
+
+            if client_key_pem:
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pem", mode="w")
+                tmp.write(client_key_pem)
+                tmp.close()
+                key_path = tmp.name
+                self._cert_files.append(key_path)
+
+            # paho tls_set: ca_certs, certfile, keyfile
+            cert_reqs = ssl.CERT_NONE if tls_insecure else ssl.CERT_REQUIRED
+            self.client.tls_set(
+                ca_certs=ca_path,
+                certfile=cert_path,
+                keyfile=key_path,
+                cert_reqs=cert_reqs,
+            )
+            if tls_insecure:
+                self.client.tls_insecure_set(True)
 
         # Reconnection state
         self._reconnect_delay = 1.0
@@ -123,6 +171,13 @@ class GageMQTTPublisher:
         self._connected = False
         self.client.loop_stop()
         self.client.disconnect()
+        # Clean up temp cert files
+        for path in self._cert_files:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        self._cert_files.clear()
 
     def publish_value(self, topic: str, value: float) -> None:
         if not self._connected:
