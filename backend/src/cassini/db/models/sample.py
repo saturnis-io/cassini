@@ -59,6 +59,9 @@ class Sample(Base):
     cusum_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ewma_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Product code for per-product control limits
+    product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+
     # Edit tracking - indicates sample has been modified from original
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

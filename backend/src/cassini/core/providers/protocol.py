@@ -23,6 +23,7 @@ class SampleContext:
 
     batch_number: str | None = None
     operator_id: str | None = None
+    product_code: str | None = None
     source: str = "MANUAL"  # "MANUAL" or "TAG"
 
 

@@ -429,6 +429,7 @@ async def submit_sample(
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
+            product_code=data.product_code,
             source="MANUAL",
         )
 
@@ -1112,6 +1113,7 @@ async def batch_import(
             measurements = sample_dict.get("measurements", [])
             batch_number = sample_dict.get("batch_number")
             operator_id = sample_dict.get("operator_id")
+            product_code = sample_dict.get("product_code")
 
             if skip_rule_evaluation:
                 # Direct database insertion without rule evaluation
@@ -1121,12 +1123,14 @@ async def batch_import(
                     values=measurements,
                     batch_number=batch_number,
                     operator_id=operator_id,
+                    product_code=product_code,
                 )
             else:
                 # Full SPC processing with rule evaluation
                 context = SampleContext(
                     batch_number=batch_number,
                     operator_id=operator_id,
+                    product_code=product_code,
                     source="MANUAL",
                 )
 

@@ -417,6 +417,7 @@ class ChartDataResponse(BaseModel):
     ewma_lambda: float | None = None
     ewma_l: float | None = None
     cusum_k: float | None = None
+    active_product_code: str | None = None
 
 
 class NelsonRuleConfig(BaseModel):

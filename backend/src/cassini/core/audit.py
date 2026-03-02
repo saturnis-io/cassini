@@ -20,6 +20,8 @@ logger = structlog.get_logger(__name__)
 
 # Map URL path segments to resource types
 _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"/api/v1/characteristics/(\d+)/product-limits"), "product_limit"),
+    (re.compile(r"/api/v1/characteristics/(\d+)/product-codes"), "product_limit"),
     (re.compile(r"/api/v1/characteristics/(\d+)/diagnose"), "ishikawa"),
     (re.compile(r"/api/v1/characteristics/(\d+)"), "characteristic"),
     (re.compile(r"/api/v1/characteristics/?$"), "characteristic"),

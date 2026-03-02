@@ -41,6 +41,7 @@ from cassini.api.v1.erp_connectors import router as erp_router
 from cassini.api.v1.explain import router as explain_router
 from cassini.api.v1.hierarchy import plant_hierarchy_router
 from cassini.api.v1.plants import router as plants_router
+from cassini.api.v1.product_limits import router as product_limits_router
 from cassini.api.v1.providers import router as providers_router
 from cassini.api.v1.retention import router as retention_router
 from cassini.api.v1.rule_presets import router as rule_presets_router
@@ -425,6 +426,7 @@ app.include_router(plants_router)
 app.include_router(characteristics_router)
 app.include_router(config_router)
 app.include_router(samples_router)
+app.include_router(product_limits_router)
 app.include_router(violations_router)
 app.include_router(data_entry_router)
 app.include_router(import_router)

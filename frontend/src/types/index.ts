@@ -139,6 +139,22 @@ export interface CharacteristicSummary extends Characteristic {
   unacknowledged_violations?: number
 }
 
+// Product limit types (per-product-code control limits)
+export interface ProductLimit {
+  id: number
+  characteristic_id: number
+  product_code: string
+  ucl: number | null
+  lcl: number | null
+  stored_sigma: number | null
+  stored_center_line: number | null
+  target_value: number | null
+  usl: number | null
+  lsl: number | null
+  created_at: string
+  updated_at: string
+}
+
 // Sample types
 export interface Sample {
   id: number
@@ -149,6 +165,7 @@ export interface Sample {
   std_dev: number | null
   is_excluded: boolean
   source: string
+  product_code: string | null
   batch_number?: string | null
   operator_id?: string | null
   measurements: Measurement[]
@@ -306,6 +323,8 @@ export interface ChartData {
   sigma_z?: number | null
   // Short-run chart mode (Sprint 6 - B2)
   short_run_mode?: 'deviation' | 'standardized' | null
+  // Per-product-code limits
+  active_product_code?: string | null
 }
 
 // Violation types

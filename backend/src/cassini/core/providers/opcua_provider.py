@@ -200,6 +200,8 @@ class OPCUAProvider(DataProvider):
                 mqtt_topic=f"opcua://{src.server_id}/{src.node_id}",  # synthetic identifier
                 subgroup_size=char.subgroup_size,
                 trigger_strategy=src.trigger_strategy,
+                product_code=getattr(src, "product_code", None),
+                product_json_path=getattr(src, "product_json_path", None),
             )
 
             self._configs[char.id] = config
@@ -360,16 +362,21 @@ class OPCUAProvider(DataProvider):
             return
 
         buffer = self._buffers[char_id]
-        values = buffer.flush()
+        values, buf_product_code = buffer.flush()
 
         if not values:
             logger.debug("buffer_empty", characteristic_id=char_id)
             return
 
+        # Resolve product_code: buffer-captured (dynamic) > config (static) > None
+        config = self._configs.get(char_id)
+        product_code = buf_product_code or (config.product_code if config else None)
+
         logger.info(
             "flushing_opcua_buffer",
             characteristic_id=char_id,
             value_count=len(values),
+            product_code=product_code,
         )
 
         # Create sample event
@@ -377,7 +384,7 @@ class OPCUAProvider(DataProvider):
             characteristic_id=char_id,
             measurements=values,
             timestamp=datetime.now(timezone.utc),
-            context=SampleContext(source="OPCUA"),
+            context=SampleContext(source="OPCUA", product_code=product_code),
         )
 
         # Invoke callback

@@ -130,14 +130,17 @@ def insert_nelson_rules(cur: sqlite3.Cursor, char_id: int) -> None:
         )
 
 
-def insert_variable_sample(cur: sqlite3.Cursor, char_id: int, value: float, ts: str | None = None) -> int:
+def insert_variable_sample(
+    cur: sqlite3.Cursor, char_id: int, value: float,
+    ts: str | None = None, product_code: str | None = None,
+) -> int:
     """Insert a variable sample with one measurement."""
     ts = ts or seed_ts()
     cur.execute(
         """INSERT INTO sample
-        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified)
-        VALUES (?, ?, 1, 0, 0, 0)""",
-        (char_id, ts),
+        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified, product_code)
+        VALUES (?, ?, 1, 0, 0, 0, ?)""",
+        (char_id, ts, product_code),
     )
     sample_id = cur.lastrowid
     cur.execute(
@@ -145,6 +148,26 @@ def insert_variable_sample(cur: sqlite3.Cursor, char_id: int, value: float, ts: 
         (sample_id, value),
     )
     return sample_id
+
+
+def insert_product_limit(
+    cur: sqlite3.Cursor, char_id: int, product_code: str, **kwargs,
+) -> int:
+    """Insert a product limit override for a characteristic."""
+    cur.execute(
+        """INSERT INTO product_limit
+        (characteristic_id, product_code, ucl, lcl, stored_sigma,
+         stored_center_line, target_value, usl, lsl, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            char_id, product_code,
+            kwargs.get("ucl"), kwargs.get("lcl"),
+            kwargs.get("stored_sigma"), kwargs.get("stored_center_line"),
+            kwargs.get("target_value"), kwargs.get("usl"), kwargs.get("lsl"),
+            utcnow(), utcnow(),
+        ),
+    )
+    return cur.lastrowid
 
 
 def insert_attribute_sample(
@@ -393,7 +416,30 @@ def seed(db_path: str) -> dict:
     # Assign admin to Attribute Charts plant
     insert_role(cur, admin_id, attr_plant, "admin")
 
-    # ── 7. Simple plants (just need to exist, no hierarchy/samples) ──
+    # ── 7. Product Limits Plant ──
+    pl = seed_standard_hierarchy(cur, "Product Limits Plant", "PRODLIM")
+    # Samples without product code (backward compat)
+    for val in NORMAL_VALUES:
+        insert_variable_sample(cur, pl["char_id"], val)
+    # Samples with product codes
+    for val in [10.2, 10.3, 10.4, 10.5]:
+        insert_variable_sample(cur, pl["char_id"], val, product_code="PN-100")
+    for val in [9.8, 9.9, 10.0, 10.1]:
+        insert_variable_sample(cur, pl["char_id"], val, product_code="PN-200")
+    # Product limit overrides
+    insert_product_limit(
+        cur, pl["char_id"], "PN-100",
+        ucl=13.0, lcl=9.0, stored_sigma=0.6, stored_center_line=10.5,
+        target_value=10.0,
+    )
+    insert_product_limit(
+        cur, pl["char_id"], "PN-200",
+        ucl=11.0, lcl=9.5,
+    )
+    insert_role(cur, admin_id, pl["plant_id"], "admin")
+    manifest["product_limits"] = pl
+
+    # ── 8. Simple plants (just need to exist, no hierarchy/samples) ──
     simple_plants = {
         "connectivity":  ("Connectivity Test Plant", "CTP"),
         "navigation":    ("Nav Test Plant",          "NAV"),

@@ -115,6 +115,7 @@ class ControlLimitService:
         end_date: datetime | None = None,
         last_n: int | None = None,
         collector: ExplanationCollector | None = None,
+        product_code: str | None = None,
     ) -> CalculationResult:
         """Calculate control limits from historical data.
 
@@ -147,11 +148,12 @@ class ControlLimitService:
         if characteristic is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
-        # Fetch samples (optionally filtered by date range)
+        # Fetch samples (optionally filtered by date range and product code)
         all_samples = await self._sample_repo.get_by_characteristic(
             characteristic_id,
             start_date=start_date,
             end_date=end_date,
+            product_code=product_code,
         )
 
         # Filter out excluded samples if requested

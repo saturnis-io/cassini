@@ -157,6 +157,8 @@ class TagProvider(DataProvider):
                 trigger_tag=src.trigger_tag,
                 metric_name=src.metric_name,
                 json_path=src.json_path,
+                product_code=getattr(src, "product_code", None),
+                product_json_path=getattr(src, "product_json_path", None),
             )
 
             self._configs[char.id] = config
@@ -373,6 +375,24 @@ class TagProvider(DataProvider):
                     return  # No point trying other chars — same raw payload
 
             if value is not None:
+                # Extract dynamic product_code from JSON payload if configured
+                if config.product_json_path and parsed_json is not None:
+                    try:
+                        expr = config._product_json_path_expr
+                        if expr is None:
+                            from jsonpath_ng import parse as jsonpath_parse
+                            expr = jsonpath_parse(config.product_json_path)
+                            config._product_json_path_expr = expr
+                        pc_matches = expr.find(parsed_json)
+                        if pc_matches:
+                            buffer.last_product_code = str(pc_matches[0].value).strip().upper()
+                    except Exception as e:
+                        logger.debug(
+                            "product_json_path_failed",
+                            characteristic_id=char_id,
+                            error=str(e),
+                        )
+
                 logger.debug(
                     "received_value",
                     value=value,
@@ -447,16 +467,21 @@ class TagProvider(DataProvider):
             return
 
         buffer = self._buffers[char_id]
-        values = buffer.flush()
+        values, buf_product_code = buffer.flush()
 
         if not values:
             logger.debug("buffer_empty", characteristic_id=char_id)
             return
 
+        # Resolve product_code: buffer-captured (dynamic) > config (static) > None
+        config = self._configs.get(char_id)
+        product_code = buf_product_code or (config.product_code if config else None)
+
         logger.info(
             "flushing_buffer",
             characteristic_id=char_id,
             value_count=len(values),
+            product_code=product_code,
         )
 
         # Create sample event
@@ -464,7 +489,7 @@ class TagProvider(DataProvider):
             characteristic_id=char_id,
             measurements=values,
             timestamp=datetime.now(timezone.utc),
-            context=SampleContext(source="TAG"),
+            context=SampleContext(source="TAG", product_code=product_code),
         )
 
         # Invoke callback

@@ -104,6 +104,10 @@ interface DashboardState {
   showAnomalies: boolean
   setShowAnomalies: (show: boolean) => void
 
+  // Product code filter for per-product limits
+  productCodeFilter: string | null
+  setProductCodeFilter: (code: string | null) => void
+
   // Bottom drawer state
   drawerOpen: boolean
   setDrawerOpen: (open: boolean) => void
@@ -255,6 +259,10 @@ export const useDashboardStore = create<DashboardState>()(
       // Anomaly overlay visibility
       showAnomalies: false,
       setShowAnomalies: (show) => set({ showAnomalies: show }),
+
+      // Product code filter
+      productCodeFilter: null,
+      setProductCodeFilter: (code) => set({ productCodeFilter: code }),
 
       // Bottom drawer
       drawerOpen: false,

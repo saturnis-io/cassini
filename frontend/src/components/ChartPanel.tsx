@@ -19,6 +19,7 @@ interface ChartPanelProps {
     limit?: number
     startDate?: string
     endDate?: string
+    productCode?: string
   }
   /** User-selected chart type — overrides backend chart_type for routing */
   chartType?: ChartTypeId

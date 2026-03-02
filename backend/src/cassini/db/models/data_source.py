@@ -92,6 +92,10 @@ class MQTTDataSource(DataSource):
     json_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     trigger_tag: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Per-product-code support
+    product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    product_json_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
     broker: Mapped[Optional["MQTTBroker"]] = relationship("MQTTBroker")
 
     __mapper_args__ = {
@@ -133,6 +137,10 @@ class OPCUADataSource(DataSource):
     publishing_interval: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, default=None
     )
+
+    # Per-product-code support
+    product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    product_json_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     server: Mapped["OPCUAServer"] = relationship("OPCUAServer")
 

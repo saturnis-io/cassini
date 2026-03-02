@@ -29,8 +29,11 @@ class TagConfig:
     trigger_tag: str | None = None
     metric_name: str | None = None
     json_path: str | None = None
+    product_code: str | None = None
+    product_json_path: str | None = None
     buffer_timeout_seconds: float = 60.0
     _json_path_expr: object = field(default=None, repr=False, compare=False)
+    _product_json_path_expr: object = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if self.json_path:
@@ -39,6 +42,12 @@ class TagConfig:
                 self._json_path_expr = jsonpath_parse(self.json_path)
             except Exception:
                 self._json_path_expr = None
+        if self.product_json_path:
+            try:
+                from jsonpath_ng import parse as jsonpath_parse
+                self._product_json_path_expr = jsonpath_parse(self.product_json_path)
+            except Exception:
+                self._product_json_path_expr = None
 
 
 @dataclass
@@ -58,6 +67,7 @@ class SubgroupBuffer:
     config: TagConfig
     values: list[float] = field(default_factory=list)
     first_reading_time: datetime | None = None
+    last_product_code: str | None = None
 
     def add(self, value: float) -> bool:
         """Add a value to the buffer.
@@ -98,13 +108,15 @@ class SubgroupBuffer:
         elapsed = (datetime.now(timezone.utc) - self.first_reading_time).total_seconds()
         return elapsed >= timeout_seconds
 
-    def flush(self) -> list[float]:
+    def flush(self) -> tuple[list[float], str | None]:
         """Get all values and clear the buffer.
 
         Returns:
-            List of buffered values (may be less than subgroup_size)
+            Tuple of (buffered values, last product code captured during buffering)
         """
         values = self.values.copy()
+        product_code = self.last_product_code
         self.values.clear()
         self.first_reading_time = None
-        return values
+        self.last_product_code = None
+        return values, product_code

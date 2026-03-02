@@ -30,8 +30,14 @@ export const queryKeys = {
     all: ['characteristics'] as const,
     list: (params?: object) => [...queryKeys.characteristics.all, 'list', params] as const,
     detail: (id: number) => [...queryKeys.characteristics.all, 'detail', id] as const,
-    chartData: (id: number, limit?: number, startDate?: string, endDate?: string) =>
-      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate }] as const,
+    chartData: (
+      id: number,
+      limit?: number,
+      startDate?: string,
+      endDate?: string,
+      productCode?: string,
+    ) =>
+      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate, productCode }] as const,
     rules: (id: number) => [...queryKeys.characteristics.all, 'rules', id] as const,
     config: (id: number) => [...queryKeys.characteristics.all, 'config', id] as const,
   },
@@ -122,6 +128,13 @@ export const queryKeys = {
     steps: (workflowId: number) => ['signatures', 'steps', workflowId] as const,
     meanings: () => ['signatures', 'meanings'] as const,
     passwordPolicy: () => ['signatures', 'password-policy'] as const,
+  },
+  productLimits: {
+    all: ['product-limits'] as const,
+    list: (charId: number) => ['product-limits', 'list', charId] as const,
+    detail: (charId: number, productCode: string) =>
+      ['product-limits', 'detail', charId, productCode] as const,
+    codes: (charId: number) => ['product-codes', charId] as const,
   },
   gageBridges: {
     all: ['gageBridges'] as const,

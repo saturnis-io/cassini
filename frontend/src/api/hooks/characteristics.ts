@@ -100,6 +100,7 @@ export function useChartData(
     limit?: number
     startDate?: string
     endDate?: string
+    productCode?: string
   },
   config?: {
     /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
@@ -112,6 +113,7 @@ export function useChartData(
       options?.limit,
       options?.startDate,
       options?.endDate,
+      options?.productCode,
     ),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,

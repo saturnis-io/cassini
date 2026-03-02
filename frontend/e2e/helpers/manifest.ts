@@ -39,6 +39,8 @@ export interface SeedManifest {
     c_char_id: number
     u_char_id: number
   }
+  // Product limits
+  product_limits: StandardHierarchy
   // Simple plants
   connectivity: { plant_id: number }
   navigation: { plant_id: number }

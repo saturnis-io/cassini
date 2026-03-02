@@ -98,23 +98,30 @@
     "c_char_id": 17,
     "u_char_id": 18
   },
-  "connectivity": {
-    "plant_id": 15
+  "product_limits": {
+    "plant_id": 15,
+    "dept_id": 40,
+    "line_id": 41,
+    "station_id": 42,
+    "char_id": 19
   },
-  "navigation": {
+  "connectivity": {
     "plant_id": 16
   },
-  "hierarchy": {
+  "navigation": {
     "plant_id": 17
   },
-  "mobile": {
+  "hierarchy": {
     "plant_id": 18
   },
-  "users": {
+  "mobile": {
     "plant_id": 19
   },
-  "settings": {
+  "users": {
     "plant_id": 20
+  },
+  "settings": {
+    "plant_id": 21
   },
   "notifications": {
     "webhook_id": 1

@@ -23,6 +23,7 @@ import { GeneralTab } from './characteristic-config/GeneralTab'
 import { LimitsTab } from './characteristic-config/LimitsTab'
 import { SamplingTab } from './characteristic-config/SamplingTab'
 import { RulesTab, type RulesTabRef } from './characteristic-config/RulesTab'
+import { ProductLimitsTab } from './characteristic-config/ProductLimitsTab'
 import type { ScheduleConfig, ScheduleType } from './ScheduleConfigSection'
 import type { SubgroupMode } from '@/types'
 
@@ -384,6 +385,8 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             onDirty={() => setIsDirty(true)}
           />
         )
+      case 'product-limits':
+        return <ProductLimitsTab characteristicId={characteristicId!} />
       default:
         return null
     }

@@ -44,7 +44,8 @@ class SampleRepository(BaseRepository[Sample]):
         return result.scalar_one_or_none()
 
     async def get_rolling_window(
-        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
+        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True,
+        product_code: str | None = None,
     ) -> list[Sample]:
         """Get the most recent N samples for a characteristic.
 
@@ -55,6 +56,7 @@ class SampleRepository(BaseRepository[Sample]):
             char_id: ID of the characteristic to query
             window_size: Number of most recent samples to retrieve (default: 25)
             exclude_excluded: If True, filter out excluded samples (default: True)
+            product_code: If set, only return samples with this product code
 
         Returns:
             List of samples ordered by timestamp (oldest to newest)
@@ -79,6 +81,9 @@ class SampleRepository(BaseRepository[Sample]):
 
         if exclude_excluded:
             stmt = stmt.where(Sample.is_excluded == False)
+
+        if product_code:
+            stmt = stmt.where(Sample.product_code == product_code)
 
         result = await self.session.execute(stmt)
         samples = list(result.scalars().all())
@@ -135,6 +140,7 @@ class SampleRepository(BaseRepository[Sample]):
         char_id: int,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
+        product_code: str | None = None,
     ) -> list[Sample]:
         """Get samples for a characteristic within a date range.
 
@@ -142,6 +148,7 @@ class SampleRepository(BaseRepository[Sample]):
             char_id: ID of the characteristic to query
             start_date: Optional start of date range (inclusive)
             end_date: Optional end of date range (inclusive)
+            product_code: If set, only return samples with this product code
 
         Returns:
             List of samples ordered by timestamp (oldest to newest)
@@ -177,6 +184,9 @@ class SampleRepository(BaseRepository[Sample]):
 
         if end_date is not None:
             stmt = stmt.where(Sample.timestamp <= end_date)
+
+        if product_code is not None:
+            stmt = stmt.where(Sample.product_code == product_code)
 
         stmt = stmt.order_by(Sample.timestamp)
 
@@ -286,6 +296,7 @@ class SampleRepository(BaseRepository[Sample]):
         char_id: int,
         window_size: int = 100,
         exclude_excluded: bool = True,
+        product_code: str | None = None,
     ) -> list[dict]:
         """Get recent attribute samples as plain dicts for limit/rule evaluation.
 
@@ -296,6 +307,7 @@ class SampleRepository(BaseRepository[Sample]):
             char_id: Characteristic ID
             window_size: Number of recent samples
             exclude_excluded: Skip excluded samples
+            product_code: If set, only return samples with this product code
 
         Returns:
             List of dicts in chronological order (oldest first)
@@ -309,6 +321,9 @@ class SampleRepository(BaseRepository[Sample]):
 
         if exclude_excluded:
             stmt = stmt.where(Sample.is_excluded == False)
+
+        if product_code:
+            stmt = stmt.where(Sample.product_code == product_code)
 
         result = await self.session.execute(stmt)
         samples = list(result.scalars().all())

@@ -41,6 +41,7 @@ from cassini.db.models.multivariate import (
 from cassini.db.models.prediction import Forecast, PredictionConfig, PredictionModel
 from cassini.db.models.opcua_server import OPCUAServer
 from cassini.db.models.plant import Plant
+from cassini.db.models.product_limit import ProductLimit
 from cassini.db.models.purge_history import PurgeHistory
 from cassini.db.models.report_schedule import ReportRun, ReportSchedule
 from cassini.db.models.retention_policy import RetentionPolicy
@@ -85,6 +86,7 @@ __all__ = [
     "MSAPart",
     "MSAStudy",
     "Plant",
+    "ProductLimit",
     "PurgeHistory",
     "ReportRun",
     "ReportSchedule",

@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react'
 import {
   Columns2,
   Download,
@@ -7,10 +8,12 @@ import {
   CalendarClock,
   SlidersHorizontal,
   Sparkles,
+  Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useProductCodes } from '@/api/hooks'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
@@ -88,7 +91,22 @@ export function ChartToolbar({
     setShowBrush,
     showAnomalies,
     setShowAnomalies,
+    productCodeFilter,
+    setProductCodeFilter,
   } = useDashboardStore()
+
+  const { data: productCodes } = useProductCodes(characteristicId ?? 0)
+
+  // Reset product code filter when characteristic changes
+  const prevCharIdRef = useRef(characteristicId)
+  useEffect(() => {
+    if (characteristicId !== prevCharIdRef.current) {
+      prevCharIdRef.current = characteristicId
+      if (productCodeFilter) {
+        setProductCodeFilter(null)
+      }
+    }
+  }, [characteristicId, productCodeFilter, setProductCodeFilter])
 
   // Get current chart type for the characteristic (fall back to override or recommended type for subgroup size)
   const storeChartType = characteristicId ? chartTypes.get(characteristicId) : undefined
@@ -125,6 +143,35 @@ export function ChartToolbar({
             subgroupSize={subgroupSize}
             isAttributeData={isAttributeData}
           />
+        )}
+
+        {/* Product code filter */}
+        {productCodes && productCodes.length > 0 && (
+          <>
+            <div className="bg-border/40 mx-0.5 h-4 w-px" />
+            <div className="flex items-center gap-1">
+              <Package className="text-muted-foreground h-3.5 w-3.5" />
+              <select
+                value={productCodeFilter ?? ''}
+                onChange={(e) => setProductCodeFilter(e.target.value || null)}
+                className={cn(
+                  'border-transparent bg-transparent py-0.5 pr-5 pl-1 text-xs',
+                  'focus:border-primary focus:ring-primary/20 rounded focus:ring-1 focus:outline-none',
+                  productCodeFilter
+                    ? 'text-primary font-medium'
+                    : 'text-muted-foreground',
+                )}
+                title="Filter by product code"
+              >
+                <option value="">All Products</option>
+                {productCodes.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
 
         <div className="bg-border/40 mx-0.5 h-4 w-px" />

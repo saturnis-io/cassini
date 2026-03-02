@@ -392,6 +392,26 @@ class SPCEngine:
         char_short_run_mode = getattr(char, "short_run_mode", None)
         char_target_value = getattr(char, "target_value", None)
 
+        # Product-limit resolution: override characteristic defaults with
+        # per-product-code limits when a product_code is provided.
+        if context.product_code:
+            from cassini.db.repositories.product_limit import ProductLimitRepository
+            pl_repo = ProductLimitRepository(self._char_repo.session)
+            product_limit = await pl_repo.get_by_char_and_code(
+                characteristic_id, context.product_code
+            )
+            if product_limit is not None:
+                if product_limit.ucl is not None:
+                    char_ucl = product_limit.ucl
+                if product_limit.lcl is not None:
+                    char_lcl = product_limit.lcl
+                if product_limit.stored_sigma is not None:
+                    char_stored_sigma = product_limit.stored_sigma
+                if product_limit.stored_center_line is not None:
+                    char_stored_center_line = product_limit.stored_center_line
+                if product_limit.target_value is not None:
+                    char_target_value = product_limit.target_value
+
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)
         _, is_undersized = self._validate_measurements_with_values(
@@ -465,6 +485,7 @@ class SPCEngine:
             values=measurements,
             batch_number=context.batch_number,
             operator_id=context.operator_id,
+            product_code=context.product_code,
             actual_n=actual_n,
             is_undersized=is_undersized,
             effective_ucl=effective_ucl,

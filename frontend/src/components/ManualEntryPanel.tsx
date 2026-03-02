@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useSubmitSample, useCharacteristic } from '@/api/hooks'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSubmitSample, useCharacteristic, useProductCodes } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { CharacteristicContextBar } from './CharacteristicContextBar'
 import { NoCharacteristicState } from './NoCharacteristicState'
@@ -14,9 +14,13 @@ export function ManualEntryPanel() {
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
   const [measurements, setMeasurements] = useState<string[]>([])
+  const [productCode, setProductCode] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
   const [operatorId, setOperatorId] = useState('')
+  const [showProductCodeSuggestions, setShowProductCodeSuggestions] = useState(false)
+  const productCodeRef = useRef<HTMLDivElement>(null)
 
+  const { data: existingCodes } = useProductCodes(globalCharId ?? 0)
   const submitSample = useSubmitSample()
   const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
 
@@ -49,6 +53,24 @@ export function ManualEntryPanel() {
     clearErrors()
   }, [inputCount, clearErrors])
 
+  // Filter autocomplete suggestions for product code
+  const filteredCodes = useMemo(() => {
+    if (!existingCodes || !productCode) return existingCodes ?? []
+    const upper = productCode.toUpperCase()
+    return existingCodes.filter((c) => c.toUpperCase().includes(upper))
+  }, [existingCodes, productCode])
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (productCodeRef.current && !productCodeRef.current.contains(e.target as Node)) {
+        setShowProductCodeSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const handleMeasurementChange = (index: number, value: string) => {
     const newMeasurements = [...measurements]
     newMeasurements[index] = value
@@ -77,10 +99,12 @@ export function ManualEntryPanel() {
     })
     if (!validated) return
 
+    const trimmedCode = productCode.trim().toUpperCase()
     submitSample.mutate(
       {
         characteristic_id: selectedChar.id,
         measurements: validated.measurements,
+        product_code: trimmedCode || undefined,
         batch_number: validated.batch_number,
         operator_id: validated.operator_id,
       },
@@ -88,6 +112,7 @@ export function ManualEntryPanel() {
         onSuccess: () => {
           // Clear form on success
           setMeasurements(Array(inputCount).fill(''))
+          setProductCode('')
           setBatchNumber('')
           setOperatorId('')
           clearErrors()
@@ -161,6 +186,41 @@ export function ManualEntryPanel() {
                     </span>
                   )}
                 </p>
+              </div>
+
+              {/* Product Code (optional, with autocomplete) */}
+              <div ref={productCodeRef} className="relative">
+                <label className="mb-1 block text-sm font-medium">Product Code (optional)</label>
+                <input
+                  type="text"
+                  value={productCode}
+                  onChange={(e) => {
+                    setProductCode(e.target.value)
+                    setShowProductCodeSuggestions(true)
+                  }}
+                  onFocus={() => setShowProductCodeSuggestions(true)}
+                  onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
+                  placeholder="e.g., PN-12345"
+                  className="bg-background border-input w-full rounded-lg border px-3 py-2"
+                />
+                {showProductCodeSuggestions && filteredCodes.length > 0 && (
+                  <div className="bg-card border-border absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg border shadow-lg">
+                    {filteredCodes.map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        className="hover:bg-muted w-full px-3 py-1.5 text-left text-sm"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          setProductCode(code)
+                          setShowProductCodeSuggestions(false)
+                        }}
+                      >
+                        {code}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Optional Fields */}

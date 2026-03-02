@@ -514,6 +514,7 @@ async def _get_attribute_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
+    product_code: str | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for attribute characteristics."""
     from cassini.core.engine.attribute_engine import (
@@ -538,6 +539,7 @@ async def _get_attribute_chart_data(
         char_id=char_id,
         window_size=limit,
         exclude_excluded=True,
+        product_code=product_code,
     )
 
     # Calculate limits from data if not stored
@@ -559,6 +561,7 @@ async def _get_attribute_chart_data(
     # Fetch raw samples for timestamp-based display keys
     samples_for_keys = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=limit, exclude_excluded=True,
+        product_code=product_code,
     )
     _display_keys: dict[int, str] = {}
     for sample in samples_for_keys:
@@ -671,6 +674,7 @@ async def _get_cusum_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
+    product_code: str | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for CUSUM characteristics."""
     import math
@@ -691,6 +695,7 @@ async def _get_cusum_chart_data(
         # Estimate sigma from sample data (same fallback as engine)
         all_samples = await sample_repo.get_rolling_window(
             char_id=char_id, window_size=100, exclude_excluded=True,
+            product_code=product_code,
         )
         all_vals: list[float] = []
         for s in all_samples:
@@ -709,6 +714,7 @@ async def _get_cusum_chart_data(
     # Get samples with measurements
     samples = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=limit, exclude_excluded=True,
+        product_code=product_code,
     )
 
     # Batch-load violations
@@ -821,6 +827,7 @@ async def _get_ewma_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
+    product_code: str | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for EWMA characteristics."""
     from cassini.core.engine.ewma_engine import (
@@ -838,6 +845,7 @@ async def _get_ewma_chart_data(
     # Get samples with measurements
     samples = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=limit, exclude_excluded=True,
+        product_code=product_code,
     )
 
     # Estimate sigma
@@ -966,6 +974,7 @@ async def get_chart_data(
     limit: int = Query(100, ge=1, le=1000, description="Number of recent samples to return"),
     start_date: datetime | None = Query(None, description="Start date for filtering samples"),
     end_date: datetime | None = Query(None, description="End date for filtering samples"),
+    product_code: str | None = Query(None, description="Filter by product code"),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -988,31 +997,64 @@ async def get_chart_data(
     if characteristic.data_type == "attribute":
         return await _get_attribute_chart_data(
             char_id, characteristic, limit, sample_repo, session,
+            product_code=product_code,
         )
 
     # --- CUSUM chart branch ---
     if characteristic.chart_type == "cusum":
         return await _get_cusum_chart_data(
             char_id, characteristic, limit, sample_repo, session,
+            product_code=product_code,
         )
 
     # --- EWMA chart branch ---
     if characteristic.chart_type == "ewma":
         return await _get_ewma_chart_data(
             char_id, characteristic, limit, sample_repo, session,
+            product_code=product_code,
         )
 
+    # Resolve product-specific limit overrides when product_code is set
+    _effective_ucl = characteristic.ucl
+    _effective_lcl = characteristic.lcl
+    _effective_sigma = characteristic.stored_sigma
+    _effective_center = characteristic.stored_center_line
+    _effective_usl = characteristic.usl
+    _effective_lsl = characteristic.lsl
+    _effective_target = characteristic.target_value
+
+    if product_code:
+        product_code = product_code.strip().upper()
+        from cassini.db.repositories.product_limit import ProductLimitRepository
+        _pl_repo = ProductLimitRepository(session)
+        _pl = await _pl_repo.get_by_char_and_code(char_id, product_code)
+        if _pl is not None:
+            if _pl.ucl is not None:
+                _effective_ucl = _pl.ucl
+            if _pl.lcl is not None:
+                _effective_lcl = _pl.lcl
+            if _pl.stored_sigma is not None:
+                _effective_sigma = _pl.stored_sigma
+            if _pl.stored_center_line is not None:
+                _effective_center = _pl.stored_center_line
+            if _pl.usl is not None:
+                _effective_usl = _pl.usl
+            if _pl.lsl is not None:
+                _effective_lsl = _pl.lsl
+            if _pl.target_value is not None:
+                _effective_target = _pl.target_value
+
     # If control limits are not defined, return empty chart data
-    if characteristic.ucl is None or characteristic.lcl is None:
+    if _effective_ucl is None or _effective_lcl is None:
         return ChartDataResponse(
             characteristic_id=char_id,
             characteristic_name=characteristic.name,
             data_points=[],
             control_limits=ControlLimits(center_line=None, ucl=None, lcl=None),
             spec_limits=SpecLimits(
-                usl=characteristic.usl,
-                lsl=characteristic.lsl,
-                target=characteristic.target_value,
+                usl=_effective_usl,
+                lsl=_effective_lsl,
+                target=_effective_target,
             ),
             zone_boundaries=ZoneBoundaries(
                 plus_1_sigma=None,
@@ -1029,12 +1071,13 @@ async def get_chart_data(
             short_run_mode=characteristic.short_run_mode,
         )
 
-    # Get samples
+    # Get samples (product_code filter pushed into SQL for correct LIMIT behavior)
     if start_date or end_date:
         samples = await sample_repo.get_by_characteristic(
             char_id=char_id,
             start_date=start_date,
             end_date=end_date,
+            product_code=product_code,
         )
         # Limit to most recent N samples if exceeded
         if len(samples) > limit:
@@ -1044,6 +1087,7 @@ async def get_chart_data(
             char_id=char_id,
             window_size=limit,
             exclude_excluded=True,
+            product_code=product_code,
         )
 
     import math as _math
@@ -1051,18 +1095,18 @@ async def get_chart_data(
     # Use stored parameters if available (set by recalculate-limits),
     # otherwise derive from control limits for backward compatibility
     center_line = (
-        characteristic.stored_center_line
-        if characteristic.stored_center_line is not None
-        else (characteristic.ucl + characteristic.lcl) / 2
+        _effective_center
+        if _effective_center is not None
+        else (_effective_ucl + _effective_lcl) / 2
     )
 
     # stored_sigma is process sigma; zone boundaries need sigma of the mean
     n = characteristic.subgroup_size or 1
-    if characteristic.stored_sigma is not None:
-        sigma_xbar = characteristic.stored_sigma / _math.sqrt(n) if n > 1 else characteristic.stored_sigma
+    if _effective_sigma is not None:
+        sigma_xbar = _effective_sigma / _math.sqrt(n) if n > 1 else _effective_sigma
     else:
         # Fallback: derive from control limits (already sigma_xbar)
-        sigma_xbar = (characteristic.ucl - center_line) / 3
+        sigma_xbar = (_effective_ucl - center_line) / 3
 
     # Calculate zone boundaries using sigma of the mean
     zones = ZoneBoundaries(
@@ -1113,8 +1157,8 @@ async def get_chart_data(
 
     # Pre-compute short-run transformation parameters
     _sr_mode = characteristic.short_run_mode
-    _sr_target = characteristic.target_value or 0.0
-    _sr_sigma = characteristic.stored_sigma
+    _sr_target = _effective_target or 0.0
+    _sr_sigma = _effective_sigma
 
     chart_samples = []
     for sample in samples:
@@ -1170,8 +1214,8 @@ async def get_chart_data(
 
     # Build control limits with short-run transformation
     cl_center = center_line
-    cl_ucl = characteristic.ucl
-    cl_lcl = characteristic.lcl
+    cl_ucl = _effective_ucl
+    cl_lcl = _effective_lcl
     if _sr_mode == "deviation":
         if cl_center is not None:
             cl_center = cl_center - _sr_target
@@ -1191,9 +1235,9 @@ async def get_chart_data(
     )
 
     # Transform spec limits for short-run display
-    sl_usl = characteristic.usl
-    sl_lsl = characteristic.lsl
-    sl_target = characteristic.target_value
+    sl_usl = _effective_usl
+    sl_lsl = _effective_lsl
+    sl_target = _effective_target
     if _sr_mode == "deviation":
         if sl_usl is not None:
             sl_usl = sl_usl - _sr_target
@@ -1242,9 +1286,10 @@ async def get_chart_data(
         subgroup_mode=characteristic.subgroup_mode,
         nominal_subgroup_size=characteristic.subgroup_size,
         decimal_precision=characteristic.decimal_precision,
-        stored_sigma=characteristic.stored_sigma,
+        stored_sigma=_effective_sigma,
         data_type=characteristic.data_type,
         short_run_mode=characteristic.short_run_mode,
+        active_product_code=product_code if product_code else None,
     )
 
 
@@ -1257,6 +1302,7 @@ async def recalculate_limits(
     start_date: datetime | None = Query(None, description="Start date for baseline period"),
     end_date: datetime | None = Query(None, description="End date for baseline period"),
     last_n: int | None = Query(None, ge=1, description="Use only the most recent N samples"),
+    product_code: str | None = Query(None, description="Recalculate for a specific product code"),
     service: ControlLimitService = Depends(get_control_limit_service),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1308,7 +1354,70 @@ async def recalculate_limits(
         }
         return attr_result
 
-    # Recalculate limits
+    # --- Product-code-specific recalculation ---
+    if product_code:
+        product_code = product_code.strip().upper()
+
+        # Calculate limits from product-filtered samples
+        try:
+            result = await service.calculate_limits(
+                characteristic_id=char_id,
+                exclude_ooc=exclude_ooc,
+                min_samples=min_samples,
+                start_date=start_date,
+                end_date=end_date,
+                last_n=last_n,
+                product_code=product_code,
+            )
+        except ValueError as ve:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient samples for product '{product_code}'"
+                if "Insufficient" in str(ve) else "Invalid input for limit calculation",
+            )
+
+        # Store in product_limit table (not on characteristic)
+        from cassini.db.repositories.product_limit import ProductLimitRepository
+        pl_repo = ProductLimitRepository(session)
+        await pl_repo.upsert(char_id, product_code, {
+            "ucl": result.ucl,
+            "lcl": result.lcl,
+            "stored_sigma": result.sigma,
+            "stored_center_line": result.center_line,
+        })
+        await session.commit()
+
+        request.state.audit_context = {
+            "resource_type": "product_limit",
+            "resource_id": char_id,
+            "action": "recalculate",
+            "summary": f"Product limits recalculated for '{characteristic.name}' / '{product_code}'",
+            "fields": {
+                "characteristic_name": characteristic.name,
+                "product_code": product_code,
+                "ucl": result.ucl,
+                "centerline": result.center_line,
+                "lcl": result.lcl,
+            },
+        }
+
+        return {
+            "before": before,
+            "after": {"ucl": result.ucl, "lcl": result.lcl, "center_line": result.center_line},
+            "calculation": {
+                "method": result.method,
+                "sigma": result.sigma,
+                "sample_count": result.sample_count,
+                "excluded_count": result.excluded_count,
+                "calculated_at": result.calculated_at.isoformat(),
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                "last_n": last_n,
+                "product_code": product_code,
+            },
+        }
+
+    # Recalculate limits (standard — no product_code)
     try:
         result = await service.recalculate_and_persist(
             characteristic_id=char_id,

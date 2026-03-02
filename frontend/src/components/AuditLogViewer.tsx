@@ -87,6 +87,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   ishikawa: 'Ishikawa',
   report_schedule: 'Report Schedule',
   notification: 'Notification',
+  product_limit: 'Product Limits',
 }
 
 function ActionBadge({ action }: { action: string }) {
