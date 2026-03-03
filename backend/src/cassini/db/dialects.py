@@ -38,8 +38,27 @@ DIALECT_DRIVERS: dict[DatabaseDialect, str] = {
     DatabaseDialect.MSSQL: "aioodbc",
 }
 
-# SSRF protection: only known DB ports allowed for server dialects
-ALLOWED_PORTS: set[int] = {5432, 3306, 1433}
+# SSRF protection: only known DB ports allowed for server dialects.
+# Override with CASSINI_ALLOWED_DB_PORTS env var (comma-separated integers).
+_DEFAULT_PORTS = {5432, 3306, 1433}
+
+
+def _load_allowed_ports() -> set[int]:
+    """Load allowed database ports from env var or use defaults."""
+    raw = os.environ.get("CASSINI_ALLOWED_DB_PORTS", "")
+    if not raw.strip():
+        return _DEFAULT_PORTS
+    try:
+        ports = {int(p.strip()) for p in raw.split(",") if p.strip()}
+        if not ports:
+            return _DEFAULT_PORTS
+        return ports
+    except ValueError:
+        logger.warning("invalid_allowed_db_ports", raw=raw, fallback=sorted(_DEFAULT_PORTS))
+        return _DEFAULT_PORTS
+
+
+ALLOWED_PORTS: set[int] = _load_allowed_ports()
 
 # Whitelist of safe connection options (no connect_args, no init_command)
 ALLOWED_OPTIONS: set[str] = {"pool_size", "pool_timeout", "pool_recycle", "pool_pre_ping"}

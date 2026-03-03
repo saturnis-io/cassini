@@ -983,35 +983,70 @@ For centralized log collection, configure a log shipper (Filebeat, Promtail, Flu
 
 ## 9. Environment Variables Reference
 
-All environment variables use the `OPENSPC_` prefix. The backend reads them via [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) from both environment variables and a `.env` file.
+All environment variables use the `CASSINI_` prefix and can be set in a `.env` file. The backend reads them via [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+
+### Core
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `OPENSPC_APP_VERSION` | string | `"0.4.0"` | Application version string (displayed in API root and docs) |
-| `OPENSPC_DATABASE_URL` | string | `"sqlite+aiosqlite:///./openspc.db"` | SQLAlchemy async database URL. Use `postgresql+asyncpg://...` for PostgreSQL, `mysql+aiomysql://...` for MySQL, or `mssql+aioodbc://...` for MSSQL. |
-| `OPENSPC_JWT_SECRET` | string | `""` (auto-generated) | Secret key for signing JWT tokens. If empty, a random secret is generated and persisted to a `.jwt_secret` file. **Always set this explicitly in production.** |
-| `OPENSPC_COOKIE_SECURE` | bool | `false` | Set the `Secure` flag on the refresh token cookie. Must be `true` in production (requires HTTPS). |
-| `OPENSPC_ADMIN_USERNAME` | string | `"admin"` | Username for the bootstrap admin account (created on first startup when no users exist). |
-| `OPENSPC_ADMIN_PASSWORD` | string | `""` | Password for the bootstrap admin account. **Must be set to a strong value in production.** |
-| `OPENSPC_CORS_ORIGINS` | string | `"http://localhost:5173,..."` | Comma-separated list of allowed CORS origins. In production, set this to your frontend domain(s) only. |
-| `OPENSPC_RATE_LIMIT_LOGIN` | string | `"5/minute"` | Rate limit for login attempts. |
-| `OPENSPC_RATE_LIMIT_DEFAULT` | string | `"60/minute"` | Default rate limit for API endpoints. |
-| `OPENSPC_LOG_FORMAT` | string | `"console"` | Log output format. Use `"console"` for human-readable or `"json"` for structured JSON logging (recommended for production log aggregation). |
-| `OPENSPC_SANDBOX` | bool | `false` | Enable sandbox mode. When `true`, registers the `/api/v1/devtools` router with database reset and seed endpoints. **Must be `false` in production.** |
-| `OPENSPC_DEV_MODE` | bool | `false` | Development mode. Disables enterprise enforcement features (e.g., forced password change). **Must be `false` in production.** |
+| `CASSINI_APP_VERSION` | string | `"0.3.0"` | Application version string (displayed in API root and docs). |
+| `CASSINI_DATABASE_URL` | string | `"sqlite+aiosqlite:///./cassini.db"` | SQLAlchemy async database URL. Use `postgresql+asyncpg://...` for PostgreSQL, `mysql+aiomysql://...` for MySQL, or `mssql+aioodbc://...` for MSSQL. |
+| `CASSINI_JWT_SECRET` | string | `""` (auto-generated) | Secret key for signing JWT tokens. If empty, a random secret is generated and persisted to `.jwt_secret`. **Always set explicitly in production.** |
+| `CASSINI_COOKIE_SECURE` | bool | `true` | Set the `Secure` flag on the refresh token cookie. Must be `true` in production (requires HTTPS). |
+| `CASSINI_ADMIN_USERNAME` | string | `"admin"` | Username for the bootstrap admin account (created on first startup when no users exist). |
+| `CASSINI_ADMIN_PASSWORD` | string | `""` | Password for the bootstrap admin account. **Must be set to a strong value in production.** |
+| `CASSINI_CORS_ORIGINS` | string | `"http://localhost:5173,..."` | Comma-separated list of allowed CORS origins. In production, set this to your frontend domain(s) only. |
+
+### Database Security
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CASSINI_DB_ENCRYPTION_KEY` | string | *(auto-generated)* | Fernet symmetric key for encrypting database credentials configured through the admin UI. Persisted to `.db_encryption_key` if not set. **Separate from JWT secret** — rotating JWT does not affect encrypted credentials. |
+| `CASSINI_ALLOWED_DB_PORTS` | string | `"5432,3306,1433"` | Comma-separated list of allowed database ports for server dialects (SSRF protection). The default permits standard PostgreSQL (5432), MySQL (3306), and MSSQL (1433) ports. Enterprise deployments using non-standard ports must add them here — e.g., `"5432,5433,3306,1433,1434"`. |
+
+### Rate Limiting
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CASSINI_RATE_LIMIT_LOGIN` | string | `"5/minute"` | Rate limit for login attempts. |
+| `CASSINI_RATE_LIMIT_DEFAULT` | string | `"60/minute"` | Default rate limit for API endpoints. |
+
+### Web Push (VAPID)
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CASSINI_VAPID_PRIVATE_KEY` | string | `""` | VAPID private key for web push notifications. |
+| `CASSINI_VAPID_PUBLIC_KEY` | string | `""` | VAPID public key for web push notifications. |
+| `CASSINI_VAPID_CONTACT_EMAIL` | string | `""` | Contact email for VAPID protocol. |
+
+### Logging & Development
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CASSINI_LOG_FORMAT` | string | `"console"` | Log output format. Use `"console"` for human-readable or `"json"` for structured JSON logging (recommended for production log aggregation). |
+| `CASSINI_SANDBOX` | bool | `false` | Enable sandbox mode. When `true`, registers the `/api/v1/devtools` router with database reset and seed endpoints. **Must be `false` in production.** |
+| `CASSINI_DEV_MODE` | bool | `false` | Development mode. Disables enterprise enforcement features (e.g., forced password change). **Must be `false` in production.** |
+
+### Licensing (Commercial Edition)
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CASSINI_LICENSE_FILE` | string | `""` | Path to license file for commercial edition. |
+| `CASSINI_LICENSE_PUBLIC_KEY_FILE` | string | `""` | Path to Ed25519 public key PEM for license verification. |
+| `CASSINI_DEV_COMMERCIAL` | bool | `false` | Set `true` to simulate commercial license in development. |
 
 ### Database URL Examples
 
 | Database | URL Format |
 |----------|-----------|
-| SQLite (default) | `sqlite+aiosqlite:///./openspc.db` |
-| SQLite (absolute path) | `sqlite+aiosqlite:////opt/openspc/data/openspc.db` |
+| SQLite (default) | `sqlite+aiosqlite:///./cassini.db` |
+| SQLite (absolute path) | `sqlite+aiosqlite:////opt/cassini/data/cassini.db` |
 | PostgreSQL | `postgresql+asyncpg://user:password@host:5432/dbname` |
 | PostgreSQL (SSL) | `postgresql+asyncpg://user:password@host:5432/dbname?ssl=require` |
 | MySQL | `mysql+aiomysql://user:password@host:3306/dbname` |
 | MSSQL | `mssql+aioodbc://user:password@host:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server` |
 
-> **Tip:** The `.env` file supports standard `KEY=value` syntax. Values with special characters should be quoted: `OPENSPC_DATABASE_URL="postgresql+asyncpg://user:p@ss@host/db"`.
+> **Tip:** The `.env` file supports standard `KEY=value` syntax. Values with special characters should be quoted: `CASSINI_DATABASE_URL="postgresql+asyncpg://user:p@ss@host/db"`.
 
 ---
 

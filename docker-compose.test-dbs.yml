@@ -1,0 +1,63 @@
+# Test database containers for multi-dialect testing
+#
+# Usage:
+#   docker compose -f docker-compose.test-dbs.yml up             # start all
+#   docker compose -f docker-compose.test-dbs.yml up postgres mysql  # start specific
+#   Ctrl+C                                                       # stop
+#   docker compose -f docker-compose.test-dbs.yml down           # cleanup
+#
+# Connection details (for Database Admin UI):
+#   PostgreSQL  localhost:5432  cassini / cassini / cassini
+#   MySQL       localhost:3306  cassini / cassini / cassini
+#   MSSQL       localhost:1433  cassini / cassini / Cassini#Test1
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: cassini
+      POSTGRES_PASSWORD: cassini
+      POSTGRES_DB: cassini
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cassini"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs: /var/lib/postgresql/data
+
+  mysql:
+    image: mysql:8.4
+    ports: ["3306:3306"]
+    environment:
+      MYSQL_ROOT_PASSWORD: cassini
+      MYSQL_USER: cassini
+      MYSQL_PASSWORD: cassini
+      MYSQL_DATABASE: cassini
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs: /var/lib/mysql
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    ports: ["1433:1433"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Cassini#Test1"
+      MSSQL_PID: Developer
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Cassini#Test1' -C -Q 'SELECT 1' -b"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - ./backend/scripts/mssql-init.sh:/usr/src/mssql-init.sh
+    entrypoint: /bin/bash -c "/usr/src/mssql-init.sh & /opt/mssql/bin/sqlservr"
+    tmpfs: /var/opt/mssql/data

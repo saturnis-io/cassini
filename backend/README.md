@@ -100,16 +100,24 @@ All variables use the `CASSINI_` prefix and can be set in a `.env` file.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CASSINI_DATABASE_URL` | `sqlite+aiosqlite:///./cassini.db` | SQLAlchemy async connection string |
-| `CASSINI_JWT_SECRET` | *(auto-generated)* | Secret key for JWT signing |
-| `CASSINI_COOKIE_SECURE` | `false` | Set `true` for HTTPS-only refresh cookies |
-| `CASSINI_ADMIN_USERNAME` | `admin` | Bootstrap admin username |
-| `CASSINI_ADMIN_PASSWORD` | *(auto-generated)* | Bootstrap admin password |
-| `CASSINI_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated allowed origins |
+| `CASSINI_JWT_SECRET` | *(auto-generated)* | Secret key for JWT signing. Auto-generated and persisted to `.jwt_secret` if not set. **Set explicitly in production.** |
+| `CASSINI_COOKIE_SECURE` | `true` | Set the `Secure` flag on refresh token cookie. Must be `true` for HTTPS (production) |
+| `CASSINI_ADMIN_USERNAME` | `admin` | Bootstrap admin username (created on first startup when no users exist) |
+| `CASSINI_ADMIN_PASSWORD` | *(auto-generated)* | Bootstrap admin password. **Set to a strong value in production.** |
+| `CASSINI_CORS_ORIGINS` | `http://localhost:5173,...` | Comma-separated allowed CORS origins |
 | `CASSINI_RATE_LIMIT_LOGIN` | `5/minute` | Login endpoint rate limit |
 | `CASSINI_RATE_LIMIT_DEFAULT` | `60/minute` | Default API rate limit |
 | `CASSINI_LOG_FORMAT` | `console` | `console` or `json` (structured logging) |
-| `CASSINI_SANDBOX` | `false` | Enable sandbox/devtools mode |
-| `CASSINI_DEV_MODE` | `false` | Disable enterprise enforcement (forced password change) |
+| `CASSINI_SANDBOX` | `false` | Enable sandbox/devtools mode. **Must be `false` in production.** |
+| `CASSINI_DEV_MODE` | `false` | Disable enterprise enforcement (forced password change). **Must be `false` in production.** |
+| `CASSINI_DB_ENCRYPTION_KEY` | *(auto-generated)* | Fernet key for encrypting database credentials. Persisted to `.db_encryption_key` if not set. **Separate from JWT secret.** |
+| `CASSINI_ALLOWED_DB_PORTS` | `5432,3306,1433` | Comma-separated allowed database ports (SSRF protection). Add non-standard ports if your databases use custom ports. |
+| `CASSINI_VAPID_PRIVATE_KEY` | `""` | VAPID private key for web push notifications |
+| `CASSINI_VAPID_PUBLIC_KEY` | `""` | VAPID public key for web push notifications |
+| `CASSINI_VAPID_CONTACT_EMAIL` | `""` | Contact email for VAPID protocol |
+| `CASSINI_LICENSE_FILE` | `""` | Path to license file (commercial edition) |
+| `CASSINI_LICENSE_PUBLIC_KEY_FILE` | `""` | Path to Ed25519 public key PEM for license verification |
+| `CASSINI_DEV_COMMERCIAL` | `false` | Simulate commercial license in development |
 
 ## Database Support
 
