@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { TrendingUp, Loader2, ChevronDown, ChevronRight, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { HelpTooltip } from '@/components/HelpTooltip'
+import { GuidedEmptyState } from '@/components/GuidedEmptyState'
+import { InterpretResult } from '@/components/InterpretResult'
+import { emptyStates, interpretPrediction } from '@/lib/guidance'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { usePredictionDashboard, useUpdatePredictionConfig } from '@/api/hooks'
@@ -42,16 +46,7 @@ export function PredictionsTab() {
   const items = dashboard ?? []
 
   if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <TrendingUp className="text-muted-foreground/40 h-16 w-16" />
-        <h2 className="text-foreground mt-4 text-lg font-semibold">No Predictions Configured</h2>
-        <p className="text-muted-foreground mt-1 max-w-md text-center text-sm">
-          Enable predictions on individual characteristics from the Configuration page to start
-          forecasting process trends.
-        </p>
-      </div>
-    )
+    return <GuidedEmptyState content={emptyStates.predictions} />
   }
 
   return (
@@ -135,10 +130,12 @@ function PredictionCard({
               {item.characteristic_name}
             </h3>
             {item.predicted_ooc && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                <AlertTriangle className="h-3 w-3" />
-                OOC Predicted
-              </span>
+              <HelpTooltip helpKey="prediction-ooc" triggerAs="span">
+                <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                  <AlertTriangle className="h-3 w-3" />
+                  OOC Predicted
+                </span>
+              </HelpTooltip>
             )}
           </div>
           <div className="text-muted-foreground mt-0.5 flex items-center gap-3 text-xs">
@@ -148,8 +145,9 @@ function PredictionCard({
               </span>
             )}
             {item.aic != null && (
-              <span>
+              <span className="inline-flex items-center gap-1">
                 AIC: <span className="text-foreground font-medium">{item.aic.toFixed(1)}</span>
+                <HelpTooltip helpKey="prediction-aic" />
               </span>
             )}
             {item.last_trained && (
@@ -217,7 +215,7 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
     )
   }
 
-  if (!forecastResult || !forecastResult.forecast || forecastResult.forecast.length === 0) {
+  if (!forecastResult || !forecastResult.points || forecastResult.points.length === 0) {
     return (
       <p className="text-muted-foreground py-4 text-center text-xs">
         {hasForecast
@@ -227,7 +225,7 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
     )
   }
 
-  const forecast = forecastResult.forecast
+  const forecast = forecastResult.points
   const oocPoints = forecast.filter((p) => p.predicted_ooc)
 
   return (
@@ -258,6 +256,15 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
 
       {/* Forecast chart */}
       <PredictionOverlay forecast={forecast} />
+      <InterpretResult
+        interpretation={interpretPrediction({
+          forecastSteps: forecast.length,
+          predictedOOCCount: oocPoints.length,
+          modelType: forecastResult.model_type ?? 'Auto',
+          aic: null,
+        })}
+        className="mt-3"
+      />
     </div>
   )
 }

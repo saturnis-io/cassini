@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { Loader2, Play, Lock } from 'lucide-react'
+import { HelpTooltip } from '@/components/HelpTooltip'
+import { GuidedEmptyState } from '@/components/GuidedEmptyState'
+import { ContextualHint } from '@/components/ContextualHint'
+import { InterpretResult } from '@/components/InterpretResult'
+import { emptyStates, hints, interpretMultivariate } from '@/lib/guidance'
 import { usePlantContext } from '@/providers/PlantProvider'
 import {
   useMultivariateGroups,
@@ -54,6 +59,10 @@ export function MultivariateTab() {
 
   return (
     <div className="space-y-6">
+      {(!groups || (Array.isArray(groups) && groups.length === 0)) && (
+        <GuidedEmptyState content={emptyStates.multivariate} />
+      )}
+
       {/* Group management */}
       <GroupManager
         plantId={plantId}
@@ -69,12 +78,19 @@ export function MultivariateTab() {
         <div className="bg-card border-border rounded-lg border p-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-foreground text-sm font-semibold">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 Hotelling T{'\u00B2'} Chart
+                <HelpTooltip
+                  helpKey={selectedGroup?.chart_type === 'mewma' ? 'chart-type-mewma' : 'hotelling-t2'}
+                />
                 {selectedGroup?.phase && (
-                  <span className="bg-muted text-muted-foreground ml-2 rounded px-2 py-0.5 text-xs font-normal">
-                    {selectedGroup.phase === 'phase_i' ? 'Phase I' : 'Phase II'}
-                  </span>
+                  <HelpTooltip
+                    helpKey={selectedGroup.phase === 'phase_i' ? 'multivariate-phase-i' : 'multivariate-phase-ii'}
+                  >
+                    <span className="bg-muted text-muted-foreground cursor-help rounded px-2 py-0.5 text-xs font-normal">
+                      {selectedGroup.phase === 'phase_i' ? 'Phase I' : 'Phase II'}
+                    </span>
+                  </HelpTooltip>
                 )}
               </h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -82,6 +98,11 @@ export function MultivariateTab() {
                   ? 'MEWMA monitoring chart'
                   : 'Hotelling T-squared monitoring chart'}
               </p>
+              {selectedGroup?.phase === 'phase_i' && (
+                <ContextualHint hintId={hints.multivariatePhaseI.id} className="mt-3">
+                  <strong>Phase I:</strong> {hints.multivariatePhaseI.text}
+                </ContextualHint>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {selectedGroup?.phase === 'phase_i' && (
@@ -126,6 +147,24 @@ export function MultivariateTab() {
                 Click "Compute" to generate the T{'\u00B2'} chart
               </div>
             )}
+            {chartData &&
+              (() => {
+                const points = Array.isArray(chartData) ? chartData : []
+                const oocCount = points.filter(
+                  (p: { in_control?: boolean }) => p.in_control === false,
+                ).length
+                return (
+                  <InterpretResult
+                    interpretation={interpretMultivariate({
+                      oocCount,
+                      totalPoints: points.length,
+                      phase: selectedGroup?.phase ?? 'phase_i',
+                      chartType: selectedGroup?.chart_type ?? 't2',
+                    })}
+                    className="mt-3"
+                  />
+                )
+              })()}
           </div>
         </div>
       )}
@@ -133,12 +172,13 @@ export function MultivariateTab() {
       {/* Decomposition table for selected OOC point */}
       {selectedOOCPoint && selectedOOCPoint.decomposition && (
         <div className="bg-card border-border rounded-lg border p-5">
-          <h3 className="text-foreground text-sm font-semibold">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
             OOC Decomposition
+            <HelpTooltip helpKey="ooc-decomposition" />
           </h3>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Variable contributions for the selected out-of-control point (T{'\u00B2'} ={' '}
-            {selectedOOCPoint.t2_value?.toFixed(2)})
+            {selectedOOCPoint.t_squared?.toFixed(2)})
           </p>
           <div className="mt-3">
             <DecompositionTable decomposition={selectedOOCPoint.decomposition} />

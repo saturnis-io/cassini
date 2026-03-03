@@ -18,6 +18,8 @@ import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { characteristicApi } from '@/api/client'
+import { GuidedEmptyState } from '@/components/GuidedEmptyState'
+import { emptyStates } from '@/lib/guidance'
 import {
   useAnalyzeChart,
   useLatestInsight,
@@ -312,12 +314,7 @@ export function AIInsightsTab() {
               </div>
             )
           ) : !selectedNodeId ? (
-            <EmptyState
-              icon={<FolderTree className="h-10 w-10" />}
-              title="Navigate the Hierarchy"
-              description="Select a node from the tree, or use search to find characteristics across the entire plant."
-              className="py-16"
-            />
+            <GuidedEmptyState content={emptyStates['ai-insights']} className="py-16" />
           ) : nodeCharsLoading ? (
             <LoadingIndicator text="Loading characteristics..." className="py-16" />
           ) : !nodeChars || nodeChars.length === 0 ? (

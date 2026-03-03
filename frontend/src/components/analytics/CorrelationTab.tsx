@@ -6,6 +6,11 @@ import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { characteristicApi } from '@/api/client'
 import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
+import { HelpTooltip } from '@/components/HelpTooltip'
+import { GuidedEmptyState } from '@/components/GuidedEmptyState'
+import { ContextualHint } from '@/components/ContextualHint'
+import { InterpretResult } from '@/components/InterpretResult'
+import { emptyStates, hints, interpretCorrelation } from '@/lib/guidance'
 import { useComputeCorrelation, useCorrelationResults } from '@/api/hooks'
 import { CorrelationHeatmap } from './CorrelationHeatmap'
 import { PCABiplot } from './PCABiplot'
@@ -75,9 +80,16 @@ export function CorrelationTab() {
 
   return (
     <div className="space-y-6">
+      {!activeResult &&
+        (!recentResults || (Array.isArray(recentResults) && recentResults.length === 0)) &&
+        !isLoadingRecent && <GuidedEmptyState content={emptyStates.correlation} />}
+
       {/* Configuration panel */}
       <div className="bg-card border-border rounded-lg border p-5">
-        <h2 className="text-foreground text-base font-semibold">Correlation Analysis</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+          Correlation Analysis
+          <HelpTooltip helpKey="correlation-analysis" />
+        </h2>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Select characteristics to compute correlation matrix and optional PCA
         </p>
@@ -128,7 +140,12 @@ export function CorrelationTab() {
           {/* Method + PCA + Compute */}
           <div className="space-y-3">
             <div>
-              <label className="text-foreground mb-1.5 block text-sm font-medium">Method</label>
+              <label className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+                Method
+                <HelpTooltip
+                  helpKey={method === 'spearman' ? 'correlation-method-spearman' : 'correlation-method-pearson'}
+                />
+              </label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value as 'pearson' | 'spearman')}
@@ -137,6 +154,9 @@ export function CorrelationTab() {
                 <option value="pearson">Pearson</option>
                 <option value="spearman">Spearman</option>
               </select>
+              <ContextualHint hintId={hints.correlationMethod.id} className="mt-2">
+                <strong>Tip:</strong> {hints.correlationMethod.text}
+              </ContextualHint>
             </div>
 
             <label className="flex items-center gap-2 text-sm">
@@ -147,7 +167,13 @@ export function CorrelationTab() {
                 className="accent-primary h-4 w-4 rounded"
               />
               <span className="text-foreground">Include PCA</span>
+              <HelpTooltip helpKey="pca-analysis" />
             </label>
+            {includePCA && (
+              <ContextualHint hintId={hints.correlationPCA.id} className="mt-1">
+                <strong>Tip:</strong> {hints.correlationPCA.text}
+              </ContextualHint>
+            )}
 
             <button
               onClick={handleCompute}
@@ -176,7 +202,10 @@ export function CorrelationTab() {
           {/* Heatmap */}
           {activeResult.matrix && (
             <div className="bg-card border-border rounded-lg border p-5">
-              <h3 className="text-foreground text-sm font-semibold">Correlation Matrix</h3>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                Correlation Matrix
+                <HelpTooltip helpKey="correlation-matrix" />
+              </h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {method === 'pearson' ? 'Pearson' : 'Spearman'} correlation coefficients
               </p>
@@ -186,13 +215,47 @@ export function CorrelationTab() {
                 pValues={activeResult.p_values}
                 sampleCount={activeResult.sample_count}
               />
+              {(() => {
+                const names = activeResult.characteristic_names ?? selectedCharNames
+                const matrix = activeResult.matrix as number[][]
+                let maxR = 0
+                let maxI = 0
+                let maxJ = 1
+                for (let i = 0; i < matrix.length; i++) {
+                  for (let j = i + 1; j < matrix[i].length; j++) {
+                    if (Math.abs(matrix[i][j]) > Math.abs(maxR)) {
+                      maxR = matrix[i][j]
+                      maxI = i
+                      maxJ = j
+                    }
+                  }
+                }
+                const pVal = activeResult.p_values
+                  ? (activeResult.p_values as number[][])[maxI]?.[maxJ]
+                  : undefined
+                return (
+                  <InterpretResult
+                    interpretation={interpretCorrelation({
+                      r: maxR,
+                      pValue: pVal,
+                      method,
+                      label1: String(names[maxI] ?? 'Variable A'),
+                      label2: String(names[maxJ] ?? 'Variable B'),
+                    })}
+                    className="mt-3"
+                  />
+                )
+              })()}
             </div>
           )}
 
           {/* PCA Biplot */}
           {activeResult.pca && (
             <div className="bg-card border-border rounded-lg border p-5">
-              <h3 className="text-foreground text-sm font-semibold">PCA Biplot</h3>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                PCA Biplot
+                <HelpTooltip helpKey="pca-biplot" />
+              </h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 Principal component scores and loading vectors
               </p>
