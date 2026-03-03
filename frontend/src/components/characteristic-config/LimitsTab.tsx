@@ -24,6 +24,7 @@ interface FormData {
   ewma_l: string
   use_laney_correction?: boolean
   short_run_mode?: '' | 'deviation' | 'standardized'
+  sigma_method?: '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range'
 }
 
 interface Characteristic {
@@ -33,6 +34,7 @@ interface Characteristic {
   stored_center_line: number | null
   sample_count?: number
   attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
+  subgroup_size?: number
 }
 
 interface LimitsTabProps {
@@ -758,14 +760,6 @@ export function LimitsTab({
             </div>
           </div>
 
-          {/* Calculation info */}
-          {characteristic.stored_sigma && (
-            <div className="text-muted-foreground text-sm">
-              Based on: {characteristic.sample_count ?? '?'} samples, σ ={' '}
-              {characteristic.stored_sigma.toFixed(4)}
-            </div>
-          )}
-
           {/* Source toggle */}
           <div className="border-border flex overflow-hidden rounded-lg border">
             <button
@@ -799,6 +793,13 @@ export function LimitsTab({
           {/* Calculate from Data mode */}
           {limitSource === 'calculate' && (
             <div className="space-y-4">
+              {characteristic.stored_sigma && (
+                <div className="text-muted-foreground text-sm">
+                  Based on: {characteristic.sample_count ?? '?'} samples, σ ={' '}
+                  {characteristic.stored_sigma.toFixed(4)}
+                </div>
+              )}
+
               <p className="text-muted-foreground text-sm">
                 Control limits are calculated from your sample data and represent the natural
                 process variation.
@@ -945,6 +946,100 @@ export function LimitsTab({
           )}
         </div>
       </AccordionSection>
+
+      {/* Sigma Estimation - Variable data only, default closed */}
+      {dataType === 'variable' && (
+        <AccordionSection id="sigma-estimation" title="Sigma Estimation">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Sigma Estimation Method</label>
+            <div className="space-y-1">
+              {(
+                [
+                  { value: '', label: 'Auto', desc: 'Based on subgroup size', always: true },
+                  {
+                    value: 'moving_range',
+                    label: 'MR̄/d₂',
+                    desc: 'Moving range — individuals only',
+                    always: false,
+                    enabled: (characteristic.subgroup_size ?? 1) === 1,
+                    reason: 'Requires subgroup size = 1',
+                  },
+                  {
+                    value: 'r_bar_d2',
+                    label: 'R̄/d₂',
+                    desc: 'Range-based (subgroups 2–10)',
+                    always: false,
+                    enabled: (characteristic.subgroup_size ?? 1) > 1,
+                    reason: 'Requires subgroup size > 1',
+                  },
+                  {
+                    value: 's_bar_c4',
+                    label: 'S̄/c₄',
+                    desc: 'Std dev-based (any subgroup > 1)',
+                    always: false,
+                    enabled: (characteristic.subgroup_size ?? 1) > 1,
+                    reason: 'Requires subgroup size > 1',
+                  },
+                ] as const
+              ).map((opt) => {
+                const isEnabled = opt.always || opt.enabled
+                const isSelected = (formData.sigma_method ?? '') === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={!isEnabled}
+                    onClick={() => isEnabled && onChange('sigma_method', opt.value)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                      isSelected
+                        ? 'border-primary bg-primary/5 ring-primary/20 ring-1'
+                        : isEnabled
+                          ? 'border-border hover:bg-muted/50'
+                          : 'border-border/50 opacity-40 cursor-not-allowed',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2',
+                        isSelected
+                          ? 'border-primary'
+                          : isEnabled
+                            ? 'border-muted-foreground/40'
+                            : 'border-muted-foreground/20',
+                      )}
+                    >
+                      {isSelected && <div className="bg-primary h-2 w-2 rounded-full" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('font-medium', !isEnabled && 'line-through')}>
+                          {opt.label}
+                        </span>
+                        {!isEnabled && (
+                          <span className="text-muted-foreground text-[10px] italic">
+                            {opt.reason}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground text-xs">{opt.desc}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              {!formData.sigma_method
+                ? 'Auto-selects: MR̄/d₂ for n=1, R̄/d₂ for n≤10, S̄/c₄ for n>10'
+                : formData.sigma_method === 'moving_range'
+                  ? 'Uses consecutive moving ranges divided by d₂ (1.128) for individuals data'
+                  : formData.sigma_method === 'r_bar_d2'
+                    ? 'Uses mean of subgroup ranges divided by d₂. Standard for subgroup sizes 2–10'
+                    : 'Uses mean of subgroup standard deviations divided by c₄. More efficient for larger subgroups'}
+            </p>
+          </div>
+        </AccordionSection>
+      )}
 
       {/* Limit Visualization - Default Closed */}
       <AccordionSection id="visualization" title="Limit Visualization">
