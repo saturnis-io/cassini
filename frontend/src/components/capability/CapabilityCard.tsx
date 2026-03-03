@@ -1,9 +1,12 @@
 import { useCapability, useCapabilityHistory, useSaveCapabilitySnapshot, useNonNormalCapability, useCharacteristic } from '@/api/hooks'
 import { Explainable } from '@/components/Explainable'
+import { InterpretResult } from '@/components/InterpretResult'
+import { ContextualHint } from '@/components/ContextualHint'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
 import { useECharts } from '@/hooks/useECharts'
+import { interpretCapability, hints } from '@/lib/guidance'
 import type { CapabilityResult, CapabilityHistoryItem } from '@/types'
 import { cn } from '@/lib/utils'
 import { Camera, TrendingUp, AlertTriangle, CheckCircle, Info, HelpCircle, BarChart3 } from 'lucide-react'
@@ -354,6 +357,29 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
             </div>
           )
         })()}
+
+        {(() => {
+          const interpretation = interpretCapability({
+            cp: capability.cp,
+            cpk: capability.cpk,
+            pp: capability.pp,
+            ppk: capability.ppk,
+            cpm: capability.cpm,
+          })
+          return <InterpretResult interpretation={interpretation} />
+        })()}
+
+        {capability.cp !== null && capability.cpk !== null && capability.cp - capability.cpk > 0.2 && (
+          <ContextualHint hintId={hints.capabilityCpVsCpk.id}>
+            <strong>Tip:</strong> {hints.capabilityCpVsCpk.text}
+          </ContextualHint>
+        )}
+
+        {capability.cpk !== null && capability.ppk !== null && capability.cpk - capability.ppk > 0.15 && (
+          <ContextualHint hintId={hints.capabilityCpkVsPpk.id}>
+            <strong>Tip:</strong> {hints.capabilityCpkVsPpk.text}
+          </ContextualHint>
+        )}
 
         {/* Cp one-sided spec explanation */}
         {capability.cp === null &&

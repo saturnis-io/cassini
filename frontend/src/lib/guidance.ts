@@ -121,7 +121,7 @@ export function interpretCapability(data: {
   ppk: number | null
   cpm: number | null
 }): Interpretation | null {
-  const { cp, cpk, pp, ppk } = data
+  const { cp, cpk, ppk } = data
   if (cpk === null) return null
 
   const highlights: InterpretHighlight[] = []

@@ -11,6 +11,8 @@ import {
   Shuffle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ContextualHint } from '@/components/ContextualHint'
+import { hints } from '@/lib/guidance'
 import { usePlantContext } from '@/providers/PlantProvider'
 import {
   useDOEStudy,
@@ -27,7 +29,7 @@ import { RunTable } from './RunTable'
 import { ANOVATable } from './ANOVATable'
 import { MainEffectsPlot } from './MainEffectsPlot'
 import { InteractionPlot } from './InteractionPlot'
-import { ParetoChart } from './ParetoChart'
+import { EffectsParetoChart } from './EffectsParetoChart'
 import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 
 // ── Constants ──
@@ -232,6 +234,9 @@ function NewStudyForm() {
               </button>
             ))}
           </div>
+          <ContextualHint hintId={hints.doeDesignType.id} className="mt-2">
+            <strong>Tip:</strong> {hints.doeDesignType.text}
+          </ContextualHint>
         </div>
 
         {/* Resolution (only for fractional factorial) */}
@@ -573,7 +578,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                   adj_r_squared={analysis.adj_r_squared}
                 />
 
-                <ParetoChart
+                <EffectsParetoChart
                   effects={analysis.effects}
                   interactions={analysis.interactions}
                 />
