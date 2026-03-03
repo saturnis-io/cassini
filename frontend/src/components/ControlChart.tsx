@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { graphic } from '@/lib/echarts'
+import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 // ECharts tree-shaken imports are registered in @/lib/echarts
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts'
@@ -10,7 +11,8 @@ import { formatDisplayKey } from '@/lib/display-key'
 import { useLicense } from '@/hooks/useLicense'
 import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { type ChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
@@ -48,34 +50,6 @@ interface ControlChartProps {
   onRegionSelect?: (info: RegionSelection) => void
   /** Highlight a specific sample on the chart (e.g. the inspected violation) */
   highlightSampleId?: number
-}
-
-// Hook to subscribe to chart color changes
-function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
-
-  const updateColors = useCallback(() => {
-    setColors(getStoredChartColors())
-  }, [])
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'cassini-chart-colors' || e.key === 'cassini-chart-preset') {
-        updateColors()
-      }
-    }
-    const handleColorChange = () => updateColors()
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('chart-colors-changed', handleColorChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('chart-colors-changed', handleColorChange)
-    }
-  }, [updateColors])
-
-  return colors
 }
 
 // --- Data point type for the chart ---
@@ -965,7 +939,7 @@ export function ControlChart({
     const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customRenderItem = (_params: any, api: any) => {
+    const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localData.length)
         return { type: 'group', children: [] } as unknown
@@ -1206,6 +1180,8 @@ export function ControlChart({
         axisLabel: {
           fontSize: 12,
           color: axisLabelColor,
+          width: 50,
+          align: 'right' as const,
           formatter: (value: number) => value.toFixed(decimal_precision),
         },
         axisLine: { lineStyle: { color: axisLineColor } },
@@ -1277,8 +1253,8 @@ export function ControlChart({
           type: 'inside' as const,
           ...dataZoomStartEnd,
           minSpan: Math.max((2 / data.length) * 100, 0.5),
-          zoomOnMouseWheel: false,
-          moveOnMouseWheel: false,
+          zoomOnMouseWheel: true,
+          moveOnMouseWheel: 'shift' as const,
           moveOnMouseMove: false,
           preventDefaultMouseMove: false,
         },
@@ -1323,7 +1299,7 @@ export function ControlChart({
                 // data: [x1, yMax, annIdx, x2OrNaN]
                 data: annotationMarkerData.map((entry) => [entry[0], yMax, entry[2], entry[3]]),
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                renderItem: (_params: any, api: any) => {
+                renderItem: (_params: RenderItemParams, api: RenderItemAPI) => {
                   const annColor = localChartColors.annotationColor
                   const x1Coord = api.coord([api.value(0), api.value(1)])
                   const x1Px = x1Coord[0]
@@ -1422,8 +1398,7 @@ export function ControlChart({
                         data: anomalyOverlay.markPoints as never[],
                         tooltip: {
                           show: true,
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          formatter: (params: any) =>
+                          formatter: (params: Record<string, Record<string, string>>) =>
                             params.data?._tooltipHtml ?? '',
                         },
                       }
@@ -1435,10 +1410,9 @@ export function ControlChart({
                         data: anomalyOverlay.markAreas as never[],
                         tooltip: {
                           show: true,
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          formatter: (params: any) => {
+                          formatter: (params: Record<string, unknown>) => {
                             // markArea formatter receives {data} which is the pair array
-                            const item = params.data
+                            const item = params.data as Record<string, string>[] | Record<string, string> | undefined
                             return (
                               item?.[0]?._tooltipHtml ??
                               item?._tooltipHtml ??
@@ -1456,8 +1430,7 @@ export function ControlChart({
                         data: anomalyOverlay.markLines as never[],
                         tooltip: {
                           show: true,
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          formatter: (params: any) =>
+                          formatter: (params: Record<string, Record<string, string>>) =>
                             params.data?._tooltipHtml ?? '',
                         },
                       }

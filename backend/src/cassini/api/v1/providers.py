@@ -3,45 +3,18 @@
 Provides status and control endpoints for data providers (TAG, MQTT).
 """
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_user, get_current_engineer, get_db_session
+from cassini.api.schemas.provider import (
+    MQTTStatusResponse,
+    ProviderStatusResponse,
+    TagProviderStatusResponse,
+)
 from cassini.db.models.user import User
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
-
-
-class TagProviderStatusResponse(BaseModel):
-    """Response schema for TAG provider status."""
-
-    is_running: bool
-    subscribed_topics: list[str]
-    characteristics_count: int
-    samples_processed: int
-    last_sample_time: datetime | None
-    error_message: str | None
-
-
-class MQTTStatusResponse(BaseModel):
-    """Response schema for MQTT connection status."""
-
-    is_connected: bool
-    broker_id: int | None
-    broker_name: str | None
-    last_connected: datetime | None
-    error_message: str | None
-    subscribed_topics: list[str]
-
-
-class ProviderStatusResponse(BaseModel):
-    """Combined provider status response."""
-
-    mqtt: MQTTStatusResponse
-    tag_provider: TagProviderStatusResponse
 
 
 @router.get("/status", response_model=ProviderStatusResponse)

@@ -3,6 +3,7 @@
 All endpoints require admin role. Mutation endpoints are rate-limited and audit-logged.
 """
 
+import re
 import shutil
 import time
 from pathlib import Path
@@ -92,8 +93,8 @@ async def update_config(
     # Validate options whitelist
     try:
         validate_connection_options(data.options)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid connection options")
 
     # Validate port for server dialects
     if data.dialect != DatabaseDialect.SQLITE and data.port not in ALLOWED_PORTS:
@@ -162,8 +163,8 @@ async def test_connection(
     # Validate options
     try:
         validate_connection_options(data.options)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid connection options")
 
     # Port validation for server dialects
     if data.dialect != DatabaseDialect.SQLITE and data.port not in ALLOWED_PORTS:
@@ -417,9 +418,15 @@ async def backup_database(
 
         # Determine backup destination directory
         if backup_dir:
-            dest_dir = Path(backup_dir)
+            dest_dir = Path(backup_dir).resolve()
+            allowed_base = source.parent.resolve()
+            if not str(dest_dir).startswith(str(allowed_base)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Backup directory must be within the database directory",
+                )
             if not dest_dir.is_dir():
-                raise HTTPException(status_code=400, detail=f"Backup directory does not exist: {backup_dir}")
+                raise HTTPException(status_code=400, detail="Backup directory does not exist")
         else:
             dest_dir = source.parent
 
@@ -502,6 +509,9 @@ async def vacuum_database(
             )
             tables = [row[0] for row in result]
             for table in tables:
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):
+                    logger.warning("skipping_suspicious_table_name", table=table)
+                    continue
                 await session.execute(text(f"OPTIMIZE TABLE `{table}`"))
             return {"message": f"OPTIMIZE TABLE completed for {len(tables)} tables"}
 

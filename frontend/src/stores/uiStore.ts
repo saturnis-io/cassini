@@ -7,7 +7,7 @@ import { persist } from 'zustand/middleware'
  * - collapsed: Icons only (56px)
  * - hidden: Not visible (mobile overlay mode)
  */
-export type SidebarState = 'expanded' | 'collapsed' | 'hidden'
+type SidebarState = 'expanded' | 'collapsed' | 'hidden'
 
 interface UIState {
   // Sidebar state (desktop)

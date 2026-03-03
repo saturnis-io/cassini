@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { init } from '@/lib/echarts'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface MainEffectsPlotProps {
   effects: {
@@ -22,11 +23,22 @@ const COLORS = [
 
 export function MainEffectsPlot({ effects, grandMean }: MainEffectsPlotProps) {
   const chartRef = useRef<HTMLDivElement>(null)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   useEffect(() => {
     if (!chartRef.current || effects.length === 0) return
 
     const chart = init(chartRef.current)
+
+    // Theme-aware colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : 'hsl(220, 15%, 40%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
 
     // Each factor gets a line from Low to High
     // Y at Low = grandMean - effect/2, Y at High = grandMean + effect/2
@@ -54,6 +66,9 @@ export function MainEffectsPlot({ effects, grandMean }: MainEffectsPlotProps) {
     chart.setOption({
       tooltip: {
         trigger: 'item',
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipTextColor },
         formatter: (params: { seriesName?: string; data?: [string, number] }) => {
           if (!params.data) return ''
           const [level, value] = params.data
@@ -70,13 +85,18 @@ export function MainEffectsPlot({ effects, grandMean }: MainEffectsPlotProps) {
       xAxis: {
         type: 'category',
         data: ['Low', 'High'],
-        axisLabel: { fontSize: 12, fontWeight: 'bold' },
+        axisLabel: { fontSize: 12, fontWeight: 'bold', color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
       },
       yAxis: {
         type: 'value',
         name: 'Mean Response',
         nameLocation: 'middle',
         nameGap: 45,
+        nameTextStyle: { color: axisNameColor },
+        axisLabel: { color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { color: splitLineColor } },
         min: minY - padding,
         max: maxY + padding,
       },
@@ -90,7 +110,7 @@ export function MainEffectsPlot({ effects, grandMean }: MainEffectsPlotProps) {
       ro.disconnect()
       chart.dispose()
     }
-  }, [effects, grandMean])
+  }, [effects, grandMean, isDark])
 
   if (effects.length === 0) {
     return (

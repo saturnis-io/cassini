@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useECharts } from '@/hooks/useECharts'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface PCAData {
   /** Explained variance ratio per component [pc1_ratio, pc2_ratio, ...] */
@@ -23,8 +24,20 @@ interface PCABiplotProps {
  * Loading vectors drawn from origin as arrows with labels.
  */
 export function PCABiplot({ pca }: PCABiplotProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   const option = useMemo(() => {
     if (!pca) return null
+
+    // Theme-aware colors
+    const scatterColor = isDark ? 'hsl(210, 90%, 65%)' : '#3b82f6'
+    const loadingColor = isDark ? 'hsl(32, 90%, 60%)' : '#f97316'
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : undefined
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
 
     const varRatio = pca.explained_variance_ratio ?? []
     const pc1Pct = varRatio[0] != null ? (varRatio[0] * 100).toFixed(1) : '?'
@@ -69,7 +82,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
         type: 'line',
         shape: { x1: 0, y1: 0, x2: lx, y2: ly },
         style: {
-          stroke: '#f97316',
+          stroke: loadingColor,
           lineWidth: 2,
         },
       })
@@ -81,7 +94,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
           text: name.length > 15 ? name.slice(0, 13) + '..' : name,
           x: lx,
           y: ly,
-          fill: '#f97316',
+          fill: loadingColor,
           fontSize: 11,
           fontWeight: 'bold',
         },
@@ -92,7 +105,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
     // (Since graphic elements don't convert chart coords, use markLine from the series)
     const loadingMarkLines = loadings.map((row, i) => ({
       silent: true,
-      lineStyle: { color: '#f97316', width: 2, type: 'solid' as const },
+      lineStyle: { color: loadingColor, width: 2, type: 'solid' as const },
       symbol: ['none', 'arrow'],
       symbolSize: 8,
       label: {
@@ -103,7 +116,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
             : featureNames[i]
           : `Var ${i + 1}`,
         fontSize: 10,
-        color: '#f97316',
+        color: loadingColor,
         fontWeight: 'bold' as const,
       },
       data: [
@@ -117,6 +130,9 @@ export function PCABiplot({ pca }: PCABiplotProps) {
     return {
       tooltip: {
         trigger: 'item' as const,
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipTextColor, fontSize: 12 },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const d = params.data as [number, number]
@@ -134,16 +150,18 @@ export function PCABiplot({ pca }: PCABiplotProps) {
         name: `PC1 (${pc1Pct}%)`,
         nameLocation: 'center' as const,
         nameGap: 30,
-        nameTextStyle: { fontSize: 12, fontWeight: 'bold' as const },
-        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3 } },
+        nameTextStyle: { fontSize: 12, fontWeight: 'bold' as const, color: axisLabelColor },
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3, color: splitLineColor } },
       },
       yAxis: {
         type: 'value' as const,
         name: `PC2 (${pc2Pct}%)`,
         nameLocation: 'center' as const,
         nameGap: 40,
-        nameTextStyle: { fontSize: 12, fontWeight: 'bold' as const },
-        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3 } },
+        nameTextStyle: { fontSize: 12, fontWeight: 'bold' as const, color: axisLabelColor },
+        axisLabel: { color: axisLabelColor },
+        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3, color: splitLineColor } },
       },
       series: [
         {
@@ -152,14 +170,14 @@ export function PCABiplot({ pca }: PCABiplotProps) {
           data: scoreData,
           symbolSize: 6,
           itemStyle: {
-            color: '#3b82f6',
+            color: scatterColor,
             opacity: 0.7,
           },
           markLine: {
             silent: true,
             animation: false,
             data: loadingMarkLines.flatMap((ml) => ml.data),
-            lineStyle: { color: '#f97316', width: 2, type: 'solid' as const },
+            lineStyle: { color: loadingColor, width: 2, type: 'solid' as const },
             symbol: ['none', 'arrow'],
             symbolSize: 8,
             label: { show: false },
@@ -176,7 +194,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
             animation: false,
             symbol: ['none', 'arrow'],
             symbolSize: 8,
-            lineStyle: { color: '#f97316', width: 2, type: 'solid' as const },
+            lineStyle: { color: loadingColor, width: 2, type: 'solid' as const },
             label: {
               show: true,
               formatter: featureNames[i]
@@ -185,7 +203,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
                   : featureNames[i]
                 : `Var ${i + 1}`,
               fontSize: 10,
-              color: '#f97316',
+              color: loadingColor,
               fontWeight: 'bold' as const,
               position: 'end' as const,
             },
@@ -204,7 +222,7 @@ export function PCABiplot({ pca }: PCABiplotProps) {
         })),
       ],
     }
-  }, [pca])
+  }, [pca, isDark])
 
   const { containerRef } = useECharts({ option })
 

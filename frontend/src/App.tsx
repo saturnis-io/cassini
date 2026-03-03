@@ -60,6 +60,7 @@ import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PlantProvider } from '@/providers/PlantProvider'
 import { AuthProvider, useAuth } from '@/providers/AuthProvider'
 import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useLicense } from '@/hooks/useLicense'
 import { UpgradePage } from '@/pages/UpgradePage'
@@ -223,8 +224,8 @@ function App() {
               >
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<OperatorDashboard />} />
-                <Route path="data-entry" element={<DataEntryView />} />
-                <Route path="violations" element={<ViolationsView />} />
+                <Route path="data-entry" element={<ErrorBoundary><DataEntryView /></ErrorBoundary>} />
+                <Route path="violations" element={<ErrorBoundary><ViolationsView /></ErrorBoundary>} />
                 <Route
                   path="reports"
                   element={
@@ -237,7 +238,9 @@ function App() {
                   path="connectivity"
                   element={
                     <ProtectedRoute requiredRole="engineer">
-                      <ConnectivityPage />
+                      <ErrorBoundary>
+                        <ConnectivityPage />
+                      </ErrorBoundary>
                     </ProtectedRoute>
                   }
                 >
@@ -274,7 +277,9 @@ function App() {
                   path="configuration"
                   element={
                     <ProtectedRoute requiredRole="engineer">
-                      <ConfigurationView />
+                      <ErrorBoundary>
+                        <ConfigurationView />
+                      </ErrorBoundary>
                     </ProtectedRoute>
                   }
                 />
@@ -283,7 +288,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <MSAPage />
+                        <ErrorBoundary>
+                          <MSAPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -303,7 +310,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <FAIPage />
+                        <ErrorBoundary>
+                          <FAIPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -323,7 +332,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <AnalyticsPage />
+                        <ErrorBoundary>
+                          <AnalyticsPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -333,7 +344,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <DOEPage />
+                        <ErrorBoundary>
+                          <DOEPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -358,7 +371,7 @@ function App() {
                     </RequireCommercial>
                   }
                 />
-                <Route path="settings" element={<SettingsPage />}>
+                <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>}>
                   <Route index element={<Navigate to="account" replace />} />
                   <Route path="account" element={<AccountSettings />} />
                   <Route path="appearance" element={<AppearanceSettings />} />
@@ -526,7 +539,9 @@ function App() {
                 path="/galaxy"
                 element={
                   <AuthenticatedDisplayMode>
-                    <GalaxyPage />
+                    <ErrorBoundary>
+                      <GalaxyPage />
+                    </ErrorBoundary>
                   </AuthenticatedDisplayMode>
                 }
               />

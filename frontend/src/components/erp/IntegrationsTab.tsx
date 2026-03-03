@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Loader2, Building2 } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { hasAccess } from '@/lib/roles'
 import { useERPConnectors } from '@/api/hooks'
 import { ConnectorCard } from './ConnectorCard'
@@ -13,7 +13,7 @@ import { ConnectorWizard } from './ConnectorWizard'
  */
 export function IntegrationsTab() {
   const { role } = useAuth()
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const plantId = selectedPlantId ?? 0
   const { data: connectors, isLoading } = useERPConnectors(plantId)
   const [showWizard, setShowWizard] = useState(false)

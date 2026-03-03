@@ -189,8 +189,9 @@ async def explain_capability_metric(
     collector = ExplanationCollector()
     if has_chart_options:
         collector.warn(
-            "Using sample \u03c3 of subgroup means to match the dashboard display. "
-            "Cp/Cpk will equal Pp/Ppk."
+            "Dashboard view: using sample \u03c3 of subgroup means, so Cp/Cpk will "
+            "equal Pp/Ppk.  For AIAG-correct Cp/Cpk (within-subgroup \u03c3), "
+            "see the Capability Card which uses stored \u03c3_w (R-bar/d2)."
         )
     elif sigma_fallback:
         collector.warn(

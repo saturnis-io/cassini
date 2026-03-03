@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { Plus, Search, Link2, Loader2 } from 'lucide-react'
 import { tagApi, characteristicApi } from '@/api/client'
 import { useHierarchyTree } from '@/api/hooks'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import type { HierarchyNode } from '@/types'
 import { MappingTable } from './MappingTable'
 import { MappingDialog } from './MappingDialog'
@@ -20,7 +20,7 @@ type FilterOption = 'all' | 'mqtt' | 'opcua' | 'unmapped'
  */
 export function MappingTab() {
   const queryClient = useQueryClient()
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const [filter, setFilter] = useState<FilterOption>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)

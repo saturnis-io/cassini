@@ -4,12 +4,12 @@ import {
   Plus,
   Trash2,
   Loader2,
-  Users,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { characteristicApi } from '@/api/client'
 import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
+import { HelpTooltip } from '@/components/HelpTooltip'
 import {
   useMultivariateGroups,
   useCreateMultivariateGroup,
@@ -51,7 +51,10 @@ export function GroupManager({ plantId, selectedGroupId, onSelectGroup }: GroupM
     <div className="bg-card border-border rounded-lg border p-5">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-foreground text-sm font-semibold">Multivariate Groups</h3>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            Multivariate Groups
+            <HelpTooltip helpKey="multivariate-groups" />
+          </h3>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Define groups of correlated characteristics for T{'\u00B2'} monitoring
           </p>
@@ -76,61 +79,93 @@ export function GroupManager({ plantId, selectedGroupId, onSelectGroup }: GroupM
           No multivariate groups yet. Create one to get started.
         </p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {groupList.map((group) => (
-            <div
-              key={group.id}
-              onClick={() => onSelectGroup(group.id)}
-              className={cn(
-                'cursor-pointer rounded-lg border p-4 transition-colors',
-                selectedGroupId === group.id
-                  ? 'border-primary bg-primary/5 shadow-sm'
-                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 flex-1">
+        <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+          {groupList.map((group) => {
+            const members = group.members ?? []
+            const memberInfo = members
+              .map((m: { characteristic_name?: string; hierarchy_path?: string }) => ({
+                name: m.characteristic_name ?? '',
+                path: m.hierarchy_path ?? '',
+              }))
+              .filter((m) => m.name)
+
+            return (
+              <div
+                key={group.id}
+                onClick={() => onSelectGroup(group.id)}
+                className={cn(
+                  'cursor-pointer rounded-lg border px-3 py-2.5 transition-colors',
+                  selectedGroupId === group.id
+                    ? 'border-primary bg-primary/5 shadow-sm'
+                    : 'border-border hover:border-primary/50 hover:bg-muted/30',
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
                   <h4 className="text-foreground truncate text-sm font-medium">{group.name}</h4>
-                  {group.description && (
-                    <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                      {group.description}
-                    </p>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                      {group.chart_type === 'mewma' ? 'MEWMA' : 'T\u00B2'}
+                    </span>
+                    {group.phase && (
+                      <span
+                        className={cn(
+                          'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                          group.phase === 'phase_ii'
+                            ? 'bg-success/10 text-success'
+                            : 'bg-primary/10 text-primary',
+                        )}
+                      >
+                        {group.phase === 'phase_i' ? 'Phase I' : 'Phase II'}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteConfirmId(group.id)
+                      }}
+                      className="text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline params + member count */}
+                <div className="text-muted-foreground mt-1 flex items-center gap-3 text-[11px]">
+                  <span>
+                    {group.chart_type === 'mewma' ? '\u03BB' : '\u03B1'}{' '}
+                    <span className="text-foreground font-medium">
+                      {group.chart_type === 'mewma' ? group.lambda_param : group.alpha}
+                    </span>
+                  </span>
+                  <span>
+                    Min{' '}
+                    <span className="text-foreground font-medium">{group.min_samples ?? 100}</span>
+                  </span>
+                  {memberInfo.length > 0 && (
+                    <span className="text-muted-foreground/70">
+                      {memberInfo.length} char{memberInfo.length !== 1 && 's'}
+                    </span>
                   )}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDeleteConfirmId(group.id)
-                  }}
-                  className="text-muted-foreground hover:text-destructive ml-2 shrink-0 rounded p-1 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
 
-              <div className="mt-3 flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <Users className="h-3 w-3" />
-                  {group.characteristic_ids?.length ?? 0} chars
-                </span>
-                <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
-                  {group.chart_type ?? 't2'}
-                </span>
-                {group.phase && (
-                  <span
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                      group.phase === 'phase_ii'
-                        ? 'bg-green-500/10 text-green-600'
-                        : 'bg-blue-500/10 text-blue-600',
-                    )}
-                  >
-                    {group.phase === 'phase_i' ? 'Phase I' : 'Phase II'}
-                  </span>
+                {/* Member names — compact inline list */}
+                {memberInfo.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {memberInfo.map((m, i) => (
+                      <span
+                        key={i}
+                        title={m.path || m.name}
+                        className="bg-muted text-muted-foreground cursor-default rounded px-1.5 py-0.5 text-[10px]"
+                      >
+                        {m.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -186,7 +221,7 @@ function CreateGroupDialog({
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [chartType, setChartType] = useState('t2')
+  const [chartType, setChartType] = useState('t_squared')
   const [selectedCharIds, setSelectedCharIds] = useState<number[]>([])
 
   const createMutation = useCreateMultivariateGroup()
@@ -258,13 +293,16 @@ function CreateGroupDialog({
 
           {/* Chart type */}
           <div>
-            <label className="text-foreground mb-1.5 block text-sm font-medium">Chart Type</label>
+            <label className="text-foreground mb-1.5 flex items-center gap-2 text-sm font-medium">
+              Chart Type
+              <HelpTooltip helpKey={chartType === 'mewma' ? 'chart-type-mewma' : 'hotelling-t2'} />
+            </label>
             <select
               value={chartType}
               onChange={(e) => setChartType(e.target.value)}
               className="bg-background border-border text-foreground w-full rounded-lg border px-3 py-2 text-sm"
             >
-              <option value="t2">Hotelling T{'\u00B2'}</option>
+              <option value="t_squared">Hotelling T{'\u00B2'}</option>
               <option value="mewma">MEWMA</option>
             </select>
           </div>

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { characteristicApi, dataEntryApi } from '../characteristics.api'
 import { queryKeys, CHART_DATA_REFETCH_MS } from './queryKeys'
+import { handleMutationError } from './utils'
 import { useHierarchyTree } from './hierarchy'
 import type { Characteristic, HierarchyNode } from '@/types'
 
@@ -88,9 +89,7 @@ export function useCreateCharacteristic() {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create characteristic: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create characteristic'),
   })
 }
 
@@ -101,6 +100,7 @@ export function useChartData(
     startDate?: string
     endDate?: string
     productCode?: string
+    chartType?: string
   },
   config?: {
     /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
@@ -114,6 +114,7 @@ export function useChartData(
       options?.startDate,
       options?.endDate,
       options?.productCode,
+      options?.chartType,
     ),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: id > 0,
@@ -132,9 +133,7 @@ export function useDeleteCharacteristic() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Characteristic deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete characteristic'),
   })
 }
 
@@ -162,9 +161,7 @@ export function useSubmitAttributeData() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Attribute data submitted')
     },
-    onError: (error: Error) => {
-      toast.error(`Submit failed: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to submit attribute data'),
   })
 }
 
@@ -193,9 +190,7 @@ export function useRecalculateLimits() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Control limits recalculated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to recalculate limits: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to recalculate limits'),
   })
 }
 
@@ -218,9 +213,7 @@ export function useSetManualLimits() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Control limits set manually')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to set limits: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to set control limits'),
   })
 }
 
@@ -245,9 +238,7 @@ export function useUpdateCharacteristic() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Characteristic saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save characteristic'),
   })
 }
 
@@ -267,9 +258,7 @@ export function useChangeMode() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success(`Mode changed to ${data.new_mode} (${data.samples_migrated} samples migrated)`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to change mode: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to change mode'),
   })
 }
 
@@ -300,9 +289,7 @@ export function useUpdateNelsonRules() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Nelson rules updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update rules: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update Nelson rules'),
   })
 }
 
@@ -329,8 +316,6 @@ export function useUpdateCharacteristicConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Configuration saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save config: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save configuration'),
   })
 }

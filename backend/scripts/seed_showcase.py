@@ -145,6 +145,18 @@ def gen_binomial(n: int, trials: int, prob: float, seed: int | None = None) -> l
     return [sum(1 for _ in range(trials) if random.random() < prob) for _ in range(n)]
 
 
+def gen_correlated_pairs(
+    n: int, mean1: float, std1: float, mean2: float, std2: float, correlation: float,
+) -> tuple[list[float], list[float]]:
+    """Generate n bivariate correlated normal samples via Cholesky decomposition."""
+    z1 = [random.gauss(0, 1) for _ in range(n)]
+    z2 = [random.gauss(0, 1) for _ in range(n)]
+    x = [mean1 + std1 * z for z in z1]
+    rho_comp = math.sqrt(1 - correlation ** 2)
+    y = [mean2 + std2 * (correlation * z1[i] + rho_comp * z2[i]) for i in range(n)]
+    return x, y
+
+
 # ── Dummy server helper ─────────────────────────────────────────────────
 
 def api_call(method: str, path: str, body: dict | None = None) -> tuple[bool, str]:
@@ -1239,6 +1251,114 @@ def seed_narrative_arcs(cur: sqlite3.Cursor) -> None:
                       sample_count=500, p_value=0.68, calc_by="eng.pharma")
 
     IDS["tablet_weight_samples"] = samples
+
+
+def seed_correlated_overrides(cur: sqlite3.Cursor) -> None:
+    """Replace independently-generated sibling samples with correlated data.
+
+    Uses Cholesky conditioning: given observed anchor values z_anchor, generate
+    sibling values z_sibling = r * z_anchor + sqrt(1 - r^2) * z_independent.
+
+    Must run AFTER seed_variable_samples() and seed_narrative_arcs() but BEFORE
+    replay_spc_violations() so violations are computed on the correlated data.
+    """
+
+    def _delete_samples(char_id: int) -> None:
+        cur.execute(
+            "DELETE FROM measurement WHERE sample_id IN "
+            "(SELECT id FROM sample WHERE char_id = ?)", (char_id,))
+        cur.execute("DELETE FROM sample WHERE char_id = ?", (char_id,))
+
+    def _read_anchor(char_id: int) -> list[tuple[str, float]]:
+        """Read (timestamp, value) pairs for an I-MR anchor characteristic."""
+        cur.execute("""
+            SELECT s.timestamp, m.value
+            FROM sample s JOIN measurement m ON m.sample_id = s.id
+            WHERE s.char_id = ? AND s.is_excluded = 0
+            ORDER BY s.timestamp
+        """, (char_id,))
+        return cur.fetchall()
+
+    # ── Group A: Tablet Press (RTP) ──────────────────────────────────────
+    # Anchor: tablet_weight (narrative arc, 42-day span, ~200.0 ± 0.50)
+    # Siblings: tablet_hardness (~8.0 ± 0.9), tablet_thickness (~4.00 ± 0.04)
+    # Correlations: weight↔hardness r=0.65, weight↔thickness r=0.75
+    weight_rows = _read_anchor(IDS["tablet_weight"])
+    if weight_rows:
+        _delete_samples(IDS["tablet_hardness"])
+        _delete_samples(IDS["tablet_thickness"])
+
+        w_mean, w_std = 200.0, 0.50
+        h_mean, h_std, r_wh = 8.0, 0.9, 0.65
+        t_mean, t_std, r_wt = 4.00, 0.04, 0.75
+        rho_h = math.sqrt(1 - r_wh ** 2)
+        rho_t = math.sqrt(1 - r_wt ** 2)
+
+        for ts, w_val in weight_rows:
+            z_w = (w_val - w_mean) / w_std
+            h_val = h_mean + h_std * (r_wh * z_w + rho_h * random.gauss(0, 1))
+            t_val = t_mean + t_std * (r_wt * z_w + rho_t * random.gauss(0, 1))
+            insert_sample(cur, IDS["tablet_hardness"], ts, values=[h_val])
+            insert_sample(cur, IDS["tablet_thickness"], ts, values=[t_val])
+
+    # ── Group B: Autoclave (Wichita) ─────────────────────────────────────
+    # Anchor: cure_temp (narrative arc, 60-day span, ~177.0 ± 0.30)
+    # Sibling: cure_pressure (~85.0 ± 0.9), r=0.80
+    temp_rows = _read_anchor(IDS["cure_temp"])
+    if temp_rows:
+        _delete_samples(IDS["cure_pressure"])
+
+        tp_mean, tp_std = 177.0, 0.30
+        pr_mean, pr_std, r_tp = 85.0, 0.9, 0.80
+        rho_p = math.sqrt(1 - r_tp ** 2)
+
+        for ts, t_val in temp_rows:
+            z_t = (t_val - tp_mean) / tp_std
+            p_val = pr_mean + pr_std * (r_tp * z_t + rho_p * random.gauss(0, 1))
+            insert_sample(cur, IDS["cure_pressure"], ts, values=[p_val])
+
+    # ── Group C: QC Lab (RTP) ────────────────────────────────────────────
+    # Replace both assay_pct and impurity_level with correlated values.
+    # assay ↔ impurity r=-0.70 (higher purity → lower impurities)
+    cur.execute(
+        "SELECT timestamp FROM sample WHERE char_id = ? ORDER BY timestamp",
+        (IDS["assay_pct"],))
+    assay_ts = [r[0] for r in cur.fetchall()]
+
+    if assay_ts:
+        _delete_samples(IDS["assay_pct"])
+        _delete_samples(IDS["impurity_level"])
+
+        n = len(assay_ts)
+        assay_vals, imp_vals = gen_correlated_pairs(
+            n, 99.70, 0.30, 0.10, 0.04, -0.70)
+
+        for i in range(n):
+            a = max(98.5, min(101.5, assay_vals[i]))
+            imp = max(0.0, imp_vals[i])
+            insert_sample(cur, IDS["assay_pct"], assay_ts[i], values=[a])
+            insert_sample(cur, IDS["impurity_level"], assay_ts[i], values=[imp])
+
+    # ── Group D: Surface Grinder (Detroit) ───────────────────────────────
+    # Anchor: surface_finish (Weibull, 90-day span)
+    # Sibling: flatness (~0.015 ± 0.003), r=0.55
+    finish_rows = _read_anchor(IDS["surface_finish"])
+    if finish_rows:
+        _delete_samples(IDS["flatness"])
+
+        f_vals = [r[1] for r in finish_rows]
+        f_mean = sum(f_vals) / len(f_vals)
+        f_std = math.sqrt(sum((v - f_mean) ** 2 for v in f_vals) / len(f_vals))
+
+        fl_mean, fl_std, r_ff = 0.015, 0.003, 0.55
+        rho_f = math.sqrt(1 - r_ff ** 2)
+
+        for ts, sf_val in finish_rows:
+            z_sf = (sf_val - f_mean) / max(f_std, 1e-10)
+            flat = max(0.0, fl_mean + fl_std * (r_ff * z_sf + rho_f * random.gauss(0, 1)))
+            insert_sample(cur, IDS["flatness"], ts, values=[flat])
+
+    print(f"  Correlated overrides applied for 4 groups (7 characteristics)")
 
 
 # ── Wave 3: Violations, Capability History, Annotations ──────────────────
@@ -2666,6 +2786,312 @@ def seed_compliance(cur: sqlite3.Cursor) -> None:
              json.dumps(detail), "10.0.1.1", "Mozilla/5.0 Chrome/122.0", ts))
 
 
+# ── Wave 7: Analytics — Multivariate, Predictions, DOE, AI ────────────────
+
+
+def seed_analytics(cur: sqlite3.Cursor) -> None:
+    """Seed multivariate groups, prediction configs, DOE studies, and AI insights."""
+    now = utcnow()
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Multivariate Groups
+    # ══════════════════════════════════════════════════════════════════════
+
+    # Group 1: Tablet Press Monitor (RTP, 3 characteristics)
+    cur.execute("""INSERT INTO multivariate_group
+        (plant_id, name, description, chart_type, lambda_param, alpha, phase,
+         min_samples, is_active, created_at, updated_at)
+        VALUES (?, 'Tablet Press Monitor',
+                'Monitors weight, hardness, and thickness correlations on Press 501',
+                't_squared', 0.1, 0.0027, 'phase_ii', 30, 1, ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+    mv_group1 = cur.lastrowid
+
+    for i, key in enumerate(["tablet_weight", "tablet_hardness", "tablet_thickness"]):
+        cur.execute("""INSERT INTO multivariate_group_member
+            (group_id, characteristic_id, display_order)
+            VALUES (?, ?, ?)""", (mv_group1, IDS[key], i))
+
+    # Group 2: Autoclave Monitor (Wichita, 2 characteristics)
+    cur.execute("""INSERT INTO multivariate_group
+        (plant_id, name, description, chart_type, lambda_param, alpha, phase,
+         min_samples, is_active, created_at, updated_at)
+        VALUES (?, 'Autoclave Monitor',
+                'Temperature and pressure correlation on Autoclave Alpha',
+                't_squared', 0.1, 0.0027, 'phase_ii', 30, 1, ?, ?)""",
+        (IDS["ict_plant"], now, now))
+    mv_group2 = cur.lastrowid
+
+    for i, key in enumerate(["cure_temp", "cure_pressure"]):
+        cur.execute("""INSERT INTO multivariate_group_member
+            (group_id, characteristic_id, display_order)
+            VALUES (?, ?, ?)""", (mv_group2, IDS[key], i))
+
+    # Group 3: QC Lab (RTP, 2 characteristics — negative correlation)
+    cur.execute("""INSERT INTO multivariate_group
+        (plant_id, name, description, chart_type, lambda_param, alpha, phase,
+         min_samples, is_active, created_at, updated_at)
+        VALUES (?, 'QC Lab Purity Monitor',
+                'Assay vs impurity negative correlation for batch release',
+                'mewma', 0.15, 0.0027, 'phase_ii', 30, 1, ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+    mv_group3 = cur.lastrowid
+
+    for i, key in enumerate(["assay_pct", "impurity_level"]):
+        cur.execute("""INSERT INTO multivariate_group_member
+            (group_id, characteristic_id, display_order)
+            VALUES (?, ?, ?)""", (mv_group3, IDS[key], i))
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Prediction Configs + Pre-trained Models + Forecasts
+    # ══════════════════════════════════════════════════════════════════════
+
+    # Config 1: Bolt Torque (Detroit, drift pattern — ideal for forecasting)
+    cur.execute("""INSERT INTO prediction_config
+        (characteristic_id, is_enabled, model_type, forecast_horizon,
+         refit_interval, confidence_levels, created_at, updated_at)
+        VALUES (?, 1, 'exponential_smoothing', 20, 50, '[0.8, 0.95]', ?, ?)""",
+        (IDS["bolt_torque"], now, now))
+
+    cur.execute("""INSERT INTO prediction_model
+        (characteristic_id, model_type, model_params, aic, training_samples,
+         fitted_at, is_current)
+        VALUES (?, 'exponential_smoothing', ?, 152.3, 200, ?, 1)""",
+        (IDS["bolt_torque"],
+         json.dumps({"alpha": 0.15, "beta": 0.02, "type": "holt"}), now))
+    model1 = cur.lastrowid
+
+    # 20 forecast points (bolt_torque drifts from ~45.0 at 0.003/sample)
+    base_fc = 46.5
+    for step in range(1, 21):
+        pred = base_fc + 0.03 * step
+        sigma_s = 1.2 * math.sqrt(step)
+        ooc = pred > 48.0
+        cur.execute("""INSERT INTO forecast
+            (model_id, characteristic_id, step, predicted_value,
+             lower_80, upper_80, lower_95, upper_95, predicted_ooc, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (model1, IDS["bolt_torque"], step,
+             round(pred, 3),
+             round(pred - 1.28 * sigma_s, 3), round(pred + 1.28 * sigma_s, 3),
+             round(pred - 1.96 * sigma_s, 3), round(pred + 1.96 * sigma_s, 3),
+             1 if ooc else 0, now))
+
+    # Config 2: Dissolution (RTP, drift pattern)
+    cur.execute("""INSERT INTO prediction_config
+        (characteristic_id, is_enabled, model_type, forecast_horizon,
+         refit_interval, confidence_levels, created_at, updated_at)
+        VALUES (?, 1, 'auto', 20, 50, '[0.8, 0.95]', ?, ?)""",
+        (IDS["dissolution"], now, now))
+
+    cur.execute("""INSERT INTO prediction_model
+        (characteristic_id, model_type, model_params, aic, training_samples,
+         fitted_at, is_current)
+        VALUES (?, 'arima', ?, 185.7, 200, ?, 1)""",
+        (IDS["dissolution"],
+         json.dumps({"order": [1, 1, 1], "seasonal_order": [0, 0, 0, 0]}), now))
+    model2 = cur.lastrowid
+
+    base_diss = 86.0
+    for step in range(1, 21):
+        pred = base_diss + 0.02 * step
+        sigma_s = 2.0 * math.sqrt(step)
+        cur.execute("""INSERT INTO forecast
+            (model_id, characteristic_id, step, predicted_value,
+             lower_80, upper_80, lower_95, upper_95, predicted_ooc, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+            (model2, IDS["dissolution"], step,
+             round(pred, 3),
+             round(pred - 1.28 * sigma_s, 3), round(pred + 1.28 * sigma_s, 3),
+             round(pred - 1.96 * sigma_s, 3), round(pred + 1.96 * sigma_s, 3),
+             now))
+
+    # ══════════════════════════════════════════════════════════════════════
+    # DOE Study (Detroit, Full Factorial 2^3, Analyzed)
+    # ══════════════════════════════════════════════════════════════════════
+
+    cur.execute("""INSERT INTO doe_study
+        (plant_id, name, design_type, resolution, status, response_name, response_unit,
+         notes, created_by, created_at, updated_at)
+        VALUES (?, 'Injection Molding Optimization', 'full_factorial', NULL, 'analyzed',
+                'Tensile Strength', 'MPa',
+                'Full 2^3 factorial to optimize tensile strength of injection-molded housings.',
+                ?, ?, ?)""",
+        (IDS["det_plant"], IDS["eng_det"], now, now))
+    study_id = cur.lastrowid
+
+    factors_def = [
+        ("Temperature", 180.0, 220.0, 200.0, "°C", 1),
+        ("Pressure", 40.0, 60.0, 50.0, "bar", 2),
+        ("Cooling Rate", 5.0, 15.0, 10.0, "°C/min", 3),
+    ]
+    for name, low, high, center, unit, order in factors_def:
+        cur.execute("""INSERT INTO doe_factor
+            (study_id, name, low_level, high_level, center_point, unit, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (study_id, name, low, high, center, unit, order))
+
+    # 8 runs (2^3): model y = 65 + 5*x1 + 3*x2 - 2*x3 + 1.5*x1*x2 - 0.8*x1*x3
+    design = [
+        (-1, -1, -1), (+1, -1, -1), (-1, +1, -1), (+1, +1, -1),
+        (-1, -1, +1), (+1, -1, +1), (-1, +1, +1), (+1, +1, +1),
+    ]
+    run_order = list(range(8))
+    random.shuffle(run_order)
+
+    for run_idx, std_idx in enumerate(run_order):
+        x1, x2, x3 = design[std_idx]
+        y = (65.0 + 5.0 * x1 + 3.0 * x2 - 2.0 * x3
+             + 1.5 * x1 * x2 - 0.8 * x1 * x3 + random.gauss(0, 0.8))
+        coded = json.dumps({"Temperature": float(x1), "Pressure": float(x2),
+                            "Cooling Rate": float(x3)})
+        actual = json.dumps({"Temperature": 200.0 + 20.0 * x1,
+                             "Pressure": 50.0 + 10.0 * x2,
+                             "Cooling Rate": 10.0 + 5.0 * x3})
+        cur.execute("""INSERT INTO doe_run
+            (study_id, run_order, standard_order, factor_values, factor_actuals,
+             response_value, is_center_point, replicate, notes, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 1, NULL, ?)""",
+            (study_id, run_idx + 1, std_idx + 1, coded, actual, round(y, 2), now))
+
+    # Second DOE study — draft status (Detroit, for demonstrating the design flow)
+    cur.execute("""INSERT INTO doe_study
+        (plant_id, name, design_type, resolution, status, response_name, response_unit,
+         notes, created_by, created_at, updated_at)
+        VALUES (?, 'Surface Roughness Screening', 'fractional_factorial', 3, 'design',
+                'Surface Roughness Ra', 'µm',
+                'Screening study to identify key factors affecting surface finish quality.',
+                ?, ?, ?)""",
+        (IDS["det_plant"], IDS["eng_det"], now, now))
+    study2_id = cur.lastrowid
+    for name, low, high, center, unit, order in [
+        ("Feed Rate", 0.05, 0.15, 0.10, "mm/rev", 1),
+        ("Spindle Speed", 800, 1600, 1200, "RPM", 2),
+        ("Depth of Cut", 0.5, 2.0, 1.25, "mm", 3),
+        ("Tool Nose Radius", 0.4, 1.2, 0.8, "mm", 4),
+    ]:
+        cur.execute("""INSERT INTO doe_factor
+            (study_id, name, low_level, high_level, center_point, unit, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (study2_id, name, low, high, center, unit, order))
+
+    # Analysis for Study 1
+    anova = {
+        "source": ["Temperature", "Pressure", "Cooling Rate",
+                    "Temperature*Pressure", "Temperature*Cooling Rate", "Residual"],
+        "df": [1, 1, 1, 1, 1, 2],
+        "ss": [200.0, 72.0, 32.0, 18.0, 5.12, 1.85],
+        "ms": [200.0, 72.0, 32.0, 18.0, 5.12, 0.925],
+        "f": [216.2, 77.8, 34.6, 19.5, 5.5],
+        "p": [0.0046, 0.0126, 0.0278, 0.0479, 0.1435],
+    }
+    effects = {
+        "Temperature": {"effect": 10.0, "coefficient": 5.0, "significant": True},
+        "Pressure": {"effect": 6.0, "coefficient": 3.0, "significant": True},
+        "Cooling Rate": {"effect": -4.0, "coefficient": -2.0, "significant": True},
+    }
+    interactions = {
+        "Temperature*Pressure": {"effect": 3.0, "coefficient": 1.5, "significant": True},
+        "Temperature*Cooling Rate": {"effect": -1.6, "coefficient": -0.8, "significant": False},
+    }
+    regression = {
+        "intercept": 65.0,
+        "coefficients": {
+            "Temperature": 5.0, "Pressure": 3.0, "Cooling Rate": -2.0,
+            "Temperature*Pressure": 1.5, "Temperature*Cooling Rate": -0.8,
+        },
+    }
+    optimal = {
+        "Temperature": 220.0, "Pressure": 60.0, "Cooling Rate": 5.0,
+        "predicted_response": 77.3,
+    }
+    cur.execute("""INSERT INTO doe_analysis
+        (study_id, anova_table, effects, interactions, r_squared, adj_r_squared,
+         regression_model, optimal_settings, computed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (study_id, json.dumps(anova), json.dumps(effects), json.dumps(interactions),
+         0.994, 0.979, json.dumps(regression), json.dumps(optimal), now))
+
+    # ══════════════════════════════════════════════════════════════════════
+    # AI Config + Pre-seeded Insights
+    # ══════════════════════════════════════════════════════════════════════
+
+    # AI config for Wichita (placeholder — no real API key)
+    cur.execute("""INSERT INTO ai_provider_config
+        (plant_id, provider_type, api_key, model_name, max_tokens, is_enabled,
+         created_at, updated_at)
+        VALUES (?, 'claude', NULL, 'claude-sonnet-4-20250514', 1024, 0, ?, ?)""",
+        (IDS["ict_plant"], now, now))
+
+    # Pre-seeded insight for cure_temp (read-path demo without live LLM)
+    insight_summary = (
+        "Analysis of 500 Cure Temperature samples reveals a subtle but significant "
+        "process shift around sample 310, consistent with gradual heater element "
+        "degradation. The process was corrected at sample 350 and has since returned "
+        "to stable operation with improved variability."
+    )
+    patterns = json.dumps([
+        "Mean shift of +0.4°C detected starting at sample 310, exceeding 2σ threshold",
+        "Increased variability during shift period (σ rose from 0.30°C to 0.35°C)",
+        "Process returned to baseline after corrective action at sample 350",
+        "Post-correction shows tighter control (σ=0.28°C vs pre-shift σ=0.30°C)",
+    ])
+    risks = json.dumps([
+        "Heater element degradation consistent with early-stage thermal fatigue",
+        "Without intervention, projected 5% OOS rate within 200 additional samples",
+        "Similar degradation observed in literature for autoclave systems at 2000-hr intervals",
+    ])
+    recommendations = json.dumps([
+        "Schedule preventive heater element replacement during next maintenance window",
+        "Implement tighter EWMA monitoring (λ=0.1) for earlier drift detection",
+        "Consider adding a redundant thermocouple for real-time cross-validation",
+        "Review maintenance logs to establish optimal heater replacement interval",
+    ])
+    cur.execute("""INSERT INTO ai_insight
+        (characteristic_id, provider_type, model_name, context_hash,
+         summary, patterns, risks, recommendations,
+         tokens_used, latency_ms, generated_at)
+        VALUES (?, 'claude', 'claude-sonnet-4-20250514', ?,
+                ?, ?, ?, ?, 1842, 3200, ?)""",
+        (IDS["cure_temp"],
+         hashlib.sha256(f"cure_temp:500".encode()).hexdigest(),
+         insight_summary, patterns, risks, recommendations, now))
+
+    # AI config for RTP as well
+    cur.execute("""INSERT INTO ai_provider_config
+        (plant_id, provider_type, api_key, model_name, max_tokens, is_enabled,
+         created_at, updated_at)
+        VALUES (?, 'claude', NULL, 'claude-sonnet-4-20250514', 1024, 0, ?, ?)""",
+        (IDS["rtp_plant"], now, now))
+
+    # ── Additional Anomaly Configs for Correlated Characteristics ────────
+
+    for char_key, pelt, iforest, ks in [
+        ("tablet_hardness", True, True, True),
+        ("cure_pressure", False, False, True),
+        ("assay_pct", True, True, True),
+    ]:
+        cur.execute("""INSERT INTO anomaly_detector_config
+            (char_id, is_enabled,
+             pelt_enabled, pelt_model, pelt_penalty, pelt_min_segment,
+             iforest_enabled, iforest_contamination, iforest_n_estimators,
+             iforest_min_training, iforest_retrain_interval,
+             ks_enabled, ks_reference_window, ks_test_window, ks_alpha,
+             notify_on_changepoint, notify_on_anomaly_score,
+             notify_on_distribution_shift, anomaly_score_threshold,
+             created_at, updated_at)
+            VALUES (?, 1,
+                    ?, 'rbf', 'bic', 25,
+                    ?, 0.05, 100, 50, 100,
+                    ?, 100, 50, 0.05,
+                    ?, ?, ?,
+                    0.7, ?, ?)""",
+            (IDS[char_key],
+             1 if pelt else 0, 1 if iforest else 0, 1 if ks else 0,
+             1 if pelt else 0, 1 if iforest else 0, 1 if ks else 0,
+             now, now))
+
+
 _log = logging.getLogger("seed_showcase")
 
 
@@ -2846,6 +3272,8 @@ async def seed() -> None:
     seed_attribute_samples(cur)
     print("Seeding narrative arcs...")
     seed_narrative_arcs(cur)
+    print("Applying correlated data overrides (4 groups, 7 chars)...")
+    seed_correlated_overrides(cur)
     print("Replaying SPC engine for organic violations...")
     replay_spc_violations(cur)
     print("Seeding capability history and annotations...")
@@ -2864,6 +3292,8 @@ async def seed() -> None:
     seed_fai(cur)
     print("Seeding compliance (notifications, ERP, retention, audit)...")
     seed_compliance(cur)
+    print("Seeding analytics (multivariate, predictions, DOE, AI)...")
+    seed_analytics(cur)
 
     conn.commit()
     conn.close()
@@ -2943,6 +3373,8 @@ def main() -> None:
     seed_attribute_samples(cur)
     print("Seeding narrative arcs...")
     seed_narrative_arcs(cur)
+    print("Applying correlated data overrides (4 groups, 7 chars)...")
+    seed_correlated_overrides(cur)
     print("Replaying SPC engine for organic violations...")
     replay_spc_violations(cur)
     print("Seeding capability history and annotations...")
@@ -2961,6 +3393,8 @@ def main() -> None:
     seed_fai(cur)
     print("Seeding compliance (notifications, ERP, retention, audit)...")
     seed_compliance(cur)
+    print("Seeding analytics (multivariate, predictions, DOE, AI)...")
+    seed_analytics(cur)
 
     conn.commit()
 
@@ -2978,6 +3412,10 @@ def main() -> None:
         "smtp_config", "webhook_config", "notification_preference",
         "erp_connector", "erp_field_mapping", "erp_sync_schedule", "erp_sync_log",
         "retention_policy", "audit_log",
+        "multivariate_group", "multivariate_group_member",
+        "prediction_config", "prediction_model", "forecast",
+        "doe_study", "doe_factor", "doe_run", "doe_analysis",
+        "ai_provider_config", "ai_insight",
     ]
     print("\n=== Summary ===")
     for t in tables:

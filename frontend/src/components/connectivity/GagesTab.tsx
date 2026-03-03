@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Usb } from 'lucide-react'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { useGageBridges, useDeleteGageBridge } from '@/api/hooks'
 import { GageBridgeList } from './GageBridgeList'
 import { GageBridgeRegisterDialog } from './GageBridgeRegisterDialog'
@@ -11,7 +11,7 @@ import { GagePortConfig } from './GagePortConfig'
  * Lists registered bridges, allows registration, and manages port configurations.
  */
 export function GagesTab() {
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const { data: bridges, isLoading } = useGageBridges(selectedPlantId ?? 0)
   const deleteBridge = useDeleteGageBridge()
 

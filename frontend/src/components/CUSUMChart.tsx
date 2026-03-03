@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
+import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { useQueryClient } from '@tanstack/react-query'
@@ -31,7 +32,7 @@ interface CUSUMChartProps {
 export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, highlightSampleId }: CUSUMChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
-    chartOptions ?? { limit: 50 },
+    { ...(chartOptions ?? { limit: 50 }), chartType: 'cusum' },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
@@ -108,7 +109,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
     const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customRenderItem = (_params: any, api: any) => {
+    const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localPoints.length)
         return { type: 'group', children: [] } as unknown

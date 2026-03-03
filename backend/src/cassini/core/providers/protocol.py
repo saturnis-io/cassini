@@ -25,6 +25,7 @@ class SampleContext:
     operator_id: str | None = None
     product_code: str | None = None
     source: str = "MANUAL"  # "MANUAL" or "TAG"
+    metadata: dict | None = None
 
 
 @dataclass

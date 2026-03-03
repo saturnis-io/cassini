@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { graphic } from '@/lib/echarts'
+import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import { Info, X } from 'lucide-react'
@@ -521,7 +522,7 @@ export function DistributionHistogram({
       const matchedGridBottom = isTimestamp ? 60 : 30
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const histogramRenderItem = (_params: any, api: any) => {
+      const histogramRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
         const binIndex = api.value(3) as number
         const count = api.value(0) as number
         const binStart = api.value(1) as number

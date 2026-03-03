@@ -568,12 +568,22 @@ class NotificationDispatcher:
                 start_tls=smtp_use_tls,
             )
             return "ok"
-        except Exception as e:
-            return str(e)
+        except TimeoutError:
+            return "Connection timed out"
+        except ConnectionRefusedError:
+            return "Connection refused"
+        except Exception:
+            logger.exception("test_email_failed")
+            return "Email test failed — check server logs"
 
     @staticmethod
     async def send_test_webhook(url: str, secret: str | None) -> str:
         """Send a test webhook payload. Returns 'ok' or error message."""
+        try:
+            from cassini.core.erp.base import validate_external_url
+            validate_external_url(url)
+        except ValueError:
+            return "URL targets an internal or private network address"
         try:
             import httpx
 
@@ -586,8 +596,15 @@ class NotificationDispatcher:
 
             headers: dict[str, str] = {"Content-Type": "application/json"}
             if secret:
+                # Decrypt secret to match production webhook path
+                try:
+                    key = get_encryption_key()
+                    decrypted_secret = decrypt_password(secret, key)
+                except Exception:
+                    decrypted_secret = secret
+
                 sig = hmac.new(
-                    secret.encode("utf-8"),
+                    decrypted_secret.encode("utf-8"),
                     body_bytes,
                     hashlib.sha256,
                 ).hexdigest()
@@ -597,9 +614,10 @@ class NotificationDispatcher:
                 resp = await client.post(url, content=body_bytes, headers=headers)
                 if resp.status_code < 400:
                     return "ok"
-                return f"HTTP {resp.status_code}: {resp.text[:200]}"
-        except Exception as e:
-            return str(e)
+                return f"HTTP {resp.status_code}"
+        except Exception:
+            logger.error("test_webhook_failed", url=url, exc_info=True)
+            return "Test webhook delivery failed"
 
 
 __all__ = ["NotificationDispatcher", "RULE_SEVERITY"]

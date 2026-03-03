@@ -115,6 +115,8 @@ export interface Characteristic {
   short_run_mode?: 'deviation' | 'standardized' | null
   // Distribution fitting (Sprint 5 - A1)
   distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
+  // Sigma estimation method override (null = auto-select)
+  sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | null
   // Capability fields (populated by list endpoint)
   latest_cpk?: number | null
   latest_cp?: number | null
@@ -952,6 +954,12 @@ export interface UpdateReportSchedule {
 }
 
 // Non-normal capability types (Sprint 5 - A1)
+export interface HistogramData {
+  bin_edges: number[] // n+1 edges
+  counts: number[] // n bin counts
+  density: number[] // n density values
+}
+
 export interface NonNormalCapabilityResult extends CapabilityResult {
   method: string
   method_detail: string
@@ -961,6 +969,8 @@ export interface NonNormalCapabilityResult extends CapabilityResult {
   p0_135: number | null
   p50: number | null
   p99_865: number | null
+  histogram: HistogramData | null
+  qq_points: QQPoints | null
 }
 
 export interface QQPoints {
@@ -975,6 +985,7 @@ export interface DistributionFitResultData {
   ad_p_value: number | null
   aic: number
   is_adequate_fit: boolean
+  gof_test_type: string // "anderson_darling" or "kolmogorov_smirnov"
   qq_points: QQPoints | null
 }
 

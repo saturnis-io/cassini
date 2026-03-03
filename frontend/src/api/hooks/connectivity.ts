@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { opcuaApi, gageBridgeApi } from '../connectivity.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 import type { OPCUAServerCreate, OPCUAServerUpdate } from '@/types'
 import type { GageBridgeCreate, GagePortCreate } from '../client'
 
@@ -38,9 +39,7 @@ export function useCreateOPCUAServer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
       toast.success(`Created OPC-UA server "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create server: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create OPC-UA server'),
   })
 }
 
@@ -54,9 +53,7 @@ export function useUpdateOPCUAServer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
       toast.success(`Updated OPC-UA server "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update server: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update OPC-UA server'),
   })
 }
 
@@ -69,9 +66,7 @@ export function useDeleteOPCUAServer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.all })
       toast.success('OPC-UA server deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete server: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete OPC-UA server'),
   })
 }
 
@@ -84,9 +79,7 @@ export function useConnectOPCUAServer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.status() })
       toast.success('Connecting to OPC-UA server...')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to connect: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to connect to OPC-UA server'),
   })
 }
 
@@ -99,18 +92,14 @@ export function useDisconnectOPCUAServer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.opcuaServers.status() })
       toast.success('Disconnected from OPC-UA server')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to disconnect: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to disconnect from OPC-UA server'),
   })
 }
 
 export function useTestOPCUAConnection() {
   return useMutation({
     mutationFn: (data: OPCUAServerCreate) => opcuaApi.test(data),
-    onError: (error: Error) => {
-      toast.error(`Connection test failed: ${error.message}`)
-    },
+    onError: handleMutationError('OPC-UA connection test failed'),
   })
 }
 
@@ -161,7 +150,7 @@ export const useRegisterGageBridge = () => {
       qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
       toast.success('Bridge registered')
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: handleMutationError('Failed to register bridge'),
   })
 }
 
@@ -173,7 +162,7 @@ export const useDeleteGageBridge = () => {
       qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
       toast.success('Bridge deleted')
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: handleMutationError('Failed to delete bridge'),
   })
 }
 
@@ -186,7 +175,7 @@ export const useAddGagePort = () => {
       qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
       toast.success('Port added')
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: handleMutationError('Failed to add port'),
   })
 }
 
@@ -199,7 +188,7 @@ export const useUpdateGagePort = () => {
       qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
       toast.success('Port updated')
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: handleMutationError('Failed to update port'),
   })
 }
 
@@ -212,6 +201,6 @@ export const useDeleteGagePort = () => {
       qc.invalidateQueries({ queryKey: queryKeys.gageBridges.all })
       toast.success('Port deleted')
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: handleMutationError('Failed to delete port'),
   })
 }

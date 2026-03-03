@@ -7,7 +7,6 @@ for process capability indices (Cp, Cpk, Pp, Ppk, Cpm).
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
@@ -17,6 +16,11 @@ from cassini.api.deps import (
     resolve_plant_id_for_characteristic,
     check_plant_role,
 )
+from cassini.api.schemas.capability import (
+    CapabilityHistoryItem,
+    CapabilityResponse,
+    SnapshotResponse,
+)
 from cassini.core.capability import CapabilityResult, calculate_capability
 from cassini.core.distributions import calculate_capability_nonnormal
 from cassini.db.models.characteristic import Characteristic
@@ -25,53 +29,6 @@ from cassini.db.repositories.capability import CapabilityHistoryRepository
 from cassini.db.repositories.sample import SampleRepository
 
 router = APIRouter(prefix="/api/v1/characteristics", tags=["capability"])
-
-
-# ---- Pydantic response schemas ----
-
-class CapabilityResponse(BaseModel):
-    """Response schema for a capability calculation."""
-    cp: float | None = None
-    cpk: float | None = None
-    pp: float | None = None
-    ppk: float | None = None
-    cpm: float | None = None
-    sample_count: int
-    normality_p_value: float | None = None
-    normality_test: str
-    is_normal: bool
-    calculated_at: str
-    usl: float | None = None
-    lsl: float | None = None
-    target: float | None = None
-    sigma_within: float | None = None
-    short_run_mode: str | None = None
-    sigma_source: str | None = None
-    sigma_method: str | None = None
-    cp_unavailable_reason: str | None = None
-    distribution_method_applied: str | None = None
-    transform_applied: str | None = None
-
-
-class CapabilityHistoryItem(BaseModel):
-    """Response schema for a single history snapshot."""
-    id: int
-    cp: float | None = None
-    cpk: float | None = None
-    pp: float | None = None
-    ppk: float | None = None
-    cpm: float | None = None
-    sample_count: int
-    normality_p_value: float | None = None
-    normality_test: str | None = None
-    calculated_at: str
-    calculated_by: str
-
-
-class SnapshotResponse(BaseModel):
-    """Response after saving a capability snapshot."""
-    id: int
-    capability: CapabilityResponse
 
 
 # ---- Helper to load characteristic + extract measurement values ----
@@ -137,6 +94,20 @@ def _get_cp_unavailable_reason(characteristic: Characteristic) -> str | None:
     return None
 
 
+def _infer_sigma_method(characteristic: Characteristic) -> str | None:
+    """Infer the sigma method from the characteristic config or subgroup size."""
+    if characteristic.stored_sigma is None:
+        return None
+    if characteristic.sigma_method:
+        return characteristic.sigma_method
+    if characteristic.subgroup_size == 1:
+        return "moving_range"
+    elif characteristic.subgroup_size <= 10:
+        return "r_bar_d2"
+    else:
+        return "s_bar_c4"
+
+
 # ---- Endpoints ----
 
 @router.get("/{char_id}/capability", response_model=CapabilityResponse)
@@ -163,9 +134,9 @@ async def get_capability(
 
     cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
     sigma_source_within = "within_subgroup" if sigma_within is not None else None
-    sigma_method_str = "rbar_d2" if sigma_within is not None else None
+    sigma_method_str = _infer_sigma_method(characteristic)
 
-    dist_method = getattr(characteristic, 'distribution_method', None)
+    dist_method = characteristic.distribution_method
     if dist_method and dist_method != "normal":
         import json
 
@@ -366,7 +337,7 @@ async def save_capability_snapshot(
 
     cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
     sigma_source_within = "within_subgroup" if sigma_within is not None else None
-    sigma_method_str = "rbar_d2" if sigma_within is not None else None
+    sigma_method_str = _infer_sigma_method(characteristic)
     dist_method_applied = dist_method if (dist_method and dist_method != "normal") else "normal"
     transform_applied = None
     if dist_method and dist_method == "box_cox":

@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassini SPC — Feature Matrix</title>
+<!--
+  Feature matrix for Cassini SPC platform by Saturnis LLC.
+  Editorial aesthetic: Instrument Serif headlines, deep navy + gold palette,
+  generous whitespace, collapsible category sections, status badges.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============ THEME — EDITORIAL (NAVY + GOLD) ============ */
+  :root {
+    --font-body: 'Instrument Serif', 'Georgia', serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-sans: system-ui, -apple-system, sans-serif;
+
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --surface-elevated: #fdfcf9;
+    --border: rgba(0, 0, 0, 0.07);
+    --border-bright: rgba(0, 0, 0, 0.14);
+    --text: #1a1d2e;
+    --text-dim: #6b6e7f;
+
+    /* Primary: deep navy */
+    --accent: #1e2a4a;
+    --accent-dim: rgba(30, 42, 74, 0.06);
+
+    /* Gold highlight */
+    --gold: #b8860b;
+    --gold-dim: rgba(184, 134, 11, 0.08);
+    --gold-bright: #d4a017;
+
+    /* Category colors */
+    --cat-core: #1e2a4a;
+    --cat-core-dim: rgba(30, 42, 74, 0.06);
+    --cat-quality: #6b4c8a;
+    --cat-quality-dim: rgba(107, 76, 138, 0.07);
+    --cat-connectivity: #0e7c6b;
+    --cat-connectivity-dim: rgba(14, 124, 107, 0.06);
+    --cat-enterprise: #8b4513;
+    --cat-enterprise-dim: rgba(139, 69, 19, 0.06);
+    --cat-ai: #7c3aed;
+    --cat-ai-dim: rgba(124, 58, 237, 0.06);
+    --cat-infra: #4a6741;
+    --cat-infra-dim: rgba(74, 103, 65, 0.06);
+
+    /* Semantic */
+    --green: #2d7a4f;
+    --green-dim: rgba(45, 122, 79, 0.08);
+    --red: #b91c1c;
+    --red-dim: rgba(185, 28, 28, 0.06);
+    --orange: #b45309;
+    --orange-dim: rgba(180, 83, 9, 0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1118;
+      --surface: #181b28;
+      --surface2: #1e2135;
+      --surface-elevated: #232740;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-bright: rgba(255, 255, 255, 0.12);
+      --text: #e8e6e0;
+      --text-dim: #8b8d9e;
+
+      --accent: #8fa4d4;
+      --accent-dim: rgba(143, 164, 212, 0.1);
+      --gold: #e4b84a;
+      --gold-dim: rgba(228, 184, 74, 0.1);
+      --gold-bright: #f0cc5a;
+
+      --cat-core: #8fa4d4;
+      --cat-core-dim: rgba(143, 164, 212, 0.08);
+      --cat-quality: #b89edd;
+      --cat-quality-dim: rgba(184, 158, 221, 0.08);
+      --cat-connectivity: #4dd4b8;
+      --cat-connectivity-dim: rgba(77, 212, 184, 0.08);
+      --cat-enterprise: #d4a06a;
+      --cat-enterprise-dim: rgba(212, 160, 106, 0.08);
+      --cat-ai: #a78bfa;
+      --cat-ai-dim: rgba(167, 139, 250, 0.08);
+      --cat-infra: #86b07a;
+      --cat-infra-dim: rgba(134, 176, 122, 0.08);
+
+      --green: #4ade80;
+      --green-dim: rgba(74, 222, 128, 0.1);
+      --red: #f87171;
+      --red-dim: rgba(248, 113, 113, 0.08);
+      --orange: #fbbf24;
+      --orange-dim: rgba(251, 191, 36, 0.1);
+    }
+  }
+
+  /* ============ RESET + BASE ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 0%, var(--gold-dim) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, var(--accent-dim) 0%, transparent 40%);
+    color: var(--text);
+    font-family: var(--font-sans);
+    padding: 48px 40px;
+    min-height: 100vh;
+    overflow-wrap: break-word;
+  }
+
+  /* ============ ANIMATION ============ */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeScale {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .animate {
+    animation: fadeUp 0.35s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.04s);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ============ CONTAINER ============ */
+  .container {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  /* ============ HEADER ============ */
+  .header {
+    margin-bottom: 40px;
+  }
+
+  .brand {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: var(--font-body);
+    font-size: 40px;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    line-height: 1.15;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 680px;
+  }
+
+  /* ============ DIVIDER ============ */
+  .divider {
+    width: 60px;
+    height: 2px;
+    background: var(--gold);
+    margin: 24px 0;
+    border: none;
+  }
+
+  /* ============ KPI SUMMARY ============ */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+
+  .kpi-card {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    animation: fadeScale 0.35s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.06s);
+  }
+
+  .kpi-card__value {
+    font-family: var(--font-body);
+    font-size: 36px;
+    font-weight: 400;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+
+  .kpi-card__value--gold { color: var(--gold); }
+  .kpi-card__value--green { color: var(--green); }
+
+  .kpi-card__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* ============ LEGEND ============ */
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+
+  /* ============ CATEGORY SECTION ============ */
+  .category-section {
+    margin-bottom: 16px;
+  }
+
+  details.category {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  details.category summary {
+    padding: 16px 24px;
+    background: var(--surface);
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 400;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text);
+    transition: background 0.15s ease;
+    user-select: none;
+  }
+
+  details.category summary:hover {
+    background: var(--surface-elevated);
+  }
+
+  details.category summary::-webkit-details-marker { display: none; }
+
+  details.category summary .chevron {
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  details.category[open] summary .chevron {
+    transform: rotate(90deg);
+  }
+
+  details.category summary .cat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  details.category summary .cat-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-left: auto;
+    background: var(--surface2);
+    padding: 2px 10px;
+    border-radius: 6px;
+  }
+
+  details.category .category-body {
+    border-top: 1px solid var(--border);
+  }
+
+  /* ============ TABLE ============ */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    text-align: left;
+    padding: 12px 20px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+
+  .data-table td {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .data-table .col-feature {
+    min-width: 180px;
+    max-width: 220px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .data-table .col-desc {
+    min-width: 240px;
+    max-width: 400px;
+    color: var(--text-dim);
+  }
+
+  .data-table .col-caps {
+    min-width: 260px;
+    max-width: 460px;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background: var(--accent-dim);
+  }
+
+  .data-table tbody tr {
+    transition: background 0.15s ease;
+    animation: fadeUp 0.3s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.03s);
+  }
+
+  .data-table tbody tr:hover {
+    background: var(--gold-dim);
+  }
+
+  .data-table code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .data-table small {
+    display: block;
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: 3px;
+  }
+
+  .data-table tfoot td {
+    background: var(--surface2);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border-top: 2px solid var(--border-bright);
+    border-bottom: none;
+    padding: 12px 20px;
+  }
+
+  /* ============ STATUS BADGES ============ */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .status--core {
+    background: var(--cat-core-dim);
+    color: var(--cat-core);
+  }
+
+  .status--shipped {
+    background: var(--green-dim);
+    color: var(--green);
+  }
+
+  .status--planned {
+    background: var(--orange-dim);
+    color: var(--orange);
+  }
+
+  .status--preview {
+    background: var(--cat-ai-dim);
+    color: var(--cat-ai);
+  }
+
+  /* ============ CAPABILITY PILLS ============ */
+  .caps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .cap {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  /* ============ FEATURE NAME WITH ICON ============ */
+  .feature-name {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .feature-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    opacity: 0.5;
+  }
+
+  /* ============ FOOTER ============ */
+  .page-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .page-footer__left {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .page-footer__right {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--gold);
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ============ EXPAND/COLLAPSE ALL ============ */
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    justify-content: flex-end;
+  }
+
+  .controls button {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-bright);
+    background: var(--surface);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .controls button:hover {
+    background: var(--surface-elevated);
+    color: var(--text);
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 768px) {
+    body { padding: 20px 16px; }
+    h1 { font-size: 28px; }
+    .data-table th,
+    .data-table td { padding: 10px 14px; }
+    details.category summary { padding: 14px 16px; font-size: 17px; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header animate" style="--i:0">
+    <div class="brand">Saturnis LLC</div>
+    <h1>Cassini SPC &mdash; Feature Matrix</h1>
+    <hr class="divider">
+    <p class="subtitle">Complete capability inventory for the Cassini Statistical Process Control platform. Open-source, enterprise-grade SPC for regulated manufacturing.</p>
+  </div>
+
+  <!-- KPI Summary -->
+  <div class="kpi-row">
+    <div class="kpi-card" style="--i:1">
+      <div class="kpi-card__value kpi-card__value--gold">32</div>
+      <div class="kpi-card__label">Total Features</div>
+    </div>
+    <div class="kpi-card" style="--i:2">
+      <div class="kpi-card__value">6</div>
+      <div class="kpi-card__label">Categories</div>
+    </div>
+    <div class="kpi-card" style="--i:3">
+      <div class="kpi-card__value kpi-card__value--green">27</div>
+      <div class="kpi-card__label">Shipped</div>
+    </div>
+    <div class="kpi-card" style="--i:4">
+      <div class="kpi-card__value" style="color:var(--orange)">5</div>
+      <div class="kpi-card__label">In Progress</div>
+    </div>
+    <div class="kpi-card" style="--i:5">
+      <div class="kpi-card__value" style="color:var(--gold)">263+</div>
+      <div class="kpi-card__label">API Endpoints</div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend animate" style="--i:6">
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div> Shipped</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--orange)"></div> In Progress</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--cat-ai)"></div> Preview</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls animate" style="--i:7">
+    <button onclick="toggleAll(true)">Expand All</button>
+    <button onclick="toggleAll(false)">Collapse All</button>
+  </div>
+
+  <!-- ===================== CATEGORY 1: SPC & Statistical ===================== -->
+  <div class="category-section animate" style="--i:8">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-core)"></span>
+        SPC &amp; Statistical (Core)
+        <span class="cat-count">5 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">Control Charts</td>
+                <td class="col-desc">Full suite of variable and attribute control charts with real-time rendering and interaction</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">X-bar &amp; R</span>
+                    <span class="cap">X-bar &amp; S</span>
+                    <span class="cap">I-MR</span>
+                    <span class="cap">CUSUM</span>
+                    <span class="cap">EWMA</span>
+                    <span class="cap">p / np / c / u</span>
+                    <span class="cap">Zone shading</span>
+                    <span class="cap">Cross-chart sync</span>
+                    <span class="cap">Resizable panels</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">Nelson Rules Engine</td>
+                <td class="col-desc">All 8 Western Electric rules with individual configuration, parameterization, and preset libraries</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">8 rules</span>
+                    <span class="cap">Custom params</span>
+                    <span class="cap">Nelson preset</span>
+                    <span class="cap">AIAG preset</span>
+                    <span class="cap">WECO preset</span>
+                    <span class="cap">Wheeler preset</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">Capability Analysis</td>
+                <td class="col-desc">Process capability indices with non-normal distribution support, auto-fitting, and trend tracking</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Cp / Cpk</span>
+                    <span class="cap">Pp / Ppk</span>
+                    <span class="cap">Cpm</span>
+                    <span class="cap">Shapiro-Wilk</span>
+                    <span class="cap">Box-Cox</span>
+                    <span class="cap">6-dist auto-fit</span>
+                    <span class="cap">Trend chart</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:3">
+                <td class="col-feature">Short-Run Charts</td>
+                <td class="col-desc">Deviation and standardized modes for low-volume / high-mix production environments</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Deviation mode</span>
+                    <span class="cap">Z-score mode</span>
+                    <span class="cap">Multi-part overlay</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:4">
+                <td class="col-feature">Laney p'/u' Correction</td>
+                <td class="col-desc">Overdispersion correction for attribute charts when subgroup sizes vary</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Sigma-Z calc</span>
+                    <span class="cap">Per-point limits</span>
+                    <span class="cap">Sigma-Z badge</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">5 features in SPC &amp; Statistical</td>
+                <td>5 shipped</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== CATEGORY 2: Measurement & Quality Studies ===================== -->
+  <div class="category-section animate" style="--i:9">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-quality)"></span>
+        Measurement &amp; Quality Studies
+        <span class="cat-count">3 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">Gage R&amp;R / MSA</td>
+                <td class="col-desc">Measurement system analysis per AIAG MSA 4th Edition with multiple study types</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Crossed ANOVA</span>
+                    <span class="cap">Range method</span>
+                    <span class="cap">Nested ANOVA</span>
+                    <span class="cap">Cohen's Kappa</span>
+                    <span class="cap">Fleiss' Kappa</span>
+                    <span class="cap">d2* tables</span>
+                    <span class="cap">12 endpoints</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">First Article Inspection</td>
+                <td class="col-desc">AS9102 Rev C compliant FAI with full workflow and separation of duties</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Form 1 / 2 / 3</span>
+                    <span class="cap">Draft &rarr; Submit &rarr; Approve</span>
+                    <span class="cap">Duty separation</span>
+                    <span class="cap">Print view</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">Design of Experiments</td>
+                <td class="col-desc">DOE planning, execution, and analysis with factorial designs and response surface methods</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Full factorial</span>
+                    <span class="cap">Fractional factorial</span>
+                    <span class="cap">Plackett-Burman</span>
+                    <span class="cap">Central composite</span>
+                    <span class="cap">ANOVA tables</span>
+                    <span class="cap">Interaction plots</span>
+                  </div>
+                </td>
+                <td><span class="status status--planned">In Progress</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">3 features in Measurement &amp; Quality Studies</td>
+                <td>2 shipped &middot; 1 in progress</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== CATEGORY 3: Industrial Connectivity ===================== -->
+  <div class="category-section animate" style="--i:10">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-connectivity)"></span>
+        Industrial Connectivity
+        <span class="cat-count">5 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">MQTT / Sparkplug B</td>
+                <td class="col-desc">Multi-broker MQTT connectivity with Sparkplug B industrial IoT encoding</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Multi-broker</span>
+                    <span class="cap">Topic browsing</span>
+                    <span class="cap">Tag mapping</span>
+                    <span class="cap">Live preview</span>
+                    <span class="cap">Sparkplug B</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">OPC-UA</td>
+                <td class="col-desc">Full OPC-UA client with node browsing, subscriptions, and SPC engine integration</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Multi-server</span>
+                    <span class="cap">Node browser</span>
+                    <span class="cap">Subscriptions</span>
+                    <span class="cap">Priority triggers</span>
+                    <span class="cap">12 endpoints</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">RS-232 / USB Gages</td>
+                <td class="col-desc">Python bridge agent translating serial gage readings to MQTT for shop floor connectivity</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Mitutoyo Digimatic</span>
+                    <span class="cap">Regex parsers</span>
+                    <span class="cap">Auto-mapping</span>
+                    <span class="cap">pip install</span>
+                    <span class="cap">API key auth</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:3">
+                <td class="col-feature">ERP / LIMS Integration</td>
+                <td class="col-desc">Bidirectional connectors for enterprise systems with cron scheduling and encrypted auth</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">SAP OData</span>
+                    <span class="cap">Oracle REST</span>
+                    <span class="cap">Generic LIMS</span>
+                    <span class="cap">Webhook</span>
+                    <span class="cap">Cron sync</span>
+                    <span class="cap">Fernet encryption</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:4">
+                <td class="col-feature">MQTT Outbound Publishing</td>
+                <td class="col-desc">Publish SPC events, violations, and Nelson triggers to configurable MQTT topics</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Violations</span>
+                    <span class="cap">Statistics</span>
+                    <span class="cap">Nelson events</span>
+                    <span class="cap">Configurable topics</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">5 features in Industrial Connectivity</td>
+                <td>5 shipped</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== CATEGORY 4: Enterprise & Compliance ===================== -->
+  <div class="category-section animate" style="--i:11">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-enterprise)"></span>
+        Enterprise &amp; Compliance
+        <span class="cat-count">5 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">Electronic Signatures</td>
+                <td class="col-desc">21 CFR Part 11 compliant e-signature system with multi-step workflows and tamper detection</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Multi-step workflows</span>
+                    <span class="cap">SHA-256 hashing</span>
+                    <span class="cap">Password re-auth</span>
+                    <span class="cap">Plant-scoped meanings</span>
+                    <span class="cap">FDA password policy</span>
+                    <span class="cap">20 endpoints</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">Audit Trail</td>
+                <td class="col-desc">Comprehensive audit logging with fire-and-forget middleware and event bus integration</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Auto-capture</span>
+                    <span class="cap">Event bus</span>
+                    <span class="cap">Searchable viewer</span>
+                    <span class="cap">CSV export</span>
+                    <span class="cap">Login tracking</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">Data Retention</td>
+                <td class="col-desc">Configurable retention policies with hierarchical inheritance and automated purge engine</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Inheritance chain</span>
+                    <span class="cap">Global &rarr; Plant &rarr; Area &rarr; Line</span>
+                    <span class="cap">Purge engine</span>
+                    <span class="cap">History tracking</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:3">
+                <td class="col-feature">SSO / OIDC</td>
+                <td class="col-desc">Single sign-on with OpenID Connect, database-backed state, and plant-scoped role mapping</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">DB state store</span>
+                    <span class="cap">Claim mapping</span>
+                    <span class="cap">Role mapping</span>
+                    <span class="cap">Account linking</span>
+                    <span class="cap">RP-initiated logout</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:4">
+                <td class="col-feature">RBAC</td>
+                <td class="col-desc">Four-tier role hierarchy with per-plant access control via join table</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Operator</span>
+                    <span class="cap">Supervisor</span>
+                    <span class="cap">Engineer</span>
+                    <span class="cap">Admin</span>
+                    <span class="cap">Per-plant scoping</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">5 features in Enterprise &amp; Compliance</td>
+                <td>5 shipped</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== CATEGORY 5: AI/ML & Advanced Analytics ===================== -->
+  <div class="category-section animate" style="--i:12">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-ai)"></span>
+        AI/ML &amp; Advanced Analytics
+        <span class="cat-count">5 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">Anomaly Detection</td>
+                <td class="col-desc">ML-powered anomaly detection with multiple algorithms and configurable sensitivity</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">PELT changepoint</span>
+                    <span class="cap">K-S dist shift</span>
+                    <span class="cap">Isolation Forest</span>
+                    <span class="cap">Chart overlay</span>
+                    <span class="cap">12 endpoints</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">Correlation Analysis</td>
+                <td class="col-desc">Multi-variate correlation heatmap for identifying relationships between characteristics</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Heatmap</span>
+                    <span class="cap">Multi-variate</span>
+                    <span class="cap">Cross-characteristic</span>
+                  </div>
+                </td>
+                <td><span class="status status--planned">In Progress</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">Multivariate SPC</td>
+                <td class="col-desc">Principal component analysis and Hotelling T-squared charts for multi-dimensional process monitoring</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">PCA biplot</span>
+                    <span class="cap">Hotelling T&sup2;</span>
+                    <span class="cap">Decomposition table</span>
+                  </div>
+                </td>
+                <td><span class="status status--planned">In Progress</span></td>
+              </tr>
+              <tr style="--i:3">
+                <td class="col-feature">Time Series Forecasting</td>
+                <td class="col-desc">Statistical and ML-based forecasting with prediction overlay on control charts</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">ARIMA</span>
+                    <span class="cap">Prophet</span>
+                    <span class="cap">Prediction overlay</span>
+                  </div>
+                </td>
+                <td><span class="status status--planned">In Progress</span></td>
+              </tr>
+              <tr style="--i:4">
+                <td class="col-feature">Gen AI Analysis</td>
+                <td class="col-desc">LLM-generated process insights with safety guardrails for quality engineers</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">LLM insights</span>
+                    <span class="cap">Guardrails</span>
+                    <span class="cap">Context-aware</span>
+                  </div>
+                </td>
+                <td><span class="status status--preview">Preview</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">5 features in AI/ML &amp; Advanced Analytics</td>
+                <td>1 shipped &middot; 3 in progress &middot; 1 preview</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== CATEGORY 6: Infrastructure & Operations ===================== -->
+  <div class="category-section animate" style="--i:13">
+    <details class="category" open>
+      <summary>
+        <span class="chevron">&#x25B8;</span>
+        <span class="cat-dot" style="background:var(--cat-infra)"></span>
+        Infrastructure &amp; Operations
+        <span class="cat-count">9 features</span>
+      </summary>
+      <div class="category-body">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Description</th>
+                <th>Key Capabilities</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="--i:0">
+                <td class="col-feature">Multi-Database</td>
+                <td class="col-desc">Dialect abstraction supporting four RDBMS engines with encrypted credentials and one-click switching</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">SQLite</span>
+                    <span class="cap">PostgreSQL</span>
+                    <span class="cap">MySQL</span>
+                    <span class="cap">MSSQL</span>
+                    <span class="cap">Encrypted creds</span>
+                    <span class="cap">Admin panel</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:1">
+                <td class="col-feature">Multi-Plant Hierarchy</td>
+                <td class="col-desc">ISA-95 equipment hierarchy with plant-scoped data isolation and per-plant RBAC</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">ISA-95</span>
+                    <span class="cap">Plant &rarr; Area &rarr; Line &rarr; Station</span>
+                    <span class="cap">Data isolation</span>
+                    <span class="cap">Per-plant RBAC</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:2">
+                <td class="col-feature">Real-Time Updates</td>
+                <td class="col-desc">WebSocket push with automatic reconnection and heartbeat monitoring</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">WebSocket</span>
+                    <span class="cap">Auto-reconnect</span>
+                    <span class="cap">Heartbeat</span>
+                    <span class="cap">Event bus</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:3">
+                <td class="col-feature">PWA-Lite</td>
+                <td class="col-desc">Progressive web app features with push notifications, offline queue, and mobile navigation</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">VAPID push</span>
+                    <span class="cap">IndexedDB queue</span>
+                    <span class="cap">24h TTL</span>
+                    <span class="cap">Mobile nav</span>
+                    <span class="cap">Responsive</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:4">
+                <td class="col-feature">Docker</td>
+                <td class="col-desc">Multi-stage Dockerfile with compose configuration for production deployments</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">Multi-stage build</span>
+                    <span class="cap">docker-compose</span>
+                    <span class="cap">PostgreSQL</span>
+                    <span class="cap">Health endpoint</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:5">
+                <td class="col-feature">Reports &amp; Export</td>
+                <td class="col-desc">Multi-format report generation with kiosk mode and wall dashboard grid layouts</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">PDF</span>
+                    <span class="cap">Excel</span>
+                    <span class="cap">PNG</span>
+                    <span class="cap">Templates</span>
+                    <span class="cap">Kiosk mode</span>
+                    <span class="cap">Wall dashboard</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:6">
+                <td class="col-feature">Show Your Work</td>
+                <td class="col-desc">Click any statistical value to see the formula, step-by-step computation, inputs, and AIAG citation</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">KaTeX formulas</span>
+                    <span class="cap">Step-by-step</span>
+                    <span class="cap">AIAG citations</span>
+                    <span class="cap">Slide-out panel</span>
+                    <span class="cap">Zero overhead</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:7">
+                <td class="col-feature">CSV / Excel Import</td>
+                <td class="col-desc">Guided 4-step import wizard with validation, column mapping, and confirmation</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">CSV</span>
+                    <span class="cap">Excel</span>
+                    <span class="cap">Column mapping</span>
+                    <span class="cap">Validation</span>
+                    <span class="cap">4-step wizard</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+              <tr style="--i:8">
+                <td class="col-feature">Notifications System</td>
+                <td class="col-desc">Multi-channel notifications with email, webhooks, and configurable preferences per user</td>
+                <td class="col-caps">
+                  <div class="caps">
+                    <span class="cap">SMTP email</span>
+                    <span class="cap">HMAC webhooks</span>
+                    <span class="cap">Event bus</span>
+                    <span class="cap">User preferences</span>
+                    <span class="cap">10 endpoints</span>
+                  </div>
+                </td>
+                <td><span class="status status--shipped">Shipped</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">9 features in Infrastructure &amp; Operations</td>
+                <td>9 shipped</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ===================== GRAND TOTAL FOOTER ===================== -->
+  <div class="page-footer animate" style="--i:15">
+    <div class="page-footer__left">
+      32 features across 6 categories &mdash; 27 shipped, 4 in progress, 1 preview
+    </div>
+    <div class="page-footer__right">Cassini SPC by Saturnis</div>
+  </div>
+
+</div>
+
+<script>
+  function toggleAll(open) {
+    document.querySelectorAll('details.category').forEach(function(d) {
+      d.open = open;
+    });
+  }
+</script>
+
+</body>
+</html>

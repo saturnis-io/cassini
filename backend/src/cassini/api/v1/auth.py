@@ -147,9 +147,9 @@ async def login(
             data.username, success=True, ip_address=ip, user_agent=ua, user_id=user.id
         )
 
-    # Create tokens
-    access_token = create_access_token(user.id, user.username)
-    refresh_token = create_refresh_token(user.id)
+    # Create tokens (embed password_changed_at for revocation)
+    access_token = create_access_token(user.id, user.username, user.password_changed_at)
+    refresh_token = create_refresh_token(user.id, user.password_changed_at)
 
     # Set refresh token cookie
     max_age = 30 * 24 * 60 * 60 if data.remember_me else 7 * 24 * 60 * 60  # 30d or 7d
@@ -167,6 +167,8 @@ async def login(
 
     # In dev mode, suppress forced password change for convenience
     cfg = get_settings()
+    if cfg.dev_mode and cfg.cookie_secure:
+        logger.critical("dev_mode_with_cookie_secure", msg="dev_mode enabled with cookie_secure=True — this is unsafe for production")
     must_change = user.must_change_password if not cfg.dev_mode else False
 
     # Check password expiry
@@ -232,9 +234,23 @@ async def refresh(
             detail="User not found or inactive",
         )
 
+    # JWT revocation: reject refresh tokens issued before last password change
+    pwd_changed_claim = payload.get("pwd_changed")
+    if user.password_changed_at and pwd_changed_claim is not None:
+        user_pwd_epoch = int(user.password_changed_at.timestamp())
+        if pwd_changed_claim < user_pwd_epoch:
+            response.delete_cookie(
+                key=REFRESH_COOKIE_KEY,
+                path=REFRESH_COOKIE_PATH,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalidated by password change",
+            )
+
     # Create new tokens (rotate refresh)
-    new_access_token = create_access_token(user.id, user.username)
-    new_refresh_token = create_refresh_token(user.id)
+    new_access_token = create_access_token(user.id, user.username, user.password_changed_at)
+    new_refresh_token = create_refresh_token(user.id, user.password_changed_at)
 
     response.set_cookie(
         key=REFRESH_COOKIE_KEY,
@@ -298,7 +314,9 @@ async def get_me(
 
 
 @router.post("/change-password")
+@limiter.limit("5/minute")
 async def change_password(
+    request: Request,
     data: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -323,6 +341,7 @@ async def change_password(
     from cassini.core.auth.passwords import hash_password
     current_user.hashed_password = hash_password(data.new_password)
     current_user.must_change_password = False
+    current_user.password_changed_at = datetime.now(timezone.utc)
     await session.commit()
 
     return {"message": "Password changed successfully"}
@@ -503,12 +522,42 @@ async def reset_password(
             detail="Invalid or expired reset token",
         )
 
-    # Validate password length
+    # Validate password length (baseline)
     if len(data.new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 8 characters",
         )
+
+    # Enforce password policy if configured
+    policy_result = await session.execute(select(PasswordPolicy).limit(1))
+    policy = policy_result.scalar_one_or_none()
+    if policy:
+        if policy.min_length and len(data.new_password) < policy.min_length:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Password must be at least {policy.min_length} characters",
+            )
+        if policy.require_uppercase and not any(c.isupper() for c in data.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must contain at least one uppercase letter",
+            )
+        if policy.require_lowercase and not any(c.islower() for c in data.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must contain at least one lowercase letter",
+            )
+        if policy.require_digit and not any(c.isdigit() for c in data.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must contain at least one digit",
+            )
+        if policy.require_special and not any(not c.isalnum() for c in data.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must contain at least one special character",
+            )
 
     # Load user
     user_result = await session.execute(
@@ -626,8 +675,12 @@ async def verify_email(
     token: str,
     request: Request,
     session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Verify a new email address via token from email link."""
+    """Verify a new email address via token from email link.
+
+    Requires authentication to prevent account takeover via intercepted tokens.
+    """
     now = datetime.now(timezone.utc)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
 
@@ -647,16 +700,14 @@ async def verify_email(
             detail="Invalid or expired verification token",
         )
 
-    # Load user
-    user_result = await session.execute(
-        select(User).where(User.id == verification.user_id)
-    )
-    user = user_result.scalar_one_or_none()
-    if user is None:
+    # Verify token belongs to authenticated user
+    if verification.user_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired verification token",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification token does not belong to current user",
         )
+
+    user = current_user
 
     old_email = user.email
 

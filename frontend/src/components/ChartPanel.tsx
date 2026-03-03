@@ -5,7 +5,7 @@ import { ControlChart } from './ControlChart'
 import { AttributeChart } from './AttributeChart'
 import { CUSUMChart } from './CUSUMChart'
 import { EWMAChart } from './EWMAChart'
-import { ParetoChart } from './ParetoChart'
+import { ViolationParetoChart } from './ViolationParetoChart'
 import { DistributionHistogram } from './DistributionHistogram'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useChartData } from '@/api/hooks'
@@ -135,8 +135,17 @@ export function ChartPanel({
   // Color scheme based on label for comparison mode
   const colorScheme = label === 'Secondary' ? 'secondary' : 'primary'
 
+  // Include chart type in options so backend returns CUSUM/EWMA data when selected
+  const chartDataOptions = useMemo(
+    () => ({
+      ...(chartOptions ?? { limit: 50 }),
+      chartType: chartType === 'cusum' || chartType === 'ewma' ? chartType : undefined,
+    }),
+    [chartOptions, chartType],
+  )
+
   // Fetch chart data to calculate shared Y-axis domain for alignment
-  const { data: chartData } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+  const { data: chartData } = useChartData(characteristicId, chartDataOptions)
 
   // Histogram only applies to standard Shewhart charts (not CUSUM/EWMA/attribute)
   const isHistogramApplicable =
@@ -164,14 +173,12 @@ export function ChartPanel({
         <ErrorBoundary>
           {/* Route by user-selected chart type first, then fall back to backend metadata */}
           {chartType === 'pareto' ? (
-            <ParetoChart characteristicId={characteristicId} chartOptions={chartOptions} />
+            <ViolationParetoChart characteristicId={characteristicId} chartOptions={chartOptions} />
           ) : chartData?.data_type === 'attribute' ? (
             <AttributeChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
-          ) : (chartType === 'cusum' || chartData?.chart_type === 'cusum') &&
-            chartData?.cusum_data_points?.length ? (
+          ) : chartType === 'cusum' || chartData?.chart_type === 'cusum' ? (
             <CUSUMChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
-          ) : (chartType === 'ewma' || chartData?.chart_type === 'ewma') &&
-            chartData?.ewma_data_points?.length ? (
+          ) : chartType === 'ewma' || chartData?.chart_type === 'ewma' ? (
             <EWMAChart characteristicId={characteristicId} chartOptions={chartOptions} onPointAnnotation={onPointAnnotation} highlightSampleId={highlightSampleId} />
           ) : (
             <ControlChart

@@ -52,6 +52,11 @@ class FAIReport(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )
+    # Separation of duties (AS9102 Rev C Section 4.4): the approver must differ
+    # from the submitter.  Enforced at the API layer in api/v1/fai.py
+    # (approve_report checks submitted_by != current_user.id).  A DB-level CHECK
+    # constraint is not used because approved_by is NULL at insert time and
+    # cross-column CHECK behaviour varies across dialects.
     submitted_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)

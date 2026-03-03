@@ -34,6 +34,7 @@ class MultivariateGroupMemberResponse(BaseModel):
     id: int
     characteristic_id: int
     characteristic_name: str | None = None
+    hierarchy_path: str | None = None
     display_order: int
 
 

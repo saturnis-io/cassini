@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { init } from '@/lib/echarts'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface InteractionPlotProps {
   interactions: {
@@ -56,12 +57,22 @@ function InteractionSubPlot({
   grandMean: number
 }) {
   const chartRef = useRef<HTMLDivElement>(null)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const [nameA, nameB] = interaction.factor_names
 
   useEffect(() => {
     if (!chartRef.current) return
 
     const chart = init(chartRef.current)
+
+    // Theme-aware colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
 
     // Get main effects for each factor
     const effectA = effects.find((e) => e.factor_name === nameA)?.effect ?? 0
@@ -92,6 +103,9 @@ function InteractionSubPlot({
     chart.setOption({
       tooltip: {
         trigger: 'item',
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipTextColor },
         formatter: (params: { seriesName?: string; data?: [string, number] }) => {
           if (!params.data) return ''
           const [level, value] = params.data
@@ -108,13 +122,16 @@ function InteractionSubPlot({
       xAxis: {
         type: 'category',
         data: [`${nameA} Low`, `${nameA} High`],
-        axisLabel: { fontSize: 10 },
+        axisLabel: { fontSize: 10, color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
       },
       yAxis: {
         type: 'value',
         min: minY - padding,
         max: maxY + padding,
-        axisLabel: { fontSize: 10 },
+        axisLabel: { fontSize: 10, color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       series: [
         {
@@ -149,7 +166,7 @@ function InteractionSubPlot({
       ro.disconnect()
       chart.dispose()
     }
-  }, [interaction, effects, grandMean, nameA, nameB])
+  }, [interaction, effects, grandMean, nameA, nameB, isDark])
 
   return (
     <div className="border-border rounded-lg border p-2">

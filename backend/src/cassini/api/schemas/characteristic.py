@@ -79,6 +79,10 @@ class CharacteristicCreate(BaseModel):
         default=False,
         description="Enable Laney p'/u' overdispersion correction (p/u charts only)"
     )
+    sigma_method: str | None = Field(
+        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range)$",
+        description="Sigma estimation method override (null = auto-select based on subgroup size)"
+    )
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -90,6 +94,12 @@ class CharacteristicCreate(BaseModel):
                 raise ValueError("warn_below_count must be >= min_measurements")
             if self.warn_below_count > self.subgroup_size:
                 raise ValueError("warn_below_count cannot exceed subgroup_size")
+        # Validate sigma_method vs subgroup_size
+        if self.sigma_method:
+            if self.sigma_method == "moving_range" and self.subgroup_size > 1:
+                raise ValueError("moving_range sigma method is only valid for subgroup_size = 1")
+            if self.sigma_method in ("r_bar_d2", "s_bar_c4") and self.subgroup_size == 1:
+                raise ValueError(f"{self.sigma_method} sigma method requires subgroup_size > 1")
         return self
 
 
@@ -138,6 +148,10 @@ class CharacteristicUpdate(BaseModel):
         None,
         description="Distribution fitting method for non-normal capability"
     )
+    sigma_method: str | None = Field(
+        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range)$",
+        description="Sigma estimation method override"
+    )
 
 
 class CharacteristicResponse(BaseModel):
@@ -172,6 +186,7 @@ class CharacteristicResponse(BaseModel):
     use_laney_correction: bool = False
     short_run_mode: str | None = None
     distribution_method: str | None = None
+    sigma_method: str | None = None
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None

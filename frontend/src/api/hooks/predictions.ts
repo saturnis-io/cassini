@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { predictionApi, aiApi } from '../predictions.api'
+import { handleMutationError } from './utils'
 
 // -----------------------------------------------------------------------
 // Query keys
@@ -63,9 +64,7 @@ export function useUpdatePredictionConfig() {
       queryClient.invalidateQueries({ queryKey: predictionKeys.forecast(variables.charId) })
       toast.success('Prediction configuration saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save prediction config: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save prediction config'),
   })
 }
 
@@ -81,9 +80,7 @@ export function useTrainModel() {
       queryClient.invalidateQueries({ queryKey: predictionKeys.all })
       toast.success('Model trained successfully')
     },
-    onError: (error: Error) => {
-      toast.error(`Training failed: ${error.message}`)
-    },
+    onError: handleMutationError('Model training failed'),
   })
 }
 
@@ -110,11 +107,11 @@ export function useGenerateForecast() {
     mutationFn: (charId: number) => predictionApi.generateForecast(charId),
     onSuccess: (_, charId) => {
       queryClient.invalidateQueries({ queryKey: predictionKeys.forecast(charId) })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.history(charId) })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.all })
       toast.success('Forecast generated')
     },
-    onError: (error: Error) => {
-      toast.error(`Forecast generation failed: ${error.message}`)
-    },
+    onError: handleMutationError('Forecast generation failed'),
   })
 }
 
@@ -150,6 +147,10 @@ export function useUpdateAIConfig() {
         model_name?: string
         max_tokens?: number
         is_enabled?: boolean
+        base_url?: string | null
+        azure_resource_name?: string | null
+        azure_deployment_id?: string | null
+        azure_api_version?: string | null
       }
     }) => aiApi.updateConfig(plantId, data),
     onSuccess: (_, variables) => {
@@ -157,9 +158,7 @@ export function useUpdateAIConfig() {
       queryClient.invalidateQueries({ queryKey: aiKeys.all })
       toast.success('AI configuration saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save AI config: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save AI config'),
   })
 }
 
@@ -173,9 +172,7 @@ export function useTestAIConnection() {
         toast.error(`Connection test failed: ${data.message}`)
       }
     },
-    onError: (error: Error) => {
-      toast.error(`Connection test failed: ${error.message}`)
-    },
+    onError: handleMutationError('AI connection test failed'),
   })
 }
 
@@ -189,9 +186,7 @@ export function useAnalyzeChart() {
       queryClient.invalidateQueries({ queryKey: aiKeys.history(charId) })
       toast.success('AI analysis complete')
     },
-    onError: (error: Error) => {
-      toast.error(`AI analysis failed: ${error.message}`)
-    },
+    onError: handleMutationError('AI analysis failed'),
   })
 }
 

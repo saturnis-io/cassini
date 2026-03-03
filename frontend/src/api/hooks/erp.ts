@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { erpApi } from '../erp.api'
+import { handleMutationError } from './utils'
 import type { ERPConnectorCreate, ERPConnectorUpdate, ERPFieldMappingCreate } from '../erp.api'
 
 export const erpKeys = {
@@ -37,7 +38,7 @@ export function useCreateERPConnector() {
       qc.invalidateQueries({ queryKey: ['erp', 'connectors'] })
       toast.success(`Created connector "${data.name}"`)
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to create ERP connector'),
   })
 }
 
@@ -50,7 +51,7 @@ export function useUpdateERPConnector() {
       qc.invalidateQueries({ queryKey: ['erp'] })
       toast.success(`Updated connector "${data.name}"`)
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to update ERP connector'),
   })
 }
 
@@ -62,7 +63,7 @@ export function useDeleteERPConnector() {
       qc.invalidateQueries({ queryKey: ['erp'] })
       toast.success('Connector deleted')
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to delete ERP connector'),
   })
 }
 
@@ -73,7 +74,7 @@ export function useTestERPConnection() {
       if (result.success) toast.success(result.message)
       else toast.error(result.message)
     },
-    onError: (e: Error) => toast.error(`Test failed: ${e.message}`),
+    onError: handleMutationError('ERP connection test failed'),
   })
 }
 
@@ -86,7 +87,7 @@ export function useTriggerERPSync() {
       qc.invalidateQueries({ queryKey: ['erp'] })
       toast.success(result.message)
     },
-    onError: (e: Error) => toast.error(`Sync failed: ${e.message}`),
+    onError: handleMutationError('ERP sync failed'),
   })
 }
 
@@ -112,7 +113,7 @@ export function useCreateERPMapping() {
       qc.invalidateQueries({ queryKey: ['erp', 'mappings'] })
       toast.success('Mapping created')
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to create ERP mapping'),
   })
 }
 
@@ -132,7 +133,7 @@ export function useUpdateERPMapping() {
       qc.invalidateQueries({ queryKey: ['erp', 'mappings'] })
       toast.success('Mapping updated')
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to update ERP mapping'),
   })
 }
 
@@ -150,7 +151,7 @@ export function useDeleteERPMapping() {
       qc.invalidateQueries({ queryKey: ['erp', 'mappings'] })
       toast.success('Mapping deleted')
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to delete ERP mapping'),
   })
 }
 
@@ -176,6 +177,6 @@ export function useUpdateERPSchedule() {
       qc.invalidateQueries({ queryKey: ['erp'] })
       toast.success('Schedule updated')
     },
-    onError: (e: Error) => toast.error(`Failed: ${e.message}`),
+    onError: handleMutationError('Failed to update ERP schedule'),
   })
 }

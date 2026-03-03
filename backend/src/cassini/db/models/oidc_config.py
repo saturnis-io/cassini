@@ -52,6 +52,9 @@ class OIDCConfig(Base):
     )
     end_session_endpoint: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     post_logout_redirect_uri: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    allowed_redirect_uris: Mapped[str] = mapped_column(
+        Text, default="[]", server_default="[]", nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="1", nullable=False
     )
@@ -74,6 +77,14 @@ class OIDCConfig(Base):
     def scopes_list(self, value: list[str]) -> None:
         """Set scopes from a list."""
         self.scopes = json.dumps(value)
+
+    @property
+    def allowed_redirect_uris_list(self) -> list[str]:
+        """Parse allowed_redirect_uris JSON string into a list."""
+        try:
+            return json.loads(self.allowed_redirect_uris)
+        except (json.JSONDecodeError, TypeError):
+            return []
 
     @property
     def role_mapping_dict(self) -> dict:

@@ -525,44 +525,47 @@ async def get_latest_forecast(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(user, plant_id, "engineer")
 
-    # Find the latest generated_at for this characteristic
-    latest_stmt = (
+    # Use the row with highest ID (autoincrement = newest) to find the
+    # latest batch's generated_at, then load all batch members.  Avoids
+    # MAX(generated_at) which fails on SQLite text comparison when datetime
+    # formats are mixed (T-separator vs space-separator).
+    latest_gen_subq = (
         select(Forecast.generated_at)
         .where(Forecast.characteristic_id == char_id)
-        .order_by(Forecast.generated_at.desc())
+        .order_by(Forecast.id.desc())
         .limit(1)
+        .correlate(None)
+        .scalar_subquery()
     )
-    latest_result = await session.execute(latest_stmt)
-    latest_at = latest_result.scalar_one_or_none()
 
-    if latest_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No forecast available — train a model and generate a forecast first",
-        )
-
-    # Load all forecast points for this batch
     stmt = (
         select(Forecast)
         .where(
             Forecast.characteristic_id == char_id,
-            Forecast.generated_at == latest_at,
+            Forecast.generated_at == latest_gen_subq,
         )
         .order_by(Forecast.step.asc())
     )
     result = await session.execute(stmt)
     forecasts = list(result.scalars().all())
 
+    if not forecasts:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No forecast available — train a model and generate a forecast first",
+        )
+
+    latest_at = forecasts[0].generated_at
+
     # Get model type from the associated model
     model_type = "unknown"
-    if forecasts:
-        model_stmt = select(PredictionModel.model_type).where(
-            PredictionModel.id == forecasts[0].model_id
-        )
-        model_result = await session.execute(model_stmt)
-        mt = model_result.scalar_one_or_none()
-        if mt:
-            model_type = mt
+    model_stmt = select(PredictionModel.model_type).where(
+        PredictionModel.id == forecasts[0].model_id
+    )
+    model_result = await session.execute(model_stmt)
+    mt = model_result.scalar_one_or_none()
+    if mt:
+        model_type = mt
 
     # Find first predicted OOC step
     predicted_ooc_step = None
@@ -760,51 +763,43 @@ async def get_forecast_history(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(user, plant_id, "engineer")
 
-    # Get distinct generated_at timestamps (each represents a batch)
-    batch_stmt = (
-        select(Forecast.generated_at)
-        .where(Forecast.characteristic_id == char_id)
-        .group_by(Forecast.generated_at)
-        .order_by(Forecast.generated_at.desc())
-        .limit(limit)
-    )
-    batch_result = await session.execute(batch_stmt)
-    batch_times = [row[0] for row in batch_result.all()]
+    # Load all recent forecasts in one query and group in Python to avoid
+    # SQLite datetime round-trip mismatch on == comparison.
+    from itertools import groupby as itertools_groupby
 
-    if not batch_times:
+    all_stmt = (
+        select(Forecast)
+        .where(Forecast.characteristic_id == char_id)
+        .order_by(Forecast.id.desc())
+    )
+    all_result = await session.execute(all_stmt)
+    all_forecasts = list(all_result.scalars().all())
+
+    if not all_forecasts:
         return []
 
+    # Group by generated_at; sort each batch by step ascending
+    batches: list[list[Forecast]] = []
+    for _, group in itertools_groupby(all_forecasts, key=lambda f: f.generated_at):
+        batch = sorted(group, key=lambda f: f.step)
+        batches.append(batch)
+
+    # Build model type cache to avoid N+1 queries
+    model_ids = {f.model_id for f in all_forecasts}
+    model_types: dict[int, str] = {}
+    if model_ids:
+        mt_stmt = select(PredictionModel.id, PredictionModel.model_type).where(
+            PredictionModel.id.in_(model_ids)
+        )
+        mt_result = await session.execute(mt_stmt)
+        model_types = {row[0]: row[1] for row in mt_result.all()}
+
     responses: list[ForecastResponse] = []
+    for batch in batches[:limit]:
+        model_type = model_types.get(batch[0].model_id, "unknown")
 
-    for batch_time in batch_times:
-        # Load all forecast points for this batch
-        stmt = (
-            select(Forecast)
-            .where(
-                Forecast.characteristic_id == char_id,
-                Forecast.generated_at == batch_time,
-            )
-            .order_by(Forecast.step.asc())
-        )
-        result = await session.execute(stmt)
-        forecasts = list(result.scalars().all())
-
-        if not forecasts:
-            continue
-
-        # Get model type
-        model_type = "unknown"
-        model_stmt = select(PredictionModel.model_type).where(
-            PredictionModel.id == forecasts[0].model_id
-        )
-        model_result = await session.execute(model_stmt)
-        mt = model_result.scalar_one_or_none()
-        if mt:
-            model_type = mt
-
-        # Find first predicted OOC step
         predicted_ooc_step = None
-        for f in forecasts:
+        for f in batch:
             if f.predicted_ooc:
                 predicted_ooc_step = f.step
                 break
@@ -819,14 +814,14 @@ async def get_forecast_history(
                 upper_95=f.upper_95,
                 predicted_ooc=f.predicted_ooc,
             )
-            for f in forecasts
+            for f in batch
         ]
 
         responses.append(
             ForecastResponse(
                 characteristic_id=char_id,
                 model_type=model_type,
-                generated_at=batch_time,
+                generated_at=batch[0].generated_at,
                 points=points,
                 predicted_ooc_step=predicted_ooc_step,
             )

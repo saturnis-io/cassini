@@ -33,8 +33,9 @@ class OracleRESTAdapter(BaseERPAdapter):
                 if resp.status_code in (200, 204):
                     return {"success": True, "message": "Connected to Oracle REST API"}
                 return {"success": False, "message": f"Oracle returned HTTP {resp.status_code}"}
-        except Exception as e:
-            return {"success": False, "message": str(e)}
+        except Exception:
+            logger.exception("oracle_test_connection_failed")
+            return {"success": False, "message": "Connection test failed"}
 
     async def authenticate(self) -> None:
         if self.auth_type == "basic":
@@ -65,22 +66,7 @@ class OracleRESTAdapter(BaseERPAdapter):
                 logger.info("oracle_jwt_authenticated")
 
         elif self.auth_type == "oauth2_client_credentials":
-            if self._access_token and time.time() < self._token_expires_at - 60:
-                return
-
-            token_url = self.auth_config.get("token_url", "")
-            client_id = self.auth_config.get("client_id", "")
-            client_secret = self.auth_config.get("client_secret", "")
-
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(
-                    token_url,
-                    data={"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret},
-                )
-                resp.raise_for_status()
-                token_data = resp.json()
-                self._access_token = token_data["access_token"]
-                self._token_expires_at = time.time() + token_data.get("expires_in", 3600)
+            await self._authenticate_oauth2_client_credentials()
 
     async def fetch_records(
         self, entity: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0

@@ -1,0 +1,32 @@
+# Production overlay — adds Caddy reverse proxy for automatic HTTPS.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Environment variables:
+#   CASSINI_DOMAIN  — Your domain (e.g., spc.example.com). Defaults to localhost.
+#   JWT_SECRET      — MUST be set to a strong random string in production.
+#   CASSINI_PORT    — Set to empty or remove to hide direct backend access.
+#
+# For public domains, Caddy automatically obtains Let's Encrypt certificates.
+# For localhost/internal, Caddy generates a self-signed certificate.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - CASSINI_DOMAIN=${CASSINI_DOMAIN:-localhost}
+    depends_on:
+      - cassini
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

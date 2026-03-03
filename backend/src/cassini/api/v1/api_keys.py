@@ -1,58 +1,21 @@
 """API Key management endpoints."""
 
-from datetime import datetime
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_current_engineer, get_db_session
+from cassini.api.schemas.api_key import (
+    APIKeyCreate,
+    APIKeyCreateResponse,
+    APIKeyResponse,
+    APIKeyUpdate,
+)
 from cassini.db.models.api_key import APIKey
 from cassini.db.models.user import User
 from cassini.core.auth.api_key import APIKeyAuth
 
 router = APIRouter(prefix="/api/v1/api-keys", tags=["api-keys"])
-
-
-# Request/Response schemas
-class APIKeyCreate(BaseModel):
-    """Request schema for creating an API key."""
-    name: str = Field(..., min_length=1, max_length=255, description="Human-readable name")
-    expires_at: Optional[datetime] = Field(None, description="Optional expiration date")
-    rate_limit_per_minute: int = Field(60, ge=1, le=1000, description="Rate limit")
-
-
-class APIKeyResponse(BaseModel):
-    """Response schema for API key (without sensitive data)."""
-    id: str
-    name: str
-    created_at: datetime
-    expires_at: Optional[datetime]
-    rate_limit_per_minute: int
-    is_active: bool
-    last_used_at: Optional[datetime]
-
-    model_config = {"from_attributes": True}
-
-
-class APIKeyCreateResponse(BaseModel):
-    """Response schema for newly created API key (includes the key once)."""
-    id: str
-    name: str
-    key: str  # Only returned on creation!
-    created_at: datetime
-    expires_at: Optional[datetime]
-    rate_limit_per_minute: int
-    is_active: bool
-
-
-class APIKeyUpdate(BaseModel):
-    """Request schema for updating an API key."""
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    is_active: Optional[bool] = None
-    rate_limit_per_minute: Optional[int] = Field(None, ge=1, le=1000)
 
 
 @router.get("/", response_model=list[APIKeyResponse])

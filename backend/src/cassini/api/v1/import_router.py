@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cassini.api.deps import get_current_user, get_db_session
+from cassini.api.deps import check_plant_role, get_current_user, get_db_session, resolve_plant_id_for_characteristic
 from cassini.core.import_service import parse_file, validate_and_map, _parse_csv, _parse_excel
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.user import User
@@ -209,6 +209,10 @@ async def confirm_import(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Parse, validate, and import data as samples."""
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
+    check_plant_role(user, plant_id, "operator")
+
     content, filename = await _read_upload(file)
     mapping = _parse_column_mapping(column_mapping)
 

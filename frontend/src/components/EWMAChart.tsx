@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { graphic } from '@/lib/echarts'
+import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { getStoredChartColors } from '@/lib/theme-presets'
@@ -26,7 +27,7 @@ interface EWMAChartProps {
 export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, highlightSampleId }: EWMAChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
-    chartOptions ?? { limit: 50 },
+    { ...(chartOptions ?? { limit: 50 }), chartType: 'ewma' },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
@@ -80,7 +81,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
     const localHighlightSampleId = highlightSampleId
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customRenderItem = (_params: any, api: any) => {
+    const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localPoints.length)
         return { type: 'group', children: [] } as unknown

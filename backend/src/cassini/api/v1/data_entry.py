@@ -49,8 +49,15 @@ from cassini.db.repositories import (
 router = APIRouter(prefix="/api/v1/data-entry", tags=["data-entry"])
 
 
+# Shared RollingWindowManager — keeps LRU cache warm across requests
+_shared_window_manager: RollingWindowManager | None = None
+
+
 async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     """Create SPC engine instance with all dependencies.
+
+    Reuses a shared RollingWindowManager so the LRU cache persists
+    across requests. Session-scoped repos are created fresh per request.
 
     Args:
         session: Database session for repositories.
@@ -58,17 +65,25 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     Returns:
         Configured SPCEngine instance.
     """
+    global _shared_window_manager
+
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
     violation_repo = ViolationRepository(session)
-    window_manager = RollingWindowManager(sample_repo)
+
+    if _shared_window_manager is None:
+        _shared_window_manager = RollingWindowManager(sample_repo)
+    else:
+        # Update the repo reference to use the current session
+        _shared_window_manager._sample_repo = sample_repo
+
     rule_library = NelsonRuleLibrary()
 
     return SPCEngine(
         sample_repo=sample_repo,
         char_repo=char_repo,
         violation_repo=violation_repo,
-        window_manager=window_manager,
+        window_manager=_shared_window_manager,
         rule_library=rule_library,
     )
 

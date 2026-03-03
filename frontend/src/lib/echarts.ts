@@ -73,3 +73,7 @@ export type ECOption = ComposeOption<
 // Re-export what chart components need
 export { init, graphic }
 export type { LineSeriesOption, BarSeriesOption, CustomSeriesOption, ScatterSeriesOption, HeatmapSeriesOption }
+
+// Type aliases for custom renderItem functions — avoids `any` in chart components
+export type RenderItemParams = Parameters<NonNullable<CustomSeriesOption['renderItem']>>[0]
+export type RenderItemAPI = Parameters<NonNullable<CustomSeriesOption['renderItem']>>[1]

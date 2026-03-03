@@ -63,6 +63,7 @@ A trust feature for regulated industries — lets users see exactly how every st
 - **Imports**: Use `@/` alias, never relative paths crossing directories
 - **Components**: Function components, named exports, one component per file
 - **Hooks**: Custom hooks in `hooks/`, React Query hooks in `api/hooks/`
+- **Characteristic display**: Characteristic names are NOT unique — whenever displaying a characteristic, ALWAYS show its hierarchy breadcrumb path (e.g., "Plant > Line > Station") so the user can disambiguate. On detail views use `useHierarchyPath()` hook; on list/card views include `hierarchy_path` from the API response. Backend endpoints that return characteristics in any context should include the path string.
 
 ## Cross-Cutting Requirements (ALL New Features)
 
@@ -133,7 +134,7 @@ Every approval/sign-off workflow SHOULD integrate with the signature system (`co
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **SPC-client** (6907 symbols, 20555 relationships, 300 execution flows).
+This project is indexed by GitNexus as **SPC-client** (7217 symbols, 21573 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

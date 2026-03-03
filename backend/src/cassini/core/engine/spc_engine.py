@@ -511,12 +511,16 @@ class SPCEngine:
             _std_target = char_target_value if char_target_value is not None else 0.0
             _std_sigma = char_stored_sigma
             if _std_sigma and _std_sigma > 0:
-                # NOTE: For historical samples loaded from DB we don't know
-                # each sample's actual_n.  We use the characteristic's
-                # configured subgroup_size as the best available proxy.
-                # (For n=1 characteristics this is exact; for variable-n
-                # Mode B/C it is approximate but short-run + variable-n is
-                # uncommon.)
+                # KNOWN LIMITATION (audit F-18): For historical samples loaded
+                # from DB during cold-load, we don't have each sample's
+                # actual_n.  We use the characteristic's configured
+                # subgroup_size as a proxy for the Z-score divisor
+                # (sigma_xbar = sigma / sqrt(n)).  This is exact when all
+                # subgroups match the configured size (n=1, or fixed-n Mode C),
+                # but approximate for variable-n characteristics (Mode B).
+                # Short-run + variable-n is an unusual combination; if accuracy
+                # matters, store actual_n in rolling window query results and
+                # apply per-sample transforms.
                 _std_n = char_subgroup_size if char_subgroup_size and char_subgroup_size > 1 else 1
                 _std_sxbar = _std_sigma / math.sqrt(_std_n) if _std_n > 1 else _std_sigma
                 value_transform = lambda vals, t=_std_target, s=_std_sxbar: [
@@ -547,6 +551,52 @@ class SPCEngine:
 
         # Check all enabled rules (enabled_rules was extracted earlier to avoid lazy loading)
         rule_results = self._rule_library.check_all(window, enabled_rules)
+
+        # R-chart / S-chart Rule 1: point beyond D3/D4 limits (AIAG SPC Manual requirement)
+        # The R/S chart must be evaluated for lack of control. At minimum, check
+        # Rule 1 (point beyond control limits) on the range/sigma data.
+        if range_value is not None and char_stored_sigma is not None and char_stored_sigma > 0:
+            from cassini.utils.constants import get_D3, get_D4, get_B3, get_B4
+            from cassini.core.engine.nelson_rules import RuleResult, Severity
+
+            # Compute R-bar or S-bar from stored sigma (reverse the estimation)
+            if char_subgroup_size <= 10 and char_subgroup_size >= 2:
+                from cassini.utils.constants import get_d2
+                d2 = get_d2(char_subgroup_size)
+                r_bar = char_stored_sigma * d2
+                r_ucl = get_D4(char_subgroup_size) * r_bar
+                r_lcl = get_D3(char_subgroup_size) * r_bar
+                if range_value > r_ucl or range_value < r_lcl:
+                    side = "above UCL" if range_value > r_ucl else "below LCL"
+                    rule_results.append(RuleResult(
+                        rule_id=1,
+                        rule_name="R-chart Outlier",
+                        triggered=True,
+                        severity=Severity.WARNING,
+                        involved_sample_ids=[sample.id],
+                        message=f"Range {range_value:.4f} is {side} on R-chart (UCL={r_ucl:.4f}, LCL={r_lcl:.4f})",
+                    ))
+            elif char_subgroup_size > 10:
+                import numpy as np
+                from cassini.utils.constants import get_c4
+                c4 = get_c4(char_subgroup_size)
+                s_bar = char_stored_sigma * c4
+                s_ucl = get_B4(char_subgroup_size) * s_bar
+                s_lcl = get_B3(char_subgroup_size) * s_bar
+                # For n>10, range_value is max-min but S-chart uses stdev;
+                # compute stdev from measurements for this check
+                if len(measurements) > 1:
+                    sample_stdev = float(np.std(measurements, ddof=1))
+                    if sample_stdev > s_ucl or sample_stdev < s_lcl:
+                        side = "above UCL" if sample_stdev > s_ucl else "below LCL"
+                        rule_results.append(RuleResult(
+                            rule_id=1,
+                            rule_name="S-chart Outlier",
+                            triggered=True,
+                            severity=Severity.WARNING,
+                            involved_sample_ids=[sample.id],
+                            message=f"Stdev {sample_stdev:.4f} is {side} on S-chart (UCL={s_ucl:.4f}, LCL={s_lcl:.4f})",
+                        ))
 
         # Step 6: Create violations for triggered rules
         violations, violation_dicts = await self._create_violations(
@@ -750,6 +800,7 @@ class SPCEngine:
         from cassini.utils.statistics import (
             calculate_imr_limits,
             calculate_xbar_r_limits,
+            calculate_xbar_s_limits,
             estimate_sigma_sbar,
         )
 
@@ -808,6 +859,7 @@ class SPCEngine:
             )
         else:
             # X-bar S chart (subgroup sizes > 10)
+            # AIAG SPC Manual 2nd Ed: Use S-bar/c4 for sigma, B3/B4 for S-chart limits
             import numpy as np
 
             means = []
@@ -822,10 +874,9 @@ class SPCEngine:
             if len(means) < 2:
                 raise ValueError("Need at least 2 subgroups for X-bar S chart")
 
-            x_double_bar = sum(means) / len(means)
-            sigma = estimate_sigma_sbar(stdevs, char.subgroup_size)
-            import math
-
-            ucl = x_double_bar + 3.0 * sigma / math.sqrt(char.subgroup_size)
-            lcl = x_double_bar - 3.0 * sigma / math.sqrt(char.subgroup_size)
-            return (x_double_bar, ucl, lcl)
+            limits = calculate_xbar_s_limits(means, stdevs, char.subgroup_size)
+            return (
+                limits.xbar_limits.center_line,
+                limits.xbar_limits.ucl,
+                limits.xbar_limits.lcl,
+            )

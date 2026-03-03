@@ -78,24 +78,55 @@ async def _get_group_or_404(
     return group
 
 
+async def _build_hierarchy_path(session: AsyncSession, hierarchy_id: int) -> str:
+    """Build 'Plant > Line > Machine' path by walking the hierarchy tree."""
+    parts: list[str] = []
+    current_id: int | None = hierarchy_id
+    while current_id is not None:
+        stmt = select(Hierarchy.name, Hierarchy.parent_id).where(
+            Hierarchy.id == current_id
+        )
+        result = await session.execute(stmt)
+        row = result.one_or_none()
+        if row is None:
+            break
+        parts.insert(0, row[0])
+        current_id = row[1]
+    return " > ".join(parts)
+
+
 async def _build_group_response(
     session: AsyncSession, group: MultivariateGroup
 ) -> MultivariateGroupResponse:
     """Build a MultivariateGroupResponse with characteristic names resolved."""
     member_responses: list[MultivariateGroupMemberResponse] = []
+    hierarchy_cache: dict[int, str] = {}
+
     for m in sorted(group.members, key=lambda x: x.display_order):
-        # Resolve characteristic name
-        name_stmt = select(Characteristic.name).where(
-            Characteristic.id == m.characteristic_id
-        )
-        name_result = await session.execute(name_stmt)
-        char_name = name_result.scalar_one_or_none()
+        # Resolve characteristic name + hierarchy_id
+        char_stmt = select(
+            Characteristic.name, Characteristic.hierarchy_id
+        ).where(Characteristic.id == m.characteristic_id)
+        char_result = await session.execute(char_stmt)
+        char_row = char_result.one_or_none()
+        char_name = char_row[0] if char_row else None
+        hierarchy_id = char_row[1] if char_row else None
+
+        # Build hierarchy path (cached to avoid re-walking shared ancestors)
+        hierarchy_path = None
+        if hierarchy_id is not None:
+            if hierarchy_id not in hierarchy_cache:
+                hierarchy_cache[hierarchy_id] = await _build_hierarchy_path(
+                    session, hierarchy_id
+                )
+            hierarchy_path = hierarchy_cache[hierarchy_id]
 
         member_responses.append(
             MultivariateGroupMemberResponse(
                 id=m.id,
                 characteristic_id=m.characteristic_id,
                 characteristic_name=char_name,
+                hierarchy_path=hierarchy_path,
                 display_order=m.display_order,
             )
         )
@@ -414,6 +445,8 @@ async def compute_pca(
 @router.get("/groups", response_model=list[MultivariateGroupResponse])
 async def list_groups(
     plant_id: int = Query(..., description="Plant ID (required)"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MultivariateGroupResponse]:
@@ -429,6 +462,8 @@ async def list_groups(
         .options(selectinload(MultivariateGroup.members))
         .where(MultivariateGroup.plant_id == plant_id)
         .order_by(MultivariateGroup.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
     result = await session.execute(stmt)
     groups = list(result.scalars().all())

@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import { init } from '@/lib/echarts'
 import { useTheme } from '@/providers/ThemeProvider'
 
-interface ParetoChartProps {
+interface EffectsParetoChartProps {
   effects: { factor_name: string; effect: number }[]
   interactions: { factor_names: string[]; effect: number }[]
   significanceThreshold?: number
@@ -14,7 +14,7 @@ interface EffectEntry {
   effect: number
 }
 
-export function ParetoChart({ effects, interactions, significanceThreshold }: ParetoChartProps) {
+export function EffectsParetoChart({ effects, interactions, significanceThreshold }: EffectsParetoChartProps) {
   const chartRef = useRef<HTMLDivElement>(null)
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'

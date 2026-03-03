@@ -371,8 +371,11 @@ button.bg-primary:disabled {
   color: inherit;
 }
 
-/* Focus visible - Accessibility ring (brand primary) */
-:focus-visible {
+/* Focus visible - Accessibility ring (brand primary)
+ * Excludes form inputs which have their own focus styling in @layer base above.
+ * Without this exclusion, inputs show a doubled white+gold ring on focus.
+ */
+:focus-visible:not(input, select, textarea) {
   outline: none;
   box-shadow:
     0 0 0 2px hsl(0 0% 100%),

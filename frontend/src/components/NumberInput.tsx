@@ -187,6 +187,12 @@ export function NumberInput({
           MozAppearance: 'textfield',
           WebkitAppearance: 'none',
           appearance: 'none',
+          // Override global @layer base input styles — the outer container
+          // handles focus styling via focus-within: classes
+          background: 'transparent',
+          border: 'none',
+          boxShadow: 'none',
+          borderRadius: 0,
         }}
         className={cn(
           'h-full min-w-0 flex-1 border-0 bg-transparent px-3',

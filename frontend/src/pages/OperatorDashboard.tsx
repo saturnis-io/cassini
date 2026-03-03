@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { useCharacteristics, useCharacteristic, useChartData, useAnnotations } from '@/api/hooks'
+import { useCharacteristics, useCharacteristic, useChartData, useAnnotations, useCapability } from '@/api/hooks'
 import { characteristicApi } from '@/api/characteristics.api'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { calculateSharedYAxisDomain } from '@/lib/chart-domain'
@@ -116,6 +116,7 @@ export function OperatorDashboard() {
 
   // Get selected characteristic details for subgroup size
   const { data: selectedCharacteristic } = useCharacteristic(selectedId ?? 0)
+  const { data: capability } = useCapability(selectedId ?? 0)
 
   // Derive characteristic metadata before chart type computation
   const subgroupSize = selectedCharacteristic?.subgroup_size ?? 5
@@ -144,7 +145,7 @@ export function OperatorDashboard() {
   const { isConnected: wsConnected, subscribe, unsubscribe } = useWebSocketContext()
 
   // Compute chart data options from time range + product code filter
-  const chartOptions = (() => {
+  const chartOptions = useMemo(() => {
     const productCode = productCodeFilter ?? undefined
     if (timeRange.type === 'points' && timeRange.pointsLimit) {
       return { limit: timeRange.pointsLimit, productCode }
@@ -159,7 +160,7 @@ export function OperatorDashboard() {
       return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: MAX_CHART_POINTS, productCode }
     }
     return { limit: 50, productCode }
-  })()
+  }, [timeRange, productCodeFilter])
 
   // Get chart data for annotation dialog, range slider sparkline, and stats
   const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions, {
@@ -322,15 +323,15 @@ export function OperatorDashboard() {
 
     const centerLine = control_limits.center_line
 
-    // Compute Cpk if spec limits exist
+    // Compute Cpk using stored_sigma (R-bar/d2, AIAG-correct within-subgroup sigma)
     let cpk: number | null = null
-    if (spec_limits.usl != null && spec_limits.lsl != null && control_limits.center_line != null) {
-      const mean = values.reduce((a, b) => a + b, 0) / values.length
-      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1)
-      const sigma = Math.sqrt(variance)
-      if (sigma > 0) {
-        const cpkUpper = (spec_limits.usl - mean) / (3 * sigma)
-        const cpkLower = (mean - spec_limits.lsl) / (3 * sigma)
+    const mean = values.reduce((a, b) => a + b, 0) / values.length
+
+    if (spec_limits.usl != null && spec_limits.lsl != null) {
+      const sigmaWithin = chartDataForAnnotation.stored_sigma
+      if (sigmaWithin != null && sigmaWithin > 0) {
+        const cpkUpper = (spec_limits.usl - mean) / (3 * sigmaWithin)
+        const cpkLower = (mean - spec_limits.lsl) / (3 * sigmaWithin)
         cpk = Math.min(cpkUpper, cpkLower)
       }
     }
@@ -406,7 +407,7 @@ export function OperatorDashboard() {
           {quickStats.cpk != null && (
             <StatPill
               icon={Gauge}
-              label={t('stats.cpk')}
+              label="Cpk"
               value={
                 <Explainable metric="cpk" resourceId={selectedId} chartOptions={chartOptions}>
                   {quickStats.cpk.toFixed(2)}
@@ -414,6 +415,20 @@ export function OperatorDashboard() {
               }
               variant={
                 quickStats.cpk >= 1.33 ? 'success' : quickStats.cpk >= 1.0 ? 'warning' : 'danger'
+              }
+            />
+          )}
+          {capability?.ppk != null && (
+            <StatPill
+              icon={Gauge}
+              label="Ppk"
+              value={
+                <Explainable metric="ppk" resourceId={selectedId}>
+                  {capability.ppk.toFixed(2)}
+                </Explainable>
+              }
+              variant={
+                capability.ppk >= 1.33 ? 'success' : capability.ppk >= 1.0 ? 'warning' : 'danger'
               }
             />
           )}

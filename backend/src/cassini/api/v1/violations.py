@@ -39,16 +39,7 @@ async def build_hierarchy_path(
     hierarchy_repo: HierarchyRepository, hierarchy_id: int
 ) -> str:
     """Build hierarchy path string like 'Plant > Line > Machine'."""
-    path_parts = []
-    current_id: int | None = hierarchy_id
-
-    while current_id is not None:
-        node = await hierarchy_repo.get_by_id(current_id)
-        if node is None:
-            break
-        path_parts.insert(0, node.name)
-        current_id = node.parent_id
-
+    path_parts = await hierarchy_repo.get_ancestor_path(hierarchy_id)
     return " > ".join(path_parts) if path_parts else ""
 
 
@@ -430,17 +421,17 @@ async def acknowledge_violation(
         if "not found" in error_msg:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
+                detail="Violation not found",
             )
         elif "already acknowledged" in error_msg:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=error_msg,
+                detail="Violation already acknowledged",
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg,
+                detail="Invalid acknowledgment request",
             )
 
 

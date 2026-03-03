@@ -117,6 +117,8 @@ async def create_report(
 async def list_reports(
     plant_id: int = Query(..., description="Plant ID (required)"),
     report_status: str | None = Query(None, alias="status", description="Filter by status"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[FAIReportResponse]:
@@ -129,7 +131,7 @@ async def list_reports(
     stmt = select(FAIReport).where(FAIReport.plant_id == plant_id)
     if report_status is not None:
         stmt = stmt.where(FAIReport.status == report_status)
-    stmt = stmt.order_by(FAIReport.created_at.desc())
+    stmt = stmt.order_by(FAIReport.created_at.desc()).offset(offset).limit(limit)
 
     result = await session.execute(stmt)
     reports = list(result.scalars().all())

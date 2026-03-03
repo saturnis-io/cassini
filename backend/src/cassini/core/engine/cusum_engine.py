@@ -130,10 +130,15 @@ async def process_cusum_sample(
         if rule.is_enabled
     }
 
-    # Step 2: Estimate sigma (same pattern as EWMA engine)
+    # Step 2: Estimate sigma (within-subgroup estimator per Montgomery Ch. 9)
     # Use stored_sigma if available, otherwise estimate from historical data
+    # using the moving range method (MR-bar/d2) for individuals data.
+    # This gives within-subgroup (short-term) sigma, which is correct for
+    # CUSUM charts designed to detect shifts from a stable baseline.
     sigma = char.stored_sigma
     if sigma is None or sigma <= 0:
+        from cassini.utils.statistics import estimate_sigma_moving_range
+
         window_data = await sample_repo.get_rolling_window_data(
             char_id=char_id, window_size=100, exclude_excluded=True
         )
@@ -142,10 +147,7 @@ async def process_cusum_sample(
             all_values.extend(wd["values"])
         all_values.append(measurement)
         if len(all_values) >= 2:
-            n = len(all_values)
-            mean = sum(all_values) / n
-            variance = sum((x - mean) ** 2 for x in all_values) / (n - 1)
-            sigma = math.sqrt(variance)
+            sigma = estimate_sigma_moving_range(all_values, span=2)
         else:
             sigma = 0.0
 

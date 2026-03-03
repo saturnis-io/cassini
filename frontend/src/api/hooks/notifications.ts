@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { notificationApi } from '../notifications.api'
 import { signatureApi } from '../signatures.api'
 import { queryKeys, PENDING_APPROVALS_REFETCH_MS } from './queryKeys'
+import { handleMutationError } from './utils'
 import type {
   NotificationPreferenceItem,
   SmtpConfigUpdate,
@@ -40,9 +41,7 @@ export function useUpdateSmtpConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.smtp() })
       toast.success('SMTP configuration saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save SMTP config: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save SMTP config'),
   })
 }
 
@@ -52,9 +51,7 @@ export function useTestSmtp() {
     onSuccess: (data) => {
       toast.success(data.message)
     },
-    onError: (error: Error) => {
-      toast.error(`SMTP test failed: ${error.message}`)
-    },
+    onError: handleMutationError('SMTP test failed'),
   })
 }
 
@@ -74,9 +71,7 @@ export function useCreateWebhook() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
       toast.success(`Webhook "${data.name}" created`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create webhook: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create webhook'),
   })
 }
 
@@ -90,9 +85,7 @@ export function useUpdateWebhook() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
       toast.success('Webhook updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update webhook: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update webhook'),
   })
 }
 
@@ -105,9 +98,7 @@ export function useDeleteWebhook() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.webhooks() })
       toast.success('Webhook deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete webhook: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete webhook'),
   })
 }
 
@@ -117,9 +108,7 @@ export function useTestWebhook() {
     onSuccess: (data) => {
       toast.success(data.message)
     },
-    onError: (error: Error) => {
-      toast.error(`Webhook test failed: ${error.message}`)
-    },
+    onError: handleMutationError('Webhook test failed'),
   })
 }
 
@@ -140,9 +129,7 @@ export function useUpdateNotificationPreferences() {
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications.preferences() })
       toast.success('Notification preferences saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save preferences: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save notification preferences'),
   })
 }
 
@@ -168,9 +155,7 @@ export function useVerifySignature() {
   const plantId = useActivePlantId()
   return useMutation({
     mutationFn: (signatureId: number) => signatureApi.verify(plantId!, signatureId),
-    onError: (error: Error) => {
-      toast.error(`Verification failed: ${error.message}`)
-    },
+    onError: handleMutationError('Signature verification failed'),
   })
 }
 
@@ -196,9 +181,7 @@ export function useSign() {
       })
       toast.success(`Signed by ${result.full_name || result.signer_name}`)
     },
-    onError: (error: Error) => {
-      toast.error(`Signature failed: ${error.message}`)
-    },
+    onError: handleMutationError('Signature failed'),
   })
 }
 
@@ -212,9 +195,7 @@ export function useRejectWorkflow() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Workflow rejected')
     },
-    onError: (error: Error) => {
-      toast.error(`Rejection failed: ${error.message}`)
-    },
+    onError: handleMutationError('Workflow rejection failed'),
   })
 }
 
@@ -248,9 +229,7 @@ export function useCreateWorkflow() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
       toast.success(`Workflow "${data.name}" created`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create workflow: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create workflow'),
   })
 }
 
@@ -266,9 +245,7 @@ export function useUpdateWorkflow() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.pending() })
       toast.success('Workflow updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update workflow: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update workflow'),
   })
 }
 
@@ -282,9 +259,7 @@ export function useDeleteWorkflow() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.workflows() })
       toast.success('Workflow deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete workflow: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete workflow'),
   })
 }
 
@@ -310,9 +285,7 @@ export function useCreateStep() {
       })
       toast.success('Step added')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to add step: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to add step'),
   })
 }
 
@@ -327,9 +300,7 @@ export function useUpdateStep() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Step updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update step: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update step'),
   })
 }
 
@@ -343,9 +314,7 @@ export function useDeleteStep() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Step deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete step: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete step'),
   })
 }
 
@@ -371,9 +340,7 @@ export function useCreateMeaning() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success(`Meaning "${data.display_name}" created`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create meaning: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create meaning'),
   })
 }
 
@@ -389,9 +356,7 @@ export function useUpdateMeaning() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.all })
       toast.success('Meaning updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update meaning: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update meaning'),
   })
 }
 
@@ -405,9 +370,7 @@ export function useDeleteMeaning() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.meanings() })
       toast.success('Meaning removed')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to remove meaning: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to remove meaning'),
   })
 }
 
@@ -433,8 +396,6 @@ export function useUpdatePasswordPolicy() {
       queryClient.invalidateQueries({ queryKey: queryKeys.signatures.passwordPolicy() })
       toast.success('Password policy updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update password policy: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update password policy'),
   })
 }

@@ -58,6 +58,7 @@ export const characteristicApi = {
       startDate?: string
       endDate?: string
       productCode?: string
+      chartType?: string
     },
   ) => {
     const params = new URLSearchParams()
@@ -65,6 +66,7 @@ export const characteristicApi = {
     if (options?.startDate) params.set('start_date', options.startDate)
     if (options?.endDate) params.set('end_date', options.endDate)
     if (options?.productCode) params.set('product_code', options.productCode)
+    if (options?.chartType) params.set('chart_type', options.chartType)
     const query = params.toString()
     return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
   },

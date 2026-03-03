@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { violationApi } from '../quality.api'
 import { queryKeys, VIOLATION_STATS_REFETCH_MS } from './queryKeys'
+import { handleMutationError } from './utils'
 
 /** Invalidate all queries affected by violation status changes */
 function invalidateViolationDependents(queryClient: ReturnType<typeof useQueryClient>) {
@@ -67,7 +68,8 @@ export function useAcknowledgeViolation() {
           queryClient.setQueryData(key as readonly unknown[], data)
         })
       }
-      toast.error(`Failed to acknowledge: ${error.message}`)
+      console.error('Failed to acknowledge violation:', error.message)
+      toast.error('Failed to acknowledge violation. Please try again.')
     },
     onSuccess: () => {
       toast.success('Violation acknowledged')
@@ -100,9 +102,7 @@ export function useBatchAcknowledgeViolation() {
       // so the query cache is refreshed while the component is still mounted
       invalidateViolationDependents(queryClient)
     },
-    onError: (error: Error) => {
-      toast.error(`Bulk acknowledge failed: ${error.message}`)
-    },
+    onError: handleMutationError('Bulk acknowledge failed'),
   })
 }
 

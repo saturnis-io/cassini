@@ -390,6 +390,20 @@ async def update_characteristic(
         if characteristic.use_laney_correction:
             update_data["use_laney_correction"] = False
 
+    # Validate sigma_method vs subgroup_size
+    if "sigma_method" in update_data and update_data["sigma_method"] is not None:
+        sg = characteristic.subgroup_size
+        if update_data["sigma_method"] == "moving_range" and sg > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="moving_range sigma method is only valid for subgroup_size = 1",
+            )
+        if update_data["sigma_method"] in ("r_bar_d2", "s_bar_c4") and sg == 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{update_data['sigma_method']} sigma method requires subgroup_size > 1",
+            )
+
     # Update only provided fields
     for key, value in update_data.items():
         setattr(characteristic, key, value)
@@ -475,10 +489,10 @@ async def _recalculate_attribute_limits(
 
     try:
         limits = calculate_attribute_limits(chart_type, window_data)
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Failed to calculate attribute limits — check data and chart configuration",
         )
 
     # Persist to characteristic
@@ -915,10 +929,17 @@ async def _get_ewma_chart_data(
         preceding = (await session.execute(count_stmt)).scalar_one()
         _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
 
+    # Compute EWMA values on-the-fly from raw measurements (like CUSUM does)
+    # so the chart works for any data regardless of how it was submitted.
     ewma_samples = []
+    prev_ewma = target  # z_0 = process target (standard EWMA initialization)
     for sample in samples:
         values = [m.value for m in sample.measurements]
         measurement = values[0] if values else 0.0
+
+        # EWMA_t = lambda * x_t + (1 - lambda) * EWMA_{t-1}
+        ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
+        prev_ewma = ewma_value
 
         sv = violations_by_sample.get(sample.id, [])
         violation_ids = [v.id for v in sv]
@@ -929,7 +950,7 @@ async def _get_ewma_chart_data(
             sample_id=sample.id,
             timestamp=sample.timestamp.isoformat(),
             measurement=measurement,
-            ewma_value=sample.ewma_value if sample.ewma_value is not None else target,
+            ewma_value=ewma_value,
             excluded=sample.is_excluded,
             violation_ids=violation_ids,
             unacknowledged_violation_ids=unack_ids,
@@ -975,6 +996,7 @@ async def get_chart_data(
     start_date: datetime | None = Query(None, description="Start date for filtering samples"),
     end_date: datetime | None = Query(None, description="End date for filtering samples"),
     product_code: str | None = Query(None, description="Filter by product code"),
+    chart_type: str | None = Query(None, description="Override chart type for rendering (cusum, ewma, etc.)"),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1001,14 +1023,15 @@ async def get_chart_data(
         )
 
     # --- CUSUM chart branch ---
-    if characteristic.chart_type == "cusum":
+    effective_chart_type = chart_type or characteristic.chart_type
+    if effective_chart_type == "cusum":
         return await _get_cusum_chart_data(
             char_id, characteristic, limit, sample_repo, session,
             product_code=product_code,
         )
 
     # --- EWMA chart branch ---
-    if characteristic.chart_type == "ewma":
+    if effective_chart_type == "ewma":
         return await _get_ewma_chart_data(
             char_id, characteristic, limit, sample_repo, session,
             product_code=product_code,

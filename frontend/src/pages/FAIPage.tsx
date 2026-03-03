@@ -11,7 +11,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { usePlants } from '@/api/hooks'
 import {
   useFAIReports,
@@ -29,7 +29,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
 export function FAIPage() {
   const { formatDate } = useDateFormat()
   const navigate = useNavigate()
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const { data: plants } = usePlants()
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)

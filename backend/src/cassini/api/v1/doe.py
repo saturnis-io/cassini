@@ -220,6 +220,8 @@ async def list_studies(
     study_status: str | None = Query(
         None, alias="status", description="Filter by status (design, collecting, analyzed)"
     ),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[DOEStudyResponse]:
@@ -234,6 +236,8 @@ async def list_studies(
         .where(DOEStudy.plant_id == plant_id)
         .options(selectinload(DOEStudy.factors))
         .order_by(DOEStudy.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
     if study_status is not None:
         stmt = stmt.where(DOEStudy.status == study_status)

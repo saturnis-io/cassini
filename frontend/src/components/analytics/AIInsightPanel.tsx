@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { HelpTooltip } from '@/components/HelpTooltip'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { useLatestInsight, useInsightHistory, useAnalyzeChart } from '@/api/hooks'
 
@@ -102,7 +103,10 @@ export function AIInsightPanel({ charId, onClose }: AIInsightPanelProps) {
     <div className="rounded-lg border border-border bg-card">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border p-4">
-        <h3 className="text-foreground text-sm font-medium">AI Insight</h3>
+        <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">
+          AI Insight
+          <HelpTooltip helpKey="ai-insights" />
+        </h3>
         <div className="flex items-center gap-2">
           <button
             onClick={() => analyzeMutation.mutate(charId)}

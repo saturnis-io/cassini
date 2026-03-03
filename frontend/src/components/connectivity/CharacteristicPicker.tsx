@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { characteristicApi } from '@/api/client'
 import { useCharacteristic, useHierarchyTreeByPlant, useHierarchyCharacteristics } from '@/api/hooks'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import type { HierarchyNode, Characteristic } from '@/types'
 
 interface CharacteristicPickerProps {
@@ -47,7 +47,7 @@ export function CharacteristicPicker({
   onChange,
   mappedCharacteristicIds = new Set(),
 }: CharacteristicPickerProps) {
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())

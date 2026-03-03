@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Loader2, Save, Play, Clock, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { HelpTooltip } from '@/components/HelpTooltip'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import {
   usePredictionConfig,
@@ -106,7 +107,10 @@ export function PredictionConfig({ characteristicId, className }: PredictionConf
 
       {/* Model type */}
       <div>
-        <label className="text-foreground mb-1 block text-xs font-medium">Model Type</label>
+        <label className="text-foreground mb-1 flex items-center gap-2 text-xs font-medium">
+          Model Type
+          <HelpTooltip helpKey="prediction-model-type" />
+        </label>
         <select
           value={form.model_type}
           onChange={(e) => updateField('model_type', e.target.value)}
@@ -123,7 +127,10 @@ export function PredictionConfig({ characteristicId, className }: PredictionConf
       {/* Forecast horizon */}
       <div>
         <label className="text-foreground mb-1 flex items-center justify-between text-xs font-medium">
-          <span>Forecast Horizon</span>
+          <span className="flex items-center gap-2">
+            Forecast Horizon
+            <HelpTooltip helpKey="prediction-forecast-horizon" />
+          </span>
           <span className="text-muted-foreground font-normal">{form.forecast_horizon} steps</span>
         </label>
         <input
@@ -144,7 +151,10 @@ export function PredictionConfig({ characteristicId, className }: PredictionConf
       {/* Refit interval */}
       <div>
         <label className="text-foreground mb-1 flex items-center justify-between text-xs font-medium">
-          <span>Refit Interval</span>
+          <span className="flex items-center gap-2">
+            Refit Interval
+            <HelpTooltip helpKey="prediction-refit-interval" />
+          </span>
           <span className="text-muted-foreground font-normal">
             every {form.refit_interval} samples
           </span>
@@ -226,17 +236,19 @@ export function PredictionConfig({ characteristicId, className }: PredictionConf
             )}
 
             <div className="text-muted-foreground">Status</div>
-            <div className="text-foreground font-medium capitalize">{model.status}</div>
+            <div className="text-foreground font-medium capitalize">
+              {model.is_current ? 'Current' : 'Superseded'}
+            </div>
 
             <div className="text-muted-foreground">Training Samples</div>
-            <div className="text-foreground font-medium">{model.training_samples}</div>
+            <div className="text-foreground font-medium">{model.training_samples ?? '—'}</div>
 
-            {model.trained_at && (
+            {model.fitted_at && (
               <>
                 <div className="text-muted-foreground">Last Trained</div>
                 <div className="text-foreground flex items-center gap-1 font-medium">
                   <Clock className="h-3 w-3" />
-                  {formatDateTime(model.trained_at)}
+                  {formatDateTime(model.fitted_at)}
                 </div>
               </>
             )}

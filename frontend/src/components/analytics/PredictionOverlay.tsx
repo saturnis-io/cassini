@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useECharts } from '@/hooks/useECharts'
+import { useTheme } from '@/providers/ThemeProvider'
 import type { ECOption } from '@/lib/echarts'
 
 export interface ForecastPoint {
@@ -25,8 +26,22 @@ interface PredictionOverlayProps {
  * as shaded bands, and optional UCL/LCL marklines.
  */
 export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   const option = useMemo<ECOption | null>(() => {
     if (!forecast || forecast.length === 0) return null
+
+    // Theme-aware colors
+    const predictionColor = isDark ? 'hsl(210, 90%, 65%)' : '#3b82f6'
+    const oocColor = isDark ? 'hsl(357, 85%, 60%)' : '#ef4444'
+    const oocBorderColor = isDark ? 'hsl(220, 25%, 13%)' : '#fff'
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : undefined
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : undefined
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
 
     const steps = forecast.map((p) => p.step)
     const predictedValues = forecast.map((p) => p.predicted_value)
@@ -42,7 +57,7 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
         coord: [p.step, p.predicted_value],
         symbol: 'circle',
         symbolSize: 8,
-        itemStyle: { color: '#ef4444', borderColor: '#fff', borderWidth: 1.5 },
+        itemStyle: { color: oocColor, borderColor: oocBorderColor, borderWidth: 1.5 },
       }))
 
     // Build series
@@ -64,7 +79,7 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
         type: 'line',
         data: forecast.map((p) => [p.step, p.lower_95 ?? p.predicted_value]),
         lineStyle: { opacity: 0 },
-        areaStyle: { color: '#3b82f6', opacity: 0.1 },
+        areaStyle: { color: predictionColor, opacity: 0.1 },
         symbol: 'none',
         silent: true,
       })
@@ -85,19 +100,19 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
         type: 'line',
         data: forecast.map((p) => [p.step, p.lower_80 ?? p.predicted_value]),
         lineStyle: { opacity: 0 },
-        areaStyle: { color: '#3b82f6', opacity: 0.2 },
+        areaStyle: { color: predictionColor, opacity: 0.2 },
         symbol: 'none',
         silent: true,
       })
     }
 
-    // Predicted values line (dashed blue)
+    // Predicted values line (dashed)
     series.push({
       name: 'Predicted',
       type: 'line',
       data: predictedValues.map((v, i) => [steps[i], v]),
-      lineStyle: { color: '#3b82f6', type: 'dashed', width: 2 },
-      itemStyle: { color: '#3b82f6' },
+      lineStyle: { color: predictionColor, type: 'dashed', width: 2 },
+      itemStyle: { color: predictionColor },
       symbol: 'circle',
       symbolSize: 4,
       markPoint: oocPoints.length > 0 ? { data: oocPoints } : undefined,
@@ -109,15 +124,15 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
     if (ucl != null) {
       markLineData.push({
         yAxis: ucl,
-        label: { formatter: 'UCL', position: 'end', fontSize: 10 },
-        lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
+        label: { formatter: 'UCL', position: 'end', fontSize: 10, color: oocColor },
+        lineStyle: { color: oocColor, type: 'dashed', width: 1 },
       })
     }
     if (lcl != null) {
       markLineData.push({
         yAxis: lcl,
-        label: { formatter: 'LCL', position: 'end', fontSize: 10 },
-        lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
+        label: { formatter: 'LCL', position: 'end', fontSize: 10, color: oocColor },
+        lineStyle: { color: oocColor, type: 'dashed', width: 1 },
       })
     }
     if (markLineData.length > 0) {
@@ -138,13 +153,26 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
     ])
     if (ucl != null) allValues.push(ucl)
     if (lcl != null) allValues.push(lcl)
-    const yMin = Math.min(...allValues)
-    const yMax = Math.max(...allValues)
-    const yPadding = (yMax - yMin) * 0.1 || 1
+    const rawMin = Math.min(...allValues)
+    const rawMax = Math.max(...allValues)
+    const yPadding = (rawMax - rawMin) * 0.1 || 1
+
+    // Round min/max to clean numbers using magnitude-based rounding
+    const paddedMin = rawMin - yPadding
+    const paddedMax = rawMax + yPadding
+    const magMax = Math.pow(10, Math.floor(Math.log10(Math.abs(paddedMax) || 1)))
+    const stepMax = magMax / 2
+    const yMax = Math.ceil(paddedMax / stepMax) * stepMax
+    const magMin = Math.pow(10, Math.floor(Math.log10(Math.abs(paddedMin) || 1)))
+    const stepMin = magMin / 2
+    const yMin = Math.floor(paddedMin / stepMin) * stepMin
 
     return {
       tooltip: {
         trigger: 'axis',
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipTextColor },
         formatter: (params: unknown) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const items = params as any[]
@@ -162,7 +190,7 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
             html += `80% CI: [${fp.lower_80.toFixed(4)}, ${fp.upper_80.toFixed(4)}]<br/>`
           }
           if (fp?.predicted_ooc) {
-            html += '<span style="color:#ef4444;font-weight:600">Predicted OOC</span>'
+            html += `<span style="color:${oocColor};font-weight:600">Predicted OOC</span>`
           }
           html += '</div>'
           return html
@@ -179,20 +207,37 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
         name: 'Step',
         nameLocation: 'center' as const,
         nameGap: 20,
-        nameTextStyle: { fontSize: 10 },
-        axisLabel: { fontSize: 10 },
+        nameTextStyle: { fontSize: 10, color: axisNameColor },
+        axisLabel: {
+          fontSize: 10,
+          color: axisLabelColor,
+          hideOverlap: true,
+          interval:
+            steps.length <= 15 ? 0 : steps.length <= 30 ? 2 : Math.floor(steps.length / 10),
+        },
+        splitLine: { lineStyle: { color: splitLineColor } },
         min: steps[0],
         max: steps[steps.length - 1],
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { fontSize: 10 },
-        min: yMin - yPadding,
-        max: yMax + yPadding,
+        axisLabel: {
+          fontSize: 10,
+          color: axisLabelColor,
+          formatter: (v: number) => {
+            if (Math.abs(v) >= 1000) return v.toFixed(0)
+            if (Math.abs(v) >= 10) return v.toFixed(1)
+            if (Math.abs(v) >= 1) return v.toFixed(2)
+            return v.toFixed(3)
+          },
+        },
+        splitLine: { lineStyle: { color: splitLineColor } },
+        min: yMin,
+        max: yMax,
       },
       series,
     }
-  }, [forecast, ucl, lcl])
+  }, [forecast, ucl, lcl, isDark])
 
   const { containerRef } = useECharts({ option })
 

@@ -65,6 +65,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     ewma_l: '',
     short_run_mode: '' as '' | 'deviation' | 'standardized',
     use_laney_correction: false,
+    sigma_method: '' as '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range',
   })
 
   // Mode change confirmation dialog state
@@ -104,6 +105,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         ewma_l: characteristic.ewma_l?.toString() ?? '',
         short_run_mode: characteristic.short_run_mode ?? '',
         use_laney_correction: characteristic.use_laney_correction ?? false,
+        sigma_method: characteristic.sigma_method ?? '',
       })
       setIsDirty(false)
       clearErrors()
@@ -207,6 +209,11 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         ewma_l: validated.ewma_l ?? null,
         short_run_mode: (validated.short_run_mode || null) as 'deviation' | 'standardized' | null,
         use_laney_correction: validated.use_laney_correction,
+        sigma_method: (validated.sigma_method || null) as
+          | 'r_bar_d2'
+          | 's_bar_c4'
+          | 'moving_range'
+          | null,
       },
     })
 
@@ -338,6 +345,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               ewma_l: formData.ewma_l,
               short_run_mode: formData.short_run_mode,
               use_laney_correction: formData.use_laney_correction,
+              sigma_method: formData.sigma_method,
             }}
             dataType={characteristic.data_type}
             characteristic={{
@@ -347,6 +355,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               stored_center_line: characteristic.stored_center_line,
               sample_count: characteristic.sample_count,
               attribute_chart_type: characteristic.attribute_chart_type,
+              subgroup_size: characteristic.subgroup_size,
             }}
             onChange={handleChange}
             onRecalculate={handleRecalculate}

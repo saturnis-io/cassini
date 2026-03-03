@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
+    check_plant_role,
     get_characteristic_repo,
     get_current_user,
     get_current_engineer,
@@ -458,6 +459,9 @@ async def get_plant_hierarchy_tree(
     Returns:
         List of root hierarchy nodes with nested children
     """
+    # Plant-scoped authorization
+    check_plant_role(_user, plant_id, "operator")
+
     # Validate plant exists
     plant_repo = PlantRepository(session)
     plant = await plant_repo.get_by_id(plant_id)
@@ -510,6 +514,9 @@ async def create_plant_hierarchy_node(
     Returns:
         The created hierarchy node
     """
+    # Plant-scoped authorization
+    check_plant_role(_user, plant_id, "engineer")
+
     # Validate plant exists
     plant_repo = PlantRepository(session)
     plant = await plant_repo.get_by_id(plant_id)

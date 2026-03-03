@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { brokerApi, opcuaApi } from '@/api/client'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import type { BrokerConnectionStatus, OPCUAServerStatus } from '@/types'
 
 interface MQTTFieldValues {
@@ -62,7 +62,7 @@ function MQTTFields({
   onChange: (v: ProtocolFieldValues) => void
   triggerStrategy: string
 }) {
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
 
   // Fetch broker statuses to populate dropdown
   const { data: brokerData } = useQuery({
@@ -167,7 +167,7 @@ function OPCUAFields({
   values: OPCUAFieldValues
   onChange: (v: ProtocolFieldValues) => void
 }) {
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
 
   // Fetch OPC-UA server statuses
   const { data: opcuaStatuses } = useQuery({

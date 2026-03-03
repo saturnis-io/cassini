@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # Auth / JWT
     jwt_secret: str = ""
-    cookie_secure: bool = False
+    cookie_secure: bool = True
 
     # Admin bootstrap
     admin_username: str = "admin"

@@ -732,15 +732,15 @@ async def trigger_manual_sync(
             records_failed=sync_log.records_failed,
             message=f"Sync completed with status: {sync_log.status}",
         )
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail="ERP connector not found",
         )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("manual_sync_failed", connector_id=connector_id, error=str(e))
+    except Exception:
+        logger.exception("manual_sync_failed", connector_id=connector_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Sync operation failed. Check server logs for details.",
@@ -823,10 +823,10 @@ async def receive_webhook(
     try:
         receiver = WebhookReceiver(hmac_secret or "unused")
         payload = receiver.parse_payload(raw_body)
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Invalid webhook payload",
         )
 
     # Apply field mappings

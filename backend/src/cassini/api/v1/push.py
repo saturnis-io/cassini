@@ -25,10 +25,12 @@ router = APIRouter(prefix="/api/v1/push", tags=["push"])
 
 
 @router.get("/vapid-key", response_model=VAPIDKeyResponse)
-async def get_vapid_key() -> VAPIDKeyResponse:
+async def get_vapid_key(
+    _user: User = Depends(get_current_user),
+) -> VAPIDKeyResponse:
     """Get the VAPID public key for browser PushManager.subscribe().
 
-    This endpoint is public --- the client needs the key to subscribe.
+    Requires authentication — only logged-in users should subscribe to push.
     """
     settings = get_settings()
     if not settings.vapid_public_key:

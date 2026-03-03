@@ -14,7 +14,7 @@ class Event(ABC):
     """Base class for all events.
 
     All events include a UTC timestamp for ordering and audit purposes.
-    Subclasses should be immutable dataclasses.
+    Subclasses should be immutable dataclasses that include a timestamp field.
 
     Attributes:
         timestamp: UTC timestamp when event was created

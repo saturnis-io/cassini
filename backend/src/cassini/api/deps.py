@@ -8,9 +8,9 @@ from typing import Optional
 
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from cassini.core.alerts.manager import AlertManager
+from cassini.core.auth.roles import ROLE_HIERARCHY, get_user_role_level_for_plant
 from cassini.core.licensing import LicenseService
 from cassini.db.database import get_session
 from cassini.db.models.user import User, UserPlantRole, UserRole
@@ -19,14 +19,6 @@ from cassini.db.repositories.hierarchy import HierarchyRepository
 from cassini.db.repositories.sample import SampleRepository
 from cassini.db.repositories.user import UserRepository
 from cassini.db.repositories.violation import ViolationRepository
-
-# Role hierarchy for comparison
-ROLE_HIERARCHY = {
-    "operator": 1,
-    "supervisor": 2,
-    "engineer": 3,
-    "admin": 4,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +135,17 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # JWT revocation: reject tokens issued before last password change
+    pwd_changed_claim = payload.get("pwd_changed")
+    if user.password_changed_at and pwd_changed_claim is not None:
+        user_pwd_epoch = int(user.password_changed_at.timestamp())
+        if pwd_changed_claim < user_pwd_epoch:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalidated by password change",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     return user
 
 
@@ -193,27 +196,7 @@ def require_role(min_role: str):
 # ---------------------------------------------------------------------------
 # Plant-scoped RBAC helpers
 # ---------------------------------------------------------------------------
-def get_user_role_level_for_plant(user: User, plant_id: int) -> int:
-    """Get the user's effective role level for a specific plant.
-
-    Admin users at any plant are treated as admin everywhere.
-
-    Args:
-        user: The authenticated user with plant_roles loaded.
-        plant_id: The plant to check authorization for.
-
-    Returns:
-        Numeric role level (0 if no role for that plant).
-    """
-    max_level = 0
-    for pr in user.plant_roles:
-        level = ROLE_HIERARCHY.get(pr.role.value, 0)
-        # Admin at any plant implies admin everywhere
-        if level >= ROLE_HIERARCHY["admin"]:
-            return level
-        if pr.plant_id == plant_id and level > max_level:
-            max_level = level
-    return max_level
+# get_user_role_level_for_plant is imported from core.auth.roles above
 
 
 def check_plant_role(user: User, plant_id: int, min_role: str) -> None:

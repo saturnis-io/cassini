@@ -80,6 +80,11 @@ class OIDCService:
         if config is None or not config.is_active:
             raise ValueError(f"OIDC provider {provider_id} not found or inactive")
 
+        # Validate redirect_uri against allowlist
+        allowed_uris = config.allowed_redirect_uris_list
+        if allowed_uris and redirect_uri not in allowed_uris:
+            raise ValueError("redirect_uri not in allowed list for this provider")
+
         metadata = await self._get_oidc_metadata(config.issuer_url)
         authorization_endpoint = metadata["authorization_endpoint"]
 
@@ -188,9 +193,9 @@ class OIDCService:
         # Provision or find local user
         user = await self.provision_user(user_info, config)
 
-        # Issue Cassini JWTs
-        access_token = create_access_token(user.id, user.username)
-        refresh_token = create_refresh_token(user.id)
+        # Issue Cassini JWTs (embed password_changed_at for revocation)
+        access_token = create_access_token(user.id, user.username, user.password_changed_at)
+        refresh_token = create_refresh_token(user.id, user.password_changed_at)
 
         return {
             "access_token": access_token,

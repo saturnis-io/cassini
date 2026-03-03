@@ -92,6 +92,7 @@ def _build_result(
     tolerance: float | None,
     anova_table: dict | None,
     collector: ExplanationCollector | None = None,
+    sigma_multiplier: float = 5.15,
 ) -> GageRRResult:
     """Assemble a GageRRResult from variance components."""
     ev = math.sqrt(sigma2_equipment)
@@ -174,15 +175,19 @@ def _build_result(
         )
 
     # %Tolerance
+    # sigma_multiplier: AIAG MSA 4th Ed default is 5.15 (99% coverage).
+    # Some OEM-specific requirements use 6.0 (99.73% coverage, 6-sigma).
+    # Ref: ISO/TR 12888:2021 discusses both conventions.
     pct_tolerance_grr: float | None = None
     if tolerance is not None and tolerance > 0:
-        pct_tolerance_grr = (5.15 * grr / tolerance) * 100.0
+        pct_tolerance_grr = (sigma_multiplier * grr / tolerance) * 100.0
         if collector:
             collector.step(
                 label="%Tolerance GRR",
-                formula_latex=r"\%\text{Tol GRR} = \frac{5.15 \times \text{GRR}}{\text{USL} - \text{LSL}} \times 100",
-                substitution_latex=r"\%\text{Tol GRR} = \frac{5.15 \times " + str(round(grr, 6)) + r"}{" + str(round(tolerance, 6)) + r"} \times 100",
+                formula_latex=rf"\%\text{{Tol GRR}} = \frac{{{sigma_multiplier} \times \text{{GRR}}}}{{\text{{USL}} - \text{{LSL}}}} \times 100",
+                substitution_latex=rf"\%\text{{Tol GRR}} = \frac{{{sigma_multiplier} \times " + str(round(grr, 6)) + r"}{" + str(round(tolerance, 6)) + r"} \times 100",
                 result=pct_tolerance_grr,
+                note=f"Using {sigma_multiplier}-sigma multiplier ({'99%' if sigma_multiplier == 5.15 else '99.73%' if sigma_multiplier == 6.0 else 'custom'} coverage)",
             )
 
     # Number of distinct categories (ndc >= 1)

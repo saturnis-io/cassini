@@ -87,13 +87,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Starting Cassini application")
 
-    # Initialize license service
-    license_service = LicenseService(
-        license_path=settings.license_file or None,
-        public_key_path=settings.license_public_key_file or None,
-        dev_commercial=settings.dev_commercial,
-    )
-    app.state.license_service = license_service
+    # Store module-level license service on app.state (single instance)
+    app.state.license_service = _license_svc
+    license_service = _license_svc
     logger.info("License service initialized", edition=license_service.edition)
 
     # Initialize database connection
@@ -254,81 +250,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         notification_dispatcher._audit_service = audit_service
         anomaly_detector._audit_service = audit_service
 
-        async def _audit_violation_created(event):
-            await audit_service.log_event(
-                action="violation_created",
-                resource_type="violation",
-                resource_id=event.violation_id,
-                detail={"rule_id": event.rule_id, "rule_name": event.rule_name, "severity": event.severity},
-            )
-
-        async def _audit_limits_updated(event):
-            await audit_service.log_event(
-                action="recalculate",
-                resource_type="characteristic",
-                resource_id=event.characteristic_id,
-                detail={"ucl": event.ucl, "lcl": event.lcl, "center_line": event.center_line},
-            )
-
-        async def _audit_char_created(event):
-            await audit_service.log_event(
-                action="create",
-                resource_type="characteristic",
-                resource_id=event.characteristic_id,
-                detail={"name": event.name, "chart_type": event.chart_type},
-            )
-
-        async def _audit_char_deleted(event):
-            await audit_service.log_event(
-                action="delete",
-                resource_type="characteristic",
-                resource_id=event.characteristic_id,
-                detail={"name": event.name},
-            )
-
-        async def _audit_anomaly_detected(event):
-            await audit_service.log_event(
-                action="detect",
-                resource_type="anomaly",
-                resource_id=event.characteristic_id,
-                detail={
-                    "source": "event_bus",
-                    "anomaly_event_id": event.anomaly_event_id,
-                    "detector_type": event.detector_type,
-                    "event_type": event.event_type,
-                    "severity": event.severity,
-                },
-            )
-
-        async def _audit_erp_sync_completed(event):
-            await audit_service.log_event(
-                action="sync",
-                resource_type="erp_connector",
-                resource_id=event.connector_id,
-                detail={
-                    "source": "event_bus",
-                    "connector_name": event.connector_name,
-                    "direction": event.direction,
-                    "status": event.status,
-                    "records_processed": event.records_processed,
-                    "records_failed": event.records_failed,
-                },
-            )
-
-        from cassini.core.events import (
-            ViolationCreatedEvent,
-            ControlLimitsUpdatedEvent,
-            CharacteristicCreatedEvent,
-            CharacteristicDeletedEvent,
-            AnomalyDetectedEvent,
-            ERPSyncCompletedEvent,
-        )
-        event_bus.subscribe(ViolationCreatedEvent, _audit_violation_created)
-        event_bus.subscribe(ControlLimitsUpdatedEvent, _audit_limits_updated)
-        event_bus.subscribe(CharacteristicCreatedEvent, _audit_char_created)
-        event_bus.subscribe(CharacteristicDeletedEvent, _audit_char_deleted)
-        event_bus.subscribe(AnomalyDetectedEvent, _audit_anomaly_detected)
-        event_bus.subscribe(ERPSyncCompletedEvent, _audit_erp_sync_completed)
+        # Consolidate all audit event subscriptions into AuditService
+        audit_service.setup_subscriptions(event_bus)
         logger.info("Audit trail service initialized")
 
         # Start retention purge engine (background, 24h interval)
@@ -406,8 +329,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language", "X-API-Key", "X-Hub-Signature-256"],
 )
 
 # Audit trail middleware (gets AuditService lazily from app.state)
@@ -440,6 +363,8 @@ app.include_router(providers_router)
 app.include_router(license_router)
 
 # Commercial routers — only registered with a valid commercial license
+# Reuse the same LicenseService config as lifespan (single instance created here,
+# stored on app.state during lifespan startup)
 _license_svc = LicenseService(
     license_path=settings.license_file or None,
     public_key_path=settings.license_public_key_file or None,
@@ -484,7 +409,7 @@ if settings.sandbox:
 
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check():
     """Health check endpoint with real DB connectivity verification."""
     try:
         db = get_database()
@@ -492,7 +417,8 @@ async def health_check() -> dict[str, str]:
             await session.execute(text("SELECT 1"))
         return {"status": "healthy"}
     except Exception:
-        return {"status": "unhealthy"}
+        from starlette.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "unhealthy"})
 
 
 @app.get("/")

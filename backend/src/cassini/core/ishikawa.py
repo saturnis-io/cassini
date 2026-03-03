@@ -8,7 +8,6 @@ Measurement) and computing eta-squared effect sizes.
 from __future__ import annotations
 
 import json
-import logging
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -24,7 +23,9 @@ from sqlalchemy.orm import selectinload
 from cassini.db.models.msa import MSAStudy
 from cassini.db.models.sample import Measurement, Sample
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 # Minimum levels for a factor to be analyzable
 MIN_LEVELS = 2

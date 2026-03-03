@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { userApi } from '../admin.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 
 // User management hooks
 export function useUsers(params?: { search?: string; active_only?: boolean }) {
@@ -29,9 +30,7 @@ export function useCreateUser() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success(`Created user "${data.username}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create user: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create user'),
   })
 }
 
@@ -50,9 +49,7 @@ export function useUpdateUser() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('User updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update user: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update user'),
   })
 }
 
@@ -65,9 +62,7 @@ export function useDeactivateUser() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('User deactivated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to deactivate user: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to deactivate user'),
   })
 }
 
@@ -80,9 +75,7 @@ export function useDeleteUserPermanent() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('User permanently deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete user: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete user'),
   })
 }
 
@@ -96,9 +89,7 @@ export function useAssignRole() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('Role assigned')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to assign role: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to assign role'),
   })
 }
 
@@ -112,8 +103,6 @@ export function useRemoveRole() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       toast.success('Role removed')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to remove role: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to remove role'),
   })
 }

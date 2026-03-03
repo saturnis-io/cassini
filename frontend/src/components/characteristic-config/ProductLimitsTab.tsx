@@ -253,7 +253,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                       <td className="px-3 py-2 font-mono text-xs font-medium">
                         {limit.product_code}
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.ucl}
@@ -264,7 +264,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.lcl}
@@ -275,7 +275,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.stored_sigma}
@@ -286,7 +286,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.stored_center_line}
@@ -300,7 +300,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.target_value}
@@ -311,7 +311,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.usl}
@@ -322,7 +322,7 @@ export function ProductLimitsTab({ characteristicId }: ProductLimitsTabProps) {
                           size="sm"
                         />
                       </td>
-                      <td className="px-1 py-1">
+                      <td className="px-3 py-2">
                         <NumberInput
                           step="any"
                           value={editForm.lsl}

@@ -34,6 +34,7 @@ class WSConnection:
 
     websocket: WebSocket
     connected_at: datetime
+    user_id: int | None = None
     subscribed_characteristics: set[int] = field(default_factory=set)
     last_heartbeat: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -318,7 +319,8 @@ async def websocket_endpoint(
     # --- authenticate ---
     from cassini.core.auth.jwt import verify_access_token
 
-    if not token or verify_access_token(token) is None:
+    payload = verify_access_token(token) if token else None
+    if not token or payload is None:
         # Accept first so the close frame goes through the proxy cleanly
         # (closing before accept sends HTTP 403 which breaks WS proxies)
         await websocket.accept()
@@ -329,8 +331,13 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
+    ws_user_id = int(payload["sub"])
+
     connection_id = str(uuid.uuid4())
     await manager.connect(websocket, connection_id)
+    # Store user_id on the connection for plant-scoped authorization
+    if connection_id in manager._connections:
+        manager._connections[connection_id].user_id = ws_user_id
 
     try:
         while True:
@@ -363,10 +370,32 @@ async def websocket_endpoint(
                 if not isinstance(char_ids, list):
                     char_ids = [char_ids]
 
-                await manager.subscribe(connection_id, char_ids)
+                # Plant-scoped authorization: verify user has access to each characteristic's plant
+                authorized_ids = []
+                try:
+                    from cassini.api.deps import resolve_plant_id_for_characteristic, check_plant_role
+                    from cassini.db.database import get_database
+                    from cassini.db.repositories.user import UserRepository
+                    db = get_database()
+                    async with db.session() as auth_session:
+                        user_repo = UserRepository(auth_session)
+                        ws_user = await user_repo.get_by_id(ws_user_id)
+                        if ws_user:
+                            for cid in char_ids:
+                                try:
+                                    plant_id = await resolve_plant_id_for_characteristic(cid, auth_session)
+                                    check_plant_role(ws_user, plant_id, "operator")
+                                    authorized_ids.append(cid)
+                                except Exception:
+                                    pass  # Skip unauthorized characteristics silently
+                except Exception:
+                    logger.warning("ws_plant_auth_failed", connection_id=connection_id)
+                    authorized_ids = char_ids  # Fallback: allow if auth check infra fails
+
+                await manager.subscribe(connection_id, authorized_ids)
                 await websocket.send_json({
                     "type": "subscribed",
-                    "characteristic_ids": char_ids
+                    "characteristic_ids": authorized_ids
                 })
 
             # Handle unsubscribe message

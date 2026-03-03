@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Plus, Search, Wifi, Server, LayoutList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { brokerApi, opcuaApi } from '@/api/client'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { ServerListItem } from './ServerListItem'
 import { ProtocolSelector, type ProtocolId } from './ProtocolSelector'
 import { MQTTServerForm } from './MQTTServerForm'
@@ -23,7 +23,7 @@ type ViewMode = 'list' | 'add-select' | 'add-mqtt' | 'add-opcua' | 'edit-mqtt' |
  * Supports filtering, searching, add/edit flows with protocol-specific forms.
  */
 export function ServersTab() {
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
   const [filter, setFilter] = useState<FilterProtocol>('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')

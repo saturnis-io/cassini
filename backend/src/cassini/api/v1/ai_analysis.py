@@ -49,6 +49,10 @@ def _config_to_response(config: AIProviderConfig, plant_id: int) -> AIConfigResp
         max_tokens=config.max_tokens,
         is_enabled=config.is_enabled,
         has_api_key=bool(config.api_key),
+        base_url=config.base_url,
+        azure_resource_name=config.azure_resource_name,
+        azure_deployment_id=config.azure_deployment_id,
+        azure_api_version=config.azure_api_version,
         created_at=config.created_at,
         updated_at=config.updated_at,
     )
@@ -165,7 +169,11 @@ async def update_ai_config(
             config.api_key = encrypt_password(raw_key, enc_key)
 
     # Apply remaining fields (only known model columns)
-    _allowed_fields = {"provider_type", "model_name", "max_tokens", "is_enabled"}
+    _allowed_fields = {
+        "provider_type", "model_name", "max_tokens", "is_enabled",
+        "base_url", "azure_resource_name", "azure_deployment_id",
+        "azure_api_version",
+    }
     for field, value in update_data.items():
         if field in _allowed_fields:
             setattr(config, field, value)

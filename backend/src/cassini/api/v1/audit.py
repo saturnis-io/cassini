@@ -11,45 +11,15 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
+from cassini.api.schemas.audit import AuditLogEntry, AuditLogListResponse, AuditStats
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.user import User
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
-
-
-# --- Schemas ---
-
-class AuditLogEntry(BaseModel):
-    id: int
-    user_id: Optional[int] = None
-    username: Optional[str] = None
-    action: str
-    resource_type: Optional[str] = None
-    resource_id: Optional[int] = None
-    detail: Optional[dict] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    timestamp: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class AuditLogListResponse(BaseModel):
-    items: list[AuditLogEntry]
-    total: int
-    limit: int
-    offset: int
-
-
-class AuditStats(BaseModel):
-    total_events: int
-    events_by_action: dict[str, int]
-    events_by_resource: dict[str, int]
 
 
 # --- Helpers ---

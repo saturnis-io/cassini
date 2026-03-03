@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Wifi, Server, Circle } from 'lucide-react'
 import { brokerApi, opcuaApi } from '@/api/client'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import type { BrokerConnectionStatus, OPCUAServerStatus } from '@/types'
 
 export interface SelectedServer {
@@ -25,7 +25,7 @@ interface ServerSelectorProps {
 export function ServerSelector({ value, onChange }: ServerSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
 
   // Fetch MQTT broker statuses
   const { data: brokerData } = useQuery({

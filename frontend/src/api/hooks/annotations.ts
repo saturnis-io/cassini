@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { annotationApi } from '../characteristics.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 import type { AnnotationCreate, AnnotationUpdate } from '@/types'
 
 // Annotation hooks
@@ -47,7 +48,8 @@ export function useCreateAnnotation() {
       if (context) {
         queryClient.setQueryData(context.queryKey, context.previous)
       }
-      toast.error(`Failed to create annotation: ${error.message}`)
+      console.error('Failed to create annotation:', error.message)
+      toast.error('Failed to create annotation. Please try again.')
     },
     onSuccess: () => {
       toast.success('Annotation created')
@@ -79,9 +81,7 @@ export function useUpdateAnnotation() {
       })
       toast.success('Annotation updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update annotation: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update annotation'),
   })
 }
 
@@ -110,7 +110,8 @@ export function useDeleteAnnotation() {
       if (context) {
         queryClient.setQueryData(context.queryKey, context.previous)
       }
-      toast.error(`Failed to delete annotation: ${error.message}`)
+      console.error('Failed to delete annotation:', error.message)
+      toast.error('Failed to delete annotation. Please try again.')
     },
     onSuccess: () => {
       toast.success('Annotation deleted')

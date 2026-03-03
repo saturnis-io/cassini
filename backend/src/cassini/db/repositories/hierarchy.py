@@ -186,6 +186,43 @@ class HierarchyRepository(BaseRepository[Hierarchy]):
 
         return ancestors
 
+    async def get_ancestor_path(self, hierarchy_id: int) -> list[str]:
+        """Get the ancestor path as a list of names from root to the given node.
+
+        Loads all nodes for the plant in a single query and walks in memory
+        to avoid N+1 queries.
+
+        Args:
+            hierarchy_id: ID of the hierarchy node
+
+        Returns:
+            List of ancestor names ordered root-to-node, e.g. ["Plant A", "Line 1", "Cell 3"]
+        """
+        node = await self.get_by_id(hierarchy_id)
+        if node is None:
+            return []
+
+        # Load all nodes for this plant in one query
+        stmt = select(Hierarchy)
+        if node.plant_id is not None:
+            stmt = stmt.where(Hierarchy.plant_id == node.plant_id)
+        result = await self.session.execute(stmt)
+        all_nodes = list(result.scalars().all())
+
+        # Build id->node map
+        node_map: dict[int, Hierarchy] = {n.id: n for n in all_nodes}
+
+        # Walk up from the target node to root
+        path: list[str] = []
+        current = node_map.get(hierarchy_id)
+        while current is not None:
+            path.insert(0, current.name)
+            if current.parent_id is None:
+                break
+            current = node_map.get(current.parent_id)
+
+        return path
+
     async def get_children(self, parent_id: int | None) -> list[Hierarchy]:
         """Get direct children of a node.
 

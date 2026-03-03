@@ -115,7 +115,7 @@ export function ConfigurationView() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] gap-6">
+    <div className="flex min-h-0 flex-1 gap-6">
       {/* Left panel - Hierarchy tree */}
       <div className="bg-card w-80 flex-shrink-0 overflow-auto rounded-lg border">
         <div className="flex items-center justify-between border-b p-4">

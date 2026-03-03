@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
+import { useTheme } from '@/providers/ThemeProvider'
 import { NELSON_RULES } from './ViolationLegend'
 import { getStoredChartColors } from '@/lib/theme-presets'
 import { Loader2 } from 'lucide-react'
 
-interface ParetoChartProps {
+interface ViolationParetoChartProps {
   characteristicId: number
   chartOptions?: {
     limit?: number
@@ -25,11 +27,18 @@ interface RuleCount {
  * with a cumulative percentage line (80/20 analysis).
  *
  * Aggregates Nelson rule violations from the chart data for the selected
- * characteristic and time range.
+ * characteristic and time range. Respects the range slider (rangeWindow)
+ * to only show violations within the visible viewport.
  */
-export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps) {
+export function ViolationParetoChart({ characteristicId, chartOptions }: ViolationParetoChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 200 })
   const colors = getStoredChartColors()
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
+  // Respect the range slider viewport
+  const showBrush = useDashboardStore((s) => s.showBrush)
+  const rangeWindow = useDashboardStore((s) => s.rangeWindow)
 
   const paretoData = useMemo(() => {
     if (!chartData) return null
@@ -37,41 +46,32 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
     // Aggregate violation counts by rule from all data points
     const ruleCounts = new Map<number, number>()
 
-    // Handle variable chart data points
-    const points = chartData.data_points ?? []
-    for (const pt of points) {
-      const rules: number[] = pt.violation_rules ?? []
-      for (const ruleId of rules) {
-        ruleCounts.set(ruleId, (ruleCounts.get(ruleId) ?? 0) + 1)
+    // Helper: count violations from an array of points, respecting range window
+    const countViolations = (points: Array<{ violation_rules?: number[] }>, startIdx = 0) => {
+      for (let i = 0; i < points.length; i++) {
+        // When range slider is active, only count points within the visible window
+        if (showBrush && rangeWindow) {
+          const globalIdx = startIdx + i
+          if (globalIdx < rangeWindow[0] || globalIdx > rangeWindow[1]) continue
+        }
+        const rules: number[] = points[i].violation_rules ?? []
+        for (const ruleId of rules) {
+          ruleCounts.set(ruleId, (ruleCounts.get(ruleId) ?? 0) + 1)
+        }
       }
     }
+
+    // Handle variable chart data points
+    countViolations(chartData.data_points ?? [])
 
     // Handle attribute chart data points
-    const attrPoints = chartData.attribute_samples ?? []
-    for (const pt of attrPoints) {
-      const rules: number[] = pt.violation_rules ?? []
-      for (const ruleId of rules) {
-        ruleCounts.set(ruleId, (ruleCounts.get(ruleId) ?? 0) + 1)
-      }
-    }
+    countViolations(chartData.attribute_samples ?? [])
 
     // Handle CUSUM data points
-    const cusumPoints = chartData.cusum_data_points ?? []
-    for (const pt of cusumPoints) {
-      const rules: number[] = pt.violation_rules ?? []
-      for (const ruleId of rules) {
-        ruleCounts.set(ruleId, (ruleCounts.get(ruleId) ?? 0) + 1)
-      }
-    }
+    countViolations(chartData.cusum_data_points ?? [])
 
     // Handle EWMA data points
-    const ewmaPoints = chartData.ewma_data_points ?? []
-    for (const pt of ewmaPoints) {
-      const rules: number[] = pt.violation_rules ?? []
-      for (const ruleId of rules) {
-        ruleCounts.set(ruleId, (ruleCounts.get(ruleId) ?? 0) + 1)
-      }
-    }
+    countViolations(chartData.ewma_data_points ?? [])
 
     if (ruleCounts.size === 0) return null
 
@@ -97,7 +97,12 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
     }
 
     return { entries, cumulative, total }
-  }, [chartData])
+  }, [chartData, showBrush, rangeWindow])
+
+  // Theme-aware text colors
+  const labelColor = isDark ? 'hsl(0, 0%, 85%)' : 'hsl(0, 0%, 15%)'
+  const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+  const legendColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 10%, 40%)'
 
   const option = useMemo(() => {
     if (!paretoData) return null
@@ -126,7 +131,7 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
       legend: {
         data: ['Count', 'Cumulative %'],
         bottom: 0,
-        textStyle: { fontSize: 11 },
+        textStyle: { fontSize: 11, color: legendColor },
       },
       grid: {
         top: 30,
@@ -140,6 +145,7 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
         data: categories,
         axisLabel: {
           fontSize: 10,
+          color: axisLabelColor,
           rotate: categories.length > 4 ? 25 : 0,
           interval: 0,
         },
@@ -148,17 +154,17 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
         {
           type: 'value' as const,
           name: 'Count',
-          nameTextStyle: { fontSize: 10 },
+          nameTextStyle: { fontSize: 10, color: axisLabelColor },
           minInterval: 1,
-          axisLabel: { fontSize: 10 },
+          axisLabel: { fontSize: 10, color: axisLabelColor },
         },
         {
           type: 'value' as const,
           name: 'Cumulative %',
-          nameTextStyle: { fontSize: 10 },
+          nameTextStyle: { fontSize: 10, color: axisLabelColor },
           min: 0,
           max: 100,
-          axisLabel: { fontSize: 10, formatter: '{value}%' },
+          axisLabel: { fontSize: 10, color: axisLabelColor, formatter: '{value}%' },
           splitLine: { show: false },
         },
       ],
@@ -178,6 +184,7 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
             position: 'top' as const,
             fontSize: 10,
             fontWeight: 'bold' as const,
+            color: labelColor,
           },
         },
         {
@@ -207,6 +214,7 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
                   formatter: '80%',
                   position: 'end' as const,
                   fontSize: 9,
+                  color: labelColor,
                 },
               },
             ],
@@ -214,7 +222,7 @@ export function ParetoChart({ characteristicId, chartOptions }: ParetoChartProps
         },
       ],
     }
-  }, [paretoData, colors])
+  }, [paretoData, colors, labelColor, axisLabelColor, legendColor])
 
   const { containerRef } = useECharts({
     option,

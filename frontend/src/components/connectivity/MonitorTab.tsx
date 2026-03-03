@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Server } from 'lucide-react'
 import { brokerApi, opcuaApi } from '@/api/client'
-import { useUIStore } from '@/stores/uiStore'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { ConnectivityMetrics } from './ConnectivityMetrics'
 import { DataFlowPipeline } from './DataFlowPipeline'
 import { ServerStatusGrid } from './ServerStatusGrid'
@@ -13,7 +13,7 @@ import { ServerStatusGrid } from './ServerStatusGrid'
  */
 export function MonitorTab() {
   const navigate = useNavigate()
-  const selectedPlantId = useUIStore((s) => s.selectedPlantId)
+  const selectedPlantId = usePlantContext().selectedPlant?.id ?? null
 
   // Fetch MQTT broker statuses
   const { data: mqttStatus, isLoading: loadingMqtt } = useQuery({

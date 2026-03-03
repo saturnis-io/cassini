@@ -16,6 +16,7 @@ from cassini.api.schemas.distributions import (
     DistributionConfigUpdate,
     DistributionFitResponse,
     DistributionFitResultSchema,
+    HistogramSchema,
     NonNormalCapabilityRequest,
     NonNormalCapabilityResponse,
     QQPointsSchema,
@@ -129,6 +130,24 @@ async def calculate_nonnormal_capability(
             ad_p_value=result.fitted_distribution.ad_p_value,
             aic=result.fitted_distribution.aic,
             is_adequate_fit=result.fitted_distribution.is_adequate_fit,
+            gof_test_type=result.fitted_distribution.gof_test_type,
+        )
+
+    # Build histogram schema from actual data
+    hist_schema = None
+    if result.histogram is not None:
+        hist_schema = HistogramSchema(
+            bin_edges=result.histogram.bin_edges,
+            counts=result.histogram.counts,
+            density=result.histogram.density,
+        )
+
+    # Build Q-Q points schema
+    qq_schema = None
+    if result.qq_points is not None:
+        qq_schema = QQPointsSchema(
+            sample_quantiles=result.qq_points["sample_quantiles"],
+            theoretical_quantiles=result.qq_points["theoretical_quantiles"],
         )
 
     return NonNormalCapabilityResponse(
@@ -150,6 +169,8 @@ async def calculate_nonnormal_capability(
         p99_865=result.p99_865,
         sample_count=result.sample_count,
         calculated_at=result.calculated_at.isoformat(),
+        histogram=hist_schema,
+        qq_points=qq_schema,
     )
 
 
@@ -195,6 +216,7 @@ async def fit_distribution(
                 ad_p_value=f.ad_p_value,
                 aic=f.aic,
                 is_adequate_fit=f.is_adequate_fit,
+                gof_test_type=f.gof_test_type,
                 qq_points=qq_schema,
             )
         )

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { oidcApi } from '../auth.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 
 export function useOIDCAccountLinks() {
   return useQuery({
@@ -18,8 +19,6 @@ export function useDeleteAccountLink() {
       queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
       toast.success('Account unlinked')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to unlink: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to unlink account'),
   })
 }

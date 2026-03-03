@@ -70,6 +70,7 @@ class TagProviderManager:
         self._spc_engine: SPCEngine | None = None
         self._state = TagProviderState()
         self._session: AsyncSession | None = None
+        self._session_factory = None
 
     @property
     def state(self) -> TagProviderState:
@@ -118,6 +119,14 @@ class TagProviderManager:
 
         logger.info("Initializing TAG provider manager")
         self._session = session
+
+        # Store session factory for per-operation fresh sessions
+        from cassini.db.database import get_database
+        try:
+            db = get_database()
+            self._session_factory = db.session
+        except Exception:
+            self._session_factory = None
 
         # Check if MQTT manager is connected
         if not mqtt_manager.is_connected:
@@ -173,7 +182,8 @@ class TagProviderManager:
     async def _on_sample(self, event: SampleEvent) -> None:
         """Callback when TAG provider has a sample ready.
 
-        Processes the sample through the SPC engine.
+        Creates a fresh session per sample processing operation to avoid
+        stale session issues in long-running provider connections.
 
         Args:
             event: Sample event from TAG provider
@@ -189,11 +199,32 @@ class TagProviderManager:
         )
 
         try:
-            result = await self._spc_engine.process_sample(
-                characteristic_id=event.characteristic_id,
-                measurements=event.measurements,
-                context=event.context,
-            )
+            # Use session factory for fresh session per operation
+            if self._session_factory is not None:
+                from cassini.db.repositories import (
+                    CharacteristicRepository,
+                    SampleRepository,
+                    ViolationRepository,
+                )
+
+                async with self._session_factory() as session:
+                    self._spc_engine._char_repo = CharacteristicRepository(session)
+                    self._spc_engine._sample_repo = SampleRepository(session)
+                    self._spc_engine._violation_repo = ViolationRepository(session)
+                    self._spc_engine._window_manager._sample_repo = SampleRepository(session)
+
+                    result = await self._spc_engine.process_sample(
+                        characteristic_id=event.characteristic_id,
+                        measurements=event.measurements,
+                        context=event.context,
+                    )
+                    await session.commit()
+            else:
+                result = await self._spc_engine.process_sample(
+                    characteristic_id=event.characteristic_id,
+                    measurements=event.measurements,
+                    context=event.context,
+                )
 
             self._state.samples_processed += 1
             self._state.last_sample_time = datetime.now()

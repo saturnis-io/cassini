@@ -4,14 +4,28 @@ Supports Box-Cox transformation, percentile method, and distribution fitting
 (normal, lognormal, weibull, gamma, Johnson SU/SB) with auto-cascade selection.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import math
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from scipy import stats as scipy_stats
 from scipy.stats import boxcox
+
+if TYPE_CHECKING:
+    from cassini.core.explain import ExplanationCollector
+
+
+@dataclass
+class HistogramData:
+    """Pre-computed histogram bin data from actual measurements."""
+
+    bin_edges: list[float]  # n+1 edges
+    counts: list[int]  # n bin counts
+    density: list[float]  # n density values (count / (N * bin_width))
 
 
 @dataclass
@@ -20,10 +34,11 @@ class DistributionFitResult:
 
     family: str  # "normal", "lognormal", "weibull", "gamma", "johnson_su", "johnson_sb"
     parameters: dict[str, float]  # Family-specific params
-    ad_statistic: float  # Anderson-Darling test statistic
+    ad_statistic: float  # Goodness-of-fit test statistic
     ad_p_value: float | None  # p-value (None if not available)
     aic: float  # Akaike Information Criterion (lower = better)
-    is_adequate_fit: bool  # True if p-value >= 0.05 or AD below critical
+    is_adequate_fit: bool  # True if p-value >= 0.05 or stat below critical
+    gof_test_type: str = "anderson_darling"  # "anderson_darling" or "kolmogorov_smirnov"
 
 
 @dataclass
@@ -48,6 +63,8 @@ class NonNormalCapabilityResult:
     p99_865: float | None
     sample_count: int
     calculated_at: datetime
+    histogram: HistogramData | None = None
+    qq_points: dict[str, list[float]] | None = None
 
 
 def _round_or_none(value: float | None, decimals: int = 4) -> float | None:
@@ -60,8 +77,16 @@ def _round_or_none(value: float | None, decimals: int = 4) -> float | None:
 
 
 def _compute_aic(n: int, k: int, log_likelihood: float) -> float:
-    """Compute Akaike Information Criterion."""
-    return 2 * k - 2 * log_likelihood
+    """Compute corrected Akaike Information Criterion (AICc).
+
+    Uses the finite-sample correction AICc = AIC + 2k(k+1)/(n-k-1)
+    which penalizes complex models (e.g., 4-param Johnson) for small samples.
+    Without this, Johnson distributions are unfairly favored when n < 30.
+    """
+    aic = 2 * k - 2 * log_likelihood
+    if n > k + 1:
+        aic += 2 * k * (k + 1) / (n - k - 1)
+    return aic
 
 
 def _log_likelihood(dist, params, data: np.ndarray) -> float:
@@ -77,46 +102,65 @@ def _log_likelihood(dist, params, data: np.ndarray) -> float:
 
 def _anderson_darling_test(
     dist, params, data: np.ndarray
-) -> tuple[float, float | None, bool]:
-    """Run Anderson-Darling goodness-of-fit test.
+) -> tuple[float, float | None, bool, str]:
+    """Run goodness-of-fit test.
 
-    Returns (ad_statistic, p_value, is_adequate_fit).
-    For distributions where scipy provides AD critical values, use those.
-    Otherwise fall back to Kolmogorov-Smirnov.
+    Returns (statistic, p_value, is_adequate_fit, test_type).
+
+    For normal distribution: uses Anderson-Darling with proper p-value.
+    For other distributions: uses Kolmogorov-Smirnov (clearly labeled).
+
+    Note on KS for fitted distributions: p-values are optimistically biased
+    when parameters are estimated from the same data (Lilliefors effect).
     """
     try:
-        # For normal distribution, scipy has a dedicated AD test
         if dist == scipy_stats.norm:
             try:
-                # scipy >= 1.17: use method parameter for p-value
-                from scipy.stats import MonteCarloMethod
+                # scipy >= 1.17: use method parameter for proper p-value
+                from scipy.stats import MonteCarloMethod  # noqa: F401
                 result = scipy_stats.anderson(data, dist="norm", method="interpolate")
                 ad_stat = float(result.statistic)
                 p_value = float(result.pvalue) if hasattr(result, 'pvalue') else None
                 is_adequate = p_value >= 0.05 if p_value is not None else ad_stat < 0.787
-                return ad_stat, p_value, is_adequate
+                return ad_stat, p_value, is_adequate, "anderson_darling"
             except (ImportError, TypeError):
-                # scipy < 1.17: legacy interface with critical_values
+                # scipy < 1.17: interpolate between critical values
                 result = scipy_stats.anderson(data, dist="norm")
                 ad_stat = float(result.statistic)
-                critical_5pct = result.critical_values[2] if len(result.critical_values) > 2 else result.critical_values[-1]
-                sig_levels = result.significance_level
-                p_value = None
-                for i, sl in enumerate(sig_levels):
-                    if ad_stat < result.critical_values[i]:
-                        p_value = sl / 100.0
-                        break
-                if p_value is None:
-                    p_value = 0.001
-                is_adequate = ad_stat < critical_5pct
-                return ad_stat, p_value, is_adequate
+                # sig_levels = [15, 10, 5, 2.5, 1] (descending significance)
+                # crit_vals = ascending (larger stat → smaller p-value)
+                sig_levels = list(result.significance_level)
+                crit_vals = list(result.critical_values)
+                critical_5pct = crit_vals[2] if len(crit_vals) > 2 else crit_vals[-1]
 
-        # For other distributions, use KS test as fallback
+                if ad_stat < crit_vals[0]:
+                    # Below all critical values → very good fit, p > 0.15
+                    # Extrapolate: scale by ratio of critical value to stat
+                    p_value = min(1.0, (sig_levels[0] / 100.0) * (crit_vals[0] / max(ad_stat, 1e-10)))
+                    p_value = min(p_value, 0.9999)
+                elif ad_stat > crit_vals[-1]:
+                    # Above all critical values → poor fit
+                    p_value = 0.001
+                else:
+                    # Interpolate between bracketing significance levels
+                    p_value = sig_levels[-1] / 100.0
+                    for i in range(len(sig_levels) - 1):
+                        if crit_vals[i] <= ad_stat <= crit_vals[i + 1]:
+                            frac = (ad_stat - crit_vals[i]) / (crit_vals[i + 1] - crit_vals[i])
+                            p_hi = sig_levels[i] / 100.0
+                            p_lo = sig_levels[i + 1] / 100.0
+                            p_value = p_hi - frac * (p_hi - p_lo)
+                            break
+
+                is_adequate = ad_stat < critical_5pct
+                return ad_stat, p_value, is_adequate, "anderson_darling"
+
+        # For non-normal distributions: KS test (clearly labeled as such)
         ks_stat, ks_p = scipy_stats.kstest(data, dist.cdf, args=params)
-        return float(ks_stat), float(ks_p), ks_p >= 0.05
+        return float(ks_stat), float(ks_p), ks_p >= 0.05, "kolmogorov_smirnov"
 
     except Exception:
-        return 999.0, None, False
+        return 999.0, None, False, "unknown"
 
 
 class DistributionFitter:
@@ -161,11 +205,11 @@ class DistributionFitter:
                 params = dist.fit(values)
 
                 # Goodness-of-fit test
-                ad_stat, ad_p, is_adequate = _anderson_darling_test(
+                gof_stat, gof_p, is_adequate, test_type = _anderson_darling_test(
                     dist, params, values
                 )
 
-                # Log-likelihood and AIC
+                # Log-likelihood and AIC (AICc corrected)
                 ll = _log_likelihood(dist, params, values)
                 aic = _compute_aic(len(values), n_params, ll)
 
@@ -176,10 +220,11 @@ class DistributionFitter:
                     DistributionFitResult(
                         family=name,
                         parameters=param_dict,
-                        ad_statistic=round(ad_stat, 6),
-                        ad_p_value=_round_or_none(ad_p, 6),
+                        ad_statistic=round(gof_stat, 6),
+                        ad_p_value=_round_or_none(gof_p, 6),
                         aic=round(aic, 2),
                         is_adequate_fit=is_adequate,
+                        gof_test_type=test_type,
                     )
                 )
             except Exception:
@@ -331,14 +376,52 @@ def compute_qq_points(
         return None
 
 
+def compute_histogram(values: np.ndarray, n_bins: int = 20) -> HistogramData:
+    """Compute histogram from actual measurement data.
+
+    Returns bin edges, counts, and density values for frontend rendering.
+    Density = count / (N * bin_width), which integrates to 1 and is
+    directly comparable to PDF overlays.
+    """
+    counts_arr, edges_arr = np.histogram(values, bins=n_bins)
+    n_total = len(values)
+    bin_width = float(edges_arr[1] - edges_arr[0])
+
+    density = []
+    for c in counts_arr:
+        d = float(c) / (n_total * bin_width) if bin_width > 0 else 0.0
+        density.append(round(d, 8))
+
+    return HistogramData(
+        bin_edges=[round(float(e), 6) for e in edges_arr],
+        counts=[int(c) for c in counts_arr],
+        density=density,
+    )
+
+
 def calculate_percentile_capability(
     values: np.ndarray,
     usl: float | None,
     lsl: float | None,
 ) -> tuple[float | None, float | None, float, float, float]:
-    """Calculate capability using the percentile method.
+    """Calculate capability using the percentile method (ISO 21747).
 
     Uses P0.135, P50, P99.865 percentiles (equivalent to +/-3 sigma for normal).
+
+    Pp uses the full spread: Pp = (USL - LSL) / (P99.865 - P0.135)
+
+    Ppk uses the **asymmetric half-spread** method per ISO 21747:2006:
+        Ppk = min((USL - P50) / (P99.865 - P50),
+                  (P50 - LSL) / (P50 - P0.135))
+
+    This is the more conservative and distribution-aware approach for skewed
+    data. It differs from Minitab's symmetric approach which uses
+    (P99.865 - P0.135) as denominator throughout. For symmetric distributions,
+    both methods give identical results. For skewed distributions, the
+    asymmetric method correctly penalizes the tail closer to the spec limit.
+
+    Reference:
+        ISO 21747:2006, Section 7 — Percentile method for non-normal capability.
 
     Args:
         values: 1D array of measurement values.
@@ -437,10 +520,24 @@ def _box_cox_capability(
             ppk = min(ppk_values)
 
     # Cp / Cpk (within) — use delta method to transform sigma_within
+    #
+    # Delta method approximation (first-order Taylor expansion):
+    #   Var(g(X)) ≈ [g'(μ)]² * Var(X)
+    # where g is the Box-Cox transform.
+    #
     # The derivative of the Box-Cox transform y(x) at the original mean x̄ is:
     #   dy/dx = x̄^(λ-1)  (for λ != 0)
     #   dy/dx = 1/x̄       (for λ ≈ 0, i.e. log transform)
     # So σ_within_transformed ≈ σ_within * |x̄^(λ-1)|
+    #
+    # LIMITATION: This first-order approximation works well when σ is small
+    # relative to the mean (CV < ~30%). For large coefficients of variation
+    # or extreme lambda values (|λ| > 2), the approximation error can exceed
+    # 5% relative error in Cp/Cpk. In such cases, re-estimating sigma on the
+    # transformed data would be more accurate, but requires access to the
+    # original subgroup structure.
+    # Ref: Chou, Owen & Borrego (1990); Montgomery (2020) notes this is
+    # "adequate for most practical applications."
     if sigma_within is not None and sigma_within > 0:
         # Recover original mean from transformed data's inverse
         # Since we have the transformed array but need original mean for the derivative,
@@ -547,6 +644,7 @@ def calculate_capability_nonnormal(
     sigma_within: float | None = None,
     method: str = "auto",
     distribution_params: dict[str, str | float] | None = None,
+    collector: "ExplanationCollector | None" = None,
 ) -> NonNormalCapabilityResult:
     """Calculate process capability using non-normal methods.
 
@@ -564,6 +662,7 @@ def calculate_capability_nonnormal(
         sigma_within: Within-subgroup sigma.
         method: "auto", "normal", "box_cox", "percentile", or "distribution_fit".
         distribution_params: Optional dict to force a specific family (e.g., {"family": "weibull"}).
+        collector: Optional ExplanationCollector for Show Your Work support.
 
     Returns:
         NonNormalCapabilityResult with all computed indices.
@@ -584,6 +683,14 @@ def calculate_capability_nonnormal(
     n = len(values)
     now = datetime.now(timezone.utc)
 
+    if collector:
+        collector.input("n", n)
+        collector.input("method", method)
+        if usl is not None:
+            collector.input("USL", usl)
+        if lsl is not None:
+            collector.input("LSL", lsl)
+
     # Default target to midpoint
     if target is None and usl is not None and lsl is not None:
         target = (usl + lsl) / 2.0
@@ -599,6 +706,7 @@ def calculate_capability_nonnormal(
             percentile_pp=pct_pp, percentile_ppk=pct_ppk,
             p0_135=p0, p50=p50, p99_865=p99,
             sample_count=n, calculated_at=now,
+            histogram=compute_histogram(arr),
         )
 
     # Normality test (Shapiro-Wilk, max 5000 samples)
@@ -616,11 +724,31 @@ def calculate_capability_nonnormal(
             result = scipy_stats.shapiro(test_sample)
             normality_p = float(result.pvalue)
             is_normal = normality_p >= 0.05
+            if collector:
+                geq_sym = r"\geq" if is_normal else "<"
+                collector.step(
+                    label="Normality Test (Shapiro-Wilk)",
+                    formula_latex=r"H_0: \text{Data is normally distributed}",
+                    substitution_latex=rf"p = {normality_p:.6f} {geq_sym} 0.05",
+                    result=normality_p,
+                    note="Normal" if is_normal else "Non-normal distribution detected",
+                )
         except Exception:
             normality_test = "failed"
 
     # Always compute percentile for comparison
     pct_pp, pct_ppk, p0_135, p50, p99_865 = calculate_percentile_capability(arr, usl, lsl)
+    if collector and (pct_pp is not None or pct_ppk is not None):
+        collector.step(
+            label="Percentile capability (reference)",
+            formula_latex=r"P_p = \frac{USL - LSL}{P_{99.865} - P_{0.135}}",
+            substitution_latex=rf"P_{{0.135}}={p0_135:.4f}, P_{{50}}={p50:.4f}, P_{{99.865}}={p99_865:.4f}",
+            result=pct_pp,
+            note="ISO 21747 percentile method — always computed for comparison",
+        )
+
+    # Compute histogram from actual measurement data (BLOCKER-1 fix)
+    hist_data = compute_histogram(arr)
 
     # ---- Method selection ----
     cp: float | None = None
@@ -635,7 +763,11 @@ def calculate_capability_nonnormal(
         # Use standard normal capability
         from cassini.core.capability import calculate_capability
 
-        normal_result = calculate_capability(values, usl, lsl, target, sigma_within)
+        normal_result = calculate_capability(values, usl, lsl, target, sigma_within, collector=collector)
+        # For normal data, compute Q-Q against normal distribution
+        sorted_vals = sorted(values)
+        normal_params = {"loc": float(np.mean(arr)), "scale": float(np.std(arr, ddof=1))}
+        qq = compute_qq_points(sorted_vals, "normal", normal_params)
         return NonNormalCapabilityResult(
             cp=normal_result.cp, cpk=normal_result.cpk,
             pp=normal_result.pp, ppk=normal_result.ppk,
@@ -647,17 +779,31 @@ def calculate_capability_nonnormal(
             percentile_pp=pct_pp, percentile_ppk=pct_ppk,
             p0_135=p0_135, p50=p50, p99_865=p99_865,
             sample_count=n, calculated_at=now,
+            histogram=hist_data,
+            qq_points=qq,
         )
 
     if method == "box_cox" or (method == "auto" and not is_normal):
         bc_result = DistributionFitter.fit_box_cox(arr)
         if bc_result is not None:
             transformed, lmbda = bc_result
+            if collector:
+                collector.step(
+                    label="Box-Cox transformation",
+                    formula_latex=r"y = \frac{x^\lambda - 1}{\lambda}" if lmbda != 0 else r"y = \ln(x)",
+                    substitution_latex=rf"\lambda = {lmbda:.4f}",
+                    result=lmbda,
+                    note="Optimal lambda found via MLE (scipy.stats.boxcox)",
+                )
             cp, cpk, pp, ppk, cpm = _box_cox_capability(
                 transformed, lmbda, usl, lsl, target, sigma_within
             )
             if pp is not None or ppk is not None:
                 method_detail = f"Box-Cox (lambda={lmbda:.4f})"
+                # Q-Q for Box-Cox: use normal Q-Q since transformed data should be normal
+                sorted_vals = sorted(values)
+                normal_params = {"loc": float(np.mean(arr)), "scale": float(np.std(arr, ddof=1))}
+                qq = compute_qq_points(sorted_vals, "normal", normal_params)
                 return NonNormalCapabilityResult(
                     cp=cp, cpk=cpk, pp=pp, ppk=ppk, cpm=cpm,
                     method="box_cox", method_detail=method_detail,
@@ -667,6 +813,8 @@ def calculate_capability_nonnormal(
                     percentile_pp=pct_pp, percentile_ppk=pct_ppk,
                     p0_135=p0_135, p50=p50, p99_865=p99_865,
                     sample_count=n, calculated_at=now,
+                    histogram=hist_data,
+                    qq_points=qq,
                 )
 
         # Box-Cox failed or was not requested as the sole method
@@ -682,6 +830,7 @@ def calculate_capability_nonnormal(
                 percentile_pp=pct_pp, percentile_ppk=pct_ppk,
                 p0_135=p0_135, p50=p50, p99_865=p99_865,
                 sample_count=n, calculated_at=now,
+                histogram=hist_data,
             )
 
     if method == "distribution_fit" or (method == "auto" and not is_normal):
@@ -698,18 +847,19 @@ def calculate_capability_nonnormal(
                         try:
                             # MLE fit
                             params = dist.fit(arr)
-                            ad_stat, ad_p, is_adequate = _anderson_darling_test(dist, params, arr)
+                            gof_stat, gof_p, is_adequate, test_type = _anderson_darling_test(dist, params, arr)
                             ll = _log_likelihood(dist, params, arr)
                             aic = _compute_aic(len(arr), n_params, ll)
                             param_dict = _params_to_dict(name, params)
-                            
+
                             forced_fit = DistributionFitResult(
                                 family=name,
                                 parameters=param_dict,
-                                ad_statistic=round(ad_stat, 6),
-                                ad_p_value=_round_or_none(ad_p, 6),
+                                ad_statistic=round(gof_stat, 6),
+                                ad_p_value=_round_or_none(gof_p, 6),
                                 aic=round(aic, 2),
                                 is_adequate_fit=is_adequate,
+                                gof_test_type=test_type,
                             )
                             requested_fits.append(forced_fit)
                         except Exception:
@@ -724,6 +874,9 @@ def calculate_capability_nonnormal(
                 fitted_dist = best
                 pp, ppk = _distribution_fit_capability(best, usl, lsl)
                 if pp is not None or ppk is not None:
+                    # Compute Q-Q points for the fitted distribution
+                    sorted_vals = sorted(values)
+                    qq = compute_qq_points(sorted_vals, best.family, best.parameters)
                     # Provide clearer detail if a fit was explicitly forced vs auto-selected
                     prefix = "Forced" if target_family else "Auto-selected"
                     method_detail = f"{prefix} {best.family.replace('_', ' ').title()} fit (AIC={best.aic:.1f})"
@@ -736,6 +889,8 @@ def calculate_capability_nonnormal(
                         percentile_pp=pct_pp, percentile_ppk=pct_ppk,
                         p0_135=p0_135, p50=p50, p99_865=p99_865,
                         sample_count=n, calculated_at=now,
+                        histogram=hist_data,
+                        qq_points=qq,
                     )
 
         if method == "distribution_fit":
@@ -751,6 +906,7 @@ def calculate_capability_nonnormal(
                 percentile_pp=pct_pp, percentile_ppk=pct_ppk,
                 p0_135=p0_135, p50=p50, p99_865=p99_865,
                 sample_count=n, calculated_at=now,
+                histogram=hist_data,
             )
 
     # Percentile fallback (method == "percentile" or auto cascade exhausted)
@@ -763,4 +919,5 @@ def calculate_capability_nonnormal(
         percentile_pp=pct_pp, percentile_ppk=pct_ppk,
         p0_135=p0_135, p50=p50, p99_865=p99_865,
         sample_count=n, calculated_at=now,
+        histogram=hist_data,
     )

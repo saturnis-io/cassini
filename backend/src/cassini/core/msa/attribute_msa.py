@@ -164,11 +164,25 @@ def _fleiss_kappa(
     return kappa
 
 
-def _build_verdict(fleiss_kappa_value: float) -> str:
-    """Determine verdict from Fleiss' Kappa."""
-    if fleiss_kappa_value >= 0.90:
+def _build_verdict(
+    fleiss_kappa_value: float,
+    acceptable_threshold: float = 0.75,
+    marginal_threshold: float = 0.40,
+) -> str:
+    """Determine verdict from Fleiss' Kappa.
+
+    Args:
+        fleiss_kappa_value: Computed Fleiss' Kappa coefficient.
+        acceptable_threshold: Kappa >= this value is "acceptable" (default 0.75).
+            AIAG MSA 4th Ed does not specify numeric Kappa thresholds;
+            0.75 aligns with Landis & Koch (1977) "substantial agreement"
+            and common industry practice.
+        marginal_threshold: Kappa >= this value (but < acceptable) is "marginal"
+            (default 0.40, Landis & Koch "moderate agreement").
+    """
+    if fleiss_kappa_value >= acceptable_threshold:
         return "acceptable"
-    if fleiss_kappa_value >= 0.75:
+    if fleiss_kappa_value >= marginal_threshold:
         return "marginal"
     return "unacceptable"
 

@@ -357,6 +357,149 @@ export const helpContent: Record<string, HelpContent> = {
     severity: 'WARNING',
   },
 
+  // Analytics — Correlation
+  'correlation-analysis': {
+    title: 'Correlation Analysis',
+    description:
+      'Measures the strength and direction of linear relationships between pairs of characteristics.',
+    details:
+      'Use correlation to identify characteristics that move together. Strong correlations (|r| > 0.7) may indicate shared root causes, co-dependent processes, or opportunities for multivariate monitoring. Requires at least 2 characteristics with time-aligned samples.',
+  },
+  'correlation-method-pearson': {
+    title: 'Pearson Correlation',
+    description:
+      'Measures linear relationships between variables. Assumes approximately normal data.',
+    details:
+      'Pearson r ranges from -1 (perfect inverse) to +1 (perfect direct). Values near 0 indicate no linear relationship. Best for continuous data that is roughly normally distributed. For non-normal or ordinal data, use Spearman instead.',
+  },
+  'correlation-method-spearman': {
+    title: 'Spearman Rank Correlation',
+    description:
+      'Measures monotonic relationships using ranked data. No normality assumption required.',
+    details:
+      'Spearman rho uses the ranks of values rather than raw values, making it robust to outliers and non-normal distributions. Detects any monotonic relationship (not just linear). Preferred for skewed data, ordinal measurements, or when outliers are present.',
+  },
+  'pca-analysis': {
+    title: 'Principal Component Analysis (PCA)',
+    description:
+      'Reduces correlated variables into a smaller set of uncorrelated principal components.',
+    details:
+      'PCA reveals hidden structure in multivariate data. PC1 captures the most variance, PC2 the next most, etc. The biplot shows both scores (sample positions) and loadings (variable contributions). Variables pointing in similar directions are positively correlated.',
+  },
+  'correlation-matrix': {
+    title: 'Correlation Matrix',
+    description:
+      'A symmetric matrix showing pairwise correlation coefficients between all selected characteristics.',
+    details:
+      'Values range from -1 to +1. The diagonal is always 1.0 (self-correlation). Colors indicate strength: deep blue/red for strong correlations, neutral for weak. Click a cell to see the p-value, which indicates statistical significance.',
+  },
+  'pca-biplot': {
+    title: 'PCA Biplot',
+    description:
+      'Visualizes principal component scores (dots) and loading vectors (arrows) in a single plot.',
+    details:
+      'Each dot is a sample projected onto the first two principal components. Arrows show how much each original variable contributes to each PC. Longer arrows mean stronger influence. Arrows pointing in the same direction indicate positively correlated variables; opposite directions indicate negative correlation.',
+  },
+
+  // Analytics — Multivariate
+  'multivariate-groups': {
+    title: 'Multivariate Groups',
+    description:
+      'Groups of correlated characteristics monitored simultaneously for joint out-of-control conditions.',
+    details:
+      'Univariate charts can miss problems that only appear when multiple characteristics shift together. Multivariate groups use Hotelling T\u00B2 or MEWMA to detect these joint shifts. Group characteristics that are physically related or share common process inputs.',
+  },
+  'hotelling-t2': {
+    title: 'Hotelling T\u00B2 Chart',
+    description:
+      'Monitors the multivariate distance of each sample from the process center.',
+    details:
+      'T\u00B2 combines all group characteristics into a single statistic that measures how far each observation is from the mean in a multivariate sense. Points above the UCL indicate the combined characteristics have shifted. Click OOC points to see which variables contributed most.',
+  },
+  'chart-type-mewma': {
+    title: 'MEWMA Chart',
+    description:
+      'Multivariate Exponentially Weighted Moving Average — detects small, persistent multivariate shifts.',
+    details:
+      'Like EWMA for univariate data, MEWMA smooths multivariate observations to increase sensitivity to gradual process shifts. More sensitive than T\u00B2 for detecting small sustained changes across multiple characteristics simultaneously.',
+  },
+  'multivariate-phase-i': {
+    title: 'Phase I (Estimation)',
+    description:
+      'Initial phase where the in-control process parameters (mean vector, covariance) are estimated.',
+    details:
+      'During Phase I, collect data from a stable process to establish baseline statistics. Review and remove any out-of-control points. Once satisfied that the process is in control, freeze Phase I to lock in the parameters for ongoing monitoring.',
+  },
+  'multivariate-phase-ii': {
+    title: 'Phase II (Monitoring)',
+    description:
+      'Ongoing monitoring phase using frozen Phase I parameters to detect future process shifts.',
+    details:
+      'After freezing Phase I, new samples are compared against the established baseline. The UCL is fixed and any exceedance signals a genuine process change, not just estimation noise. This is the operational monitoring state.',
+  },
+  'freeze-phase-i': {
+    title: 'Freeze Phase I',
+    description:
+      'Locks the current mean vector and covariance matrix as the baseline for Phase II monitoring.',
+    details:
+      'Freezing transitions the group from estimation (Phase I) to monitoring (Phase II). The current data defines what "in control" means going forward. Only freeze when you are confident the process is stable and any outliers have been addressed.',
+    severity: 'INFO',
+  },
+  'ooc-decomposition': {
+    title: 'OOC Decomposition',
+    description:
+      'Breaks down a T\u00B2 signal into individual variable contributions to identify the root cause.',
+    details:
+      'When a point exceeds the T\u00B2 UCL, decomposition shows which characteristics drove the signal. Higher contribution means that variable deviated most from its expected value. This replaces the need to check each univariate chart individually.',
+  },
+
+  // Analytics — Predictions
+  'prediction-model-type': {
+    title: 'Prediction Model Type',
+    description:
+      'The time-series algorithm used to forecast future process values.',
+    details:
+      'Auto selects the best model by AIC. ARIMA handles trends and seasonality via differencing. Exponential Smoothing applies weighted averaging with recency bias. Auto is recommended unless you have domain knowledge favoring a specific model.',
+  },
+  'prediction-forecast-horizon': {
+    title: 'Forecast Horizon',
+    description:
+      'How many steps (samples) ahead the model will predict.',
+    details:
+      'Longer horizons increase uncertainty — prediction intervals widen with each step. For SPC, 10-30 steps is typical. Very long horizons (50+) may be unreliable if the process is subject to frequent changes.',
+  },
+  'prediction-refit-interval': {
+    title: 'Refit Interval',
+    description:
+      'How often the model is automatically retrained as new data arrives.',
+    details:
+      'After this many new samples, the model is refitted to incorporate recent data. Lower values keep the model current but increase computation. Higher values are more stable but may lag behind process changes. 50-100 is a good default.',
+  },
+  'prediction-aic': {
+    title: 'AIC (Akaike Information Criterion)',
+    description:
+      'A measure of model quality that balances goodness-of-fit against complexity.',
+    details:
+      'Lower AIC indicates a better model. AIC penalizes models with more parameters to prevent overfitting. Compare AIC values across model types for the same data — the model with the lowest AIC is preferred.',
+  },
+  'prediction-ooc': {
+    title: 'Predicted OOC',
+    description:
+      'The forecast predicts this characteristic will go out of control within the forecast horizon.',
+    details:
+      'The model projects that future values will exceed control limits based on current trends. This is an early warning — not a certainty. Investigate whether process drift, tool wear, or material changes could cause the predicted shift.',
+    severity: 'WARNING',
+  },
+
+  // Analytics — AI Insights
+  'ai-insights': {
+    title: 'AI Insights',
+    description:
+      'AI-generated analysis of process data, identifying patterns, risks, and recommendations.',
+    details:
+      'An AI model reviews your SPC data — recent trends, violations, capability, and statistical patterns — then provides a structured summary. Results depend on the configured AI provider and model. Use insights as a starting point for investigation, not as definitive conclusions.',
+  },
+
   // When to recalculate control limits
   'recalculate-limits': {
     title: 'When to Recalculate Control Limits',

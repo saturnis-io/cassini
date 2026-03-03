@@ -99,10 +99,15 @@ def _parse_csv(content: bytes) -> list[list[str]]:
     return [row for row in reader if any(cell.strip() for cell in row)]
 
 
+MAX_EXCEL_ROWS = 100_000  # Safety limit against xlsx bombs
+
+
 def _parse_excel(content: bytes) -> list[list[Any]]:
     """Parse Excel (.xlsx) content into a list of rows.
 
     Uses openpyxl in read-only mode for memory efficiency.
+    Limited to MAX_EXCEL_ROWS rows to mitigate zip/XML bomb attacks.
+    The 10MB file size limit (in import_router.py) provides additional protection.
     """
     from openpyxl import load_workbook
 
@@ -121,6 +126,8 @@ def _parse_excel(content: bytes) -> list[list[Any]]:
             # Skip completely empty rows
             if any(cell is not None for cell in row):
                 rows.append(list(row))
+            if len(rows) > MAX_EXCEL_ROWS:
+                raise ValueError(f"Excel file exceeds maximum row limit ({MAX_EXCEL_ROWS})")
         return rows
     finally:
         wb.close()

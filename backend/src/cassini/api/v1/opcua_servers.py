@@ -221,10 +221,10 @@ async def test_opcua_connection(
             success=False,
             message=f"Connection timeout connecting to {data.endpoint_url}",
         )
-    except Exception as e:
+    except Exception:
         return OPCUAServerTestResponse(
             success=False,
-            message=f"Connection failed: {str(e)}",
+            message="Connection failed",
         )
     finally:
         for f in cert_files:
@@ -526,13 +526,13 @@ async def browse_opcua_nodes(
 
     try:
         nodes = await browsing.browse_children(client, parent_node_id)
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Failed to browse OPC-UA node",
         )
-    except Exception as e:
-        logger.error("opcua_browse_failed", server_id=server_id, parent_node_id=parent_node_id, error=str(e))
+    except Exception:
+        logger.exception("opcua_browse_failed", server_id=server_id, parent_node_id=parent_node_id)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to browse OPC-UA server",
@@ -588,13 +588,13 @@ async def read_opcua_node_value(
 
     try:
         result = await browsing.read_node_value(client, node_id)
-    except RuntimeError as e:
+    except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Failed to read OPC-UA node",
         )
-    except Exception as e:
-        logger.error("opcua_read_node_failed", server_id=server_id, node_id=node_id, error=str(e))
+    except Exception:
+        logger.exception("opcua_read_node_failed", server_id=server_id, node_id=node_id)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to read node value",

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { sampleApi } from '../characteristics.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 
 // Sample hooks
 export function useSubmitSample() {
@@ -23,9 +24,7 @@ export function useSubmitSample() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success(`Sample recorded (ID: ${data.sample_id})`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to submit sample: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to submit sample'),
   })
 }
 
@@ -71,7 +70,8 @@ export function useExcludeSample() {
           queryClient.setQueryData(key as readonly unknown[], data)
         })
       }
-      toast.error(`Failed to update sample: ${error.message}`)
+      console.error('Failed to update sample:', error.message)
+      toast.error('Failed to update sample. Please try again.')
     },
     onSuccess: (data) => {
       toast.success(data.is_excluded ? 'Sample excluded' : 'Sample included')
@@ -99,9 +99,7 @@ export function useDeleteSample() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Sample deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Delete failed: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete sample'),
   })
 }
 
@@ -127,9 +125,7 @@ export function useUpdateSample() {
       queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
       toast.success('Sample updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Update failed: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update sample'),
   })
 }
 

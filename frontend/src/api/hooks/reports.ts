@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { reportScheduleApi } from '../reports.api'
 import { oidcApi } from '../auth.api'
 import { queryKeys, reportScheduleKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 import type { CreateReportSchedule, UpdateReportSchedule } from '@/types'
 import type { OIDCConfigCreate, OIDCConfigUpdate } from '../client'
 
@@ -38,9 +39,7 @@ export function useCreateOIDCConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
       toast.success(`SSO provider "${data.name}" created`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create SSO provider: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create SSO provider'),
   })
 }
 
@@ -55,9 +54,7 @@ export function useUpdateOIDCConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
       toast.success('SSO provider updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update SSO provider: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update SSO provider'),
   })
 }
 
@@ -71,9 +68,7 @@ export function useDeleteOIDCConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.oidc.all })
       toast.success('SSO provider deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete SSO provider: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete SSO provider'),
   })
 }
 
@@ -114,9 +109,7 @@ export function useCreateReportSchedule() {
       queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
       toast.success(`Report schedule "${data.name}" created`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create schedule: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create report schedule'),
   })
 }
 
@@ -130,9 +123,7 @@ export function useUpdateReportSchedule() {
       queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
       toast.success('Report schedule updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update schedule: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update report schedule'),
   })
 }
 
@@ -145,9 +136,7 @@ export function useDeleteReportSchedule() {
       queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
       toast.success('Report schedule deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete schedule: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete report schedule'),
   })
 }
 
@@ -161,8 +150,6 @@ export function useTriggerReport() {
       queryClient.invalidateQueries({ queryKey: reportScheduleKeys.all })
       toast.success('Report triggered successfully')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to trigger report: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to trigger report'),
   })
 }

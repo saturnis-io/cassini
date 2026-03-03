@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productLimitApi } from '../product-limits.api'
+import { handleMutationError } from './utils'
 import type { ProductLimitUpsert, ProductLimitUpdate } from '../product-limits.api'
 import { queryKeys } from './queryKeys'
 
@@ -38,9 +39,7 @@ export function useUpsertProductLimit(charId: number) {
       queryClient.invalidateQueries({ queryKey: queryKeys.productLimits.codes(charId) })
       toast.success('Product limits saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save product limits: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save product limits'),
   })
 }
 
@@ -57,9 +56,7 @@ export function useUpdateProductLimit(charId: number) {
       })
       toast.success('Product limits updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update product limits: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update product limits'),
   })
 }
 
@@ -73,8 +70,6 @@ export function useDeleteProductLimit(charId: number) {
       queryClient.invalidateQueries({ queryKey: queryKeys.productLimits.codes(charId) })
       toast.success('Product limits deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete product limits: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete product limits'),
   })
 }

@@ -111,18 +111,18 @@ function PredictionCard({
 
   return (
     <div className="bg-card text-card-foreground rounded-lg border">
-      {/* Header row */}
-      <div className="flex items-center gap-3 p-4">
-        <button
-          onClick={onToggleExpand}
-          className="text-muted-foreground hover:text-foreground shrink-0"
-        >
+      {/* Header row — entire row is clickable to expand */}
+      <div
+        onClick={onToggleExpand}
+        className="flex cursor-pointer items-center gap-3 p-4 transition-colors hover:bg-muted/30"
+      >
+        <span className="text-muted-foreground shrink-0">
           {isExpanded ? (
             <ChevronDown className="h-4 w-4" />
           ) : (
             <ChevronRight className="h-4 w-4" />
           )}
-        </button>
+        </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -131,7 +131,7 @@ function PredictionCard({
             </h3>
             {item.predicted_ooc && (
               <HelpTooltip helpKey="prediction-ooc" triggerAs="span">
-                <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
                   <AlertTriangle className="h-3 w-3" />
                   OOC Predicted
                 </span>
@@ -157,8 +157,11 @@ function PredictionCard({
           </div>
         </div>
 
-        {/* Enable toggle */}
-        <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+        {/* Enable toggle — stop propagation so clicking doesn't expand */}
+        <label
+          className="relative inline-flex shrink-0 cursor-pointer items-center"
+          onClick={(e) => e.stopPropagation()}
+        >
           <input
             type="checkbox"
             className="peer sr-only"
@@ -169,9 +172,12 @@ function PredictionCard({
           <div className="bg-muted peer-checked:bg-primary h-5 w-9 rounded-full transition-colors after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-4" />
         </label>
 
-        {/* Config button */}
+        {/* Config button — stop propagation */}
         <button
-          onClick={onToggleConfig}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleConfig()
+          }}
           className={cn(
             'text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-xs transition-colors',
             isConfigOpen && 'bg-muted text-foreground',
@@ -261,7 +267,7 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
           forecastSteps: forecast.length,
           predictedOOCCount: oocPoints.length,
           modelType: forecastResult.model_type ?? 'Auto',
-          aic: null,
+          aic: forecastResult.aic ?? null,
         })}
         className="mt-3"
       />

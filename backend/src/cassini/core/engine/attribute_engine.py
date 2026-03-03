@@ -660,7 +660,11 @@ def _check_rule_2(
         return None
 
     last_n = values[-consecutive_points:]
-    all_above = all(v > center_line for v in last_n)
+    # Use >= / <= to match the variable engine's zone-based classification,
+    # where a point exactly at center_line is classified as ZONE_C_UPPER
+    # (i.e., treated as "above"). This ensures consistent Rule 2 behavior
+    # between attribute and variable chart engines.
+    all_above = all(v >= center_line for v in last_n)
     all_below = all(v < center_line for v in last_n)
 
     if all_above or all_below:

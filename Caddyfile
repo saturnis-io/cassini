@@ -1,0 +1,33 @@
+# Cassini SPC — Caddy reverse proxy configuration
+#
+# For public domains (e.g., spc.example.com):
+#   Caddy automatically obtains Let's Encrypt certificates.
+#   Set CASSINI_DOMAIN=spc.example.com in your environment.
+#
+# For internal/private use (e.g., localhost, IP addresses):
+#   Caddy automatically generates a self-signed certificate.
+#   Set CASSINI_DOMAIN=localhost or omit it.
+
+{$CASSINI_DOMAIN:localhost} {
+	# Reverse proxy to Cassini backend
+	reverse_proxy cassini:8000
+
+	# Security headers
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		X-XSS-Protection "1; mode=block"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Gzip compression
+	encode gzip
+
+	# Request logging
+	log {
+		output stdout
+		format json
+	}
+}

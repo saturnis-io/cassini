@@ -7,7 +7,7 @@ observation of all selected characteristics.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Sequence
 
 import numpy as np
@@ -90,7 +90,12 @@ async def load_aligned_data(
         for s in samples:
             mean_val = _sample_mean(s)
             if mean_val is not None:
-                pairs.append((s.timestamp, mean_val))
+                ts = s.timestamp
+                # Normalise to offset-aware UTC so naive and aware
+                # timestamps from different sources can be compared.
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                pairs.append((ts, mean_val))
 
         # Reverse to ascending order for alignment
         pairs.sort(key=lambda p: p[0])

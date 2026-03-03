@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useECharts } from '@/hooks/useECharts'
+import { useTheme } from '@/providers/ThemeProvider'
 
 interface CorrelationHeatmapProps {
   /** NxN correlation matrix (row-major) */
@@ -20,6 +21,9 @@ interface CorrelationHeatmapProps {
  * Tooltip shows r, p-value, and sample count.
  */
 export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: CorrelationHeatmapProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   const option = useMemo(() => {
     if (!matrix || matrix.length === 0 || !labels || labels.length === 0) return null
 
@@ -34,9 +38,24 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
     // Truncate long labels
     const truncatedLabels = labels.map((l) => (l.length > 20 ? l.slice(0, 18) + '...' : l))
 
+    // Theme-aware colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
+    const cellLabelColor = isDark ? 'hsl(0, 0%, 90%)' : 'hsl(0, 0%, 15%)'
+    // VisualMap center: use card background so the neutral zone blends with chart bg
+    const neutralColor = isDark ? 'hsl(220, 22%, 15%)' : '#ffffff'
+    const splitAreaColor = isDark
+      ? ['rgba(255,255,255,0.02)', 'rgba(255,255,255,0.05)']
+      : ['rgba(250,250,250,1)', 'rgba(230,230,230,0.3)']
+
     return {
       tooltip: {
         position: 'top' as const,
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
+        textStyle: { color: tooltipTextColor, fontSize: 12 },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (params: any) => {
           const [xIdx, yIdx, value] = params.data as [number, number, number]
@@ -66,9 +85,11 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
         axisLabel: {
           rotate: 45,
           fontSize: 11,
+          color: axisLabelColor,
         },
         splitArea: {
           show: true,
+          areaStyle: { color: splitAreaColor },
         },
       },
       yAxis: {
@@ -76,9 +97,11 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
         data: truncatedLabels,
         axisLabel: {
           fontSize: 11,
+          color: axisLabelColor,
         },
         splitArea: {
           show: true,
+          areaStyle: { color: splitAreaColor },
         },
       },
       visualMap: {
@@ -89,11 +112,12 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
         right: 0,
         top: 'center' as const,
         inRange: {
-          color: ['#3b82f6', '#93c5fd', '#ffffff', '#fca5a5', '#ef4444'],
+          color: ['#3b82f6', '#93c5fd', neutralColor, '#fca5a5', '#ef4444'],
         },
         text: ['+1', '-1'],
         textStyle: {
           fontSize: 11,
+          color: axisLabelColor,
         },
       },
       series: [
@@ -103,6 +127,7 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
           label: {
             show: true,
             fontSize: 11,
+            color: cellLabelColor,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter: (params: any) => {
               const val = (params.data as [number, number, number])[2]
@@ -112,13 +137,13 @@ export function CorrelationHeatmap({ matrix, labels, pValues, sampleCount }: Cor
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
-              shadowColor: 'rgba(0, 0, 0, 0.2)',
+              shadowColor: isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)',
             },
           },
         },
       ],
     }
-  }, [matrix, labels, pValues, sampleCount])
+  }, [matrix, labels, pValues, sampleCount, isDark])
 
   const { containerRef } = useECharts({ option })
 

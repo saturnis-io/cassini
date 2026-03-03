@@ -70,6 +70,10 @@ class AIAnalysisEngine:
         provider_type = config.provider_type
         model_name = config.model_name
         max_tokens = config.max_tokens
+        base_url = config.base_url
+        azure_resource_name = config.azure_resource_name
+        azure_deployment_id = config.azure_deployment_id
+        azure_api_version = config.azure_api_version
 
         # Decrypt API key
         try:
@@ -77,7 +81,8 @@ class AIAnalysisEngine:
         except Exception:
             raise AINotConfigured("AI API key could not be decrypted")
 
-        if not api_key:
+        # API key is optional for openai_compatible (local servers)
+        if not api_key and provider_type != "openai_compatible":
             raise AINotConfigured("AI API key is not set")
 
         # Build context
@@ -130,7 +135,14 @@ class AIAnalysisEngine:
         start_time = time.monotonic()
         try:
             provider = create_provider(
-                provider_type, api_key, model_name, max_tokens
+                provider_type,
+                api_key,
+                model_name,
+                max_tokens,
+                base_url=base_url,
+                azure_resource_name=azure_resource_name,
+                azure_deployment_id=azure_deployment_id,
+                azure_api_version=azure_api_version,
             )
             llm_response = await provider.generate(SYSTEM_PROMPT, user_prompt)
         except Exception as e:
@@ -195,12 +207,19 @@ class AIAnalysisEngine:
         except Exception:
             raise AINotConfigured("AI API key could not be decrypted")
 
-        if not api_key:
+        if not api_key and config.provider_type != "openai_compatible":
             raise AINotConfigured("AI API key is not set")
 
         try:
             provider = create_provider(
-                config.provider_type, api_key, config.model_name, config.max_tokens
+                config.provider_type,
+                api_key,
+                config.model_name,
+                config.max_tokens,
+                base_url=config.base_url,
+                azure_resource_name=config.azure_resource_name,
+                azure_deployment_id=config.azure_deployment_id,
+                azure_api_version=config.azure_api_version,
             )
             response = await provider.generate(
                 "You are a test assistant.",

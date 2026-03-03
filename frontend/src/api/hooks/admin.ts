@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { databaseApi, auditApi, retentionApi, importApi, devtoolsApi } from '../admin.api'
 import { queryKeys, DATABASE_REFETCH_MS, retentionKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 import type { DatabaseDialect, RetentionPolicySet } from '@/types'
 import type { AuditLogParams } from '../client'
 
@@ -47,9 +48,7 @@ export function useUpdateDatabaseConfig() {
       queryClient.invalidateQueries({ queryKey: queryKeys.database.all })
       toast.success('Database configuration saved. Restart required to apply changes.')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save config: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save database config'),
   })
 }
 
@@ -64,18 +63,14 @@ export function useTestConnection() {
       password?: string
       options?: Record<string, string | number | boolean>
     }) => databaseApi.testConnection(data),
-    onError: (error: Error) => {
-      toast.error(`Connection test failed: ${error.message}`)
-    },
+    onError: handleMutationError('Connection test failed'),
   })
 }
 
 export function useDatabaseBackup() {
   return useMutation({
     mutationFn: (params?: { backup_dir?: string }) => databaseApi.backup(params?.backup_dir),
-    onError: (error: Error) => {
-      toast.error(`Backup failed: ${error.message}`)
-    },
+    onError: handleMutationError('Backup failed'),
   })
 }
 
@@ -88,9 +83,7 @@ export function useDatabaseVacuum() {
       queryClient.invalidateQueries({ queryKey: queryKeys.database.status() })
       toast.success(data.message)
     },
-    onError: (error: Error) => {
-      toast.error(`Maintenance failed: ${error.message}`)
-    },
+    onError: handleMutationError('Maintenance failed'),
   })
 }
 
@@ -118,9 +111,7 @@ export function useExportAuditLogs() {
     onSuccess: () => {
       toast.success('Audit log exported')
     },
-    onError: (error: Error) => {
-      toast.error(`Export failed: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to export audit log'),
   })
 }
 
@@ -151,9 +142,7 @@ export function useSetRetentionDefault() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Default retention policy updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update default policy: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update default retention policy'),
   })
 }
 
@@ -167,9 +156,7 @@ export function useSetHierarchyRetention() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Hierarchy retention override saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save override: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save hierarchy retention override'),
   })
 }
 
@@ -182,9 +169,7 @@ export function useDeleteHierarchyRetention() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Hierarchy retention override removed')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to remove override: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to remove hierarchy retention override'),
   })
 }
 
@@ -198,9 +183,7 @@ export function useSetCharacteristicRetention() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Characteristic retention override saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save override: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save characteristic retention override'),
   })
 }
 
@@ -213,9 +196,7 @@ export function useDeleteCharacteristicRetention() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Characteristic retention override removed')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to remove override: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to remove characteristic retention override'),
   })
 }
 
@@ -244,9 +225,7 @@ export function useTriggerPurge() {
       queryClient.invalidateQueries({ queryKey: retentionKeys.all })
       toast.success('Purge completed successfully')
     },
-    onError: (error: Error) => {
-      toast.error(`Purge failed: ${error.message}`)
-    },
+    onError: handleMutationError('Purge failed'),
   })
 }
 
@@ -263,9 +242,7 @@ export function useDevToolsStatus() {
 export function useRunSeed() {
   return useMutation({
     mutationFn: (data: { script: string }) => devtoolsApi.runSeed(data),
-    onError: (error: Error) => {
-      toast.error(`Seed failed: ${error.message}`)
-    },
+    onError: handleMutationError('Seed failed'),
   })
 }
 
@@ -273,9 +250,7 @@ export function useRunSeed() {
 export function useUploadFile() {
   return useMutation({
     mutationFn: (file: File) => importApi.upload(file),
-    onError: (error: Error) => {
-      toast.error(`Upload failed: ${error.message}`)
-    },
+    onError: handleMutationError('Upload failed'),
   })
 }
 
@@ -311,8 +286,6 @@ export function useConfirmImport() {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.all })
       toast.success(`Imported ${data.imported} samples`)
     },
-    onError: (error: Error) => {
-      toast.error(`Import failed: ${error.message}`)
-    },
+    onError: handleMutationError('Import failed'),
   })
 }

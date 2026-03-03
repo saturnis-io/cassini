@@ -261,7 +261,7 @@ class MQTTClient:
                 identifier=self._config.client_id,
                 keepalive=self._config.keepalive,
                 tls_context=self._config.tls_context,
-                tls_insecure_set=self._config.tls_insecure,
+                tls_insecure=self._config.tls_insecure if self._config.tls_context is not None else None,
             )
             await self._client.__aenter__()
             self._connected = True

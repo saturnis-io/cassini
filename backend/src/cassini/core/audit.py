@@ -233,6 +233,156 @@ class AuditService:
             username="system",
         )
 
+    def setup_subscriptions(self, event_bus) -> None:
+        """Wire all audit event subscriptions to the event bus.
+
+        Consolidates audit event handlers that were previously inline closures
+        in main.py lifespan.
+        """
+        from cassini.core.events import (
+            AnomalyDetectedEvent,
+            CharacteristicCreatedEvent,
+            CharacteristicDeletedEvent,
+            ControlLimitsUpdatedEvent,
+            ERPSyncCompletedEvent,
+            SampleProcessedEvent,
+            SignatureCreatedEvent,
+            SignatureRejectedEvent,
+            ViolationCreatedEvent,
+            WorkflowCompletedEvent,
+        )
+
+        async def _audit_violation_created(event):
+            await self.log_event(
+                action="violation_created",
+                resource_type="violation",
+                resource_id=event.violation_id,
+                detail={"rule_id": event.rule_id, "rule_name": event.rule_name, "severity": event.severity},
+            )
+
+        async def _audit_limits_updated(event):
+            await self.log_event(
+                action="recalculate",
+                resource_type="characteristic",
+                resource_id=event.characteristic_id,
+                detail={"ucl": event.ucl, "lcl": event.lcl, "center_line": event.center_line},
+            )
+
+        async def _audit_char_created(event):
+            await self.log_event(
+                action="create",
+                resource_type="characteristic",
+                resource_id=event.characteristic_id,
+                detail={"name": event.name, "chart_type": event.chart_type},
+            )
+
+        async def _audit_char_deleted(event):
+            await self.log_event(
+                action="delete",
+                resource_type="characteristic",
+                resource_id=event.characteristic_id,
+                detail={"name": event.name},
+            )
+
+        async def _audit_anomaly_detected(event):
+            await self.log_event(
+                action="detect",
+                resource_type="anomaly",
+                resource_id=event.characteristic_id,
+                detail={
+                    "source": "event_bus",
+                    "anomaly_event_id": event.anomaly_event_id,
+                    "detector_type": event.detector_type,
+                    "event_type": event.event_type,
+                    "severity": event.severity,
+                },
+            )
+
+        async def _audit_erp_sync_completed(event):
+            await self.log_event(
+                action="sync",
+                resource_type="erp_connector",
+                resource_id=event.connector_id,
+                detail={
+                    "source": "event_bus",
+                    "connector_name": event.connector_name,
+                    "direction": event.direction,
+                    "status": event.status,
+                    "records_processed": event.records_processed,
+                    "records_failed": event.records_failed,
+                },
+            )
+
+        async def _audit_sample_processed(event):
+            await self.log_event(
+                action="process",
+                resource_type="sample",
+                resource_id=event.sample_id,
+                detail={
+                    "characteristic_id": event.characteristic_id,
+                    "in_control": event.in_control,
+                    "zone": event.zone,
+                },
+            )
+
+        async def _audit_signature_created(event):
+            await self.log_event(
+                action="sign",
+                resource_type="signature",
+                resource_id=event.signature_id,
+                detail={
+                    "user_id": event.user_id,
+                    "username": event.username,
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                    "meaning_code": event.meaning_code,
+                },
+            )
+
+        async def _audit_signature_rejected(event):
+            await self.log_event(
+                action="reject",
+                resource_type="signature",
+                resource_id=event.workflow_instance_id,
+                detail={
+                    "user_id": event.user_id,
+                    "username": event.username,
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                    "reason": event.reason,
+                },
+            )
+
+        async def _audit_workflow_completed(event):
+            await self.log_event(
+                action="complete",
+                resource_type="workflow",
+                resource_id=event.workflow_instance_id,
+                detail={
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                },
+            )
+
+        # Registry of all audited events for visibility
+        _AUDITED_EVENTS = {
+            ViolationCreatedEvent: _audit_violation_created,
+            ControlLimitsUpdatedEvent: _audit_limits_updated,
+            CharacteristicCreatedEvent: _audit_char_created,
+            CharacteristicDeletedEvent: _audit_char_deleted,
+            AnomalyDetectedEvent: _audit_anomaly_detected,
+            ERPSyncCompletedEvent: _audit_erp_sync_completed,
+            SampleProcessedEvent: _audit_sample_processed,
+            SignatureCreatedEvent: _audit_signature_created,
+            SignatureRejectedEvent: _audit_signature_rejected,
+            WorkflowCompletedEvent: _audit_workflow_completed,
+        }
+
+        for event_type, handler in _AUDITED_EVENTS.items():
+            event_bus.subscribe(event_type, handler)
+
+        logger.info("audit_subscriptions_wired", event_count=len(_AUDITED_EVENTS))
+
 
 class AuditMiddleware(BaseHTTPMiddleware):
     """Logs all mutating API requests (POST/PUT/PATCH/DELETE).
@@ -248,10 +398,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Cache request body for Tier 2 auto-capture (only for JSON mutating methods)
+        # Skip body parsing for large payloads (>100KB) to prevent memory spikes
         cached_body: dict | None = None
         if request.method in ("POST", "PUT", "PATCH"):
             content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
+            content_length = int(request.headers.get("content-length", "0") or "0")
+            if "application/json" in content_type and content_length <= 102400:
                 try:
                     raw = await request.body()
                     if raw:
@@ -329,6 +481,12 @@ def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optiona
 
     Does NOT validate the token fully — that's the endpoint's job.
     Just decodes the payload to get user_id and username.
+
+    NOTE: The username and user_id returned here are UNVERIFIED for requests
+    that fail authentication (401/403 responses). A forged JWT with arbitrary
+    claims would produce attacker-controlled values in audit logs for those cases.
+    This is acceptable because the audit entry also records the HTTP status code,
+    which indicates auth failure.
     """
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):

@@ -16,6 +16,14 @@ class QQPointsSchema(BaseModel):
     theoretical_quantiles: list[float]
 
 
+class HistogramSchema(BaseModel):
+    """Pre-computed histogram from actual measurement data."""
+
+    bin_edges: list[float]  # n+1 edges
+    counts: list[int]  # n bin counts
+    density: list[float]  # n density values (count / (N * bin_width))
+
+
 class DistributionFitResultSchema(BaseModel):
     """Schema for a single distribution fit result."""
 
@@ -25,6 +33,7 @@ class DistributionFitResultSchema(BaseModel):
     ad_p_value: float | None = None
     aic: float
     is_adequate_fit: bool
+    gof_test_type: str = "anderson_darling"  # "anderson_darling" or "kolmogorov_smirnov"
     qq_points: QQPointsSchema | None = None
 
 
@@ -49,6 +58,8 @@ class NonNormalCapabilityResponse(BaseModel):
     p99_865: float | None = None
     sample_count: int
     calculated_at: str
+    histogram: HistogramSchema | None = None
+    qq_points: QQPointsSchema | None = None
 
 
 class DistributionFitResponse(BaseModel):

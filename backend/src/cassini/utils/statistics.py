@@ -11,7 +11,7 @@ from typing import List
 
 import numpy as np
 
-from .constants import get_constants, get_d2, get_c4, get_A2, get_D3, get_D4
+from .constants import get_constants, get_d2, get_c4, get_A2, get_D3, get_D4, get_B3, get_B4
 
 
 @dataclass
@@ -40,6 +40,21 @@ class XbarRLimits:
     """
     xbar_limits: ControlLimits
     r_limits: ControlLimits
+
+
+@dataclass
+class XbarSLimits:
+    """Control limits for X-bar and S charts.
+
+    Used for subgroup sizes > 10, where the S chart (standard deviation) is
+    preferred over the R chart (range).
+
+    Attributes:
+        xbar_limits: Control limits for the X-bar (means) chart
+        s_limits: Control limits for the S (standard deviation) chart
+    """
+    xbar_limits: ControlLimits
+    s_limits: ControlLimits
 
 
 @dataclass
@@ -269,6 +284,83 @@ def calculate_xbar_r_limits(
     )
 
     return XbarRLimits(xbar_limits=xbar_limits, r_limits=r_limits)
+
+
+def calculate_xbar_s_limits(
+    subgroup_means: List[float],
+    subgroup_stdevs: List[float],
+    subgroup_size: int,
+) -> XbarSLimits:
+    """Calculate X-bar and S chart control limits.
+
+    Used for subgroup sizes > 10, where the S chart is preferred over
+    the R chart per AIAG SPC Manual 2nd Edition.
+
+    X-bar limits: X-double-bar +/- A3 * S-bar, where A3 = 3 / (c4 * sqrt(n))
+    S-chart limits: UCL_S = B4 * S-bar, LCL_S = B3 * S-bar
+
+    Args:
+        subgroup_means: List of subgroup means
+        subgroup_stdevs: List of subgroup standard deviations
+        subgroup_size: The subgroup size (n), must be > 10
+
+    Returns:
+        XbarSLimits containing control limits for both X-bar and S charts
+
+    Raises:
+        ValueError: If lists are empty, have different lengths, or
+                   subgroup_size is invalid
+
+    Reference:
+        AIAG SPC Manual 2nd Edition, Chapter 2.
+    """
+    if not subgroup_means or not subgroup_stdevs:
+        raise ValueError("Subgroup means and standard deviations cannot be empty")
+
+    if len(subgroup_means) != len(subgroup_stdevs):
+        raise ValueError(
+            f"Subgroup means ({len(subgroup_means)}) and stdevs ({len(subgroup_stdevs)}) "
+            "must have the same length"
+        )
+
+    if subgroup_size <= 10 or subgroup_size > 25:
+        raise ValueError(
+            f"S-chart is for subgroup sizes 11-25, got {subgroup_size}"
+        )
+
+    import math
+
+    x_double_bar = float(np.mean(subgroup_means))
+    s_bar = float(np.mean(subgroup_stdevs))
+    c4 = get_c4(subgroup_size)
+    sigma = s_bar / c4
+
+    # X-bar chart limits: A3 = 3 / (c4 * sqrt(n))
+    a3 = 3.0 / (c4 * math.sqrt(subgroup_size))
+    xbar_ucl = x_double_bar + a3 * s_bar
+    xbar_lcl = x_double_bar - a3 * s_bar
+
+    xbar_limits = ControlLimits(
+        center_line=x_double_bar,
+        ucl=xbar_ucl,
+        lcl=xbar_lcl,
+        sigma=sigma,
+    )
+
+    # S-chart limits: UCL = B4 * S_bar, LCL = B3 * S_bar
+    B3 = get_B3(subgroup_size)
+    B4 = get_B4(subgroup_size)
+    s_ucl = B4 * s_bar
+    s_lcl = B3 * s_bar
+
+    s_limits = ControlLimits(
+        center_line=s_bar,
+        ucl=s_ucl,
+        lcl=s_lcl,
+        sigma=sigma,
+    )
+
+    return XbarSLimits(xbar_limits=xbar_limits, s_limits=s_limits)
 
 
 def calculate_imr_limits(values: List[float], span: int = 2) -> XbarRLimits:

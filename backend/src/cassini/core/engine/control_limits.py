@@ -175,9 +175,9 @@ class ControlLimitService:
                 f"Insufficient samples for calculation: {len(samples)} < {min_samples}"
             )
 
-        # Select calculation method
+        # Select calculation method (respects user override if set)
         subgroup_size = characteristic.subgroup_size
-        method = self._select_method(subgroup_size)
+        method = self._select_method(subgroup_size, characteristic.sigma_method)
 
         # Calculate limits based on method
         if method == "moving_range":
@@ -299,16 +299,18 @@ class ControlLimitService:
 
         return result
 
-    def _select_method(self, subgroup_size: int) -> str:
-        """Select calculation method based on subgroup size.
+    def _select_method(self, subgroup_size: int, sigma_method: str | None = None) -> str:
+        """Select calculation method based on subgroup size or user override.
 
-        Selection rules:
+        If sigma_method is set (not None), returns it directly.
+        Otherwise, auto-selects based on subgroup size:
         - n=1: Moving range method (I-MR chart)
         - n=2-10: R-bar / d2 method (X-bar R chart)
         - n>10: S-bar / c4 method (X-bar S chart)
 
         Args:
             subgroup_size: Size of subgroups
+            sigma_method: User-specified method override (None = auto)
 
         Returns:
             Method name string
@@ -318,9 +320,27 @@ class ControlLimitService:
             'moving_range'
             >>> service._select_method(5)
             'r_bar_d2'
-            >>> service._select_method(15)
+            >>> service._select_method(5, 's_bar_c4')
             's_bar_c4'
         """
+        if sigma_method:
+            # Defense-in-depth: fall back to auto if mismatch
+            if sigma_method == "moving_range" and subgroup_size > 1:
+                logger.warning(
+                    "sigma_method_subgroup_mismatch",
+                    sigma_method=sigma_method,
+                    subgroup_size=subgroup_size,
+                    action="falling_back_to_auto",
+                )
+            elif sigma_method in ("r_bar_d2", "s_bar_c4") and subgroup_size == 1:
+                logger.warning(
+                    "sigma_method_subgroup_mismatch",
+                    sigma_method=sigma_method,
+                    subgroup_size=subgroup_size,
+                    action="falling_back_to_auto",
+                )
+            else:
+                return sigma_method
         if subgroup_size == 1:
             return "moving_range"
         elif subgroup_size <= 10:

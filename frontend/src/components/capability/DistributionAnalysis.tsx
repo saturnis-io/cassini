@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useECharts } from '@/hooks/useECharts'
 import { useCharacteristic, useFitDistribution, useNonNormalCapability, useUpdateDistributionConfig } from '@/api/hooks'
+import { useTheme } from '@/providers/ThemeProvider'
 import { cn } from '@/lib/utils'
 import type { DistributionFitResultData, NonNormalCapabilityResult } from '@/types'
 import { X, BarChart3, CheckCircle, ArrowDownUp, Save, AlertTriangle, HelpCircle } from 'lucide-react'
@@ -32,9 +33,16 @@ const FAMILY_COLORS: Record<string, string> = {
 
 /** Tooltip descriptions for table header metrics */
 const METRIC_TOOLTIPS: Record<string, string> = {
-  aic: 'Akaike Information Criterion \u2014 lower is better. Measures relative quality of fit; the best distribution has the lowest AIC.',
-  ad_stat: 'Anderson-Darling test statistic \u2014 lower is better. Measures how well the data fits the distribution.',
-  p_value: 'Statistical significance \u2014 higher is better (\u22650.05 means adequate fit). Probability the data came from this distribution.',
+  aic: 'Corrected Akaike Information Criterion (AICc) \u2014 lower is better. Penalizes complex models for small samples.',
+  gof_stat: 'Goodness-of-fit test statistic \u2014 lower is better. Normal uses Anderson-Darling; others use Kolmogorov-Smirnov.',
+  p_value: 'Statistical significance \u2014 higher is better (\u22650.05 means adequate fit). Note: KS p-values for fitted distributions may be optimistically biased.',
+}
+
+/** Human-readable labels for GoF test types */
+const GOF_LABELS: Record<string, string> = {
+  anderson_darling: 'AD',
+  kolmogorov_smirnov: 'KS',
+  unknown: 'GoF',
 }
 
 // ---------------------------------------------------------------------------
@@ -121,61 +129,6 @@ function evaluatePDF(family: string, params: Record<string, number>, x: number):
   }
 }
 
-/**
- * Compute the quantile (inverse CDF) for a fitted distribution at probability p.
- * Uses bisection search since we don't have closed-form inverses for all families.
- * Falls back to numeric integration of the PDF.
- */
-function evaluateQuantile(family: string, params: Record<string, number>, p: number): number | null {
-  // For normal, we have a direct formula
-  if (family === 'normal') {
-    return params.loc + params.scale * normalQuantile(p)
-  }
-
-  // For others, use bisection on the CDF (numerically integrated from PDF)
-  // First, find reasonable bounds
-  const mu = params.loc ?? 0
-  const scale = params.scale ?? 1
-  let lo = mu - 10 * scale
-  let hi = mu + 10 * scale
-
-  // For positive-support distributions, clamp lo
-  if (family === 'lognormal' || family === 'weibull' || family === 'gamma') {
-    lo = Math.max(lo, (params.loc ?? 0) + 1e-10)
-  }
-  if (family === 'johnson_sb') {
-    lo = Math.max(lo, (params.loc ?? 0) + 1e-10)
-    hi = Math.min(hi, (params.loc ?? 0) + (params.scale ?? 1) - 1e-10)
-  }
-
-  // Bisection: find x such that CDF(x) ~ p
-  // CDF is estimated by trapezoidal integration of the PDF
-  const numericCDF = (x: number): number => {
-    const steps = 200
-    const start = lo
-    const dx = (x - start) / steps
-    if (dx <= 0) return 0
-    let sum = 0
-    for (let i = 0; i < steps; i++) {
-      const x0 = start + i * dx
-      const x1 = x0 + dx
-      sum += (evaluatePDF(family, params, x0) + evaluatePDF(family, params, x1)) * 0.5 * dx
-    }
-    return Math.min(1, Math.max(0, sum))
-  }
-
-  // 30 iterations of bisection gives ~1e-9 precision
-  for (let iter = 0; iter < 30; iter++) {
-    const mid = (lo + hi) / 2
-    const cdfMid = numericCDF(mid)
-    if (cdfMid < p) {
-      lo = mid
-    } else {
-      hi = mid
-    }
-  }
-  return (lo + hi) / 2
-}
 
 /**
  * Lanczos approximation for ln(Gamma(z)) for z > 0.
@@ -435,14 +388,14 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
                       <th className="px-3 py-2 text-left font-medium">Distribution</th>
                       <th className="px-3 py-2 text-right font-medium">
                         <span className="inline-flex items-center">
-                          AIC
+                          AICc
                           <InfoTooltip text={METRIC_TOOLTIPS.aic} />
                         </span>
                       </th>
                       <th className="px-3 py-2 text-right font-medium">
                         <span className="inline-flex items-center">
-                          AD Stat
-                          <InfoTooltip text={METRIC_TOOLTIPS.ad_stat} />
+                          GoF Stat
+                          <InfoTooltip text={METRIC_TOOLTIPS.gof_stat} />
                         </span>
                       </th>
                       <th className="px-3 py-2 text-right font-medium">
@@ -492,6 +445,9 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums">{fit.aic.toFixed(1)}</td>
                           <td className="px-3 py-2 text-right tabular-nums">
+                            <span className="text-muted-foreground mr-1 text-[10px]">
+                              {GOF_LABELS[fit.gof_test_type] ?? 'GoF'}
+                            </span>
                             {fit.ad_statistic.toFixed(4)}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums">
@@ -570,10 +526,10 @@ function CapabilitySummary({ result }: { result: NonNormalCapabilityResult }) {
         )}
       </div>
       <div className="grid grid-cols-5 gap-3 text-center text-sm">
-        <IndexMini label="Pp" value={result.pp} />
-        <IndexMini label="Ppk" value={result.ppk} />
         <IndexMini label="Cp" value={result.cp} />
         <IndexMini label="Cpk" value={result.cpk} />
+        <IndexMini label="Pp" value={result.pp} />
+        <IndexMini label="Ppk" value={result.ppk} />
         <IndexMini label="Cpm" value={result.cpm} />
       </div>
       {/* Distribution p-value */}
@@ -627,139 +583,148 @@ interface HistogramChartProps {
 }
 
 function HistogramChart({ result, fits, bestFit, selectedFamily }: HistogramChartProps) {
-  const option = useMemo(() => {
-    const p0 = result.p0_135
-    const p50 = result.p50
-    const p99 = result.p99_865
-    if (p0 === null || p50 === null || p99 === null) return null
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
-    const range = p99 - p0
-    if (range <= 0) return null
-    const nBins = 20
-    const binWidth = range / nBins
+  const option = useMemo(() => {
+    const hist = result.histogram
+    if (!hist || hist.counts.length === 0) return null
+
+    // Theme-aware colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : undefined
+    const barColor = isDark ? 'rgba(96, 165, 250, 0.5)' : 'rgba(59, 130, 246, 0.4)'
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
+    const legendTextColor = isDark ? 'hsl(220, 5%, 70%)' : undefined
+
+    const nBins = hist.counts.length
+    const binWidth = hist.bin_edges[1] - hist.bin_edges[0]
+
+    // Build bin center labels and centers for PDF evaluation
     const bins: string[] = []
     const binCenters: number[] = []
     for (let i = 0; i < nBins; i++) {
-      const lo = p0 + i * binWidth
-      const hi = lo + binWidth
-      bins.push(`${lo.toFixed(2)}`)
-      binCenters.push((lo + hi) / 2)
+      const center = (hist.bin_edges[i] + hist.bin_edges[i + 1]) / 2
+      bins.push(center.toFixed(2))
+      binCenters.push(center)
     }
 
-    // Approximate a bell curve centered at p50 with spread from percentiles
-    const sigma = (p99 - p0) / 6
-    const heights = binCenters.map((x) => {
-      const z = (x - p50) / sigma
-      return Math.exp(-0.5 * z * z)
-    })
-    const maxH = Math.max(...heights)
-    const normalizedHeights = heights.map((h) => +(h / maxH).toFixed(3))
+    // Use actual density values from backend (count / (N * bin_width))
+    const densityData = hist.density.map((d) => +d.toFixed(6))
 
-    // Build series array: histogram bar + PDF overlay lines
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const series: any[] = [
       {
-        name: 'Distribution',
+        name: 'Data',
         type: 'bar',
-        data: normalizedHeights,
-        itemStyle: { color: 'rgba(59, 130, 246, 0.4)' },
+        data: densityData,
+        itemStyle: { color: barColor },
         barWidth: '90%',
         z: 1,
       },
     ]
 
-    // PDF overlays for each fitted distribution
+    // PDF overlays — evaluated at bin centers on the SAME density scale
     if (fits.length > 0) {
-      // Compute raw PDF values for each fit at bin centers
-      const fitPdfArrays = fits.map((fit) =>
-        binCenters.map((x) => evaluatePDF(fit.family, fit.parameters, x)),
-      )
-
-      // Scale PDF values to match the histogram's normalized heights.
-      // The histogram heights are normalized so max=1. For each PDF, we scale
-      // so its max aligns with the histogram max (1.0). This gives a visual
-      // overlay that matches the shape comparison.
-      for (let fi = 0; fi < fits.length; fi++) {
-        const fit = fits[fi]
-        const pdfVals = fitPdfArrays[fi]
+      for (const fit of fits) {
+        const pdfVals = binCenters.map((x) => +evaluatePDF(fit.family, fit.parameters, x).toFixed(6))
         const pdfMax = Math.max(...pdfVals)
         if (pdfMax <= 0) continue
 
-        const scaledPdf = pdfVals.map((v) => +(v / pdfMax).toFixed(4))
         const isSelected = selectedFamily === fit.family
         const isBest = bestFit?.family === fit.family
         const color = FAMILY_COLORS[fit.family] ?? '#888'
 
-        // When a family is selected, highlight it and dim others
         const hasSelection = selectedFamily !== null
-        const lineOpacity = hasSelection
-          ? (isSelected ? 1 : 0.15)
-          : (isBest ? 1 : 0.6)
-        const lineWidth = isSelected ? 3 : (isBest && !hasSelection ? 2.5 : 1.5)
+        const lineOpacity = hasSelection ? (isSelected ? 1 : 0.15) : isBest ? 1 : 0.6
+        const lineWidth = isSelected ? 3 : isBest && !hasSelection ? 2.5 : 1.5
 
         series.push({
           name: fit.family.replace('_', ' '),
           type: 'line',
-          data: scaledPdf,
+          data: pdfVals,
           smooth: true,
           symbol: 'none',
-          lineStyle: {
-            color,
-            width: lineWidth,
-            opacity: lineOpacity,
-          },
+          lineStyle: { color, width: lineWidth, opacity: lineOpacity },
           itemStyle: { color },
-          z: isSelected ? 4 : (isBest ? 3 : 2),
+          z: isSelected ? 4 : isBest ? 3 : 2,
         })
       }
     }
+
+    const p0 = result.p0_135
+    const p50 = result.p50
+    const p99 = result.p99_865
 
     return {
       grid: { top: 30, right: 20, bottom: 40, left: 50 },
       tooltip: {
         trigger: 'axis' as const,
-        textStyle: { fontSize: 11 },
+        textStyle: { fontSize: 11, color: tooltipTextColor },
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
         confine: true,
-      },
-      legend: fits.length > 0
-        ? {
-            bottom: 0,
-            textStyle: { fontSize: 9 },
-            itemWidth: 14,
-            itemHeight: 8,
-            data: fits.map((f) => f.family.replace('_', ' ')),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (params: any[]) => {
+          if (!Array.isArray(params) || params.length === 0) return ''
+          const idx = params[0].dataIndex
+          const lo = hist.bin_edges[idx]
+          const hi = hist.bin_edges[idx + 1]
+          const count = hist.counts[idx]
+          let tip = `<b>${lo.toFixed(2)} – ${hi.toFixed(2)}</b><br/>Count: ${count}`
+          for (const p of params) {
+            if (p.seriesName !== 'Data') {
+              tip += `<br/><span style="color:${p.color}">\u25CF</span> ${p.seriesName}: ${(p.value as number).toFixed(4)}`
+            }
           }
-        : undefined,
+          return tip
+        },
+      },
+      legend:
+        fits.length > 0
+          ? {
+              bottom: 0,
+              textStyle: { fontSize: 9, color: legendTextColor },
+              itemWidth: 14,
+              itemHeight: 8,
+              data: fits.map((f) => f.family.replace('_', ' ')),
+            }
+          : undefined,
       xAxis: {
         type: 'category' as const,
         data: bins,
-        axisLabel: { fontSize: 9, rotate: 45 },
+        axisLabel: { fontSize: 9, rotate: 45, color: axisLabelColor },
         name: 'Value',
         nameLocation: 'middle' as const,
         nameGap: 30,
-        nameTextStyle: { fontSize: 10 },
+        nameTextStyle: { fontSize: 10, color: axisNameColor },
       },
       yAxis: {
         type: 'value' as const,
-        axisLabel: { fontSize: 9 },
-        name: 'Density',
-        nameTextStyle: { fontSize: 10 },
+        axisLabel: { fontSize: 9, color: axisLabelColor },
+        name: `Density (bin width = ${binWidth.toFixed(3)})`,
+        nameTextStyle: { fontSize: 10, color: axisNameColor },
       },
       series,
-      graphic: [
-        {
-          type: 'text' as const,
-          left: 'center',
-          top: 5,
-          style: {
-            text: `P0.135=${p0.toFixed(3)} | P50=${p50.toFixed(3)} | P99.865=${p99.toFixed(3)}`,
-            fontSize: 10,
-            fill: cssVar('--color-muted-foreground'),
-          },
-        },
-      ],
+      graphic:
+        p0 !== null && p50 !== null && p99 !== null
+          ? [
+              {
+                type: 'text' as const,
+                left: 'center',
+                top: 5,
+                style: {
+                  text: `n=${result.sample_count} | P0.135=${p0.toFixed(3)} | P50=${p50.toFixed(3)} | P99.865=${p99.toFixed(3)}`,
+                  fontSize: 10,
+                  fill: cssVar('--color-muted-foreground'),
+                },
+              },
+            ]
+          : [],
     }
-  }, [result, fits, bestFit, selectedFamily])
+  }, [result, fits, bestFit, selectedFamily, isDark])
 
   const { containerRef } = useECharts({ option, notMerge: true })
   return (
@@ -786,50 +751,25 @@ interface QQPlotProps {
 }
 
 function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
+  // Determine which fit to display: selected family takes priority, then best fit
+  const displayFit = selectedFamily ? (fits.find((f) => f.family === selectedFamily) ?? bestFit) : bestFit
+
   const option = useMemo(() => {
-    // Determine which fit to display: selected family takes priority, then best fit
-    const displayFit = selectedFamily
-      ? fits.find((f) => f.family === selectedFamily) ?? bestFit
-      : bestFit
+    // Use backend-computed Q-Q points: prefer fit-specific, fall back to nonnormal result
+    const qqSource = displayFit?.qq_points ?? result.qq_points
+    if (!qqSource || qqSource.theoretical_quantiles.length === 0) return null
 
-    // Prefer backend-computed Q-Q points (Blom plotting positions) from the display fit
-    const qqSource = displayFit?.qq_points
+    const qqData: [number, number][] = qqSource.theoretical_quantiles.map((tq, i) => [
+      +tq.toFixed(4),
+      +qqSource.sample_quantiles[i].toFixed(4),
+    ])
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let qqData: [number, number][]
-    let xLabel: string
-    let yLabel: string
-
-    if (qqSource && qqSource.theoretical_quantiles.length > 0) {
-      // Backend provides proper Blom-position Q-Q points in the distribution's native scale
-      qqData = qqSource.theoretical_quantiles.map((tq, i) => [
-        +tq.toFixed(4),
-        +qqSource.sample_quantiles[i].toFixed(4),
-      ])
-      xLabel = `Theoretical Quantiles (${displayFit?.family.replace('_', ' ') ?? 'fitted'})`
-      yLabel = 'Sample Quantiles'
-    } else {
-      // Fallback: compute Q-Q from percentile summary (legacy behavior)
-      const p0 = result.p0_135
-      const p50 = result.p50
-      const p99 = result.p99_865
-      if (p0 === null || p50 === null || p99 === null) return null
-
-      const sigma = (p99 - p0) / 6
-      if (sigma <= 0) return null
-
-      const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
-      qqData = percentiles.map((pct) => {
-        const zTheory = normalQuantile(pct / 100)
-        const dataQ = p0! + ((pct - 0.135) / (99.865 - 0.135)) * (p99! - p0!)
-        const zData = (dataQ - p50!) / sigma
-        return [+zTheory.toFixed(4), +zData.toFixed(4)]
-      })
-      xLabel = 'Theoretical Quantiles'
-      yLabel = 'Sample Quantiles'
-    }
-
-    if (qqData.length === 0) return null
+    const familyLabel = displayFit?.family.replace('_', ' ') ?? 'normal'
+    const xLabel = `Theoretical Quantiles (${familyLabel})`
+    const yLabel = 'Sample Quantiles'
 
     const allVals = qqData.flatMap(([a, b]) => [a, b])
     let minVal = Math.min(...allVals)
@@ -859,159 +799,58 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
       },
     ]
 
-    // If we have a non-normal fit with backend Q-Q points, overlay the fit line
-    // using the theoretical quantiles mapped against themselves (perfect fit line)
-    // The scatter already shows sample vs theoretical, so the reference line is the
-    // 45-degree line (perfect fit). For an additional non-normal overlay when the
-    // fallback path is active, use the client-side evaluateQuantile.
-    if (!qqSource && displayFit && displayFit.family !== 'normal') {
-      const p0 = result.p0_135
-      const p50 = result.p50
-      const p99 = result.p99_865
-      if (p0 !== null && p50 !== null && p99 !== null) {
-        const sigma = (p99 - p0) / 6
-        if (sigma > 0) {
-          const percentiles = [0.135, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99.865]
-          const fitQQData: [number, number][] = []
-          for (const pct of percentiles) {
-            const zTheory = normalQuantile(pct / 100)
-            const fitQuantile = evaluateQuantile(displayFit.family, displayFit.parameters, pct / 100)
-            if (fitQuantile !== null) {
-              const zFit = (fitQuantile - p50) / sigma
-              fitQQData.push([+zTheory.toFixed(4), +zFit.toFixed(4)])
-            }
-          }
-
-          if (fitQQData.length > 0) {
-            const fitVals = fitQQData.flatMap(([a, b]) => [a, b])
-            minVal = Math.min(minVal, ...fitVals) - 0.2
-            maxVal = Math.max(maxVal, ...fitVals) + 0.2
-
-            const fitColor = FAMILY_COLORS[displayFit.family] ?? '#888'
-            series.push({
-              name: `${displayFit.family.replace('_', ' ')} fit`,
-              type: 'line',
-              data: fitQQData,
-              smooth: true,
-              symbol: 'none',
-              lineStyle: { color: fitColor, width: 2, type: 'solid' },
-              itemStyle: { color: fitColor },
-            })
-
-            series[1].data = [
-              [minVal, minVal],
-              [maxVal, maxVal],
-            ]
-          }
-        }
-      }
-    }
+    // Theme-aware colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : undefined
+    const tooltipBg = isDark ? 'rgba(30, 37, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+    const tooltipTextColor = isDark ? '#e5e5e5' : '#333'
+    const tooltipBorder = isDark ? 'hsl(220, 12%, 26%)' : 'hsl(210, 15%, 88%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : undefined
 
     return {
       grid: { top: 20, right: 20, bottom: 40, left: 50 },
       tooltip: {
         trigger: 'item' as const,
-        textStyle: { fontSize: 11 },
+        textStyle: { fontSize: 11, color: tooltipTextColor },
+        backgroundColor: tooltipBg,
+        borderColor: tooltipBorder,
         confine: true,
       },
-      legend: displayFit && displayFit.family !== 'normal'
-        ? {
-            bottom: 0,
-            textStyle: { fontSize: 9 },
-            itemWidth: 14,
-            itemHeight: 8,
-          }
-        : undefined,
       xAxis: {
         type: 'value' as const,
         min: minVal,
         max: maxVal,
-        axisLabel: { fontSize: 9 },
+        axisLabel: { fontSize: 9, color: axisLabelColor },
         name: xLabel,
         nameLocation: 'middle' as const,
         nameGap: 28,
-        nameTextStyle: { fontSize: 10 },
+        nameTextStyle: { fontSize: 10, color: axisNameColor },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       yAxis: {
         type: 'value' as const,
         min: minVal,
         max: maxVal,
-        axisLabel: { fontSize: 9 },
+        axisLabel: { fontSize: 9, color: axisLabelColor },
         name: yLabel,
-        nameTextStyle: { fontSize: 10 },
+        nameTextStyle: { fontSize: 10, color: axisNameColor },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       series,
     }
-  }, [result, bestFit, selectedFamily, fits])
+  }, [result, displayFit, isDark])
 
-  const displayFit = selectedFamily
-    ? fits.find((f) => f.family === selectedFamily) ?? bestFit
-    : bestFit
+  // No Q-Q data available — show guidance
+  const qqSource = displayFit?.qq_points ?? result.qq_points
+  if (!qqSource) {
+    return (
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
+        Click &ldquo;Fit Distributions&rdquo; to generate Q-Q plot
+      </div>
+    )
+  }
 
   const { containerRef } = useECharts({ option, notMerge: true })
-  return (
-    <div
-      ref={containerRef}
-      className="w-full"
-      style={{
-        height: displayFit && displayFit.family !== 'normal' ? 300 : 256,
-        visibility: option ? 'visible' : 'hidden',
-      }}
-    />
-  )
+  return <div ref={containerRef} className="w-full" style={{ height: 300, visibility: option ? 'visible' : 'hidden' }} />
 }
 
-/**
- * Approximate inverse normal CDF (probit function).
- * Uses Abramowitz & Stegun rational approximation.
- */
-function normalQuantile(p: number): number {
-  if (p <= 0) return -Infinity
-  if (p >= 1) return Infinity
-  if (p === 0.5) return 0
-
-  const a1 = -3.969683028665376e1
-  const a2 = 2.209460984245205e2
-  const a3 = -2.759285104469687e2
-  const a4 = 1.383577518672690e2
-  const a5 = -3.066479806614716e1
-  const a6 = 2.506628277459239e0
-
-  const b1 = -5.447609879822406e1
-  const b2 = 1.615858368580409e2
-  const b3 = -1.556989798598866e2
-  const b4 = 6.680131188771972e1
-  const b5 = -1.328068155288572e1
-
-  const c1 = -7.784894002430293e-3
-  const c2 = -3.223964580411365e-1
-  const c3 = -2.400758277161838e0
-  const c4 = -2.549732539343734e0
-  const c5 = 4.374664141464968e0
-  const c6 = 2.938163982698783e0
-
-  const d1 = 7.784695709041462e-3
-  const d2 = 3.224671290700398e-1
-  const d3 = 2.445134137142996e0
-  const d4 = 3.754408661907416e0
-
-  const pLow = 0.02425
-  const pHigh = 1 - pLow
-
-  let q: number, r: number
-
-  if (p < pLow) {
-    q = Math.sqrt(-2 * Math.log(p))
-    return (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
-      ((((d1 * q + d2) * q + d3) * q + d4) * q + 1)
-  } else if (p <= pHigh) {
-    q = p - 0.5
-    r = q * q
-    return (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q /
-      (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1)
-  } else {
-    q = Math.sqrt(-2 * Math.log(1 - p))
-    return -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) /
-      ((((d1 * q + d2) * q + d3) * q + d4) * q + 1)
-  }
-}

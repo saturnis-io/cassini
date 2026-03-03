@@ -199,6 +199,12 @@ class Rule3Trend:
     Indicates a trend in the process, such as tool wear, temperature drift,
     or gradual degradation.
 
+    Note: Uses **strict** comparisons (``<`` / ``>``). Equal consecutive values
+    break the trend. This matches Nelson (1984) "all increasing or all
+    decreasing" and the majority of commercial SPC software. For data with
+    limited measurement resolution (e.g. rounded to 0.001"), plateaus of
+    equal values will not be counted as part of a trend.
+
     Parameters:
         consecutive_count (int): Number of consecutive points required (default 6).
     """
@@ -252,6 +258,10 @@ class Rule4Alternator:
 
     Indicates systematic variation, such as alternating between two machines,
     operators, or measurement systems.
+
+    Note: Equal consecutive values (``dir == 0``) break the alternation pattern
+    because ``dir1 * dir2 >= 0`` evaluates True when either direction is zero.
+    This is the standard strict interpretation matching most commercial SPC tools.
 
     Parameters:
         consecutive_count (int): Number of consecutive points required (default 14).

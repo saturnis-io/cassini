@@ -39,6 +39,11 @@ class CapabilityResult:
     normality_test: str
     is_normal: bool
     calculated_at: datetime
+    # 95% confidence intervals (ISO 22514-2:2017 Section 7.2)
+    cp_lower: float | None = None
+    cp_upper: float | None = None
+    cpk_lower: float | None = None
+    cpk_upper: float | None = None
 
 
 def calculate_capability(
@@ -71,6 +76,9 @@ def calculate_capability(
     if usl is None and lsl is None:
         raise ValueError("At least one specification limit (USL or LSL) must be provided")
 
+    if usl is not None and lsl is not None and usl <= lsl:
+        raise ValueError(f"USL ({usl}) must be greater than LSL ({lsl})")
+
     arr = np.asarray(values, dtype=np.float64)
     mean = float(np.mean(arr))
     sigma_overall = float(np.std(arr, ddof=1))
@@ -91,11 +99,17 @@ def calculate_capability(
             collector.input("Target", target)
 
     # Normality test (Shapiro-Wilk, max 5000 samples)
+    # Use random subsample (not first-5000) to avoid temporal bias from
+    # startup transients or mid-run shifts.  Fixed seed for reproducibility.
     normality_p: float | None = None
     normality_test = "shapiro_wilk"
     is_normal = False
     if n >= 3:
-        test_sample = arr[:5000] if n > 5000 else arr
+        if n > 5000:
+            rng = np.random.default_rng(42)
+            test_sample = rng.choice(arr, size=5000, replace=False)
+        else:
+            test_sample = arr
         try:
             result = scipy_stats.shapiro(test_sample)
             normality_p = float(result.pvalue)
@@ -229,6 +243,31 @@ def calculate_capability(
                 result=ppk,
             )
 
+    # --- 95% Confidence Intervals (ISO 22514-2:2017 Section 7.2) ---
+    cp_lower: float | None = None
+    cp_upper: float | None = None
+    cpk_lower: float | None = None
+    cpk_upper: float | None = None
+
+    if n >= 2:
+        alpha = 0.05
+        # Cp CI: Cp * sqrt(chi2_lower / (n-1)), Cp * sqrt(chi2_upper / (n-1))
+        # where chi2_lower = chi2.ppf(alpha/2, n-1), chi2_upper = chi2.ppf(1-alpha/2, n-1)
+        if cp is not None:
+            chi2_lo = float(scipy_stats.chi2.ppf(alpha / 2, n - 1))
+            chi2_hi = float(scipy_stats.chi2.ppf(1 - alpha / 2, n - 1))
+            cp_lower = cp * math.sqrt(chi2_lo / (n - 1))
+            cp_upper = cp * math.sqrt(chi2_hi / (n - 1))
+
+        # Cpk CI: approximate normal method (Kushler & Hurley, 1992)
+        # Cpk +/- z_{alpha/2} * sqrt(1/(9*n*Cpk^2) + 1/(2*(n-1)))  -- simplified
+        # More precisely: SE(Cpk) = sqrt(1/(9*n) + Cpk^2/(2*(n-1)))
+        if cpk is not None and cpk > 0:
+            z_crit = float(scipy_stats.norm.ppf(1 - alpha / 2))
+            se_cpk = math.sqrt(1.0 / (9.0 * n) + cpk**2 / (2.0 * (n - 1)))
+            cpk_lower = cpk - z_crit * se_cpk
+            cpk_upper = cpk + z_crit * se_cpk
+
     return CapabilityResult(
         cp=_round_or_none(cp),
         cpk=_round_or_none(cpk),
@@ -240,6 +279,10 @@ def calculate_capability(
         normality_test=normality_test,
         is_normal=is_normal,
         calculated_at=now,
+        cp_lower=_round_or_none(cp_lower),
+        cp_upper=_round_or_none(cp_upper),
+        cpk_lower=_round_or_none(cpk_lower),
+        cpk_upper=_round_or_none(cpk_upper),
     )
 
 
@@ -250,11 +293,12 @@ def calculate_capability_nonnormal(
     target: float | None = None,
     sigma_within: float | None = None,
     method: str = "auto",
+    collector: ExplanationCollector | None = None,
 ):
     """Calculate non-normal process capability. Delegates to distributions module."""
     from cassini.core.distributions import calculate_capability_nonnormal as _impl
 
-    return _impl(values, usl, lsl, target, sigma_within, method)
+    return _impl(values, usl, lsl, target, sigma_within, method, collector=collector)
 
 
 def _round_or_none(value: float | None, decimals: int = 4) -> float | None:

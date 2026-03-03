@@ -36,8 +36,9 @@ export const queryKeys = {
       startDate?: string,
       endDate?: string,
       productCode?: string,
+      chartType?: string,
     ) =>
-      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate, productCode }] as const,
+      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate, productCode, chartType }] as const,
     rules: (id: number) => [...queryKeys.characteristics.all, 'rules', id] as const,
     config: (id: number) => [...queryKeys.characteristics.all, 'config', id] as const,
   },

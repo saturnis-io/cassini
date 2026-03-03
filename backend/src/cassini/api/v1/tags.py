@@ -13,7 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from cassini.api.deps import get_current_engineer, get_db_session
+from cassini.api.deps import (
+    check_plant_role,
+    get_current_engineer,
+    get_db_session,
+    resolve_plant_id_for_characteristic,
+)
 from cassini.api.schemas.tag import (
     TagMappingCreate,
     TagMappingResponse,
@@ -40,6 +45,10 @@ async def list_mappings(
     _user: User = Depends(get_current_engineer),
 ) -> list[TagMappingResponse]:
     """List all MQTT tag-to-characteristic mappings."""
+    # Plant-scoped authorization when filtering by plant
+    if plant_id is not None:
+        check_plant_role(_user, plant_id, "engineer")
+
     from cassini.db.models.hierarchy import Hierarchy
 
     stmt = (
@@ -96,6 +105,10 @@ async def create_mapping(
     Creates a DataSource + MQTTDataSource for the characteristic.
     If one already exists, it is replaced.
     """
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
     # Validate characteristic exists
     char_result = await session.execute(
         select(Characteristic).where(Characteristic.id == data.characteristic_id)
@@ -179,6 +192,10 @@ async def delete_mapping(
 
     Deletes the DataSource row, which cascades to the MQTTDataSource.
     """
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
     ds_repo = DataSourceRepository(session)
     deleted = await ds_repo.delete_for_characteristic(characteristic_id)
     if not deleted:

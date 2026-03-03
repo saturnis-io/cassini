@@ -12,12 +12,14 @@ export interface PredictionConfig {
 }
 
 export interface PredictionModel {
+  id: number
   characteristic_id: number
   model_type: string
+  model_params: Record<string, unknown> | null
   aic: number | null
-  trained_at: string | null
-  training_samples: number
-  status: string
+  training_samples: number | null
+  fitted_at: string
+  is_current: boolean
 }
 
 export interface ForecastPoint {
@@ -32,9 +34,10 @@ export interface ForecastPoint {
 
 export interface ForecastResult {
   characteristic_id: number
-  forecast: ForecastPoint[]
+  points: ForecastPoint[]
   generated_at: string
   model_type: string
+  predicted_ooc_step: number | null
 }
 
 export interface PredictionDashboardItem {
@@ -66,6 +69,10 @@ export interface AIConfig {
   model_name: string
   max_tokens: number
   is_enabled: boolean
+  base_url?: string | null
+  azure_resource_name?: string | null
+  azure_deployment_id?: string | null
+  azure_api_version?: string | null
 }
 
 export interface AIInsight {
@@ -136,6 +143,10 @@ export const aiApi = {
     model_name?: string
     max_tokens?: number
     is_enabled?: boolean
+    base_url?: string | null
+    azure_resource_name?: string | null
+    azure_deployment_id?: string | null
+    azure_api_version?: string | null
   }) => fetchApi<AIConfig>(`/ai/config?plant_id=${plantId}`, {
     method: 'PUT',
     body: JSON.stringify(data),

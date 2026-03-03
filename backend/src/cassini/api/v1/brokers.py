@@ -279,7 +279,7 @@ async def test_broker_connection(
             identifier="openspc-test-client",
             timeout=5.0,
             tls_context=tls_context,
-            tls_insecure_set=data.tls_insecure if data.use_tls else False,
+            tls_insecure=data.tls_insecure if data.use_tls else None,
         ) as client:
             # Connection successful
             latency = (asyncio.get_event_loop().time() - start_time) * 1000
@@ -300,10 +300,10 @@ async def test_broker_connection(
             success=False,
             message=f"Connection timeout connecting to {data.host}:{data.port}",
         )
-    except Exception as e:
+    except Exception:
         return BrokerTestResponse(
             success=False,
-            message=f"Connection failed: {str(e)}",
+            message="Connection failed",
         )
 
 

@@ -33,18 +33,27 @@ if not JWT_SECRET_KEY:
     else:
         JWT_SECRET_KEY = secrets.token_urlsafe(64)
         _secret_file.write_text(JWT_SECRET_KEY)
-        logger.info(
-            "Generated new JWT secret and saved to .jwt_secret "
-            "(sessions will persist across --reload restarts)"
+        try:
+            _secret_file.chmod(0o600)
+        except OSError:
+            pass  # chmod not supported on all platforms (e.g. Windows)
+        logger.warning(
+            "auto_generated_jwt_secret",
+            msg="Generated new JWT secret — set CASSINI_JWT_SECRET env var in production",
         )
 
 
-def create_access_token(user_id: int, username: str) -> str:
+def create_access_token(
+    user_id: int,
+    username: str,
+    password_changed_at: datetime | None = None,
+) -> str:
     """Create a JWT access token.
 
     Args:
         user_id: The user's database ID.
         username: The user's username.
+        password_changed_at: Timestamp of last password change (embedded for revocation).
 
     Returns:
         Encoded JWT string.
@@ -57,14 +66,20 @@ def create_access_token(user_id: int, username: str) -> str:
         "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
         "iat": now,
     }
+    if password_changed_at is not None:
+        payload["pwd_changed"] = int(password_changed_at.timestamp())
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(
+    user_id: int,
+    password_changed_at: datetime | None = None,
+) -> str:
     """Create a JWT refresh token.
 
     Args:
         user_id: The user's database ID.
+        password_changed_at: Timestamp of last password change (embedded for revocation).
 
     Returns:
         Encoded JWT string.
@@ -76,6 +91,8 @@ def create_refresh_token(user_id: int) -> str:
         "exp": now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
         "iat": now,
     }
+    if password_changed_at is not None:
+        payload["pwd_changed"] = int(password_changed_at.timestamp())
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 

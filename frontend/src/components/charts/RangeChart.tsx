@@ -5,6 +5,7 @@
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { graphic } from '@/lib/echarts'
+import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts'
 import { useChartData } from '@/api/hooks'
@@ -319,7 +320,7 @@ export function RangeChart({
     const localHighlightedIndex = highlightedIndex
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const customRenderItem = (_params: any, api: any) => {
+    const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localData.length) return { type: 'group', children: [] }
       const point = localData[arrIndex]
@@ -423,7 +424,7 @@ export function RangeChart({
         type: 'value' as const,
         min: yMin,
         max: yMax,
-        axisLabel: { fontSize: 12, formatter: (value: number) => value.toFixed(decimalPrecision) },
+        axisLabel: { fontSize: 12, width: 50, align: 'right' as const, formatter: (value: number) => value.toFixed(decimalPrecision) },
         name: yAxisLabel,
         nameLocation: 'middle' as const,
         nameGap: 45,

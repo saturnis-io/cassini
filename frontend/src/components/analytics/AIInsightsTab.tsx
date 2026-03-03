@@ -217,14 +217,15 @@ export function AIInsightsTab() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Search */}
         <div className="border-border border-b px-4 py-2.5">
-          <div className="bg-background border-border flex items-center gap-2 rounded-md border px-3 py-1.5">
+          <div className="flex items-center gap-2 px-0 py-0.5">
             <Search className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or hierarchy path..."
-              className="bg-transparent w-full text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full border-0 bg-transparent text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0 focus:outline-none"
+              style={{ boxShadow: 'none' }}
             />
             {search && (
               <button

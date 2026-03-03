@@ -159,6 +159,7 @@ export const characteristicFormSchema = z
     ewma_l: optionalNumericString,
     short_run_mode: z.string(),
     use_laney_correction: z.boolean(),
+    sigma_method: z.string().optional(),
     // Passed in for cross-field validation
     subgroup_size: z.number().optional(),
   })
@@ -188,6 +189,27 @@ export const characteristicFormSchema = z
         path: ['warn_below_count'],
         message: 'Must be at least the minimum measurements value',
       })
+    }
+
+    // Validate sigma_method vs subgroup_size
+    if (data.sigma_method && data.subgroup_size !== undefined) {
+      if (data.sigma_method === 'moving_range' && data.subgroup_size > 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['sigma_method'],
+          message: 'Moving range is only valid for subgroup size 1',
+        })
+      }
+      if (
+        (data.sigma_method === 'r_bar_d2' || data.sigma_method === 's_bar_c4') &&
+        data.subgroup_size === 1
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['sigma_method'],
+          message: 'This method requires subgroup size > 1',
+        })
+      }
     }
   })
 

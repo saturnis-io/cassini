@@ -106,18 +106,23 @@ export function MultivariateTab() {
             </div>
             <div className="flex items-center gap-2">
               {selectedGroup?.phase === 'phase_i' && (
-                <button
-                  onClick={handleFreeze}
-                  disabled={freezeMutation.isPending}
-                  className="border-border text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors"
-                >
-                  {freezeMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Lock className="h-3.5 w-3.5" />
-                  )}
-                  Freeze Phase I
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                  <button
+                    onClick={handleFreeze}
+                    disabled={freezeMutation.isPending}
+                    className="border-border text-foreground hover:bg-muted flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors"
+                  >
+                    {freezeMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Lock className="h-3.5 w-3.5" />
+                    )}
+                    Freeze Phase I
+                  </button>
+                  <ContextualHint hintId={hints.multivariateFreeze.id} className="max-w-xs text-xs">
+                    {hints.multivariateFreeze.text}
+                  </ContextualHint>
+                </div>
               )}
               <button
                 onClick={handleCompute}

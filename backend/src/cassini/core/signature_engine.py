@@ -7,15 +7,18 @@ hash computation, signature creation, and workflow advancement.
 from __future__ import annotations
 
 import hashlib
+import hmac as hmac_module
 import json
+import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import structlog
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cassini.api.deps import ROLE_HIERARCHY, get_user_role_level_for_plant
+from cassini.core.auth.roles import ROLE_HIERARCHY, get_user_role_level_for_plant
 from cassini.core.auth.passwords import verify_password
 from cassini.core.events import (
     EventBus,
@@ -252,8 +255,24 @@ class SignatureWorkflowEngine:
         6. Advance workflow
         7. Publish events
         """
-        # Verify password
+        # Verify password with lockout tracking
         if not verify_password(password, user.hashed_password):
+            user.failed_login_count = (user.failed_login_count or 0) + 1
+            # Check lockout policy
+            from cassini.db.models.signature import PasswordPolicy
+            policy_result = await self._session.execute(
+                select(PasswordPolicy).limit(1)
+            )
+            policy = policy_result.scalar_one_or_none()
+            if (
+                policy
+                and policy.max_failed_attempts > 0
+                and user.failed_login_count >= policy.max_failed_attempts
+            ):
+                user.locked_until = datetime.now(timezone.utc) + timedelta(
+                    minutes=policy.lockout_duration_minutes
+                )
+            await self._session.flush()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid password for signature",
@@ -436,6 +455,21 @@ class SignatureWorkflowEngine:
     ) -> ElectronicSignature:
         """Execute a standalone signature (no workflow)."""
         if not verify_password(password, user.hashed_password):
+            user.failed_login_count = (user.failed_login_count or 0) + 1
+            from cassini.db.models.signature import PasswordPolicy
+            policy_result = await self._session.execute(
+                select(PasswordPolicy).limit(1)
+            )
+            policy = policy_result.scalar_one_or_none()
+            if (
+                policy
+                and policy.max_failed_attempts > 0
+                and user.failed_login_count >= policy.max_failed_attempts
+            ):
+                user.locked_until = datetime.now(timezone.utc) + timedelta(
+                    minutes=policy.lockout_duration_minutes
+                )
+            await self._session.flush()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid password for signature",
@@ -649,8 +683,25 @@ class SignatureWorkflowEngine:
         }
 
 
+def _get_signature_key() -> bytes:
+    """Load or generate the server-side signature HMAC key.
+
+    Stored in `.signature_key` file, similar to `.jwt_secret` pattern.
+    """
+    key_file = Path(".signature_key")
+    if key_file.exists():
+        return key_file.read_bytes().strip()
+    key = secrets.token_bytes(32)
+    key_file.write_bytes(key)
+    try:
+        key_file.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+
 def compute_resource_hash(resource_type: str, resource_data: dict) -> str:
-    """Compute deterministic SHA-256 hash of resource content.
+    """Compute HMAC-SHA256 hash of resource content with server-side secret.
 
     Uses sorted JSON serialization for consistency across
     Python versions and platforms.
@@ -661,7 +712,8 @@ def compute_resource_hash(resource_type: str, resource_data: dict) -> str:
         separators=(",", ":"),
         default=str,
     )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    key = _get_signature_key()
+    return hmac_module.new(key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def compute_signature_hash(
@@ -670,7 +722,7 @@ def compute_signature_hash(
     meaning_code: str,
     resource_hash: str,
 ) -> str:
-    """Compute tamper-detection hash binding signature to record."""
+    """Compute HMAC-SHA256 tamper-detection hash binding signature to record."""
     canonical = json.dumps(
         {
             "user_id": user_id,
@@ -681,4 +733,5 @@ def compute_signature_hash(
         sort_keys=True,
         separators=(",", ":"),
     )
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    key = _get_signature_key()
+    return hmac_module.new(key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()

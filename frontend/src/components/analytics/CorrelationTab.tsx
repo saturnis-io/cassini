@@ -300,8 +300,8 @@ export function CorrelationTab() {
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {result.method ?? 'pearson'} &middot;{' '}
-                      {result.created_at
-                        ? formatDateTime(result.created_at)
+                      {result.computed_at
+                        ? formatDateTime(result.computed_at)
                         : 'Unknown date'}
                     </p>
                   </div>

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { plantApi } from '../plants.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 import type { PlantCreate, PlantUpdate } from '@/types'
 
 // Plant hooks
@@ -29,9 +30,7 @@ export function useCreatePlant() {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
       toast.success(`Created site "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create site: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create site'),
   })
 }
 
@@ -44,9 +43,7 @@ export function useUpdatePlant() {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
       toast.success(`Updated site "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update site: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update site'),
   })
 }
 
@@ -59,8 +56,6 @@ export function useDeletePlant() {
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
       toast.success('Site deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete site: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete site'),
   })
 }

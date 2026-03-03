@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { doeApi } from '../doe.api'
+import { handleMutationError } from './utils'
 import type { DOEStudyCreate, DOERunUpdate } from '../doe.api'
 
 // -----------------------------------------------------------------------
@@ -40,9 +41,7 @@ export function useCreateStudy() {
       queryClient.invalidateQueries({ queryKey: doeKeys.all })
       toast.success('DOE study created')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create study: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create DOE study'),
   })
 }
 
@@ -65,9 +64,7 @@ export function useUpdateStudy() {
       queryClient.invalidateQueries({ queryKey: doeKeys.all })
       toast.success('Study updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update study: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update study'),
   })
 }
 
@@ -80,9 +77,7 @@ export function useDeleteStudy() {
       queryClient.invalidateQueries({ queryKey: doeKeys.all })
       toast.success('DOE study deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete study: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete study'),
   })
 }
 
@@ -100,9 +95,7 @@ export function useGenerateDesign() {
       queryClient.invalidateQueries({ queryKey: doeKeys.runs(id) })
       toast.success('Design matrix generated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to generate design: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to generate design'),
   })
 }
 
@@ -129,9 +122,7 @@ export function useUpdateRuns() {
       queryClient.invalidateQueries({ queryKey: doeKeys.study(variables.studyId) })
       toast.success('Run data saved')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to save runs: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to save run data'),
   })
 }
 
@@ -149,9 +140,7 @@ export function useAnalyzeStudy() {
       queryClient.invalidateQueries({ queryKey: doeKeys.study(id) })
       toast.success('Analysis complete')
     },
-    onError: (error: Error) => {
-      toast.error(`Analysis failed: ${error.message}`)
-    },
+    onError: handleMutationError('DOE analysis failed'),
   })
 }
 

@@ -162,22 +162,28 @@ def calculate_ewma_limit_arrays(
 def estimate_sigma_from_values(values: list[float]) -> float:
     """Estimate process sigma from individual measurement values.
 
-    Uses the standard deviation of individual values (ddof=1).
-    If fewer than 2 values, returns 0.
+    Uses the moving range method (MR-bar/d2, span=2) to estimate
+    within-subgroup (short-term) sigma. This is the correct estimator
+    for EWMA charts, which are designed to detect shifts from a stable
+    baseline. Using overall standard deviation would inflate sigma if
+    shifts already exist, making the chart LESS sensitive.
+
+    Ref: Montgomery, "Introduction to Statistical Quality Control" 8th Ed.,
+    Ch. 10: sigma should be estimated from in-control Phase I data using
+    the moving range method.
 
     Args:
         values: List of measurement values
 
     Returns:
-        Estimated process sigma
+        Estimated process sigma (within-subgroup)
     """
     if len(values) < 2:
         return 0.0
 
-    n = len(values)
-    mean = sum(values) / n
-    variance = sum((x - mean) ** 2 for x in values) / (n - 1)
-    return math.sqrt(variance)
+    from cassini.utils.statistics import estimate_sigma_moving_range
+
+    return estimate_sigma_moving_range(values, span=2)
 
 
 async def process_ewma_sample(

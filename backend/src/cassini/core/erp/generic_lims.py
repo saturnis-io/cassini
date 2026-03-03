@@ -32,8 +32,9 @@ class GenericLIMSAdapter(BaseERPAdapter):
                 if resp.status_code < 400:
                     return {"success": True, "message": f"Connected to LIMS (HTTP {resp.status_code})"}
                 return {"success": False, "message": f"LIMS returned HTTP {resp.status_code}"}
-        except Exception as e:
-            return {"success": False, "message": str(e)}
+        except Exception:
+            logger.exception("lims_test_connection_failed")
+            return {"success": False, "message": "Connection test failed"}
 
     async def authenticate(self) -> None:
         if self.auth_type in ("basic", "api_key"):

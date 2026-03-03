@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useSubmitSample, useCharacteristic, useProductCodes } from '@/api/hooks'
+import { useSubmitSample, useCharacteristic, useProductCodes, useProductLimits } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { CharacteristicContextBar } from './CharacteristicContextBar'
 import { NoCharacteristicState } from './NoCharacteristicState'
@@ -20,8 +20,17 @@ export function ManualEntryPanel() {
   const [showProductCodeSuggestions, setShowProductCodeSuggestions] = useState(false)
   const productCodeRef = useRef<HTMLDivElement>(null)
 
-  const { data: existingCodes } = useProductCodes(globalCharId ?? 0)
+  const { data: sampleCodes } = useProductCodes(globalCharId ?? 0)
+  const { data: productLimits } = useProductLimits(globalCharId ?? 0)
   const submitSample = useSubmitSample()
+
+  // Merge product codes from configured limits + submitted samples (deduplicated)
+  const existingCodes = useMemo(() => {
+    const codes = new Set<string>()
+    productLimits?.forEach((pl) => codes.add(pl.product_code))
+    sampleCodes?.forEach((c) => codes.add(c))
+    return Array.from(codes).sort()
+  }, [productLimits, sampleCodes])
   const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
 
   // Calculate the number of input fields to show and minimum required
@@ -55,7 +64,7 @@ export function ManualEntryPanel() {
 
   // Filter autocomplete suggestions for product code
   const filteredCodes = useMemo(() => {
-    if (!existingCodes || !productCode) return existingCodes ?? []
+    if (!productCode) return existingCodes
     const upper = productCode.toUpperCase()
     return existingCodes.filter((c) => c.toUpperCase().includes(upper))
   }, [existingCodes, productCode])
@@ -188,38 +197,84 @@ export function ManualEntryPanel() {
                 </p>
               </div>
 
-              {/* Product Code (optional, with autocomplete) */}
+              {/* Product Code — dropdown when products exist, plain input otherwise */}
               <div ref={productCodeRef} className="relative">
                 <label className="mb-1 block text-sm font-medium">Product Code (optional)</label>
-                <input
-                  type="text"
-                  value={productCode}
-                  onChange={(e) => {
-                    setProductCode(e.target.value)
-                    setShowProductCodeSuggestions(true)
-                  }}
-                  onFocus={() => setShowProductCodeSuggestions(true)}
-                  onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
-                  placeholder="e.g., PN-12345"
-                  className="bg-background border-input w-full rounded-lg border px-3 py-2"
-                />
-                {showProductCodeSuggestions && filteredCodes.length > 0 && (
-                  <div className="bg-card border-border absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-lg border shadow-lg">
-                    {filteredCodes.map((code) => (
+                {existingCodes.length > 0 ? (
+                  <>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={productCode}
+                        onChange={(e) => {
+                          setProductCode(e.target.value)
+                          setShowProductCodeSuggestions(true)
+                        }}
+                        onFocus={() => setShowProductCodeSuggestions(true)}
+                        onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
+                        placeholder="Select or type a product code"
+                        className="bg-background border-input w-full rounded-lg border px-3 py-2 pr-8"
+                      />
                       <button
-                        key={code}
                         type="button"
-                        className="hover:bg-muted w-full px-3 py-1.5 text-left text-sm"
+                        tabIndex={-1}
+                        className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
                         onMouseDown={(e) => {
                           e.preventDefault()
-                          setProductCode(code)
-                          setShowProductCodeSuggestions(false)
+                          setShowProductCodeSuggestions(!showProductCodeSuggestions)
                         }}
                       >
-                        {code}
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                        </svg>
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                    {showProductCodeSuggestions && (
+                      <div className="bg-card border-border absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border shadow-lg">
+                        {filteredCodes.map((code) => (
+                          <button
+                            key={code}
+                            type="button"
+                            className="hover:bg-muted flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setProductCode(code)
+                              setShowProductCodeSuggestions(false)
+                            }}
+                          >
+                            {code}
+                            {productCode.toUpperCase() === code.toUpperCase() && (
+                              <svg className="text-primary ml-auto h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                        {productCode && !existingCodes.some((c) => c.toUpperCase() === productCode.toUpperCase()) && (
+                          <button
+                            type="button"
+                            className="hover:bg-muted text-primary border-border w-full border-t px-3 py-1.5 text-left text-sm"
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setProductCode(productCode.trim().toUpperCase())
+                              setShowProductCodeSuggestions(false)
+                            }}
+                          >
+                            + Add &ldquo;{productCode.trim().toUpperCase()}&rdquo;
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={productCode}
+                    onChange={(e) => setProductCode(e.target.value)}
+                    onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
+                    placeholder="e.g., PN-12345"
+                    className="bg-background border-input w-full rounded-lg border px-3 py-2"
+                  />
                 )}
               </div>
 

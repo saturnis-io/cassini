@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { multivariateApi, correlationApi } from '../analytics.api'
+import { handleMutationError } from './utils'
 
 // -----------------------------------------------------------------------
 // Query Keys
@@ -56,9 +57,7 @@ export function useCreateMultivariateGroup() {
       queryClient.invalidateQueries({ queryKey: mvKeys.all })
       toast.success('Multivariate group created')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create group: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create multivariate group'),
   })
 }
 
@@ -74,9 +73,7 @@ export function useUpdateMultivariateGroup() {
       queryClient.invalidateQueries({ queryKey: mvKeys.chartData(variables.id) })
       toast.success('Multivariate group updated')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update group: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to update multivariate group'),
   })
 }
 
@@ -89,9 +86,7 @@ export function useDeleteMultivariateGroup() {
       queryClient.invalidateQueries({ queryKey: mvKeys.all })
       toast.success('Multivariate group deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete group: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete multivariate group'),
   })
 }
 
@@ -105,9 +100,7 @@ export function useComputeMultivariateChart() {
       queryClient.invalidateQueries({ queryKey: mvKeys.group(id) })
       toast.success('Chart computed successfully')
     },
-    onError: (error: Error) => {
-      toast.error(`Computation failed: ${error.message}`)
-    },
+    onError: handleMutationError('Chart computation failed'),
   })
 }
 
@@ -129,9 +122,7 @@ export function useFreezePhaseI() {
       queryClient.invalidateQueries({ queryKey: mvKeys.chartData(id) })
       toast.success('Phase I frozen — now monitoring in Phase II')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to freeze Phase I: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to freeze Phase I'),
   })
 }
 
@@ -153,9 +144,7 @@ export function useComputeCorrelation() {
       queryClient.invalidateQueries({ queryKey: corrKeys.results(variables.plant_id) })
       toast.success('Correlation analysis complete')
     },
-    onError: (error: Error) => {
-      toast.error(`Correlation failed: ${error.message}`)
-    },
+    onError: handleMutationError('Correlation analysis failed'),
   })
 }
 
@@ -175,18 +164,3 @@ export function useCorrelationResult(id: number) {
   })
 }
 
-export function useComputePCA() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (data: { characteristic_ids: number[]; plant_id: number }) =>
-      correlationApi.computePCA(data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: corrKeys.results(variables.plant_id) })
-      toast.success('PCA analysis complete')
-    },
-    onError: (error: Error) => {
-      toast.error(`PCA failed: ${error.message}`)
-    },
-  })
-}

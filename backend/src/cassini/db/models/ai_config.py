@@ -44,7 +44,7 @@ class AIProviderConfig(Base):
         ForeignKey("plant.id", ondelete="CASCADE"), nullable=False
     )
     provider_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="claude", server_default="claude"
+        String(30), nullable=False, default="claude", server_default="claude"
     )
     api_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     model_name: Mapped[str] = mapped_column(
@@ -55,6 +55,16 @@ class AIProviderConfig(Base):
     )
     max_tokens: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1024, server_default=sa.text("1024")
+    )
+    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    azure_resource_name: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
+    azure_deployment_id: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
+    azure_api_version: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
     )
     is_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=sa.text("0")

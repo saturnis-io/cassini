@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { hierarchyApi } from '../plants.api'
 import { queryKeys } from './queryKeys'
+import { handleMutationError } from './utils'
 
 // Hierarchy hooks
 export function useHierarchyTree() {
@@ -34,9 +35,7 @@ export function useCreateHierarchyNodeInPlant() {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create node: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create node'),
   })
 }
 
@@ -66,9 +65,7 @@ export function useCreateHierarchyNode() {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success(`Created "${data.name}"`)
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to create node: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to create node'),
   })
 }
 
@@ -81,8 +78,6 @@ export function useDeleteHierarchyNode() {
       queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.all })
       toast.success('Node deleted')
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to delete node: ${error.message}`)
-    },
+    onError: handleMutationError('Failed to delete node'),
   })
 }
