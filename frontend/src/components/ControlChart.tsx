@@ -1702,24 +1702,16 @@ export function ControlChart({
         </div>
       )}
 
-      {/* Statistical notes for short-run and subgroup modes */}
-      {hasData && (
+      {/* Statistical notes for short-run modes */}
+      {hasData && shortRunMode === 'standardized' && (
         <div className="mb-1 flex flex-wrap items-center gap-3">
-          {shortRunMode === 'standardized' && (
-            <span className="flex items-center gap-1 text-xs text-zinc-400">
-              Standardized (Z-score) mode
-              <StatNote>
-                Values converted to Z-scores: Z = (X&#772; &minus; target) /
-                (&sigma;/&radic;n). Allows multiple part numbers on one chart.
-              </StatNote>
-            </span>
-          )}
-          {nominalN > 1 && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            Standardized (Z-score) mode
             <StatNote>
-              Control limits use &sigma;/&radic;n &mdash; larger subgroups
-              produce tighter limits.
+              Values converted to Z-scores: Z = (X&#772; &minus; target) /
+              (&sigma;/&radic;n). Allows multiple part numbers on one chart.
             </StatNote>
-          )}
+          </span>
         </div>
       )}
 
