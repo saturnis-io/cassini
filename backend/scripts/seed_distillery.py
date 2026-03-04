@@ -25,6 +25,7 @@ Run:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -38,7 +39,11 @@ from scipy import stats as sp_stats
 
 backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / "src"
+scripts_dir = Path(__file__).parent
 sys.path.insert(0, str(src_dir))
+sys.path.insert(0, str(scripts_dir))
+
+from seed_utils import InlineNelsonChecker, NELSON_RULE_NAMES, reset_and_migrate
 
 from cassini.core.auth.passwords import hash_password
 from cassini.db import (
@@ -51,107 +56,16 @@ from cassini.db import (
     Violation,
 )
 from cassini.db.models.api_key import APIKey  # noqa: F401
-from cassini.db.models.broker import MQTTBroker  # noqa: F401
+from cassini.db.models.broker import MQTTBroker
 from cassini.db.models.characteristic_config import CharacteristicConfig  # noqa: F401
+from cassini.db.models.erp_connector import ERPConnector, ERPFieldMapping
+from cassini.db.models.gage import GageBridge, GagePort
 from cassini.db.models.plant import Plant
 from cassini.db.models.rule_preset import RulePreset
 from cassini.db.models.user import User, UserPlantRole, UserRole
 
 logger = logging.getLogger(__name__)
 RANDOM_SEED = 1776  # Spirit of independence
-
-# ---------------------------------------------------------------------------
-# Nelson rule metadata
-# ---------------------------------------------------------------------------
-
-NELSON_RULE_NAMES = {
-    1: "Beyond 3\u03c3",
-    2: "9 points same side",
-    3: "6 points trending",
-    4: "14 points alternating",
-    5: "2 of 3 in Zone A",
-    6: "4 of 5 in Zone B+",
-    7: "15 points in Zone C",
-    8: "8 points outside Zone C",
-}
-
-
-# ---------------------------------------------------------------------------
-# Inline Nelson checker (from seed_chart_showcase.py)
-# ---------------------------------------------------------------------------
-
-
-class InlineNelsonChecker:
-    """Lightweight Nelson rules evaluator for seed-time violation detection."""
-
-    def __init__(self, cl: float, ucl: float, lcl: float, enabled_rules: list[int]):
-        self.cl = cl
-        self.ucl = ucl
-        self.lcl = lcl
-        self.sigma = (ucl - cl) / 3.0 if ucl != cl else 1.0
-        self.enabled_rules = set(enabled_rules)
-        self.means: list[float] = []
-
-    def _zone(self, value: float) -> str:
-        dist = abs(value - self.cl)
-        above = value >= self.cl
-        if dist > 3 * self.sigma:
-            return "BEYOND_UCL" if above else "BEYOND_LCL"
-        elif dist > 2 * self.sigma:
-            return "ZONE_A_UPPER" if above else "ZONE_A_LOWER"
-        elif dist > 1 * self.sigma:
-            return "ZONE_B_UPPER" if above else "ZONE_B_LOWER"
-        else:
-            return "ZONE_C_UPPER" if above else "ZONE_C_LOWER"
-
-    def check(self, sample_mean: float) -> list[int]:
-        self.means.append(sample_mean)
-        triggered = []
-        for rule_id in sorted(self.enabled_rules):
-            if self._check_rule(rule_id):
-                triggered.append(rule_id)
-        return triggered
-
-    def _check_rule(self, rule_id: int) -> bool:
-        vals = self.means
-        n = len(vals)
-        if rule_id == 1:
-            return n >= 1 and self._zone(vals[-1]) in ("BEYOND_UCL", "BEYOND_LCL")
-        elif rule_id == 2:
-            if n < 9:
-                return False
-            last9 = vals[-9:]
-            return all(v > self.cl for v in last9) or all(v < self.cl for v in last9)
-        elif rule_id == 3:
-            if n < 6:
-                return False
-            last6 = vals[-6:]
-            return all(last6[i] < last6[i + 1] for i in range(5)) or all(last6[i] > last6[i + 1] for i in range(5))
-        elif rule_id == 4:
-            if n < 14:
-                return False
-            last14 = vals[-14:]
-            alt = sum(1 for i in range(1, 13) if (last14[i] - last14[i - 1]) * (last14[i + 1] - last14[i]) < 0)
-            return alt >= 12
-        elif rule_id == 5:
-            if n < 3:
-                return False
-            zones = [self._zone(v) for v in vals[-3:]]
-            return sum(1 for z in zones if z in ("ZONE_A_UPPER", "BEYOND_UCL")) >= 2 or sum(1 for z in zones if z in ("ZONE_A_LOWER", "BEYOND_LCL")) >= 2
-        elif rule_id == 6:
-            if n < 5:
-                return False
-            zones = [self._zone(v) for v in vals[-5:]]
-            return sum(1 for z in zones if z in ("ZONE_B_UPPER", "ZONE_A_UPPER", "BEYOND_UCL")) >= 4 or sum(1 for z in zones if z in ("ZONE_B_LOWER", "ZONE_A_LOWER", "BEYOND_LCL")) >= 4
-        elif rule_id == 7:
-            if n < 15:
-                return False
-            return all(self._zone(v).startswith("ZONE_C") for v in vals[-15:])
-        elif rule_id == 8:
-            if n < 8:
-                return False
-            return all(not self._zone(v).startswith("ZONE_C") for v in vals[-8:])
-        return False
 
 
 # ---------------------------------------------------------------------------
@@ -200,16 +114,11 @@ def generate_value(mean: float, std: float, sample_index: int, total_samples: in
 
 
 async def seed() -> None:
-    db_path = backend_dir / "cassini.db"
+    db_path = reset_and_migrate()
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,
     )
-
-    print("Dropping all tables...")
-    await db_config.drop_tables()
-    print("Creating fresh schema...")
-    await db_config.create_tables()
 
     rng_np = np.random.RandomState(RANDOM_SEED)
     rng = random.Random(RANDOM_SEED)
@@ -218,6 +127,7 @@ async def seed() -> None:
     stats = {
         "plants": 0, "nodes": 0, "chars": 0, "samples": 0,
         "measurements": 0, "violations": 0, "users": 0, "presets": 0,
+        "gage_bridges": 0, "gage_ports": 0, "erp_connectors": 0,
     }
 
     async with db_config.session() as session:
@@ -1284,7 +1194,7 @@ async def seed() -> None:
         print("\n  Creating characteristics...")
 
         # GC-MS - congener profiling (multiple compounds)
-        await create_variable_char(
+        gc_acetaldehyde_id = await create_variable_char(
             gc_station.id, "Acetaldehyde", "Acetaldehyde by GC-MS (mg/100mL)", 1,
             target=25.0, usl=50.0, lsl=5.0, ucl=40.0, lcl=10.0,
             rules=[1, 2, 3], num_samples=200,
@@ -1322,7 +1232,7 @@ async def seed() -> None:
         )
 
         # HPLC - sugar and organic acid profiling
-        await create_variable_char(
+        hplc_residual_sugar_id = await create_variable_char(
             hplc_station.id, "Residual Sugar", "Reducing sugars by HPLC (g/L)", 1,
             target=2.0, usl=5.0, lsl=0.0, ucl=4.0, lcl=0.2,
             rules=[1, 2], num_samples=150,
@@ -1445,6 +1355,122 @@ async def seed() -> None:
         await session.flush()
 
         # ---------------------------------------------------------------
+        # Gage Bridge + Ports (QCL - Lab Instruments)
+        # ---------------------------------------------------------------
+        print("\n  Creating gage bridge...")
+
+        # QCL needs an MQTT broker for the gage bridge
+        qcl_broker = MQTTBroker(
+            plant_id=plant5.id,
+            name="QC Lab Broker",
+            host="mqtt.qclab.local",
+            port=1883,
+            client_id="cassini-qcl-broker",
+            is_active=True,
+        )
+        session.add(qcl_broker)
+        await session.flush()
+
+        api_key_raw = "distillery-qcl-lab-bridge-key-001"
+        bridge = GageBridge(
+            plant_id=plant5.id,
+            name="Lab Instruments Bridge",
+            api_key_hash=hashlib.sha256(api_key_raw.encode()).hexdigest(),
+            mqtt_broker_id=qcl_broker.id,
+            status="online",
+            last_heartbeat_at=now,
+            registered_by=user_objs["qc_manager"].id,
+        )
+        session.add(bridge)
+        await session.flush()
+
+        # Port 1: COM3 — GC-MS (gas chromatograph), linked to Acetaldehyde char
+        port_gcms = GagePort(
+            bridge_id=bridge.id,
+            port_name="COM3",
+            baud_rate=9600,
+            data_bits=8,
+            parity="none",
+            stop_bits=1.0,
+            protocol_profile="generic_regex",
+            parse_pattern=r"(?P<value>[\d.]+)\s*mg",
+            mqtt_topic="qclab/gcms/measurements",
+            characteristic_id=gc_acetaldehyde_id,
+            is_active=True,
+        )
+        session.add(port_gcms)
+
+        # Port 2: COM5 — HPLC, linked to Residual Sugar char
+        port_hplc = GagePort(
+            bridge_id=bridge.id,
+            port_name="COM5",
+            baud_rate=115200,
+            data_bits=8,
+            parity="none",
+            stop_bits=1.0,
+            protocol_profile="generic_regex",
+            parse_pattern=r"RESULT:\s*(?P<value>[\d.]+)",
+            mqtt_topic="qclab/hplc/measurements",
+            characteristic_id=hplc_residual_sugar_id,
+            is_active=True,
+        )
+        session.add(port_hplc)
+        await session.flush()
+
+        stats["gage_bridges"] += 1
+        stats["gage_ports"] += 2
+        print(f"    Bridge: {bridge.name} (2 ports: COM3 GC-MS, COM5 HPLC)")
+
+        # ---------------------------------------------------------------
+        # ERP Connector (HSD - Batch Tracking Webhook)
+        # ---------------------------------------------------------------
+        print("\n  Creating ERP connector...")
+
+        erp_connector = ERPConnector(
+            plant_id=plant1.id,
+            name="Batch Tracking Webhook \u2014 HSD",
+            connector_type="generic_webhook",
+            base_url="https://erp.highland-spirits.local/api/webhooks/batch-quality",
+            auth_type="api_key",
+            auth_config="{}",
+            headers="{}",
+            is_active=True,
+            status="active",
+        )
+        session.add(erp_connector)
+        await session.flush()
+
+        # Inbound mapping: ERP batch_id -> sample batch field
+        mapping_inbound = ERPFieldMapping(
+            connector_id=erp_connector.id,
+            name="Batch ID Inbound",
+            direction="inbound",
+            erp_entity="batch",
+            erp_field_path="$.batch_id",
+            openspc_entity="sample",
+            openspc_field="batch_number",
+            is_active=True,
+        )
+        session.add(mapping_inbound)
+
+        # Outbound mapping: violation -> alert
+        mapping_outbound = ERPFieldMapping(
+            connector_id=erp_connector.id,
+            name="Violation Alert Outbound",
+            direction="outbound",
+            erp_entity="quality_alert",
+            erp_field_path="$.alerts",
+            openspc_entity="violation",
+            openspc_field="rule_name",
+            is_active=True,
+        )
+        session.add(mapping_outbound)
+        await session.flush()
+
+        stats["erp_connectors"] += 1
+        print(f"    Connector: {erp_connector.name} (2 field mappings)")
+
+        # ---------------------------------------------------------------
         # Assign users to plants with appropriate roles
         # ---------------------------------------------------------------
         print("\n  Assigning users to plants...")
@@ -1487,6 +1513,9 @@ async def seed() -> None:
     print(f"  Measurements:    {stats['measurements']:,}")
     print(f"  Violations:      {stats['violations']:,}")
     print(f"  Rule Presets:    {stats['presets']}")
+    print(f"  Gage Bridges:    {stats['gage_bridges']}")
+    print(f"  Gage Ports:      {stats['gage_ports']}")
+    print(f"  ERP Connectors:  {stats['erp_connectors']}")
     print(f"  DB File:         {db_path}")
     print("=" * 65)
     print()
@@ -1496,8 +1525,8 @@ async def seed() -> None:
     print("              Custom rule presets (4 presets)")
     print("    Sprint 6: Short-run (deviation + standardized, 4 chars)")
     print("              Gage R&R ready (3-operator proof data)")
-    print("    Sprint 7: Gage connectivity ready (GC-MS, HPLC, densitometer)")
-    print("    Sprint 8: ERP batch IDs, multi-plant cross-reference")
+    print("    Sprint 7: Gage bridge (QCL, 2 ports: GC-MS + HPLC)")
+    print("    Sprint 8: ERP webhook connector (HSD, 2 field mappings)")
     print("    Sprint 9: CUSUM (3 chars), EWMA (3 chars)")
     print("              Correlated multivariate (temp/humidity/ABV)")
     print("              Predictive drift patterns")

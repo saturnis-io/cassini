@@ -44,7 +44,7 @@ export class ViolationSparks {
     const colors = new Float32Array(count * 3)
 
     // Unacknowledged: bright red-orange
-    const unackColor = new THREE.Color('#FF3B30')
+    const unackColor = new THREE.Color('#EF4444')
     // Acknowledged: muted warm amber
     const ackColor = new THREE.Color('#9B7D4A')
 

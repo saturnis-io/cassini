@@ -21,9 +21,13 @@ from pathlib import Path
 
 backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / "src"
+scripts_dir = Path(__file__).parent
 sys.path.insert(0, str(src_dir))
+sys.path.insert(0, str(scripts_dir))
 
 from sqlalchemy import select
+
+from seed_utils import reset_and_migrate
 
 from cassini.core.auth.passwords import hash_password
 from cassini.db import (
@@ -300,16 +304,11 @@ class InlineNelsonChecker:
 
 
 async def seed() -> None:
-    db_path = backend_dir / "cassini.db"
+    db_path = reset_and_migrate()
     db_config = DatabaseConfig(
         database_url=f"sqlite+aiosqlite:///{db_path}",
         echo=False,
     )
-
-    print("Dropping all tables...")
-    await db_config.drop_tables()
-    print("Creating fresh schema...")
-    await db_config.create_tables()
 
     rng = random.Random(RANDOM_SEED)
     now = datetime.now(timezone.utc)
@@ -370,8 +369,8 @@ async def seed() -> None:
                 session.add(char)
                 await session.flush()
                 stats["chars"] += 1
-                chart_hint = "X̄-R (variable n)" if variable_n else (
-                    "I-MR" if nominal_n == 1 else f"X̄-S (n={nominal_n})"
+                chart_hint = "Xbar-R (variable n)" if variable_n else (
+                    "I-MR" if nominal_n == 1 else f"Xbar-S (n={nominal_n})"
                 )
                 print(f"{indent}  * {c_def['name']} (n={nominal_n}, {chart_hint}, {total_samples} samples)")
 

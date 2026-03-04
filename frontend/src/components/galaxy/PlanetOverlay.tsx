@@ -36,8 +36,6 @@ export function PlanetOverlay({ char, capability, hierarchyPath }: PlanetOverlay
   return (
     <div
       className={cn(
-        // Position: top-center, horizontally centered
-        'absolute top-3 left-1/2 z-20 -translate-x-1/2',
         // Design system: card surface with blur
         'rounded-lg border bg-card/90 shadow-md backdrop-blur-md',
         cpkBorderColor(cpk),

@@ -215,11 +215,13 @@ class ControlLimits(BaseModel):
         center_line: Process mean (X-bar), None if not yet calculated
         ucl: Upper Control Limit, None if not yet calculated
         lcl: Lower Control Limit, None if not yet calculated
+        source: "stored" when from DB, "trial" when auto-computed from data
     """
 
     center_line: float | None = None
     ucl: float | None = None
     lcl: float | None = None
+    source: str | None = None
 
 
 class ZoneBoundaries(BaseModel):
@@ -426,6 +428,7 @@ class ChartDataResponse(BaseModel):
     ewma_target: float | None = None
     ewma_ucl_values: list[float] | None = None
     ewma_lcl_values: list[float] | None = None
+    shewhart_control_limits: ControlLimits | None = None
     sigma_z: float | None = None
     short_run_mode: str | None = None
     limits_type: str | None = None

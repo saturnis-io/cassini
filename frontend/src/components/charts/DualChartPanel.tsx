@@ -104,8 +104,17 @@ export function DualChartPanel({
   // Color scheme
   const colorScheme = label === 'Secondary' ? 'secondary' : 'primary'
 
+  // Include chart type so backend returns correct data for the selected chart type
+  const chartDataOptions = useMemo(
+    () => ({
+      ...(chartOptions ?? { limit: 50 }),
+      chartType: chartType ?? undefined,
+    }),
+    [chartOptions, chartType],
+  )
+
   // Fetch chart data for Y-axis domain calculation
-  const { data: chartData } = useChartData(characteristicId, chartOptions ?? { limit: 50 })
+  const { data: chartData } = useChartData(characteristicId, chartDataOptions)
 
   // Shared domain keeps histogram + control chart Y-axes aligned
   const yAxisDomain = useMemo(
@@ -287,7 +296,7 @@ export function DualChartPanel({
           <ErrorBoundary>
             <ControlChart
               characteristicId={characteristicId}
-              chartOptions={chartOptions}
+              chartOptions={chartDataOptions}
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}
@@ -318,7 +327,7 @@ export function DualChartPanel({
               orientation={isRightPosition ? 'vertical' : 'horizontal'}
               label={label}
               colorScheme={colorScheme}
-              chartOptions={chartOptions}
+              chartOptions={chartDataOptions}
               yAxisDomain={yAxisDomain}
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
@@ -378,7 +387,7 @@ export function DualChartPanel({
           <ErrorBoundary>
             <ControlChart
               characteristicId={characteristicId}
-              chartOptions={chartOptions}
+              chartOptions={chartDataOptions}
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}
@@ -407,7 +416,7 @@ export function DualChartPanel({
               orientation="vertical"
               label={label}
               colorScheme={colorScheme}
-              chartOptions={chartOptions}
+              chartOptions={chartDataOptions}
               yAxisDomain={yAxisDomain}
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
@@ -434,7 +443,7 @@ export function DualChartPanel({
         <div className="h-full min-w-0 flex-1">
           <RangeChart
             characteristicId={characteristicId}
-            chartOptions={chartOptions}
+            chartOptions={chartDataOptions}
             chartType={secondaryChartType}
             colorScheme={colorScheme}
             onHoverIndex={setHoveredIndex}
@@ -522,7 +531,7 @@ export function DualChartPanel({
             orientation="horizontal"
             label={label}
             colorScheme={colorScheme}
-            chartOptions={chartOptions}
+            chartOptions={chartDataOptions}
             yAxisDomain={yAxisDomain}
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}

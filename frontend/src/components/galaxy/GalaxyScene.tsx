@@ -5,7 +5,7 @@ import { PlanetSystem } from '@/lib/galaxy/PlanetSystem'
 import { ConstellationLines } from '@/lib/galaxy/ConstellationLines'
 import { MoonLines } from '@/lib/galaxy/MoonLines'
 import { SigmaBands } from '@/lib/galaxy/SigmaBands'
-import type { ViolationMoonData } from '@/lib/galaxy/SigmaBands'
+import { ViolationSparks } from '@/lib/galaxy/ViolationSparks'
 import { DEFAULT_GALAXY_CONFIG } from '@/lib/galaxy/types'
 import type { GapConfig } from '@/lib/galaxy/types'
 import {
@@ -51,6 +51,8 @@ interface GalaxySceneProps {
   showTrace?: boolean
   /** Toggle radial spoke lines from moons to center */
   showSpokes?: boolean
+  /** When changed (incremented), fly the camera back to galaxy zoom */
+  navigateToGalaxy?: number
 }
 
 /** Shared color palette for all planet systems */
@@ -58,7 +60,7 @@ const colors = {
   navy: new THREE.Color('#080C16'),
   gold: new THREE.Color('#D4AF37'),
   cream: new THREE.Color('#F4F1DE'),
-  orange: new THREE.Color('#E05A3D'),
+  orange: new THREE.Color('#EF4444'),
   muted: new THREE.Color('#4B5563'),
 }
 
@@ -73,6 +75,7 @@ export function GalaxyScene({
   onMoonClick,
   showTrace = true,
   showSpokes = false,
+  navigateToGalaxy,
 }: GalaxySceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -97,6 +100,7 @@ export function GalaxyScene({
   // Camera controller
   const controllerRef = useRef<CameraController | null>(null)
   const prevZoomLevelRef = useRef<ZoomLevel>('galaxy')
+  const prevConstellationIdRef = useRef<number | null>(null)
 
   // Layout positions ref (accessible from event handlers and animation loop)
   const positionsRef = useRef<Map<number, ConstellationPosition> | null>(null)
@@ -116,7 +120,8 @@ export function GalaxyScene({
   // Sigma zone bands along the spiral
   const sigmaBandsRef = useRef<SigmaBands | null>(null)
 
-  // (Violation visualization is now handled by sigma band wake/ripple effect)
+  // Violation spark particles
+  const violationSparksRef = useRef<ViolationSparks | null>(null)
 
   // Label visibility toggle — hide during camera movement to avoid CSS2DRenderer lag
   const labelVisibleRef = useRef(true)
@@ -156,7 +161,10 @@ export function GalaxyScene({
 
   // Fetch hierarchy tree and all characteristics for the selected plant
   const { data: hierarchyTree } = useHierarchyTreeByPlant(plantId)
-  const { data: charsData } = useCharacteristics({ plant_id: plantId, per_page: 5000 })
+  const { data: charsData } = useCharacteristics(
+    { plant_id: plantId, per_page: 5000 },
+    { refetchInterval: 30_000 },
+  )
   const characteristics = useMemo(() => charsData?.items ?? [], [charsData])
 
   // Compute layout positions from hierarchy + characteristics
@@ -235,9 +243,14 @@ export function GalaxyScene({
     }
   }, [])
 
-  const clearViolationRipples = useCallback(() => {
-    if (sigmaBandsRef.current) {
-      sigmaBandsRef.current.setViolationMoons([])
+  const disposeViolationSparks = useCallback(() => {
+    if (violationSparksRef.current) {
+      const system = focusedSystemRef.current
+      if (system) {
+        system.group.remove(violationSparksRef.current.group)
+      }
+      violationSparksRef.current.dispose()
+      violationSparksRef.current = null
     }
   }, [])
 
@@ -290,7 +303,7 @@ export function GalaxyScene({
       disposeConstellationCards()
       disposeMoonLines()
       disposeSigmaBands()
-      clearViolationRipples()
+      disposeViolationSparks()
 
       if (level === 'galaxy') {
         // Downgrade everything to dot
@@ -331,7 +344,7 @@ export function GalaxyScene({
         }
       }
     },
-    [disposeGalaxyCards, disposeConstellationCards, disposeMoonLines, disposeSigmaBands, clearViolationRipples, createGalaxyCards, createConstellationCardsForLevel],
+    [disposeGalaxyCards, disposeConstellationCards, disposeMoonLines, disposeSigmaBands, disposeViolationSparks, createGalaxyCards, createConstellationCardsForLevel],
   )
 
   // -------------------------------------------------------------------------
@@ -537,7 +550,7 @@ export function GalaxyScene({
         // Check for zoom level or focused char changes and update LOD
         const level = ctrl.zoomLevel
         const currentFocusedChar = ctrl.focusedCharId
-        if (level !== prevZoomLevelRef.current || currentFocusedChar !== focusedCharIdRef.current) {
+        if (level !== prevZoomLevelRef.current || currentFocusedChar !== focusedCharIdRef.current || ctrl.focusedConstellationId !== prevConstellationIdRef.current) {
           // Dismiss labels when zooming out (level change)
           dismissLabels()
 
@@ -566,6 +579,7 @@ export function GalaxyScene({
           prevNavCharRef.current = undefined
 
           prevZoomLevelRef.current = level
+          prevConstellationIdRef.current = ctrl.focusedConstellationId
         }
 
         // Label visibility: hide during movement, show after 120ms idle
@@ -607,6 +621,11 @@ export function GalaxyScene({
         sigmaBandsRef.current.update(time)
       }
 
+      // Update violation sparks
+      if (violationSparksRef.current) {
+        violationSparksRef.current.update(time)
+      }
+
       // Update constellation lines
       if (linesRef.current) {
         linesRef.current.update(time, violatingIdsRef.current)
@@ -642,7 +661,7 @@ export function GalaxyScene({
         ctrl.startGalaxyDrag(event.clientX, event.clientY)
       } else if (ctrl.zoomLevel === 'planet') {
         // Check for moon click first (handled in pointerup if no drag)
-        ctrl.startPlanetDrag(event.clientX)
+        ctrl.startPlanetDrag(event.clientX, event.clientY)
       }
     }
 
@@ -659,7 +678,7 @@ export function GalaxyScene({
       if (ctrl.zoomLevel === 'galaxy' && ctrl.isGalaxyDragging) {
         ctrl.updateGalaxyDrag(event.clientX, event.clientY)
       } else if (ctrl.zoomLevel === 'planet' && ctrl.isDragging) {
-        ctrl.updatePlanetDrag(event.clientX)
+        ctrl.updatePlanetDrag(event.clientX, event.clientY)
       }
     }
 
@@ -680,13 +699,13 @@ export function GalaxyScene({
 
       // --- Click handling (pointer didn't move) ---
 
-      // At planet zoom, check for moon clicks first
+      // At planet zoom, check for moon clicks only — no scene-level click handling
       if (ctrl.zoomLevel === 'planet') {
         const moonIdx = findMoonClickTarget(event)
         if (moonIdx != null) {
           onMoonClickRef.current?.(moonIdx)
-          return
         }
+        return
       }
 
       const hit = findClickTarget(event)
@@ -706,14 +725,6 @@ export function GalaxyScene({
       } else if (currentZoom === 'constellation') {
         dismissLabels()
 
-        ctrl.flyTo(hit.position, 'planet', {
-          charId: hit.charId,
-          constellationId: hit.constellationId,
-        })
-      } else if (currentZoom === 'planet') {
-        dismissLabels()
-
-        // Fly to the clicked planet (may be same or different characteristic)
         ctrl.flyTo(hit.position, 'planet', {
           charId: hit.charId,
           constellationId: hit.constellationId,
@@ -780,7 +791,7 @@ export function GalaxyScene({
     }
     window.addEventListener('keydown', handleKeyDown)
 
-    // Resize handler
+    // Resize handler (shared between window resize and ResizeObserver)
     function handleResize() {
       if (!container) return
       camera.aspect = container.clientWidth / container.clientHeight
@@ -794,8 +805,15 @@ export function GalaxyScene({
     }
     window.addEventListener('resize', handleResize)
 
+    // ResizeObserver — catches sidebar toggle (doesn't fire window.resize)
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(container)
+
     // Cleanup
     return () => {
+      resizeObserver.disconnect()
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('keydown', handleKeyDown)
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown)
@@ -827,7 +845,7 @@ export function GalaxyScene({
       disposeConstellationCards()
       disposeMoonLines()
       disposeSigmaBands()
-      clearViolationRipples()
+      disposeViolationSparks()
 
       // Dispose CSS2DRenderer
       if (container.contains(labelRenderer.domElement)) {
@@ -891,13 +909,23 @@ export function GalaxyScene({
       scene.add(system.group)
       systems.set(char.id, system)
 
-      // Set initial color based on data/control status
+      // Set initial color based on Cpk or violation status
       if (!char.sample_count) {
         // No data: grey "dead planet"
-        system.setDotColor(new THREE.Color('#4B5563'))
-      } else if (char.in_control === false) {
-        system.setDotColor(new THREE.Color('#E05A3D'))
+        system.setDotColor(new THREE.Color('#6B7280'))
+        system.setPlanetColor(new THREE.Color('#6B7280'))
+      } else if ((char.unacknowledged_violations ?? 0) > 0) {
+        system.setDotColor(new THREE.Color('#EF4444'))
+        system.setPlanetColor(new THREE.Color('#EF4444'))
         violatingIds.add(char.id)
+      } else if (char.latest_cpk != null) {
+        const hex = cpkToColorHex(char.latest_cpk)
+        system.setDotColor(new THREE.Color(hex))
+        system.setPlanetColor(new THREE.Color(hex))
+      } else {
+        // Has data but no Cpk yet — gray pending
+        system.setDotColor(new THREE.Color(cpkToColorHex(null)))
+        system.setPlanetColor(new THREE.Color(cpkToColorHex(null)))
       }
     }
 
@@ -938,6 +966,48 @@ export function GalaxyScene({
       }
     }
   }, [positions, characteristics, disposeGalaxyCards])
+
+  // -------------------------------------------------------------------------
+  // Effect 2b: Diff characteristic data to refresh dot colors without rebuild
+  // -------------------------------------------------------------------------
+  const prevCharsSnapshotRef = useRef<string>('')
+  useEffect(() => {
+    if (characteristics.length === 0) return
+    const systems = systemsRef.current
+    if (systems.size === 0) return
+
+    // Build a lightweight snapshot to detect changes
+    const snapshot = characteristics
+      .map((c) => `${c.id}:${c.latest_cpk ?? ''}:${c.unacknowledged_violations ?? 0}:${c.sample_count ?? 0}`)
+      .join('|')
+    if (snapshot === prevCharsSnapshotRef.current) return
+    prevCharsSnapshotRef.current = snapshot
+
+    // Update dot/halo colors for each characteristic
+    const violatingIds = new Set<number>()
+    for (const char of characteristics) {
+      const system = systems.get(char.id)
+      if (!system) continue
+
+      if (!char.sample_count) {
+        system.setDotColor(new THREE.Color('#6B7280'))
+        system.setPlanetColor(new THREE.Color('#6B7280'))
+      } else if ((char.unacknowledged_violations ?? 0) > 0) {
+        system.setDotColor(new THREE.Color('#EF4444'))
+        system.setPlanetColor(new THREE.Color('#EF4444'))
+        violatingIds.add(char.id)
+      } else if (char.latest_cpk != null) {
+        const hex = cpkToColorHex(char.latest_cpk)
+        system.setDotColor(new THREE.Color(hex))
+        system.setPlanetColor(new THREE.Color(hex))
+      } else {
+        // Has data but no Cpk yet — gray pending
+        system.setDotColor(new THREE.Color(cpkToColorHex(null)))
+        system.setPlanetColor(new THREE.Color(cpkToColorHex(null)))
+      }
+    }
+    violatingIdsRef.current = violatingIds
+  }, [characteristics])
 
   /** Build moon data array from chart data using spiral positions. */
   const buildSpiralMoonData = useCallback(
@@ -1093,20 +1163,24 @@ export function GalaxyScene({
         sigmaBandsRef.current = bands
       }
 
-      // Pass violation moon data to sigma bands for wake/ripple effect
-      const violationMoonData: ViolationMoonData[] = lineMoonData
+      // Create violation sparks for data points with violations
+      disposeViolationSparks()
+      const violationMoons = lineMoonData
         .filter((m) => m.hasViolation)
         .map((m) => ({
           angle: m.angle,
           radius: m.radius,
-          status: m.hasUnacknowledgedViolation ? 1.0 : 0.5,
+          isAcknowledged: !m.hasUnacknowledgedViolation,
         }))
-
-      if (sigmaBandsRef.current && violationMoonData.length > 0) {
-        sigmaBandsRef.current.setViolationMoons(violationMoonData)
+      if (violationMoons.length > 0) {
+        const sparks = new ViolationSparks()
+        sparks.create(violationMoons)
+        system.group.add(sparks.group)
+        violationSparksRef.current = sparks
       }
+
     }
-  }, [chartData, capability, disposeMoonLines, disposeSigmaBands, clearViolationRipples, buildSpiralMoonData])
+  }, [chartData, capability, disposeMoonLines, disposeSigmaBands, disposeViolationSparks, buildSpiralMoonData])
 
   // -------------------------------------------------------------------------
   // Effect 3b: Sync moon line visibility when props change
@@ -1191,6 +1265,20 @@ export function GalaxyScene({
       constellationId: pos.constellationId,
     })
   }, [navigateToCharId])
+
+  // -------------------------------------------------------------------------
+  // Effect 7: Navigate to galaxy when navigateToGalaxy counter changes
+  // -------------------------------------------------------------------------
+  const prevNavigateToGalaxyRef = useRef(navigateToGalaxy)
+  useEffect(() => {
+    if (navigateToGalaxy == null || navigateToGalaxy === prevNavigateToGalaxyRef.current) return
+    prevNavigateToGalaxyRef.current = navigateToGalaxy
+
+    const controller = controllerRef.current
+    if (!controller || controller.isAnimating) return
+
+    controller.flyTo(new THREE.Vector3(0, 0, 0), 'galaxy')
+  }, [navigateToGalaxy])
 
   return (
     <div

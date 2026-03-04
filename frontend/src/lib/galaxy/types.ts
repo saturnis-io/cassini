@@ -58,6 +58,11 @@ export const DEFAULT_LOGIN_CONFIG: Omit<PlanetSystemConfig, 'colors'> = {
 
 export const DEFAULT_GALAXY_CONFIG: Omit<PlanetSystemConfig, 'colors'> = {
   ...DEFAULT_LOGIN_CONFIG,
-  planetRadius: 9.0,
+  planetRadius: 6.0,
+  gaps: [
+    { in: 10.0, out: 13.0, center: 11.5 },
+    { in: 15.0, out: 17.0, center: 16.0 },
+    { in: 19.0, out: 20.5, center: 19.75 },
+  ],
   moonCount: 100,
 }

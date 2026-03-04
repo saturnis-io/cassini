@@ -288,6 +288,7 @@ export interface ChartData {
     ucl: number | null
     lcl: number | null
     center_line: number | null
+    source?: 'stored' | 'trial' | null
   }
   spec_limits: {
     usl: number | null
@@ -318,9 +319,17 @@ export interface ChartData {
   cusum_target?: number | null
   ewma_data_points?: EWMAChartSample[]
   ewma_target?: number | null
+  ewma_ucl_values?: number[] | null
+  ewma_lcl_values?: number[] | null
   ewma_lambda?: number | null
   ewma_l?: number | null
   cusum_k?: number | null
+  // Shewhart control limits (present alongside CUSUM/EWMA-specific limits)
+  shewhart_control_limits?: {
+    center_line: number | null
+    ucl: number | null
+    lcl: number | null
+  } | null
   // Laney correction (Sprint 5 - A3)
   sigma_z?: number | null
   // Short-run chart mode (Sprint 6 - B2)

@@ -106,12 +106,6 @@ async def process_cusum_sample(
     if char is None:
         raise ValueError(f"Characteristic {char_id} not found")
 
-    if char.chart_type != "cusum":
-        raise ValueError(
-            f"Characteristic {char_id} is not configured for CUSUM "
-            f"(chart_type={char.chart_type})"
-        )
-
     target = char.cusum_target
     k_sigma = char.cusum_k  # k in sigma units (e.g. 0.5 means 0.5*sigma)
     h_sigma = char.cusum_h  # h in sigma units (e.g. 5 means 5*sigma)
@@ -260,3 +254,90 @@ async def process_cusum_sample(
         violations=violations,
         processing_time_ms=processing_time_ms,
     )
+
+
+async def process_cusum_supplementary(
+    sample_id: int,
+    char: object,
+    measurement: float,
+    sample_repo: "SampleRepository",
+    violation_repo: "ViolationRepository",
+) -> None:
+    """Run supplementary CUSUM analysis on an already-created sample.
+
+    Updates the sample's cusum_high/cusum_low cache columns and creates
+    CUSUM-specific violations if thresholds are exceeded. Called after
+    standard SPC processing when CUSUM params are configured.
+    """
+    from cassini.utils.statistics import estimate_sigma_moving_range
+
+    target = char.cusum_target
+    if target is None:
+        return
+    k_sigma = char.cusum_k if char.cusum_k is not None else 0.5
+    h_sigma = char.cusum_h if char.cusum_h is not None else 5.0
+
+    sigma = char.stored_sigma
+    if sigma is None or sigma <= 0:
+        window_data = await sample_repo.get_rolling_window_data(
+            char_id=char.id, window_size=100, exclude_excluded=True
+        )
+        all_values = []
+        for wd in window_data:
+            all_values.extend(wd["values"])
+        if len(all_values) >= 2:
+            sigma = estimate_sigma_moving_range(all_values, span=2)
+        else:
+            sigma = 1.0
+    if sigma <= 0:
+        sigma = 1.0
+
+    k = k_sigma * sigma
+    h = h_sigma * sigma
+
+    # Load previous CUSUM values
+    prev_cusum_high = 0.0
+    prev_cusum_low = 0.0
+    recent = await sample_repo.get_rolling_window(
+        char_id=char.id, window_size=2, exclude_excluded=True
+    )
+    # Find the sample before the current one
+    for s in recent:
+        if s.id != sample_id and s.cusum_high is not None:
+            prev_cusum_high = s.cusum_high
+            prev_cusum_low = s.cusum_low or 0.0
+            break
+
+    cusum_high = max(0.0, prev_cusum_high + (measurement - target - k))
+    cusum_low = max(0.0, prev_cusum_low + (target - measurement - k))
+
+    # Update sample cache columns
+    from sqlalchemy import update
+    from cassini.db.models.sample import Sample as SampleModel
+    await sample_repo.session.execute(
+        update(SampleModel).where(SampleModel.id == sample_id).values(
+            cusum_high=cusum_high, cusum_low=cusum_low
+        )
+    )
+
+    # Check for violations (rule_id 9/10 to avoid collision with Nelson Rule 1)
+    if cusum_high > h:
+        await violation_repo.create(
+            sample_id=sample_id,
+            char_id=char.id,
+            rule_id=9,
+            rule_name="CUSUM+ Shift",
+            severity="CRITICAL",
+            acknowledged=False,
+            requires_acknowledgement=True,
+        )
+    if cusum_low > h:
+        await violation_repo.create(
+            sample_id=sample_id,
+            char_id=char.id,
+            rule_id=10,
+            rule_name="CUSUM- Shift",
+            severity="CRITICAL",
+            acknowledged=False,
+            requires_acknowledgement=True,
+        )

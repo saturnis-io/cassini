@@ -5,10 +5,11 @@ import type { Characteristic, CapabilityResult, ChartData } from '@/types'
  * Cpk color thresholds matching the galaxy data-mapping palette.
  */
 function cpkColor(cpk: number | null): string {
-  if (cpk == null) return '#9CA3AF' // gray-400
-  if (cpk >= 1.33) return '#34D399' // emerald-400
-  if (cpk >= 1.0) return '#FBBF24' // amber-400
-  return '#F87171' // red-400
+  if (cpk == null) return '#6B7280' // gray-500
+  if (cpk >= 1.67) return '#22C55E' // bright green
+  if (cpk >= 1.33) return '#FACC15' // yellow
+  if (cpk >= 1.0) return '#F59E0B' // amber
+  return '#EF4444' // bright red
 }
 
 function fmt(v: number | null | undefined, decimals = 3): string {
@@ -101,7 +102,7 @@ export function createGalaxyInfoCard(
   dot.style.height = '7px'
   dot.style.borderRadius = '50%'
   dot.style.flexShrink = '0'
-  dot.style.backgroundColor = inControl ? '#34D399' : '#F87171'
+  dot.style.backgroundColor = inControl ? '#22C55E' : '#EF4444'
 
   const nameSpan = document.createElement('span')
   nameSpan.style.color = '#D1D5DB'
@@ -149,7 +150,7 @@ export function createGalaxyInfoCard(
   }
 
   const label = new CSS2DObject(container)
-  label.position.set(0, 9, 0)
+  label.position.set(0, 14, 0)
   return label
 }
 
@@ -243,10 +244,10 @@ export function createConstellationCard(
   dot.style.borderRadius = '50%'
   dot.style.flexShrink = '0'
   dot.style.marginTop = '3px'
-  dot.style.backgroundColor = inControl ? '#34D399' : '#F87171'
+  dot.style.backgroundColor = inControl ? '#22C55E' : '#EF4444'
   dot.style.boxShadow = inControl
-    ? '0 0 4px rgba(52, 211, 153, 0.5)'
-    : '0 0 4px rgba(248, 113, 113, 0.5)'
+    ? '0 0 4px rgba(34, 197, 94, 0.5)'
+    : '0 0 4px rgba(239, 68, 68, 0.5)'
 
   const nameSpan = document.createElement('span')
   nameSpan.style.color = '#E5E7EB'
@@ -277,7 +278,7 @@ export function createConstellationCard(
     container.appendChild(noData)
 
     const label = new CSS2DObject(container)
-    label.position.set(0, 26, 0)
+    label.position.set(0, 22, 0)
     return label
   }
 
@@ -313,7 +314,7 @@ export function createConstellationCard(
         tinyRowPair(
           'UCL',
           fmt(char.ucl, 2),
-          '#F87171',
+          '#EF4444',
           'CL',
           fmt(char.stored_center_line, 2),
           '#9CA3AF',
@@ -321,7 +322,7 @@ export function createConstellationCard(
       )
     } else {
       if (char.ucl != null)
-        container.appendChild(tinyRow('UCL', fmt(char.ucl, 2), '#F87171'))
+        container.appendChild(tinyRow('UCL', fmt(char.ucl, 2), '#EF4444'))
       if (char.stored_center_line != null)
         container.appendChild(tinyRow('CL', fmt(char.stored_center_line, 2), '#9CA3AF'))
     }
@@ -366,20 +367,20 @@ export function createConstellationCard(
   trendSpan.style.fontSize = '14px'
   const cpk = cpkVal ?? 0
   if (cpk >= 1.33 && inControl) {
-    trendSpan.style.color = '#34D399'
+    trendSpan.style.color = '#22C55E'
     trendSpan.textContent = '\u25B2' // up arrow
   } else if (cpk >= 1.0) {
-    trendSpan.style.color = '#FBBF24'
+    trendSpan.style.color = '#F59E0B'
     trendSpan.textContent = '\u2014' // dash
   } else {
-    trendSpan.style.color = '#F87171'
+    trendSpan.style.color = '#EF4444'
     trendSpan.textContent = '\u25BC' // down arrow
   }
   bottomRow.appendChild(trendSpan)
   container.appendChild(bottomRow)
 
   const label = new CSS2DObject(container)
-  label.position.set(0, 26, 0)
+  label.position.set(0, 22, 0)
   return label
 }
 
@@ -418,10 +419,10 @@ export function createPlanetLabel(
   dot.style.height = '6px'
   dot.style.borderRadius = '50%'
   dot.style.flexShrink = '0'
-  dot.style.backgroundColor = inControl ? '#34D399' : '#F87171'
+  dot.style.backgroundColor = inControl ? '#22C55E' : '#EF4444'
   dot.style.boxShadow = inControl
-    ? '0 0 4px rgba(52, 211, 153, 0.6)'
-    : '0 0 4px rgba(248, 113, 113, 0.6)'
+    ? '0 0 4px rgba(34, 197, 94, 0.6)'
+    : '0 0 4px rgba(239, 68, 68, 0.6)'
 
   const nameSpan = document.createElement('span')
   nameSpan.style.color = '#E5E7EB'
@@ -506,7 +507,7 @@ export function createControlLimitLabels(
   }
 
   if (cl.ucl != null) {
-    labels.push(makeTag(`UCL ${fmt(cl.ucl, 2)}`, '#F87171', 2.5))
+    labels.push(makeTag(`UCL ${fmt(cl.ucl, 2)}`, '#EF4444', 2.5))
   }
   if (cl.center_line != null) {
     labels.push(makeTag(`CL ${fmt(cl.center_line, 2)}`, '#9CA3AF', 0))

@@ -10,21 +10,21 @@ export function controlLimitsToGap(
   lcl: number | null,
   centerLine: number | null,
 ): GapConfig {
-  const defaultGap: GapConfig = { in: 14.5, out: 16.5, center: 15.5 }
+  const defaultGap: GapConfig = { in: 10.0, out: 13.0, center: 11.5 }
   if (ucl == null || lcl == null || centerLine == null) return defaultGap
 
   // Map the control range to ring radii
-  // Gap center at radius 15.5 (matching login page middle gap)
+  // Gap center at radius 11.5 (matching tighter planet layout)
   const range = ucl - lcl
   if (range <= 0) return defaultGap
 
-  // Gap half-width: 2.0 ring units gives nice visual proportions
-  const halfWidth = 2.0
+  // Gap half-width: 1.5 ring units for tighter proportions
+  const halfWidth = 1.5
 
   return {
-    in: 15.5 - halfWidth,
-    out: 15.5 + halfWidth,
-    center: 15.5,
+    in: 11.5 - halfWidth,
+    out: 11.5 + halfWidth,
+    center: 11.5,
   }
 }
 
@@ -70,8 +70,8 @@ export function timestampToAngle(index: number, total: number): number {
  * Inner radius starts just outside planet core (10.5).
  * Outer radius extends to the ring particle outer edge.
  */
-const SPIRAL_INNER_RADIUS = 13.0
-const SPIRAL_OUTER_RADIUS = 31.0
+const SPIRAL_INNER_RADIUS = 9.0
+const SPIRAL_OUTER_RADIUS = 22.0
 const SPIRAL_POINTS_PER_TURN = 25
 
 /**
@@ -110,9 +110,9 @@ export function cpkToColorHex(
   greenThreshold = 1.67,
   yellowThreshold = 1.33,
 ): string {
-  if (cpk == null) return '#4B5563' // muted gray for unknown
-  if (cpk >= greenThreshold) return '#D4AF37' // gold — excellent
-  if (cpk >= yellowThreshold) return '#F4F1DE' // cream — good
+  if (cpk == null) return '#6B7280' // gray-500 for unknown
+  if (cpk >= greenThreshold) return '#22C55E' // bright green — excellent
+  if (cpk >= yellowThreshold) return '#FACC15' // yellow — good
   if (cpk >= 1.0) return '#F59E0B' // amber — marginal
-  return '#E05A3D' // orange-red — poor
+  return '#EF4444' // bright red — poor
 }

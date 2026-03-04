@@ -487,12 +487,13 @@ export function LimitsTab({
 
   return (
     <Accordion defaultOpen={['chart-type', 'spec-limits', 'control-limits']} className="space-y-3">
-      {/* Chart Type Selection */}
-      <AccordionSection id="chart-type" title="Chart Type">
+      {/* Default Analysis Selection */}
+      <AccordionSection id="chart-type" title="Default Analysis">
         <div className="space-y-4">
           <p className="text-muted-foreground text-sm">
-            Select the control chart type for this characteristic. Standard (Shewhart) is the
-            default. CUSUM and EWMA charts are better for detecting small, sustained shifts.
+            Choose the default analysis view for this characteristic. Standard (Shewhart) is the
+            default. CUSUM and EWMA are supplementary analyses for detecting small, sustained
+            shifts. This can be overridden per session on the dashboard.
           </p>
 
           {/* Chart type selector */}

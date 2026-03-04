@@ -8,10 +8,14 @@ import { useHierarchyTree } from './hierarchy'
 import type { Characteristic, HierarchyNode } from '@/types'
 
 // Characteristic hooks
-export function useCharacteristics(params?: Parameters<typeof characteristicApi.list>[0]) {
+export function useCharacteristics(
+  params?: Parameters<typeof characteristicApi.list>[0],
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: queryKeys.characteristics.list(params),
     queryFn: () => characteristicApi.list(params),
+    ...(options?.refetchInterval != null ? { refetchInterval: options.refetchInterval } : {}),
   })
 }
 

@@ -27,29 +27,29 @@ const ANOMALY_RECOVERING = 2
 const ANOMALY_HOLD_MIN_MS = 4000
 const ANOMALY_HOLD_RANGE_MS = 3000
 
-/** Ring geometry constants */
-const RING_INNER_RADIUS = 12.0
-const RING_RADIAL_DEPTH = 20.0
+/** Ring geometry constants — inner/outer derived from config gaps at build time */
+const RING_INNER_PADDING = 2.0 // padding inside the innermost gap
+const RING_OUTER_PADDING = 2.0 // padding outside the outermost gap
 const RING_GAP_LEAK_PROBABILITY = 0.015
 const RING_VERTICAL_SPREAD = 0.04
 
-/** Moon sizing: uniform small dots matching login-page ring particles */
-const MOON_SIZE_NEWEST = 0.05
-const MOON_SIZE_OLDEST = 0.05
+/** Moon sizing: larger dots for visibility at planet zoom */
+const MOON_SIZE_NEWEST = 0.18
+const MOON_SIZE_OLDEST = 0.10
 /** Opacity: gentle fade toward center (inner spiral = oldest = most transparent) */
 const MOON_OPACITY_NEWEST = 0.85
 const MOON_OPACITY_OLDEST = 0.04
 
 /** Invisible hit-target radius for easier moon click detection */
-const MOON_HIT_RADIUS = 0.4
+const MOON_HIT_RADIUS = 0.6
 
 /** Ring shader only receives the newest N points for wake effects (perf) */
 const SHADER_MOON_LIMIT = 30
 
 /** Black hole accretion disc particle count */
 const BLACK_HOLE_DISC_PARTICLES = 12000
-const BLACK_HOLE_INNER_RADIUS = 11.0
-const BLACK_HOLE_OUTER_RADIUS = 32.0
+const BLACK_HOLE_INNER_RADIUS = 7.5
+const BLACK_HOLE_OUTER_RADIUS = 23.0
 
 /** Cached radial-gradient glow texture shared by all dot sprites */
 let glowTextureCache: THREE.CanvasTexture | null = null
@@ -457,8 +457,14 @@ export class PlanetSystem {
     shader: { vertex: string; fragment: string },
     uniforms: Record<string, THREE.IUniform>,
   ) {
-    const { gaps, colors } = this.config
+    const { gaps, colors, planetRadius } = this.config
     const { cream, muted } = colors
+
+    // Derive ring extents from gap positions so each config gets correct coverage
+    const innermost = gaps.length > 0 ? Math.min(...gaps.map((g) => g.in)) : planetRadius + 2
+    const outermost = gaps.length > 0 ? Math.max(...gaps.map((g) => g.out)) : planetRadius + 12
+    const ringInner = innermost - RING_INNER_PADDING
+    const ringDepth = outermost + RING_OUTER_PADDING - ringInner
 
     const rPositions = new Float32Array(particleCount * 3)
     const rColors = new Float32Array(particleCount * 3)
@@ -469,7 +475,7 @@ export class PlanetSystem {
     while (ringIdx < particleCount && iterations < maxIterations) {
       iterations++
       const theta = Math.random() * Math.PI * 2
-      const radius = RING_INNER_RADIUS + Math.pow(Math.random(), 1.2) * RING_RADIAL_DEPTH
+      const radius = ringInner + Math.pow(Math.random(), 1.2) * ringDepth
 
       let inGap = false
       for (const g of gaps) {
@@ -483,7 +489,7 @@ export class PlanetSystem {
       rPositions[ringIdx * 3 + 1] = (Math.random() - 0.5) * RING_VERTICAL_SPREAD
       rPositions[ringIdx * 3 + 2] = Math.sin(theta) * radius
 
-      const ringCol = cream.clone().lerp(muted, (radius - RING_INNER_RADIUS) / RING_RADIAL_DEPTH)
+      const ringCol = cream.clone().lerp(muted, (radius - ringInner) / ringDepth)
       rColors[ringIdx * 3] = ringCol.r
       rColors[ringIdx * 3 + 1] = ringCol.g
       rColors[ringIdx * 3 + 2] = ringCol.b
@@ -903,7 +909,7 @@ export class PlanetSystem {
       .value as THREE.Vector3[]
     const uniformStatus = this.ringShaderMat.uniforms.uMoonStatus
       .value as number[]
-    const gapCenter = this.config.gaps[0]?.center ?? 15.5
+    const gapCenter = this.config.gaps[0]?.center ?? 11.5
     const total = Math.min(samples.length, this.config.moonCount)
 
     this.moons = samples.slice(0, this.config.moonCount).map((sample, i) => {
@@ -965,7 +971,7 @@ export class PlanetSystem {
         hitMesh,
         angle: sample.angle,
         speed: 0, // data moons don't orbit randomly
-        gap: this.config.gaps[0] ?? { in: 14.5, out: 16.5, center: 15.5 },
+        gap: this.config.gaps[0] ?? { in: 10.0, out: 13.0, center: 11.5 },
         currentRadius: sample.radius,
         targetRadius: sample.radius,
         anomalyState: isUnacked ? ANOMALY_SPIKE : ANOMALY_NORMAL,
@@ -1020,7 +1026,29 @@ export class PlanetSystem {
       return
     }
 
-    // Halo LOD or missing geometry: store for deferred application
+    // Halo LOD: update halo planet particles directly
+    if (this.currentLOD === 'halo' && this.haloPlanetGeo) {
+      const posAttr = this.haloPlanetGeo.getAttribute('position')
+      const colAttr = this.haloPlanetGeo.getAttribute('color')
+      const { planetRadius } = this.config
+
+      for (let i = 0; i < posAttr.count; i++) {
+        const y = posAttr.getY(i) / planetRadius
+        this._tmpColor
+          .copy(color)
+          .lerp(
+            this.config.colors.gold,
+            (y + 1) / 2 + (Math.random() * 0.2 - 0.1),
+          )
+        colAttr.setXYZ(i, this._tmpColor.r, this._tmpColor.g, this._tmpColor.b)
+      }
+      colAttr.needsUpdate = true
+      // Also store as pending so full LOD upgrade picks it up
+      this.pendingPlanetColor = color.clone()
+      return
+    }
+
+    // Missing geometry: store for deferred application
     this.pendingPlanetColor = color.clone()
   }
 

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 import structlog
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import OperationalError
 
 from cassini.db.database import get_database
 from cassini.db.models.characteristic import Characteristic
@@ -80,16 +81,23 @@ class PurgeEngine:
     async def _run_all_plants(self) -> None:
         """Run purge for every active plant."""
         db = get_database()
-        async with db.session() as session:
-            plants = (
-                await session.execute(
-                    select(Plant).where(Plant.is_active.is_(True))
-                )
-            ).scalars().all()
+        try:
+            async with db.session() as session:
+                plants = (
+                    await session.execute(
+                        select(Plant).where(Plant.is_active.is_(True))
+                    )
+                ).scalars().all()
+        except OperationalError:
+            # DB may be mid-reset (e.g. devtools seed) — skip this cycle
+            logger.warning("purge_skipped_db_unavailable")
+            return
 
         for plant in plants:
             try:
                 await self.run_purge(plant.id)
+            except OperationalError:
+                logger.warning("purge_skipped_db_unavailable", plant_id=plant.id)
             except Exception:
                 logger.exception("purge_plant_failed", plant_id=plant.id)
 

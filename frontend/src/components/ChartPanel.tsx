@@ -135,11 +135,11 @@ export function ChartPanel({
   // Color scheme based on label for comparison mode
   const colorScheme = label === 'Secondary' ? 'secondary' : 'primary'
 
-  // Include chart type in options so backend returns CUSUM/EWMA data when selected
+  // Include chart type in options so backend returns correct data for selected chart type
   const chartDataOptions = useMemo(
     () => ({
       ...(chartOptions ?? { limit: 50 }),
-      chartType: chartType === 'cusum' || chartType === 'ewma' ? chartType : undefined,
+      chartType: chartType ?? undefined,
     }),
     [chartOptions, chartType],
   )
@@ -183,7 +183,7 @@ export function ChartPanel({
           ) : (
             <ControlChart
               characteristicId={characteristicId}
-              chartOptions={chartOptions}
+              chartOptions={chartDataOptions}
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}

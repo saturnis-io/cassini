@@ -839,42 +839,8 @@ export function ControlChart({
         },
       )
     } else {
-      if (control_limits.ucl != null)
-        markLineData.push({
-          yAxis: control_limits.ucl,
-          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
-          label: {
-            formatter: `UCL: ${formatVal(control_limits.ucl)}`,
-            position: 'end',
-            color: chartColors.uclLine,
-            fontSize: 11,
-            fontWeight: 500,
-          },
-        })
-      if (control_limits.center_line != null)
-        markLineData.push({
-          yAxis: control_limits.center_line,
-          lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 },
-          label: {
-            formatter: `CL: ${formatVal(control_limits.center_line)}`,
-            position: 'end',
-            color: chartColors.centerLine,
-            fontSize: 11,
-            fontWeight: 600,
-          },
-        })
-      if (control_limits.lcl != null)
-        markLineData.push({
-          yAxis: control_limits.lcl,
-          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
-          label: {
-            formatter: `LCL: ${formatVal(control_limits.lcl)}`,
-            position: 'end',
-            color: chartColors.lclLine,
-            fontSize: 11,
-            fontWeight: 500,
-          },
-        })
+      // Control limit lines rendered as separate series (see controlLimitSeries)
+      // to bypass ECharts markLine yAxis rendering bug
     }
 
     if (showSpecLimits && spec_limits.usl != null) {
@@ -929,6 +895,84 @@ export function ControlChart({
     }
 
     const allMarkAreas = [...markAreaData, ...annotationMarkAreas]
+
+    // --- Build constant-value line series for control limits ---
+    // ECharts markLine has a rendering bug where yAxis values snap to the series
+    // mean instead of the specified coordinate. Using actual line series instead.
+    const controlLimitSeries: Record<string, unknown>[] = []
+
+    if (!isModeA) {
+      const isTrial = control_limits.source === 'trial'
+      const trialSuffix = isTrial ? ' (trial)' : ''
+      const limitDash = isTrial ? [4, 4] : [6, 3]
+      const limitWidth = isTrial ? 1 : 1.5
+      const centerDash = isTrial ? [4, 4] : undefined
+      const centerWidth = isTrial ? 1.5 : 2.5
+
+      if (control_limits.ucl != null) {
+        const uclData = useTimeCoords
+          ? data.map((p) => [p.timestampMs, control_limits.ucl])
+          : data.map(() => control_limits.ucl)
+        controlLimitSeries.push({
+          type: 'line',
+          data: uclData,
+          lineStyle: { color: chartColors.uclLine, type: limitDash, width: limitWidth },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          z: 4,
+          endLabel: {
+            show: true,
+            formatter: `UCL: ${formatVal(control_limits.ucl)}${trialSuffix}`,
+            color: chartColors.uclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        })
+      }
+      if (control_limits.center_line != null) {
+        const clData = useTimeCoords
+          ? data.map((p) => [p.timestampMs, control_limits.center_line])
+          : data.map(() => control_limits.center_line)
+        controlLimitSeries.push({
+          type: 'line',
+          data: clData,
+          lineStyle: { color: chartColors.centerLine, type: centerDash, width: centerWidth },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          z: 4,
+          endLabel: {
+            show: true,
+            formatter: `CL: ${formatVal(control_limits.center_line)}${trialSuffix}`,
+            color: chartColors.centerLine,
+            fontSize: 11,
+            fontWeight: 600,
+          },
+        })
+      }
+      if (control_limits.lcl != null) {
+        const lclData = useTimeCoords
+          ? data.map((p) => [p.timestampMs, control_limits.lcl])
+          : data.map(() => control_limits.lcl)
+        controlLimitSeries.push({
+          type: 'line',
+          data: lclData,
+          lineStyle: { color: chartColors.lclLine, type: limitDash, width: limitWidth },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          z: 4,
+          endLabel: {
+            show: true,
+            formatter: `LCL: ${formatVal(control_limits.lcl)}${trialSuffix}`,
+            color: chartColors.lclLine,
+            fontSize: 11,
+            fontWeight: 500,
+          },
+        })
+      }
+    }
 
     // --- Custom series renderItem for data point symbols ---
     // Captures data, chartColors, highlightedRange, hoveredSampleIds from closure
@@ -1171,7 +1215,7 @@ export function ControlChart({
 
     const option = {
       animation: false,
-      grid: { top: gridTop, right: 60, left: 60, bottom: bottomMargin, containLabel: false },
+      grid: { top: gridTop, right: 120, left: 60, bottom: bottomMargin, containLabel: false },
       xAxis: xAxisConfig,
       yAxis: {
         type: 'value',
@@ -1260,7 +1304,7 @@ export function ControlChart({
         },
       ],
       series: [
-        // Line series for the data path + markLine/markArea decorations
+        // Line series for the data path + markArea decorations
         {
           type: 'line',
           data: useTimeCoords ? data.map((p) => [p.timestampMs, p.mean]) : data.map((p) => p.mean),
@@ -1278,6 +1322,8 @@ export function ControlChart({
           markArea: { silent: true, data: allMarkAreas as never[] },
           z: 5,
         },
+        // Constant-value line series for control limits (bypasses markLine rendering issues)
+        ...controlLimitSeries,
         // Custom series for data point symbols (shapes, violation badges, etc.)
         {
           type: 'custom',

@@ -16,6 +16,7 @@ cd frontend && npx tsc -b           # Full build check (strict, noUnusedLocals)
 
 # Backend
 cd backend && uvicorn cassini.main:app --reload   # Dev server
+cd backend && python -m pytest tests/ -x          # Run tests
 cd backend && alembic upgrade head                 # Run migrations
 cd backend && alembic revision --autogenerate -m "description"  # New migration
 
@@ -23,6 +24,97 @@ cd backend && alembic revision --autogenerate -m "description"  # New migration
 cd bridge && pip install -e .       # Dev install
 cassini-bridge run                  # Run bridge agent
 ```
+
+---
+
+## Cross-Cutting Requirements (ALL New Features)
+
+**These are checklists, not prose. Run them for every feature.**
+
+### Audit Trail Checklist
+**Trigger**: Any new URL prefix, new resource type, or background operation.
+
+- [ ] Add `_RESOURCE_PATTERNS` regex entry in `core/audit.py` for each new URL prefix
+- [ ] Add domain-specific action keywords to `_method_to_action()` (e.g., "submit", "approve", "analyze")
+- [ ] Add `RESOURCE_LABELS` and `ACTION_LABELS` entries in `frontend/src/components/AuditLogViewer.tsx`
+- [ ] For background/event-bus-driven operations: add explicit `audit_service.log()` calls (HTTP middleware only captures HTTP requests)
+
+### Electronic Signatures Checklist
+**Trigger**: Any approval/sign-off workflow.
+
+- [ ] Regulatory-required workflows (FAI approval, MSA sign-off, data purge): call `initiate_workflow()` + `sign()` — MUST block if `check_workflow_required()` returns True
+- [ ] Optional workflows (DOE analysis, ERP config, capability snapshots): call `sign_standalone()` — configurable per plant
+- [ ] On resource modification after signing: call `invalidate_signatures_for_resource()`
+- [ ] Frontend: embed `<SignatureDialog>` component in approval buttons
+- [ ] Resource hashes MUST include actual content, not just type+id
+
+### API Contract Checklist
+**Trigger**: Any new or modified API endpoint.
+
+- [ ] `fetchApi` paths NEVER include `/api/v1/` prefix — `fetchApi` prepends it automatically
+- [ ] TypeScript types match Pydantic schemas field-for-field (run `npx tsc --noEmit`)
+- [ ] Error responses NEVER pass `str(e)` to API clients — log server-side, return generic messages
+
+---
+
+## Pitfalls — Will Crash or Corrupt Data
+
+These have caused production bugs before. Violating any of them WILL break something.
+
+### Backend
+
+> **RULE**: NEVER access SQLAlchemy relationships in async context without `selectinload`. Use direct `select()` queries for cross-relationship column access.
+
+> **RULE**: NEVER explicitly `.join(DataSource)` when querying JTI subclasses (MQTTDataSource, OPCUADataSource). SQLAlchemy auto-joins the parent table. Explicit join causes "ambiguous column" on SQLite.
+
+> **RULE**: Never modify executed Alembic migrations. Always create new ones.
+
+> **RULE**: Never use `lastrowid` in migrations (returns 0 on PostgreSQL). Insert, SELECT back by unique column, then insert children.
+
+> **RULE**: SQLite FK recreation in `batch_alter_table`: use naming convention dict. Always `drop_constraint` before `create_foreign_key` — never skip the drop.
+
+> **RULE**: FastAPI route ordering: static paths MUST come before `/{param}` — top-to-bottom matching.
+
+### Frontend
+
+> **RULE**: ECharts container div MUST always be in DOM. Use `visibility: hidden` for loading states, NOT conditional rendering.
+
+> **RULE**: Token refresh uses shared promise queue. NEVER use a boolean flag for concurrent 401 handling.
+
+> **RULE**: Always wrap `navigate()` in `useEffect`. NEVER call during render.
+
+> **RULE**: Show Your Work value matching: the explain API's returned value MUST exactly match what the caller displays. Dashboard quickStats uses subgroup means + sigma of means; CapabilityCard uses individual measurements + stored_sigma. Pass `chartOptions` through `<Explainable>` to select the correct mode.
+
+---
+
+## Pitfalls — Will Cause Subtle Bugs
+
+These won't crash immediately but produce wrong behavior that's hard to trace.
+
+### Backend
+- **DB encryption key**: `.db_encryption_key` is separate from `.jwt_secret` — JWT rotation must not brick stored credentials
+- **Config validation**: `short_run_mode` incompatible with attribute data or CUSUM/EWMA. `use_laney_correction` only for p/u charts
+- **Legacy shim**: `backend/src/openspc/__init__.py` redirects `openspc.*` imports to `cassini.*` for old Alembic migrations
+
+### Frontend
+- **Provider ordering**: PlantProvider, WebSocketProvider must be inside RequireAuth
+- **Query invalidation**: `useUpdateCharacteristic` must invalidate `['characteristics', 'chartData', id]` — doesn't match `['characteristics', 'detail', id]`
+- **CharacteristicForm onChange**: Type is `(field: string, value: string | boolean)` — checkboxes pass booleans
+- **ExplanationPanel z-index**: Uses `z-[60]` to render above modals (z-50). Do not lower this
+
+---
+
+## Style & Convention
+
+- **Prettier**: No semicolons, single quotes, trailing commas, 100 char width
+- **TypeScript**: Strict mode, `noUnusedLocals`, `noUnusedParameters`
+- **Imports**: Use `@/` alias, never relative paths crossing directories
+- **Components**: Function components, named exports, one component per file
+- **Hooks**: Custom hooks in `hooks/`, React Query hooks in `api/hooks/`
+- **localStorage keys**: Use `cassini-` prefix (migration from `openspc-` in main.tsx)
+- **Characteristic display**: Names are NOT unique — ALWAYS show hierarchy breadcrumb path (e.g., "Plant > Line > Station"). On detail views use `useHierarchyPath()` hook; on list/card views include `hierarchy_path` from the API response. Backend endpoints that return characteristics should include the path string.
+
+---
 
 ## Architecture
 
@@ -32,7 +124,6 @@ cassini-bridge run                  # Run bridge agent
 - **Multi-dialect**: SQLite (dev), PostgreSQL, MySQL, MSSQL via `db/dialects.py`
 - **Auth**: JWT access (15min) + refresh cookie (7d httpOnly, path `/api/v1/auth`)
 - **Roles**: operator < supervisor < engineer < admin, per-plant via `user_plant_role`
-- **Route ordering**: Static paths MUST come before `/{param}` — FastAPI matches top-to-bottom
 
 ### Frontend
 - **Path alias**: `@/` → `src/` (configured in tsconfig)
@@ -56,59 +147,6 @@ A trust feature for regulated industries — lets users see exactly how every st
   2. **Without chart options**: Flattens individual measurements + uses `stored_sigma` (R-bar/d2) — matches capability GET endpoint / CapabilityCard
 - **Step filtering**: `METRIC_STEP_PREFIXES` dict filters the collector's full step list to only the computation chain for the requested metric (e.g. Cpk only shows Cpu/Cpl/Cpk steps, not Ppk)
 - **Wrapping new values**: Use `<Explainable metric="cpk" resourceId={charId} chartOptions={...}>` around any value that should be explainable. Pass `chartOptions` matching the data window so the explanation value matches the display
-
-### Key Conventions
-- **Prettier**: No semicolons, single quotes, trailing commas, 100 char width
-- **TypeScript**: Strict mode, `noUnusedLocals`, `noUnusedParameters`
-- **Imports**: Use `@/` alias, never relative paths crossing directories
-- **Components**: Function components, named exports, one component per file
-- **Hooks**: Custom hooks in `hooks/`, React Query hooks in `api/hooks/`
-- **Characteristic display**: Characteristic names are NOT unique — whenever displaying a characteristic, ALWAYS show its hierarchy breadcrumb path (e.g., "Plant > Line > Station") so the user can disambiguate. On detail views use `useHierarchyPath()` hook; on list/card views include `hierarchy_path` from the API response. Backend endpoints that return characteristics in any context should include the path string.
-
-## Cross-Cutting Requirements (ALL New Features)
-
-### Audit Trail
-Every new feature MUST have audit log coverage:
-1. Add a `_RESOURCE_PATTERNS` regex entry in `core/audit.py` for each new URL prefix
-2. Add domain-specific action keywords to `_method_to_action()` (e.g., "submit", "approve", "analyze")
-3. Add `RESOURCE_LABELS` and `ACTION_LABELS` entries in `frontend/src/components/AuditLogViewer.tsx`
-4. For background/event-bus-driven operations, add explicit `audit_service.log()` calls (HTTP middleware only captures HTTP requests)
-
-### Electronic Signatures
-Every approval/sign-off workflow SHOULD integrate with the signature system (`core/signature_engine.py`):
-1. Regulatory-required workflows (FAI approval, MSA sign-off, data purge): call `initiate_workflow()` + `sign()` — MUST block the action if `check_workflow_required()` returns True
-2. Optional workflows (DOE analysis, ERP config, capability snapshots): call `sign_standalone()` — configurable per plant
-3. On resource modification after signing: call `invalidate_signatures_for_resource()`
-4. Frontend: embed `<SignatureDialog>` component in approval buttons (not just the Settings page)
-5. Resource hashes MUST include actual content, not just type+id
-
-### API Contract Consistency
-- **fetchApi paths**: NEVER include `/api/v1/` prefix — `fetchApi` prepends it automatically
-- **TypeScript types**: Must match Pydantic schemas field-for-field (run `npx tsc --noEmit` to verify)
-- **Error responses**: NEVER pass `str(e)` to API clients — log server-side, return generic messages
-
-## Critical Pitfalls
-
-### Backend
-- **Async lazy-loading**: NEVER access SQLAlchemy relationships without `selectinload`. Use direct `select()` queries for cross-relationship column access
-- **JTI query pattern**: NEVER explicitly `.join(DataSource)` when querying subclasses — SQLAlchemy auto-joins. Explicit join causes "ambiguous column" on SQLite
-- **Migrations are immutable**: Never modify executed migrations. Always create new ones
-- **Dialect-safe migrations**: Never use `lastrowid` (returns 0 on PostgreSQL). Insert, SELECT back by unique column, then insert children
-- **SQLite FK recreation**: Use naming convention dict in `batch_alter_table`. Always `drop_constraint` before `create_foreign_key`
-- **DB encryption key**: `.db_encryption_key` is separate from `.jwt_secret` — JWT rotation must not brick stored credentials
-- **Config validation**: `short_run_mode` incompatible with attribute data or CUSUM/EWMA. `use_laney_correction` only for p/u charts
-- **Legacy shim**: `backend/src/openspc/__init__.py` redirects `openspc.*` imports to `cassini.*` for old Alembic migrations
-
-### Frontend
-- **ECharts container**: Container div MUST always be in DOM. Use `visibility: hidden`, not conditional rendering
-- **Token refresh**: Uses shared promise queue — never use a boolean flag for concurrent 401 handling
-- **React Router navigate**: Always wrap `navigate()` in `useEffect`, never call during render
-- **Provider ordering**: PlantProvider, WebSocketProvider must be inside RequireAuth
-- **Query invalidation**: `useUpdateCharacteristic` must invalidate `['characteristics', 'chartData', id]` — doesn't match `['characteristics', 'detail', id]`
-- **CharacteristicForm onChange**: Type is `(field: string, value: string | boolean)` — checkboxes pass booleans
-- **localStorage keys**: Use `cassini-` prefix (migration from `openspc-` in main.tsx)
-- **Show Your Work value matching**: The explain API's returned value MUST exactly match what the caller displays. Dashboard quickStats uses subgroup means + sigma of means; CapabilityCard uses individual measurements + stored_sigma. Pass `chartOptions` (limit/startDate/endDate) through `<Explainable>` to select the correct mode. If you add a new `<Explainable>` wrapper, verify the explain API path matches the data source of the displayed value
-- **ExplanationPanel z-index**: Uses `z-[60]` to render above modals (modals are z-50). Do not lower this
 
 ## Data Model Notes
 - **DataSource**: Polymorphic JTI — base `data_source` + `mqtt_data_source`, `opcua_data_source`. No `provider_type` column. Check `char.data_source is None` for manual

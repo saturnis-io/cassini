@@ -50,14 +50,17 @@ export class CameraController {
   private readonly _panRight = new THREE.Vector3()
   private readonly _panForward = new THREE.Vector3()
 
-  // Planet-level interaction state
+  // Planet-level interaction state (spherical coordinates)
   private planetDragActive = false
   private planetDragStartX = 0
-  private planetOrbitAngle = 0
-  private planetDistance = 46 // default distance from flyTo offset calc
-  private readonly PLANET_MIN_DIST = 25
-  private readonly PLANET_MAX_DIST = 100
-  private readonly PLANET_Y = 26 // fixed camera height at planet level
+  private planetDragStartY = 0
+  private planetOrbitAngle = 0 // theta (horizontal)
+  private planetOrbitPhi = 0.4 // phi (polar angle from top)
+  private planetDistance = 35
+  private readonly PLANET_MIN_DIST = 18
+  private readonly PLANET_MAX_DIST = 80
+  private readonly PLANET_MIN_PHI = 0.1
+  private readonly PLANET_MAX_PHI = 1.4
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -124,7 +127,7 @@ export class CameraController {
         this.targetLookAt.copy(target)
         break
       case 'planet':
-        this.targetPosition.set(target.x + 16, 26, target.z + 40)
+        this.targetPosition.set(target.x + 12, 20, target.z + 30)
         this.targetLookAt.copy(target)
         // Reset planet orbit state when flying to a new planet
         this.resetPlanetOrbit()
@@ -263,19 +266,26 @@ export class CameraController {
   // Planet-level interaction: drag to rotate, scroll to zoom
   // ---------------------------------------------------------------------------
 
-  startPlanetDrag(clientX: number): void {
+  startPlanetDrag(clientX: number, clientY: number): void {
     this.planetDragActive = true
     this.planetDragStartX = clientX
+    this.planetDragStartY = clientY
   }
 
-  updatePlanetDrag(clientX: number): void {
+  updatePlanetDrag(clientX: number, clientY: number): void {
     if (!this.planetDragActive) return
 
     const deltaX = clientX - this.planetDragStartX
+    const deltaY = clientY - this.planetDragStartY
     this.planetDragStartX = clientX
+    this.planetDragStartY = clientY
 
-    // Convert pixel movement to radians (sensitivity: ~1 degree per 3 pixels)
+    // Convert pixel movement to radians
     this.planetOrbitAngle += deltaX * 0.006
+    this.planetOrbitPhi = Math.max(
+      this.PLANET_MIN_PHI,
+      Math.min(this.PLANET_MAX_PHI, this.planetOrbitPhi + deltaY * 0.004),
+    )
 
     this.applyPlanetOrbit()
   }
@@ -296,17 +306,20 @@ export class CameraController {
 
   private resetPlanetOrbit(): void {
     this.planetOrbitAngle = 0
-    this.planetDistance = 46
+    this.planetOrbitPhi = 0.4
+    this.planetDistance = 35
     this.planetDragActive = false
   }
 
   private applyPlanetOrbit(): void {
     const target = this.currentLookAt
+    // Spherical coordinates: phi = polar angle from top, theta = azimuthal
     this.camera.position.x =
-      target.x + Math.sin(this.planetOrbitAngle) * this.planetDistance
+      target.x + Math.sin(this.planetOrbitPhi) * Math.sin(this.planetOrbitAngle) * this.planetDistance
+    this.camera.position.y =
+      Math.cos(this.planetOrbitPhi) * this.planetDistance
     this.camera.position.z =
-      target.z + Math.cos(this.planetOrbitAngle) * this.planetDistance
-    this.camera.position.y = this.PLANET_Y
+      target.z + Math.sin(this.planetOrbitPhi) * Math.cos(this.planetOrbitAngle) * this.planetDistance
     this.camera.lookAt(target)
   }
 

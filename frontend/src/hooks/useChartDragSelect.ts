@@ -64,7 +64,12 @@ export function useChartDragSelect(
 
       // Only start drag if click is within the chart's grid (plot) area
       // containPixel returns false for axis labels, margins, etc.
-      if (!chart.containPixel('grid', [localX, localY])) return
+      // Guard: containPixel throws if ecModel hasn't initialized (no setOption yet)
+      try {
+        if (!chart.containPixel('grid', [localX, localY])) return
+      } catch {
+        return
+      }
 
       dragStartRef.current = { x: e.clientX, containerLeft: rect.left }
     }

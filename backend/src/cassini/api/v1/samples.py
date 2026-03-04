@@ -315,117 +315,13 @@ async def submit_sample(
     check_plant_role(_user, plant_id, "operator")
 
     try:
-        # Check if the characteristic uses a specialised engine (CUSUM / EWMA)
+        # Look up characteristic for supplementary analysis params
         char_repo = CharacteristicRepository(session)
         characteristic = await char_repo.get_by_id(data.characteristic_id)
         if characteristic is None:
             raise ValueError(f"Characteristic {data.characteristic_id} not found")
 
-        chart_type = getattr(characteristic, "chart_type", None)
-
-        if chart_type == "cusum":
-            # Route to CUSUM engine
-            from cassini.core.engine.cusum_engine import process_cusum_sample
-
-            sample_repo = SampleRepository(session)
-            violation_repo = ViolationRepository(session)
-            cusum_result = await process_cusum_sample(
-                char_id=data.characteristic_id,
-                measurement=data.measurements[0],
-                sample_repo=sample_repo,
-                char_repo=char_repo,
-                violation_repo=violation_repo,
-                batch_number=data.batch_number,
-                operator_id=data.operator_id,
-            )
-            await session.commit()
-
-            violation_records = await violation_repo.get_by_sample(cusum_result.sample_id)
-            violations = [
-                ViolationInfo(
-                    violation_id=vr.id,
-                    rule_id=vr.rule_id,
-                    rule_name=vr.rule_name or "",
-                    severity=vr.severity,
-                )
-                for vr in violation_records
-            ]
-            request.state.audit_context = {
-                "resource_type": "sample",
-                "resource_id": cusum_result.sample_id,
-                "action": "create",
-                "summary": f"Sample submitted for '{characteristic.name}': {data.measurements}",
-                "fields": {
-                    "characteristic_name": characteristic.name,
-                    "characteristic_id": characteristic.id,
-                    "measurements": data.measurements,
-                    "subgroup_size": len(data.measurements),
-                    "chart_type": "cusum",
-                },
-            }
-            return SampleProcessingResult(
-                sample_id=cusum_result.sample_id,
-                timestamp=cusum_result.timestamp,
-                mean=cusum_result.measurement,
-                range_value=None,
-                zone="cusum",
-                in_control=cusum_result.in_control,
-                violations=violations,
-                processing_time_ms=cusum_result.processing_time_ms,
-            )
-
-        if chart_type == "ewma":
-            # Route to EWMA engine
-            from cassini.core.engine.ewma_engine import process_ewma_sample
-
-            sample_repo = SampleRepository(session)
-            violation_repo = ViolationRepository(session)
-            ewma_result = await process_ewma_sample(
-                char_id=data.characteristic_id,
-                measurement=data.measurements[0],
-                sample_repo=sample_repo,
-                char_repo=char_repo,
-                violation_repo=violation_repo,
-                batch_number=data.batch_number,
-                operator_id=data.operator_id,
-            )
-            await session.commit()
-
-            violation_records = await violation_repo.get_by_sample(ewma_result.sample_id)
-            violations = [
-                ViolationInfo(
-                    violation_id=vr.id,
-                    rule_id=vr.rule_id,
-                    rule_name=vr.rule_name or "",
-                    severity=vr.severity,
-                )
-                for vr in violation_records
-            ]
-            request.state.audit_context = {
-                "resource_type": "sample",
-                "resource_id": ewma_result.sample_id,
-                "action": "create",
-                "summary": f"Sample submitted for '{characteristic.name}': {data.measurements}",
-                "fields": {
-                    "characteristic_name": characteristic.name,
-                    "characteristic_id": characteristic.id,
-                    "measurements": data.measurements,
-                    "subgroup_size": len(data.measurements),
-                    "chart_type": "ewma",
-                },
-            }
-            return SampleProcessingResult(
-                sample_id=ewma_result.sample_id,
-                timestamp=ewma_result.timestamp,
-                mean=ewma_result.measurement,
-                range_value=None,
-                zone="ewma",
-                in_control=ewma_result.in_control,
-                violations=violations,
-                processing_time_ms=ewma_result.processing_time_ms,
-            )
-
-        # Standard Shewhart chart — use default SPC engine
+        # Always run standard SPC engine first (Nelson Rules, zone classification)
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
@@ -438,6 +334,35 @@ async def submit_sample(
             measurements=data.measurements,
             context=context,
         )
+
+        # Additionally run CUSUM/EWMA analysis if params are configured
+        # Use subgroup mean for supplementary analysis (matches standard SPC)
+        _subgroup_mean = sum(data.measurements) / len(data.measurements)
+        if characteristic.cusum_target is not None and characteristic.cusum_k is not None:
+            try:
+                from cassini.core.engine.cusum_engine import process_cusum_supplementary
+                await process_cusum_supplementary(
+                    sample_id=result.sample_id,
+                    char=characteristic,
+                    measurement=_subgroup_mean,
+                    sample_repo=SampleRepository(session),
+                    violation_repo=ViolationRepository(session),
+                )
+            except Exception:
+                logger.warning("cusum_supplementary_failed", char_id=data.characteristic_id)
+
+        if characteristic.ewma_lambda is not None:
+            try:
+                from cassini.core.engine.ewma_engine import process_ewma_supplementary
+                await process_ewma_supplementary(
+                    sample_id=result.sample_id,
+                    char=characteristic,
+                    measurement=_subgroup_mean,
+                    sample_repo=SampleRepository(session),
+                    violation_repo=ViolationRepository(session),
+                )
+            except Exception:
+                logger.warning("ewma_supplementary_failed", char_id=data.characteristic_id)
 
         # Commit the transaction
         await session.commit()
@@ -468,6 +393,7 @@ async def submit_sample(
                 "characteristic_id": characteristic.id,
                 "measurements": data.measurements,
                 "subgroup_size": len(data.measurements),
+                "chart_type": characteristic.chart_type,
             },
         }
 

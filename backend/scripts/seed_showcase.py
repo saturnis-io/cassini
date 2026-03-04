@@ -2390,6 +2390,64 @@ def seed_msa(cur: sqlite3.Cursor) -> None:
                     VALUES (?, ?, ?, ?, 0.0, ?, ?)""",
                     (study3, op_id, part_id, rep + 1, call, now))
 
+    # Study 4: Bore Diameter Gage R&R — In Progress (Detroit, crossed_anova, collecting)
+    # 3 operators x 10 parts x 3 reps planned = 90, but only ~50 measurements so far
+    cur.execute("""INSERT INTO msa_study
+        (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
+         tolerance, status, created_by, created_at, completed_at, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)""",
+        (IDS["det_plant"], "Bore Diameter Gage R&R (In Progress)", "crossed_anova", IDS["bore_dia"],
+         3, 10, 3, 0.050, "collecting", IDS["eng_det"], now))
+    study4 = cur.lastrowid
+
+    # Operators
+    ops4 = []
+    for i, name in enumerate(["David Kim", "Sarah Foster", "Carlos Reyes"]):
+        cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            (study4, name, i + 1))
+        ops4.append(cur.lastrowid)
+
+    # Parts: 10 parts spread around 50.000mm nominal +/- 0.012
+    parts4 = []
+    part4_refs = [50.000 + 0.012 * (i - 5) / 5 for i in range(10)]  # 49.988 to 50.012
+    for i in range(10):
+        cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
+            (study4, f"Part-C{i+1:02d}", round(part4_refs[i], 4), i + 1))
+        parts4.append(cur.lastrowid)
+
+    # Partial measurements: operator 1 complete (10 parts x 3 reps = 30),
+    # operator 2 first 7 parts x 3 reps = 21, minus a few random skips = ~48-50 total
+    random.seed(99)  # reproducible partial pattern
+    for op_idx, op_id in enumerate(ops4):
+        if op_idx == 0:
+            # Operator 1: complete — all 10 parts x 3 reps
+            for part_idx, part_id in enumerate(parts4):
+                for rep in range(3):
+                    base = part4_refs[part_idx]
+                    op_bias = -0.0005
+                    value = round(base + op_bias + random.gauss(0, 0.002), 4)
+                    cur.execute("""INSERT INTO msa_measurement
+                        (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
+                        VALUES (?, ?, ?, ?, ?, NULL, ?)""",
+                        (study4, op_id, part_id, rep + 1, value, now))
+        elif op_idx == 1:
+            # Operator 2: first 7 parts, 3 reps each, minus 2 random skips
+            skip_set = {(2, 1), (5, 2)}  # (part_index, rep) pairs to skip
+            for part_idx in range(7):
+                part_id = parts4[part_idx]
+                for rep in range(3):
+                    if (part_idx, rep) in skip_set:
+                        continue
+                    base = part4_refs[part_idx]
+                    op_bias = 0.0003
+                    value = round(base + op_bias + random.gauss(0, 0.002), 4)
+                    cur.execute("""INSERT INTO msa_measurement
+                        (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
+                        VALUES (?, ?, ?, ?, ?, NULL, ?)""",
+                        (study4, op_id, part_id, rep + 1, value, now))
+        # Operator 3: not started yet (no measurements)
+    random.seed(42)  # restore global seed
+
 
 def seed_fai(cur: sqlite3.Cursor) -> None:
     """3 FAI reports per design doc."""
@@ -2579,6 +2637,53 @@ def seed_compliance(cur: sqlite3.Cursor) -> None:
             (user_id, event_type, channel, is_enabled, severity_filter, created_at)
             VALUES (?, ?, ?, ?, ?, ?)""",
             (user_id, event_type, channel, enabled, severity, now))
+
+    # ── Push Subscriptions ──
+    # Admin — facility manager push subscription (Chrome on desktop)
+    cur.execute("""INSERT INTO push_subscription
+        (user_id, endpoint, p256dh_key, auth_key, created_at)
+        VALUES (?, ?, ?, ?, ?)""",
+        (IDS["admin"],
+         "https://fcm.googleapis.com/fcm/send/dKx7rM3cQlE:APA91bHG4k9JdX7fV3Nq2_showcase_admin_push_sub_001",
+         "BIjWxE3F0VmTk5hR9yL4oPqDsMcN6wA2bKfGjH8uYvXzW1eS0dP3iO7nM5lJ4kT6rQ9sU2vC8xB0aE",
+         "tR7uW3xY9zA1bC5dE8fG",
+         now))
+
+    # Detroit supervisor — quality alerts push subscription (Chrome on mobile)
+    cur.execute("""INSERT INTO push_subscription
+        (user_id, endpoint, p256dh_key, auth_key, created_at)
+        VALUES (?, ?, ?, ?, ?)""",
+        (IDS["sup_det"],
+         "https://fcm.googleapis.com/fcm/send/eL2mN8pQrS4:APA91bHK7j9RfY2wX5uT_showcase_supdet_push_sub_002",
+         "BGkZpE8F1VnUl6iS0yM5pPrEtNdO7xB3cLfHkI9uZwX2eT1dQ4jO8nN6mK5lJ7kU3rS9tV2wD0aF",
+         "hJ4kL7mN0pQ3rS6tU9w",
+         now))
+
+    # ── OIDC Config + Account Link (SSO demo) ──
+    cur.execute("""INSERT INTO oidc_config
+        (name, issuer_url, client_id, client_secret_encrypted, scopes, role_mapping,
+         auto_provision, default_role, claim_mapping, end_session_endpoint, post_logout_redirect_uri,
+         allowed_redirect_uris, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)""",
+        ("Contoso Motors Azure AD",
+         "https://login.microsoftonline.com/contoso-motors/v2.0",
+         "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+         "gAAAAABn_encrypted_placeholder_for_showcase_demo_only",
+         '["openid", "profile", "email", "groups"]',
+         json.dumps({"SPC-Admins": {"*": "admin"}, "SPC-Engineers": {"*": "engineer"}, "SPC-Operators": {"*": "operator"}}),
+         1, "operator",
+         json.dumps({"email": "preferred_username", "name": "name", "groups": "groups"}),
+         "https://login.microsoftonline.com/contoso-motors/oauth2/v2.0/logout",
+         "http://localhost:5173",
+         '["http://localhost:5173/auth/callback", "https://cassini.contoso-motors.com/auth/callback"]',
+         now, now))
+    oidc_provider_id = cur.lastrowid
+
+    # Link admin user to Contoso Motors Azure AD
+    cur.execute("""INSERT INTO oidc_account_link
+        (user_id, provider_id, oidc_subject, linked_at)
+        VALUES (?, ?, ?, ?)""",
+        (IDS["admin"], oidc_provider_id, "00000000-0000-0000-0000-000000000042", now))
 
     # ── ERP Connectors ──
 

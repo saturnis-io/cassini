@@ -50,6 +50,7 @@ import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { GalaxyPage } from '@/pages/GalaxyPage'
+import { GuidePage } from '@/pages/GuidePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
@@ -208,6 +209,9 @@ function App() {
 
               {/* Force password change - outside main layout, user has token but must change password */}
               <Route path="/change-password" element={<ChangePasswordPage />} />
+
+              {/* Companion guides — accessible without login for evaluation */}
+              <Route path="/guide/:seedKey" element={<GuidePage />} />
 
               {/* Main app with sidebar layout - requires auth */}
               <Route

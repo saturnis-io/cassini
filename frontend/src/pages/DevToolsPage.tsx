@@ -9,37 +9,28 @@ import {
   FlaskConical,
   TestTubes,
   BarChart3,
-  Cog,
-  Gauge,
-  Beer,
-  ShieldCheck,
-  Beaker,
-  Microscope,
-  Usb,
-  Building2,
-  BrainCircuit,
+  Factory,
+  Plane,
+  Cpu,
+  Server,
   Wine,
   Sparkles,
+  BookOpen,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useDevToolsStatus, useRunSeed } from '@/api/hooks'
 
 const SCRIPT_ICONS: Record<string, React.ReactNode> = {
+  showcase: <Sparkles className="h-6 w-6" />,
+  steel_mill: <Factory className="h-6 w-6" />,
+  aerospace: <Plane className="h-6 w-6" />,
+  semiconductor: <Cpu className="h-6 w-6" />,
+  data_center: <Server className="h-6 w-6" />,
+  distillery: <Wine className="h-6 w-6" />,
   pharma: <FlaskConical className="h-6 w-6" />,
   nelson_test: <TestTubes className="h-6 w-6" />,
   chart_showcase: <BarChart3 className="h-6 w-6" />,
-  discrete: <Cog className="h-6 w-6" />,
-  continuous: <Gauge className="h-6 w-6" />,
-  batch: <Beer className="h-6 w-6" />,
-  fda_demo: <ShieldCheck className="h-6 w-6" />,
-  test_sprint5: <Beaker className="h-6 w-6" />,
-  test_sprint6: <Microscope className="h-6 w-6" />,
-  test_sprint7: <Usb className="h-6 w-6" />,
-  test_sprint8: <Building2 className="h-6 w-6" />,
-  test_sprint9: <BrainCircuit className="h-6 w-6" />,
-  distillery: <Wine className="h-6 w-6" />,
-  showcase: <Sparkles className="h-6 w-6" />,
 }
 
 export function DevToolsPage() {
@@ -69,20 +60,13 @@ export function DevToolsPage() {
 
   const renderScriptCard = (
     script: { key: string; name: string; description: string; estimated_samples: string },
-    isTest: boolean,
   ) => (
     <div
       key={script.key}
-      className={cn(
-        'border-border bg-card flex flex-col gap-3 rounded-xl border p-5',
-        isTest && 'border-orange-500/20',
-      )}
+      className="border-border bg-card flex flex-col gap-3 rounded-xl border p-5"
     >
       <div className="flex items-center gap-3">
-        <div className={cn(
-          'rounded-lg p-2',
-          isTest ? 'bg-orange-500/10 text-orange-500' : 'bg-primary/10 text-primary',
-        )}>
+        <div className="bg-primary/10 text-primary rounded-lg p-2">
           {SCRIPT_ICONS[script.key] ?? <Database className="h-6 w-6" />}
         </div>
         <div>
@@ -91,27 +75,38 @@ export function DevToolsPage() {
         </div>
       </div>
       <p className="text-muted-foreground flex-1 text-sm">{script.description}</p>
-      <button
-        onClick={() => setConfirmScript(script.key)}
-        disabled={runSeed.isPending}
-        className={cn(
-          'flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-          'bg-primary text-primary-foreground hover:bg-primary/90',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-        )}
-      >
-        {runSeed.isPending && runSeed.variables?.script === script.key ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Seeding...
-          </>
-        ) : (
-          <>
-            <Play className="h-4 w-4" />
-            Run
-          </>
-        )}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setConfirmScript(script.key)}
+          disabled={runSeed.isPending}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+            'bg-primary text-primary-foreground hover:bg-primary/90',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+          )}
+        >
+          {runSeed.isPending && runSeed.variables?.script === script.key ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Seeding...
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4" />
+              Run
+            </>
+          )}
+        </button>
+        <a
+          href={`/guide/${script.key}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center rounded-lg px-3 py-2 text-sm transition-colors"
+          title="Open companion guide"
+        >
+          <BookOpen className="h-4 w-4" />
+        </a>
+      </div>
     </div>
   )
 
@@ -145,47 +140,20 @@ export function DevToolsPage() {
       </div>
 
       {/* Seed script cards */}
-      {(() => {
-        const demoScripts = status?.scripts.filter(
-          (s: { category?: string }) => (s.category || 'demo') === 'demo'
-        ) || []
-        const testScripts = status?.scripts.filter(
-          (s: { category?: string }) => s.category === 'test'
-        ) || []
-        return (
-          <>
-            {demoScripts.length > 0 && (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <Database className="text-primary h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Demo Profiles</h2>
-                  <span className="text-muted-foreground text-sm">— realistic industry scenarios</span>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {demoScripts.map((script: { key: string; name: string; description: string; estimated_samples: string; category?: string }) =>
-                    renderScriptCard(script, false)
-                  )}
-                </div>
-              </div>
+      {status?.scripts && status.scripts.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Database className="text-primary h-5 w-5" />
+            <h2 className="text-lg font-semibold">Demo Profiles</h2>
+            <span className="text-muted-foreground text-sm">— realistic industry scenarios</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {status.scripts.map((script: { key: string; name: string; description: string; estimated_samples: string }) =>
+              renderScriptCard(script)
             )}
-
-            {testScripts.length > 0 && (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <TestTubes className="text-orange-500 h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Test Seeds</h2>
-                  <span className="text-muted-foreground text-sm">— feature verification data</span>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {testScripts.map((script: { key: string; name: string; description: string; estimated_samples: string; category?: string }) =>
-                    renderScriptCard(script, true)
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        )
-      })()}
+          </div>
+        </div>
+      )}
 
       {/* Output panel */}
       {output && (

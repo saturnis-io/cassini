@@ -765,9 +765,10 @@ async def _get_cusum_chart_data(
     past_reset = reset_after_id is None  # If no reset point, all samples accumulate
 
     cusum_samples = []
+    standard_samples = []
     for sample in samples:
         values = [m.value for m in sample.measurements]
-        measurement = values[0] if values else 0.0
+        measurement = (sum(values) / len(values)) if values else 0.0
 
         if not past_reset:
             if sample.id <= reset_after_id:
@@ -807,16 +808,38 @@ async def _get_cusum_chart_data(
             display_key=_display_keys.get(sample.id, ""),
         ))
 
+        # Build standard Shewhart data point for consumers that read data_points
+        standard_samples.append(ChartSample(
+            sample_id=sample.id,
+            timestamp=sample.timestamp.isoformat(),
+            mean=measurement,
+            range=None,
+            zone="",
+            violation_ids=violation_ids,
+            unacknowledged_violation_ids=unack_ids,
+            violation_rules=v_rules,
+            display_key=_display_keys.get(sample.id, ""),
+            excluded=sample.is_excluded,
+        ))
+
+    # Shewhart control limits from characteristic (may be None if not calculated)
+    _shewhart_limits = ControlLimits(
+        center_line=characteristic.stored_center_line,
+        ucl=characteristic.ucl,
+        lcl=characteristic.lcl,
+    )
+
     return ChartDataResponse(
         characteristic_id=char_id,
         characteristic_name=characteristic.name,
-        data_points=[],
+        data_points=standard_samples,
         cusum_data_points=cusum_samples,
         control_limits=ControlLimits(
             center_line=0.0,  # CUSUM center line is always 0
             ucl=h,
             lcl=-h,  # Symmetric decision interval
         ),
+        shewhart_control_limits=_shewhart_limits,
         spec_limits=SpecLimits(
             usl=characteristic.usl,
             lsl=characteristic.lsl,
@@ -826,6 +849,7 @@ async def _get_cusum_chart_data(
         subgroup_mode=characteristic.subgroup_mode,
         nominal_subgroup_size=characteristic.subgroup_size,
         decimal_precision=characteristic.decimal_precision,
+        stored_sigma=sigma,
         data_type="variable",
         chart_type="cusum",
         cusum_h=h_sigma,
@@ -932,10 +956,11 @@ async def _get_ewma_chart_data(
     # Compute EWMA values on-the-fly from raw measurements (like CUSUM does)
     # so the chart works for any data regardless of how it was submitted.
     ewma_samples = []
+    standard_samples = []
     prev_ewma = target  # z_0 = process target (standard EWMA initialization)
     for sample in samples:
         values = [m.value for m in sample.measurements]
-        measurement = values[0] if values else 0.0
+        measurement = (sum(values) / len(values)) if values else 0.0
 
         # EWMA_t = lambda * x_t + (1 - lambda) * EWMA_{t-1}
         ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
@@ -958,16 +983,38 @@ async def _get_ewma_chart_data(
             display_key=_display_keys.get(sample.id, ""),
         ))
 
+        # Build standard Shewhart data point for consumers that read data_points
+        standard_samples.append(ChartSample(
+            sample_id=sample.id,
+            timestamp=sample.timestamp.isoformat(),
+            mean=measurement,
+            range=None,
+            zone="",
+            violation_ids=violation_ids,
+            unacknowledged_violation_ids=unack_ids,
+            violation_rules=v_rules,
+            display_key=_display_keys.get(sample.id, ""),
+            excluded=sample.is_excluded,
+        ))
+
+    # Shewhart control limits from characteristic (may be None if not calculated)
+    _shewhart_limits = ControlLimits(
+        center_line=characteristic.stored_center_line,
+        ucl=characteristic.ucl,
+        lcl=characteristic.lcl,
+    )
+
     return ChartDataResponse(
         characteristic_id=char_id,
         characteristic_name=characteristic.name,
-        data_points=[],
+        data_points=standard_samples,
         ewma_data_points=ewma_samples,
         control_limits=ControlLimits(
             center_line=target,
             ucl=ucl,
             lcl=lcl,
         ),
+        shewhart_control_limits=_shewhart_limits,
         spec_limits=SpecLimits(
             usl=characteristic.usl,
             lsl=characteristic.lsl,
@@ -1067,7 +1114,89 @@ async def get_chart_data(
             if _pl.target_value is not None:
                 _effective_target = _pl.target_value
 
-    # If control limits are not defined, return empty chart data
+    # Track whether limits come from stored values or are trial-computed
+    _limits_source = "stored"
+
+    # Derive control limits from stored sigma when explicit UCL/LCL are absent
+    if (_effective_ucl is None or _effective_lcl is None) and _effective_sigma and _effective_center is not None:
+        import math as _math
+        _n = characteristic.subgroup_size or 1
+        _sigma_xbar = _effective_sigma / _math.sqrt(_n) if _n > 1 else _effective_sigma
+        _effective_ucl = _effective_center + 3 * _sigma_xbar
+        _effective_lcl = _effective_center - 3 * _sigma_xbar
+
+    # If control limits are still not available, compute trial limits from data
+    _prefetched_samples = None
+    if _effective_ucl is None or _effective_lcl is None:
+        # Fetch samples early for trial computation (reused later for chart)
+        if start_date or end_date:
+            _prefetched_samples = await sample_repo.get_by_characteristic(
+                char_id=char_id,
+                start_date=start_date,
+                end_date=end_date,
+                product_code=product_code,
+            )
+            if len(_prefetched_samples) > limit:
+                _prefetched_samples = _prefetched_samples[-limit:]
+        else:
+            _prefetched_samples = await sample_repo.get_rolling_window(
+                char_id=char_id,
+                window_size=limit,
+                exclude_excluded=True,
+                product_code=product_code,
+            )
+
+        # Filter to non-excluded samples for trial computation
+        _trial_samples = [s for s in _prefetched_samples if not getattr(s, 'is_excluded', False)]
+
+        if len(_trial_samples) >= 2:
+            import math as _math
+            import numpy as _np
+            from cassini.utils.constants import get_constants
+            from cassini.utils.statistics import calculate_mean_range as _calc_mr
+
+            _n = characteristic.subgroup_size or 1
+
+            # Compute mean/range from measurements (Sample has no mean/range columns)
+            _sample_stats: list[tuple[float, float]] = []  # (mean, range)
+            for _s in _trial_samples:
+                _mvals = [m.value for m in _s.measurements]
+                if not _mvals:
+                    continue
+                _m, _r = _calc_mr(_mvals)
+                if _m is not None:
+                    _sample_stats.append((_m, _r if _r is not None else 0.0))
+
+            if _n == 1:
+                # I-MR chart: X̄ ± 3×(MR̄/d2), d2 for n=2 (moving range span of 2)
+                _values = [st[0] for st in _sample_stats]
+                if len(_values) >= 2:
+                    _xbar = float(_np.mean(_values))
+                    _moving_ranges = [abs(_values[i] - _values[i - 1]) for i in range(1, len(_values))]
+                    _mr_bar = float(_np.mean(_moving_ranges))
+                    _d2 = get_constants(2).d2
+                    _trial_sigma = _mr_bar / _d2
+                    _effective_center = _xbar
+                    _effective_sigma = _trial_sigma
+                    _effective_ucl = _xbar + 3 * _trial_sigma
+                    _effective_lcl = _xbar - 3 * _trial_sigma
+                    _limits_source = "trial"
+            else:
+                # X-bar chart: X̿ ± A2×R̄ — only samples with real range (n>=2 measurements)
+                _valid = [(m, r) for m, r in _sample_stats if r > 0]
+                if len(_valid) >= 2:
+                    _means = [v[0] for v in _valid]
+                    _ranges = [v[1] for v in _valid]
+                    _xdbar = float(_np.mean(_means))
+                    _rbar = float(_np.mean(_ranges))
+                    _consts = get_constants(_n)
+                    _effective_center = _xdbar
+                    _effective_sigma = _rbar / _consts.d2
+                    _effective_ucl = _xdbar + _consts.A2 * _rbar
+                    _effective_lcl = _xdbar - _consts.A2 * _rbar
+                    _limits_source = "trial"
+
+    # If limits still unavailable (not enough data), return empty chart
     if _effective_ucl is None or _effective_lcl is None:
         return ChartDataResponse(
             characteristic_id=char_id,
@@ -1094,8 +1223,10 @@ async def get_chart_data(
             short_run_mode=characteristic.short_run_mode,
         )
 
-    # Get samples (product_code filter pushed into SQL for correct LIMIT behavior)
-    if start_date or end_date:
+    # Get samples — reuse prefetched if trial limits already loaded them
+    if _prefetched_samples is not None:
+        samples = _prefetched_samples
+    elif start_date or end_date:
         samples = await sample_repo.get_by_characteristic(
             char_id=char_id,
             start_date=start_date,
@@ -1255,6 +1386,7 @@ async def get_chart_data(
         center_line=cl_center,
         ucl=cl_ucl,
         lcl=cl_lcl,
+        source=_limits_source,
     )
 
     # Transform spec limits for short-run display

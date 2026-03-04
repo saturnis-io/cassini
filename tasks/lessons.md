@@ -31,3 +31,34 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 4. Verify colors work in both light and dark mode
 
 **Exception**: Some existing components (pre-dating this rule) use hardcoded colors. Don't fix those in unrelated PRs — but never add new ones.
+
+---
+
+## L-002: Run the Pre-Completion Checklist — Every Time (2026-03-03)
+
+**Mistake**: Claimed work was done without deploying adversarial subagent, without checking audit trail requirements, and initially without running backend tests. User had to remind 4 times about CLAUDE.md compliance.
+
+**Why it matters**: The CLAUDE.md checklist exists to catch bugs that the implementer is blind to. Skipping it turns user review into QA — exactly what the checklist prevents. The adversarial subagent found 3 BLOCKERs (field name wrong, subgroup mean wrong, batch endpoint inconsistency) that would have been production crashes.
+
+**Rule**: After finishing implementation but BEFORE claiming done:
+1. Re-read the MANDATORY PRE-COMPLETION CHECKLIST at the top of `~/.claude/CLAUDE.md`
+2. Execute every item — no "this doesn't apply" rationalization
+3. Spawn adversarial subagent for ANY multi-file change
+4. Cross-check project CLAUDE.md cross-cutting requirements (audit, signatures, API contracts)
+5. Run both `pytest` and `tsc --noEmit`
+
+**Pattern to watch for**: The urge to say "Phase 1 done, Phase 2 done, Phase 3 done, all verified!" without actually running the checklist. Completion feels productive but unchecked completion ships bugs.
+
+---
+
+## L-003: Sample Model Has No mean/range_value Columns (2026-03-03)
+
+**Mistake**: Wrote trial limit computation accessing `sample.mean` and `sample.range_value` — attributes that don't exist on the `Sample` SQLAlchemy model. Mean and range are computed on-the-fly from `sample.measurements` using `calculate_mean_range()`.
+
+**Why it matters**: SQLAlchemy silently returns `None` for non-existent attributes accessed this way, so the filter `s.mean is not None` silently filtered out ALL samples. The trial computation never fired, falling through to the stored-value path. No error, just wrong behavior.
+
+**Rule**: When working with Sample data:
+- `Sample` has NO `mean`, `range_value`, or `std_dev` columns
+- Mean/range are computed from `sample.measurements` (a relationship to the `Measurement` table)
+- Use `calculate_mean_range([m.value for m in sample.measurements])` from `cassini.utils.statistics`
+- The `measurements` relationship requires `selectinload(Sample.measurements)` in async context — both `get_rolling_window` and `get_by_characteristic` already do this

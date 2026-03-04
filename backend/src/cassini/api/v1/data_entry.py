@@ -133,7 +133,7 @@ async def submit_sample(
         plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
         check_plant_role(auth, plant_id, "operator")
 
-    # Look up characteristic to determine chart type for engine dispatch
+    # Look up characteristic for supplementary analysis params
     char_repo = CharacteristicRepository(session)
     characteristic = await char_repo.get_by_id(data.characteristic_id)
     if characteristic is None:
@@ -142,79 +142,10 @@ async def submit_sample(
             detail="Characteristic not found",
         )
 
-    chart_type = getattr(characteristic, "chart_type", None)
-
     try:
-        if chart_type == "cusum":
-            # Route to CUSUM engine
-            from cassini.core.engine.cusum_engine import process_cusum_sample
-
-            sample_repo = SampleRepository(session)
-            violation_repo = ViolationRepository(session)
-            cusum_result = await process_cusum_sample(
-                char_id=data.characteristic_id,
-                measurement=data.measurements[0],
-                sample_repo=sample_repo,
-                char_repo=char_repo,
-                violation_repo=violation_repo,
-                batch_number=data.batch_number,
-                operator_id=data.operator_id,
-            )
-            await session.commit()
-
-            return DataEntryResponse(
-                sample_id=cusum_result.sample_id,
-                characteristic_id=data.characteristic_id,
-                timestamp=cusum_result.timestamp,
-                mean=cusum_result.measurement,
-                range_value=None,
-                zone="cusum",
-                in_control=cusum_result.in_control,
-                violations=[
-                    {"rule_id": v["rule_id"], "rule_name": v["rule_name"], "severity": v["severity"]}
-                    for v in cusum_result.violations
-                ]
-                if cusum_result.violations
-                else [],
-            )
-
-        if chart_type == "ewma":
-            # Route to EWMA engine
-            from cassini.core.engine.ewma_engine import process_ewma_sample
-
-            sample_repo = SampleRepository(session)
-            violation_repo = ViolationRepository(session)
-            ewma_result = await process_ewma_sample(
-                char_id=data.characteristic_id,
-                measurement=data.measurements[0],
-                sample_repo=sample_repo,
-                char_repo=char_repo,
-                violation_repo=violation_repo,
-                batch_number=data.batch_number,
-                operator_id=data.operator_id,
-            )
-            await session.commit()
-
-            return DataEntryResponse(
-                sample_id=ewma_result.sample_id,
-                characteristic_id=data.characteristic_id,
-                timestamp=ewma_result.timestamp,
-                mean=ewma_result.measurement,
-                range_value=None,
-                zone="ewma",
-                in_control=ewma_result.in_control,
-                violations=[
-                    {"rule_id": v["rule_id"], "rule_name": v["rule_name"], "severity": v["severity"]}
-                    for v in ewma_result.violations
-                ]
-                if ewma_result.violations
-                else [],
-            )
-
-        # Standard Shewhart chart — use default SPC engine
+        # Always run standard SPC engine first (Nelson Rules, zone classification)
         engine = await get_spc_engine(session)
 
-        # Build sample context from request data
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
@@ -222,17 +153,46 @@ async def submit_sample(
             metadata=data.metadata,
         )
 
-        # Process sample through SPC engine
         result = await engine.process_sample(
             characteristic_id=data.characteristic_id,
             measurements=data.measurements,
             context=context,
         )
 
+        # Additionally run CUSUM/EWMA analysis if params are configured
+        # (supplementary analysis, not a replacement for standard SPC)
+        # Use subgroup mean for supplementary analysis (matches standard SPC)
+        _subgroup_mean = sum(data.measurements) / len(data.measurements)
+        if characteristic.cusum_target is not None and characteristic.cusum_k is not None:
+            try:
+                from cassini.core.engine.cusum_engine import process_cusum_supplementary
+                await process_cusum_supplementary(
+                    sample_id=result.sample_id,
+                    char=characteristic,
+                    measurement=_subgroup_mean,
+                    sample_repo=SampleRepository(session),
+                    violation_repo=ViolationRepository(session),
+                )
+            except Exception:
+                logger.warning("cusum_supplementary_failed", char_id=data.characteristic_id)
+
+        if characteristic.ewma_lambda is not None:
+            try:
+                from cassini.core.engine.ewma_engine import process_ewma_supplementary
+                await process_ewma_supplementary(
+                    sample_id=result.sample_id,
+                    char=characteristic,
+                    measurement=_subgroup_mean,
+                    sample_repo=SampleRepository(session),
+                    violation_repo=ViolationRepository(session),
+                )
+            except Exception:
+                logger.warning("ewma_supplementary_failed", char_id=data.characteristic_id)
+
         # Commit the transaction
         await session.commit()
 
-        # Get violations for the sample
+        # Get violations for the sample (includes both standard and supplementary)
         violation_repo = ViolationRepository(session)
         violations = await violation_repo.get_by_sample(result.sample_id)
 
@@ -525,9 +485,11 @@ async def submit_batch(
     """
     engine = await get_spc_engine(session)
     violation_repo = ViolationRepository(session)
+    char_repo = CharacteristicRepository(session)
     results: list[DataEntryResponse] = []
     errors: list[str] = []
     _plant_cache: dict[int, int] = {}
+    _char_cache: dict[int, object] = {}
 
     for idx, sample in enumerate(data.samples):
         # Plant-scoped authorization
@@ -566,7 +528,40 @@ async def submit_batch(
                 context=context,
             )
 
-            # Get violations for the sample
+            # Supplementary CUSUM/EWMA analysis
+            if sample.characteristic_id not in _char_cache:
+                _char_cache[sample.characteristic_id] = await char_repo.get_by_id(
+                    sample.characteristic_id
+                )
+            _char = _char_cache[sample.characteristic_id]
+            if _char is not None:
+                _mean = sum(sample.measurements) / len(sample.measurements)
+                if _char.cusum_target is not None and _char.cusum_k is not None:
+                    try:
+                        from cassini.core.engine.cusum_engine import process_cusum_supplementary
+                        await process_cusum_supplementary(
+                            sample_id=result.sample_id,
+                            char=_char,
+                            measurement=_mean,
+                            sample_repo=SampleRepository(session),
+                            violation_repo=violation_repo,
+                        )
+                    except Exception:
+                        logger.warning("cusum_supplementary_failed", char_id=sample.characteristic_id)
+                if _char.ewma_lambda is not None:
+                    try:
+                        from cassini.core.engine.ewma_engine import process_ewma_supplementary
+                        await process_ewma_supplementary(
+                            sample_id=result.sample_id,
+                            char=_char,
+                            measurement=_mean,
+                            sample_repo=SampleRepository(session),
+                            violation_repo=violation_repo,
+                        )
+                    except Exception:
+                        logger.warning("ewma_supplementary_failed", char_id=sample.characteristic_id)
+
+            # Get violations for the sample (includes supplementary)
             violations = await violation_repo.get_by_sample(result.sample_id)
 
             results.append(

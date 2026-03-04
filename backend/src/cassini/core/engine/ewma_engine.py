@@ -229,12 +229,6 @@ async def process_ewma_sample(
     if char is None:
         raise ValueError(f"Characteristic {char_id} not found")
 
-    if char.chart_type != "ewma":
-        raise ValueError(
-            f"Characteristic {char_id} is not configured for EWMA "
-            f"(chart_type={char.chart_type})"
-        )
-
     ewma_lambda = char.ewma_lambda
     ewma_l = char.ewma_l
     target = char.cusum_target  # Reuse cusum_target as the process target
@@ -376,3 +370,89 @@ async def process_ewma_sample(
         violations=violations,
         processing_time_ms=processing_time_ms,
     )
+
+
+async def process_ewma_supplementary(
+    sample_id: int,
+    char: object,
+    measurement: float,
+    sample_repo: "SampleRepository",
+    violation_repo: "ViolationRepository",
+) -> None:
+    """Run supplementary EWMA analysis on an already-created sample.
+
+    Updates the sample's ewma_value cache column and creates EWMA-specific
+    violations if thresholds are exceeded. Called after standard SPC
+    processing when EWMA params are configured.
+    """
+    ewma_lambda = char.ewma_lambda if char.ewma_lambda is not None else 0.2
+    ewma_l = char.ewma_l if char.ewma_l is not None else 2.7
+    target = char.cusum_target or char.target_value or char.stored_center_line
+    if target is None:
+        logger.warning("ewma_supplementary_no_target", char_id=char.id)
+        return
+
+    sigma = char.stored_sigma
+    if sigma is None or sigma <= 0:
+        window_data = await sample_repo.get_rolling_window_data(
+            char_id=char.id, window_size=100, exclude_excluded=True
+        )
+        all_values = []
+        for wd in window_data:
+            all_values.extend(wd["values"])
+        sigma = estimate_sigma_from_values(all_values) if len(all_values) >= 2 else 1.0
+    if sigma <= 0:
+        sigma = 1.0
+
+    # Load previous EWMA value
+    prev_ewma = target
+    recent = await sample_repo.get_rolling_window(
+        char_id=char.id, window_size=2, exclude_excluded=True
+    )
+    for s in recent:
+        if s.id != sample_id and s.ewma_value is not None:
+            prev_ewma = s.ewma_value
+            break
+
+    ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
+
+    # Count total samples for time-varying limits
+    from sqlalchemy import select as sa_select, func as sa_func, update
+    from cassini.db.models.sample import Sample as SampleModel
+
+    count_stmt = sa_select(sa_func.count()).select_from(SampleModel).where(
+        SampleModel.char_id == char.id,
+        SampleModel.is_excluded == False,  # noqa: E712
+    )
+    total = (await sample_repo.session.execute(count_stmt)).scalar_one()
+
+    ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l, sample_index=total)
+
+    # Update sample cache column
+    await sample_repo.session.execute(
+        update(SampleModel).where(SampleModel.id == sample_id).values(
+            ewma_value=ewma_value
+        )
+    )
+
+    # Check for violations (rule_id 11/12 to avoid collision with Nelson Rule 1)
+    if ewma_value > ucl:
+        await violation_repo.create(
+            sample_id=sample_id,
+            char_id=char.id,
+            rule_id=11,
+            rule_name="EWMA Above UCL",
+            severity="CRITICAL",
+            acknowledged=False,
+            requires_acknowledgement=True,
+        )
+    if ewma_value < lcl:
+        await violation_repo.create(
+            sample_id=sample_id,
+            char_id=char.id,
+            rule_id=12,
+            rule_name="EWMA Below LCL",
+            severity="CRITICAL",
+            acknowledged=False,
+            requires_acknowledgement=True,
+        )

@@ -203,10 +203,10 @@ export function computeConstellationLayout(
 
   // Force-directed simulation: 100 steps
   // SPRING_REST must exceed halo ring radius (~30) to prevent visual overlap
-  const SPRING_REST = 55
+  const SPRING_REST = 80
   const SPRING_K = 0.05
-  const REPULSION_RANGE = 150
-  const REPULSION_STRENGTH = 2000
+  const REPULSION_RANGE = 250
+  const REPULSION_STRENGTH = 3000
   const DAMPING = 0.85
   const STEPS = 100
 

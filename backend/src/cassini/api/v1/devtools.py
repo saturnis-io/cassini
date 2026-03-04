@@ -25,10 +25,52 @@ router = APIRouter(prefix="/api/v1/devtools", tags=["devtools"])
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 AVAILABLE_SCRIPTS = {
+    "showcase": {
+        "name": "Showcase Demo",
+        "description": "3 industry-themed plants (automotive, aerospace, pharma) with 8 users, 24 characteristics covering every chart type, distribution, and SPC feature. Includes narrative story arcs, violations, annotations, connectivity, MSA, FAI, signatures, anomaly detection, and analytics.",
+        "estimated_samples": "~12,000",
+        "script_file": "scripts/seed_showcase.py",
+        "category": "demo",
+    },
+    "steel_mill": {
+        "name": "Steel Mill",
+        "description": "Integrated steel mill (melt shop, hot strip mill, cold rolling) with 15 continuous-process characteristics. CUSUM on strip thickness, EWMA on furnace temperature, custom rule presets, autocorrelated data with day/night cycling and campaign drift.",
+        "estimated_samples": "~7,500",
+        "script_file": "scripts/seed_steel_mill.py",
+        "category": "demo",
+    },
+    "aerospace": {
+        "name": "Aerospace Manufacturing",
+        "description": "Precision aerospace plant (CNC machining, composite layup, final assembly) with 14 characteristics. Attribute p/np charts, short-run SPC, gage bridge + CMM ports, FAI reports (AS9102), MSA study, and non-normal distributions (Weibull, Beta).",
+        "estimated_samples": "~5,000",
+        "script_file": "scripts/seed_aerospace.py",
+        "category": "demo",
+    },
+    "semiconductor": {
+        "name": "Semiconductor Fab",
+        "description": "Wafer fabrication (photolithography, CVD/etch, metrology) with 14 characteristics. Laney p'/u' charts for overdispersed particle counts, CUSUM on critical dimension, non-normal distributions (Lognormal, Gamma, Box-Cox), multivariate group, and retention policy.",
+        "estimated_samples": "~6,000",
+        "script_file": "scripts/seed_semiconductor.py",
+        "category": "demo",
+    },
+    "data_center": {
+        "name": "Data Center",
+        "description": "Hyperscale data center (server hall, cooling plant, power distribution) with 13 continuous-monitoring characteristics. EWMA on PUE, CUSUM on chiller approach temperature, anomaly detection (PELT + Isolation Forest), push notifications, custom rule presets, and ERP/DCIM webhook connector.",
+        "estimated_samples": "~8,000",
+        "script_file": "scripts/seed_data_center.py",
+        "category": "demo",
+    },
+    "distillery": {
+        "name": "Alcohol Distillery",
+        "description": "5 distillery plants (Whiskey, Vodka/Gin, Rum, Tequila/Mezcal, QC Lab) with ~50 characteristics covering variable, attribute, CUSUM, EWMA, non-normal distributions, Laney p'/u', short-run, gage bridge, ERP connector, and correlated multivariate data.",
+        "estimated_samples": "~9,500",
+        "script_file": "scripts/seed_distillery.py",
+        "category": "demo",
+    },
     "pharma": {
-        "name": "Pharmaceutical Demo",
-        "description": "3 sites with realistic ISA-95 hierarchy, ~26 characteristics, ~6 months of sample data with process shifts, trends, and outliers.",
-        "estimated_samples": "~37,000",
+        "name": "Pharmaceutical + FDA",
+        "description": "Multi-site pharma (Boston API, Research Triangle Solid Dose, SF Biologics) with ~30 characteristics, FDA 21 CFR Part 11 compliance. Electronic signatures, anomaly detection, MSA studies, non-normal distributions, retention policy, LIMS ERP connector, push notifications, and OIDC account linking.",
+        "estimated_samples": "~38,000",
         "script_file": "scripts/seed_pharma.py",
         "category": "demo",
     },
@@ -44,83 +86,6 @@ AVAILABLE_SCRIPTS = {
         "description": "Single plant with 4 characteristics showcasing I-MR, X-bar R (variable n), and X-bar S chart types with realistic process behaviors.",
         "estimated_samples": "~360",
         "script_file": "scripts/seed_chart_showcase.py",
-        "category": "demo",
-    },
-    "discrete": {
-        "name": "Discrete Manufacturing",
-        "description": "Automotive parts plant with 4 production lines, 10 characteristics (bore diameter, shaft OD, hardness, torque, etc.) showing tool wear drift, material lot shifts, and thermal expansion.",
-        "estimated_samples": "~4,000",
-        "script_file": "scripts/seed_discrete.py",
-        "category": "demo",
-    },
-    "continuous": {
-        "name": "Continuous Process",
-        "description": "Oil refinery with 3 process units, 15 characteristics (temperatures, pressures, flow rates, pH, etc.) featuring autocorrelated data, day/night cycles, catalyst degradation, and process upsets.",
-        "estimated_samples": "~7,600",
-        "script_file": "scripts/seed_continuous.py",
-        "category": "demo",
-    },
-    "batch": {
-        "name": "Batch Production",
-        "description": "Craft brewery with 3 areas (brewhouse, fermentation, packaging), 11 characteristics featuring between-batch variation, within-batch drift, and raw material step changes.",
-        "estimated_samples": "~5,700",
-        "script_file": "scripts/seed_batch.py",
-        "category": "demo",
-    },
-    "fda_demo": {
-        "name": "FDA 21 CFR Part 11 Demo",
-        "description": "PharmaCorp solid dosage plant with 9 characteristics, anomaly detection (drift/shift/variance), electronic signature workflows, pre-signed records, and FDA-strict password policy.",
-        "estimated_samples": "~1,800",
-        "script_file": "scripts/seed_fda_demo.py",
-        "category": "demo",
-    },
-    "test_sprint5": {
-        "name": "Sprint 5: Statistical Credibility",
-        "description": "3 plants testing non-normal capability (Box-Cox, Weibull, Gamma), custom Nelson rule presets (4 rulesets), and Laney p'/u' charts (overdispersion/underdispersion).",
-        "estimated_samples": "~650",
-        "script_file": "scripts/seed_test_sprint5.py",
-        "category": "test",
-    },
-    "test_sprint6": {
-        "name": "Sprint 6: Compliance Gate",
-        "description": "3 plants with full Gage R&R study (10 parts × 3 operators × 3 trials, ready to calculate), short-run SPC (5 chars with deviation/standardized modes), and 2 FAI reports (draft + submitted with AS9102 items and separation-of-duties test).",
-        "estimated_samples": "~180",
-        "script_file": "scripts/seed_test_sprint6.py",
-        "category": "test",
-    },
-    "test_sprint7": {
-        "name": "Sprint 7: Gage Connectivity",
-        "description": "1 plant with 4 characteristics simulating digital gage types (caliper, micrometer, CMM, surface roughness) with realistic resolution and intervals.",
-        "estimated_samples": "~330",
-        "script_file": "scripts/seed_test_sprint7.py",
-        "category": "test",
-    },
-    "test_sprint8": {
-        "name": "Sprint 8: Enterprise Integration",
-        "description": "3 plants scaffolding ERP connectors (SAP-style work orders), LIMS lab data (certificates), and mobile entry (small subgroups, short batch IDs).",
-        "estimated_samples": "~880",
-        "script_file": "scripts/seed_test_sprint8.py",
-        "category": "test",
-    },
-    "test_sprint9": {
-        "name": "Sprint 9: Advanced Analytics",
-        "description": "4 plants with correlated multivariate data (ρ≈0.85), predictive drift (500+ samples), correlation pairs, and 2³ factorial DOE (8 runs × 5 replicates).",
-        "estimated_samples": "~1,400",
-        "script_file": "scripts/seed_test_sprint9.py",
-        "category": "test",
-    },
-    "showcase": {
-        "name": "Showcase Demo",
-        "description": "3 industry-themed plants (automotive, aerospace, pharma) with 8 users, 24 characteristics covering every chart type, distribution, and SPC feature. Includes narrative story arcs, violations, annotations, connectivity, MSA, FAI, and compliance.",
-        "estimated_samples": "~12,000",
-        "script_file": "scripts/seed_showcase.py",
-        "category": "demo",
-    },
-    "distillery": {
-        "name": "Alcohol Distillery",
-        "description": "5 plants (Whiskey, Vodka/Gin, Rum, Tequila/Mezcal, QC Lab) with ~50 characteristics covering variable, attribute, CUSUM, EWMA, non-normal distributions, Laney p'/u', short-run, and correlated multivariate data. Exercises Sprints 5-9.",
-        "estimated_samples": "~9,500",
-        "script_file": "scripts/seed_distillery.py",
         "category": "demo",
     },
 }
@@ -207,10 +172,7 @@ async def reset_and_seed(body: SeedRequest, user=Depends(get_current_admin)):
     try:
         module = _load_seed_module(body.script)
 
-        if body.script == "pharma":
-            await module.seed(keep_existing=False)
-        else:
-            await module.seed()
+        await module.seed()
 
     except HTTPException:
         raise

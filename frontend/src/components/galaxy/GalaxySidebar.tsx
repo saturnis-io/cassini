@@ -84,7 +84,7 @@ function findTopLevelAncestorId(
 /**
  * Build the breadcrumb path from root to a given node id.
  */
-function buildBreadcrumb(
+export function buildBreadcrumb(
   nodeId: number,
   tree: HierarchyNode[],
 ): { id: number; name: string }[] {
@@ -308,7 +308,7 @@ export function GalaxySidebar({
   return (
     <div
       className={cn(
-        'pointer-events-auto absolute top-0 left-0 z-10 flex h-full transition-all duration-300',
+        'pointer-events-auto z-10 flex h-full flex-none transition-all duration-300',
         collapsed ? 'w-10' : 'w-72',
       )}
     >
