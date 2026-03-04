@@ -250,53 +250,67 @@ export function RangeChart({
     const decimalPrecision = chartData?.decimal_precision ?? 3
     const formatVal = (value: number) => value.toFixed(decimalPrecision)
 
-    // Build markLine for control limits.
-    // Detect close limit values and offset labels to avoid overlap.
-    const markLineData: Record<string, unknown>[] = []
-    const yRange = yMax - yMin
-    const labelProximityThreshold = yRange * 0.06
-
-    // Check if UCL and CL are too close → offset CL label down
-    const uclClClose =
-      controlLimits.ucl != null &&
-      controlLimits.cl != null &&
-      Math.abs(controlLimits.ucl - controlLimits.cl) < labelProximityThreshold
+    // Control limit lines rendered as separate series to bypass ECharts
+    // markLine yAxis rendering bug (lines snap to series mean).
+    const controlLimitSeries: Record<string, unknown>[] = []
 
     if (controlLimits.ucl != null) {
-      markLineData.push({
-        yAxis: controlLimits.ucl,
-        lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
-        label: {
+      const uclData = useTimeCoords
+        ? data.map((p) => [p.timestampMs, controlLimits.ucl])
+        : data.map(() => controlLimits.ucl)
+      controlLimitSeries.push({
+        type: 'line',
+        data: uclData,
+        lineStyle: { color: chartColors.uclLine, type: [6, 3], width: 1.5 },
+        symbol: 'none',
+        showSymbol: false,
+        silent: true,
+        z: 4,
+        endLabel: {
+          show: true,
           formatter: `UCL: ${formatVal(controlLimits.ucl)}`,
-          position: 'end',
           color: chartColors.uclLine,
           fontSize: 11,
           fontWeight: 500,
-          ...(uclClClose && { offset: [0, -12] }),
         },
       })
     }
     if (controlLimits.cl != null) {
-      markLineData.push({
-        yAxis: controlLimits.cl,
-        lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2 },
-        label: {
+      const clData = useTimeCoords
+        ? data.map((p) => [p.timestampMs, controlLimits.cl])
+        : data.map(() => controlLimits.cl)
+      controlLimitSeries.push({
+        type: 'line',
+        data: clData,
+        lineStyle: { color: chartColors.centerLine, width: 2 },
+        symbol: 'none',
+        showSymbol: false,
+        silent: true,
+        z: 4,
+        endLabel: {
+          show: true,
           formatter: `CL: ${formatVal(controlLimits.cl)}`,
-          position: 'end',
           color: chartColors.centerLine,
           fontSize: 11,
           fontWeight: 600,
-          ...(uclClClose && { offset: [0, 12] }),
         },
       })
     }
     if (controlLimits.lcl != null && controlLimits.lcl > 0) {
-      markLineData.push({
-        yAxis: controlLimits.lcl,
-        lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
-        label: {
+      const lclData = useTimeCoords
+        ? data.map((p) => [p.timestampMs, controlLimits.lcl])
+        : data.map(() => controlLimits.lcl)
+      controlLimitSeries.push({
+        type: 'line',
+        data: lclData,
+        lineStyle: { color: chartColors.lclLine, type: [6, 3], width: 1.5 },
+        symbol: 'none',
+        showSymbol: false,
+        silent: true,
+        z: 4,
+        endLabel: {
+          show: true,
           formatter: `LCL: ${formatVal(controlLimits.lcl)}`,
-          position: 'end',
           color: chartColors.lclLine,
           fontSize: 11,
           fontWeight: 500,
@@ -418,7 +432,7 @@ export function RangeChart({
 
     return {
       animation: false,
-      grid: { top: 10, right: 60, left: 60, bottom: bottomMargin, containLabel: false },
+      grid: { top: 10, right: 120, left: 60, bottom: bottomMargin, containLabel: false },
       xAxis: xAxisConfig,
       yAxis: {
         type: 'value' as const,
@@ -506,10 +520,10 @@ export function RangeChart({
           symbol: 'none',
           showSymbol: false,
           silent: true,
-          markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
           markArea: { silent: true, data: markAreaData as never[] },
           z: 5,
         },
+        ...controlLimitSeries,
         {
           type: 'custom',
           data: data.map((p, i) => {

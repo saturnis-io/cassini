@@ -62,3 +62,19 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 - Mean/range are computed from `sample.measurements` (a relationship to the `Measurement` table)
 - Use `calculate_mean_range([m.value for m in sample.measurements])` from `cassini.utils.statistics`
 - The `measurements` relationship requires `selectinload(Sample.measurements)` in async context — both `get_rolling_window` and `get_by_characteristic` already do this
+
+---
+
+## L-004: ECharts markLine yAxis Values Are Ignored — Use Line Series Instead (2026-03-03)
+
+**Mistake**: Used ECharts `markLine` with `yAxis` values to draw horizontal control limit lines (UCL, LCL, CL). The lines rendered at the series mean instead of the specified y-coordinate.
+
+**Why it matters**: Control limit lines at wrong positions make charts useless. The bug is silent — no errors, just wrong rendering. `markArea` with the same `yAxis` values renders correctly, making the bug even more confusing to diagnose.
+
+**Rule**: NEVER use `markLine` with `yAxis` for horizontal reference lines in ECharts. Instead:
+- Create constant-value line series: `{ type: 'line', data: data.map(() => value), symbol: 'none', silent: true }`
+- Use `endLabel` for the label (replaces `markLine` label `position: 'end'`)
+- Set `z: 4` so limit lines render below data points (`z: 5` for main series)
+- Increase grid `right` margin to `120` to give endLabels room (default `60` clips them)
+
+**Applies to**: `ControlChart.tsx` (primary chart) AND `RangeChart.tsx` (secondary chart) — both had the same bug.
