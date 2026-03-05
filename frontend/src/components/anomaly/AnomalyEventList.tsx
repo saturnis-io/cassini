@@ -24,25 +24,11 @@ const SEVERITY_ICON: Record<string, typeof AlertTriangle> = {
   INFO: Info,
 }
 
-const SEVERITY_CLASS: Record<string, string> = {
-  CRITICAL: 'bg-red-500/15 text-red-500 border-red-500/30',
-  WARNING: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
-  INFO: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
-}
-
-/** Human-friendly labels — what happened, not what algorithm ran. */
-const DETECTOR_LABELS: Record<string, string> = {
-  pelt: 'Process Shift',
-  isolation_forest: 'Unusual Pattern',
-  ks_test: 'Distribution Drift',
-}
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  changepoint: 'Process Shift',
-  outlier: 'Unusual Pattern',
-  distribution_shift: 'Distribution Drift',
-  anomaly_score: 'Unusual Pattern',
-}
+import {
+  SEVERITY_BADGE_CLASS,
+  DETECTOR_LABELS,
+  EVENT_TYPE_LABELS,
+} from '@/lib/anomaly-labels'
 
 type FilterStatus = 'all' | 'active' | 'acknowledged' | 'dismissed'
 
@@ -188,7 +174,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
                     <span
                       className={cn(
                         'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
-                        SEVERITY_CLASS[event.severity],
+                        SEVERITY_BADGE_CLASS[event.severity],
                       )}
                     >
                       <Icon className="h-2.5 w-2.5" />

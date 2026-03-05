@@ -224,6 +224,17 @@ async def list_samples(
             await compute_display_keys(char_samples, cid, sample_repo.session)
         )
 
+    # Batch-load attribute_chart_type for all unique char_ids (avoids N+1)
+    from cassini.db.models.characteristic import Characteristic
+    _attr_char_ids = {s.char_id for s in paginated_samples if s.defect_count is not None}
+    _chart_type_map: dict[int, str] = {}
+    if _attr_char_ids:
+        _ct_result = await sample_repo.session.execute(
+            select(Characteristic.id, Characteristic.attribute_chart_type)
+            .where(Characteristic.id.in_(_attr_char_ids))
+        )
+        _chart_type_map = {row[0]: (row[1] or "c") for row in _ct_result}
+
     # Convert to response models
     response_items = []
     for sample in paginated_samples:
@@ -235,12 +246,7 @@ async def list_samples(
             dc = sample.defect_count
             ss = sample.sample_size or 1
             ui = sample.units_inspected or 1
-            # Use char_id to look up chart type (batch query would be better but this is paginated)
-            from cassini.db.models.characteristic import Characteristic
-            char_result = await sample_repo.session.execute(
-                select(Characteristic.attribute_chart_type).where(Characteristic.id == sample.char_id)
-            )
-            attr_ct = char_result.scalar_one_or_none() or "c"
+            attr_ct = _chart_type_map.get(sample.char_id, "c")
             if attr_ct == "p":
                 mean = dc / ss if ss > 0 else 0.0
             elif attr_ct == "u":

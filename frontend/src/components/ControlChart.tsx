@@ -22,6 +22,11 @@ import { AnnotationDetailPopover } from './AnnotationDetailPopover'
 import { Explainable } from '@/components/Explainable'
 import type { Annotation } from '@/types'
 import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
+import {
+  EVENT_TYPE_LABELS as ANOMALY_TYPE_LABELS,
+  SEVERITY_COLORS,
+  escapeHtml,
+} from '@/lib/anomaly-labels'
 import { X, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatNote } from './StatNote'
@@ -585,13 +590,16 @@ export function ControlChart({
 
     // Expand domain to include forecast confidence bounds
     if (forecastOverlay) {
-      const range = yMax - yMin
       for (const p of forecastOverlay.points) {
-        if (p.upper_95 != null && p.upper_95 > yMax) yMax = p.upper_95 + range * 0.05
-        if (p.lower_95 != null && p.lower_95 < yMin) yMin = p.lower_95 - range * 0.05
-        if (p.predicted_value > yMax) yMax = p.predicted_value + range * 0.05
-        if (p.predicted_value < yMin) yMin = p.predicted_value - range * 0.05
+        if (p.upper_95 != null && p.upper_95 > yMax) yMax = p.upper_95
+        if (p.lower_95 != null && p.lower_95 < yMin) yMin = p.lower_95
+        if (p.predicted_value > yMax) yMax = p.predicted_value
+        if (p.predicted_value < yMin) yMin = p.predicted_value
       }
+      // Add uniform padding after full expansion
+      const forecastPad = (yMax - yMin) * 0.05
+      yMax += forecastPad
+      yMin -= forecastPad
     }
 
     // X-axis data
@@ -1441,7 +1449,8 @@ export function ControlChart({
             const annId = markerEntry[1]
             const ann = (annotations as Annotation[]).find((a) => a.id === annId)
             if (!ann) return ''
-            return `<div style="font-size:12px;max-width:350px;overflow-wrap:break-word;word-wrap:break-word;white-space:pre-wrap"><div style="font-weight:600;color:${localChartColors.annotationColor};margin-bottom:4px">Annotation</div><div>${ann.text}</div><div style="opacity:0.6;margin-top:4px;font-size:11px">Click to view details</div></div>`
+            const annText = ann.text.length > 120 ? ann.text.slice(0, 117) + '...' : ann.text
+            return `<div style="font-size:12px;max-width:350px;overflow-wrap:break-word;word-wrap:break-word;white-space:pre-wrap"><div style="font-weight:600;color:${localChartColors.annotationColor};margin-bottom:4px">Annotation</div><div>${escapeHtml(annText)}</div><div style="opacity:0.6;margin-top:4px;font-size:11px">Click to view details</div></div>`
           }
           // Only show data-point tooltip for the data-point custom series
           if (p.seriesIndex !== dataPointSeriesIndex) return ''
@@ -1484,21 +1493,15 @@ export function ControlChart({
           // AI insight section (like violations, but for anomaly detection events)
           const anomalyEvents = localSampleAnomalyMap.get(point.sample_id)
           if (anomalyEvents?.length) {
-            const ANOMALY_TYPE_LABELS: Record<string, string> = {
-              changepoint: 'Process Shift',
-              outlier: 'Unusual Pattern',
-              distribution_shift: 'Distribution Drift',
-              anomaly_score: 'Unusual Pattern',
-            }
             html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
             html += `<div style="color:hsl(260,60%,65%);font-weight:500;margin-bottom:4px">AI Insights:</div>`
             for (const ae of anomalyEvents) {
-              const typeLabel = ANOMALY_TYPE_LABELS[ae.event_type] ?? ae.event_type
-              const sevColor = ae.severity === 'CRITICAL' ? '#ef4444' : ae.severity === 'WARNING' ? '#f59e0b' : '#3b82f6'
-              html += `<div style="font-size:11px;opacity:0.9"><span style="color:${sevColor};font-weight:500">${ae.severity}</span> ${typeLabel}</div>`
+              const typeLabel = escapeHtml(ANOMALY_TYPE_LABELS[ae.event_type] ?? ae.event_type)
+              const sevColor = SEVERITY_COLORS[ae.severity] ?? '#6b7280'
+              html += `<div style="font-size:11px;opacity:0.9"><span style="color:${sevColor};font-weight:500">${escapeHtml(ae.severity)}</span> ${typeLabel}</div>`
               if (ae.summary) {
-                const snippet = ae.summary.length > 80 ? ae.summary.slice(0, 77) + '...' : ae.summary
-                html += `<div style="font-size:10px;opacity:0.7;margin-left:4px">${snippet}</div>`
+                const raw = ae.summary.length > 80 ? ae.summary.slice(0, 77) + '...' : ae.summary
+                html += `<div style="font-size:10px;opacity:0.7;margin-left:4px">${escapeHtml(raw)}</div>`
               }
             }
             html += `</div>`

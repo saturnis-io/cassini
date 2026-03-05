@@ -1,15 +1,14 @@
 """Display key computation for sample identification.
 
 Computes YYMMDD-NNN display keys by ranking samples within each calendar day.
-Uses ``func.date()`` for date extraction, which is portable across SQLite and
-PostgreSQL and avoids the text-serialisation mismatch (space vs ``T`` separator
-in ISO timestamps) that caused all keys to collapse to ``-001`` under SQLAlchemy
-+ SQLite.
+Uses ``cast(timestamp, Date)`` for date extraction, which is portable across
+SQLite, PostgreSQL, MySQL, and MSSQL (unlike ``func.date()`` which is not
+available on MSSQL).
 """
 
 from collections import defaultdict
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.db.models.sample import Sample
@@ -55,7 +54,7 @@ async def compute_display_keys(
             select(Sample.id)
             .where(
                 Sample.char_id == char_id,
-                func.date(Sample.timestamp) == day_date,
+                cast(Sample.timestamp, Date) == day_date,
             )
             .order_by(Sample.timestamp, Sample.id)
         )

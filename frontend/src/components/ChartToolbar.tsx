@@ -23,6 +23,14 @@ import { recommendChartType, HISTOGRAM_CHART_TYPES } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { useSampleLabel } from '@/hooks/useSampleLabel'
 import type { AnomalyEvent } from '@/types/anomaly'
+import {
+  EVENT_TYPE_LABELS,
+  DETECTOR_FRIENDLY,
+  DETECTOR_TECHNICAL,
+  SEVERITY_PRIORITY,
+  SEVERITY_THEME_CLASS,
+  SEVERITY_PILL_CLASS,
+} from '@/lib/anomaly-labels'
 
 interface ChartToolbarProps {
   /** Currently selected characteristic ID for chart type selection */
@@ -72,45 +80,18 @@ function ToolbarBtn({
   )
 }
 
-const SEVERITY_PRIORITY: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1 }
-
 const SEVERITY_DOT: Record<string, string> = {
   CRITICAL: 'bg-destructive',
   WARNING: 'bg-warning',
   INFO: 'bg-primary',
 }
 
-const SEVERITY_BADGE: Record<string, string> = {
-  CRITICAL: 'text-destructive',
-  WARNING: 'text-warning',
-  INFO: 'text-primary',
-}
-
-const SEVERITY_PILL: Record<string, string> = {
-  CRITICAL: 'bg-destructive text-destructive-foreground',
-  WARNING: 'bg-warning text-warning-foreground',
-  INFO: 'bg-primary text-primary-foreground',
-}
-
+/** Titles for insight popover cards — slightly different from EVENT_TYPE_LABELS. */
 const INSIGHT_TITLES: Record<string, string> = {
   changepoint: 'Process Shift Detected',
   distribution_shift: 'Distribution Drift',
   outlier: 'Unusual Pattern',
   anomaly_score: 'Unusual Pattern',
-}
-
-/** Human-friendly labels for what the detector finds, not what algorithm it uses. */
-const DETECTOR_FRIENDLY: Record<string, string> = {
-  pelt: 'Sudden change in process mean',
-  ks_test: 'Gradual change in data distribution',
-  isolation_forest: 'Data point deviates from normal behavior',
-}
-
-/** Technical algorithm name — shown as subtle parenthetical for engineers. */
-const DETECTOR_TECHNICAL: Record<string, string> = {
-  pelt: 'PELT',
-  ks_test: 'K-S Test',
-  isolation_forest: 'Isolation Forest',
 }
 
 const SEVERITY_BORDER: Record<string, string> = {
@@ -209,7 +190,7 @@ function AnomalyInsightsPopover({
       <div className="max-h-64 space-y-1.5 overflow-y-auto p-2">
         {active.map((event) => {
           const borderStyle = SEVERITY_BORDER[event.severity] ?? SEVERITY_BORDER.INFO
-          const sevStyle = SEVERITY_BADGE[event.severity] ?? SEVERITY_BADGE.INFO
+          const sevStyle = SEVERITY_THEME_CLASS[event.severity] ?? SEVERITY_BADGE.INFO
           const title = INSIGHT_TITLES[event.event_type] ?? event.event_type
           const detectorDesc =
             DETECTOR_FRIENDLY[event.detector_type] ?? event.detector_type
@@ -450,7 +431,7 @@ export function ChartToolbar({
                 title="View AI insights"
                 className={cn(
                   'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-colors',
-                  SEVERITY_PILL[worstSeverity] ?? SEVERITY_PILL.INFO,
+                  SEVERITY_PILL_CLASS[worstSeverity] ?? SEVERITY_PILL.INFO,
                 )}
               >
                 <Sparkles className="h-3 w-3" />
@@ -471,14 +452,16 @@ export function ChartToolbar({
           </div>
         )}
 
-        <ToolbarBtn
-          active={showPredictions}
-          onClick={() => setShowPredictions(!showPredictions)}
-          title={showPredictions ? 'Hide forecast predictions' : 'Show forecast predictions'}
-        >
-          <TrendingUp className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Predictions</span>
-        </ToolbarBtn>
+        {isCommercial && (
+          <ToolbarBtn
+            active={showPredictions}
+            onClick={() => setShowPredictions(!showPredictions)}
+            title={showPredictions ? 'Hide forecast predictions' : 'Show forecast predictions'}
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Predictions</span>
+          </ToolbarBtn>
+        )}
 
         <ToolbarBtn
           active={showSpecLimits}

@@ -15,6 +15,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from cassini.utils.display_keys import compute_display_keys as _compute_display_keys
+
 from cassini.api.schemas.characteristic import (
     AttributeChartSample,
     CUSUMChartSample,
@@ -71,8 +73,6 @@ async def _build_hierarchy_path(hierarchy_repo, hierarchy_id: int) -> str:
         current_id = node.parent_id
     return " > ".join(path_parts) if path_parts else ""
 
-
-from cassini.utils.display_keys import compute_display_keys as _compute_display_keys
 
 
 # Dependency for ControlLimitService
@@ -713,6 +713,9 @@ async def _get_cusum_chart_data(
             end_date=end_date,
             product_code=product_code,
         )
+        # Exclude user-excluded samples (get_rolling_window does this, but
+        # get_by_characteristic does not)
+        samples = [s for s in samples if not getattr(s, 'is_excluded', False)]
         if len(samples) > limit:
             samples = samples[-limit:]
     else:
@@ -859,6 +862,9 @@ async def _get_ewma_chart_data(
             end_date=end_date,
             product_code=product_code,
         )
+        # Exclude user-excluded samples (get_rolling_window does this, but
+        # get_by_characteristic does not)
+        samples = [s for s in samples if not getattr(s, 'is_excluded', False)]
         if len(samples) > limit:
             samples = samples[-limit:]
     else:

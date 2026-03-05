@@ -1,44 +1,11 @@
 import type { AnomalyEvent } from '@/types/anomaly'
-
-const SEVERITY_COLORS: Record<string, string> = {
-  INFO: '#3b82f6',
-  WARNING: '#f59e0b',
-  CRITICAL: '#ef4444',
-}
-
-function severityColor(severity: string): string {
-  return SEVERITY_COLORS[severity.toUpperCase()] ?? '#6b7280'
-}
-
-/** Human-friendly labels for chart badges — what it found, not what algorithm ran. */
-const DETECTOR_LABELS: Record<string, string> = {
-  pelt: 'Process Shift',
-  ks_test: 'Distribution Drift',
-  isolation_forest: 'Unusual Pattern',
-}
-
-/** Technical algorithm names for tooltip detail line. */
-const DETECTOR_TECHNICAL: Record<string, string> = {
-  pelt: 'PELT',
-  ks_test: 'K-S Test',
-  isolation_forest: 'Isolation Forest',
-}
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  changepoint: 'Process Shift',
-  distribution_shift: 'Distribution Drift',
-  outlier: 'Unusual Pattern',
-  anomaly_score: 'Unusual Pattern',
-}
-
-/** Escape HTML entities to prevent XSS in ECharts innerHTML tooltips. */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+import {
+  severityColor,
+  DETECTOR_LABELS,
+  DETECTOR_TECHNICAL,
+  EVENT_TYPE_LABELS,
+  escapeHtml,
+} from '@/lib/anomaly-labels'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>

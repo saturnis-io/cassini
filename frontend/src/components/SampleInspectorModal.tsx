@@ -60,18 +60,7 @@ interface SampleInspectorModalProps {
 
 // ─── AI Insights Section ─────────────────────────────────────────────────────
 
-const INSIGHT_TYPE_LABELS: Record<string, string> = {
-  changepoint: 'Process Shift',
-  outlier: 'Unusual Pattern',
-  distribution_shift: 'Distribution Drift',
-  anomaly_score: 'Unusual Pattern',
-}
-
-const INSIGHT_SEVERITY_CLASS: Record<string, string> = {
-  CRITICAL: 'text-destructive',
-  WARNING: 'text-warning',
-  INFO: 'text-primary',
-}
+import { EVENT_TYPE_LABELS, SEVERITY_THEME_CLASS } from '@/lib/anomaly-labels'
 
 function InsightsSection({
   events,
@@ -91,8 +80,8 @@ function InsightsSection({
   return (
     <div className="space-y-3">
       {events.map((event) => {
-        const typeLabel = INSIGHT_TYPE_LABELS[event.event_type] ?? event.event_type
-        const sevClass = INSIGHT_SEVERITY_CLASS[event.severity] ?? 'text-primary'
+        const typeLabel = EVENT_TYPE_LABELS[event.event_type] ?? event.event_type
+        const sevClass = SEVERITY_THEME_CLASS[event.severity] ?? 'text-primary'
 
         return (
           <div

@@ -75,7 +75,8 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     const formatVal = (v: number | null | undefined) =>
       v == null ? 'N/A' : isPChart ? (v * 100).toFixed(Math.max(decimalPrecision - 2, 1)) + '%' : v.toFixed(decimalPrecision)
 
-    // Theme-aware axis colors
+    // Theme-aware axis colors — raw HSL required because ECharts canvas
+    // renderer cannot resolve CSS custom properties (L-001 exception)
     const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
     const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
     const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
