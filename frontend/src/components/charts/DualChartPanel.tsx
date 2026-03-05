@@ -77,6 +77,7 @@ export function DualChartPanel({
   // State for cross-chart highlighting
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
   const [hoveredBinRange, setHoveredBinRange] = useState<[number, number] | null>(null)
+  const [controlChartBottom, setControlChartBottom] = useState(60)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   // Predictions state from global store (toggled via ChartToolbar)
@@ -264,6 +265,7 @@ export function DualChartPanel({
               highlightedRange={hoveredBinRange}
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
+              onGridBottom={setControlChartBottom}
             />
           </ErrorBoundary>
         </div>
@@ -291,6 +293,7 @@ export function DualChartPanel({
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
               showSpecLimits={showSpecLimits}
+              gridBottom={controlChartBottom}
             />
           </div>
         )}
@@ -319,6 +322,7 @@ export function DualChartPanel({
               highlightedRange={hoveredBinRange}
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
+              onGridBottom={setControlChartBottom}
             />
           </ErrorBoundary>
         </div>
@@ -344,6 +348,7 @@ export function DualChartPanel({
               highlightedValue={hoveredValue}
               onHoverBin={setHoveredBinRange}
               showSpecLimits={showSpecLimits}
+              gridBottom={controlChartBottom}
             />
           </div>
         )}
@@ -459,6 +464,7 @@ export function DualChartPanel({
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}
             showSpecLimits={showSpecLimits}
+            gridBottom={controlChartBottom}
           />
         </div>
       )}

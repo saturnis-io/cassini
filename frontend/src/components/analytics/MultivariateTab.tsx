@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Loader2, Play, Lock } from 'lucide-react'
 import { HelpTooltip } from '@/components/HelpTooltip'
-import { GuidedEmptyState } from '@/components/GuidedEmptyState'
 import { ContextualHint } from '@/components/ContextualHint'
 import { InterpretResult } from '@/components/InterpretResult'
-import { emptyStates, hints, interpretMultivariate } from '@/lib/guidance'
+import { hints, interpretMultivariate } from '@/lib/guidance'
 import { usePlantContext } from '@/providers/PlantProvider'
 import {
   useMultivariateGroups,
@@ -59,10 +58,6 @@ export function MultivariateTab() {
 
   return (
     <div className="space-y-6">
-      {(!groups || (Array.isArray(groups) && groups.length === 0)) && (
-        <GuidedEmptyState content={emptyStates.multivariate} />
-      )}
-
       {/* Group management */}
       <GroupManager
         plantId={plantId}

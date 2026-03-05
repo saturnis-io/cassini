@@ -92,3 +92,17 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 - `useSampleLabel(characteristicId)` — React hook in `hooks/useSampleLabel.ts`. Returns a `(sampleId) => string` function that looks up the display key from React Query chart data cache. Use when you only have a sample_id and need to resolve the display key.
 
 **Pattern**: Any place that shows sample identifiers to users (tooltips, popovers, event lists, modals) must go through these centralized functions. The `AnomalyEventDetail`, `AnomalyEventList`, `ChartToolbar` popover, and `ControlChart` tooltip should all use consistent formatting.
+
+---
+
+## L-006: SQLite cast(timestamp, Date) Is a No-Op — Use Range Comparison (2026-03-05)
+
+**Mistake**: Changed `func.date(Sample.timestamp) == day_date` to `cast(Sample.timestamp, Date) == day_date` in `display_keys.py` for "MSSQL portability". On SQLite, `CAST(timestamp AS DATE)` returns the raw datetime string unchanged (e.g., `'2026-02-12 14:30:00'`), so `== '2026-02-12'` always fails. The query returned 0 rows and all sample ranks defaulted to 1, producing duplicate display keys (`YYMMDD-001` for every sample).
+
+**Why it matters**: This is a silent data-display regression — no errors, no crashes. Every chart shows all samples as `#0001` for their day. The original code's docstring even warned about this exact bug, but the warning was overwritten.
+
+**Rule**: For dialect-portable date comparisons on timestamp columns:
+- NEVER use `cast(column, Date)` — no-op on SQLite
+- NEVER use `func.date()` — unavailable on MSSQL
+- ALWAYS use range comparison: `timestamp >= day_start AND timestamp < day_end`
+- This works on all four supported dialects (SQLite, PostgreSQL, MySQL, MSSQL)

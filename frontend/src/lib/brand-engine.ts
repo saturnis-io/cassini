@@ -34,7 +34,7 @@ export interface BrandConfig {
   success?: BrandColorSeed | null
   headingFont?: string | null
   bodyFont?: string | null
-  visualStyle?: 'modern' | 'retro' | 'glass' | null
+  visualStyle?: string | null
   loginMode?: 'saturn' | 'static' | null
   loginBackgroundUrl?: string | null
   presetId?: string | null

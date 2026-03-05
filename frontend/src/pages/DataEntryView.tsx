@@ -28,7 +28,7 @@ export function DataEntryView() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-border bg-background/80 flex shrink-0 items-start justify-between border-b px-6 pt-5 pb-5 backdrop-blur-sm">
+      <div className="border-border bg-card flex shrink-0 items-start justify-between border-b px-6 pt-5 pb-5">
         <div>
           <h1 className="text-foreground text-xl font-bold tracking-tight">Data Entry</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">

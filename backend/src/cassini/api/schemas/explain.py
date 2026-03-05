@@ -26,4 +26,5 @@ class ExplanationResponse(BaseModel):
     inputs: dict[str, float | str]
     citation: CitationSchema | None = None
     method: str | None = None
+    sigma_estimator: str | None = None
     warnings: list[str] = []

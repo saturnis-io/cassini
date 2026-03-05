@@ -7,7 +7,7 @@ import { Info, X } from 'lucide-react'
 import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { cn } from '@/lib/utils'
-import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { Explainable } from '@/components/Explainable'
 
@@ -119,34 +119,6 @@ function addNormalCurve(
   }))
 }
 
-// Hook to subscribe to chart color changes (for theme refresh)
-function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
-
-  const updateColors = useCallback(() => {
-    setColors(getStoredChartColors())
-  }, [])
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'cassini-chart-colors' || e.key === 'cassini-chart-preset') {
-        updateColors()
-      }
-    }
-    const handleColorChange = () => updateColors()
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('chart-colors-changed', handleColorChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('chart-colors-changed', handleColorChange)
-    }
-  }, [updateColors])
-
-  return colors
-}
-
 const colorSchemes = {
   primary: {
     barColor: 'hsl(212, 100%, 30%)',
@@ -189,7 +161,6 @@ export function DistributionHistogram({
   const isVertical = orientation === 'vertical'
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
-  const xAxisMode = useDashboardStore((state) => state.xAxisMode)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -430,18 +401,18 @@ export function DistributionHistogram({
       if (isVertical) {
         markLineData.push({
           yAxis: lcl,
-          lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 },
-          label: { formatter: 'LCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' },
+          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1 },
+          label: { formatter: 'LCL', position: 'end', fontSize: 8, color: chartColors.lclLine },
         })
       } else {
         markLineData.push({
           xAxis: lcl,
-          lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 },
+          lineStyle: { color: chartColors.lclLine, type: [6, 3] as unknown as string, width: 1.5 },
           label: {
             formatter: 'LCL',
             position: 'insideStartBottom',
             fontSize: 9,
-            color: 'hsl(179, 50%, 50%)',
+            color: chartColors.lclLine,
           },
         })
       }
@@ -450,18 +421,18 @@ export function DistributionHistogram({
       if (isVertical) {
         markLineData.push({
           yAxis: ucl,
-          lineStyle: { color: 'hsl(179, 50%, 59%)', type: 'dashed', width: 1 },
-          label: { formatter: 'UCL', position: 'end', fontSize: 8, color: 'hsl(179, 50%, 50%)' },
+          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1 },
+          label: { formatter: 'UCL', position: 'end', fontSize: 8, color: chartColors.uclLine },
         })
       } else {
         markLineData.push({
           xAxis: ucl,
-          lineStyle: { color: 'hsl(179, 50%, 59%)', type: [6, 3] as unknown as string, width: 1.5 },
+          lineStyle: { color: chartColors.uclLine, type: [6, 3] as unknown as string, width: 1.5 },
           label: {
             formatter: 'UCL',
             position: 'insideEndBottom',
             fontSize: 9,
-            color: 'hsl(179, 50%, 50%)',
+            color: chartColors.uclLine,
           },
         })
       }
@@ -516,10 +487,7 @@ export function DistributionHistogram({
       const localColors = colors
 
       // Match ControlChart grid margins for pixel-perfect Y-axis alignment
-      // ControlChart uses: top = hasAnnotationMarkers ? 32 : 20, bottom = isTimestamp ? 60 : 30
-      const isTimestamp = xAxisMode === 'timestamp'
       const matchedGridTop = 20
-      const matchedGridBottom = isTimestamp ? 60 : 30
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const histogramRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
@@ -560,7 +528,7 @@ export function DistributionHistogram({
           top: matchedGridTop,
           right: 30,
           left: 40,
-          bottom: gridBottom ?? matchedGridBottom,
+          bottom: gridBottom ?? 60,
           containLabel: false,
         },
         xAxis: {
@@ -686,9 +654,9 @@ export function DistributionHistogram({
     yAxisDomain,
     isVertical,
     colors,
+    chartColors,
     highlightedBinIndex,
     showSpecLimits,
-    xAxisMode,
     gridBottom,
   ])
 

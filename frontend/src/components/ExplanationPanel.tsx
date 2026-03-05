@@ -1,11 +1,18 @@
 import { useEffect, useRef } from 'react'
-import { X, BookOpen, AlertTriangle } from 'lucide-react'
+import { X, BookOpen, AlertTriangle, Sigma } from 'lucide-react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
 import { useExplanation } from '@/api/hooks'
 import type { ExplanationStep, Citation } from '@/api/explain.api'
+
+const SIGMA_ESTIMATOR_LABELS: Record<string, string> = {
+  r_bar_d2: 'R\u0304/d\u2082',
+  s_bar_c4: 'S\u0304/c\u2084',
+  moving_range: 'MR\u0304/d\u2082 (I-MR)',
+  sample_std_dev: 'Sample s (n\u22121)',
+}
 
 /** Renders a LaTeX string safely. Falls back to raw text on error. */
 function KaTeX({ latex, displayMode = false }: { latex: string; displayMode?: boolean }) {
@@ -168,6 +175,18 @@ export function ExplanationPanel() {
                 <span className="bg-secondary text-secondary-foreground mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium">
                   {data.method}
                 </span>
+              )}
+              {data.sigma_estimator && (
+                <div className="bg-muted/50 border-border mt-2 flex items-center gap-1.5 rounded border px-2.5 py-1.5">
+                  <Sigma className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                  <span className="text-muted-foreground text-[11px]">
+                    {'\u03c3'} estimated via{' '}
+                    <span className="text-foreground font-medium">
+                      {SIGMA_ESTIMATOR_LABELS[data.sigma_estimator] ??
+                        data.sigma_estimator}
+                    </span>
+                  </span>
+                </div>
               )}
             </div>
 

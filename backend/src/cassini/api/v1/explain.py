@@ -179,11 +179,22 @@ async def explain_capability_metric(
         # Match dashboard: sigma = sample std dev of subgroup means
         sigma_within = float(np.std(np.asarray(values, dtype=np.float64), ddof=1))
         sigma_fallback = True
+        sigma_estimator = "sample_std_dev"
     else:
         sigma_within = char.stored_sigma
         if sigma_within is None or sigma_within <= 0:
             sigma_within = float(np.std(np.asarray(values, dtype=np.float64), ddof=1))
             sigma_fallback = True
+            sigma_estimator = "sample_std_dev"
+        else:
+            # Derive method from subgroup size (matches control limits logic)
+            n = char.subgroup_size
+            if n == 1:
+                sigma_estimator = "moving_range"
+            elif n <= 10:
+                sigma_estimator = "r_bar_d2"
+            else:
+                sigma_estimator = "s_bar_c4"
 
     # Run capability with collector
     collector = ExplanationCollector()
@@ -247,6 +258,7 @@ async def explain_capability_metric(
             section=CAPABILITY_CITATION.section,
         ),
         method="normal",
+        sigma_estimator=sigma_estimator,
         warnings=collector.warnings,
     )
 
@@ -595,6 +607,7 @@ async def explain_control_limits_metric(
             section=CONTROL_LIMITS_CITATION.section,
         ),
         method=method,
+        sigma_estimator=method,
         warnings=collector.warnings,
     )
 

@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react'
-import { useTheme, type VisualStyle } from '@/providers/ThemeProvider'
+import { useState, useEffect, useMemo } from 'react'
+import { useTheme } from '@/providers/ThemeProvider'
+import { useECharts } from '@/hooks/useECharts'
+import { graphic } from '@/lib/echarts'
+import { VISUAL_STYLE_OPTIONS } from '@/lib/visual-styles'
 import {
   Sun,
   Moon,
@@ -8,15 +11,14 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Paintbrush,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   chartPresets,
-  defaultChartColors,
   getStoredChartColors,
   getStoredPresetId,
-  saveChartColors,
+  saveChartPreset,
+  saveCustomChartColors,
   applyChartColors,
   type ChartColors,
 } from '@/lib/theme-presets'
@@ -38,7 +40,6 @@ interface ColorInputProps {
 }
 
 function ColorInput({ label, value, onChange, description }: ColorInputProps) {
-  // Convert HSL to hex for the color picker
   const hslToHex = (hsl: string): string => {
     const match = hsl.match(/hsl\((\d+),?\s*(\d+)%?,?\s*(\d+)%?\)/)
     if (!match) return '#000000'
@@ -75,7 +76,6 @@ function ColorInput({ label, value, onChange, description }: ColorInputProps) {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`
   }
 
-  // Convert hex to HSL
   const hexToHsl = (hex: string): string => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     if (!result) return value
@@ -134,42 +134,210 @@ function ColorInput({ label, value, onChange, description }: ColorInputProps) {
   )
 }
 
-type AppearanceSubTab = 'theme' | 'visual-style' | 'chart-colors'
-
-const SUB_TABS: { id: AppearanceSubTab; label: string }[] = [
-  { id: 'theme', label: 'Theme' },
-  { id: 'visual-style', label: 'Visual Style' },
-  { id: 'chart-colors', label: 'Chart Colors' },
+// Synthetic SPC data for the preview chart
+const PREVIEW_CL = 50
+const PREVIEW_UCL = 56
+const PREVIEW_LCL = 44
+const PREVIEW_VALUES = [
+  51.2, 49.5, 50.8, 48.3, 52.1, 49.0, 50.5, 47.8, 51.9, 53.2, 50.1, 48.7, 52.8, 49.3, 57.5,
+  50.6, 48.9, 51.4, 49.8, 50.2, 53.1, 47.2, 50.7, 49.1, 51.8,
 ]
+const PREVIEW_VIOLATION_IDX = 14 // index of the OOC point (57.5 > UCL)
+const PREVIEW_EXCLUDED_IDX = 21 // index 21 is 47.2, mark as excluded for demo
 
-const VISUAL_STYLE_OPTIONS: { value: VisualStyle; label: string; desc: string }[] = [
-  { value: 'modern', label: 'Modern', desc: 'Clean, rounded, standard look' },
-  { value: 'retro', label: 'Retro', desc: 'Sharp edges, monospace accents, industrial control-panel feel' },
-  { value: 'glass', label: 'Glass', desc: 'Frosted panels, blur effects, rounded and luminous' },
-]
+function ChartPreview({ colors }: { colors: ChartColors }) {
+  const { resolvedTheme } = useTheme()
+
+  const option = useMemo(() => {
+    const xData = PREVIEW_VALUES.map((_, i) => i + 1)
+    const sigma1 = (PREVIEW_UCL - PREVIEW_CL) / 3
+    const zoneAbove = [
+      { from: PREVIEW_CL + 2 * sigma1, to: PREVIEW_UCL, color: colors.zoneA },
+      { from: PREVIEW_CL + sigma1, to: PREVIEW_CL + 2 * sigma1, color: colors.zoneB },
+      { from: PREVIEW_CL, to: PREVIEW_CL + sigma1, color: colors.zoneC },
+    ]
+    const zoneBelow = [
+      { from: PREVIEW_LCL, to: PREVIEW_CL - 2 * sigma1, color: colors.zoneA },
+      { from: PREVIEW_CL - 2 * sigma1, to: PREVIEW_CL - sigma1, color: colors.zoneB },
+      { from: PREVIEW_CL - sigma1, to: PREVIEW_CL, color: colors.zoneC },
+    ]
+    const markAreaData = [...zoneAbove, ...zoneBelow].map((z) => [
+      {
+        yAxis: z.from,
+        itemStyle: { color: z.color, opacity: 0.12 },
+      },
+      { yAxis: z.to },
+    ])
+
+    const normalData: (number | null)[][] = []
+    const violationData: (number | null)[][] = []
+    const excludedData: (number | null)[][] = []
+    PREVIEW_VALUES.forEach((v, i) => {
+      if (i === PREVIEW_VIOLATION_IDX) {
+        violationData.push([i + 1, v])
+      } else if (i === PREVIEW_EXCLUDED_IDX) {
+        excludedData.push([i + 1, v])
+      } else {
+        normalData.push([i + 1, v])
+      }
+    })
+
+    const isDark = resolvedTheme === 'dark'
+    const axisColor = isDark ? 'hsl(220, 10%, 40%)' : 'hsl(220, 10%, 75%)'
+    const labelColor = isDark ? 'hsl(220, 10%, 55%)' : 'hsl(220, 10%, 50%)'
+
+    return {
+      animation: false,
+      grid: { top: 12, right: 12, bottom: 24, left: 40 },
+      xAxis: {
+        type: 'value' as const,
+        min: 1,
+        max: PREVIEW_VALUES.length,
+        splitLine: { show: false },
+        axisLine: { lineStyle: { color: axisColor } },
+        axisTick: { lineStyle: { color: axisColor } },
+        axisLabel: { color: labelColor, fontSize: 10 },
+      },
+      yAxis: {
+        type: 'value' as const,
+        min: 42,
+        max: 59,
+        splitLine: { lineStyle: { color: axisColor, opacity: 0.4 } },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: labelColor, fontSize: 10 },
+      },
+      series: [
+        // Data line
+        {
+          type: 'line' as const,
+          data: PREVIEW_VALUES.map((v, i) => [i + 1, v]),
+          symbol: 'none',
+          lineStyle: {
+            width: 2,
+            color: new graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: colors.lineGradientStart },
+              { offset: 1, color: colors.lineGradientEnd },
+            ]),
+          },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
+            data: [
+              {
+                yAxis: PREVIEW_CL,
+                lineStyle: { color: colors.centerLine, width: 2, type: 'solid' as const },
+              },
+              {
+                yAxis: PREVIEW_UCL,
+                lineStyle: { color: colors.uclLine, width: 1.5, type: 'dashed' as const },
+              },
+              {
+                yAxis: PREVIEW_LCL,
+                lineStyle: { color: colors.lclLine, width: 1.5, type: 'dashed' as const },
+              },
+            ],
+          },
+          markArea: {
+            silent: true,
+            data: markAreaData,
+          },
+        },
+        // Normal points
+        {
+          type: 'scatter' as const,
+          data: normalData,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: { color: colors.normalPoint },
+          z: 10,
+        },
+        // Violation point
+        {
+          type: 'scatter' as const,
+          data: violationData,
+          symbol: 'diamond',
+          symbolSize: 10,
+          itemStyle: { color: colors.violationPoint },
+          z: 11,
+        },
+        // Excluded point
+        {
+          type: 'scatter' as const,
+          data: excludedData,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: {
+            color: 'transparent',
+            borderColor: colors.excludedPoint,
+            borderWidth: 2,
+          },
+          z: 10,
+        },
+      ],
+      tooltip: { show: false },
+    }
+  }, [colors, resolvedTheme])
+
+  const { containerRef } = useECharts({ option })
+
+  return (
+    <div className="bg-card border-border overflow-hidden rounded-lg border">
+      <div className="text-muted-foreground flex items-center justify-between px-3 pt-2 text-xs">
+        <span>Preview — X-bar Chart</span>
+        <span className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: colors.normalPoint }}
+            />
+            Normal
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2.5 w-2.5 rotate-45"
+              style={{ backgroundColor: colors.violationPoint }}
+            />
+            Violation
+          </span>
+          <span className="flex items-center gap-1">
+            <span
+              className="inline-block h-2 w-2 rounded-full border-2"
+              style={{ borderColor: colors.excludedPoint, backgroundColor: 'transparent' }}
+            />
+            Excluded
+          </span>
+        </span>
+      </div>
+      <div ref={containerRef} style={{ width: '100%', height: 180 }} />
+    </div>
+  )
+}
 
 export function AppearanceSettings() {
-  const { theme, setTheme, visualStyle, setVisualStyle } = useTheme()
-  const [subTab, setSubTab] = useState<AppearanceSubTab>('theme')
+  const { theme, setTheme, visualStyle, setVisualStyle, resolvedTheme } = useTheme()
   const [selectedPreset, setSelectedPreset] = useState(getStoredPresetId())
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors())
+  const [colors, setColors] = useState<ChartColors>(() => getStoredChartColors(resolvedTheme))
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Apply colors on mount
   useEffect(() => {
-    applyChartColors(colors)
-  }, [])
+    if (selectedPreset !== 'custom') {
+      setColors(getStoredChartColors(resolvedTheme))
+    }
+  }, [resolvedTheme, selectedPreset])
 
   const handlePresetChange = (presetId: string) => {
     const preset = chartPresets.find((p) => p.id === presetId)
     if (preset) {
       setSelectedPreset(presetId)
-      setColors(preset.colors)
-      applyChartColors(preset.colors)
-      saveChartColors(preset.colors, presetId)
+      const modeColors = preset[resolvedTheme]
+      setColors(modeColors)
+      applyChartColors(modeColors)
+      saveChartPreset(presetId)
       setHasChanges(false)
-      toast.success(`Applied "${preset.name}" theme`)
+      toast.success(`Applied "${preset.name}" chart colors`)
     }
   }
 
@@ -182,331 +350,319 @@ export function AppearanceSettings() {
   }
 
   const handleSaveCustom = () => {
-    saveChartColors(colors)
+    saveCustomChartColors(colors)
     setHasChanges(false)
     toast.success('Custom colors saved')
   }
 
   const handleReset = () => {
-    setColors(defaultChartColors)
+    const modeColors = chartPresets[0][resolvedTheme]
+    setColors(modeColors)
     setSelectedPreset('classic')
-    applyChartColors(defaultChartColors)
-    saveChartColors(defaultChartColors, 'classic')
+    applyChartColors(modeColors)
+    saveChartPreset('classic')
     setHasChanges(false)
     toast.success('Reset to default colors')
   }
 
   return (
-    <div className="space-y-5">
-      {/* Pill Sub-Navigation */}
-      <div className="flex gap-1.5">
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSubTab(tab.id)}
-            className={cn(
-              'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
-              subTab === tab.id
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Theme Mode */}
-      {subTab === 'theme' && (
-        <div className="bg-muted rounded-xl p-6">
-          <h3 className="mb-4 font-semibold">Theme Mode</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {themeOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setTheme(option.value)}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all',
-                  theme === option.value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50',
-                )}
-              >
-                <option.icon className="h-6 w-6" />
-                <span className="text-sm font-medium">{option.label}</span>
-                {theme === option.value && <Check className="text-primary h-4 w-4" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-
-      {/* Visual Style — personal preference */}
-      {subTab === 'visual-style' && (
-        <div className="bg-muted rounded-xl p-6">
-          <div className="mb-2 flex items-center gap-2">
-            <Paintbrush className="h-5 w-5" />
-            <h3 className="font-semibold">Visual Style</h3>
-          </div>
-          <p className="text-muted-foreground mb-4 text-sm">
-            Choose your personal visual style preference. Your organization may set a default, but
-            you can override it here.
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {VISUAL_STYLE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setVisualStyle(opt.value)}
-                className={cn(
-                  'rounded-lg border-2 p-4 text-left transition-all',
-                  visualStyle === opt.value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50',
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{opt.label}</span>
-                  {visualStyle === opt.value && <Check className="text-primary h-4 w-4" />}
-                </div>
-                <p className="text-muted-foreground mt-1 text-xs">{opt.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Chart Color Presets */}
-      {subTab === 'chart-colors' && (
-        <>
-          <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold">Chart Color Preset</h3>
-              <button
-                onClick={handleReset}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </button>
-            </div>
-
-            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              {chartPresets.map((preset) => (
-                <button
-                  key={preset.id}
-                  onClick={() => handlePresetChange(preset.id)}
-                  className={cn(
-                    'flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-all',
-                    selectedPreset === preset.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50',
-                  )}
-                >
-                  {/* Color preview swatches */}
-                  <div className="flex flex-col gap-1">
-                    <div
-                      className="h-6 w-6 rounded"
-                      style={{ backgroundColor: preset.colors.lineGradientStart }}
-                    />
-                    <div
-                      className="h-6 w-6 rounded"
-                      style={{ backgroundColor: preset.colors.violationPoint }}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{preset.name}</span>
-                      {selectedPreset === preset.id && <Check className="text-primary h-4 w-4" />}
-                    </div>
-                    <p className="text-muted-foreground mt-0.5 text-xs">{preset.description}</p>
-                  </div>
-                </button>
-              ))}
-
-              {/* Custom option */}
-              {selectedPreset === 'custom' && (
-                <div className="border-primary bg-primary/5 flex items-start gap-3 rounded-lg border-2 p-4">
-                  <div className="flex flex-col gap-1">
-                    <div
-                      className="h-6 w-6 rounded"
-                      style={{ backgroundColor: colors.lineGradientStart }}
-                    />
-                    <div
-                      className="h-6 w-6 rounded"
-                      style={{ backgroundColor: colors.violationPoint }}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Custom</span>
-                      <Check className="text-primary h-4 w-4" />
-                    </div>
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                      Your custom color configuration
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Advanced Color Customization */}
-          <div className="bg-muted overflow-hidden rounded-xl">
+    <div className="space-y-6">
+      {/* Theme Mode — compact toggle */}
+      <section className="bg-muted rounded-xl p-5">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide">Theme</h3>
+        <div className="inline-flex gap-1 rounded-lg border p-1">
+          {themeOptions.map((option) => (
             <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="hover:bg-muted/50 flex w-full items-center justify-between p-6 transition-colors"
-            >
-              <div>
-                <h3 className="text-left font-semibold">Advanced Color Customization</h3>
-                <p className="text-muted-foreground text-left text-sm">
-                  Fine-tune individual chart colors
-                </p>
-              </div>
-              {showAdvanced ? (
-                <ChevronUp className="text-muted-foreground h-5 w-5" />
-              ) : (
-                <ChevronDown className="text-muted-foreground h-5 w-5" />
+              key={option.value}
+              onClick={() => setTheme(option.value)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all',
+                theme === option.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
+            >
+              <option.icon className="h-4 w-4" />
+              {option.label}
             </button>
+          ))}
+        </div>
+      </section>
 
-            {showAdvanced && (
-              <div className="border-border space-y-6 border-t p-6">
-                {/* Data Line */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">Data Line</h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="Gradient Start"
-                      value={colors.lineGradientStart}
-                      onChange={(v) => handleColorChange('lineGradientStart', v)}
-                    />
-                    <ColorInput
-                      label="Gradient End"
-                      value={colors.lineGradientEnd}
-                      onChange={(v) => handleColorChange('lineGradientEnd', v)}
-                    />
-                  </div>
-                </div>
+      {/* Visual Style */}
+      <section className="bg-muted rounded-xl p-5">
+        <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide">Visual Style</h3>
+        <p className="text-muted-foreground mb-3 text-xs">
+          Controls the overall look — borders, shadows, typography feel
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {VISUAL_STYLE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setVisualStyle(opt.value)}
+              className={cn(
+                'rounded-lg border-2 px-3 py-2.5 text-left transition-all',
+                visualStyle === opt.value
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50',
+              )}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium">{opt.label}</span>
+                {visualStyle === opt.value && <Check className="text-primary h-3.5 w-3.5" />}
+              </div>
+              <p className="text-muted-foreground mt-0.5 text-xs leading-snug">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </section>
 
-                {/* Control Lines */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">Control Lines</h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="Center Line"
-                      value={colors.centerLine}
-                      onChange={(v) => handleColorChange('centerLine', v)}
-                    />
-                    <ColorInput
-                      label="UCL (Upper Control Limit)"
-                      value={colors.uclLine}
-                      onChange={(v) => handleColorChange('uclLine', v)}
-                    />
-                    <ColorInput
-                      label="LCL (Lower Control Limit)"
-                      value={colors.lclLine}
-                      onChange={(v) => handleColorChange('lclLine', v)}
-                    />
-                  </div>
-                </div>
+      {/* Chart Colors */}
+      <section className="bg-muted rounded-xl p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide">Chart Colors</h3>
+            <p className="text-muted-foreground text-xs">
+              Adapts automatically to light and dark mode
+            </p>
+          </div>
+          <button
+            onClick={handleReset}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
+        </div>
 
-                {/* Zone Fills */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">Zone Colors</h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="Zone A (2-3 sigma)"
-                      value={colors.zoneA}
-                      onChange={(v) => handleColorChange('zoneA', v)}
-                      description="Warning zone near control limits"
-                    />
-                    <ColorInput
-                      label="Zone B (1-2 sigma)"
-                      value={colors.zoneB}
-                      onChange={(v) => handleColorChange('zoneB', v)}
-                      description="Caution zone"
-                    />
-                    <ColorInput
-                      label="Zone C (0-1 sigma)"
-                      value={colors.zoneC}
-                      onChange={(v) => handleColorChange('zoneC', v)}
-                      description="Normal zone near center"
-                    />
-                  </div>
-                </div>
-
-                {/* Point Markers */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">Point Markers</h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="Normal Points"
-                      value={colors.normalPoint}
-                      onChange={(v) => handleColorChange('normalPoint', v)}
-                    />
-                    <ColorInput
-                      label="Violation Points"
-                      value={colors.violationPoint}
-                      onChange={(v) => handleColorChange('violationPoint', v)}
-                    />
-                    <ColorInput
-                      label="Undersized Points"
-                      value={colors.undersizedPoint}
-                      onChange={(v) => handleColorChange('undersizedPoint', v)}
-                    />
-                    <ColorInput
-                      label="Excluded Points"
-                      value={colors.excludedPoint}
-                      onChange={(v) => handleColorChange('excludedPoint', v)}
-                    />
-                  </div>
-                </div>
-
-                {/* Out of Control */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">
-                    Out of Control Region
-                  </h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="OOC Background"
-                      value={colors.outOfControl}
-                      onChange={(v) => handleColorChange('outOfControl', v)}
-                    />
-                  </div>
-                </div>
-
-                {/* Annotations */}
-                <div>
-                  <h4 className="text-muted-foreground mb-3 text-sm font-medium">Annotations</h4>
-                  <div className="space-y-3">
-                    <ColorInput
-                      label="Annotation Marker"
-                      value={colors.annotationColor}
-                      onChange={(v) => handleColorChange('annotationColor', v)}
-                      description="Color for annotation markers and brackets on the chart"
-                    />
-                  </div>
-                </div>
-
-                {/* Save Button */}
-                {hasChanges && (
-                  <div className="border-border flex justify-end border-t pt-4">
-                    <button
-                      onClick={handleSaveCustom}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium"
-                    >
-                      Save Custom Colors
-                    </button>
-                  </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {chartPresets.map((preset) => {
+            const presetColors = preset[resolvedTheme]
+            return (
+              <button
+                key={preset.id}
+                onClick={() => handlePresetChange(preset.id)}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg border-2 px-3 py-2.5 text-left transition-all',
+                  selectedPreset === preset.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50',
                 )}
+              >
+                <div className="grid grid-cols-2 gap-0.5">
+                  <div
+                    className="h-3.5 w-3.5 rounded-sm"
+                    style={{ backgroundColor: presetColors.lineGradientStart }}
+                  />
+                  <div
+                    className="h-3.5 w-3.5 rounded-sm"
+                    style={{ backgroundColor: presetColors.centerLine }}
+                  />
+                  <div
+                    className="h-3.5 w-3.5 rounded-sm"
+                    style={{ backgroundColor: presetColors.violationPoint }}
+                  />
+                  <div
+                    className="h-3.5 w-3.5 rounded-sm"
+                    style={{ backgroundColor: presetColors.zoneC }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium">{preset.name}</span>
+                    {selectedPreset === preset.id && (
+                      <Check className="text-primary h-3.5 w-3.5 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-muted-foreground truncate text-xs">{preset.description}</p>
+                </div>
+              </button>
+            )
+          })}
+
+          {selectedPreset === 'custom' && (
+            <div className="border-primary bg-primary/5 flex items-center gap-2.5 rounded-lg border-2 px-3 py-2.5">
+              <div className="grid grid-cols-2 gap-0.5">
+                <div
+                  className="h-3.5 w-3.5 rounded-sm"
+                  style={{ backgroundColor: colors.lineGradientStart }}
+                />
+                <div
+                  className="h-3.5 w-3.5 rounded-sm"
+                  style={{ backgroundColor: colors.centerLine }}
+                />
+                <div
+                  className="h-3.5 w-3.5 rounded-sm"
+                  style={{ backgroundColor: colors.violationPoint }}
+                />
+                <div
+                  className="h-3.5 w-3.5 rounded-sm"
+                  style={{ backgroundColor: colors.zoneC }}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium">Custom</span>
+                  <Check className="text-primary h-3.5 w-3.5 shrink-0" />
+                </div>
+                <p className="text-muted-foreground text-xs">Your custom color configuration</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Live Preview */}
+      <ChartPreview colors={colors} />
+
+      {/* Advanced Color Customization (collapsed) */}
+      <section className="bg-muted overflow-hidden rounded-xl">
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="hover:bg-muted/50 flex w-full items-center justify-between px-5 py-4 transition-colors"
+        >
+          <div>
+            <h3 className="text-left text-sm font-semibold uppercase tracking-wide">
+              Advanced Color Customization
+            </h3>
+            <p className="text-muted-foreground text-left text-xs">
+              Fine-tune individual chart colors
+            </p>
+          </div>
+          {showAdvanced ? (
+            <ChevronUp className="text-muted-foreground h-4 w-4" />
+          ) : (
+            <ChevronDown className="text-muted-foreground h-4 w-4" />
+          )}
+        </button>
+
+        {showAdvanced && (
+          <div className="border-border space-y-6 border-t px-5 py-5">
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">Data Line</h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="Gradient Start"
+                  value={colors.lineGradientStart}
+                  onChange={(v) => handleColorChange('lineGradientStart', v)}
+                />
+                <ColorInput
+                  label="Gradient End"
+                  value={colors.lineGradientEnd}
+                  onChange={(v) => handleColorChange('lineGradientEnd', v)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">Control Lines</h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="Center Line"
+                  value={colors.centerLine}
+                  onChange={(v) => handleColorChange('centerLine', v)}
+                />
+                <ColorInput
+                  label="UCL (Upper Control Limit)"
+                  value={colors.uclLine}
+                  onChange={(v) => handleColorChange('uclLine', v)}
+                />
+                <ColorInput
+                  label="LCL (Lower Control Limit)"
+                  value={colors.lclLine}
+                  onChange={(v) => handleColorChange('lclLine', v)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">Zone Colors</h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="Zone A (2-3 sigma)"
+                  value={colors.zoneA}
+                  onChange={(v) => handleColorChange('zoneA', v)}
+                  description="Warning zone near control limits"
+                />
+                <ColorInput
+                  label="Zone B (1-2 sigma)"
+                  value={colors.zoneB}
+                  onChange={(v) => handleColorChange('zoneB', v)}
+                  description="Caution zone"
+                />
+                <ColorInput
+                  label="Zone C (0-1 sigma)"
+                  value={colors.zoneC}
+                  onChange={(v) => handleColorChange('zoneC', v)}
+                  description="Normal zone near center"
+                />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">Point Markers</h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="Normal Points"
+                  value={colors.normalPoint}
+                  onChange={(v) => handleColorChange('normalPoint', v)}
+                />
+                <ColorInput
+                  label="Violation Points"
+                  value={colors.violationPoint}
+                  onChange={(v) => handleColorChange('violationPoint', v)}
+                />
+                <ColorInput
+                  label="Undersized Points"
+                  value={colors.undersizedPoint}
+                  onChange={(v) => handleColorChange('undersizedPoint', v)}
+                />
+                <ColorInput
+                  label="Excluded Points"
+                  value={colors.excludedPoint}
+                  onChange={(v) => handleColorChange('excludedPoint', v)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">
+                Out of Control Region
+              </h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="OOC Background"
+                  value={colors.outOfControl}
+                  onChange={(v) => handleColorChange('outOfControl', v)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-muted-foreground mb-3 text-sm font-medium">Annotations</h4>
+              <div className="space-y-3">
+                <ColorInput
+                  label="Annotation Marker"
+                  value={colors.annotationColor}
+                  onChange={(v) => handleColorChange('annotationColor', v)}
+                  description="Color for annotation markers and brackets on the chart"
+                />
+              </div>
+            </div>
+
+            {hasChanges && (
+              <div className="border-border flex justify-end border-t pt-4">
+                <button
+                  onClick={handleSaveCustom}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Save Custom Colors
+                </button>
               </div>
             )}
           </div>
-        </>
-      )}
-
+        )}
+      </section>
     </div>
   )
 }

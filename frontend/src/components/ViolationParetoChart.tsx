@@ -4,7 +4,7 @@ import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useTheme } from '@/providers/ThemeProvider'
 import { NELSON_RULES } from './ViolationLegend'
-import { getStoredChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { Loader2 } from 'lucide-react'
 
 interface ViolationParetoChartProps {
@@ -32,7 +32,7 @@ interface RuleCount {
  */
 export function ViolationParetoChart({ characteristicId, chartOptions }: ViolationParetoChartProps) {
   const { data: chartData, isLoading } = useChartData(characteristicId, chartOptions ?? { limit: 200 })
-  const colors = getStoredChartColors()
+  const colors = useChartColors()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 

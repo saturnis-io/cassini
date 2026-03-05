@@ -23,6 +23,7 @@ export interface ExplanationResponse {
   inputs: Record<string, number | string>
   citation: Citation | null
   method: string | null
+  sigma_estimator: string | null
   warnings: string[]
 }
 

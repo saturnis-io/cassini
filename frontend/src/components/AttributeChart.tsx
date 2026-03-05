@@ -3,7 +3,7 @@ import { graphic } from '@/lib/echarts'
 import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
-import { getStoredChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
@@ -47,7 +47,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     chartOptions ?? { limit: 50 },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
-  const chartColors = getStoredChartColors()
+  const chartColors = useChartColors()
   const { datetimeFormat } = useDateFormat()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'

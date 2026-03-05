@@ -7,9 +7,11 @@
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { useSamples, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Sample } from '@/types'
@@ -45,32 +47,107 @@ interface BoxPlotData {
   mean: number
 }
 
-// Hook to subscribe to chart color changes
-function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
-
-  const updateColors = useCallback(() => {
-    setColors(getStoredChartColors())
-  }, [])
+/** Pinned tooltip — click a box to keep the tooltip open. */
+function PinnedBoxTooltip({
+  box,
+  screenX,
+  screenY,
+  formatValue,
+  formatDateTime,
+  centerLineColor,
+  violationColor,
+  onClose,
+}: {
+  box: BoxPlotData
+  screenX: number
+  screenY: number
+  formatValue: (v: number) => string
+  formatDateTime: (ts: string) => string
+  centerLineColor: string
+  violationColor: string
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ x: screenX + 14, y: screenY - 14 })
 
   useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'cassini-chart-colors' || e.key === 'cassini-chart-preset') {
-        updateColors()
-      }
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    let x = screenX + 14
+    let y = screenY - 14
+    if (x + rect.width > window.innerWidth - 8) x = screenX - rect.width - 14
+    if (y + rect.height > window.innerHeight - 8) y = window.innerHeight - rect.height - 8
+    if (y < 8) y = 8
+    if (x < 8) x = 8
+    setPos({ x, y })
+  }, [screenX, screenY])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
-    const handleColorChange = () => updateColors()
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('chart-colors-changed', handleColorChange)
-
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscape)
+    }, 0)
     return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('chart-colors-changed', handleColorChange)
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
     }
-  }, [updateColors])
+  }, [onClose])
 
-  return colors
+  return createPortal(
+    <div
+      ref={ref}
+      className="bg-popover text-popover-foreground border-border fixed z-[55] min-w-[200px] max-w-[260px] rounded-lg border shadow-lg"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <div className="border-border flex items-center justify-between border-b px-3 py-2">
+        <span className="text-xs font-semibold">Sample #{box.index}</span>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground -mr-1 rounded p-0.5 transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="space-y-1 px-3 py-2 text-xs">
+        <div className="text-muted-foreground mb-1.5 text-[11px]">
+          {formatDateTime(box.timestamp)}
+        </div>
+        {([
+          ['Max', box.max, undefined],
+          ['Q3', box.q3, undefined],
+          ['Median', box.median, 'font-medium'],
+          ['Mean', box.mean, undefined, centerLineColor],
+          ['Q1', box.q1, undefined],
+          ['Min', box.min, undefined],
+          ['IQR', box.q3 - box.q1, undefined],
+          ['n', box.count, undefined],
+        ] as [string, number, string?, string?][]).map(([label, value, cls, color]) => (
+          <div key={label} className="flex justify-between">
+            <span className="text-muted-foreground">{label}</span>
+            <span className={`tabular-nums ${cls ?? ''}`} style={color ? { color } : undefined}>
+              {label === 'n' ? value : formatValue(value)}
+            </span>
+          </div>
+        ))}
+        {box.outliers.length > 0 && (
+          <div className="flex justify-between">
+            <span style={{ color: violationColor }}>Outliers</span>
+            <span className="tabular-nums" style={{ color: violationColor }}>
+              {box.outliers.length}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 /**
@@ -212,6 +289,9 @@ export function BoxWhiskerChart({
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoveredBox, setHoveredBox] = useState<number | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  const [pinnedBox, setPinnedBox] = useState<{ sampleId: number; x: number; y: number } | null>(
+    null,
+  )
   const observerRef = useRef<ResizeObserver | null>(null)
   const rafRef = useRef<number>(0)
 
@@ -356,12 +436,13 @@ export function BoxWhiskerChart({
     const visibleCount = vEnd - vStart + 1
     if (visibleCount === 0) return 20
     const maxWidth = 50
-    const minWidth = 10
     const spacing = chartWidth / visibleCount
-    return Math.max(minWidth, Math.min(maxWidth, spacing * 0.6))
+    // Scale to 60% of spacing, floor at 3px so boxes never overlap
+    return Math.max(3, Math.min(maxWidth, spacing * 0.6))
   }, [visibleRange, chartWidth])
 
   const whiskerWidth = boxWidth * 0.6
+  const markerRadius = Math.max(2, Math.min(4, boxWidth * 0.4))
 
   // Get hovered box data for tooltip
   const hoveredBoxData =
@@ -550,18 +631,28 @@ export function BoxWhiskerChart({
                     <g
                       key={box.sampleId}
                       onMouseEnter={(e) => {
-                        setHoveredBox(box.sampleId)
-                        setTooltipPos({ x: e.clientX, y: e.clientY })
-                        // Broadcast sample_id to cross-chart hover context
+                        if (!pinnedBox) {
+                          setHoveredBox(box.sampleId)
+                          setTooltipPos({ x: e.clientX, y: e.clientY })
+                        }
                         onHoverSample(box.sampleId)
                       }}
                       onMouseMove={(e) => {
-                        setTooltipPos({ x: e.clientX, y: e.clientY })
+                        if (!pinnedBox) {
+                          setTooltipPos({ x: e.clientX, y: e.clientY })
+                        }
                       }}
                       onMouseLeave={() => {
+                        if (!pinnedBox) {
+                          setHoveredBox(null)
+                          setTooltipPos(null)
+                        }
+                        onLeaveSample()
+                      }}
+                      onClick={(e) => {
+                        setPinnedBox({ sampleId: box.sampleId, x: e.clientX, y: e.clientY })
                         setHoveredBox(null)
                         setTooltipPos(null)
-                        onLeaveSample()
                       }}
                       style={{ cursor: 'pointer' }}
                     >
@@ -620,10 +711,10 @@ export function BoxWhiskerChart({
 
                       {/* Mean marker (diamond) */}
                       <path
-                        d={`M ${x} ${y_mean - 4} L ${x + 4} ${y_mean} L ${x} ${y_mean + 4} L ${x - 4} ${y_mean} Z`}
+                        d={`M ${x} ${y_mean - markerRadius} L ${x + markerRadius} ${y_mean} L ${x} ${y_mean + markerRadius} L ${x - markerRadius} ${y_mean} Z`}
                         fill={chartColors.centerLine}
                         stroke="white"
-                        strokeWidth={1}
+                        strokeWidth={markerRadius > 3 ? 1 : 0.5}
                       />
 
                       {/* Outliers */}
@@ -632,10 +723,10 @@ export function BoxWhiskerChart({
                           key={oi}
                           cx={x}
                           cy={yScale(outlier)}
-                          r={4}
+                          r={markerRadius}
                           fill={chartColors.violationPoint}
                           stroke="white"
-                          strokeWidth={1}
+                          strokeWidth={markerRadius > 3 ? 1 : 0.5}
                         />
                       ))}
                     </g>
@@ -721,8 +812,27 @@ export function BoxWhiskerChart({
           </svg>
         )}
 
-        {/* Tooltip */}
-        {hoveredBoxData && tooltipPos && (
+        {/* Pinned tooltip */}
+        {pinnedBox &&
+          (() => {
+            const pinData = boxPlotData.find((b) => b.sampleId === pinnedBox.sampleId)
+            if (!pinData) return null
+            return (
+              <PinnedBoxTooltip
+                box={pinData}
+                screenX={pinnedBox.x}
+                screenY={pinnedBox.y}
+                formatValue={formatValue}
+                formatDateTime={formatDateTime}
+                centerLineColor={chartColors.centerLine}
+                violationColor={chartColors.violationPoint}
+                onClose={() => setPinnedBox(null)}
+              />
+            )
+          })()}
+
+        {/* Hover tooltip */}
+        {hoveredBoxData && tooltipPos && !pinnedBox && (
           <div
             className="bg-popover border-border pointer-events-none fixed z-50 rounded-lg border p-3 text-sm shadow-xl"
             style={{

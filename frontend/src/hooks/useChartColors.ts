@@ -1,17 +1,24 @@
 import { useState, useCallback, useEffect } from 'react'
 import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useTheme } from '@/providers/ThemeProvider'
 
 /**
  * Subscribe to chart color changes from localStorage and custom events.
- * Returns the current ChartColors, updating reactively when the user
- * changes their chart color preset or individual colors.
+ * Returns mode-aware ChartColors, updating reactively when the user
+ * changes their chart color preset, individual colors, or light/dark mode.
  */
 export function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
+  const { resolvedTheme } = useTheme()
+  const [colors, setColors] = useState<ChartColors>(() => getStoredChartColors(resolvedTheme))
 
   const updateColors = useCallback(() => {
-    setColors(getStoredChartColors())
-  }, [])
+    setColors(getStoredChartColors(resolvedTheme))
+  }, [resolvedTheme])
+
+  // Re-resolve when mode changes
+  useEffect(() => {
+    updateColors()
+  }, [updateColors])
 
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {

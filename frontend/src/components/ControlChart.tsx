@@ -56,6 +56,8 @@ interface ControlChartProps {
   highlightSampleId?: number
   /** When true, fetch and overlay forecast predictions */
   showPredictions?: boolean
+  /** Callback reporting the chart's grid.bottom value (px) for alignment with adjacent charts */
+  onGridBottom?: (px: number) => void
 }
 
 // --- Data point type for the chart ---
@@ -332,6 +334,7 @@ export function ControlChart({
   onRegionSelect,
   highlightSampleId,
   showPredictions,
+  onGridBottom,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
@@ -375,6 +378,12 @@ export function ControlChart({
   useEffect(() => {
     annotationsRef.current = annotations
   }, [annotations])
+
+  // Report grid.bottom to parent for histogram alignment
+  const bottomMarginValue = 60
+  useEffect(() => {
+    onGridBottom?.(bottomMarginValue)
+  }, [onGridBottom, bottomMarginValue])
 
   // Maps annotation marker series dataIndex → annotation ID (set inside useMemo, read in click handler)
   const annotationMarkerIdsRef = useRef<number[]>([])
@@ -1175,7 +1184,7 @@ export function ControlChart({
       return { type: 'group', children } as unknown
     }
 
-    const bottomMargin = 60
+    const bottomMargin = bottomMarginValue
     const xCategoryData: string[] = data.map((p) => formatDisplayKey(p.displayKey))
     const xTimestampLabels: string[] = data.map((p) => p.timestampLabel)
 

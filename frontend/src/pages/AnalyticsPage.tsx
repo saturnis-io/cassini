@@ -29,7 +29,7 @@ export function AnalyticsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-border bg-background/80 shrink-0 border-b px-6 pt-5 pb-3 backdrop-blur-sm">
+      <div className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-3">
         <h1 className="text-foreground text-xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Multivariate SPC, correlation analysis, and advanced analytics

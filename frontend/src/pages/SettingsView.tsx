@@ -91,7 +91,7 @@ export function SettingsPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="border-border bg-background/80 shrink-0 border-b px-6 pt-5 pb-5 backdrop-blur-sm">
+      <div className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
         <h1 className="text-foreground text-xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           {t('subtitle')}
@@ -102,7 +102,7 @@ export function SettingsPage() {
       <div className="flex min-h-0 flex-1">
         {/* Sidebar Navigation */}
         <nav
-          className="border-border bg-card/50 w-52 shrink-0 overflow-y-auto border-r px-3 py-4"
+          className="border-border bg-card w-52 shrink-0 overflow-y-auto border-r px-3 py-4"
           aria-label="Settings navigation"
         >
           {SIDEBAR_GROUPS.map((group) => {

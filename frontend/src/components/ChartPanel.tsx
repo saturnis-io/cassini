@@ -69,6 +69,7 @@ export function ChartPanel({
   // hoveredBinRange: from histogram bar hover -> highlights X-bar points
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
   const [hoveredBinRange, setHoveredBinRange] = useState<[number, number] | null>(null)
+  const [controlChartBottom, setControlChartBottom] = useState(60)
 
   // State and refs for resizable histogram panels
   const [histogramWidth, setHistogramWidth] = useState(defaultHistogramWidth)
@@ -193,6 +194,7 @@ export function ChartPanel({
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
               highlightSampleId={highlightSampleId}
+              onGridBottom={setControlChartBottom}
             />
           )}
         </ErrorBoundary>
@@ -236,6 +238,7 @@ export function ChartPanel({
             highlightedValue={hoveredValue}
             onHoverBin={setHoveredBinRange}
             showSpecLimits={showSpecLimits}
+            gridBottom={controlChartBottom}
           />
         </div>
       )}

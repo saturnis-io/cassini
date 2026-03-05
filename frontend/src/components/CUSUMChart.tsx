@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { fetchApi } from '@/api/client'
-import { getStoredChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
@@ -35,7 +35,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
     { ...(chartOptions ?? { limit: 50 }), chartType: 'cusum' },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
-  const chartColors = getStoredChartColors()
+  const chartColors = useChartColors()
   const { datetimeFormat } = useDateFormat()
   const { role } = useAuth()
   const queryClient = useQueryClient()

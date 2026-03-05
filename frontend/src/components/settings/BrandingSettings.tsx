@@ -16,7 +16,8 @@ import {
 import { HelpTooltip } from '@/components/HelpTooltip'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useTheme, type VisualStyle } from '@/providers/ThemeProvider'
+import { useTheme } from '@/providers/ThemeProvider'
+import { VISUAL_STYLE_OPTIONS } from '@/lib/visual-styles'
 import {
   type BrandConfig,
   type BrandColorSeed,
@@ -1376,26 +1377,8 @@ export function BrandingSettings() {
               Sets the default visual style for your organization. Individual
               users can override this in their personal Appearance settings.
             </p>
-            <div className="grid grid-cols-3 gap-3">
-              {(
-                [
-                  {
-                    value: 'modern' as VisualStyle,
-                    label: 'Modern',
-                    desc: 'Clean, rounded, standard look',
-                  },
-                  {
-                    value: 'retro' as VisualStyle,
-                    label: 'Retro',
-                    desc: 'Sharp edges, monospace accents, industrial control-panel feel',
-                  },
-                  {
-                    value: 'glass' as VisualStyle,
-                    label: 'Glass',
-                    desc: 'Frosted panels, blur effects, rounded and luminous',
-                  },
-                ] as const
-              ).map((opt) => {
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {VISUAL_STYLE_OPTIONS.map((opt) => {
                 const isActive =
                   (draft.visualStyle ?? visualStyle) === opt.value
                 return (

@@ -9,10 +9,18 @@ import {
 import { findPairing, loadFontPairing } from '@/lib/font-pairings'
 import { systemSettingsApi } from '@/api/system-settings.api'
 import { setServerDisplayKeyFormat, type DisplayKeyFormat } from '@/lib/display-key'
+import { getStoredChartColors, applyChartColors } from '@/lib/theme-presets'
+import {
+  type VisualStyle,
+  ALL_STYLE_KEYS,
+  ALL_STYLE_CSS_CLASSES,
+  VISUAL_STYLES,
+} from '@/lib/visual-styles'
 import type { BrandConfigDTO, DisplayKeyFormatDTO } from '@/types'
 
+export type { VisualStyle } from '@/lib/visual-styles'
+
 type Theme = 'light' | 'dark' | 'system'
-export type VisualStyle = 'modern' | 'retro' | 'glass'
 
 /**
  * Legacy brand config shape — kept for backward compatibility.
@@ -109,8 +117,8 @@ function getStoredFullBrandConfig(): FullBrandConfig {
 function getStoredVisualStyle(): VisualStyle {
   if (typeof window === 'undefined') return 'modern'
   const stored = localStorage.getItem(VISUAL_STYLE_KEY)
-  if (stored === 'modern' || stored === 'retro' || stored === 'glass') {
-    return stored
+  if (stored && ALL_STYLE_KEYS.includes(stored as VisualStyle)) {
+    return stored as VisualStyle
   }
   return 'modern'
 }
@@ -256,6 +264,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, [])
 
   const setVisualStyle = useCallback((style: VisualStyle) => {
+    if (!ALL_STYLE_KEYS.includes(style)) return
     setVisualStyleState(style)
     localStorage.setItem(VISUAL_STYLE_KEY, style)
   }, [])
@@ -372,11 +381,26 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Apply visual style class to document
   useEffect(() => {
     const root = document.documentElement
-    root.classList.remove('modern', 'retro', 'glass')
-    if (visualStyle !== 'modern') {
-      root.classList.add(visualStyle)
+    root.classList.remove(...ALL_STYLE_CSS_CLASSES)
+    const style = VISUAL_STYLES[visualStyle]
+    if (style.cssClass) {
+      root.classList.add(style.cssClass)
     }
   }, [visualStyle])
+
+  // Apply chart colors when resolved theme changes or chart-colors-changed fires
+  useEffect(() => {
+    const colors = getStoredChartColors(resolvedTheme)
+    applyChartColors(colors)
+
+    const handleColorChange = () => {
+      const updated = getStoredChartColors(resolvedTheme)
+      applyChartColors(updated)
+    }
+
+    window.addEventListener('chart-colors-changed', handleColorChange)
+    return () => window.removeEventListener('chart-colors-changed', handleColorChange)
+  }, [resolvedTheme])
 
   // Listen for system theme changes when in 'system' mode
   useEffect(() => {

@@ -3,14 +3,14 @@
  * Designed to be displayed below an X-bar chart in DualChartPanel.
  */
 
-import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { useMemo, useEffect, useCallback, useRef } from 'react'
 import { graphic } from '@/lib/echarts'
 import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts'
 import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { formatDisplayKey } from '@/lib/display-key'
@@ -31,34 +31,6 @@ interface RangeChartProps {
   onHoverIndex?: (index: number | null) => void
   /** Index being hovered in the primary chart */
   highlightedIndex?: number | null
-}
-
-// Hook to subscribe to chart color changes
-function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(getStoredChartColors)
-
-  const updateColors = useCallback(() => {
-    setColors(getStoredChartColors())
-  }, [])
-
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'cassini-chart-colors' || e.key === 'cassini-chart-preset') {
-        updateColors()
-      }
-    }
-    const handleColorChange = () => updateColors()
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('chart-colors-changed', handleColorChange)
-
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('chart-colors-changed', handleColorChange)
-    }
-  }, [updateColors])
-
-  return colors
 }
 
 interface RangeDataPoint {
@@ -447,9 +419,9 @@ export function RangeChart({
       },
       tooltip: {
         trigger: 'item' as const,
+        appendTo: () => document.body,
         transitionDuration: 0,
         extraCssText: 'transition: none !important;',
-        position: (point: number[]) => [point[0] + 10, point[1] - 10],
         formatter: (params: unknown) => {
           const p = params as { dataIndex: number; seriesType: string }
           if (p.seriesType === 'line') return ''

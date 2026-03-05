@@ -7,10 +7,9 @@ import { usePlantContext } from '@/providers/PlantProvider'
 import { characteristicApi } from '@/api/client'
 import { HierarchyMultiSelector } from '@/components/HierarchyMultiSelector'
 import { HelpTooltip } from '@/components/HelpTooltip'
-import { GuidedEmptyState } from '@/components/GuidedEmptyState'
 import { ContextualHint } from '@/components/ContextualHint'
 import { InterpretResult } from '@/components/InterpretResult'
-import { emptyStates, hints, interpretCorrelation } from '@/lib/guidance'
+import { hints, interpretCorrelation } from '@/lib/guidance'
 import { useComputeCorrelation, useCorrelationResults } from '@/api/hooks'
 import { CorrelationHeatmap } from './CorrelationHeatmap'
 import { PCABiplot } from './PCABiplot'
@@ -80,10 +79,6 @@ export function CorrelationTab() {
 
   return (
     <div className="space-y-6">
-      {!activeResult &&
-        (!recentResults || (Array.isArray(recentResults) && recentResults.length === 0)) &&
-        !isLoadingRecent && <GuidedEmptyState content={emptyStates.correlation} />}
-
       {/* Configuration panel */}
       <div className="bg-card border-border rounded-lg border p-5">
         <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">

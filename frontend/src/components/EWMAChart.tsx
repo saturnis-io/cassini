@@ -3,7 +3,7 @@ import { graphic } from '@/lib/echarts'
 import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartData, useHierarchyPath } from '@/api/hooks'
-import { getStoredChartColors } from '@/lib/theme-presets'
+import { useChartColors } from '@/hooks/useChartColors'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
@@ -30,7 +30,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
     { ...(chartOptions ?? { limit: 50 }), chartType: 'ewma' },
   )
   const hierarchyPath = useHierarchyPath(characteristicId)
-  const chartColors = getStoredChartColors()
+  const chartColors = useChartColors()
   const { datetimeFormat } = useDateFormat()
 
   const ewmaPoints = chartData?.ewma_data_points ?? []
