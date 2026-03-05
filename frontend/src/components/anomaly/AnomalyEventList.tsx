@@ -30,16 +30,18 @@ const SEVERITY_CLASS: Record<string, string> = {
   INFO: 'bg-blue-500/15 text-blue-500 border-blue-500/30',
 }
 
+/** Human-friendly labels — what happened, not what algorithm ran. */
 const DETECTOR_LABELS: Record<string, string> = {
-  pelt: 'PELT',
-  isolation_forest: 'IForest',
-  ks_test: 'K-S Test',
+  pelt: 'Process Shift',
+  isolation_forest: 'Unusual Pattern',
+  ks_test: 'Distribution Drift',
 }
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-  changepoint: 'Changepoint',
-  outlier: 'Outlier',
-  distribution_shift: 'Dist. Shift',
+  changepoint: 'Process Shift',
+  outlier: 'Unusual Pattern',
+  distribution_shift: 'Distribution Drift',
+  anomaly_score: 'Unusual Pattern',
 }
 
 type FilterStatus = 'all' | 'active' | 'acknowledged' | 'dismissed'
@@ -134,9 +136,9 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
             className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
           >
             <option value="">All detectors</option>
-            <option value="pelt">PELT</option>
-            <option value="isolation_forest">Isolation Forest</option>
-            <option value="ks_test">K-S Test</option>
+            <option value="pelt">Process Shift</option>
+            <option value="isolation_forest">Unusual Pattern</option>
+            <option value="ks_test">Distribution Drift</option>
           </select>
 
           <div className="flex gap-0.5 rounded border border-border">

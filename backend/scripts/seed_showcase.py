@@ -2063,8 +2063,8 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
-                0, 0, 'Anomaly score 0.82 exceeds threshold 0.70', ?)""",
+        VALUES (?, 'isolation_forest', 'outlier', 'medium', ?, ?, NULL, NULL,
+                0, 0, 'Unusual pattern detected — deviates from normal behavior', ?)""",
         (IDS["cure_temp"], json.dumps({"anomaly_score": 0.82, "threshold": 0.70}),
          ct_samples[315], now))
 
@@ -2072,8 +2072,8 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
-                0, 0, 'Anomaly score 0.75 exceeds threshold 0.70', ?)""",
+        VALUES (?, 'isolation_forest', 'outlier', 'medium', ?, ?, NULL, NULL,
+                0, 0, 'Unusual pattern detected — deviates from normal behavior', ?)""",
         (IDS["cure_temp"], json.dumps({"anomaly_score": 0.75, "threshold": 0.70}),
          ct_samples[325], now))
 
@@ -2081,8 +2081,8 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
-                1, 0, 'Anomaly score 0.78 exceeds threshold 0.70', ?)""",
+        VALUES (?, 'isolation_forest', 'outlier', 'medium', ?, ?, NULL, NULL,
+                1, 0, 'Unusual pattern detected — deviates from normal behavior', ?)""",
         (IDS["cure_temp"], json.dumps({"anomaly_score": 0.78, "threshold": 0.70}),
          ct_samples[340], now))
 
@@ -2099,8 +2099,8 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, dismissed_by, dismissed_reason, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'low', ?, ?, NULL, NULL,
-                0, 1, 'eng.wichita', 'Normal variation during startup', 'Low anomaly score 0.55', ?)""",
+        VALUES (?, 'isolation_forest', 'outlier', 'low', ?, ?, NULL, NULL,
+                0, 1, 'eng.wichita', 'Normal variation during startup', 'Low anomaly score — within normal variation', ?)""",
         (IDS["cure_temp"], json.dumps({"anomaly_score": 0.55, "threshold": 0.70}),
          ct_samples[200], now))
 
@@ -2966,12 +2966,14 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
          json.dumps({"alpha": 0.15, "beta": 0.02, "type": "holt"}), now))
     model1 = cur.lastrowid
 
-    # 20 forecast points (bolt_torque drifts from ~45.0 at 0.003/sample)
+    # 20 forecast points — bolt_torque drifts upward, crosses UCL=47.5 at step 17
+    # "Bad cone": 95% band breaches UCL by step 5, predicted line crosses at step 17
     base_fc = 46.5
+    bolt_ucl = 47.5
     for step in range(1, 21):
-        pred = base_fc + 0.03 * step
-        sigma_s = 1.2 * math.sqrt(step)
-        ooc = pred > 48.0
+        pred = base_fc + 0.06 * step
+        sigma_s = 0.25 * math.sqrt(step)
+        ooc = pred > bolt_ucl
         cur.execute("""INSERT INTO forecast
             (model_id, characteristic_id, step, predicted_value,
              lower_80, upper_80, lower_95, upper_95, predicted_ooc, generated_at)
@@ -2997,10 +2999,12 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
          json.dumps({"order": [1, 1, 1], "seasonal_order": [0, 0, 0, 0]}), now))
     model2 = cur.lastrowid
 
-    base_diss = 86.0
+    # "Good cone": stable process, narrow parallel bands within UCL=90/LCL=80
+    # Constant sigma — well-characterized process with no trend uncertainty
+    base_diss = 85.5
     for step in range(1, 21):
-        pred = base_diss + 0.02 * step
-        sigma_s = 2.0 * math.sqrt(step)
+        pred = base_diss + 0.01 * step  # Nearly flat trend
+        sigma_s = 0.5  # Constant — no flare, visually distinct from bad cone
         cur.execute("""INSERT INTO forecast
             (model_id, characteristic_id, step, predicted_value,
              lower_80, upper_80, lower_95, upper_95, predicted_ooc, generated_at)

@@ -78,3 +78,17 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 - Increase grid `right` margin to `120` to give endLabels room (default `60` clips them)
 
 **Applies to**: `ControlChart.tsx` (primary chart) AND `RangeChart.tsx` (secondary chart) — both had the same bug.
+
+---
+
+## L-005: Always Use formatSampleRef / useSampleLabel for Sample References (2026-03-04)
+
+**Mistake**: Displayed raw `Sample #315` in the AI insights popover instead of the user's configured display key format (e.g., `260304-042`). The display key formatting system was already in place but wasn't used for anomaly event sample references.
+
+**Why it matters**: The display key format is a user-configurable localization setting (date pattern, separator, number placement). Showing raw database IDs bypasses this setting and creates inconsistency between the chart labels, tooltips, and AI insights.
+
+**Rule**: NEVER display a raw `sample_id` number to users. Always use one of:
+- `formatSampleRef(sampleId, canonicalDisplayKey?)` — pure function in `lib/display-key.ts`. Use when you have the canonical key available.
+- `useSampleLabel(characteristicId)` — React hook in `hooks/useSampleLabel.ts`. Returns a `(sampleId) => string` function that looks up the display key from React Query chart data cache. Use when you only have a sample_id and need to resolve the display key.
+
+**Pattern**: Any place that shows sample identifiers to users (tooltips, popovers, event lists, modals) must go through these centralized functions. The `AnomalyEventDetail`, `AnomalyEventList`, `ChartToolbar` popover, and `ControlChart` tooltip should all use consistent formatting.

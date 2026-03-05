@@ -104,6 +104,10 @@ interface DashboardState {
   showAnomalies: boolean
   setShowAnomalies: (show: boolean) => void
 
+  // Forecast predictions overlay visibility
+  showPredictions: boolean
+  setShowPredictions: (show: boolean) => void
+
   // Product code filter for per-product limits
   productCodeFilter: string | null
   setProductCodeFilter: (code: string | null) => void
@@ -260,6 +264,10 @@ export const useDashboardStore = create<DashboardState>()(
       showAnomalies: false,
       setShowAnomalies: (show) => set({ showAnomalies: show }),
 
+      // Forecast predictions overlay visibility
+      showPredictions: false,
+      setShowPredictions: (show) => set({ showPredictions: show }),
+
       // Product code filter
       productCodeFilter: null,
       setProductCodeFilter: (code) => set({ productCodeFilter: code }),
@@ -286,6 +294,7 @@ export const useDashboardStore = create<DashboardState>()(
         showBrush: state.showBrush,
         showAnnotations: state.showAnnotations,
         showAnomalies: state.showAnomalies,
+        showPredictions: state.showPredictions,
         drawerOpen: state.drawerOpen,
         drawerTab: state.drawerTab,
       }),

@@ -10,6 +10,7 @@ import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './Violat
 import { Explainable } from '@/components/Explainable'
 import { cn } from '@/lib/utils'
 import { StatNote } from './StatNote'
+import { useTheme } from '@/providers/ThemeProvider'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { AttributeChartSample } from '@/types'
 
@@ -27,9 +28,9 @@ interface AttributeChartProps {
 }
 
 const Y_AXIS_LABELS: Record<string, string> = {
-  p: 'Proportion',
+  p: 'Proportion (%)',
   np: 'Defective Count',
-  c: 'Count',
+  c: 'Defect Count',
   u: 'Defects / Unit',
 }
 
@@ -48,6 +49,8 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
   const hierarchyPath = useHierarchyPath(characteristicId)
   const chartColors = getStoredChartColors()
   const { datetimeFormat } = useDateFormat()
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   const attrType = chartData?.attribute_chart_type ?? ''
   const attrPoints = chartData?.attribute_data_points ?? []
@@ -67,9 +70,16 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
 
     const controlLimits = chartData.control_limits
     const decimalPrecision = chartData.decimal_precision ?? 4
+    const isPChart = attrType === 'p'
 
     const formatVal = (v: number | null | undefined) =>
-      v == null ? 'N/A' : v.toFixed(decimalPrecision)
+      v == null ? 'N/A' : isPChart ? (v * 100).toFixed(Math.max(decimalPrecision - 2, 1)) + '%' : v.toFixed(decimalPrecision)
+
+    // Theme-aware axis colors
+    const axisLabelColor = isDark ? 'hsl(220, 5%, 70%)' : 'hsl(220, 15%, 35%)'
+    const axisLineColor = isDark ? 'hsl(220, 10%, 30%)' : 'hsl(210, 15%, 80%)'
+    const splitLineColor = isDark ? 'hsl(220, 10%, 25%)' : 'hsl(210, 10%, 90%)'
+    const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : 'hsl(220, 15%, 40%)'
 
     // X-axis categories
     const categories = attrPoints.map((pt, i) => pt.display_key || `#${i + 1}`)
@@ -101,6 +111,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     const localPoints = attrPoints
     const localColors = chartColors
     const localHighlightSampleId = highlightSampleId
+    const localAttrType = attrType
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
@@ -235,7 +246,8 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
         type: 'category' as const,
         boundaryGap: false,
         data: categories,
-        axisLabel: { fontSize: 12 },
+        axisLabel: { fontSize: 12, color: axisLabelColor },
+        axisLine: { lineStyle: { color: axisLineColor } },
         splitLine: { show: false },
       },
       yAxis: {
@@ -245,9 +257,16 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
         name: Y_AXIS_LABELS[attrType] ?? 'Value',
         nameLocation: 'middle' as const,
         nameGap: 45,
-        nameTextStyle: { fontSize: 12 },
-        axisLabel: { fontSize: 12, formatter: (value: number) => value.toFixed(decimalPrecision) },
-        splitLine: { lineStyle: { type: 'dashed' as const, opacity: 0.3 } },
+        nameTextStyle: { fontSize: 12, color: axisNameColor },
+        axisLabel: {
+          fontSize: 12,
+          color: axisLabelColor,
+          formatter: isPChart
+            ? (value: number) => (value * 100).toFixed(Math.max(decimalPrecision - 2, 1)) + '%'
+            : (value: number) => value.toFixed(decimalPrecision),
+        },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { type: 'dashed' as const, color: splitLineColor, opacity: isDark ? 0.5 : 0.3 } },
       },
       tooltip: {
         trigger: 'item' as const,
@@ -260,8 +279,9 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
           if (!point) return ''
 
           let html = `<div style="font-size:13px;font-weight:500">Sample ${point.display_key || '#' + (p.dataIndex + 1)}</div>`
-          html += `<div>Value: ${formatVal(point.plotted_value)}</div>`
-          html += `<div>Defects: ${point.defect_count}</div>`
+          html += `<div>${localAttrType === 'p' ? 'Proportion' : 'Value'}: ${formatVal(point.plotted_value)}</div>`
+          const countLabel = localAttrType === 'p' || localAttrType === 'np' ? 'Defective items' : 'Defects'
+          html += `<div>${countLabel}: ${point.defect_count}</div>`
           if (point.sample_size != null) html += `<div>Sample size: ${point.sample_size}</div>`
           if (point.units_inspected != null)
             html += `<div>Units inspected: ${point.units_inspected}</div>`
@@ -436,7 +456,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     }
 
     return option
-  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors, highlightSampleId])
+  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors, highlightSampleId, isDark])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

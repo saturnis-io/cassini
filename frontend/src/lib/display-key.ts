@@ -161,6 +161,18 @@ export function formatDisplayKey(canonicalKey: string, format?: DisplayKeyFormat
 }
 
 /**
+ * Format a sample reference for display.
+ * If a canonical display key is available, formats it per user preferences.
+ * Otherwise falls back to showing the raw sample ID.
+ */
+export function formatSampleRef(sampleId: number, canonicalDisplayKey?: string | null): string {
+  if (canonicalDisplayKey) {
+    return formatDisplayKey(canonicalDisplayKey)
+  }
+  return `#${sampleId}`
+}
+
+/**
  * Check which tokens are present in a date pattern.
  */
 function findTokens(pattern: string): Set<string> {

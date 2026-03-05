@@ -10,16 +10,34 @@ function severityColor(severity: string): string {
   return SEVERITY_COLORS[severity.toUpperCase()] ?? '#6b7280'
 }
 
+/** Human-friendly labels for chart badges — what it found, not what algorithm ran. */
 const DETECTOR_LABELS: Record<string, string> = {
-  pelt: 'PELT Changepoint',
-  ks_test: 'Kolmogorov-Smirnov',
+  pelt: 'Process Shift',
+  ks_test: 'Distribution Drift',
+  isolation_forest: 'Unusual Pattern',
+}
+
+/** Technical algorithm names for tooltip detail line. */
+const DETECTOR_TECHNICAL: Record<string, string> = {
+  pelt: 'PELT',
+  ks_test: 'K-S Test',
   isolation_forest: 'Isolation Forest',
 }
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-  changepoint: 'Changepoint',
-  distribution_shift: 'Distribution Shift',
-  outlier: 'Outlier',
+  changepoint: 'Process Shift',
+  distribution_shift: 'Distribution Drift',
+  outlier: 'Unusual Pattern',
+  anomaly_score: 'Unusual Pattern',
+}
+
+/** Escape HTML entities to prevent XSS in ECharts innerHTML tooltips. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,18 +52,20 @@ export interface AnomalyMarks {
 function buildTooltipHtml(event: AnomalyEvent): string {
   const color = severityColor(event.severity)
   const typeLabel = EVENT_TYPE_LABELS[event.event_type] ?? event.event_type
-  const detectorLabel = DETECTOR_LABELS[event.detector_type] ?? event.detector_type
+  const detectorFriendly = DETECTOR_LABELS[event.detector_type] ?? event.detector_type
+  const detectorTech = DETECTOR_TECHNICAL[event.detector_type] ?? event.detector_type
 
-  let html = `<div style="max-width:320px;font-size:12px">`
+  let html = `<div style="max-width:320px;font-size:12px;overflow-wrap:break-word;word-wrap:break-word">`
   html += `<div style="font-weight:600;color:${color};margin-bottom:4px">${typeLabel}</div>`
-  html += `<div style="opacity:0.7;margin-bottom:6px">Detector: ${detectorLabel} &middot; Severity: ${event.severity}</div>`
+  html += `<div style="opacity:0.7;margin-bottom:6px">${detectorFriendly} &middot; ${event.severity}`
+  html += `<span style="opacity:0.5;margin-left:6px">(${escapeHtml(detectorTech)})</span></div>`
 
   if (event.summary) {
-    html += `<div style="line-height:1.4">${event.summary}</div>`
+    html += `<div style="line-height:1.4">${escapeHtml(event.summary)}</div>`
   }
 
   if (event.is_acknowledged && event.acknowledged_by) {
-    html += `<div style="opacity:0.6;margin-top:4px;font-style:italic">Acknowledged by ${event.acknowledged_by}</div>`
+    html += `<div style="opacity:0.6;margin-top:4px;font-style:italic">Acknowledged by ${escapeHtml(event.acknowledged_by)}</div>`
   }
 
   html += `</div>`
@@ -64,47 +84,127 @@ export function buildAnomalyMarks(
   events: AnomalyEvent[],
   dataPoints: { sample_id: number; mean?: number; plotted_value?: number; xValue: number }[],
 ): AnomalyMarks {
+  if (dataPoints.length === 0) return { markPoints: [], markAreas: [], markLines: [] }
+
   const markPoints: AnyRecord[] = []
   const markAreas: [AnyRecord, AnyRecord][] = []
   const markLines: AnyRecord[] = []
 
+  // Collect changepoint positions first so we can shade between them
+  const changepointEntries: {
+    event: AnomalyEvent
+    sampleIndex: number
+    pt: (typeof dataPoints)[0]
+    color: string
+    tooltipHtml: string
+  }[] = []
+
   for (const event of events) {
     if (event.is_dismissed) continue
+    if (event.event_type === 'changepoint') {
+      const sampleIndex = dataPoints.findIndex((p) => p.sample_id === event.sample_id)
+      if (sampleIndex >= 0) {
+        changepointEntries.push({
+          event,
+          sampleIndex,
+          pt: dataPoints[sampleIndex],
+          color: severityColor(event.severity),
+          tooltipHtml: buildTooltipHtml(event),
+        })
+      }
+    }
+  }
+  // Sort by position in the data so shading spans are sequential
+  changepointEntries.sort((a, b) => a.sampleIndex - b.sampleIndex)
+
+  // Build changepoint marks: diamond, vertical line, and shaded region to next changepoint
+  for (let ci = 0; ci < changepointEntries.length; ci++) {
+    const { event, pt, color, tooltipHtml } = changepointEntries[ci]
+    const yVal = pt.mean ?? pt.plotted_value ?? 0
+    const detectorTag = DETECTOR_LABELS[event.detector_type] ?? event.detector_type
+
+    // Diamond marker on the data point
+    markPoints.push({
+      coord: [pt.xValue, yVal],
+      symbol: 'diamond',
+      symbolSize: 16,
+      itemStyle: { color, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      _tooltipHtml: tooltipHtml,
+    })
+
+    // Build a rich label for the top of the chart
+    const summarySnippet = event.summary
+      ? event.summary.length > 60
+        ? event.summary.slice(0, 57) + '...'
+        : event.summary
+      : ''
+    const topLabel = summarySnippet
+      ? `{badge|${detectorTag} · ${event.severity}}\n{summary|${summarySnippet}}`
+      : `{badge|${detectorTag} · ${event.severity}}`
+
+    // Vertical dashed line with detector + context label pinned above chart
+    markLines.push({
+      xAxis: pt.xValue,
+      symbol: ['none', 'none'],
+      lineStyle: { color, type: 'dashed', width: 1.5 },
+      label: {
+        show: true,
+        formatter: topLabel,
+        position: 'end',
+        fontSize: 10,
+        rich: {
+          badge: {
+            fontSize: 10,
+            fontWeight: 'bold',
+            color: '#fff',
+            backgroundColor: color,
+            borderRadius: 3,
+            padding: [3, 8],
+            align: 'center',
+          },
+          summary: {
+            fontSize: 9,
+            color,
+            padding: [4, 0, 0, 0],
+            align: 'center',
+            lineHeight: 14,
+          },
+        },
+      },
+      _tooltipHtml: tooltipHtml,
+    })
+
+    // Shaded region from this changepoint to the next (or end of visible data)
+    const endXValue =
+      ci + 1 < changepointEntries.length
+        ? changepointEntries[ci + 1].pt.xValue
+        : dataPoints[dataPoints.length - 1].xValue
+    if (endXValue !== pt.xValue) {
+      markAreas.push([
+        {
+          xAxis: pt.xValue,
+          itemStyle: { color: `${color}18` },
+          label: { show: false },
+          _tooltipHtml: tooltipHtml,
+        },
+        {
+          xAxis: endXValue,
+          itemStyle: { color: `${color}18` },
+        },
+      ])
+    }
+  }
+
+  for (const event of events) {
+    if (event.is_dismissed) continue
+    // Changepoints already handled above
+    if (event.event_type === 'changepoint') continue
 
     const color = severityColor(event.severity)
     const tooltipHtml = buildTooltipHtml(event)
 
-    if (event.event_type === 'changepoint') {
-      const sampleIndex = dataPoints.findIndex((p) => p.sample_id === event.sample_id)
-      if (sampleIndex >= 0) {
-        const pt = dataPoints[sampleIndex]
-        const yVal = pt.mean ?? pt.plotted_value ?? 0
-
-        markPoints.push({
-          coord: [pt.xValue, yVal],
-          symbol: 'diamond',
-          symbolSize: 14,
-          itemStyle: { color, borderColor: '#fff', borderWidth: 1 },
-          label: {
-            show: true,
-            formatter: 'CP',
-            position: 'top',
-            fontSize: 9,
-            color,
-          },
-          _tooltipHtml: tooltipHtml,
-        })
-
-        markLines.push({
-          xAxis: pt.xValue,
-          lineStyle: { color, type: 'dashed', width: 1 },
-          label: { show: false },
-          _tooltipHtml: tooltipHtml,
-        })
-      }
-    }
-
-    if (event.event_type === 'outlier') {
+    if (event.event_type === 'outlier' || event.event_type === 'anomaly_score') {
       const sampleIndex = dataPoints.findIndex((p) => p.sample_id === event.sample_id)
       if (sampleIndex >= 0) {
         const pt = dataPoints[sampleIndex]
@@ -143,7 +243,7 @@ export function buildAnomalyMarks(
             itemStyle: { color: `${color}40` },
             label: {
               show: true,
-              formatter: 'Distribution Shift',
+              formatter: EVENT_TYPE_LABELS['distribution_shift'] ?? 'Distribution Drift',
               position: 'insideTop',
               fontSize: 9,
               color,

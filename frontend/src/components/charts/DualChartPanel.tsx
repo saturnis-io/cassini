@@ -8,15 +8,14 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { TrendingUp, Brain } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { calculateSharedYAxisDomain } from '@/lib/chart-domain'
 import { ControlChart } from '@/components/ControlChart'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { DistributionHistogram } from '@/components/DistributionHistogram'
-import { AIInsightPanel } from '@/components/analytics/AIInsightPanel'
 import { RangeChart } from './RangeChart'
-import { useChartData, useForecast } from '@/api/hooks'
+import { useChartData } from '@/api/hooks'
+import { useDashboardStore } from '@/stores/dashboardStore'
 import { SPC_CONSTANTS, getSPCConstant } from '@/types/charts'
 import type { ChartTypeId } from '@/types/charts'
 import type { HistogramPosition } from '@/stores/dashboardStore'
@@ -80,9 +79,8 @@ export function DualChartPanel({
   const [hoveredBinRange, setHoveredBinRange] = useState<[number, number] | null>(null)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
-  // Predictions and AI analysis state
-  const [showPredictions, setShowPredictions] = useState(false)
-  const [showAIPanel, setShowAIPanel] = useState(false)
+  // Predictions state from global store (toggled via ChartToolbar)
+  const showPredictions = useDashboardStore((s) => s.showPredictions)
 
   // State for resizable divider
   const [primaryRatio, setPrimaryRatio] = useState(defaultPrimaryRatio)
@@ -97,9 +95,6 @@ export function DualChartPanel({
   const startRatio = useRef(0)
   const startWidth = useRef(0)
   const startHeight = useRef(0)
-
-  // Fetch forecast data when predictions are enabled
-  const { data: _forecastData } = useForecast(showPredictions ? characteristicId : 0)
 
   // Color scheme
   const colorScheme = label === 'Secondary' ? 'secondary' : 'primary'
@@ -252,43 +247,6 @@ export function DualChartPanel({
   if (!secondaryChartType) {
     return (
       <div className={cn('flex h-full flex-col', className)}>
-        {/* Predictions & AI toolbar */}
-        <div className="flex items-center gap-1 px-1 pb-1">
-          <button
-            onClick={() => setShowPredictions(!showPredictions)}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
-              showPredictions
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-            )}
-            title="Toggle forecast predictions"
-          >
-            <TrendingUp className="h-3.5 w-3.5" />
-            Predictions
-          </button>
-          <button
-            onClick={() => setShowAIPanel(!showAIPanel)}
-            className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
-              showAIPanel
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-            )}
-            title="AI analysis"
-          >
-            <Brain className="h-3.5 w-3.5" />
-            AI Analysis
-          </button>
-        </div>
-
-        {/* AI Insight panel (when toggled on) */}
-        {showAIPanel && (
-          <div className="mb-2 px-1">
-            <AIInsightPanel charId={characteristicId} onClose={() => setShowAIPanel(false)} />
-          </div>
-        )}
-
         <div
           className={cn('flex min-h-0 flex-1', isRightPosition ? 'flex-row gap-2' : 'flex-col')}
         >
@@ -300,6 +258,7 @@ export function DualChartPanel({
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}
+              showPredictions={showPredictions}
               yAxisDomain={showHistogram ? yAxisDomain : undefined}
               onHoverValue={showHistogram ? setHoveredValue : undefined}
               highlightedRange={hoveredBinRange}
@@ -343,43 +302,6 @@ export function DualChartPanel({
   // Dual chart layout - histogram aligns ONLY with primary chart
   return (
     <div ref={containerRef} className={cn('flex h-full flex-col', className)}>
-      {/* Predictions & AI toolbar */}
-      <div className="flex items-center gap-1 px-1 pb-1">
-        <button
-          onClick={() => setShowPredictions(!showPredictions)}
-          className={cn(
-            'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
-            showPredictions
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-          )}
-          title="Toggle forecast predictions"
-        >
-          <TrendingUp className="h-3.5 w-3.5" />
-          Predictions
-        </button>
-        <button
-          onClick={() => setShowAIPanel(!showAIPanel)}
-          className={cn(
-            'inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
-            showAIPanel
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-          )}
-          title="AI analysis"
-        >
-          <Brain className="h-3.5 w-3.5" />
-          AI Analysis
-        </button>
-      </div>
-
-      {/* AI Insight panel (when toggled on) */}
-      {showAIPanel && (
-        <div className="mb-2 px-1">
-          <AIInsightPanel charId={characteristicId} onClose={() => setShowAIPanel(false)} />
-        </div>
-      )}
-
       {/* Primary Chart Row: X-bar + Histogram (aligned) */}
       <div className="flex gap-2" style={{ height: `calc(${primaryRatio * 100}% - 6px)` }}>
         {/* Primary Chart (X-bar or Individuals) */}
@@ -391,6 +313,7 @@ export function DualChartPanel({
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}
+              showPredictions={showPredictions}
               yAxisDomain={showHistogram ? yAxisDomain : undefined}
               onHoverValue={showHistogram ? setHoveredValue : undefined}
               highlightedRange={hoveredBinRange}

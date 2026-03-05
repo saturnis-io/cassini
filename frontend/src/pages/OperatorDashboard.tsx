@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
@@ -72,6 +72,7 @@ const CASSINI_SEQUENCE = ['c', 'a', 's', 's', 'i', 'n', 'i']
 
 export function OperatorDashboard() {
   const navigate = useNavigate()
+  const { charId } = useParams<{ charId?: string }>()
   useKonamiSequence(
     CASSINI_SEQUENCE,
     useCallback(() => navigate('/galaxy?from=easter-egg'), [navigate]),
@@ -81,6 +82,34 @@ export function OperatorDashboard() {
   const { t: tCommon } = useTranslation('common')
   const { data: characteristicsData, isLoading } = useCharacteristics()
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
+  const setSelectedCharacteristicId = useDashboardStore((state) => state.setSelectedCharacteristicId)
+
+  // URL → Store: on mount, if URL has a charId, apply it to the store
+  useEffect(() => {
+    if (charId) {
+      const parsed = Number(charId)
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        setSelectedCharacteristicId(parsed)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Mount only — URL param wins over persisted store
+
+  // Store → URL: keep URL in sync when user selects via sidebar
+  // Skip the first fire when URL had a charId (URL→Store handles that)
+  const skipFirstSync = useRef(!!charId)
+  useEffect(() => {
+    if (skipFirstSync.current) {
+      skipFirstSync.current = false
+      return
+    }
+    if (selectedId) {
+      navigate(`/dashboard/${selectedId}`, { replace: true })
+    } else {
+      navigate('/dashboard', { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]) // Only react to store changes, not URL/navigate
   const inputModalOpen = useDashboardStore((state) => state.inputModalOpen)
   const histogramPosition = useDashboardStore((state) => state.histogramPosition)
   const showSpecLimits = useDashboardStore((state) => state.showSpecLimits)
@@ -444,6 +473,7 @@ export function OperatorDashboard() {
                 characteristicId={selectedId}
                 subgroupSize={selectedCharacteristic?.subgroup_size ?? 5}
                 isAttributeData={isAttribute}
+                attributeChartType={selectedCharacteristic?.attribute_chart_type}
                 overrideChartType={effectiveOverride}
                 onAttributeChartTypeChange={handleAttributeChartTypeChange}
                 onChangeSecondary={() => setShowComparisonSelector(true)}

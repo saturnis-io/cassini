@@ -12,6 +12,7 @@ logger = structlog.get_logger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
@@ -210,35 +211,42 @@ async def list_samples(
     result = await sample_repo.session.execute(paginated_stmt)
     paginated_samples = list(result.scalars().all())
 
-    # Compute display keys (YYMMDD-NNN) for paginated samples
-    # For paginated results, compute sequence within day using a count query
-    from sqlalchemy import func as sa_func, and_
-    from cassini.db.models.sample import Sample as SampleModelForKey
+    # Compute display keys — handles cross-char samples by grouping per char_id
+    from cassini.utils.display_keys import compute_display_keys
+    from collections import defaultdict as _defaultdict
 
-    _display_keys: dict[int, str] = {}
+    _by_char: dict[int, list] = _defaultdict(list)
     for sample in paginated_samples:
-        day_str = sample.timestamp.strftime('%y%m%d')
-        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-        count_stmt = select(sa_func.count()).select_from(
-            select(SampleModelForKey.id).where(
-                and_(
-                    SampleModelForKey.char_id == sample.char_id,
-                    SampleModelForKey.timestamp >= day_start,
-                    SampleModelForKey.timestamp <= day_end,
-                    (SampleModelForKey.timestamp < sample.timestamp) |
-                    ((SampleModelForKey.timestamp == sample.timestamp) & (SampleModelForKey.id < sample.id))
-                )
-            ).subquery()
+        _by_char[sample.char_id].append(sample)
+    _display_keys: dict[int, str] = {}
+    for cid, char_samples in _by_char.items():
+        _display_keys.update(
+            await compute_display_keys(char_samples, cid, sample_repo.session)
         )
-        preceding = (await sample_repo.session.execute(count_stmt)).scalar_one()
-        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
 
     # Convert to response models
     response_items = []
     for sample in paginated_samples:
         measurements = [m.value for m in sample.measurements]
         mean, range_value = calculate_mean_range(measurements)
+
+        # For attribute samples, compute plotted value from defect data
+        if sample.defect_count is not None and not measurements:
+            dc = sample.defect_count
+            ss = sample.sample_size or 1
+            ui = sample.units_inspected or 1
+            # Use char_id to look up chart type (batch query would be better but this is paginated)
+            from cassini.db.models.characteristic import Characteristic
+            char_result = await sample_repo.session.execute(
+                select(Characteristic.attribute_chart_type).where(Characteristic.id == sample.char_id)
+            )
+            attr_ct = char_result.scalar_one_or_none() or "c"
+            if attr_ct == "p":
+                mean = dc / ss if ss > 0 else 0.0
+            elif attr_ct == "u":
+                mean = dc / ui if ui > 0 else 0.0
+            else:
+                mean = float(dc)
 
         # Get edit count if edit_history is loaded (defensive for pre-migration)
         edit_count = 0
@@ -270,6 +278,9 @@ async def list_samples(
                 is_modified=is_modified,
                 edit_count=edit_count,
                 display_key=_display_keys.get(sample.id, ""),
+                defect_count=sample.defect_count,
+                sample_size=sample.sample_size,
+                units_inspected=sample.units_inspected,
             )
         )
 
@@ -455,26 +466,31 @@ async def get_sample(
     measurements = [m.value for m in sample.measurements]
     mean, range_value = calculate_mean_range(measurements)
 
-    # Compute display key (YYMMDD-NNN)
-    from sqlalchemy import func as sa_func, and_, select
-    from cassini.db.models.sample import Sample as SampleModelForKey
+    # For attribute samples, use defect_count-based plotted value instead of empty measurements mean
+    if sample.defect_count is not None and not measurements:
+        # Compute the plotted value the same way the attribute SPC engine does
+        dc = sample.defect_count
+        ss = sample.sample_size or 1
+        ui = sample.units_inspected or 1
+        # Lookup characteristic to determine chart type
+        from cassini.db.models.characteristic import Characteristic
+        char_result = await sample_repo.session.execute(
+            select(Characteristic.attribute_chart_type).where(Characteristic.id == sample.char_id)
+        )
+        attr_chart_type = char_result.scalar_one_or_none() or "c"
+        if attr_chart_type == "p":
+            mean = dc / ss if ss > 0 else 0.0
+        elif attr_chart_type == "np":
+            mean = float(dc)
+        elif attr_chart_type == "u":
+            mean = dc / ui if ui > 0 else 0.0
+        else:  # c
+            mean = float(dc)
 
-    day_str = sample.timestamp.strftime('%y%m%d')
-    day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-    count_stmt = select(sa_func.count()).select_from(
-        select(SampleModelForKey.id).where(
-            and_(
-                SampleModelForKey.char_id == sample.char_id,
-                SampleModelForKey.timestamp >= day_start,
-                SampleModelForKey.timestamp <= day_end,
-                (SampleModelForKey.timestamp < sample.timestamp) |
-                ((SampleModelForKey.timestamp == sample.timestamp) & (SampleModelForKey.id < sample.id))
-            )
-        ).subquery()
-    )
-    preceding = (await sample_repo.session.execute(count_stmt)).scalar_one()
-    display_key = f"{day_str}-{preceding + 1:03d}"
+    # Compute display key via shared utility
+    from cassini.utils.display_keys import compute_display_keys
+    _dk_map = await compute_display_keys([sample], sample.char_id, sample_repo.session)
+    display_key = _dk_map.get(sample.id, "")
 
     return SampleResponse(
         id=sample.id,
@@ -487,6 +503,9 @@ async def get_sample(
         mean=mean,
         range_value=range_value,
         display_key=display_key,
+        defect_count=sample.defect_count,
+        sample_size=sample.sample_size,
+        units_inspected=sample.units_inspected,
     )
 
 
@@ -548,6 +567,23 @@ async def toggle_exclude(
         measurements = [m.value for m in sample.measurements]
         mean, range_value = calculate_mean_range(measurements)
 
+        # For attribute samples, compute plotted value from defect data
+        if sample.defect_count is not None and not measurements:
+            dc = sample.defect_count
+            ss = sample.sample_size or 1
+            ui = sample.units_inspected or 1
+            from cassini.db.models.characteristic import Characteristic
+            char_result = await session.execute(
+                select(Characteristic.attribute_chart_type).where(Characteristic.id == sample.char_id)
+            )
+            attr_ct = char_result.scalar_one_or_none() or "c"
+            if attr_ct == "p":
+                mean = dc / ss if ss > 0 else 0.0
+            elif attr_ct == "u":
+                mean = dc / ui if ui > 0 else 0.0
+            else:
+                mean = float(dc)
+
         action_word = "excluded" if data.is_excluded else "included"
         request.state.audit_context = {
             "resource_type": "sample",
@@ -569,6 +605,9 @@ async def toggle_exclude(
             measurements=measurements,
             mean=mean,
             range_value=range_value,
+            defect_count=sample.defect_count,
+            sample_size=sample.sample_size,
+            units_inspected=sample.units_inspected,
         )
 
     except HTTPException:

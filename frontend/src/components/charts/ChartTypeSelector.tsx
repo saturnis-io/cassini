@@ -29,6 +29,8 @@ interface ChartTypeSelectorProps {
   subgroupSize?: number
   /** Whether the data is attribute type */
   isAttributeData?: boolean
+  /** The characteristic's configured attribute chart type (p/np/c/u) — used to restrict cross-family switching */
+  attributeChartType?: 'p' | 'np' | 'c' | 'u' | null
   /** Additional classes */
   className?: string
 }
@@ -44,9 +46,10 @@ const CATEGORY_LABELS = {
  * Returns null if the chart is compatible, or a reason string if not.
  */
 function getDisabledReason(
-  chartType: { id: ChartTypeId; dataType: string; minSubgroupSize: number; maxSubgroupSize: number | null },
+  chartType: { id: ChartTypeId; dataType: string; attributeType?: string; minSubgroupSize: number; maxSubgroupSize: number | null },
   subgroupSize: number,
   isAttributeData: boolean,
+  sourceAttributeType?: 'defective' | 'defects' | null,
 ): string | null {
   // Data type mismatch
   if (isAttributeData && chartType.dataType === 'continuous') {
@@ -54,6 +57,13 @@ function getDisabledReason(
   }
   if (!isAttributeData && chartType.dataType === 'attribute') {
     return 'Requires attribute data'
+  }
+
+  // Attribute family mismatch — data collected as "defective items" can't be viewed as "defect counts"
+  if (isAttributeData && sourceAttributeType && chartType.attributeType && chartType.attributeType !== sourceAttributeType) {
+    return sourceAttributeType === 'defective'
+      ? 'Data collected as defective items (p/np)'
+      : 'Data collected as defect counts (c/u)'
   }
 
   // Subgroup size mismatch (only for same-data-type charts)
@@ -72,6 +82,7 @@ export function ChartTypeSelector({
   onChange,
   subgroupSize = 5,
   isAttributeData = false,
+  attributeChartType,
   className,
 }: ChartTypeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -82,6 +93,12 @@ export function ChartTypeSelector({
   const currentChart = chartTypeRegistry[value]
   const chartGroups = getChartTypesGrouped()
   const recommendedType = isAttributeData ? null : recommendChartType(subgroupSize)
+
+  // Determine the source attribute family from the characteristic's configured chart type
+  const sourceAttributeType: 'defective' | 'defects' | null =
+    attributeChartType === 'p' || attributeChartType === 'np' ? 'defective'
+    : attributeChartType === 'c' || attributeChartType === 'u' ? 'defects'
+    : null
 
   const openDropdown = useCallback(() => {
     if (buttonRef.current) {
@@ -234,7 +251,7 @@ export function ChartTypeSelector({
               </div>
               {chartGroups.variable.map((chartType) => {
                 const isSelected = chartType.id === value
-                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData, sourceAttributeType)
                 return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
@@ -248,7 +265,7 @@ export function ChartTypeSelector({
               </div>
               {chartGroups.attribute.map((chartType) => {
                 const isSelected = chartType.id === value
-                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData, sourceAttributeType)
                 return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
@@ -262,7 +279,7 @@ export function ChartTypeSelector({
               </div>
               {chartGroups.analysis.map((chartType) => {
                 const isSelected = chartType.id === value
-                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData)
+                const reason = getDisabledReason(chartType, subgroupSize, isAttributeData, sourceAttributeType)
                 return renderChartOption(chartType, isSelected, reason)
               })}
             </div>
@@ -274,7 +291,13 @@ export function ChartTypeSelector({
               <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
               <span>
                 {isAttributeData ? (
-                  <>Attribute data — variable charts are not applicable.</>
+                  sourceAttributeType === 'defective' ? (
+                    <>Counts defective items (p/np family). Cannot switch to defect count charts (c/u).</>
+                  ) : sourceAttributeType === 'defects' ? (
+                    <>Counts individual defects (c/u family). Cannot switch to defective item charts (p/np).</>
+                  ) : (
+                    <>Attribute data — variable charts are not applicable.</>
+                  )
                 ) : (
                   <>
                     Subgroup size: n={subgroupSize}.

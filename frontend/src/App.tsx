@@ -227,7 +227,7 @@ function App() {
                 }
               >
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<OperatorDashboard />} />
+                <Route path="dashboard/:charId?" element={<OperatorDashboard />} />
                 <Route path="data-entry" element={<ErrorBoundary><DataEntryView /></ErrorBoundary>} />
                 <Route path="violations" element={<ErrorBoundary><ViolationsView /></ErrorBoundary>} />
                 <Route

@@ -9,7 +9,7 @@ import { useChartDragSelect, type DragSelection } from '@/hooks/useChartDragSele
 import type { RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useLicense } from '@/hooks/useLicense'
-import { useAnnotations, useAnomalyEvents, useChartData, useHierarchyPath } from '@/api/hooks'
+import { useAnnotations, useAnomalyEvents, useChartData, useForecast, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { type ChartColors } from '@/lib/theme-presets'
 import { useChartColors } from '@/hooks/useChartColors'
@@ -21,9 +21,8 @@ import { useChartHoverSync } from '@/contexts/ChartHoverContext'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
 import { Explainable } from '@/components/Explainable'
 import type { Annotation } from '@/types'
-import type { AnomalyEvent } from '@/types/anomaly'
 import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
-import { Sparkles, ChevronUp, X, ExternalLink } from 'lucide-react'
+import { X, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatNote } from './StatNote'
 
@@ -50,6 +49,8 @@ interface ControlChartProps {
   onRegionSelect?: (info: RegionSelection) => void
   /** Highlight a specific sample on the chart (e.g. the inspected violation) */
   highlightSampleId?: number
+  /** When true, fetch and overlay forecast predictions */
+  showPredictions?: boolean
 }
 
 // --- Data point type for the chart ---
@@ -80,23 +81,6 @@ function parseUtc(ts: string): number {
   return new Date(ts + 'Z').getTime()
 }
 
-const ANOMALY_SEVERITY_STYLES: Record<string, string> = {
-  CRITICAL: 'bg-red-500/15 text-red-600 border-red-500/30',
-  WARNING: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
-  INFO: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
-}
-
-const ANOMALY_EVENT_LABELS: Record<string, string> = {
-  changepoint: 'Changepoint',
-  distribution_shift: 'Distribution Shift',
-  outlier: 'Outlier',
-}
-
-const ANOMALY_DETECTOR_LABELS: Record<string, string> = {
-  pelt: 'PELT',
-  ks_test: 'K-S Test',
-  isolation_forest: 'Isolation Forest',
-}
 
 /** Persistent click-to-stay tooltip with Explainable metric values. */
 function PinnedChartTooltip({
@@ -315,61 +299,6 @@ function PinnedChartTooltip({
   )
 }
 
-function AnomalyInsightsOverlay({ events }: { events: AnomalyEvent[] }) {
-  const [expanded, setExpanded] = useState(false)
-  const active = events.filter((e) => !e.is_dismissed)
-  if (active.length === 0) return null
-
-  const worst = active.reduce((w, e) => {
-    const pri: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1 }
-    return (pri[e.severity] ?? 0) > (pri[w.severity] ?? 0) ? e : w
-  }, active[0])
-  const badgeStyle = ANOMALY_SEVERITY_STYLES[worst.severity] ?? ANOMALY_SEVERITY_STYLES.INFO
-
-  return (
-    <div className="pointer-events-none absolute -top-[11px] left-[4.5rem] z-10">
-      <div className="pointer-events-auto inline-flex flex-col items-start">
-        {/* Compact badge — always visible */}
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm transition-colors ${badgeStyle}`}
-        >
-          <Sparkles className="h-3 w-3" />
-          {active.length} AI Insight{active.length !== 1 ? 's' : ''}
-          <ChevronUp className={cn('h-3 w-3 transition-transform', !expanded && 'rotate-180')} />
-        </button>
-        {/* Expanded panel — drops down from the badge */}
-        {expanded && (
-          <div className="bg-card/90 border-border mt-1 max-h-40 w-80 overflow-y-auto rounded-lg border shadow-lg backdrop-blur-sm">
-            <div className="space-y-1 p-2">
-              {active.map((event) => {
-                const style = ANOMALY_SEVERITY_STYLES[event.severity] ?? ANOMALY_SEVERITY_STYLES.INFO
-                const typeLabel = ANOMALY_EVENT_LABELS[event.event_type] ?? event.event_type
-                const detector = ANOMALY_DETECTOR_LABELS[event.detector_type] ?? event.detector_type
-                return (
-                  <div
-                    key={event.id}
-                    className={`rounded border px-2 py-1 text-[11px] leading-snug ${style}`}
-                  >
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-semibold">{event.severity}</span>
-                      <span className="opacity-50">|</span>
-                      <span>{typeLabel}</span>
-                      <span className="opacity-50">({detector})</span>
-                    </div>
-                    {event.summary && (
-                      <div className="mt-0.5 opacity-80">{event.summary}</div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 /** Renders the drag-selection rectangle as an absolute overlay within the chart wrapper. */
 function DragOverlay({ dragRect }: { dragRect: { left: number; width: number } }) {
@@ -397,6 +326,7 @@ export function ControlChart({
   onPointAnnotation,
   onRegionSelect,
   highlightSampleId,
+  showPredictions,
 }: ControlChartProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
@@ -418,6 +348,8 @@ export function ControlChart({
     isCommercial ? characteristicId : 0,
     { limit: 100 },
   )
+  // Fetch forecast data when predictions toggle is on
+  const { data: forecastData } = useForecast(showPredictions ? characteristicId : 0)
 
   // Annotation detail popover state
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
@@ -441,6 +373,9 @@ export function ControlChart({
 
   // Maps annotation marker series dataIndex → annotation ID (set inside useMemo, read in click handler)
   const annotationMarkerIdsRef = useRef<number[]>([])
+  // Dynamic series indices (set inside useMemo, read in event handlers)
+  const dataPointSeriesIndexRef = useRef(1)
+  const annotationSeriesIndexRef = useRef(2)
 
   // Cross-chart hover sync using sample IDs
   const { hoveredSampleIds, onHoverSample, onLeaveSample } = useChartHoverSync(characteristicId)
@@ -502,6 +437,19 @@ export function ControlChart({
     }))
   }, [chartData?.data_points, isModeA, nominalN, datetimeFormat])
 
+  // Build sample_id → anomaly events map for tooltip rendering
+  const sampleAnomalyMap = useMemo(() => {
+    const map = new Map<number, import('@/types/anomaly').AnomalyEvent[]>()
+    if (!isCommercial || !showAnomalies || !anomalyData?.events) return map
+    for (const event of anomalyData.events) {
+      if (event.is_dismissed || event.sample_id == null) continue
+      const existing = map.get(event.sample_id)
+      if (existing) existing.push(event)
+      else map.set(event.sample_id, [event])
+    }
+    return map
+  }, [isCommercial, showAnomalies, anomalyData])
+
   // Store data in ref for event handlers (datazoom, click, hover)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
   const dataRef = useRef(data)
@@ -536,6 +484,38 @@ export function ControlChart({
     }
     return null
   }, [isCommercial, showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
+
+  // --- Forecast overlay data (synthesize coordinates for future steps) ---
+  const forecastOverlay = useMemo(() => {
+    if (!showPredictions || !forecastData?.points?.length || data.length === 0) return null
+    const lastPoint = data[data.length - 1]
+    const fPoints = forecastData.points
+
+    let coords: { x: number; label: string }[]
+
+    if (useTimeCoords) {
+      // Time axis: extrapolate from average interval of last N data points
+      const recentCount = Math.min(10, data.length)
+      const recentData = data.slice(-recentCount)
+      const avgInterval =
+        recentData.length > 1
+          ? (recentData[recentData.length - 1].timestampMs - recentData[0].timestampMs) /
+            (recentData.length - 1)
+          : 60000
+      coords = fPoints.map((p) => ({
+        x: lastPoint.timestampMs + p.step * avgInterval,
+        label: `F+${p.step}`,
+      }))
+    } else {
+      // Category axis: forecast indices extend beyond existing data
+      coords = fPoints.map((p) => ({
+        x: data.length - 1 + p.step,
+        label: `F+${p.step}`,
+      }))
+    }
+
+    return { points: fPoints, coords, lastPoint }
+  }, [showPredictions, forecastData, data, useTimeCoords])
 
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
@@ -601,6 +581,17 @@ export function ControlChart({
       const padding = (domainMax - domainMin) * 0.2
       yMin = domainMin - padding
       yMax = domainMax + padding
+    }
+
+    // Expand domain to include forecast confidence bounds
+    if (forecastOverlay) {
+      const range = yMax - yMin
+      for (const p of forecastOverlay.points) {
+        if (p.upper_95 != null && p.upper_95 > yMax) yMax = p.upper_95 + range * 0.05
+        if (p.lower_95 != null && p.lower_95 < yMin) yMin = p.lower_95 - range * 0.05
+        if (p.predicted_value > yMax) yMax = p.predicted_value + range * 0.05
+        if (p.predicted_value < yMin) yMin = p.predicted_value - range * 0.05
+      }
     }
 
     // X-axis data
@@ -974,6 +965,13 @@ export function ControlChart({
       }
     }
 
+    // Series index map — indices depend on how many control limit lines are present
+    // 0 = main line, 1..N = control limits, N+1 = data points, N+2 = annotation markers
+    const dataPointSeriesIndex = 1 + controlLimitSeries.length
+    const annotationSeriesIndex = 1 + controlLimitSeries.length + 1
+    dataPointSeriesIndexRef.current = dataPointSeriesIndex
+    annotationSeriesIndexRef.current = annotationSeriesIndex
+
     // --- Custom series renderItem for data point symbols ---
     // Captures data, chartColors, highlightedRange, hoveredSampleIds from closure
     const localData = data
@@ -981,6 +979,7 @@ export function ControlChart({
     const localHighlightedRange = highlightedRange
     const localHoveredSampleIds = hoveredSampleIds
     const localHighlightSampleId = highlightSampleId
+    const localSampleAnomalyMap = sampleAnomalyMap
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
@@ -1168,8 +1167,16 @@ export function ControlChart({
       return { type: 'group', children } as unknown
     }
 
-    const bottomMargin = isTimestamp ? 60 : 30
-    const xCategoryData = data.map((p) => String(p.index))
+    const bottomMargin = 60
+    const xCategoryData: string[] = data.map((p) => formatDisplayKey(p.displayKey))
+    const xTimestampLabels: string[] = data.map((p) => p.timestampLabel)
+
+    // Extend categories with forecast labels for category axis modes
+    if (forecastOverlay && !useTimeCoords) {
+      const forecastLabels = forecastOverlay.coords.map((c) => c.label)
+      xCategoryData.push(...forecastLabels)
+      xTimestampLabels.push(...forecastLabels)
+    }
 
     // Build xAxis config based on mode
     // Use 'time' axis for proper time-series rendering (auto-ticks, date formatting).
@@ -1203,15 +1210,197 @@ export function ControlChart({
       : {
           type: 'category' as const,
           boundaryGap: false,
-          data: isTimestamp
-            ? data.map((p) => p.timestampLabel)
-            : xCategoryData,
-          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0, color: axisLabelColor },
+          data: isTimestamp ? xTimestampLabels : xCategoryData,
+          axisLabel: { fontSize: 11, rotate: 30, color: axisLabelColor },
           axisLine: { lineStyle: { color: axisLineColor } },
           splitLine: { show: false },
         }
 
-    const gridTop = hasAnnotationMarkers ? 32 : 20
+    const hasAnomalyLabels = (anomalyOverlay?.markLines?.length ?? 0) > 0
+    const gridTop = hasAnomalyLabels ? 48 : hasAnnotationMarkers ? 32 : 20
+
+    // --- Forecast overlay series ---
+    const forecastSeries: Record<string, unknown>[] = []
+
+    if (forecastOverlay) {
+      const predColor = isDark ? 'hsl(210, 90%, 65%)' : '#3b82f6'
+      const oocColor = isDark ? 'hsl(357, 85%, 60%)' : '#ef4444'
+      const { points: fPoints, coords: fCoords, lastPoint: fLastPoint } = forecastOverlay
+      const pad = data.length
+
+      // Helper: build series data for category or time axis
+      const makeForecastData = (
+        values: (number | null)[],
+        includeLastReal?: { value: number },
+      ): unknown[] => {
+        if (useTimeCoords) {
+          const result: [number, number][] = []
+          if (includeLastReal) result.push([fLastPoint.timestampMs, includeLastReal.value])
+          values.forEach((v, i) => {
+            if (v != null) result.push([fCoords[i].x, v])
+          })
+          return result
+        } else {
+          const arr: (number | null)[] = Array(pad).fill(null)
+          if (includeLastReal) arr[pad - 1] = includeLastReal.value
+          arr.push(...values)
+          return arr
+        }
+      }
+
+      // Bridge line: last observed → first forecast
+      forecastSeries.push({
+        type: 'line',
+        data: makeForecastData([fPoints[0].predicted_value], { value: fLastPoint.mean }),
+        lineStyle: { color: predColor, type: 'dashed', width: 2, opacity: 0.6 },
+        symbol: 'none',
+        showSymbol: false,
+        silent: true,
+        tooltip: { show: false },
+        z: 6,
+      })
+
+      // Predicted values line
+      forecastSeries.push({
+        type: 'line',
+        data: makeForecastData(fPoints.map((p) => p.predicted_value)),
+        lineStyle: { color: predColor, type: 'dashed', width: 2 },
+        symbol: 'circle',
+        symbolSize: 4,
+        itemStyle: { color: predColor },
+        showSymbol: true,
+        silent: true,
+        endLabel: {
+          show: true,
+          formatter: 'Forecast',
+          color: predColor,
+          fontSize: 10,
+          fontWeight: 500,
+        },
+        markPoint: fPoints.some((p) => p.predicted_ooc)
+          ? {
+              silent: true,
+              animation: false,
+              data: fPoints.flatMap((p, i) =>
+                p.predicted_ooc
+                  ? [
+                      {
+                        coord: useTimeCoords
+                          ? [fCoords[i].x, p.predicted_value]
+                          : [pad + i, p.predicted_value],
+                        symbol: 'circle',
+                        symbolSize: 8,
+                        itemStyle: { color: oocColor },
+                        label: { show: false },
+                      },
+                    ]
+                  : [],
+              ) as never[],
+            }
+          : undefined,
+        z: 6,
+      })
+
+      // 95% CI band (stacked: lower bound + band width)
+      if (fPoints[0].upper_95 != null && fPoints[0].lower_95 != null) {
+        forecastSeries.push(
+          {
+            type: 'line',
+            data: makeForecastData(fPoints.map((p) => p.lower_95 ?? null)),
+            lineStyle: { opacity: 0 },
+            symbol: 'none',
+            showSymbol: false,
+            silent: true,
+            tooltip: { show: false },
+            stack: 'ci95',
+            areaStyle: { opacity: 0 },
+            z: 3,
+          },
+          {
+            type: 'line',
+            data: makeForecastData(
+              fPoints.map((p) =>
+                p.upper_95 != null && p.lower_95 != null ? p.upper_95 - p.lower_95 : null,
+              ),
+            ),
+            lineStyle: { opacity: 0 },
+            symbol: 'none',
+            showSymbol: false,
+            silent: true,
+            tooltip: { show: false },
+            stack: 'ci95',
+            areaStyle: { color: predColor, opacity: 0.1 },
+            z: 3,
+          },
+        )
+      }
+
+      // 80% CI band (stacked: lower bound + band width)
+      if (fPoints[0].upper_80 != null && fPoints[0].lower_80 != null) {
+        forecastSeries.push(
+          {
+            type: 'line',
+            data: makeForecastData(fPoints.map((p) => p.lower_80 ?? null)),
+            lineStyle: { opacity: 0 },
+            symbol: 'none',
+            showSymbol: false,
+            silent: true,
+            tooltip: { show: false },
+            stack: 'ci80',
+            areaStyle: { opacity: 0 },
+            z: 3,
+          },
+          {
+            type: 'line',
+            data: makeForecastData(
+              fPoints.map((p) =>
+                p.upper_80 != null && p.lower_80 != null ? p.upper_80 - p.lower_80 : null,
+              ),
+            ),
+            lineStyle: { opacity: 0 },
+            symbol: 'none',
+            showSymbol: false,
+            silent: true,
+            tooltip: { show: false },
+            stack: 'ci80',
+            areaStyle: { color: predColor, opacity: 0.2 },
+            z: 3,
+          },
+        )
+      }
+
+      // Extended UCL/LCL into forecast zone (faded dashed lines)
+      if (!isModeA && control_limits.ucl != null) {
+        forecastSeries.push({
+          type: 'line',
+          data: makeForecastData(
+            fPoints.map(() => control_limits.ucl!),
+            { value: control_limits.ucl! },
+          ),
+          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1, opacity: 0.4 },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          tooltip: { show: false },
+          z: 3,
+        })
+      }
+      if (!isModeA && control_limits.lcl != null) {
+        forecastSeries.push({
+          type: 'line',
+          data: makeForecastData(
+            fPoints.map(() => control_limits.lcl!),
+            { value: control_limits.lcl! },
+          ),
+          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1, opacity: 0.4 },
+          symbol: 'none',
+          showSymbol: false,
+          silent: true,
+          tooltip: { show: false },
+          z: 3,
+        })
+      }
+    }
 
     const option = {
       animation: false,
@@ -1245,20 +1434,22 @@ export function ControlChart({
           const p = params as { dataIndex: number; seriesType: string; seriesIndex: number }
           // Only show tooltip for custom series (data points), not the line
           if (p.seriesType === 'line') return ''
-          // Annotation marker series (seriesIndex 2) — show brief tooltip
-          if (p.seriesIndex === 2 && annotations) {
+          // Annotation marker series — show brief tooltip
+          if (p.seriesIndex === annotationSeriesIndex && annotations) {
             const markerEntry = annotationMarkerData[p.dataIndex]
             if (!markerEntry) return ''
             const annId = markerEntry[1]
             const ann = (annotations as Annotation[]).find((a) => a.id === annId)
             if (!ann) return ''
-            const preview = ann.text.length > 60 ? ann.text.substring(0, 60) + '...' : ann.text
-            return `<div style="font-size:12px;max-width:250px"><div style="font-weight:600;color:${localChartColors.annotationColor};margin-bottom:4px">Annotation</div><div>${preview}</div><div style="opacity:0.6;margin-top:4px;font-size:11px">Click to view details</div></div>`
+            return `<div style="font-size:12px;max-width:350px;overflow-wrap:break-word;word-wrap:break-word;white-space:pre-wrap"><div style="font-weight:600;color:${localChartColors.annotationColor};margin-bottom:4px">Annotation</div><div>${ann.text}</div><div style="opacity:0.6;margin-top:4px;font-size:11px">Click to view details</div></div>`
           }
+          // Only show data-point tooltip for the data-point custom series
+          if (p.seriesIndex !== dataPointSeriesIndex) return ''
           const point = localData[p.dataIndex]
           if (!point) return ''
 
-          let html = `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}</div>`
+          let html = `<div style="max-width:280px;overflow-wrap:break-word;word-wrap:break-word">`
+          html += `<div style="font-size:13px;font-weight:500">Sample ${formatDisplayKey(point.displayKey)}</div>`
           html += `<div>n = ${point.actual_n}</div>`
 
           if (isModeA) {
@@ -1289,6 +1480,30 @@ export function ControlChart({
             }
             html += `</div>`
           }
+
+          // AI insight section (like violations, but for anomaly detection events)
+          const anomalyEvents = localSampleAnomalyMap.get(point.sample_id)
+          if (anomalyEvents?.length) {
+            const ANOMALY_TYPE_LABELS: Record<string, string> = {
+              changepoint: 'Process Shift',
+              outlier: 'Unusual Pattern',
+              distribution_shift: 'Distribution Drift',
+              anomaly_score: 'Unusual Pattern',
+            }
+            html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
+            html += `<div style="color:hsl(260,60%,65%);font-weight:500;margin-bottom:4px">AI Insights:</div>`
+            for (const ae of anomalyEvents) {
+              const typeLabel = ANOMALY_TYPE_LABELS[ae.event_type] ?? ae.event_type
+              const sevColor = ae.severity === 'CRITICAL' ? '#ef4444' : ae.severity === 'WARNING' ? '#f59e0b' : '#3b82f6'
+              html += `<div style="font-size:11px;opacity:0.9"><span style="color:${sevColor};font-weight:500">${ae.severity}</span> ${typeLabel}</div>`
+              if (ae.summary) {
+                const snippet = ae.summary.length > 80 ? ae.summary.slice(0, 77) + '...' : ae.summary
+                html += `<div style="font-size:10px;opacity:0.7;margin-left:4px">${snippet}</div>`
+              }
+            }
+            html += `</div>`
+          }
+          html += `</div>`
           return html
         },
       },
@@ -1485,6 +1700,8 @@ export function ControlChart({
               },
             ]
           : []),
+        // Forecast overlay series — appended AFTER all existing series
+        ...forecastSeries,
       ],
     }
 
@@ -1507,16 +1724,17 @@ export function ControlChart({
     showBrush,
     shortRunMode,
     anomalyOverlay,
+    forecastOverlay,
     isDark,
     axisFormats,
+    sampleAnomalyMap,
   ])
 
   // Mouse event handlers bridging ECharts -> ChartHoverContext
   const handleMouseMove = useCallback(
     (params: EChartsMouseEvent) => {
-      // Only trigger hover for data point series (0 = line, 1 = custom markers)
-      // Ignore annotation marker series (seriesIndex 2) to prevent random highlights
-      if (params.seriesIndex != null && params.seriesIndex >= 2) return
+      // Only trigger hover for data point series — ignore line, limit, and annotation series
+      if (params.seriesIndex != null && params.seriesIndex !== dataPointSeriesIndexRef.current) return
       const idx = params.dataIndex
       const point = dataRef.current[idx]
       if (point) {
@@ -1534,8 +1752,8 @@ export function ControlChart({
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {
-      // Annotation marker click (seriesIndex 2 = annotation marker series)
-      if (params.seriesIndex === 2 && annotationsRef.current) {
+      // Annotation marker click
+      if (params.seriesIndex === annotationSeriesIndexRef.current && annotationsRef.current) {
         const annId = annotationMarkerIdsRef.current[params.dataIndex]
         if (annId != null) {
           const ann = (annotationsRef.current as Annotation[]).find((a) => a.id === annId)
@@ -1723,10 +1941,7 @@ export function ControlChart({
           style={{ visibility: hasData ? 'visible' : 'hidden', cursor: 'crosshair' }}
         />
 
-        {/* AI Insights floating overlay — absolutely positioned, no layout shift (commercial only) */}
-        {isCommercial && anomalyOverlay && anomalyData?.events && (
-          <AnomalyInsightsOverlay events={anomalyData.events} />
-        )}
+        {/* AI Insights moved to ChartToolbar — no longer rendered in chart overlay */}
 
         {/* Drag-to-select region overlay — absolute within wrapper, z-[100]
              to paint above the ECharts canvas. pointer-events-none so

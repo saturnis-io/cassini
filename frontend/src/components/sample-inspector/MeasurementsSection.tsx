@@ -83,13 +83,13 @@ export function MeasurementsSection({
       )}
 
       {/* Measurement grid */}
-      <div className="border-border overflow-hidden rounded-lg border">
-        <div className="bg-muted/30 text-muted-foreground border-border border-b px-3 py-2 text-xs font-medium">
+      <div>
+        <div className="text-muted-foreground mb-2 text-xs font-medium">
           Measurements ({measurementValues.length})
         </div>
-        <div className="bg-border grid grid-cols-5 gap-px">
+        <div className="grid grid-cols-5 gap-x-3 gap-y-2">
           {(isEditing ? editValues : measurementValues).map((value, idx) => (
-            <div key={idx} className="bg-card px-3 py-2">
+            <div key={idx}>
               <div className="text-muted-foreground mb-0.5 text-[10px]">M{idx + 1}</div>
               {isEditing ? (
                 <input

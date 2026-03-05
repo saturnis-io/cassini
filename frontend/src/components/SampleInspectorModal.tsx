@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   X,
   BarChart3,
@@ -14,6 +14,7 @@ import {
   Target,
   Users,
   Percent,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -30,9 +31,11 @@ import {
   useCreateAnnotation,
   useUpdateAnnotation,
   useDeleteAnnotation,
+  useAnomalyEvents,
 } from '@/api/hooks'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useDateFormat } from '@/hooks/useDateFormat'
+import { useLicense } from '@/hooks/useLicense'
 import {
   SidebarItem,
   MetaItem,
@@ -55,6 +58,74 @@ interface SampleInspectorModalProps {
   onClose: () => void
 }
 
+// ─── AI Insights Section ─────────────────────────────────────────────────────
+
+const INSIGHT_TYPE_LABELS: Record<string, string> = {
+  changepoint: 'Process Shift',
+  outlier: 'Unusual Pattern',
+  distribution_shift: 'Distribution Drift',
+  anomaly_score: 'Unusual Pattern',
+}
+
+const INSIGHT_SEVERITY_CLASS: Record<string, string> = {
+  CRITICAL: 'text-destructive',
+  WARNING: 'text-warning',
+  INFO: 'text-primary',
+}
+
+function InsightsSection({
+  events,
+  formatDateTime,
+}: {
+  events: import('@/types/anomaly').AnomalyEvent[]
+  formatDateTime: (d: string | Date) => string
+}) {
+  if (events.length === 0) {
+    return (
+      <div className="text-muted-foreground py-8 text-center text-sm">
+        No AI insights for this sample.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {events.map((event) => {
+        const typeLabel = INSIGHT_TYPE_LABELS[event.event_type] ?? event.event_type
+        const sevClass = INSIGHT_SEVERITY_CLASS[event.severity] ?? 'text-primary'
+
+        return (
+          <div
+            key={event.id}
+            className="border-border bg-muted/20 space-y-2 rounded-lg border p-3"
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className={cn('h-3.5 w-3.5', sevClass)} />
+              <span className="text-foreground text-sm font-medium">{typeLabel}</span>
+              <span className={cn('text-xs font-medium', sevClass)}>{event.severity}</span>
+            </div>
+
+            {event.summary && (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {event.summary}
+              </p>
+            )}
+
+            <div className="text-muted-foreground/60 text-[10px]">
+              Detected {formatDateTime(event.detected_at)}
+              {event.is_acknowledged && event.acknowledged_by && (
+                <span className="text-success ml-2">
+                  Acknowledged by {event.acknowledged_by}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export function SampleInspectorModal({
@@ -63,6 +134,7 @@ export function SampleInspectorModal({
   onClose,
 }: SampleInspectorModalProps) {
   const { user, role } = useAuth()
+  const { isCommercial } = useLicense()
   const { formatDateTime } = useDateFormat()
   const [activeSection, setActiveSection] = useState<SectionId>('measurements')
 
@@ -72,6 +144,10 @@ export function SampleInspectorModal({
   const { data: violationsData } = useViolations({ sample_id: sampleId })
   const { data: annotationsData } = useAnnotations(characteristicId)
   const { data: editHistory } = useSampleEditHistory(sampleId)
+  const { data: anomalyData } = useAnomalyEvents(
+    isCommercial ? characteristicId : 0,
+    { limit: 100 },
+  )
 
   // Violations are already filtered by sample_id on the backend
   const sampleViolations = useMemo(() => {
@@ -83,6 +159,21 @@ export function SampleInspectorModal({
     if (!annotationsData) return []
     return annotationsData.filter((a) => a.annotation_type === 'point' && a.sample_id === sampleId)
   }, [annotationsData, sampleId])
+
+  // Anomaly events for this specific sample
+  const sampleInsights = useMemo(() => {
+    if (!anomalyData?.events) return []
+    return anomalyData.events.filter(
+      (e) => e.sample_id === sampleId && !e.is_dismissed,
+    )
+  }, [anomalyData, sampleId])
+
+  // Reset active section if insights tab becomes empty while viewing it
+  useEffect(() => {
+    if (activeSection === 'insights' && sampleInsights.length === 0) {
+      setActiveSection('measurements')
+    }
+  }, [activeSection, sampleInsights.length])
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const updateSample = useUpdateSample()
@@ -237,7 +328,7 @@ export function SampleInspectorModal({
     )
   }
 
-  const isUndersized =
+  const isUndersized = !isAttribute &&
     getMeasurementValues(sample).length < (characteristic?.subgroup_size ?? 1)
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -312,6 +403,16 @@ export function SampleInspectorModal({
                 badge={violationCount > 0 ? violationCount : undefined}
                 badgeColor="red"
               />
+              {isCommercial && sampleInsights.length > 0 && (
+                <SidebarItem
+                  icon={Sparkles}
+                  label="AI Insights"
+                  active={activeSection === 'insights'}
+                  onClick={() => setActiveSection('insights')}
+                  badge={sampleInsights.length}
+                  badgeColor="blue"
+                />
+              )}
               <SidebarItem
                 icon={MessageSquare}
                 label="Annotations"
@@ -345,7 +446,9 @@ export function SampleInspectorModal({
                       {sample.defect_count ?? 0}
                     </div>
                     <span className="text-muted-foreground text-sm">
-                      defect{(sample.defect_count ?? 0) !== 1 ? 's' : ''}
+                      {characteristic?.attribute_chart_type === 'p' || characteristic?.attribute_chart_type === 'np'
+                        ? `defective item${(sample.defect_count ?? 0) !== 1 ? 's' : ''}`
+                        : `defect${(sample.defect_count ?? 0) !== 1 ? 's' : ''}`}
                     </span>
                     {characteristic?.attribute_chart_type && (
                       <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs font-medium">
@@ -364,7 +467,11 @@ export function SampleInspectorModal({
                     <MetaItem
                       icon={Target}
                       label="Plotted Value"
-                      value={(sample.mean ?? 0).toFixed(precision)}
+                      value={
+                        characteristic?.attribute_chart_type === 'p'
+                          ? ((sample.mean ?? 0) * 100).toFixed(Math.max(precision - 2, 1)) + '%'
+                          : (sample.mean ?? 0).toFixed(precision)
+                      }
                     />
                     {sample.sample_size != null && (
                       <MetaItem
@@ -474,8 +581,18 @@ export function SampleInspectorModal({
 
                     {/* Attribute data summary */}
                     <div className="grid grid-cols-2 gap-3">
-                      <StatCard label="Defect Count" value={String(sample.defect_count ?? 0)} />
-                      <StatCard label="Plotted Value" value={(sample.mean ?? 0).toFixed(precision)} />
+                      <StatCard
+                        label={characteristic?.attribute_chart_type === 'p' || characteristic?.attribute_chart_type === 'np' ? 'Defective Items' : 'Defect Count'}
+                        value={String(sample.defect_count ?? 0)}
+                      />
+                      <StatCard
+                        label="Plotted Value"
+                        value={
+                          characteristic?.attribute_chart_type === 'p'
+                            ? ((sample.mean ?? 0) * 100).toFixed(Math.max(precision - 2, 1)) + '%'
+                            : (sample.mean ?? 0).toFixed(precision)
+                        }
+                      />
                       {sample.sample_size != null && (
                         <StatCard label="Sample Size" value={String(sample.sample_size)} />
                       )}
@@ -547,6 +664,10 @@ export function SampleInspectorModal({
                   deleteAnnotation={deleteAnnotation}
                   onAdd={handleAddAnnotation}
                 />
+              )}
+
+              {activeSection === 'insights' && (
+                <InsightsSection events={sampleInsights} formatDateTime={formatDateTime} />
               )}
 
               {activeSection === 'history' && (

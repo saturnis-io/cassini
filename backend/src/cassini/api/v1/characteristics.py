@@ -72,6 +72,9 @@ async def _build_hierarchy_path(hierarchy_repo, hierarchy_id: int) -> str:
     return " > ".join(path_parts) if path_parts else ""
 
 
+from cassini.utils.display_keys import compute_display_keys as _compute_display_keys
+
+
 # Dependency for ControlLimitService
 async def get_control_limit_service(
     char_repo: CharacteristicRepository = Depends(get_characteristic_repo),
@@ -539,8 +542,6 @@ async def _get_attribute_chart_data(
         get_plotted_value,
     )
     from cassini.db.repositories import ViolationRepository
-    from cassini.db.models.sample import Sample as SampleModel
-    from sqlalchemy import and_
 
     chart_type = characteristic.attribute_chart_type
     center_line = characteristic.stored_center_line
@@ -571,33 +572,12 @@ async def _get_attribute_chart_data(
     sample_ids = [wd["sample_id"] for wd in window_data]
     violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
 
-    # Compute display keys
-    # Fetch raw samples for timestamp-based display keys
+    # Compute display keys — fetch raw samples for timestamps
     samples_for_keys = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=limit, exclude_excluded=True,
         product_code=product_code,
     )
-    _display_keys: dict[int, str] = {}
-    for sample in samples_for_keys:
-        day_str = sample.timestamp.strftime('%y%m%d')
-        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-        count_stmt = select(func.count()).select_from(
-            select(SampleModel.id).where(
-                and_(
-                    SampleModel.char_id == sample.char_id,
-                    SampleModel.timestamp >= day_start,
-                    SampleModel.timestamp <= day_end,
-                    (SampleModel.timestamp < sample.timestamp)
-                    | (
-                        (SampleModel.timestamp == sample.timestamp)
-                        & (SampleModel.id < sample.id)
-                    ),
-                )
-            ).subquery()
-        )
-        preceding = (await session.execute(count_stmt)).scalar_one()
-        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+    _display_keys = await _compute_display_keys(samples_for_keys, char_id, session)
 
     # Compute Laney sigma_z if enabled
     sigma_z_value = None
@@ -689,12 +669,12 @@ async def _get_cusum_chart_data(
     sample_repo: SampleRepository,
     session: AsyncSession,
     product_code: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for CUSUM characteristics."""
     import math
     from cassini.db.repositories import ViolationRepository
-    from cassini.db.models.sample import Sample as SampleModel
-    from sqlalchemy import and_
 
     target = characteristic.cusum_target or characteristic.target_value or 0.0
     h_sigma = characteristic.cusum_h or 5.0
@@ -726,38 +706,28 @@ async def _get_cusum_chart_data(
     k = cusum_k_val * sigma  # Convert k from sigma units to measurement units
 
     # Get samples with measurements
-    samples = await sample_repo.get_rolling_window(
-        char_id=char_id, window_size=limit, exclude_excluded=True,
-        product_code=product_code,
-    )
+    if start_date or end_date:
+        samples = await sample_repo.get_by_characteristic(
+            char_id=char_id,
+            start_date=start_date,
+            end_date=end_date,
+            product_code=product_code,
+        )
+        if len(samples) > limit:
+            samples = samples[-limit:]
+    else:
+        samples = await sample_repo.get_rolling_window(
+            char_id=char_id, window_size=limit, exclude_excluded=True,
+            product_code=product_code,
+        )
 
     # Batch-load violations
     violation_repo = ViolationRepository(session)
     sample_ids = [s.id for s in samples]
     violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
 
-    # Compute display keys
-    _display_keys: dict[int, str] = {}
-    for sample in samples:
-        day_str = sample.timestamp.strftime('%y%m%d')
-        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-        count_stmt = select(func.count()).select_from(
-            select(SampleModel.id).where(
-                and_(
-                    SampleModel.char_id == sample.char_id,
-                    SampleModel.timestamp >= day_start,
-                    SampleModel.timestamp <= day_end,
-                    (SampleModel.timestamp < sample.timestamp)
-                    | (
-                        (SampleModel.timestamp == sample.timestamp)
-                        & (SampleModel.id < sample.id)
-                    ),
-                )
-            ).subquery()
-        )
-        preceding = (await session.execute(count_stmt)).scalar_one()
-        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+    # Compute display keys — batch per-day ranking via func.date()
+    _display_keys = await _compute_display_keys(samples, char_id, session)
 
     # Recompute CUSUM S+/S- with reset logic
     cusum_high_running = 0.0
@@ -866,25 +836,36 @@ async def _get_ewma_chart_data(
     sample_repo: SampleRepository,
     session: AsyncSession,
     product_code: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for EWMA characteristics."""
     from cassini.core.engine.ewma_engine import (
         calculate_ewma_limits,
         estimate_sigma_from_values,
     )
-    from cassini.db.repositories import ViolationRepository
     from cassini.db.models.sample import Sample as SampleModel
-    from sqlalchemy import and_
+    from cassini.db.repositories import ViolationRepository
 
     ewma_lambda = characteristic.ewma_lambda or 0.2
     ewma_l = characteristic.ewma_l or 2.7
     target = characteristic.cusum_target or characteristic.target_value or characteristic.stored_center_line or 0.0
 
     # Get samples with measurements
-    samples = await sample_repo.get_rolling_window(
-        char_id=char_id, window_size=limit, exclude_excluded=True,
-        product_code=product_code,
-    )
+    if start_date or end_date:
+        samples = await sample_repo.get_by_characteristic(
+            char_id=char_id,
+            start_date=start_date,
+            end_date=end_date,
+            product_code=product_code,
+        )
+        if len(samples) > limit:
+            samples = samples[-limit:]
+    else:
+        samples = await sample_repo.get_rolling_window(
+            char_id=char_id, window_size=limit, exclude_excluded=True,
+            product_code=product_code,
+        )
 
     # Estimate sigma
     sigma = characteristic.stored_sigma
@@ -930,28 +911,8 @@ async def _get_ewma_chart_data(
     sample_ids = [s.id for s in samples]
     violations_by_sample = await violation_repo.get_by_sample_ids(sample_ids)
 
-    # Compute display keys
-    _display_keys: dict[int, str] = {}
-    for sample in samples:
-        day_str = sample.timestamp.strftime('%y%m%d')
-        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-        count_stmt = select(func.count()).select_from(
-            select(SampleModel.id).where(
-                and_(
-                    SampleModel.char_id == sample.char_id,
-                    SampleModel.timestamp >= day_start,
-                    SampleModel.timestamp <= day_end,
-                    (SampleModel.timestamp < sample.timestamp)
-                    | (
-                        (SampleModel.timestamp == sample.timestamp)
-                        & (SampleModel.id < sample.id)
-                    ),
-                )
-            ).subquery()
-        )
-        preceding = (await session.execute(count_stmt)).scalar_one()
-        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+    # Compute display keys — batch per-day ranking via func.date()
+    _display_keys = await _compute_display_keys(samples, char_id, session)
 
     # Compute EWMA values on-the-fly from raw measurements (like CUSUM does)
     # so the chart works for any data regardless of how it was submitted.
@@ -1075,6 +1036,8 @@ async def get_chart_data(
         return await _get_cusum_chart_data(
             char_id, characteristic, limit, sample_repo, session,
             product_code=product_code,
+            start_date=start_date,
+            end_date=end_date,
         )
 
     # --- EWMA chart branch ---
@@ -1082,6 +1045,8 @@ async def get_chart_data(
         return await _get_ewma_chart_data(
             char_id, characteristic, limit, sample_repo, session,
             product_code=product_code,
+            start_date=start_date,
+            end_date=end_date,
         )
 
     # Resolve product-specific limit overrides when product_code is set
@@ -1282,32 +1247,8 @@ async def get_chart_data(
     from cassini.utils.statistics import classify_zone, calculate_mean_range
     import numpy as np
 
-    # Compute display keys (YYMMDD-NNN) — count ALL preceding samples per day
-    # (including excluded) so keys match the single-sample endpoint exactly.
-    from cassini.db.models.sample import Sample as SampleModel
-    from sqlalchemy import and_
-
-    _display_keys: dict[int, str] = {}
-    for sample in samples:
-        day_str = sample.timestamp.strftime('%y%m%d')
-        day_start = sample.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start.replace(hour=23, minute=59, second=59, microsecond=999999)
-        count_stmt = select(func.count()).select_from(
-            select(SampleModel.id).where(
-                and_(
-                    SampleModel.char_id == sample.char_id,
-                    SampleModel.timestamp >= day_start,
-                    SampleModel.timestamp <= day_end,
-                    (SampleModel.timestamp < sample.timestamp)
-                    | (
-                        (SampleModel.timestamp == sample.timestamp)
-                        & (SampleModel.id < sample.id)
-                    ),
-                )
-            ).subquery()
-        )
-        preceding = (await session.execute(count_stmt)).scalar_one()
-        _display_keys[sample.id] = f"{day_str}-{preceding + 1:03d}"
+    # Compute display keys (YYMMDD-NNN) — batch per-day ranking via func.date()
+    _display_keys = await _compute_display_keys(samples, char_id, session)
 
     # Pre-compute short-run transformation parameters
     _sr_mode = characteristic.short_run_mode

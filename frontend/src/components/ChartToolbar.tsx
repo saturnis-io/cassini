@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import {
   Columns2,
   Download,
@@ -8,17 +8,21 @@ import {
   CalendarClock,
   SlidersHorizontal,
   Sparkles,
+  TrendingUp,
   Package,
+  ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useProductCodes } from '@/api/hooks'
+import { useProductCodes, useAnomalyEvents } from '@/api/hooks'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
 import { recommendChartType, HISTOGRAM_CHART_TYPES } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
+import { useSampleLabel } from '@/hooks/useSampleLabel'
+import type { AnomalyEvent } from '@/types/anomaly'
 
 interface ChartToolbarProps {
   /** Currently selected characteristic ID for chart type selection */
@@ -27,6 +31,8 @@ interface ChartToolbarProps {
   subgroupSize?: number
   /** Whether the characteristic uses attribute data (pass/fail, defect counts) */
   isAttributeData?: boolean
+  /** The characteristic's configured attribute chart type (p/np/c/u) */
+  attributeChartType?: 'p' | 'np' | 'c' | 'u' | null
   /** Override chart type (e.g. from characteristic's chart_type field for CUSUM/EWMA) */
   overrideChartType?: ChartTypeId | null
   /** Callback when attribute chart type changes (p/np/c/u) — persists to backend */
@@ -66,10 +72,200 @@ function ToolbarBtn({
   )
 }
 
+const SEVERITY_PRIORITY: Record<string, number> = { CRITICAL: 3, WARNING: 2, INFO: 1 }
+
+const SEVERITY_DOT: Record<string, string> = {
+  CRITICAL: 'bg-destructive',
+  WARNING: 'bg-warning',
+  INFO: 'bg-primary',
+}
+
+const SEVERITY_BADGE: Record<string, string> = {
+  CRITICAL: 'text-destructive',
+  WARNING: 'text-warning',
+  INFO: 'text-primary',
+}
+
+const SEVERITY_PILL: Record<string, string> = {
+  CRITICAL: 'bg-destructive text-destructive-foreground',
+  WARNING: 'bg-warning text-warning-foreground',
+  INFO: 'bg-primary text-primary-foreground',
+}
+
+const INSIGHT_TITLES: Record<string, string> = {
+  changepoint: 'Process Shift Detected',
+  distribution_shift: 'Distribution Drift',
+  outlier: 'Unusual Pattern',
+  anomaly_score: 'Unusual Pattern',
+}
+
+/** Human-friendly labels for what the detector finds, not what algorithm it uses. */
+const DETECTOR_FRIENDLY: Record<string, string> = {
+  pelt: 'Sudden change in process mean',
+  ks_test: 'Gradual change in data distribution',
+  isolation_forest: 'Data point deviates from normal behavior',
+}
+
+/** Technical algorithm name — shown as subtle parenthetical for engineers. */
+const DETECTOR_TECHNICAL: Record<string, string> = {
+  pelt: 'PELT',
+  ks_test: 'K-S Test',
+  isolation_forest: 'Isolation Forest',
+}
+
+const SEVERITY_BORDER: Record<string, string> = {
+  CRITICAL: 'border-l-destructive',
+  WARNING: 'border-l-warning',
+  INFO: 'border-l-primary',
+}
+
+/** Convert a p-value into a human-readable confidence phrase. */
+function pValueToConfidence(p: number): string {
+  if (!Number.isFinite(p)) return 'Confidence unavailable'
+  const clamped = Math.max(0, Math.min(1, p))
+  const pct = Math.min((1 - clamped) * 100, 99.9).toFixed(1)
+  if (clamped < 0.001) return `Very high confidence (${pct}%)`
+  if (clamped < 0.01) return `High confidence (${pct}%)`
+  if (clamped < 0.05) return `Moderate confidence (${pct}%)`
+  return `Low confidence (${pct}%)`
+}
+
+/** Format the structured details into a human-readable description. */
+function formatInsightBody(event: AnomalyEvent): string | null {
+  const d = event.details ?? {}
+
+  if (event.event_type === 'changepoint') {
+    const before = d.segment_before_mean as number | undefined
+    const after = d.segment_after_mean as number | undefined
+    const sigma = d.shift_sigma as number | undefined
+    if (before != null && after != null) {
+      const direction = (after as number) > (before as number) ? 'increased' : 'decreased'
+      const sigmaNote = sigma != null ? ` (${(sigma as number).toFixed(1)}\u03C3 shift)` : ''
+      return `Mean ${direction} from ${(before as number).toFixed(3)} to ${(after as number).toFixed(3)}${sigmaNote}`
+    }
+    return event.summary ?? null
+  }
+
+  if (event.event_type === 'outlier') {
+    // Drop the raw anomaly_score — severity badge already conveys risk level
+    return 'This data point shows an unusual combination of values compared to historical patterns'
+  }
+
+  if (event.event_type === 'distribution_shift') {
+    const pValue = d.p_value as number | undefined
+    const refMean = d.reference_mean as number | undefined
+    const testMean = d.test_mean as number | undefined
+    if (pValue != null) {
+      const confidence = pValueToConfidence(pValue)
+      const meanShift =
+        refMean != null && testMean != null
+          ? `. Mean moved from ${refMean.toFixed(3)} to ${testMean.toFixed(3)}`
+          : ''
+      return `${confidence} that recent data no longer follows the established pattern${meanShift}`
+    }
+    return event.summary ?? null
+  }
+
+  return event.summary ?? null
+}
+
+/** Relative time label (e.g. "2h ago", "3d ago"). */
+function timeAgo(isoDate: string): string {
+  const ms = Date.now() - new Date(isoDate).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+/**
+ * AI Insights popover — human-readable event cards.
+ * Click-outside is handled by the parent wrapper ref, not here.
+ */
+function AnomalyInsightsPopover({
+  events,
+  characteristicId,
+}: {
+  events: AnomalyEvent[]
+  characteristicId: number | null
+}) {
+  const getSampleLabel = useSampleLabel(characteristicId)
+  const active = events.filter((e) => !e.is_dismissed)
+  if (active.length === 0) return null
+
+  return (
+    <div className="bg-card border-border absolute top-full right-0 z-50 mt-1 w-80 rounded-lg border shadow-lg">
+      <div className="border-border flex items-center justify-between border-b px-3 py-2">
+        <span className="text-foreground text-xs font-medium">
+          AI Insights
+        </span>
+        <span className="text-muted-foreground text-[10px]">
+          {active.length} active
+        </span>
+      </div>
+      <div className="max-h-64 space-y-1.5 overflow-y-auto p-2">
+        {active.map((event) => {
+          const borderStyle = SEVERITY_BORDER[event.severity] ?? SEVERITY_BORDER.INFO
+          const sevStyle = SEVERITY_BADGE[event.severity] ?? SEVERITY_BADGE.INFO
+          const title = INSIGHT_TITLES[event.event_type] ?? event.event_type
+          const detectorDesc =
+            DETECTOR_FRIENDLY[event.detector_type] ?? event.detector_type
+          const detectorTech =
+            DETECTOR_TECHNICAL[event.detector_type] ?? event.detector_type
+          const body = formatInsightBody(event)
+
+          return (
+            <div
+              key={event.id}
+              className={cn(
+                'bg-muted/40 rounded-md border-l-2 py-2 pr-2.5 pl-3 text-[11px] leading-snug',
+                borderStyle,
+              )}
+            >
+              <div className="text-foreground font-semibold">{title}</div>
+              {body && (
+                <div className="text-muted-foreground mt-0.5">{body}</div>
+              )}
+              <div className="text-muted-foreground/60 mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className={cn('font-medium', sevStyle)}>{event.severity}</span>
+                <span>·</span>
+                <span title={detectorTech}>{detectorDesc}</span>
+                <span>·</span>
+                <span>{timeAgo(event.detected_at)}</span>
+                {event.sample_id != null && (
+                  <>
+                    <span>·</span>
+                    <span className="tabular-nums">
+                      {getSampleLabel(event.sample_id)}
+                    </span>
+                  </>
+                )}
+                {event.window_start_id != null && event.window_end_id != null && (
+                  <>
+                    <span>·</span>
+                    <span className="tabular-nums">
+                      {getSampleLabel(event.window_start_id)}–
+                      {getSampleLabel(event.window_end_id)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function ChartToolbar({
   characteristicId,
   subgroupSize = 5,
   isAttributeData = false,
+  attributeChartType,
   overrideChartType,
   onAttributeChartTypeChange,
   onComparisonToggle,
@@ -91,11 +287,27 @@ export function ChartToolbar({
     setShowBrush,
     showAnomalies,
     setShowAnomalies,
+    showPredictions,
+    setShowPredictions,
     productCodeFilter,
     setProductCodeFilter,
   } = useDashboardStore()
 
   const { data: productCodes } = useProductCodes(characteristicId ?? 0)
+
+  // Anomaly data — same query key as ControlChart so React Query deduplicates
+  const { data: anomalyData } = useAnomalyEvents(
+    isCommercial && showAnomalies ? (characteristicId ?? 0) : 0,
+    { limit: 100 },
+  )
+  const [insightsOpen, setInsightsOpen] = useState(false)
+
+  const activeEvents = anomalyData?.events?.filter((e: AnomalyEvent) => !e.is_dismissed) ?? []
+  const worstSeverity = activeEvents.reduce(
+    (w: string, e: AnomalyEvent) =>
+      (SEVERITY_PRIORITY[e.severity] ?? 0) > (SEVERITY_PRIORITY[w] ?? 0) ? e.severity : w,
+    'INFO',
+  )
 
   // Reset product code filter when characteristic changes
   const prevCharIdRef = useRef(characteristicId)
@@ -107,6 +319,24 @@ export function ChartToolbar({
       }
     }
   }, [characteristicId, productCodeFilter, setProductCodeFilter])
+
+  // Close insights popover when anomalies toggled off
+  useEffect(() => {
+    if (!showAnomalies) setInsightsOpen(false)
+  }, [showAnomalies])
+
+  // Click-outside handler for the entire AI insights area (toggle + popover)
+  const aiWrapperRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!insightsOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (aiWrapperRef.current && !aiWrapperRef.current.contains(e.target as Node)) {
+        setInsightsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [insightsOpen])
 
   // Get current chart type for the characteristic (fall back to override or recommended type for subgroup size)
   const storeChartType = characteristicId ? chartTypes.get(characteristicId) : undefined
@@ -142,6 +372,7 @@ export function ChartToolbar({
             onChange={handleChartTypeChange}
             subgroupSize={subgroupSize}
             isAttributeData={isAttributeData}
+            attributeChartType={attributeChartType}
           />
         )}
 
@@ -201,15 +432,53 @@ export function ChartToolbar({
       {/* Right group — visibility toggles */}
       <div className="flex items-center gap-1">
         {isCommercial && (
-          <ToolbarBtn
-            active={showAnomalies}
-            onClick={() => setShowAnomalies(!showAnomalies)}
-            title={showAnomalies ? 'Hide anomaly overlay' : 'Show AI anomaly detection'}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">AI</span>
-          </ToolbarBtn>
+          <div ref={aiWrapperRef} className="relative flex items-center gap-1.5">
+            {/* AI toggle */}
+            <ToolbarBtn
+              active={showAnomalies}
+              onClick={() => setShowAnomalies(!showAnomalies)}
+              title={showAnomalies ? 'Hide anomaly overlay' : 'Show AI anomaly detection'}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">AI</span>
+            </ToolbarBtn>
+
+            {/* Insights count pill — solid severity color to stand out */}
+            {showAnomalies && activeEvents.length > 0 && (
+              <button
+                onClick={() => setInsightsOpen((v) => !v)}
+                title="View AI insights"
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-colors',
+                  SEVERITY_PILL[worstSeverity] ?? SEVERITY_PILL.INFO,
+                )}
+              >
+                <Sparkles className="h-3 w-3" />
+                {activeEvents.length} insight{activeEvents.length !== 1 ? 's' : ''}
+                <ChevronDown
+                  className={cn('h-3 w-3 transition-transform', insightsOpen && 'rotate-180')}
+                />
+              </button>
+            )}
+
+            {/* Popover dropdown — click-outside handled by aiWrapperRef */}
+            {insightsOpen && anomalyData?.events && (
+              <AnomalyInsightsPopover
+                events={anomalyData.events}
+                characteristicId={characteristicId ?? null}
+              />
+            )}
+          </div>
         )}
+
+        <ToolbarBtn
+          active={showPredictions}
+          onClick={() => setShowPredictions(!showPredictions)}
+          title={showPredictions ? 'Hide forecast predictions' : 'Show forecast predictions'}
+        >
+          <TrendingUp className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Predictions</span>
+        </ToolbarBtn>
 
         <ToolbarBtn
           active={showSpecLimits}

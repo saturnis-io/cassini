@@ -3,7 +3,7 @@ import type { NelsonSeverity } from '@/lib/nelson-rules'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SectionId = 'measurements' | 'violations' | 'annotations' | 'history'
+export type SectionId = 'measurements' | 'violations' | 'annotations' | 'history' | 'insights'
 
 // ─── Sidebar Nav Item ─────────────────────────────────────────────────────────
 

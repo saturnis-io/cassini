@@ -1008,8 +1008,8 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'medium', ?, ?, NULL, NULL,
-                0, 0, 'Anomaly score 0.78 — chiller condenser fouling suspected', ?)""",
+        VALUES (?, 'isolation_forest', 'outlier', 'medium', ?, ?, NULL, NULL,
+                0, 0, 'Unusual pattern — chiller condenser fouling suspected', ?)""",
         (IDS["pue"],
          json.dumps({"anomaly_score": 0.78, "threshold": 0.65,
                       "contributing_features": ["chiller_supply_temp", "outdoor_wet_bulb"]}),
@@ -1019,9 +1019,9 @@ def seed_anomaly(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO anomaly_event
         (char_id, detector_type, event_type, severity, details, sample_id, window_start_id, window_end_id,
          is_acknowledged, is_dismissed, dismissed_by, dismissed_reason, summary, detected_at)
-        VALUES (?, 'isolation_forest', 'anomaly_score', 'low', ?, ?, NULL, NULL,
+        VALUES (?, 'isolation_forest', 'outlier', 'low', ?, ?, NULL, NULL,
                 0, 1, 'facility.mgr', 'Normal variation during weekend low-load period',
-                'Low anomaly score 0.52 during weekend', ?)""",
+                'Low anomaly score — within normal variation during weekend', ?)""",
         (IDS["pue"],
          json.dumps({"anomaly_score": 0.52, "threshold": 0.65}),
          pue_samples[idx_2000], now))

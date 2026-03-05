@@ -1,8 +1,58 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
+import { useSampleLabel } from '@/hooks/useSampleLabel'
 import type { AnomalyEvent } from '@/types/anomaly'
 import { CheckCircle2, XCircle, Clock, User } from 'lucide-react'
+
+/** Human-friendly labels for raw detail keys from the anomaly detector. */
+const DETAIL_LABELS: Record<string, string> = {
+  p_value: 'Confidence',
+  shift_sigma: 'Shift size',
+  shift_magnitude: 'Shift magnitude',
+  segment_before_mean: 'Mean before shift',
+  segment_after_mean: 'Mean after shift',
+  reference_mean: 'Expected mean',
+  test_mean: 'Observed mean',
+  reference_std: 'Expected std dev',
+  test_std: 'Observed std dev',
+  contamination: 'Expected anomaly rate',
+  alpha: 'Significance level',
+  reference_window: 'Reference window',
+  test_window: 'Test window',
+}
+
+/** Keys to hide entirely — raw internals that add no user value. */
+const HIDDEN_KEYS = new Set([
+  'anomaly_score',
+  'ks_statistic',
+  'n_trees',
+  'features',
+  'contributing_features',
+  'changepoint_index',
+  'threshold',
+  'window_start_id',
+  'window_end_id',
+])
+
+/** Format a detail value based on its key for human readability. */
+function formatDetailValue(key: string, value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return typeof value === 'object' ? JSON.stringify(value) : String(value)
+  }
+  if (key === 'p_value') {
+    const clamped = Math.max(0, Math.min(1, value))
+    const confidence = Math.min((1 - clamped) * 100, 99.9).toFixed(1)
+    return `${confidence}%`
+  }
+  if (key === 'shift_sigma') {
+    return `${Math.abs(value).toFixed(2)}\u03C3`
+  }
+  if (key === 'contamination') {
+    return `${(value * 100).toFixed(1)}%`
+  }
+  return value.toFixed(4)
+}
 
 interface AnomalyEventDetailProps {
   event: AnomalyEvent
@@ -18,6 +68,7 @@ export function AnomalyEventDetail({
   className,
 }: AnomalyEventDetailProps) {
   const { formatDateTime } = useDateFormat()
+  const getSampleLabel = useSampleLabel(event.char_id)
   const [dismissReason, setDismissReason] = useState('')
   const [showDismissInput, setShowDismissInput] = useState(false)
 
@@ -29,9 +80,9 @@ export function AnomalyEventDetail({
     }
   }
 
-  // Format details as key-value pairs
+  // Format details as key-value pairs, hiding raw internals
   const detailEntries = Object.entries(event.details).filter(
-    ([, v]) => v !== null && v !== undefined,
+    ([k, v]) => v !== null && v !== undefined && !HIDDEN_KEYS.has(k),
   )
 
   return (
@@ -52,15 +103,11 @@ export function AnomalyEventDetail({
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
             {detailEntries.map(([key, value]) => (
               <div key={key} className="flex items-baseline gap-1.5">
-                <dt className="text-[10px] text-muted-foreground">
-                  {key.replace(/_/g, ' ')}:
+                <dt className="text-[10px] text-muted-foreground" title={key}>
+                  {DETAIL_LABELS[key] ?? key.replace(/_/g, ' ')}:
                 </dt>
                 <dd className="text-xs tabular-nums text-foreground">
-                  {typeof value === 'number'
-                    ? value.toFixed(4)
-                    : typeof value === 'object'
-                      ? JSON.stringify(value)
-                      : String(value)}
+                  {formatDetailValue(key, value)}
                 </dd>
               </div>
             ))}
@@ -72,7 +119,7 @@ export function AnomalyEventDetail({
       {event.sample_id && (
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <Clock className="h-3 w-3" />
-          Sample ID: {event.sample_id}
+          {getSampleLabel(event.sample_id) ?? `#${event.sample_id}`}
           <span className="mx-1">|</span>
           Detected: {formatDateTime(event.detected_at)}
         </div>

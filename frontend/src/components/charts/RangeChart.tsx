@@ -396,8 +396,8 @@ export function RangeChart({
       }
     }
 
-    const bottomMargin = isTimestamp ? 60 : 30
-    const xCategoryData = data.map((p) => String(p.index))
+    const bottomMargin = 60
+    const xCategoryData = data.map((p) => formatDisplayKey(p.displayKey))
 
     // Build xAxis config based on mode
     // Use 'time' axis for proper time-series rendering (auto-ticks, date formatting).
@@ -426,7 +426,7 @@ export function RangeChart({
           data: isTimestamp
             ? data.map((p) => p.timestamp)
             : xCategoryData,
-          axisLabel: { fontSize: 12, rotate: isTimestamp ? 30 : 0 },
+          axisLabel: { fontSize: 11, rotate: 30 },
           splitLine: { show: false },
         }
 

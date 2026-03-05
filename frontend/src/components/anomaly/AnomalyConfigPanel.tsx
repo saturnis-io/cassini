@@ -97,8 +97,11 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* PELT Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Change-Point Detection (PELT) {/* TODO: i18n */}
+              Process Shift Detection
             </legend>
+            <p className="text-[10px] text-muted-foreground">
+              Detects sudden changes in the process mean or variance.
+            </p>
 
             <label className="flex items-center gap-2">
               <input
@@ -148,7 +151,9 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Min segment:</label>
+                  <label className="text-xs text-muted-foreground" title="Min segment">
+                    Minimum run length:
+                  </label>
                   <input
                     type="number"
                     min={2}
@@ -165,8 +170,11 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* Isolation Forest Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Multivariate Outlier Detection {/* TODO: i18n */}
+              Unusual Pattern Detection
             </legend>
+            <p className="text-[10px] text-muted-foreground">
+              Finds data points that deviate from normal behavior.
+            </p>
 
             <label className="flex items-center gap-2">
               <input
@@ -183,7 +191,9 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
             {form.iforest_enabled && (
               <>
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Contamination:</label>
+                  <label className="text-xs text-muted-foreground" title="Contamination">
+                    Expected anomaly rate:
+                  </label>
                   <input
                     type="range"
                     min={0.01}
@@ -201,7 +211,9 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Score threshold:</label>
+                  <label className="text-xs text-muted-foreground" title="Score threshold">
+                    Detection threshold:
+                  </label>
                   <input
                     type="number"
                     min={-1}
@@ -221,8 +233,11 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* K-S Distribution Shift Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Distribution Shift Detection {/* TODO: i18n */}
+              Distribution Drift Detection
             </legend>
+            <p className="text-[10px] text-muted-foreground">
+              Monitors for gradual changes in data distribution over time.
+            </p>
 
             <label className="flex items-center gap-2">
               <input
@@ -295,7 +310,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_changepoint', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on changepoints</span>
+              <span className="text-xs text-muted-foreground">Notify on process shifts</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -305,7 +320,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_anomaly_score', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on outlier scores</span>
+              <span className="text-xs text-muted-foreground">Notify on unusual patterns</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -315,7 +330,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_distribution_shift', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on distribution shifts</span>
+              <span className="text-xs text-muted-foreground">Notify on distribution drift</span>
             </label>
           </fieldset>
 

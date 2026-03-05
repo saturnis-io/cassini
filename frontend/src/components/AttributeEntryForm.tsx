@@ -87,15 +87,20 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
         </span>
       </div>
 
-      {/* Defect Count */}
+      {/* Defect/Defective Count */}
       <div>
         <label className="mb-1 block text-sm font-medium">
-          Defect Count <span className="text-warning">*</span>
+          {chartType === 'p' || chartType === 'np' ? 'Defective Items' : 'Defects Found'}{' '}
+          <span className="text-warning">*</span>
         </label>
         <NumberInput
           value={defectCount}
           onChange={setDefectCount}
-          placeholder="Number of defects"
+          placeholder={
+            chartType === 'p' || chartType === 'np'
+              ? 'Number of defective items'
+              : 'Number of defects found'
+          }
           size="md"
           step={1}
           min={0}
@@ -104,8 +109,8 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
         <FieldError error={getError('defect_count')} />
         <p className="text-muted-foreground mt-1 text-sm">
           {chartType === 'p' || chartType === 'np'
-            ? 'Number of defective items in the sample'
-            : 'Number of defects observed'}
+            ? 'Count of items classified as defective (pass/fail)'
+            : 'Total number of individual defects observed'}
         </p>
       </div>
 

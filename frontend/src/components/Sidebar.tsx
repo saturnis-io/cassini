@@ -120,8 +120,9 @@ export function Sidebar({ className }: SidebarProps) {
   }, [isResizing, setSidebarWidth])
 
   // Only show the Characteristics tree on pages that use it
-  const showCharacteristics = ['/', '/dashboard', '/data-entry', '/reports'].includes(
-    location.pathname,
+  const characteristicPages = ['/', '/dashboard', '/data-entry', '/reports']
+  const showCharacteristics = characteristicPages.some(
+    (path) => location.pathname === path || location.pathname.startsWith(path + '/'),
   )
 
   // Close mobile sidebar on route change
