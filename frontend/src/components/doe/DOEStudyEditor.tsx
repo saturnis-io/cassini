@@ -159,9 +159,9 @@ function NewStudyForm() {
   }
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6 p-6">
+    <div data-ui="doe-editor" className="flex max-w-4xl flex-col gap-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="doe-editor-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/doe')}
@@ -394,9 +394,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   const isPending = generateDesign.isPending || updateRuns.isPending || analyzeStudy.isPending
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div data-ui="doe-editor" className="flex flex-col gap-4 p-6">
       {/* Top bar */}
-      <div className="flex items-center justify-between">
+      <div data-ui="doe-editor-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/doe')}

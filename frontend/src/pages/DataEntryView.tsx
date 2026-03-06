@@ -26,9 +26,9 @@ export function DataEntryView() {
   const [showImport, setShowImport] = useState(false)
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-ui="data-entry-page" className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-border bg-card flex shrink-0 items-start justify-between border-b px-6 pt-5 pb-5">
+      <div data-ui="data-entry-header" className="border-border bg-card flex shrink-0 items-start justify-between border-b px-6 pt-5 pb-5">
         <div>
           <h1 className="text-foreground text-xl font-bold tracking-tight">Data Entry</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">
@@ -45,7 +45,7 @@ export function DataEntryView() {
       </div>
 
       {/* Tab bar */}
-      <div role="tablist" aria-label="Data entry sections" className="border-border flex flex-shrink-0 gap-1 border-b px-6">
+      <div data-ui="data-entry-tabs" role="tablist" aria-label="Data entry sections" className="border-border flex flex-shrink-0 gap-1 border-b px-6">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -73,7 +73,7 @@ export function DataEntryView() {
       </div>
 
       {/* Content area */}
-      <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="flex-1 overflow-y-auto p-6">
+      <div data-ui="data-entry-content" role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`} className="flex-1 overflow-y-auto p-6">
         {activeTab === 'manual-entry' && <ManualEntryPanel />}
         {activeTab === 'sample-history' && <SampleHistoryPanel />}
         {activeTab === 'scheduling' && (

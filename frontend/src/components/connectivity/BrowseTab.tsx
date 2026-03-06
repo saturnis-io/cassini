@@ -41,9 +41,9 @@ export function BrowseTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div data-ui="browse-tab" className="space-y-5">
       {/* Server selector bar */}
-      <div className="flex items-center gap-3">
+      <div data-ui="browse-toolbar" className="flex items-center gap-3">
         <div className="max-w-md flex-1">
           <ServerSelector value={selectedServer} onChange={handleServerChange} />
         </div>
@@ -87,7 +87,7 @@ export function BrowseTab() {
       {selectedServer && selectedServer.isConnected && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
           {/* Left panel: Browser (3 cols) */}
-          <div className="bg-muted overflow-hidden rounded-xl lg:col-span-3">
+          <div data-ui="browse-tree-panel" className="bg-muted overflow-hidden rounded-xl lg:col-span-3">
             <div className="border-border flex items-center justify-between border-b px-4 py-3">
               <h3 className="text-foreground text-sm font-semibold">
                 {selectedServer.protocol === 'mqtt' ? 'Topic Browser' : 'Address Space'}
@@ -113,7 +113,7 @@ export function BrowseTab() {
           </div>
 
           {/* Right panel: Preview + Quick Map (2 cols) */}
-          <div className="bg-muted overflow-hidden rounded-xl lg:col-span-2">
+          <div data-ui="browse-preview-panel" className="bg-muted overflow-hidden rounded-xl lg:col-span-2">
             <div className="border-border border-b px-4 py-3">
               <h3 className="text-foreground text-sm font-semibold">Preview & Map</h3>
             </div>

@@ -70,7 +70,7 @@ export function MonitorTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div data-ui="monitor-tab" className="space-y-5">
       {/* Summary Metrics */}
       <ConnectivityMetrics mqttStates={mqttStates} opcuaStates={opcuaStates} />
 

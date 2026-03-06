@@ -134,7 +134,7 @@ export function LoginPage() {
   const primaryColor = fullBrandConfig?.primary?.hex ?? '#D4AF37'
 
   return (
-    <div className="cassini-login relative min-h-screen overflow-hidden">
+    <div data-ui="login-page" className="cassini-login relative min-h-screen overflow-hidden">
       {/* Background: static image or animated Saturn scene */}
       {fullBrandConfig?.loginMode === 'static' && fullBrandConfig?.loginBackgroundUrl ? (
         <div className="fixed inset-0 z-0">
@@ -160,10 +160,10 @@ export function LoginPage() {
       )}
 
       {/* Login form overlay */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
+      <div data-ui="login-content" className="relative z-10 flex min-h-screen items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Login Card */}
-          <div className="control-panel p-8">
+          <div data-ui="login-card" className="control-panel p-8">
             {/* Mission Patch Emblem */}
             <div className="mb-8 flex select-none flex-col items-center text-center">
               <CassiniLogo size={164} className="mb-2" brandColors={logoColors} />

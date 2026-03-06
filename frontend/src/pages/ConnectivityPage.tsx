@@ -48,9 +48,9 @@ export function ConnectivityPage() {
   const { isCommercial } = useLicense()
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-ui="connectivity-page" className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
+      <div data-ui="connectivity-header" className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
         <h1 className="text-foreground text-xl font-bold tracking-tight">Connectivity Hub</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Manage industrial data sources, browse endpoints, and configure data mappings
@@ -61,6 +61,7 @@ export function ConnectivityPage() {
       <div className="flex min-h-0 flex-1">
         {/* Sidebar Navigation */}
         <nav
+          data-ui="connectivity-sidebar"
           className="border-border bg-card w-52 shrink-0 overflow-y-auto border-r px-3 py-4"
           aria-label="Connectivity navigation"
         >
@@ -102,7 +103,7 @@ export function ConnectivityPage() {
         </nav>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main data-ui="connectivity-content" className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

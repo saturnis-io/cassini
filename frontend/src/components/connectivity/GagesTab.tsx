@@ -21,9 +21,9 @@ export function GagesTab() {
   const bridgeList = bridges ?? []
 
   return (
-    <div className="space-y-5">
+    <div data-ui="gages-tab" className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="gages-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Usb className="text-muted-foreground h-5 w-5" />
           <div>

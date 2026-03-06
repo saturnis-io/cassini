@@ -63,10 +63,10 @@ export function Layout() {
   }, [setIsOffline])
 
   return (
-    <div className="bg-background flex h-screen flex-col">
+    <div data-ui="app-shell" className="bg-background flex h-screen flex-col">
       {/* Offline banner */}
       {isOffline && (
-        <div className="bg-warning text-warning-foreground flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium">
+        <div data-ui="offline-banner" className="bg-warning text-warning-foreground flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium">
           <WifiOff className="h-4 w-4" />
           {t('offlineBanner')}
         </div>
@@ -76,12 +76,12 @@ export function Layout() {
       <Header plantSelector={<PlantSelector />} />
 
       {/* Main area with sidebar */}
-      <div className="flex flex-1 overflow-hidden">
+      <div data-ui="app-body" className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar />
 
         {/* Content area */}
-        <main className="flex flex-1 flex-col overflow-auto">
+        <main data-ui="main-content" className="flex flex-1 flex-col overflow-auto">
           <LicenseExpiryBanner />
           <div className="flex min-h-0 flex-1 flex-col px-2 py-2 pb-16 md:px-4 md:py-3 md:pb-3">
             <Outlet />
@@ -90,7 +90,7 @@ export function Layout() {
       </div>
 
       {/* Footer / Status bar - full width */}
-      <footer className="bg-card shrink-0 border-t px-2 py-1.5 md:px-4">
+      <footer data-ui="status-bar" className="bg-card shrink-0 border-t px-2 py-1.5 md:px-4">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             {wsConnected ? (

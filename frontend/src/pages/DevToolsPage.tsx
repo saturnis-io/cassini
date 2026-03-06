@@ -119,9 +119,9 @@ export function DevToolsPage() {
   }
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6 p-6">
+    <div data-ui="devtools-page" className="flex max-w-4xl flex-col gap-6 p-6">
       {/* Header */}
-      <div>
+      <div data-ui="devtools-header">
         <div className="flex items-center gap-3">
           <div className="bg-warning/10 rounded-lg p-2">
             <Wrench className="text-warning h-6 w-6" />
@@ -141,7 +141,7 @@ export function DevToolsPage() {
 
       {/* Seed script cards */}
       {status?.scripts && status.scripts.length > 0 && (
-        <div className="flex flex-col gap-4">
+        <div data-ui="devtools-content" className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <Database className="text-primary h-5 w-5" />
             <h2 className="text-lg font-semibold">Demo Profiles</h2>
@@ -169,7 +169,7 @@ export function DevToolsPage() {
       {confirmScript && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmScript(null)} />
-          <div className="bg-card border-border relative mx-4 max-w-md rounded-xl border p-6 shadow-lg">
+          <div data-ui="devtools-confirm-dialog" className="bg-card border-border relative mx-4 max-w-md rounded-xl border p-6 shadow-lg">
             <div className="mb-4 flex items-center gap-3">
               <div className="bg-destructive/10 rounded-full p-2">
                 <AlertTriangle className="text-destructive h-5 w-5" />

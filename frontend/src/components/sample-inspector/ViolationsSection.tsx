@@ -37,7 +37,7 @@ export function ViolationsSection({
   }
 
   return (
-    <div className="space-y-3">
+    <div data-ui="sample-violations" className="space-y-3">
       {violations.map((v) => {
         const ruleMeta = NELSON_RULES.find((r) => r.id === v.rule_id)
         const ruleDetail = NELSON_RULE_DETAILS[v.rule_id]

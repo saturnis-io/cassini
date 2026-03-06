@@ -12,7 +12,7 @@ export function LicenseExpiryBanner() {
     : `Your license expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}.`
 
   return (
-    <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+    <div data-ui="license-banner" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span>{message}</span>
       <a

@@ -20,9 +20,9 @@ export function IntegrationsTab() {
   const isAdmin = hasAccess(role, 'admin')
 
   return (
-    <div className="space-y-5">
+    <div data-ui="integrations-tab" className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="integrations-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Building2 className="text-muted-foreground h-5 w-5" />
           <div>

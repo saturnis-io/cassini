@@ -166,8 +166,8 @@ export function PendingApprovalsDashboard({ compact = false }: { compact?: boole
   if (compact) return itemsList
 
   return (
-    <div className="bg-card border-border rounded-2xl border p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div data-ui="pending-approvals" className="bg-card border-border rounded-2xl border p-4">
+      <div data-ui="pending-approvals-header" className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="text-primary h-5 w-5" />
           <h3 className="text-foreground text-sm font-semibold">

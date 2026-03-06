@@ -19,7 +19,7 @@ export function EditHistorySection({ history, precision }: EditHistorySectionPro
   }
 
   return (
-    <div className="space-y-3">
+    <div data-ui="sample-edit-history" className="space-y-3">
       {history.map((entry, idx) => (
         <div key={entry.id} className="border-border overflow-hidden rounded-lg border">
           <div className="bg-muted/30 border-border flex items-center justify-between border-b px-4 py-2.5">

@@ -31,7 +31,7 @@ import type { SmtpConfigUpdate, WebhookConfigCreate } from '@/api/client'
 
 export function EmailWebhookSettings() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="email-webhook-settings">
       <SmtpSection />
       <WebhookSection />
     </div>
@@ -80,8 +80,8 @@ function SmtpSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="smtp-section">
+      <div className="mb-4 flex items-center gap-2" data-ui="smtp-section-header">
         <Mail className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">SMTP Configuration</h3>
       </div>
@@ -297,8 +297,8 @@ function WebhookSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="bg-muted rounded-xl p-6" data-ui="webhooks-section">
+      <div className="mb-4 flex items-center justify-between" data-ui="webhooks-section-header">
         <div className="flex items-center gap-2">
           <Globe className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Webhooks</h3>
@@ -321,7 +321,7 @@ function WebhookSection() {
         <div className="space-y-3">
           {/* Create form */}
           {showCreate && (
-            <div className="bg-background space-y-3 rounded-lg border p-4">
+            <div className="bg-background space-y-3 rounded-lg border p-4" data-ui="webhooks-create-form">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Name</label>

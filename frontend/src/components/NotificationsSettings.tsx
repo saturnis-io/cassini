@@ -51,7 +51,7 @@ const CHANNELS = [
 
 export function NotificationsSettings() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="notifications-settings">
       <PushSection />
       <PreferencesSection />
     </div>
@@ -115,8 +115,8 @@ function PushSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="notifications-push-section">
+      <div className="mb-4 flex items-center gap-2" data-ui="notifications-push-header">
         <Smartphone className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">Push Notifications</h3>
       </div>
@@ -306,8 +306,8 @@ function PreferencesSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="notifications-preferences-section">
+      <div className="mb-4 flex items-center gap-2" data-ui="notifications-preferences-header">
         <Bell className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">Notification Preferences</h3>
       </div>

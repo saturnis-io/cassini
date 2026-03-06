@@ -89,9 +89,9 @@ export function SettingsPage() {
   const { isCommercial } = useLicense()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-ui="settings-page" className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
+      <div data-ui="settings-header" className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
         <h1 className="text-foreground text-xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           {t('subtitle')}
@@ -102,6 +102,7 @@ export function SettingsPage() {
       <div className="flex min-h-0 flex-1">
         {/* Sidebar Navigation */}
         <nav
+          data-ui="settings-sidebar"
           className="border-border bg-card w-52 shrink-0 overflow-y-auto border-r px-3 py-4"
           aria-label="Settings navigation"
         >
@@ -144,7 +145,7 @@ export function SettingsPage() {
         </nav>
 
         {/* Content Area */}
-        <main className="min-h-0 flex-1 overflow-y-auto p-6">
+        <main data-ui="settings-content" className="min-h-0 flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

@@ -366,9 +366,9 @@ export function AppearanceSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="appearance-settings">
       {/* Theme Mode — compact toggle */}
-      <section className="bg-muted rounded-xl p-5">
+      <section className="bg-muted rounded-xl p-5" data-ui="appearance-theme-section">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide">Theme</h3>
         <div className="inline-flex gap-1 rounded-lg border p-1">
           {themeOptions.map((option) => (
@@ -390,7 +390,7 @@ export function AppearanceSettings() {
       </section>
 
       {/* Visual Style */}
-      <section className="bg-muted rounded-xl p-5">
+      <section className="bg-muted rounded-xl p-5" data-ui="appearance-visual-style-section">
         <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide">Visual Style</h3>
         <p className="text-muted-foreground mb-3 text-xs">
           Controls the overall look — borders, shadows, typography feel
@@ -418,7 +418,7 @@ export function AppearanceSettings() {
       </section>
 
       {/* Chart Colors */}
-      <section className="bg-muted rounded-xl p-5">
+      <section className="bg-muted rounded-xl p-5" data-ui="appearance-chart-colors-section">
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide">Chart Colors</h3>
@@ -516,7 +516,7 @@ export function AppearanceSettings() {
       <ChartPreview colors={colors} />
 
       {/* Advanced Color Customization (collapsed) */}
-      <section className="bg-muted overflow-hidden rounded-xl">
+      <section className="bg-muted overflow-hidden rounded-xl" data-ui="appearance-advanced-colors-section">
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="hover:bg-muted/50 flex w-full items-center justify-between px-5 py-4 transition-colors"

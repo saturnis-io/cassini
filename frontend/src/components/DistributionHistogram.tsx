@@ -698,9 +698,9 @@ export function DistributionHistogram({
 
   if (isVertical) {
     return (
-      <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
+      <div data-ui="histogram-panel" className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
         {hasData && (
-          <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+          <div data-ui="histogram-header" className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
             <h3 className="truncate text-sm leading-5 font-semibold">
               {label && <span className="text-muted-foreground mr-1">{label}:</span>}
               Capability
@@ -846,9 +846,9 @@ export function DistributionHistogram({
 
   // Horizontal orientation
   return (
-    <div className="bg-card border-border h-full rounded-2xl border p-5">
+    <div data-ui="histogram-panel" className="bg-card border-border h-full rounded-2xl border p-5">
       {hasData && (
-        <div className="mb-3 flex items-center justify-between">
+        <div data-ui="histogram-header" className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold tracking-tight">
             {label && <span className="text-muted-foreground mr-1">{label}:</span>}
             Process Capability

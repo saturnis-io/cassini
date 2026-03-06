@@ -135,9 +135,9 @@ export function UserManagementPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div data-ui="users-page" className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="users-header" className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -182,7 +182,7 @@ export function UserManagementPage() {
       {confirmDeactivate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDeactivate(null)} />
-          <div className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
+          <div data-ui="deactivate-confirm-dialog" className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
             <h3 className="text-foreground text-lg font-semibold">Deactivate User</h3>
             <p className="text-muted-foreground mt-2 text-sm">
               Are you sure you want to deactivate <strong>{confirmDeactivate.username}</strong>?
@@ -211,7 +211,7 @@ export function UserManagementPage() {
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDelete(null)} />
-          <div className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
+          <div data-ui="delete-confirm-dialog" className="bg-card relative z-50 mx-4 w-full max-w-sm rounded-lg border p-6 shadow-lg">
             <h3 className="text-destructive text-lg font-semibold">Permanently Delete User</h3>
             <p className="text-muted-foreground mt-2 text-sm">
               Are you sure you want to permanently delete <strong>{confirmDelete.username}</strong>?

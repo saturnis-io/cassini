@@ -108,10 +108,11 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
   return (
     <header
+      data-ui="app-header"
       className={cn('bg-card relative z-10 flex h-12 items-center justify-between border-b px-4', className)}
     >
       {/* Left: Hamburger (mobile) + Logo and app name */}
-      <div className="flex items-center gap-2.5">
+      <div data-ui="header-brand" className="flex items-center gap-2.5">
         <button
           onClick={toggleMobileSidebar}
           className="text-muted-foreground hover:text-foreground hover:bg-accent mr-1 flex h-9 w-9 items-center justify-center rounded-md transition-colors md:hidden"
@@ -140,7 +141,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
       </div>
 
       {/* Right: Plant selector, theme toggle, user menu */}
-      <div className="flex items-center gap-3">
+      <div data-ui="header-actions" className="flex items-center gap-3">
         {/* Plant selector slot */}
         {plantSelector}
 
@@ -149,7 +150,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
         {/* Pending approvals bell */}
         {user && (
-          <div className="relative" ref={pendingMenuRef}>
+          <div data-ui="pending-approvals" className="relative" ref={pendingMenuRef}>
             <button
               onClick={() => setPendingMenuOpen((o) => !o)}
               className="text-muted-foreground hover:text-foreground hover:bg-accent relative flex items-center justify-center rounded-md p-1.5 transition-colors"
@@ -168,7 +169,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
             </button>
 
             {pendingMenuOpen && (
-              <div className="bg-popover absolute top-full right-0 z-50 mt-1 w-96 overflow-hidden rounded-md border shadow-md">
+              <div data-ui="pending-approvals-dropdown" className="bg-popover absolute top-full right-0 z-50 mt-1 w-96 overflow-hidden rounded-md border shadow-md">
                 <div className="max-h-[28rem] overflow-y-auto p-2">
                   <PendingApprovalsDashboard compact />
                 </div>
@@ -215,7 +216,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
         {/* User menu */}
         {user && (
-          <div className="relative" ref={userMenuRef}>
+          <div data-ui="user-menu" className="relative" ref={userMenuRef}>
             <button
               onClick={() => setUserMenuOpen((o) => !o)}
               className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
@@ -229,7 +230,7 @@ export function Header({ className, plantSelector }: HeaderProps) {
             </button>
 
             {userMenuOpen && (
-              <div className="bg-popover absolute top-full right-0 z-50 mt-1 w-52 rounded-md border shadow-md">
+              <div data-ui="user-menu-dropdown" className="bg-popover absolute top-full right-0 z-50 mt-1 w-52 rounded-md border shadow-md">
                 <div className="border-b px-3 py-2">
                   <p className="text-foreground text-sm font-medium">{user.username}</p>
                   <p className="text-muted-foreground text-xs">{ROLE_LABELS[role]}</p>

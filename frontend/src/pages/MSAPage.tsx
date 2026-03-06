@@ -58,9 +58,9 @@ export function MSAPage() {
   }
 
   return (
-    <div className="flex max-w-6xl flex-col gap-6 p-6">
+    <div data-ui="msa-page" className="flex max-w-6xl flex-col gap-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="msa-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 rounded-lg p-2">
             <Microscope className="text-primary h-6 w-6" />
@@ -82,7 +82,7 @@ export function MSAPage() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-1">
+      <div data-ui="msa-filters" className="flex gap-1">
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.label}
@@ -105,7 +105,7 @@ export function MSAPage() {
           <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
         </div>
       ) : !studies || studies.length === 0 ? (
-        <div className="border-border flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed">
+        <div data-ui="msa-empty-state" className="border-border flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed">
           <Microscope className="text-muted-foreground h-10 w-10" />
           <p className="text-muted-foreground text-sm">No MSA studies yet.</p>
           <button
@@ -116,7 +116,7 @@ export function MSAPage() {
           </button>
         </div>
       ) : (
-        <div className="border-border overflow-hidden rounded-xl border">
+        <div data-ui="msa-table" className="border-border overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
@@ -183,7 +183,7 @@ export function MSAPage() {
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmDeleteId(null)} />
-          <div className="bg-card border-border relative mx-4 max-w-md rounded-xl border p-6 shadow-lg">
+          <div data-ui="msa-delete-confirm-dialog" className="bg-card border-border relative mx-4 max-w-md rounded-xl border p-6 shadow-lg">
             <h3 className="mb-2 text-lg font-semibold">Delete MSA Study?</h3>
             <p className="text-muted-foreground mb-6 text-sm">
               This will permanently delete the study and all associated measurements and results.

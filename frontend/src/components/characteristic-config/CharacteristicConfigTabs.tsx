@@ -92,9 +92,10 @@ export function CharacteristicConfigTabs({
   )
 
   return (
-    <div className={cn('flex h-full flex-col', className)}>
+    <div data-ui="characteristic-config" className={cn('flex h-full flex-col', className)}>
       {/* Tab Bar */}
       <div
+        data-ui="characteristic-config-tabs"
         role="tablist"
         aria-label="Characteristic configuration sections"
         className="border-border bg-muted/30 flex border-b"
@@ -129,6 +130,7 @@ export function CharacteristicConfigTabs({
 
       {/* Tab Panel */}
       <div
+        data-ui="characteristic-config-content"
         role="tabpanel"
         id={`tabpanel-${activeTab}`}
         aria-labelledby={`tab-${activeTab}`}

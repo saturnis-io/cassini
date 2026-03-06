@@ -258,11 +258,11 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
     }
 
     return (
-      <div className={cn('flex h-full flex-col', className)}>
-        <div className="px-2 pb-1.5">
+      <div data-ui="hierarchy-list" className={cn('flex h-full flex-col', className)}>
+        <div data-ui="hierarchy-toolbar" className="px-2 pb-1.5">
           <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
         </div>
-        <div className="flex-1 overflow-y-auto px-1">
+        <div data-ui="hierarchy-content" className="flex-1 overflow-y-auto px-1">
           <div className="space-y-0.5">
             {nodes?.map((node) => (
               <TodoTreeNode
@@ -315,13 +315,14 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
 
   return (
     <div
+      data-ui="hierarchy-list"
       className={cn('bg-card flex h-full flex-col overflow-hidden rounded-lg border', className)}
     >
-      <div className="space-y-2 border-b px-3 py-2">
+      <div data-ui="hierarchy-toolbar" className="space-y-2 border-b px-3 py-2">
         <h2 className="text-sm font-semibold">Characteristics</h2>
         <StatusFilterTabs value={statusFilter} onChange={setStatusFilter} counts={statusCounts} />
       </div>
-      <div className="flex-1 overflow-auto p-2">
+      <div data-ui="hierarchy-content" className="flex-1 overflow-auto p-2">
         <div className="space-y-1">
           {nodes?.map((node) => (
             <TodoTreeNode

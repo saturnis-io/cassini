@@ -287,9 +287,9 @@ export function ViolationsView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div data-ui="violations-page" className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div data-ui="violations-header" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold md:text-2xl">{t('title')}</h1>
           <p className="text-muted-foreground text-sm">
@@ -325,7 +325,7 @@ export function ViolationsView() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
+      <div data-ui="violations-stats" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="text-muted-foreground text-sm">{t('stats.totalViolations')}</div>
           <div className="text-2xl font-bold">{stats?.total ?? 0}</div>
@@ -355,7 +355,7 @@ export function ViolationsView() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div data-ui="violations-filters" className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
           <Filter className="text-muted-foreground h-4 w-4" />
           <span className="text-muted-foreground text-sm">{t('filters.status')}</span>
@@ -402,7 +402,7 @@ export function ViolationsView() {
       </div>
 
       {/* Violations Table */}
-      <div className="bg-card border-border overflow-hidden rounded-lg border">
+      <div data-ui="violations-table" className="bg-card border-border overflow-hidden rounded-lg border">
         {/* Top Pager */}
         {showPager && (
           <div className="border-border bg-muted/30 border-b">

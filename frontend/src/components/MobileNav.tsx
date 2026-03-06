@@ -14,7 +14,7 @@ const MOBILE_TABS = [
  */
 export function MobileNav() {
   return (
-    <nav className="border-border bg-background/95 fixed right-0 bottom-0 left-0 z-50 flex border-t backdrop-blur-sm md:hidden safe-area-bottom">
+    <nav data-ui="mobile-nav" className="border-border bg-background/95 fixed right-0 bottom-0 left-0 z-50 flex border-t backdrop-blur-sm md:hidden safe-area-bottom">
       {MOBILE_TABS.map((tab) => (
         <NavLink
           key={tab.to}

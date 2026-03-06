@@ -70,9 +70,9 @@ export function FAIPage() {
     plants?.find((p) => p.id === plantId)?.name ?? `Plant ${plantId}`
 
   return (
-    <div className="flex max-w-6xl flex-col gap-6 p-6">
+    <div data-ui="fai-page" className="flex max-w-6xl flex-col gap-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="fai-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 rounded-lg p-2">
             <ClipboardCheck className="text-primary h-6 w-6" />
@@ -103,7 +103,7 @@ export function FAIPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2">
+      <div data-ui="fai-filters" className="flex items-center gap-2">
         {[
           { value: undefined, label: 'All' },
           { value: 'draft', label: 'Draft' },
@@ -132,7 +132,7 @@ export function FAIPage() {
           <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
         </div>
       ) : !reports || reports.length === 0 ? (
-        <div className="border-border flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed">
+        <div data-ui="fai-empty-state" className="border-border flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed">
           <FileText className="text-muted-foreground h-10 w-10" />
           <p className="text-muted-foreground text-sm">No FAI reports found.</p>
           <button
@@ -144,7 +144,7 @@ export function FAIPage() {
           </button>
         </div>
       ) : (
-        <div className="border-border overflow-hidden rounded-xl border">
+        <div data-ui="fai-table" className="border-border overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
@@ -219,7 +219,7 @@ export function FAIPage() {
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmDeleteId(null)} />
-          <div className="bg-card border-border relative mx-4 max-w-sm rounded-xl border p-6 shadow-lg">
+          <div data-ui="fai-delete-confirm-dialog" className="bg-card border-border relative mx-4 max-w-sm rounded-xl border p-6 shadow-lg">
             <h3 className="mb-2 text-lg font-semibold">Delete Report?</h3>
             <p className="text-muted-foreground mb-6 text-sm">
               This will permanently delete this draft FAI report and all its inspection items.

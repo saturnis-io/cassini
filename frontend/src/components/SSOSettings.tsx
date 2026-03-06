@@ -44,9 +44,9 @@ export function SSOSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="sso-settings">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-ui="sso-settings-header">
         <div>
           <h2 className="text-foreground text-lg font-semibold">Single Sign-On</h2>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -68,7 +68,7 @@ export function SSOSettings() {
           Loading SSO providers...
         </div>
       ) : !configs || configs.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg border border-dashed p-8 text-center">
+        <div className="bg-muted/50 rounded-lg border border-dashed p-8 text-center" data-ui="sso-providers-empty">
           <Shield className="text-muted-foreground mx-auto mb-3 h-10 w-10" />
           <p className="text-foreground font-medium">No SSO providers configured</p>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -76,8 +76,8 @@ export function SSOSettings() {
           </p>
         </div>
       ) : (
-        <div className="border-border overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="border-border overflow-hidden rounded-lg border" data-ui="sso-providers-table-container">
+          <table className="w-full text-sm" data-ui="sso-providers-table">
             <thead>
               <tr className="bg-muted/50 border-border border-b">
                 <th className="text-muted-foreground px-4 py-3 text-left font-medium">Name</th>
@@ -313,7 +313,7 @@ function OIDCConfigForm({ config, onClose, onCreate, onUpdate, isSaving }: OIDCC
 
   return (
     <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-      <div className="bg-card border-border w-full max-w-2xl rounded-lg border shadow-lg">
+      <div className="bg-card border-border w-full max-w-2xl rounded-lg border shadow-lg" data-ui="sso-provider-form-dialog">
         <div className="border-border flex items-center justify-between border-b px-6 py-4">
           <h3 className="text-foreground text-lg font-semibold">
             {isEdit ? 'Edit SSO Provider' : 'Add SSO Provider'}

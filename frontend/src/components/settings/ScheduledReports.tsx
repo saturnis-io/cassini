@@ -146,9 +146,9 @@ export function ScheduledReports() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="scheduled-reports-settings">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-ui="scheduled-reports-header">
         <div>
           <h2 className="text-lg font-semibold">Scheduled Reports</h2>
           <p className="text-muted-foreground text-sm">
@@ -173,14 +173,14 @@ export function ScheduledReports() {
           Loading schedules...
         </div>
       ) : schedules.length === 0 ? (
-        <div className="bg-muted rounded-xl p-8 text-center">
+        <div className="bg-muted rounded-xl p-8 text-center" data-ui="scheduled-reports-empty">
           <FileText className="text-muted-foreground mx-auto mb-3 h-10 w-10" />
           <p className="text-muted-foreground text-sm">
             No scheduled reports yet. Create one to automate report delivery.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-ui="scheduled-reports-list">
           {schedules.map((schedule) => (
             <ScheduleCard
               key={schedule.id}
@@ -406,8 +406,8 @@ function RunHistoryPanel({
   const { data: runs = [], isLoading } = useReportRuns(scheduleId)
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="scheduled-reports-run-history">
+      <div className="mb-4 flex items-center gap-2" data-ui="scheduled-reports-run-history-header">
         <Clock className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">Run History: {scheduleName}</h3>
       </div>
@@ -588,6 +588,7 @@ function ScheduleFormDialog({
     >
       <div
         className="bg-card border-border mx-4 w-full max-w-lg rounded-2xl border p-6 shadow-xl"
+        data-ui="scheduled-reports-form-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">

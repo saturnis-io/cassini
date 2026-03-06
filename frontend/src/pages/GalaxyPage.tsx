@@ -150,7 +150,7 @@ export function GalaxyPage() {
   if (!plantId) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-[#080C16]">
+    <div data-ui="galaxy-page" className="fixed inset-0 z-50 flex bg-[#080C16]">
       {/* Sidebar — push layout, flex-none */}
       {!kioskMode && (
         <GalaxySidebar
@@ -164,7 +164,7 @@ export function GalaxyPage() {
       )}
 
       {/* Scene wrapper — fills remaining space */}
-      <div className="relative flex-1">
+      <div data-ui="galaxy-content" className="relative flex-1">
         <GalaxyScene
           className="h-full w-full"
           plantId={plantId}

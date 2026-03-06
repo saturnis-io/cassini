@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="border-destructive/30 bg-destructive/5 flex flex-col items-center justify-center rounded-lg border p-6 text-center">
+        <div data-ui="error-boundary" className="border-destructive/30 bg-destructive/5 flex flex-col items-center justify-center rounded-lg border p-6 text-center">
           <p className="text-destructive mb-1 text-sm font-medium">Something went wrong</p>
           {import.meta.env.DEV && (
             <p className="text-muted-foreground mb-3 max-w-sm text-xs">{this.state.error.message}</p>

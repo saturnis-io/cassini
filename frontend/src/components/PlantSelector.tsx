@@ -116,7 +116,7 @@ export function PlantSelector({ className }: PlantSelectorProps) {
   }
 
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
+    <div ref={containerRef} data-ui="plant-selector" className={cn('relative', className)}>
       {/* Trigger button — compact on mobile, full on desktop */}
       <button
         ref={buttonRef}

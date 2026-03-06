@@ -163,6 +163,7 @@ export function ChartPanel({
 
   return (
     <div
+      data-ui="chart-panel"
       className={cn(
         'h-full',
         isRightPosition ? 'flex flex-row gap-2' : 'flex h-full flex-col gap-3',
@@ -170,7 +171,7 @@ export function ChartPanel({
       )}
     >
       {/* Control Chart, Attribute Chart, CUSUM Chart, or EWMA Chart */}
-      <div className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
+      <div data-ui="chart-content" className={cn(isRightPosition ? 'min-w-0 flex-1' : 'min-h-0 flex-1')}>
         <ErrorBoundary>
           {/* Route by user-selected chart type first, then fall back to backend metadata */}
           {chartType === 'pareto' ? (
@@ -203,6 +204,7 @@ export function ChartPanel({
       {/* Histogram */}
       {showHistogram && (
         <div
+          data-ui="chart-histogram"
           className={cn('relative flex-shrink-0', isRightPosition ? 'h-full' : 'w-full')}
           style={isRightPosition ? { width: histogramWidth } : { height: histogramHeight }}
         >

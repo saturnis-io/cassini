@@ -200,9 +200,9 @@ export function KioskView() {
     : null
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden p-6">
+    <div data-ui="kiosk-page" className="flex h-screen flex-col overflow-hidden p-6">
       {/* Header */}
-      <div className="mb-4 flex flex-shrink-0 items-center justify-between">
+      <div data-ui="kiosk-header" className="mb-4 flex flex-shrink-0 items-center justify-between">
         <div className="flex items-center gap-4">
           <StatusIndicator status={status} />
           <h1 className="text-foreground text-2xl font-bold">{currentChar?.name ?? 'Unknown'}</h1>
@@ -228,7 +228,7 @@ export function KioskView() {
       </div>
 
       {/* Chart area - use calc for explicit height that ResponsiveContainer needs */}
-      <div className="bg-card relative rounded-lg p-4" style={{ height: 'calc(100vh - 220px)' }}>
+      <div data-ui="kiosk-chart" className="bg-card relative rounded-lg p-4" style={{ height: 'calc(100vh - 220px)' }}>
         {currentChar && (
           <ErrorBoundary>
             <ControlChart characteristicId={currentChar.id} chartOptions={{ limit: 50 }} />
@@ -257,7 +257,7 @@ export function KioskView() {
       </div>
 
       {/* Stats bar */}
-      <div className="mt-4 flex flex-shrink-0 items-center justify-between text-lg">
+      <div data-ui="kiosk-stats-bar" className="mt-4 flex flex-shrink-0 items-center justify-between text-lg">
         <div className="flex gap-8">
           <div>
             <span className="text-muted-foreground">Current: </span>

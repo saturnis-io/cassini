@@ -115,9 +115,9 @@ export function ConfigurationView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 gap-6">
+    <div data-ui="configuration-page" className="flex min-h-0 flex-1 gap-6">
       {/* Left panel - Hierarchy tree */}
-      <div className="bg-card w-80 flex-shrink-0 overflow-auto rounded-lg border">
+      <div data-ui="configuration-sidebar" className="bg-card w-80 flex-shrink-0 overflow-auto rounded-lg border">
         <div className="flex items-center justify-between border-b p-4">
           <h2 className="font-semibold">Hierarchy</h2>
           <button
@@ -150,7 +150,7 @@ export function ConfigurationView() {
       </div>
 
       {/* Right panel - Characteristic form */}
-      <div className="bg-card flex-1 overflow-auto rounded-lg border">
+      <div data-ui="configuration-content" className="bg-card flex-1 overflow-auto rounded-lg border">
         {editingId || isCreatingNew ? (
           <CharacteristicForm characteristicId={editingId} />
         ) : (
@@ -175,7 +175,7 @@ export function ConfigurationView() {
       {/* Add Node Modal */}
       {showAddNodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl">
+          <div data-ui="add-node-dialog" className="bg-card border-border mx-4 w-full max-w-md rounded-2xl border p-6 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Add Hierarchy Node</h3>
               <button

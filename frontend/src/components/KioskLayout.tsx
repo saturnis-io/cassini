@@ -29,7 +29,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
   const { brandConfig } = useTheme()
 
   return (
-    <div className="bg-background text-foreground flex min-h-screen flex-col overflow-hidden">
+    <div data-ui="kiosk-layout" className="bg-background text-foreground flex min-h-screen flex-col overflow-hidden">
       {/* Force dark mode styles */}
       <style>{`
         .kiosk-content {
@@ -46,6 +46,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
 
       {/* Main content area */}
       <main
+        data-ui="kiosk-content"
         className={cn(
           'kiosk-content flex-1 overflow-hidden text-lg',
           showStatusBar ? '' : 'h-screen',
@@ -56,7 +57,7 @@ export function KioskLayout({ children, showStatusBar = true }: KioskLayoutProps
 
       {/* Status bar */}
       {showStatusBar && (
-        <footer className="border-border bg-card flex h-10 items-center justify-between border-t px-4 text-sm">
+        <footer data-ui="kiosk-statusbar" className="border-border bg-card flex h-10 items-center justify-between border-t px-4 text-sm">
           {/* Connection status */}
           <div className="flex items-center gap-2">
             {wsConnected ? (

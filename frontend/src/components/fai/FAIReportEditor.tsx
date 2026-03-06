@@ -164,9 +164,9 @@ export function FAIReportEditor() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div data-ui="fai-editor" className="flex flex-col gap-4 p-6">
       {/* Top bar */}
-      <div className="flex items-center justify-between">
+      <div data-ui="fai-editor-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/fai')}

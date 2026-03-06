@@ -386,8 +386,8 @@ export function AuditLogViewer() {
     (stats?.events_by_action?.delete ?? 0)
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-6" data-ui="audit-log-settings">
+      <div data-ui="audit-log-header">
         <h2 className="text-foreground text-lg font-semibold">Audit Log</h2>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Track all user actions and system events
@@ -395,7 +395,7 @@ export function AuditLogViewer() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-ui="audit-log-stats">
         <StatCard label="Total Events" value={stats?.total_events ?? 0} icon={Shield} />
         <StatCard label="Logins" value={loginCount} icon={LogIn} />
         <StatCard label="Failed Logins" value={loginFailedCount} icon={LogIn} />
@@ -403,7 +403,7 @@ export function AuditLogViewer() {
       </div>
 
       {/* Filter bar */}
-      <div className="border-border bg-card flex flex-wrap items-center gap-3 rounded-lg border p-3">
+      <div className="border-border bg-card flex flex-wrap items-center gap-3 rounded-lg border p-3" data-ui="audit-log-filters">
         <div className="flex items-center gap-2">
           <Search className="text-muted-foreground h-4 w-4" />
           <span className="text-muted-foreground text-sm font-medium">Filters</span>
@@ -484,9 +484,9 @@ export function AuditLogViewer() {
       </div>
 
       {/* Table */}
-      <div className="border-border bg-card overflow-hidden rounded-lg border">
+      <div className="border-border bg-card overflow-hidden rounded-lg border" data-ui="audit-log-table-container">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-left">
+          <table className="w-full min-w-[800px] text-left" data-ui="audit-log-table">
             <thead>
               <tr className="border-border bg-muted/50 border-b">
                 <th className="text-muted-foreground px-3 py-2 text-xs font-semibold">Timestamp</th>

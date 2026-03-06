@@ -142,7 +142,7 @@ export function RetentionSettings() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="retention-settings">
       {/* Pill Sub-Navigation */}
       <div className="flex gap-1.5">
         {SUB_TABS.map((tab) => (
@@ -165,8 +165,8 @@ export function RetentionSettings() {
       {subTab === 'policy' && (
         <>
           {/* Global Default Card */}
-          <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+          <div className="bg-muted rounded-xl p-6" data-ui="retention-default-policy-card">
+            <div className="mb-4 flex items-center gap-2" data-ui="retention-default-policy-header">
               <Archive className="text-muted-foreground h-5 w-5" />
               <h3 className="font-semibold">Plant-Wide Default Policy</h3>
             </div>
@@ -218,7 +218,7 @@ export function RetentionSettings() {
           </div>
 
           {/* Explainer Card */}
-          <div className="bg-muted rounded-xl p-6">
+          <div className="bg-muted rounded-xl p-6" data-ui="retention-explainer-card">
             <div className="mb-3 flex items-center gap-2">
               <Info className="text-muted-foreground h-5 w-5" />
               <h3 className="font-semibold">How Retention Works</h3>
@@ -246,7 +246,7 @@ export function RetentionSettings() {
       {subTab === 'overrides' && (
         <>
           {/* Override Summary Bar */}
-          <div className="bg-muted rounded-xl px-5 py-3">
+          <div className="bg-muted rounded-xl px-5 py-3" data-ui="retention-overrides-summary">
             {overridesLoading ? (
               <span className="text-muted-foreground text-sm">Loading overrides...</span>
             ) : overrides.length === 0 ? (
@@ -282,7 +282,7 @@ export function RetentionSettings() {
           </div>
 
           {/* Split Layout: Tree + Detail Panel */}
-          <div className="flex min-h-[500px] gap-4">
+          <div className="flex min-h-[500px] gap-4" data-ui="retention-overrides-layout">
             {/* Tree Panel */}
             <div className="border-border bg-card w-64 shrink-0 overflow-y-auto rounded-xl border">
               <RetentionTreeBrowser
@@ -452,9 +452,9 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
   }, [executePurge])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="retention-activity-section">
       {/* Next Scheduled Purge Card */}
-      <div className="bg-muted rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6" data-ui="retention-next-purge-card">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Timer className="text-muted-foreground h-5 w-5" />
@@ -508,8 +508,8 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
       </div>
 
       {/* Purge History Table */}
-      <div className="bg-muted rounded-xl p-6">
-        <div className="mb-4 flex items-center gap-2">
+      <div className="bg-muted rounded-xl p-6" data-ui="retention-purge-history-card">
+        <div className="mb-4 flex items-center gap-2" data-ui="retention-purge-history-header">
           <Clock className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Purge History</h3>
         </div>

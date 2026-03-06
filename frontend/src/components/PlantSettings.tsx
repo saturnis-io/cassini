@@ -156,9 +156,9 @@ export function PlantSettings() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="plant-settings">
       {/* Plant List */}
-      <div className="bg-muted divide-border divide-y rounded-xl">
+      <div className="bg-muted divide-border divide-y rounded-xl" data-ui="plant-list">
         {plants?.map((plant) => (
           <div key={plant.id} className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
@@ -242,7 +242,7 @@ export function PlantSettings() {
       </div>
 
       {/* Add New Plant Form */}
-      <div className="bg-muted space-y-4 rounded-xl p-6">
+      <div className="bg-muted space-y-4 rounded-xl p-6" data-ui="plant-create-form">
         <h3 className="font-medium">Add New Site</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
@@ -306,6 +306,7 @@ export function PlantSettings() {
         >
           <div
             className="bg-card border-border mx-4 w-full max-w-lg rounded-2xl border p-6 shadow-xl"
+            data-ui="plant-edit-dialog"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">

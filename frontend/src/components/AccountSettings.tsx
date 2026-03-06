@@ -17,7 +17,7 @@ export function AccountSettings() {
   const { user } = useAuth()
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-ui="account-settings">
       <ProfileSection user={user} />
       <div className="border-border border-t pt-8">
         <ChangePasswordSection />
@@ -50,8 +50,8 @@ function ProfileSection({ user }: { user: ReturnType<typeof useAuth>['user'] }) 
   }
 
   return (
-    <section className="space-y-4">
-      <div>
+    <section className="space-y-4" data-ui="account-profile-section">
+      <div data-ui="account-profile-header">
         <h2 className="text-foreground text-lg font-semibold">Profile</h2>
         <p className="text-muted-foreground text-sm">
           Manage your display name and email address
@@ -170,8 +170,8 @@ function ChangePasswordSection() {
     confirmPassword.length > 0
 
   return (
-    <section className="space-y-4">
-      <div>
+    <section className="space-y-4" data-ui="account-password-section">
+      <div data-ui="account-password-header">
         <h2 className="text-foreground text-lg font-semibold">Change Password</h2>
         <p className="text-muted-foreground text-sm">Update your password</p>
       </div>

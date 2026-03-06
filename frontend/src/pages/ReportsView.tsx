@@ -89,9 +89,9 @@ export function ReportsView() {
   )
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] flex-col gap-4">
+    <div data-ui="reports-page" className="flex h-[calc(100vh-10rem)] flex-col gap-4">
       {/* Controls bar */}
-      <div className="bg-card border-border flex flex-shrink-0 items-center gap-4 rounded-lg border px-4 py-3">
+      <div data-ui="reports-toolbar" className="bg-card border-border flex flex-shrink-0 items-center gap-4 rounded-lg border px-4 py-3">
         {/* Template dropdown */}
         <div className="flex items-center gap-2">
           <FileText className="text-muted-foreground h-4 w-4" />
@@ -145,7 +145,7 @@ export function ReportsView() {
           </div>
         </div>
       ) : (
-        <div ref={reportContentRef} className="flex-1 overflow-auto">
+        <div data-ui="reports-content" ref={reportContentRef} className="flex-1 overflow-auto">
           <ErrorBoundary>
             <ReportPreview
               template={selectedTemplate}

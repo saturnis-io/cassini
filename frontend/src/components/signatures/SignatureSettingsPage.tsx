@@ -21,8 +21,8 @@ export function SignatureSettingsPage() {
   const visibleTabs = TABS.filter((tab) => !tab.minRole || hasAccess(role, tab.minRole))
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-6" data-ui="signature-settings">
+      <div data-ui="signature-settings-header">
         <h2 className="text-foreground text-lg font-semibold">Electronic Signatures</h2>
         <p className="text-muted-foreground text-sm">
           Configure signature workflows, meanings, and password policies for 21 CFR Part 11
@@ -31,7 +31,7 @@ export function SignatureSettingsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-border flex gap-1 border-b">
+      <div className="border-border flex gap-1 border-b" data-ui="signature-settings-tabs">
         {visibleTabs.map((tab) => (
           <button
             key={tab.id}

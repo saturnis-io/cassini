@@ -297,7 +297,7 @@ export function WallDashboard() {
   }, [setSearchParams])
 
   return (
-    <div className="bg-background relative flex h-full flex-col p-4">
+    <div data-ui="wall-dashboard-page" className="bg-background relative flex h-full flex-col p-4">
       {/* Brand Badge */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2 opacity-60">
         <img
@@ -309,7 +309,7 @@ export function WallDashboard() {
       </div>
 
       {/* Toolbar */}
-      <div className="mb-4 flex items-center justify-between">
+      <div data-ui="wall-dashboard-toolbar" className="mb-4 flex items-center justify-between">
         <h1 className="text-foreground text-xl font-semibold">Wall Dashboard</h1>
 
         <div className="flex items-center gap-3">
@@ -351,6 +351,7 @@ export function WallDashboard() {
 
       {/* Chart grid */}
       <div
+        data-ui="wall-dashboard-content"
         className="grid min-h-0 flex-1 gap-4"
         style={{
           gridTemplateColumns: `repeat(${gridConfig.cols}, 1fr)`,

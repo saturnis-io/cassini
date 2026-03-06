@@ -59,7 +59,7 @@ export function AnnotationsSection({
   }
 
   return (
-    <div className="space-y-3">
+    <div data-ui="sample-annotations" className="space-y-3">
       {/* Existing annotations */}
       {annotations.map((a) => {
         const isEditing = editingId === a.id

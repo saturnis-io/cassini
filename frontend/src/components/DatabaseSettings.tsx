@@ -178,7 +178,7 @@ export function DatabaseSettings() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="database-settings">
       {/* Pill Sub-Navigation */}
       <div className="flex gap-1.5">
         {visibleSubTabs.map((tab) => (
@@ -210,8 +210,8 @@ export function DatabaseSettings() {
       )}
 
       {subTab === 'connection' && isAdmin && (
-        <div className="bg-muted rounded-xl p-6">
-          <div className="mb-4 flex items-center gap-2">
+        <div className="bg-muted rounded-xl p-6" data-ui="database-connection-card">
+          <div className="mb-4 flex items-center gap-2" data-ui="database-connection-header">
             <Server className="text-muted-foreground h-5 w-5" />
             <h3 className="font-semibold">Connection Configuration</h3>
           </div>
@@ -220,7 +220,7 @@ export function DatabaseSettings() {
       )}
 
       {subTab === 'migrations' && isAdmin && (
-        <div className="bg-muted rounded-xl p-6">
+        <div className="bg-muted rounded-xl p-6" data-ui="database-migrations-card">
           <h3 className="mb-4 font-semibold">Migration Status</h3>
           <DatabaseMigrationStatus />
         </div>
@@ -232,8 +232,8 @@ export function DatabaseSettings() {
 
       {/* Danger Zone — separated with extra spacing */}
       <div className="pt-4">
-        <div className="bg-destructive/5 border-destructive/20 rounded-xl border p-6">
-          <div className="mb-4 flex items-center gap-2">
+        <div className="bg-destructive/5 border-destructive/20 rounded-xl border p-6" data-ui="database-danger-zone">
+          <div className="mb-4 flex items-center gap-2" data-ui="database-danger-zone-header">
             <Trash2 className="text-destructive h-5 w-5" />
             <h3 className="text-destructive font-semibold">Danger Zone</h3>
           </div>
@@ -350,9 +350,9 @@ function StatusContent({
   ]
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="database-status-content">
       {/* Database Status */}
-      <div className="bg-muted rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6" data-ui="database-status-card">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Server className="text-muted-foreground h-5 w-5" />
@@ -415,7 +415,7 @@ function StatusContent({
       </div>
 
       {/* Database Statistics */}
-      <div className="bg-muted rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6" data-ui="database-statistics-card">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="text-muted-foreground h-5 w-5" />
@@ -462,16 +462,16 @@ function MaintenanceContent({
   onExport: (format: 'json' | 'csv') => void
 }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="database-maintenance-content">
       {/* Maintenance Tools */}
-      <div className="bg-muted rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6" data-ui="database-maintenance-card">
         <h3 className="mb-4 font-semibold">Maintenance</h3>
         <DatabaseMaintenancePanel />
       </div>
 
       {/* Export Data */}
-      <div className="bg-muted rounded-xl p-6">
-        <div className="mb-4 flex items-center gap-2">
+      <div className="bg-muted rounded-xl p-6" data-ui="database-export-card">
+        <div className="mb-4 flex items-center gap-2" data-ui="database-export-header">
           <Download className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Export Data</h3>
         </div>

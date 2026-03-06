@@ -222,8 +222,8 @@ function SystemDefaultsSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="localization-system-defaults-section">
+      <div className="mb-4 flex items-center gap-2" data-ui="localization-system-defaults-header">
         <Globe className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">System Defaults</h3>
       </div>
@@ -351,8 +351,8 @@ function PlantOverridesSection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-muted rounded-xl p-6" data-ui="localization-plant-overrides-section">
+      <div className="mb-4 flex items-center gap-2" data-ui="localization-plant-overrides-header">
         <Globe className="text-muted-foreground h-5 w-5" />
         <h3 className="font-semibold">Plant Overrides</h3>
       </div>
@@ -493,8 +493,8 @@ function DisplayKeySection() {
   }
 
   return (
-    <div className="bg-muted rounded-xl p-6">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="bg-muted rounded-xl p-6" data-ui="localization-display-key-section">
+      <div className="mb-4 flex items-center justify-between" data-ui="localization-display-key-header">
         <div className="flex items-center gap-2">
           <Hash className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">Sample Display Key Format</h3>
@@ -693,7 +693,7 @@ function DisplayKeySection() {
 
 export function LocalizationSettings() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-ui="localization-settings">
       <SystemDefaultsSection />
       <DisplayKeySection />
       <PlantOverridesSection />

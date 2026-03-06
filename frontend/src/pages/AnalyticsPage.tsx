@@ -27,9 +27,9 @@ export function AnalyticsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-ui="analytics-page" className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-3">
+      <div data-ui="analytics-header" className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-3">
         <h1 className="text-foreground text-xl font-bold tracking-tight">Analytics</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Multivariate SPC, correlation analysis, and advanced analytics
@@ -62,7 +62,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div data-ui="analytics-content" className="flex-1 overflow-y-auto p-6">
         {activeTab === 'correlation' && <CorrelationTab />}
         {activeTab === 'multivariate' && <MultivariateTab />}
         {activeTab === 'predictions' && <PredictionsTab />}

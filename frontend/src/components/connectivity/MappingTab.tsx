@@ -179,9 +179,9 @@ export function MappingTab() {
   ]
 
   return (
-    <div className="space-y-5">
+    <div data-ui="mapping-tab" className="space-y-5">
       {/* Header bar */}
-      <div className="flex items-center justify-between gap-4">
+      <div data-ui="mapping-header" className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-foreground text-sm font-semibold">Data Source Mappings</h3>
           <p className="text-muted-foreground mt-0.5 text-xs">
@@ -198,7 +198,7 @@ export function MappingTab() {
       </div>
 
       {/* Filter chips + search */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div data-ui="mapping-toolbar" className="flex flex-wrap items-center gap-3">
         {/* Filter chips */}
         <div className="flex items-center gap-1">
           {filterOptions.map((opt) => (

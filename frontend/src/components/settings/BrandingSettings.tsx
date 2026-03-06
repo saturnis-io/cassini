@@ -814,7 +814,7 @@ export function BrandingSettings() {
   }, [draft.bodyFont])
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6" data-ui="branding-settings">
       {/* Left: Main content */}
       <div className="min-w-0 flex-1 space-y-6">
         {/* Section Navigation (mobile) */}
@@ -839,9 +839,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'presets' && 'hidden lg:block')}
           id="section-presets"
+          data-ui="branding-presets-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2" data-ui="branding-presets-header">
               <Palette className="h-5 w-5" />
               <h3 className="font-semibold">Industry Presets</h3>
             </div>
@@ -911,9 +912,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'identity' && 'hidden lg:block')}
           id="section-identity"
+          data-ui="branding-identity-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2" data-ui="branding-identity-header">
               <Image className="h-5 w-5" />
               <h3 className="font-semibold">Identity</h3>
             </div>
@@ -1108,9 +1110,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'colors' && 'hidden lg:block')}
           id="section-colors"
+          data-ui="branding-colors-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2" data-ui="branding-colors-header">
               <Paintbrush className="h-5 w-5" />
               <h3 className="font-semibold">Brand Colors</h3>
             </div>
@@ -1185,9 +1188,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'typography' && 'hidden lg:block')}
           id="section-typography"
+          data-ui="branding-typography-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2" data-ui="branding-typography-header">
               <Type className="h-5 w-5" />
               <h3 className="font-semibold">Typography</h3>
             </div>
@@ -1267,9 +1271,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'login' && 'hidden lg:block')}
           id="section-login"
+          data-ui="branding-login-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2" data-ui="branding-login-header">
               <Monitor className="h-5 w-5" />
               <h3 className="font-semibold">Login Experience</h3>
             </div>
@@ -1367,9 +1372,10 @@ export function BrandingSettings() {
         <section
           className={cn(activeSection !== 'style' && 'hidden lg:block')}
           id="section-style"
+          data-ui="branding-style-section"
         >
           <div className="bg-muted rounded-xl p-6">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2" data-ui="branding-style-header">
               <Paintbrush className="h-5 w-5" />
               <h3 className="font-semibold">Visual Style</h3>
             </div>
@@ -1435,7 +1441,7 @@ export function BrandingSettings() {
         </div>
 
         {/* Per-Plant Override (placeholder) */}
-        <div className="bg-muted rounded-xl p-6">
+        <div className="bg-muted rounded-xl p-6" data-ui="branding-plant-override-card">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold">Per-Plant Override</h3>
@@ -1470,7 +1476,7 @@ export function BrandingSettings() {
       </div>
 
       {/* Right: Live Preview (sticky) */}
-      <div className="hidden w-72 shrink-0 lg:block">
+      <div className="hidden w-72 shrink-0 lg:block" data-ui="branding-preview-panel">
         <div className="sticky top-6 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Live Preview</h4>

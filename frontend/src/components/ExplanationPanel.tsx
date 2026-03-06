@@ -124,6 +124,7 @@ export function ExplanationPanel() {
 
   return (
     <div
+      data-ui="explanation-panel"
       className={cn(
         'border-border bg-card fixed top-12 right-0 bottom-0 z-[60] w-[360px] border-l shadow-lg',
         'explanation-panel-slide-in',
@@ -132,7 +133,7 @@ export function ExplanationPanel() {
       )}
     >
       {/* Header */}
-      <div className="border-border flex items-center justify-between border-b px-4 py-3">
+      <div data-ui="explanation-header" className="border-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <BookOpen className="text-primary h-4 w-4" />
           <span className="text-sm font-semibold">Show Your Work</span>
@@ -147,7 +148,7 @@ export function ExplanationPanel() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div data-ui="explanation-content" className="flex-1 overflow-y-auto p-4">
         {isLoading && (
           <div className="animate-pulse space-y-3">
             <div className="bg-muted h-6 w-2/3 rounded" />

@@ -313,7 +313,7 @@ export function OperatorDashboard() {
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
     if (!chartDataForAnnotation) return null
-    const { control_limits, spec_limits } = chartDataForAnnotation
+    const { control_limits } = chartDataForAnnotation
 
     // Support standard, CUSUM, EWMA, and attribute data point arrays
     const stdPts = chartDataForAnnotation.data_points ?? []
@@ -324,53 +324,34 @@ export function OperatorDashboard() {
     let totalSamples: number
     let violationCount: number
     let lastMean: number
-    let values: number[]
 
     if (attrPts.length > 0) {
       totalSamples = attrPts.length
       violationCount = attrPts.filter((p) => p.violation_ids.length > 0).length
       lastMean = attrPts[attrPts.length - 1].plotted_value
-      values = attrPts.map((p) => p.plotted_value)
     } else if (stdPts.length > 0) {
       totalSamples = stdPts.length
       violationCount = stdPts.filter((p) => p.violation_ids.length > 0).length
       lastMean = stdPts[stdPts.length - 1].mean
-      values = stdPts.map((p) => p.mean)
     } else if (cusumPts.length > 0) {
       totalSamples = cusumPts.length
       violationCount = cusumPts.filter((p) => p.violation_ids.length > 0).length
       lastMean = cusumPts[cusumPts.length - 1].measurement
-      values = cusumPts.map((p) => p.measurement)
     } else if (ewmaPts.length > 0) {
       totalSamples = ewmaPts.length
       violationCount = ewmaPts.filter((p) => p.violation_ids.length > 0).length
       lastMean = ewmaPts[ewmaPts.length - 1].measurement
-      values = ewmaPts.map((p) => p.measurement)
     } else {
       return null
     }
 
     const centerLine = control_limits.center_line
 
-    // Compute Cpk using stored_sigma (R-bar/d2, AIAG-correct within-subgroup sigma)
-    let cpk: number | null = null
-    const mean = values.reduce((a, b) => a + b, 0) / values.length
-
-    if (spec_limits.usl != null && spec_limits.lsl != null) {
-      const sigmaWithin = chartDataForAnnotation.stored_sigma
-      if (sigmaWithin != null && sigmaWithin > 0) {
-        const cpkUpper = (spec_limits.usl - mean) / (3 * sigmaWithin)
-        const cpkLower = (mean - spec_limits.lsl) / (3 * sigmaWithin)
-        cpk = Math.min(cpkUpper, cpkLower)
-      }
-    }
-
     return {
       totalSamples,
       violationCount,
       lastMean,
       centerLine,
-      cpk,
       ucl: control_limits.ucl,
       lcl: control_limits.lcl,
       precision: chartDataForAnnotation.decimal_precision ?? 2,
@@ -406,10 +387,10 @@ export function OperatorDashboard() {
   const precision = quickStats?.precision ?? 2
 
   return (
-    <div className="-mx-2 -my-2 flex h-[calc(100vh-5.5rem)] flex-col gap-2 px-1 py-1 md:-mx-4 md:-my-3 md:px-3 md:py-2">
+    <div data-ui="dashboard-page" className="-mx-2 -my-2 flex h-[calc(100vh-5.5rem)] flex-col gap-2 px-1 py-1 md:-mx-4 md:-my-3 md:px-3 md:py-2">
       {/* ── Stats Ticker Bar ── */}
       {selectedId && quickStats && (
-        <div className="flex flex-shrink-0 items-center gap-1.5 overflow-x-auto px-1 py-1 md:gap-2">
+        <div data-ui="dashboard-stats-bar" className="flex flex-shrink-0 items-center gap-1.5 overflow-x-auto px-1 py-1 md:gap-2">
           {/* Characteristic name + chart type */}
           <div className="mr-1 flex flex-shrink-0 items-center gap-1.5 md:mr-2 md:gap-2">
             <span className="text-xs font-semibold whitespace-nowrap md:text-sm">
@@ -433,17 +414,17 @@ export function OperatorDashboard() {
             value={quickStats.violationCount}
             variant={quickStats.violationCount > 0 ? 'danger' : 'success'}
           />
-          {quickStats.cpk != null && (
+          {capability?.cpk != null && (
             <StatPill
               icon={Gauge}
               label="Cpk"
               value={
-                <Explainable metric="cpk" resourceId={selectedId} chartOptions={chartOptions}>
-                  {quickStats.cpk.toFixed(2)}
+                <Explainable metric="cpk" resourceId={selectedId}>
+                  {capability.cpk.toFixed(2)}
                 </Explainable>
               }
               variant={
-                quickStats.cpk >= 1.33 ? 'success' : quickStats.cpk >= 1.0 ? 'warning' : 'danger'
+                capability.cpk >= 1.33 ? 'success' : capability.cpk >= 1.0 ? 'warning' : 'danger'
               }
             />
           )}
@@ -465,7 +446,7 @@ export function OperatorDashboard() {
       )}
 
       {/* ── Main Content Area (hierarchy now in sidebar) ── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div data-ui="dashboard-content" className="flex min-h-0 flex-1 flex-col gap-2">
           {selectedId ? (
             <>
               {/* ── Toolbar ── */}
@@ -490,7 +471,7 @@ export function OperatorDashboard() {
               )}
 
               {/* ── Primary Chart ── */}
-              <div className="min-h-0 flex-1">
+              <div data-ui="dashboard-chart" className="min-h-0 flex-1">
                 {isBoxWhisker ? (
                   histogramPosition === 'right' ? (
                     <div className="flex h-full gap-2">
@@ -617,13 +598,13 @@ export function OperatorDashboard() {
                     id: 'capability',
                     label: 'Capability',
                     badge:
-                      selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null && quickStats?.cpk != null ? (
+                      selectedCharacteristic?.usl != null && selectedCharacteristic?.lsl != null && capability?.cpk != null ? (
                         <span className={cn(
                           'font-semibold tabular-nums',
-                          quickStats.cpk >= 1.33 ? 'text-success' : quickStats.cpk >= 1.0 ? 'text-warning' : 'text-destructive',
+                          capability.cpk >= 1.33 ? 'text-success' : capability.cpk >= 1.0 ? 'text-warning' : 'text-destructive',
                         )}>
-                          <Explainable metric="cpk" resourceId={selectedId} chartOptions={chartOptions}>
-                            {quickStats.cpk.toFixed(2)}
+                          <Explainable metric="cpk" resourceId={selectedId}>
+                            {capability.cpk.toFixed(2)}
                           </Explainable>
                         </span>
                       ) : undefined,
@@ -663,7 +644,7 @@ export function OperatorDashboard() {
               />
             </>
           ) : (
-            <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+            <div data-ui="dashboard-empty-state" className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
               {t('selectCharacteristic')}
             </div>
           )}

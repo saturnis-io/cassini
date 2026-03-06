@@ -42,7 +42,7 @@ export function MeasurementsSection({
   onToggleExclude,
 }: MeasurementsSectionProps) {
   return (
-    <div className="space-y-4">
+    <div data-ui="sample-measurements" className="space-y-4">
       {/* Action buttons */}
       {(canEdit || canExclude) && (
         <div className="flex items-center gap-2">

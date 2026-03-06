@@ -159,8 +159,8 @@ export function AIConfigSettings() {
   }
 
   return (
-    <div className="max-w-lg space-y-5">
-      <div>
+    <div className="max-w-lg space-y-5" data-ui="ai-config-settings">
+      <div data-ui="ai-config-settings-header">
         <h3 className="text-foreground text-base font-semibold">AI Analysis Configuration</h3>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Configure the AI provider for chart analysis and insights.
@@ -168,7 +168,7 @@ export function AIConfigSettings() {
       </div>
 
       {/* Enable toggle */}
-      <div className="flex items-center justify-between rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between rounded-lg border border-border p-3" data-ui="ai-config-enable-card">
         <div>
           <h4 className="text-foreground text-sm font-medium">Enable AI Analysis</h4>
           <p className="text-muted-foreground text-xs">

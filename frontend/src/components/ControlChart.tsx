@@ -1897,10 +1897,10 @@ export function ControlChart({
       : (chartData?.characteristic_name ?? '')
 
   return (
-    <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
+    <div data-ui="control-chart" className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
       {hasData && (
-        <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
+        <div data-ui="control-chart-header" className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               {label && (

@@ -89,7 +89,7 @@ export function ApiKeysSettings() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-ui="api-keys-settings">
       {/* Newly Created Key Alert */}
       {newlyCreatedKey && (
         <div className="bg-warning/10 border-warning rounded-xl border p-4">
@@ -146,7 +146,7 @@ export function ApiKeysSettings() {
 
       {/* Create Form */}
       {showCreateForm && (
-        <div className="bg-muted rounded-xl p-6">
+        <div className="bg-muted rounded-xl p-6" data-ui="api-keys-create-form">
           <h4 className="mb-3 font-medium">Create New API Key</h4>
           <div className="flex gap-3">
             <input
@@ -178,9 +178,9 @@ export function ApiKeysSettings() {
       )}
 
       {/* API Keys List */}
-      <div className="bg-muted overflow-hidden rounded-xl">
+      <div className="bg-muted overflow-hidden rounded-xl" data-ui="api-keys-list">
         {apiKeys && apiKeys.length > 0 ? (
-          <table className="w-full">
+          <table className="w-full" data-ui="api-keys-table">
             <thead className="bg-muted/50 border-border border-b">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">Name</th>
@@ -242,7 +242,7 @@ export function ApiKeysSettings() {
             </tbody>
           </table>
         ) : (
-          <div className="p-8 text-center">
+          <div className="p-8 text-center" data-ui="api-keys-empty">
             <Key className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
             <h4 className="mb-2 font-medium">No API Keys</h4>
             <p className="text-muted-foreground mb-4 text-sm">
@@ -259,7 +259,7 @@ export function ApiKeysSettings() {
       </div>
 
       {/* Usage Instructions */}
-      <div className="bg-muted rounded-xl p-6">
+      <div className="bg-muted rounded-xl p-6" data-ui="api-keys-usage-card">
         <h4 className="mb-2 font-medium">Using API Keys</h4>
         <p className="text-muted-foreground mb-3 text-sm">
           Include your API key in the <code className="bg-muted rounded px-1">X-API-Key</code>{' '}

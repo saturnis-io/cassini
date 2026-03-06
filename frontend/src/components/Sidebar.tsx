@@ -347,7 +347,7 @@ export function Sidebar({ className }: SidebarProps) {
           />
 
           {/* Sidebar panel */}
-          <aside className="bg-card absolute inset-y-0 left-0 flex w-[280px] flex-col shadow-lg">
+          <aside data-ui="mobile-sidebar" className="bg-card absolute inset-y-0 left-0 flex w-[280px] flex-col shadow-lg">
             {/* Close button header */}
             <div className="flex items-center justify-between border-b px-4 py-3">
               <span className="text-sm font-semibold">{t('navigation')}</span>
@@ -361,11 +361,11 @@ export function Sidebar({ className }: SidebarProps) {
             </div>
 
             {/* Navigation links */}
-            <nav className="space-y-1 overflow-y-auto border-b p-2">{navContent(true)}</nav>
+            <nav data-ui="mobile-sidebar-nav" className="space-y-1 overflow-y-auto border-b p-2">{navContent(true)}</nav>
 
             {/* Characteristics tree — only on dashboard/data-entry/reports */}
             {showCharacteristics && (
-              <div className="flex min-h-0 flex-1 flex-col">
+              <div data-ui="mobile-sidebar-characteristics" className="flex min-h-0 flex-1 flex-col">
                 <div className="text-muted-foreground px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
                   Characteristics
                 </div>
@@ -379,6 +379,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Desktop sidebar */}
       {!isHidden && (
         <aside
+          data-ui="sidebar"
           className={cn(
             'bg-card relative hidden h-full flex-col border-r transition-[width] duration-200 ease-in-out md:flex',
             className,
@@ -386,7 +387,7 @@ export function Sidebar({ className }: SidebarProps) {
           style={{ width: isCollapsed ? 56 : sidebarWidth }}
         >
           {/* ── Collapse/expand toggle — top of sidebar ── */}
-          <div className="border-border flex h-10 shrink-0 items-center border-b px-2">
+          <div data-ui="sidebar-toggle" className="border-border flex h-10 shrink-0 items-center border-b px-2">
             <button
               onClick={toggleSidebar}
               className={cn(
@@ -411,7 +412,7 @@ export function Sidebar({ className }: SidebarProps) {
             /* Characteristic pages (expanded): collapsible nav + flex-1 characteristics */
             <>
               {/* Collapsible navigation */}
-              <div className="shrink-0">
+              <div data-ui="sidebar-nav" className="shrink-0">
                 <button
                   onClick={() => setNavSectionCollapsed(!navSectionCollapsed)}
                   className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 py-2 text-[10px] font-semibold uppercase tracking-wider"
@@ -433,7 +434,7 @@ export function Sidebar({ className }: SidebarProps) {
               <div className="border-border mx-2 border-t" />
 
               {/* Characteristics — takes all remaining space */}
-              <div className="flex min-h-0 flex-1 flex-col">
+              <div data-ui="sidebar-characteristics" className="flex min-h-0 flex-1 flex-col">
                 <button
                   onClick={() => setCharacteristicsPanelOpen(!characteristicsPanelOpen)}
                   className="text-muted-foreground hover:text-foreground flex w-full shrink-0 items-center justify-between px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider"

@@ -169,9 +169,9 @@ export function ServersTab() {
 
   // List view
   return (
-    <div className="space-y-5">
+    <div data-ui="servers-tab" className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div data-ui="servers-header" className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LayoutList className="text-muted-foreground h-5 w-5" />
           <div>
@@ -191,7 +191,7 @@ export function ServersTab() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-3">
+      <div data-ui="servers-toolbar" className="flex items-center gap-3">
         {/* Protocol chips */}
         <div className="flex items-center gap-1.5">
           {(
