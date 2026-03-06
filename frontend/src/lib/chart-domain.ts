@@ -32,6 +32,10 @@ export function calculateSharedYAxisDomain(
     if (zValues.length === 0) return [-4, 4]
 
     const allZLimits = [...zValues, 3, -3]
+    if (showSpecLimits) {
+      if (spec_limits.usl != null) allZLimits.push(spec_limits.usl)
+      if (spec_limits.lsl != null) allZLimits.push(spec_limits.lsl)
+    }
     const zMin = Math.min(...allZLimits)
     const zMax = Math.max(...allZLimits)
     const zPadding = (zMax - zMin) * 0.2

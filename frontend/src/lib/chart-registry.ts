@@ -314,3 +314,8 @@ export const DUAL_CHART_TYPES: ChartTypeId[] = ['xbar-r', 'xbar-s', 'i-mr']
  * and attribute charts use count/proportion data — histograms don't apply.
  */
 export const HISTOGRAM_CHART_TYPES: ChartTypeId[] = ['xbar', 'xbar-r', 'xbar-s', 'i-mr', 'box-whisker']
+
+/** Chart types where engineering spec limits (USL/LSL) are meaningful.
+ * CUSUM/EWMA track cumulative drift, attribute charts use count data,
+ * and Pareto is categorical — spec limit lines don't apply. */
+export const SPEC_LIMIT_CHART_TYPES: ChartTypeId[] = ['xbar', 'xbar-r', 'xbar-s', 'i-mr', 'box-whisker']

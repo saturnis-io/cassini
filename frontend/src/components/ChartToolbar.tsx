@@ -19,7 +19,7 @@ import { useProductCodes, useAnomalyEvents } from '@/api/hooks'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
-import { recommendChartType, HISTOGRAM_CHART_TYPES } from '@/lib/chart-registry'
+import { recommendChartType, HISTOGRAM_CHART_TYPES, SPEC_LIMIT_CHART_TYPES } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { useSampleLabel } from '@/hooks/useSampleLabel'
 import type { AnomalyEvent } from '@/types/anomaly'
@@ -463,14 +463,16 @@ export function ChartToolbar({
           </ToolbarBtn>
         )}
 
-        <ToolbarBtn
-          active={showSpecLimits}
-          onClick={() => setShowSpecLimits(!showSpecLimits)}
-          title={showSpecLimits ? 'Hide spec limits' : 'Show spec limits'}
-        >
-          {showSpecLimits ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">LSL/USL</span>
-        </ToolbarBtn>
+        {SPEC_LIMIT_CHART_TYPES.includes(currentChartType) && (
+          <ToolbarBtn
+            active={showSpecLimits}
+            onClick={() => setShowSpecLimits(!showSpecLimits)}
+            title={showSpecLimits ? 'Hide spec limits' : 'Show spec limits'}
+          >
+            {showSpecLimits ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">LSL/USL</span>
+          </ToolbarBtn>
+        )}
 
         {onExportExcel && (
           <>

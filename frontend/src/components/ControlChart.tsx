@@ -555,6 +555,7 @@ export function ControlChart({
       subgroup_mode,
       decimal_precision = 3,
     } = chartData
+
     const localIsModeB = subgroup_mode === 'VARIABLE_LIMITS'
 
     const formatVal = (value: number | null | undefined) => {
@@ -572,6 +573,10 @@ export function ControlChart({
     } else if (isZScaleDomain) {
       const zValues = data.map((p) => p.mean)
       const allZLimits = [...zValues, 3, -3]
+      if (showSpecLimits) {
+        if (spec_limits.usl != null) allZLimits.push(spec_limits.usl)
+        if (spec_limits.lsl != null) allZLimits.push(spec_limits.lsl)
+      }
       const zMinVal = Math.min(...allZLimits)
       const zMaxVal = Math.max(...allZLimits)
       const zPadding = (zMaxVal - zMinVal) * 0.1

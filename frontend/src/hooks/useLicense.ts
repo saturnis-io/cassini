@@ -10,7 +10,15 @@ export function useLicense() {
       getLicenseStatus()
         .then((status) => store.setFromApi(status))
         .catch(() => {
-          // On error, default to community (safe fallback)
+          // On error, finalize as community so the app doesn't hang in limbo
+          store.setFromApi({
+            edition: 'community',
+            tier: 'community',
+            max_plants: 1,
+            expires_at: null,
+            days_until_expiry: null,
+            is_expired: null,
+          })
         })
     }
   }, [store.loaded])

@@ -124,15 +124,16 @@ async def explain_capability_metric(
         )
 
     # Two modes of operation:
-    # 1. With chart options (start_date/end_date/limit) — matches the dashboard's
-    #    quickStats, which uses subgroup MEANS.  Sigma from means too.
+    # 1. With chart options (start_date/end_date/limit) — caller is displaying
+    #    a chart view with subgroup means.  Use subgroup means + sigma of means.
     # 2. Without chart options — matches the capability GET endpoint, which
     #    flattens individual measurements and uses stored_sigma (R-bar/d2).
     repo = SampleRepository(db)
     has_chart_options = bool(start_date or end_date or limit)
 
-    if start_date or end_date:
-        # Date-range mode: match the dashboard's time filter
+    if has_chart_options:
+        # Chart-view mode: fetch samples matching the caller's filter and
+        # compute subgroup means — matching the chart's data_points[].mean
         sd = datetime.fromisoformat(start_date) if start_date else None
         ed = datetime.fromisoformat(end_date) if end_date else None
         samples = await repo.get_by_characteristic(
@@ -145,7 +146,7 @@ async def explain_capability_metric(
         # Apply limit (most recent N within the range)
         if limit and len(samples) > limit:
             samples = samples[-limit:]
-        # Compute subgroup means — matching dashboard's stdPts.map(p => p.mean)
+        # Compute subgroup means
         values: list[float] = []
         for s in samples:
             meas = [m.value for m in s.measurements]
@@ -153,11 +154,10 @@ async def explain_capability_metric(
                 values.append(sum(meas) / len(meas))
     else:
         # No chart options — match the capability GET endpoint exactly.
-        # CapabilityCard uses this path, which flattens individual measurements.
-        window = limit if limit else 1000
+        # CapabilityCard and dashboard Cpk pill use this path.
         sample_data = await repo.get_rolling_window_data(
             char_id=characteristic_id,
-            window_size=window,
+            window_size=1000,
             exclude_excluded=True,
         )
         values = []

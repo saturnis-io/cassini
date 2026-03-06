@@ -55,6 +55,15 @@ cassini-bridge run                  # Run bridge agent
 - [ ] TypeScript types match Pydantic schemas field-for-field (run `npx tsc --noEmit`)
 - [ ] Error responses NEVER pass `str(e)` to API clients — log server-side, return generic messages
 
+### Obsidian Vault Checklist
+**Trigger**: Any completed sprint, design, decision, audit, or lesson learned.
+
+> **RULE**: Update the Obsidian vault after completing any sprint, design, decision, audit, or lesson.
+> CLI: `"/c/Users/djbra/AppData/Local/Programs/Obsidian/Obsidian.com"` with `vault=cassini-vault`.
+> Create or update the relevant note with YAML properties, tags, and `[[wikilinks]]` to related notes.
+> The vault is the source of truth for project planning and history. Flat `.planning/` files are legacy.
+> At session start, read the `Session Start` dashboard note. For significant work, append to the daily note.
+
 ---
 
 ## Pitfalls — Will Crash or Corrupt Data
