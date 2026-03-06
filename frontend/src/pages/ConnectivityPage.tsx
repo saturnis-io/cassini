@@ -50,7 +50,7 @@ export function ConnectivityPage() {
   return (
     <div data-ui="connectivity-page" className="flex h-full flex-col">
       {/* Header */}
-      <div data-ui="connectivity-header" className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
+      <div data-ui="connectivity-header" className="border-border bg-card mb-4 shrink-0 border-b px-6 pt-5 pb-5">
         <h1 className="text-foreground text-xl font-bold tracking-tight">Connectivity Hub</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Manage industrial data sources, browse endpoints, and configure data mappings

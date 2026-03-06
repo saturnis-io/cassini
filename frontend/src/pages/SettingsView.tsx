@@ -91,7 +91,7 @@ export function SettingsPage() {
   return (
     <div data-ui="settings-page" className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div data-ui="settings-header" className="border-border bg-card shrink-0 border-b px-6 pt-5 pb-5">
+      <div data-ui="settings-header" className="border-border bg-card mb-4 shrink-0 border-b px-6 pt-5 pb-5">
         <h1 className="text-foreground text-xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           {t('subtitle')}
