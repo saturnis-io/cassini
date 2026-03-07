@@ -57,7 +57,7 @@ export const characteristicApi = {
       limit?: number
       startDate?: string
       endDate?: string
-      productCode?: string
+      materialId?: number
       chartType?: string
     },
   ) => {
@@ -65,7 +65,7 @@ export const characteristicApi = {
     if (options?.limit) params.set('limit', String(options.limit))
     if (options?.startDate) params.set('start_date', options.startDate)
     if (options?.endDate) params.set('end_date', options.endDate)
-    if (options?.productCode) params.set('product_code', options.productCode)
+    if (options?.materialId) params.set('material_id', String(options.materialId))
     if (options?.chartType) params.set('chart_type', options.chartType)
     const query = params.toString()
     return fetchApi<ChartData>(`/characteristics/${id}/chart-data${query ? `?${query}` : ''}`)
@@ -192,7 +192,7 @@ export const sampleApi = {
   submit: (data: {
     characteristic_id: number
     measurements: number[]
-    product_code?: string
+    material_id?: number
     batch_number?: string
     operator_id?: string
   }) =>
@@ -235,7 +235,7 @@ export const dataEntryApi = {
     defect_count: number
     sample_size?: number
     units_inspected?: number
-    product_code?: string
+    material_id?: number
     batch_number?: string
     operator_id?: string
   }) =>

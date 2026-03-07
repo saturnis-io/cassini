@@ -141,11 +141,49 @@ export interface CharacteristicSummary extends Characteristic {
   unacknowledged_violations?: number
 }
 
-// Product limit types (per-product-code control limits)
-export interface ProductLimit {
+// Material class types (hierarchical material taxonomy)
+export interface MaterialClass {
+  id: number
+  plant_id: number
+  parent_id: number | null
+  name: string
+  code: string
+  path: string
+  depth: number
+  description: string | null
+  material_count: number
+  children_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface MaterialClassTreeNode extends MaterialClass {
+  children: MaterialClassTreeNode[]
+  materials: Material[]
+}
+
+export interface Material {
+  id: number
+  plant_id: number
+  class_id: number | null
+  name: string
+  code: string
+  description: string | null
+  properties: Record<string, unknown> | null
+  class_name: string | null
+  class_path: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MaterialLimitOverride {
   id: number
   characteristic_id: number
-  product_code: string
+  material_id: number | null
+  class_id: number | null
+  material_name: string | null
+  class_name: string | null
+  class_path: string | null
   ucl: number | null
   lcl: number | null
   stored_sigma: number | null
@@ -155,6 +193,23 @@ export interface ProductLimit {
   lsl: number | null
   created_at: string
   updated_at: string
+}
+
+export interface ResolvedLimitField {
+  value: number | null
+  source_type: 'material' | 'class' | 'characteristic'
+  source_name: string
+  source_id: number | null
+}
+
+export interface ResolvedLimits {
+  ucl: ResolvedLimitField
+  lcl: ResolvedLimitField
+  stored_sigma: ResolvedLimitField
+  stored_center_line: ResolvedLimitField
+  target_value: ResolvedLimitField
+  usl: ResolvedLimitField
+  lsl: ResolvedLimitField
 }
 
 // Sample types
@@ -167,7 +222,7 @@ export interface Sample {
   std_dev: number | null
   is_excluded: boolean
   source: string
-  product_code: string | null
+  material_id: number | null
   batch_number?: string | null
   operator_id?: string | null
   measurements: Measurement[]
@@ -334,8 +389,8 @@ export interface ChartData {
   sigma_z?: number | null
   // Short-run chart mode (Sprint 6 - B2)
   short_run_mode?: 'deviation' | 'standardized' | null
-  // Per-product-code limits
-  active_product_code?: string | null
+  // Per-material limits
+  active_material_id?: number | null
 }
 
 // Violation types
