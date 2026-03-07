@@ -16,6 +16,7 @@ from cassini.db.models.hierarchy import Base
 
 if TYPE_CHECKING:
     from cassini.db.models.characteristic import Characteristic
+    from cassini.db.models.material import Material
     from cassini.db.models.violation import Violation
 
 
@@ -59,8 +60,8 @@ class Sample(Base):
     cusum_low: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ewma_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # Product code for per-product control limits
-    product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    # Material reference for per-material control limits
+    material_id: Mapped[Optional[int]] = mapped_column(ForeignKey("material.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Edit tracking - indicates sample has been modified from original
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -76,6 +77,7 @@ class Sample(Base):
     violations: Mapped[list["Violation"]] = relationship(
         "Violation", back_populates="sample", cascade="all, delete-orphan"
     )
+    material: Mapped[Optional["Material"]] = relationship("Material")
     edit_history: Mapped[list["SampleEditHistory"]] = relationship(
         "SampleEditHistory", back_populates="sample", cascade="all, delete-orphan",
         order_by="SampleEditHistory.edited_at.desc()"
