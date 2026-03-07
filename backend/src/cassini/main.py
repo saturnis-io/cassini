@@ -400,6 +400,14 @@ if _license_svc.is_commercial:
 else:
     logger.info("Community edition — enterprise routers not registered")
 
+# Extension hook — commercial package registers additional routers/services
+try:
+    from cassini_enterprise import initialize as init_enterprise  # type: ignore[import-not-found]
+    init_enterprise(app, _license_svc)
+    logger.info("Commercial extension package loaded")
+except ImportError:
+    pass  # Community edition — no extension package
+
 # Dev tools router — only registered in sandbox mode
 if settings.sandbox:
     from cassini.api.v1.devtools import router as devtools_router
