@@ -16,6 +16,7 @@ import {
   Brain,
   CircleUser,
   Mail,
+  Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -69,6 +70,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
       { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer', commercial: true },
       { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer', commercial: true },
       { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer', commercial: true },
+      { to: 'materials', labelKey: 'tabs.materials', icon: Layers, minRole: 'engineer' },
     ],
   },
   {

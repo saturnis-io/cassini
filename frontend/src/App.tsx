@@ -47,6 +47,7 @@ import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
 import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
 import { AccountSettings } from '@/components/AccountSettings'
 import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
+import { MaterialSettings } from '@/components/materials/MaterialSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
 import { GalaxyPage } from '@/pages/GalaxyPage'
@@ -497,6 +498,14 @@ function App() {
                           <DatabaseSettings />
                         </ProtectedRoute>
                       </RequireCommercial>
+                    }
+                  />
+                  <Route
+                    path="materials"
+                    element={
+                      <ProtectedRoute requiredRole="engineer">
+                        <MaterialSettings />
+                      </ProtectedRoute>
                     }
                   />
                 </Route>
