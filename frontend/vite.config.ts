@@ -33,6 +33,12 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      // Commercial extension is optional — don't bundle it
+      external: ['@saturnis/cassini-enterprise'],
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
