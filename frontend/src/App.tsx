@@ -547,17 +547,23 @@ function App() {
                     key={ext.path}
                     path={ext.path}
                     element={
-                      ext.requiredRole ? (
-                        <ProtectedRoute requiredRole={ext.requiredRole}>
+                      <RequireCommercial>
+                        {ext.requiredRole ? (
+                          <ProtectedRoute requiredRole={ext.requiredRole}>
+                            <ErrorBoundary>
+                              <Suspense fallback={null}>
+                                <ext.component />
+                              </Suspense>
+                            </ErrorBoundary>
+                          </ProtectedRoute>
+                        ) : (
                           <ErrorBoundary>
-                            <ext.component />
+                            <Suspense fallback={null}>
+                              <ext.component />
+                            </Suspense>
                           </ErrorBoundary>
-                        </ProtectedRoute>
-                      ) : (
-                        <ErrorBoundary>
-                          <ext.component />
-                        </ErrorBoundary>
-                      )
+                        )}
+                      </RequireCommercial>
                     }
                   />
                 ))}
