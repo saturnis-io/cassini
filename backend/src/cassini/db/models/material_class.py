@@ -62,7 +62,13 @@ class MaterialClass(Base):
 
     def ancestor_ids(self) -> list[int]:
         """Parse path into ancestor IDs, deepest first (self included)."""
-        parts = [int(p) for p in self.path.strip("/").split("/") if p]
+        parts = []
+        for p in self.path.strip("/").split("/"):
+            if p:
+                try:
+                    parts.append(int(p))
+                except ValueError:
+                    continue
         parts.reverse()
         return parts
 

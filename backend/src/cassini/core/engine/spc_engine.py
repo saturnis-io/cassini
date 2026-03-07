@@ -387,6 +387,8 @@ class SPCEngine:
         char_warn_below_count = char.warn_below_count
         char_ucl = char.ucl
         char_lcl = char.lcl
+        char_usl = getattr(char, "usl", None)
+        char_lsl = getattr(char, "lsl", None)
         char_stored_sigma = char.stored_sigma
         char_stored_center_line = char.stored_center_line
         char_short_run_mode = getattr(char, "short_run_mode", None)
@@ -402,8 +404,8 @@ class SPCEngine:
                 "stored_sigma": char_stored_sigma,
                 "stored_center_line": char_stored_center_line,
                 "target_value": char_target_value,
-                "usl": getattr(char, "usl", None),
-                "lsl": getattr(char, "lsl", None),
+                "usl": char_usl,
+                "lsl": char_lsl,
             }
             resolved = await resolver.resolve_flat(
                 characteristic_id, context.material_id, char_defaults
@@ -418,6 +420,10 @@ class SPCEngine:
                 char_stored_center_line = resolved["stored_center_line"]
             if resolved["target_value"] is not None:
                 char_target_value = resolved["target_value"]
+            if resolved["usl"] is not None:
+                char_usl = resolved["usl"]
+            if resolved["lsl"] is not None:
+                char_lsl = resolved["lsl"]
 
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)

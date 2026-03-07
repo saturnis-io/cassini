@@ -466,7 +466,7 @@ function AddClassForm({
           <option value="">None (top-level)</option>
           {classes.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.path}
+              {c.name} ({c.code})
             </option>
           ))}
         </select>
@@ -569,7 +569,7 @@ function AddMaterialForm({
           <option value="">Unclassified</option>
           {classes.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.path}
+              {c.name} ({c.code})
             </option>
           ))}
         </select>
@@ -701,7 +701,7 @@ function ClassDetailForm({
           <option value="">None (top-level)</option>
           {validParents.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.path}
+              {c.name} ({c.code})
             </option>
           ))}
         </select>
@@ -842,7 +842,7 @@ function MaterialDetailForm({
           <option value="">Unclassified</option>
           {classes.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.path}
+              {c.name} ({c.code})
             </option>
           ))}
         </select>

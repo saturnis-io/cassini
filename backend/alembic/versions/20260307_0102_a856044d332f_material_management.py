@@ -180,6 +180,8 @@ def upgrade() -> None:
         batch_op.drop_index("ix_sample_product_code")
         batch_op.drop_column("product_code")
 
+    op.create_index("ix_sample_material_id", "sample", ["material_id"])
+
     # --- Drop product_limit table ---
     op.drop_index("ix_product_limit_char", table_name="product_limit")
     op.drop_table("product_limit")
@@ -223,6 +225,7 @@ def downgrade() -> None:
     op.create_index("ix_product_limit_char", "product_limit", ["characteristic_id"])
 
     # --- Restore sample table: re-add product_code, drop material_id ---
+    op.drop_index("ix_sample_material_id", table_name="sample")
     with op.batch_alter_table("sample", naming_convention=naming_convention) as batch_op:
         batch_op.add_column(
             sa.Column("product_code", sa.String(100), nullable=True)
