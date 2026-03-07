@@ -4,9 +4,24 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Optional commercial extension — resolve to empty module when not installed
+function optionalExtension(): import('vite').Plugin {
+  const id = '@saturnis/cassini-enterprise'
+  return {
+    name: 'optional-extension',
+    resolveId(source) {
+      if (source === id) return `\0${id}`
+    },
+    load(resolved) {
+      if (resolved === `\0${id}`) return 'export default {}'
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    optionalExtension(),
     react(),
     tailwindcss(),
     VitePWA({
@@ -33,12 +48,6 @@ export default defineConfig({
       },
     }),
   ],
-  build: {
-    rollupOptions: {
-      // Commercial extension is optional — don't bundle it
-      external: ['@saturnis/cassini-enterprise'],
-    },
-  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
