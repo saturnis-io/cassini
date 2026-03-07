@@ -56,13 +56,15 @@ cassini-bridge run                  # Run bridge agent
 - [ ] Error responses NEVER pass `str(e)` to API clients — log server-side, return generic messages
 
 ### Obsidian Vault Checklist
-**Trigger**: Any completed sprint, design, decision, audit, or lesson learned.
+**Trigger**: Any completed sprint, design, decision, audit, lesson learned, **or any new document/plan**.
 
-> **RULE**: Update the Obsidian vault after completing any sprint, design, decision, audit, or lesson.
+> **RULE**: The Obsidian vault (`.vault/cassini-vault/`) is the **sole source of truth** for all project documentation. NEVER create standalone docs outside the vault.
+> **RULE**: `docs/plans/` is a **staging area only** — every plan written there MUST also be created as a vault note with a link back to the full file. The vault note is the canonical reference; the flat file is supplementary detail.
+> **RULE**: For designs, decisions, strategies, audits, lessons, sprint notes, and plans: create the note **in the vault first**. Use the appropriate folder (`Designs/`, `Decisions/`, `Strategy/`, `Sprints/`, `Lessons/`, etc.).
+> **RULE**: Every vault note MUST have YAML frontmatter (`title`, `type`, `status`, `date`, `tags`) and `[[wikilinks]]` to related notes.
 > CLI: `"/c/Users/djbra/AppData/Local/Programs/Obsidian/Obsidian.com"` with `vault=cassini-vault`.
-> Create or update the relevant note with YAML properties, tags, and `[[wikilinks]]` to related notes.
-> The vault is the source of truth for project planning and history. Flat `.planning/` files are legacy.
 > At session start, read the `Session Start` dashboard note. For significant work, append to the daily note.
+> Flat `.planning/` files are **legacy** — do not create new files there. Migrate content to the vault when touched.
 
 ---
 
@@ -173,10 +175,22 @@ A trust feature for regulated industries — lets users see exactly how every st
 **Note**: The knowledge graph may be stale after recent changes. Check the "Last generated" date in `INDEX.md`. If it's out of date, run `/knowledge-graph diff` for a fast differential update before relying on it for architectural decisions.
 
 ## Planning & Docs
-- `.planning/gap-closure/STATE.md` — Current sprint progress (read first each session)
-- `.planning/gap-closure/ROADMAP.md` — Feature roadmap (source of truth for scope)
-- `.planning/gap-closure/DECISIONS.md` — Architecture Decision Records (append-only)
-- `.planning/CURRENT-STATE.md` — Codebase baseline assessment
+
+> **RULE**: The Obsidian vault is the primary doc store. Always check the vault first. Only fall back to flat files if the vault note doesn't exist yet.
+
+- **Primary (vault)**: `.vault/cassini-vault/` — all designs, decisions, sprints, lessons, strategies, plans
+  - `Dashboards/Session Start` — read at session start
+  - `Designs/` — system and feature design documents
+  - `Decisions/` — Architecture Decision Records
+  - `Sprints/` — sprint notes and progress
+  - `Lessons/` — lessons learned and pitfalls
+  - `Strategy/` — competitive analysis, pricing, business model
+- **Staging**: `docs/plans/` — detailed implementation plans (always paired with a vault note)
+- **Legacy (read-only fallback)**:
+  - `.planning/gap-closure/STATE.md` — sprint progress
+  - `.planning/gap-closure/ROADMAP.md` — feature roadmap
+  - `.planning/gap-closure/DECISIONS.md` — ADRs
+  - `.planning/CURRENT-STATE.md` — codebase baseline
 
 <!-- gitnexus:start -->
 # GitNexus MCP
