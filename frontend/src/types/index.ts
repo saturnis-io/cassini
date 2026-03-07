@@ -391,6 +391,7 @@ export interface ChartData {
   short_run_mode?: 'deviation' | 'standardized' | null
   // Per-material limits
   active_material_id?: number | null
+  active_material_name?: string | null
 }
 
 // Violation types

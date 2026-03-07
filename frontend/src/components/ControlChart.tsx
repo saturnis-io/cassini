@@ -37,7 +37,7 @@ interface ControlChartProps {
     limit?: number
     startDate?: string
     endDate?: string
-    productCode?: string
+    materialId?: number
   }
   label?: string
   showSpecLimits?: boolean
@@ -1928,9 +1928,9 @@ export function ControlChart({
             {allViolatedRules.length > 0 && (
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
             )}
-            {chartData?.active_product_code && (
+            {chartData?.active_material_name && (
               <span className="bg-accent/10 text-accent-foreground flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
-                Limits: {chartData.active_product_code}
+                Limits: {chartData.active_material_name}
               </span>
             )}
           </div>

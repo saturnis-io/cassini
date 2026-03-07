@@ -23,7 +23,7 @@ import { GeneralTab } from './characteristic-config/GeneralTab'
 import { LimitsTab } from './characteristic-config/LimitsTab'
 import { SamplingTab } from './characteristic-config/SamplingTab'
 import { RulesTab, type RulesTabRef } from './characteristic-config/RulesTab'
-import { ProductLimitsTab } from './characteristic-config/ProductLimitsTab'
+import { MaterialOverridesTab } from './characteristic-config/MaterialOverridesTab'
 import type { ScheduleConfig, ScheduleType } from './ScheduleConfigSection'
 import type { SubgroupMode } from '@/types'
 
@@ -394,8 +394,13 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             onDirty={() => setIsDirty(true)}
           />
         )
-      case 'product-limits':
-        return <ProductLimitsTab characteristicId={characteristicId!} />
+      case 'material-overrides':
+        return (
+          <MaterialOverridesTab
+            characteristicId={characteristicId!}
+            plantId={characteristic?.plant_id ?? 0}
+          />
+        )
       default:
         return null
     }

@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useSubmitSample, useCharacteristic, useProductCodes, useProductLimits } from '@/api/hooks'
+import {
+  useSubmitSample,
+  useCharacteristic,
+  useMaterials,
+  useMaterialOverrides,
+} from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { usePlant } from '@/providers/PlantProvider'
 import { CharacteristicContextBar } from './CharacteristicContextBar'
 import { NoCharacteristicState } from './NoCharacteristicState'
 import { NumberInput } from './NumberInput'
@@ -8,41 +14,85 @@ import { AttributeEntryForm } from './AttributeEntryForm'
 import { FieldError } from '@/components/FieldError'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { measurementsSchema } from '@/schemas/data-entry'
+import { AlertTriangle } from 'lucide-react'
 
 export function ManualEntryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
+  const { selectedPlant } = usePlant()
+  const plantId = selectedPlant?.id ?? 0
 
   const [measurements, setMeasurements] = useState<string[]>([])
-  const [productCode, setProductCode] = useState('')
+  const [materialId, setMaterialId] = useState<number | null>(null)
   const [batchNumber, setBatchNumber] = useState('')
   const [operatorId, setOperatorId] = useState('')
-  const [showProductCodeSuggestions, setShowProductCodeSuggestions] = useState(false)
-  const productCodeRef = useRef<HTMLDivElement>(null)
+  const [showMaterialSuggestions, setShowMaterialSuggestions] = useState(false)
+  const [materialSearch, setMaterialSearch] = useState('')
+  const materialRef = useRef<HTMLDivElement>(null)
 
-  const { data: sampleCodes } = useProductCodes(globalCharId ?? 0)
-  const { data: productLimits } = useProductLimits(globalCharId ?? 0)
+  const { data: allMaterials } = useMaterials(plantId)
+  const { data: overrides } = useMaterialOverrides(globalCharId ?? 0)
   const submitSample = useSubmitSample()
 
-  // Merge product codes from configured limits + submitted samples (deduplicated)
-  const existingCodes = useMemo(() => {
-    const codes = new Set<string>()
-    productLimits?.forEach((pl) => codes.add(pl.product_code))
-    sampleCodes?.forEach((c) => codes.add(c))
-    return Array.from(codes).sort()
-  }, [productLimits, sampleCodes])
+  // Separate materials into those with overrides vs others
+  const { withOverrides, withoutOverrides } = useMemo(() => {
+    if (!allMaterials) return { withOverrides: [], withoutOverrides: [] }
+    const overrideMatIds = new Set(
+      overrides?.filter((o) => o.material_id).map((o) => o.material_id) ?? [],
+    )
+    // Also include materials whose class has an override
+    const overrideClassIds = new Set(
+      overrides?.filter((o) => o.class_id).map((o) => o.class_id) ?? [],
+    )
+    const withOvr = allMaterials.filter(
+      (m) => overrideMatIds.has(m.id) || (m.class_id && overrideClassIds.has(m.class_id)),
+    )
+    const withoutOvr = allMaterials.filter(
+      (m) => !overrideMatIds.has(m.id) && !(m.class_id && overrideClassIds.has(m.class_id)),
+    )
+    return { withOverrides: withOvr, withoutOverrides: withoutOvr }
+  }, [allMaterials, overrides])
+
+  // Filter materials by search text
+  const filteredWithOverrides = useMemo(() => {
+    if (!materialSearch) return withOverrides
+    const lower = materialSearch.toLowerCase()
+    return withOverrides.filter(
+      (m) =>
+        m.name.toLowerCase().includes(lower) ||
+        m.code.toLowerCase().includes(lower),
+    )
+  }, [withOverrides, materialSearch])
+
+  const filteredWithoutOverrides = useMemo(() => {
+    if (!materialSearch) return withoutOverrides
+    const lower = materialSearch.toLowerCase()
+    return withoutOverrides.filter(
+      (m) =>
+        m.name.toLowerCase().includes(lower) ||
+        m.code.toLowerCase().includes(lower),
+    )
+  }, [withoutOverrides, materialSearch])
+
+  // Determine if selected material has overrides
+  const selectedMaterial = useMemo(() => {
+    if (!materialId || !allMaterials) return null
+    return allMaterials.find((m) => m.id === materialId) ?? null
+  }, [materialId, allMaterials])
+
+  const selectedHasOverride = useMemo(() => {
+    if (!materialId) return true // no material selected, no warning needed
+    return withOverrides.some((m) => m.id === materialId)
+  }, [materialId, withOverrides])
+
   const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
 
   // Calculate the number of input fields to show and minimum required
   const { inputCount, minRequired } = useMemo(() => {
     if (!selectedChar) return { inputCount: 0, minRequired: 0 }
 
-    // subgroup_size is the desired/nominal count
-    // min_measurements is the minimum required (defaults to subgroup_size if not set)
     const subgroupSize = selectedChar.subgroup_size ?? 1
     const minMeasurements = selectedChar.min_measurements ?? subgroupSize
-
-    // Show the larger of the two - typically subgroup_size
     const count = Math.max(subgroupSize, minMeasurements, 1)
 
     return {
@@ -51,8 +101,7 @@ export function ManualEntryPanel() {
     }
   }, [selectedChar])
 
-  // Initialize measurement inputs when characteristic changes - intentional reset
-
+  // Initialize measurement inputs when characteristic changes
   useEffect(() => {
     if (inputCount > 0) {
       setMeasurements(Array(inputCount).fill(''))
@@ -62,18 +111,11 @@ export function ManualEntryPanel() {
     clearErrors()
   }, [inputCount, clearErrors])
 
-  // Filter autocomplete suggestions for product code
-  const filteredCodes = useMemo(() => {
-    if (!productCode) return existingCodes
-    const upper = productCode.toUpperCase()
-    return existingCodes.filter((c) => c.toUpperCase().includes(upper))
-  }, [existingCodes, productCode])
-
   // Close suggestions on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (productCodeRef.current && !productCodeRef.current.contains(e.target as Node)) {
-        setShowProductCodeSuggestions(false)
+      if (materialRef.current && !materialRef.current.contains(e.target as Node)) {
+        setShowMaterialSuggestions(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -108,12 +150,11 @@ export function ManualEntryPanel() {
     })
     if (!validated) return
 
-    const trimmedCode = productCode.trim().toUpperCase()
     submitSample.mutate(
       {
         characteristic_id: selectedChar.id,
         measurements: validated.measurements,
-        product_code: trimmedCode || undefined,
+        material_id: materialId ?? undefined,
         batch_number: validated.batch_number,
         operator_id: validated.operator_id,
       },
@@ -121,7 +162,8 @@ export function ManualEntryPanel() {
         onSuccess: () => {
           // Clear form on success
           setMeasurements(Array(inputCount).fill(''))
-          setProductCode('')
+          setMaterialId(null)
+          setMaterialSearch('')
           setBatchNumber('')
           setOperatorId('')
           clearErrors()
@@ -197,22 +239,29 @@ export function ManualEntryPanel() {
                 </p>
               </div>
 
-              {/* Product Code — dropdown when products exist, plain input otherwise */}
-              <div ref={productCodeRef} className="relative">
-                <label className="mb-1 block text-sm font-medium">Product Code (optional)</label>
-                {existingCodes.length > 0 ? (
+              {/* Material Picker */}
+              <div ref={materialRef} className="relative">
+                <label className="mb-1 block text-sm font-medium">Material (optional)</label>
+                {allMaterials && allMaterials.length > 0 ? (
                   <>
                     <div className="relative">
                       <input
                         type="text"
-                        value={productCode}
+                        value={materialSearch || (selectedMaterial ? `${selectedMaterial.name} (${selectedMaterial.code})` : '')}
                         onChange={(e) => {
-                          setProductCode(e.target.value)
-                          setShowProductCodeSuggestions(true)
+                          setMaterialSearch(e.target.value)
+                          setShowMaterialSuggestions(true)
+                          if (!e.target.value) {
+                            setMaterialId(null)
+                          }
                         }}
-                        onFocus={() => setShowProductCodeSuggestions(true)}
-                        onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
-                        placeholder="Select or type a product code"
+                        onFocus={() => {
+                          setShowMaterialSuggestions(true)
+                          if (selectedMaterial) {
+                            setMaterialSearch('')
+                          }
+                        }}
+                        placeholder="Select or search material"
                         className="bg-background border-input w-full rounded-lg border px-3 py-2 pr-8"
                       />
                       <button
@@ -221,7 +270,7 @@ export function ManualEntryPanel() {
                         className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
                         onMouseDown={(e) => {
                           e.preventDefault()
-                          setShowProductCodeSuggestions(!showProductCodeSuggestions)
+                          setShowMaterialSuggestions(!showMaterialSuggestions)
                         }}
                       >
                         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -229,52 +278,115 @@ export function ManualEntryPanel() {
                         </svg>
                       </button>
                     </div>
-                    {showProductCodeSuggestions && (
-                      <div className="bg-card border-border absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border shadow-lg">
-                        {filteredCodes.map((code) => (
-                          <button
-                            key={code}
-                            type="button"
-                            className="hover:bg-muted flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              setProductCode(code)
-                              setShowProductCodeSuggestions(false)
-                            }}
-                          >
-                            {code}
-                            {productCode.toUpperCase() === code.toUpperCase() && (
-                              <svg className="text-primary ml-auto h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                        {productCode && !existingCodes.some((c) => c.toUpperCase() === productCode.toUpperCase()) && (
+                    {showMaterialSuggestions && (
+                      <div className="bg-card border-border absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border shadow-lg">
+                        {/* Clear selection */}
+                        {materialId && (
                           <button
                             type="button"
-                            className="hover:bg-muted text-primary border-border w-full border-t px-3 py-1.5 text-left text-sm"
+                            className="hover:bg-muted text-muted-foreground border-border w-full border-b px-3 py-1.5 text-left text-sm italic"
                             onMouseDown={(e) => {
                               e.preventDefault()
-                              setProductCode(productCode.trim().toUpperCase())
-                              setShowProductCodeSuggestions(false)
+                              setMaterialId(null)
+                              setMaterialSearch('')
+                              setShowMaterialSuggestions(false)
                             }}
                           >
-                            + Add &ldquo;{productCode.trim().toUpperCase()}&rdquo;
+                            Clear selection
                           </button>
                         )}
+                        {/* With Overrides section */}
+                        {filteredWithOverrides.length > 0 && (
+                          <>
+                            <div className="text-muted-foreground bg-muted/50 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
+                              With Overrides
+                            </div>
+                            {filteredWithOverrides.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                className="hover:bg-muted flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  setMaterialId(m.id)
+                                  setMaterialSearch('')
+                                  setShowMaterialSuggestions(false)
+                                }}
+                              >
+                                <span className="flex-1">
+                                  {m.name}{' '}
+                                  <span className="text-muted-foreground">({m.code})</span>
+                                  {m.class_path && (
+                                    <span className="text-muted-foreground ml-1 text-xs">
+                                      - {m.class_path}
+                                    </span>
+                                  )}
+                                </span>
+                                {materialId === m.id && (
+                                  <svg className="text-primary ml-auto h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {/* All Materials section */}
+                        {filteredWithoutOverrides.length > 0 && (
+                          <>
+                            <div className="text-muted-foreground bg-muted/50 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
+                              All Materials
+                            </div>
+                            {filteredWithoutOverrides.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                className="hover:bg-muted flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  setMaterialId(m.id)
+                                  setMaterialSearch('')
+                                  setShowMaterialSuggestions(false)
+                                }}
+                              >
+                                <span className="flex-1">
+                                  {m.name}{' '}
+                                  <span className="text-muted-foreground">({m.code})</span>
+                                  {m.class_path && (
+                                    <span className="text-muted-foreground ml-1 text-xs">
+                                      - {m.class_path}
+                                    </span>
+                                  )}
+                                </span>
+                                {materialId === m.id && (
+                                  <svg className="text-primary ml-auto h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {filteredWithOverrides.length === 0 &&
+                          filteredWithoutOverrides.length === 0 && (
+                            <div className="text-muted-foreground px-3 py-2 text-sm">
+                              No materials found
+                            </div>
+                          )}
+                      </div>
+                    )}
+                    {/* Warning for material without overrides */}
+                    {materialId && !selectedHasOverride && (
+                      <div className="text-warning mt-1.5 flex items-center gap-1.5 text-xs">
+                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                        No limit overrides configured — characteristic defaults will be used
                       </div>
                     )}
                   </>
                 ) : (
-                  <input
-                    type="text"
-                    value={productCode}
-                    onChange={(e) => setProductCode(e.target.value)}
-                    onBlur={() => setProductCode((v) => v.trim().toUpperCase())}
-                    placeholder="e.g., PN-12345"
-                    className="bg-background border-input w-full rounded-lg border px-3 py-2"
-                  />
+                  <p className="text-muted-foreground text-sm">
+                    No materials configured for this plant.
+                  </p>
                 )}
               </div>
 

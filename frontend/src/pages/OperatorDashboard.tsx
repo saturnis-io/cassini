@@ -123,7 +123,7 @@ export function OperatorDashboard() {
   const showBrush = useDashboardStore((state) => state.showBrush)
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
-  const productCodeFilter = useDashboardStore((state) => state.productCodeFilter)
+  const materialIdFilter = useDashboardStore((state) => state.materialIdFilter)
 
   const { data: annotationsData } = useAnnotations(selectedId ?? 0)
   const annotationCount = annotationsData?.length ?? 0
@@ -173,23 +173,23 @@ export function OperatorDashboard() {
   // updates so polling is redundant and can be disabled
   const { isConnected: wsConnected, subscribe, unsubscribe } = useWebSocketContext()
 
-  // Compute chart data options from time range + product code filter
+  // Compute chart data options from time range + material filter
   const chartOptions = useMemo(() => {
-    const productCode = productCodeFilter ?? undefined
+    const materialId = materialIdFilter ?? undefined
     if (timeRange.type === 'points' && timeRange.pointsLimit) {
-      return { limit: timeRange.pointsLimit, productCode }
+      return { limit: timeRange.pointsLimit, materialId }
     }
     if (timeRange.type === 'duration' && timeRange.hoursBack) {
       const now = Math.floor(Date.now() / 60000) * 60000
       const endDate = new Date(now).toISOString()
       const startDate = new Date(now - timeRange.hoursBack * 60 * 60 * 1000).toISOString()
-      return { startDate, endDate, limit: MAX_CHART_POINTS, productCode }
+      return { startDate, endDate, limit: MAX_CHART_POINTS, materialId }
     }
     if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
-      return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: MAX_CHART_POINTS, productCode }
+      return { startDate: timeRange.startDate, endDate: timeRange.endDate, limit: MAX_CHART_POINTS, materialId }
     }
-    return { limit: 50, productCode }
-  }, [timeRange, productCodeFilter])
+    return { limit: 50, materialId }
+  }, [timeRange, materialIdFilter])
 
   // Get chart data for annotation dialog, range slider sparkline, and stats
   const { data: chartDataForAnnotation } = useChartData(selectedId ?? 0, chartOptions, {
