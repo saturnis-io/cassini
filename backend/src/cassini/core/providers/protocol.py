@@ -23,7 +23,8 @@ class SampleContext:
 
     batch_number: str | None = None
     operator_id: str | None = None
-    product_code: str | None = None
+    material_id: int | None = None
+    product_code: str | None = None  # Legacy — used by TAG/OPCUA providers until migrated
     source: str = "MANUAL"  # "MANUAL" or "TAG"
     metadata: dict | None = None
 
