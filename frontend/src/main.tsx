@@ -38,8 +38,17 @@ import App from './App.tsx'
   }
 })()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Extension hook — load commercial package if available
+;(async () => {
+  try {
+    await import('@saturnis/cassini-enterprise')
+  } catch {
+    // Community edition — no commercial extension
+  }
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+})()
