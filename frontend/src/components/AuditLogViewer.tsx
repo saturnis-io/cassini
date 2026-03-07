@@ -85,9 +85,11 @@ const RESOURCE_LABELS: Record<string, string> = {
   system_settings: 'System Settings',
   auth: 'Auth',
   ishikawa: 'Ishikawa',
+  material: 'Material',
+  material_class: 'Material Class',
+  material_override: 'Material Override',
   report_schedule: 'Report Schedule',
   notification: 'Notification',
-  product_limit: 'Product Limits',
 }
 
 function ActionBadge({ action }: { action: string }) {
