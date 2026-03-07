@@ -132,15 +132,15 @@ def insert_nelson_rules(cur: sqlite3.Cursor, char_id: int) -> None:
 
 def insert_variable_sample(
     cur: sqlite3.Cursor, char_id: int, value: float,
-    ts: str | None = None, product_code: str | None = None,
+    ts: str | None = None, material_id: int | None = None,
 ) -> int:
     """Insert a variable sample with one measurement."""
     ts = ts or seed_ts()
     cur.execute(
         """INSERT INTO sample
-        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified, product_code)
+        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified, material_id)
         VALUES (?, ?, 1, 0, 0, 0, ?)""",
-        (char_id, ts, product_code),
+        (char_id, ts, material_id),
     )
     sample_id = cur.lastrowid
     cur.execute(
@@ -150,21 +150,63 @@ def insert_variable_sample(
     return sample_id
 
 
-def insert_product_limit(
-    cur: sqlite3.Cursor, char_id: int, product_code: str, **kwargs,
-) -> int:
-    """Insert a product limit override for a characteristic."""
+def insert_material_class(
+    cur: sqlite3.Cursor, plant_id: int, name: str, code: str,
+    parent_id: int | None = None, parent_path: str = "/", depth: int = 0,
+    description: str | None = None,
+) -> tuple[int, str]:
+    """Insert a material class and fix up its materialized path.
+
+    Returns (class_id, path) so children can reference both.
+    """
+    now = utcnow()
     cur.execute(
-        """INSERT INTO product_limit
-        (characteristic_id, product_code, ucl, lcl, stored_sigma,
+        """INSERT INTO material_class
+        (plant_id, parent_id, name, code, path, depth, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, '/', ?, ?, ?, ?)""",
+        (plant_id, parent_id, name, code, depth, description, now, now),
+    )
+    class_id = cur.lastrowid
+    path = f"{parent_path}{class_id}/"
+    cur.execute("UPDATE material_class SET path = ? WHERE id = ?", (path, class_id))
+    return class_id, path
+
+
+def insert_material(
+    cur: sqlite3.Cursor, plant_id: int, class_id: int | None,
+    name: str, code: str, description: str | None = None,
+) -> int:
+    """Insert a material row. Returns material_id."""
+    now = utcnow()
+    cur.execute(
+        """INSERT INTO material
+        (plant_id, class_id, name, code, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (plant_id, class_id, name, code, description, now, now),
+    )
+    return cur.lastrowid
+
+
+def insert_material_limit_override(
+    cur: sqlite3.Cursor, char_id: int, *,
+    material_id: int | None = None, class_id: int | None = None, **kwargs,
+) -> int:
+    """Insert a material limit override for a characteristic.
+
+    Exactly one of material_id or class_id must be provided.
+    """
+    now = utcnow()
+    cur.execute(
+        """INSERT INTO material_limit_override
+        (characteristic_id, material_id, class_id, ucl, lcl, stored_sigma,
          stored_center_line, target_value, usl, lsl, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            char_id, product_code,
+            char_id, material_id, class_id,
             kwargs.get("ucl"), kwargs.get("lcl"),
             kwargs.get("stored_sigma"), kwargs.get("stored_center_line"),
             kwargs.get("target_value"), kwargs.get("usl"), kwargs.get("lsl"),
-            utcnow(), utcnow(),
+            now, now,
         ),
     )
     return cur.lastrowid
@@ -416,28 +458,51 @@ def seed(db_path: str) -> dict:
     # Assign admin to Attribute Charts plant
     insert_role(cur, admin_id, attr_plant, "admin")
 
-    # ── 7. Product Limits Plant ──
-    pl = seed_standard_hierarchy(cur, "Product Limits Plant", "PRODLIM")
-    # Samples without product code (backward compat)
+    # ── 7. Material Limits Plant ──
+    ml = seed_standard_hierarchy(cur, "Material Limits Plant", "MATLIM")
+
+    # Material classes: Raw Materials > Metals
+    raw_cls_id, raw_path = insert_material_class(
+        cur, ml["plant_id"], "Raw Materials", "RAW",
+        description="Raw material inputs",
+    )
+    metals_cls_id, metals_path = insert_material_class(
+        cur, ml["plant_id"], "Metals", "MTL",
+        parent_id=raw_cls_id, parent_path=raw_path, depth=1,
+        description="Metal alloys",
+    )
+
+    # Materials
+    mat_a_id = insert_material(
+        cur, ml["plant_id"], metals_cls_id,
+        "Test Material A", "MAT-A", "First test material",
+    )
+    mat_b_id = insert_material(
+        cur, ml["plant_id"], metals_cls_id,
+        "Test Material B", "MAT-B", "Second test material",
+    )
+
+    # Samples without material (backward compat)
     for val in NORMAL_VALUES:
-        insert_variable_sample(cur, pl["char_id"], val)
-    # Samples with product codes
+        insert_variable_sample(cur, ml["char_id"], val)
+    # Samples with materials
     for val in [10.2, 10.3, 10.4, 10.5]:
-        insert_variable_sample(cur, pl["char_id"], val, product_code="PN-100")
+        insert_variable_sample(cur, ml["char_id"], val, material_id=mat_a_id)
     for val in [9.8, 9.9, 10.0, 10.1]:
-        insert_variable_sample(cur, pl["char_id"], val, product_code="PN-200")
-    # Product limit overrides
-    insert_product_limit(
-        cur, pl["char_id"], "PN-100",
+        insert_variable_sample(cur, ml["char_id"], val, material_id=mat_b_id)
+
+    # Material limit overrides
+    insert_material_limit_override(
+        cur, ml["char_id"], material_id=mat_a_id,
         ucl=13.0, lcl=9.0, stored_sigma=0.6, stored_center_line=10.5,
         target_value=10.0,
     )
-    insert_product_limit(
-        cur, pl["char_id"], "PN-200",
+    insert_material_limit_override(
+        cur, ml["char_id"], material_id=mat_b_id,
         ucl=11.0, lcl=9.5,
     )
-    insert_role(cur, admin_id, pl["plant_id"], "admin")
-    manifest["product_limits"] = pl
+    insert_role(cur, admin_id, ml["plant_id"], "admin")
+    manifest["material_limits"] = ml
 
     # ── 8. Simple plants (just need to exist, no hierarchy/samples) ──
     simple_plants = {
