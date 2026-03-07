@@ -65,6 +65,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useLicense } from '@/hooks/useLicense'
 import { UpgradePage } from '@/pages/UpgradePage'
+import { getRegistry } from '@/lib/extensionRegistry'
 
 /** Default stale time for React Query caches (ms) */
 const QUERY_STALE_TIME_MS = 10_000
@@ -184,6 +185,8 @@ function AuthenticatedDisplayMode({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const extensionRoutes = getRegistry().routes
+
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -516,6 +519,26 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                {/* Extension routes — registered by commercial package */}
+                {extensionRoutes.map((ext) => (
+                  <Route
+                    key={ext.path}
+                    path={ext.path}
+                    element={
+                      ext.requiredRole ? (
+                        <ProtectedRoute requiredRole={ext.requiredRole}>
+                          <ErrorBoundary>
+                            <ext.component />
+                          </ErrorBoundary>
+                        </ProtectedRoute>
+                      ) : (
+                        <ErrorBoundary>
+                          <ext.component />
+                        </ErrorBoundary>
+                      )
+                    }
+                  />
+                ))}
               </Route>
 
               {/* Display modes - requires auth but no layout chrome */}
