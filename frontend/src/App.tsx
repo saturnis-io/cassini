@@ -5,7 +5,7 @@
  */
 
 import './i18n/config'
-import { Component, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, Suspense, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
@@ -502,6 +502,28 @@ function App() {
                       </RequireCommercial>
                     }
                   />
+                  {/* Extension settings routes */}
+                  {getRegistry().settingsTabs.map((tab) => (
+                    <Route
+                      key={tab.to}
+                      path={tab.to}
+                      element={
+                        <RequireCommercial>
+                          {tab.minRole ? (
+                            <ProtectedRoute requiredRole={tab.minRole}>
+                              <Suspense fallback={null}>
+                                <tab.component />
+                              </Suspense>
+                            </ProtectedRoute>
+                          ) : (
+                            <Suspense fallback={null}>
+                              <tab.component />
+                            </Suspense>
+                          )}
+                        </RequireCommercial>
+                      }
+                    />
+                  ))}
                 </Route>
                 <Route
                   path="admin/users"

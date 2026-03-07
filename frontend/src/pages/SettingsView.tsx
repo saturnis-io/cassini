@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess, type Role } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
+import { getRegistry } from '@/lib/extensionRegistry'
 import type { LucideIcon } from 'lucide-react'
 
 interface TabDef {
@@ -142,6 +143,47 @@ export function SettingsPage() {
               </div>
             )
           })}
+          {/* Extension settings tabs — registered by commercial package */}
+          {(() => {
+            const extTabs = getRegistry().settingsTabs.filter(
+              (tab) =>
+                (!tab.minRole || hasAccess(role, tab.minRole)) &&
+                isCommercial,
+            )
+            if (extTabs.length === 0) return null
+            const groups = new Map<string, typeof extTabs>()
+            for (const tab of extTabs) {
+              const arr = groups.get(tab.group) ?? []
+              arr.push(tab)
+              groups.set(tab.group, arr)
+            }
+            return Array.from(groups.entries()).map(([groupName, tabs]) => (
+              <div key={groupName} className="mb-5">
+                <div className="text-muted-foreground mb-1.5 px-3 text-[10px] font-semibold tracking-wider uppercase">
+                  {t(groupName)}
+                </div>
+                <div className="space-y-0.5">
+                  {tabs.map((tab) => (
+                    <NavLink
+                      key={tab.to}
+                      to={tab.to}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                        )
+                      }
+                    >
+                      <tab.icon className="h-4 w-4" />
+                      {t(tab.labelKey)}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))
+          })()}
         </nav>
 
         {/* Content Area */}
