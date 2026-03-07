@@ -5,7 +5,7 @@ Schemas for SPC sample data collection and management.
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SampleCreate(BaseModel):
@@ -27,15 +27,7 @@ class SampleCreate(BaseModel):
     )
     batch_number: str | None = None
     operator_id: str | None = None
-    product_code: str | None = None
-
-    @field_validator("product_code")
-    @classmethod
-    def normalize_product_code(cls, v: str | None) -> str | None:
-        if v is not None:
-            v = v.strip().upper()
-            return v if v else None
-        return v
+    material_id: int | None = None
 
 
 class SampleResponse(BaseModel):
@@ -77,7 +69,7 @@ class SampleResponse(BaseModel):
     effective_ucl: float | None = None
     effective_lcl: float | None = None
     z_score: float | None = None
-    product_code: str | None = None
+    material_id: int | None = None
     is_modified: bool = False
     edit_count: int = 0
     display_key: str = ""
