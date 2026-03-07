@@ -29,6 +29,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { usePlant } from '@/providers/PlantProvider'
 import { canAccessView, type Role } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
+import { getRegistry } from '@/lib/extensionRegistry'
 import { HierarchyTodoList } from './HierarchyTodoList'
 
 interface NavItem {
@@ -219,6 +220,14 @@ export function Sidebar({ className }: SidebarProps) {
     },
   ]
 
+  // Extension sidebar items — registered by commercial package
+  const extensionStudyItems = getRegistry()
+    .sidebarItems.filter((item) => item.section === 'studies')
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+  const extensionSystemItems = getRegistry()
+    .sidebarItems.filter((item) => item.section === 'system')
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+
   // Dev tools nav item — only when sandbox mode is active and user is admin
   const showDevTools = devToolsStatus?.sandbox && canAccessView(role, '/dev-tools')
 
@@ -237,6 +246,16 @@ export function Sidebar({ className }: SidebarProps) {
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
       (!item.commercial || isCommercial),
+  )
+  const visibleExtStudyItems = extensionStudyItems.filter(
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      isCommercial,
+  )
+  const visibleExtSystemItems = extensionSystemItems.filter(
+    (item) =>
+      (!item.requiredRole || canAccessView(role, item.path)) &&
+      isCommercial,
   )
   const visibleAdminItems = adminNavItems.filter(
     (item) =>
@@ -294,19 +313,21 @@ export function Sidebar({ className }: SidebarProps) {
       {visibleMainItems.map((item) => renderNavItem(item, forMobile))}
 
       {/* Studies section */}
-      {visibleStudyItems.length > 0 && (
+      {(visibleStudyItems.length > 0 || visibleExtStudyItems.length > 0) && (
         <>
           <div className="my-2 border-t" />
           {sectionLabel('Studies', forMobile)}
           {visibleStudyItems.map((item) => renderNavItem(item, forMobile))}
+          {visibleExtStudyItems.map((item) => renderNavItem(item, forMobile))}
         </>
       )}
 
       {/* System section */}
-      {visibleSystemItems.length > 0 && (
+      {(visibleSystemItems.length > 0 || visibleExtSystemItems.length > 0) && (
         <>
           <div className="my-2 border-t" />
           {visibleSystemItems.map((item) => renderNavItem(item, forMobile))}
+          {visibleExtSystemItems.map((item) => renderNavItem(item, forMobile))}
         </>
       )}
 
