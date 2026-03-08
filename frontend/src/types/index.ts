@@ -176,6 +176,12 @@ export interface Material {
   updated_at: string
 }
 
+export interface MaterialUsageItem {
+  characteristic_id: number
+  name: string
+  hierarchy_path: string | null
+}
+
 export interface MaterialLimitOverride {
   id: number
   characteristic_id: number

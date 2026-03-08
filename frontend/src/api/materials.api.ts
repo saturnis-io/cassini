@@ -4,6 +4,7 @@ import type {
   MaterialClassTreeNode,
   Material,
   MaterialLimitOverride,
+  MaterialUsageItem,
   ResolvedLimits,
 } from '@/types'
 
@@ -158,4 +159,19 @@ export function resolveMaterialLimits(
   materialId: number,
 ): Promise<ResolvedLimits> {
   return fetchApi(`/characteristics/${charId}/material-overrides/resolve/${materialId}`)
+}
+
+// Material / Material Class Usage
+export function getMaterialUsage(
+  plantId: number,
+  materialId: number,
+): Promise<MaterialUsageItem[]> {
+  return fetchApi(`/plants/${plantId}/materials/usage/${materialId}`)
+}
+
+export function getMaterialClassUsage(
+  plantId: number,
+  classId: number,
+): Promise<MaterialUsageItem[]> {
+  return fetchApi(`/plants/${plantId}/material-classes/usage/${classId}`)
 }

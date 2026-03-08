@@ -14,6 +14,8 @@ import {
   updateMaterialOverride,
   deleteMaterialOverride,
   resolveMaterialLimits,
+  getMaterialUsage,
+  getMaterialClassUsage,
 } from '../materials.api'
 import { materialKeys } from './queryKeys'
 import { handleMutationError } from './utils'
@@ -229,5 +231,22 @@ export function useDeleteMaterialOverride(charId: number) {
       toast.success('Material override deleted')
     },
     onError: handleMutationError('Failed to delete material override'),
+  })
+}
+
+// Material / Material Class Usage
+export function useMaterialUsage(plantId: number, materialId: number) {
+  return useQuery({
+    queryKey: materialKeys.materialUsage(plantId, materialId),
+    queryFn: () => getMaterialUsage(plantId, materialId),
+    enabled: plantId > 0 && materialId > 0,
+  })
+}
+
+export function useMaterialClassUsage(plantId: number, classId: number) {
+  return useQuery({
+    queryKey: materialKeys.classUsage(plantId, classId),
+    queryFn: () => getMaterialClassUsage(plantId, classId),
+    enabled: plantId > 0 && classId > 0,
   })
 }

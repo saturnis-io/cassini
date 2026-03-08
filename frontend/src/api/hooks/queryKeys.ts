@@ -170,6 +170,10 @@ export const materialKeys = {
   overrides: (charId: number) => ['materials', 'overrides', charId] as const,
   resolved: (charId: number, materialId: number) =>
     ['materials', 'resolved', charId, materialId] as const,
+  materialUsage: (plantId: number, materialId: number) =>
+    ['materials', 'usage', plantId, materialId] as const,
+  classUsage: (plantId: number, classId: number) =>
+    ['materials', 'classUsage', plantId, classId] as const,
 }
 
 export const retentionKeys = {
