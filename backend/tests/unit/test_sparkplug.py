@@ -175,7 +175,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         assert timestamp == datetime.utcfromtimestamp(1706890000)
         assert len(metrics) == 1
@@ -197,7 +197,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         assert len(metrics) == 3
         assert metrics[0].name == "Temperature"
@@ -214,7 +214,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         assert seq == 42
 
@@ -227,7 +227,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         assert metrics[0].data_type == "Float"
 
@@ -247,7 +247,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         assert metrics[0].properties == {"unit": "celsius", "sensor_id": "T-001"}
 
@@ -255,7 +255,16 @@ class TestSparkplugDecoderPayloadDecoding:
         """Test decoding invalid JSON raises ValueError."""
         payload = b"not valid json"
 
+        # With format="json", raises with "Invalid JSON payload" message
         with pytest.raises(ValueError, match="Invalid JSON payload"):
+            SparkplugDecoder.decode_payload(payload, format="json")
+
+    def test_decode_invalid_payload_protobuf_fallback_raises_error(self) -> None:
+        """Test decoding invalid payload with default protobuf format raises ValueError."""
+        payload = b"not valid json"
+
+        # With default protobuf format, tries protobuf then JSON, raises combined message
+        with pytest.raises(ValueError, match="Payload could not be decoded as protobuf or JSON"):
             SparkplugDecoder.decode_payload(payload)
 
     def test_decode_missing_timestamp_raises_error(self) -> None:
@@ -265,14 +274,14 @@ class TestSparkplugDecoderPayloadDecoding:
         ).encode("utf-8")
 
         with pytest.raises(ValueError, match="Missing required field: timestamp"):
-            SparkplugDecoder.decode_payload(payload)
+            SparkplugDecoder.decode_payload(payload, format="json")
 
     def test_decode_missing_metrics_raises_error(self) -> None:
         """Test decoding without metrics raises ValueError."""
         payload = json.dumps({"timestamp": 1706890000000}).encode("utf-8")
 
         with pytest.raises(ValueError, match="Missing required field: metrics"):
-            SparkplugDecoder.decode_payload(payload)
+            SparkplugDecoder.decode_payload(payload, format="json")
 
     def test_decode_invalid_metric_skipped(self) -> None:
         """Test invalid metrics are skipped with warning."""
@@ -287,7 +296,7 @@ class TestSparkplugDecoderPayloadDecoding:
             }
         ).encode("utf-8")
 
-        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload)
+        timestamp, metrics, seq = SparkplugDecoder.decode_payload(payload, format="json")
 
         # Should skip invalid metric
         assert len(metrics) == 2
@@ -388,7 +397,7 @@ class TestSparkplugEncoderMetricEncoding:
         timestamp = datetime(2024, 2, 1, 12, 0, 0)
         metrics = [SparkplugMetric("Temperature", 22.5, data_type="Float")]
 
-        payload = SparkplugEncoder.encode_metrics(metrics, timestamp)
+        payload = SparkplugEncoder.encode_metrics(metrics, timestamp, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         assert "timestamp" in data
@@ -406,7 +415,7 @@ class TestSparkplugEncoderMetricEncoding:
             SparkplugMetric("Status", "OK", data_type="String"),
         ]
 
-        payload = SparkplugEncoder.encode_metrics(metrics)
+        payload = SparkplugEncoder.encode_metrics(metrics, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         assert len(data["metrics"]) == 3
@@ -414,7 +423,7 @@ class TestSparkplugEncoderMetricEncoding:
     def test_encode_with_sequence_number(self) -> None:
         """Test encoding with sequence number."""
         metrics = [SparkplugMetric("Value", 123)]
-        payload = SparkplugEncoder.encode_metrics(metrics, seq=42)
+        payload = SparkplugEncoder.encode_metrics(metrics, seq=42, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         assert data["seq"] == 42
@@ -422,7 +431,7 @@ class TestSparkplugEncoderMetricEncoding:
     def test_encode_without_sequence_number(self) -> None:
         """Test encoding without sequence number."""
         metrics = [SparkplugMetric("Value", 123)]
-        payload = SparkplugEncoder.encode_metrics(metrics)
+        payload = SparkplugEncoder.encode_metrics(metrics, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         assert "seq" not in data
@@ -430,7 +439,7 @@ class TestSparkplugEncoderMetricEncoding:
     def test_encode_with_default_timestamp(self) -> None:
         """Test encoding uses current time when timestamp not provided."""
         metrics = [SparkplugMetric("Value", 123)]
-        payload = SparkplugEncoder.encode_metrics(metrics)
+        payload = SparkplugEncoder.encode_metrics(metrics, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         # Should have a timestamp
@@ -442,7 +451,7 @@ class TestSparkplugEncoderMetricEncoding:
         """Test timestamp is encoded as milliseconds since epoch."""
         timestamp = datetime(2024, 2, 1, 12, 0, 0)
         metrics = [SparkplugMetric("Value", 123)]
-        payload = SparkplugEncoder.encode_metrics(metrics, timestamp)
+        payload = SparkplugEncoder.encode_metrics(metrics, timestamp, format="json")
         data = json.loads(payload.decode("utf-8"))
 
         expected_ms = int(timestamp.timestamp() * 1000)
@@ -461,6 +470,7 @@ class TestSparkplugEncoderViolationMetrics:
             lcl=7.0,
             in_control=False,
             active_rules=["Rule 1: Outlier"],
+            format="json",
         )
 
         data = json.loads(payload.decode("utf-8"))
@@ -487,6 +497,7 @@ class TestSparkplugEncoderViolationMetrics:
             in_control=True,
             active_rules=[],
             operator="J.Smith",
+            format="json",
         )
 
         data = json.loads(payload.decode("utf-8"))
@@ -507,6 +518,7 @@ class TestSparkplugEncoderViolationMetrics:
             lcl=7.0,
             in_control=True,
             active_rules=[],
+            format="json",
         )
 
         data = json.loads(payload.decode("utf-8"))
@@ -524,6 +536,7 @@ class TestSparkplugEncoderViolationMetrics:
             lcl=7.0,
             in_control=False,
             active_rules=["Rule 1: Outlier", "Rule 3: 6 points trending"],
+            format="json",
         )
 
         data = json.loads(payload.decode("utf-8"))
@@ -546,6 +559,7 @@ class TestSparkplugEncoderViolationMetrics:
             in_control=True,
             active_rules=[],
             timestamp=timestamp,
+            format="json",
         )
 
         data = json.loads(payload.decode("utf-8"))
@@ -684,7 +698,7 @@ class TestSparkplugAdapterPublishing:
     async def test_publish_spc_state_basic(self) -> None:
         """Test publishing SPC state."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt, "factory1", "spc-node")
+        adapter = SparkplugAdapter(mock_mqtt, "factory1", "spc-node", payload_format="json")
 
         await adapter.publish_spc_state(
             characteristic_name="Diameter",
@@ -720,7 +734,7 @@ class TestSparkplugAdapterPublishing:
     async def test_publish_spc_state_with_operator(self) -> None:
         """Test publishing SPC state with operator."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt)
+        adapter = SparkplugAdapter(mock_mqtt, payload_format="json")
 
         await adapter.publish_spc_state(
             characteristic_name="Diameter",
@@ -773,7 +787,7 @@ class TestSparkplugAdapterPublishing:
     async def test_publish_spc_state_custom_timestamp(self) -> None:
         """Test publishing with custom timestamp."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt)
+        adapter = SparkplugAdapter(mock_mqtt, payload_format="json")
         timestamp = datetime(2024, 2, 1, 12, 0, 0)
 
         await adapter.publish_spc_state(
@@ -800,7 +814,7 @@ class TestSparkplugAdapterBirthCertificate:
     async def test_publish_birth_certificate_default(self) -> None:
         """Test publishing birth certificate with default metrics."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt, "factory1", "node1")
+        adapter = SparkplugAdapter(mock_mqtt, "factory1", "node1", payload_format="json")
 
         await adapter.publish_birth_certificate()
 
@@ -824,7 +838,7 @@ class TestSparkplugAdapterBirthCertificate:
     async def test_publish_birth_certificate_custom_metrics(self) -> None:
         """Test publishing birth certificate with custom metrics."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt)
+        adapter = SparkplugAdapter(mock_mqtt, payload_format="json")
 
         custom_metrics = [
             SparkplugMetric("Version", "1.0.0", data_type="String"),
@@ -844,7 +858,7 @@ class TestSparkplugAdapterBirthCertificate:
     async def test_publish_birth_certificate_resets_sequence(self) -> None:
         """Test birth certificate resets sequence counter."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt)
+        adapter = SparkplugAdapter(mock_mqtt, payload_format="json")
 
         # Increment sequence
         adapter._seq = 42
@@ -867,7 +881,7 @@ class TestSparkplugAdapterDeathCertificate:
     async def test_publish_death_certificate(self) -> None:
         """Test publishing death certificate."""
         mock_mqtt = AsyncMock()
-        adapter = SparkplugAdapter(mock_mqtt, "factory1", "node1")
+        adapter = SparkplugAdapter(mock_mqtt, "factory1", "node1", payload_format="json")
 
         await adapter.publish_death_certificate()
 
@@ -904,12 +918,12 @@ class TestSparkplugRoundTrip:
 
         timestamp = datetime(2024, 2, 1, 12, 0, 0)
 
-        # Encode
+        # Encode as JSON for predictable round-trip
         topic = encoder.build_topic("spc", "NDATA", "node1", "device1")
-        payload = encoder.encode_metrics(original_metrics, timestamp, seq=42)
+        payload = encoder.encode_metrics(original_metrics, timestamp, seq=42, format="json")
 
         # Decode
-        message = decoder.decode_message(topic, payload)
+        message = decoder.decode_message(topic, payload, format="json")
 
         # Verify
         assert message.message_type == "NDATA"
@@ -930,7 +944,7 @@ class TestSparkplugRoundTrip:
         encoder = SparkplugEncoder()
         decoder = SparkplugDecoder()
 
-        # Encode violation
+        # Encode violation as JSON for predictable round-trip
         topic = encoder.build_topic("spc", "NDATA", "openspc-server", "Diameter")
         payload = encoder.encode_violation_metrics(
             characteristic_name="Diameter",
@@ -940,10 +954,11 @@ class TestSparkplugRoundTrip:
             in_control=False,
             active_rules=["Rule 1: Outlier", "Rule 3: 6 points trending"],
             operator="J.Smith",
+            format="json",
         )
 
         # Decode
-        message = decoder.decode_message(topic, payload)
+        message = decoder.decode_message(topic, payload, format="json")
 
         # Verify
         assert message.device_id == "Diameter"

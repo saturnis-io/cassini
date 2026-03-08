@@ -6,13 +6,51 @@ timeout handling, and callback invocation for tag-based sample processing.
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, PropertyMock
 
 import pytest
 
+from cassini.core.providers.buffer import SubgroupBuffer, TagConfig
 from cassini.core.providers.protocol import SampleEvent
-from cassini.core.providers.tag import SubgroupBuffer, TagConfig, TagProvider, TriggerStrategy
-from cassini.db.models.characteristic import Characteristic
+from cassini.core.providers.tag import TagProvider
+from cassini.db.models.data_source import TriggerStrategy
+
+
+def _make_mqtt_source(
+    *,
+    id: int = 1,
+    char_id: int = 1,
+    char_name: str = "Test",
+    hierarchy_id: int = 1,
+    subgroup_size: int = 5,
+    topic: str = "test/topic",
+    trigger_strategy: str = TriggerStrategy.ON_CHANGE.value,
+    trigger_tag: str | None = None,
+    metric_name: str | None = None,
+    json_path: str | None = None,
+    is_active: bool = True,
+    product_code: str | None = None,
+    product_json_path: str | None = None,
+) -> Mock:
+    """Create a mock MQTTDataSource with an attached mock Characteristic."""
+    char = Mock()
+    char.id = char_id
+    char.hierarchy_id = hierarchy_id
+    char.name = char_name
+    char.subgroup_size = subgroup_size
+
+    src = Mock()
+    src.id = id
+    src.topic = topic
+    src.trigger_strategy = trigger_strategy
+    src.trigger_tag = trigger_tag
+    src.metric_name = metric_name
+    src.json_path = json_path
+    src.is_active = is_active
+    src.characteristic = char
+    src.product_code = product_code
+    src.product_json_path = product_json_path
+    return src
 
 
 @pytest.fixture
@@ -25,50 +63,41 @@ def mock_mqtt_client():
 
 
 @pytest.fixture
-def mock_char_repo():
-    """Create a mock CharacteristicRepository."""
+def mock_ds_repo():
+    """Create a mock DataSourceRepository."""
     return Mock()
 
 
 @pytest.fixture
-def tag_provider(mock_mqtt_client, mock_char_repo):
+def tag_provider(mock_mqtt_client, mock_ds_repo):
     """Create a TagProvider instance with mock dependencies."""
-    return TagProvider(mqtt_client=mock_mqtt_client, char_repo=mock_char_repo)
+    return TagProvider(mqtt_client=mock_mqtt_client, ds_repo=mock_ds_repo)
 
 
 @pytest.fixture
-def sample_tag_characteristic():
-    """Create a sample TAG characteristic for testing."""
-    char = Characteristic(
+def sample_mqtt_source():
+    """Create a sample MQTT data source for testing."""
+    return _make_mqtt_source(
         id=1,
-        hierarchy_id=1,
-        name="Temperature Sensor",
-        description="Machine temperature monitoring",
+        char_id=1,
+        char_name="Temperature Sensor",
         subgroup_size=5,
-        provider_type="TAG",
-        mqtt_topic="factory/line1/temp",
-        target_value=75.0,
-        usl=85.0,
-        lsl=65.0,
+        topic="factory/line1/temp",
     )
-    return char
 
 
 @pytest.fixture
-def triggered_tag_characteristic():
-    """Create a TAG characteristic with trigger tag."""
-    char = Characteristic(
+def triggered_mqtt_source():
+    """Create an MQTT data source with trigger tag."""
+    return _make_mqtt_source(
         id=2,
-        hierarchy_id=1,
-        name="Part Dimension",
-        description="Part width measurement",
+        char_id=2,
+        char_name="Part Dimension",
         subgroup_size=3,
-        provider_type="TAG",
-        mqtt_topic="factory/line1/width",
+        topic="factory/line1/width",
+        trigger_strategy=TriggerStrategy.ON_TRIGGER.value,
         trigger_tag="factory/line1/trigger",
-        target_value=10.0,
     )
-    return char
 
 
 @pytest.mark.asyncio
@@ -86,26 +115,28 @@ class TestTagProviderBasics:
         # Callback is stored internally
 
     async def test_start_empty_characteristics(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
-        """Test start with no TAG characteristics."""
-        # Setup - no TAG characteristics
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[])
+        """Test start with no MQTT data sources."""
+        # Setup - no active MQTT sources
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[])
 
         # Execute
         await tag_provider.start()
 
         # Verify
-        mock_char_repo.get_by_provider_type.assert_called_once_with("TAG")
+        mock_ds_repo.get_active_mqtt_sources.assert_called_once()
         mock_mqtt_client.subscribe.assert_not_called()
 
+        await tag_provider.stop()
+
     async def test_start_with_characteristics(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, sample_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, sample_mqtt_source
     ):
-        """Test start with TAG characteristics."""
+        """Test start with MQTT data sources."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[sample_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[sample_mqtt_source]
         )
 
         # Execute
@@ -113,23 +144,23 @@ class TestTagProviderBasics:
         await asyncio.sleep(0.1)  # Allow async tasks to run
 
         # Verify
-        mock_char_repo.get_by_provider_type.assert_called_once_with("TAG")
+        mock_ds_repo.get_active_mqtt_sources.assert_called_once()
         mock_mqtt_client.subscribe.assert_called_once_with(
             "factory/line1/temp", tag_provider._on_message
         )
 
-    async def test_stop(self, tag_provider, mock_mqtt_client, mock_char_repo):
+        await tag_provider.stop()
+
+    async def test_stop(self, tag_provider, mock_mqtt_client, mock_ds_repo):
         """Test stop unsubscribes and cleans up."""
         # Setup
-        char = Characteristic(
-            id=1,
-            hierarchy_id=1,
-            name="Test",
+        src = _make_mqtt_source(
+            char_id=1,
+            char_name="Test",
             subgroup_size=1,
-            provider_type="TAG",
-            mqtt_topic="test/topic",
+            topic="test/topic",
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         # Start provider
         await tag_provider.start()
@@ -144,7 +175,7 @@ class TestTagProviderBasics:
         # Verify state cleared
         assert len(tag_provider._configs) == 0
         assert len(tag_provider._buffers) == 0
-        assert len(tag_provider._topic_to_char) == 0
+        assert len(tag_provider._topic_to_chars) == 0
 
 
 class TestSubgroupBuffer:
@@ -227,9 +258,10 @@ class TestSubgroupBuffer:
         buffer.add(10.1)
         buffer.add(10.2)
 
-        values = buffer.flush()
+        values, product_code = buffer.flush()
 
         assert values == [10.0, 10.1, 10.2]
+        assert product_code is None
         assert buffer.values == []
         assert buffer.first_reading_time is None
 
@@ -267,12 +299,12 @@ class TestTagProviderMessageHandling:
     """Test MQTT message handling and buffer accumulation."""
 
     async def test_on_message_valid_payload(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, sample_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, sample_mqtt_source
     ):
         """Test handling valid MQTT message."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[sample_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[sample_mqtt_source]
         )
         callback = AsyncMock()
         tag_provider.set_callback(callback)
@@ -294,12 +326,12 @@ class TestTagProviderMessageHandling:
         await tag_provider.stop()
 
     async def test_on_message_invalid_payload(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, sample_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, sample_mqtt_source
     ):
         """Test handling invalid MQTT payload."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[sample_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[sample_mqtt_source]
         )
         callback = AsyncMock()
         tag_provider.set_callback(callback)
@@ -317,19 +349,17 @@ class TestTagProviderMessageHandling:
         await tag_provider.stop()
 
     async def test_on_message_buffer_full_on_change(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test buffer flush when full with ON_CHANGE strategy."""
         # Setup - small subgroup_size for quick filling
-        char = Characteristic(
-            id=1,
-            hierarchy_id=1,
-            name="Test",
+        src = _make_mqtt_source(
+            char_id=1,
+            char_name="Test",
             subgroup_size=2,
-            provider_type="TAG",
-            mqtt_topic="test/topic",
+            topic="test/topic",
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
         callback = AsyncMock()
         tag_provider.set_callback(callback)
 
@@ -375,19 +405,17 @@ class TestTriggerStrategies:
     """Test different trigger strategies."""
 
     async def test_on_change_strategy(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test ON_CHANGE strategy flushes immediately when full."""
         # Setup
-        char = Characteristic(
-            id=1,
-            hierarchy_id=1,
-            name="Test",
+        src = _make_mqtt_source(
+            char_id=1,
+            char_name="Test",
             subgroup_size=1,  # Single reading
-            provider_type="TAG",
-            mqtt_topic="test/topic",
+            topic="test/topic",
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
         callback = AsyncMock()
         tag_provider.set_callback(callback)
 
@@ -404,12 +432,12 @@ class TestTriggerStrategies:
         await tag_provider.stop()
 
     async def test_on_trigger_strategy_accumulation(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, triggered_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, triggered_mqtt_source
     ):
         """Test ON_TRIGGER strategy accumulates without flushing."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[triggered_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[triggered_mqtt_source]
         )
         callback = AsyncMock()
         tag_provider.set_callback(callback)
@@ -433,12 +461,12 @@ class TestTriggerStrategies:
         await tag_provider.stop()
 
     async def test_on_trigger_strategy_flush(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, triggered_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, triggered_mqtt_source
     ):
         """Test ON_TRIGGER strategy flushes on trigger message."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[triggered_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[triggered_mqtt_source]
         )
         callback = AsyncMock()
         tag_provider.set_callback(callback)
@@ -463,12 +491,12 @@ class TestTriggerStrategies:
         await tag_provider.stop()
 
     async def test_trigger_with_empty_buffer(
-        self, tag_provider, mock_mqtt_client, mock_char_repo, triggered_tag_characteristic
+        self, tag_provider, mock_mqtt_client, mock_ds_repo, triggered_mqtt_source
     ):
         """Test trigger message with empty buffer does nothing."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(
-            return_value=[triggered_tag_characteristic]
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(
+            return_value=[triggered_mqtt_source]
         )
         callback = AsyncMock()
         tag_provider.set_callback(callback)
@@ -491,19 +519,17 @@ class TestBufferTimeout:
     """Test buffer timeout handling."""
 
     async def test_timeout_flushes_partial_buffer(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test that timeout flushes partial buffer."""
-        # Setup with very short timeout
-        char = Characteristic(
-            id=1,
-            hierarchy_id=1,
-            name="Test",
-            subgroup_size=10,  # Large size that won't be reached
-            provider_type="TAG",
-            mqtt_topic="test/topic",
+        # Setup with large subgroup that won't be reached
+        src = _make_mqtt_source(
+            char_id=1,
+            char_name="Test",
+            subgroup_size=10,
+            topic="test/topic",
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
         callback = AsyncMock()
         tag_provider.set_callback(callback)
 
@@ -517,10 +543,8 @@ class TestBufferTimeout:
         await tag_provider._on_message("test/topic", b"10.0")
         await tag_provider._on_message("test/topic", b"10.1")
 
-        # Wait for timeout (need to wait longer than timeout + check interval)
-        # Timeout is 0.3s, check interval is 5s, so we need to wait at least one check cycle
-        # Let's manually trigger a timeout check instead
-        await asyncio.sleep(0.4)  # Wait for timeout to expire
+        # Wait for timeout to expire
+        await asyncio.sleep(0.4)
 
         # Manually check for timeout (simulating what the timeout loop does)
         buffer = tag_provider._buffers[1]
@@ -536,10 +560,10 @@ class TestBufferTimeout:
 
         await tag_provider.stop()
 
-    async def test_timeout_loop_runs(self, tag_provider, mock_char_repo):
+    async def test_timeout_loop_runs(self, tag_provider, mock_ds_repo):
         """Test that timeout loop starts and stops correctly."""
         # Setup
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[])
 
         # Start provider
         await tag_provider.start()
@@ -561,27 +585,25 @@ class TestMultipleCharacteristics:
     """Test handling multiple characteristics simultaneously."""
 
     async def test_multiple_characteristics_independent_buffers(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test multiple characteristics maintain independent buffers."""
-        # Setup - 2 characteristics
-        char1 = Characteristic(
+        # Setup - 2 data sources
+        src1 = _make_mqtt_source(
             id=1,
-            hierarchy_id=1,
-            name="Temp",
+            char_id=1,
+            char_name="Temp",
             subgroup_size=2,
-            provider_type="TAG",
-            mqtt_topic="factory/temp",
+            topic="factory/temp",
         )
-        char2 = Characteristic(
+        src2 = _make_mqtt_source(
             id=2,
-            hierarchy_id=1,
-            name="Pressure",
+            char_id=2,
+            char_name="Pressure",
             subgroup_size=3,
-            provider_type="TAG",
-            mqtt_topic="factory/pressure",
+            topic="factory/pressure",
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char1, char2])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src1, src2])
         callback = AsyncMock()
         tag_provider.set_callback(callback)
 
@@ -619,18 +641,16 @@ class TestMultipleCharacteristics:
 
         await tag_provider.stop()
 
-    async def test_topic_routing(self, tag_provider, mock_mqtt_client, mock_char_repo):
+    async def test_topic_routing(self, tag_provider, mock_mqtt_client, mock_ds_repo):
         """Test messages are routed to correct characteristic."""
         # Setup
-        char1 = Characteristic(
-            id=1, hierarchy_id=1, name="A", subgroup_size=1, provider_type="TAG",
-            mqtt_topic="topic/a"
+        src1 = _make_mqtt_source(
+            id=1, char_id=1, char_name="A", subgroup_size=1, topic="topic/a"
         )
-        char2 = Characteristic(
-            id=2, hierarchy_id=1, name="B", subgroup_size=1, provider_type="TAG",
-            mqtt_topic="topic/b"
+        src2 = _make_mqtt_source(
+            id=2, char_id=2, char_name="B", subgroup_size=1, topic="topic/b"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char1, char2])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src1, src2])
         callback = AsyncMock()
         tag_provider.set_callback(callback)
 
@@ -663,15 +683,14 @@ class TestErrorHandling:
     """Test error handling scenarios."""
 
     async def test_callback_exception_does_not_crash(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test that callback exception doesn't crash provider."""
         # Setup
-        char = Characteristic(
-            id=1, hierarchy_id=1, name="Test", subgroup_size=1,
-            provider_type="TAG", mqtt_topic="test/topic"
+        src = _make_mqtt_source(
+            char_id=1, char_name="Test", subgroup_size=1, topic="test/topic"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         # Callback that raises exception
         async def bad_callback(event: SampleEvent) -> None:
@@ -692,15 +711,14 @@ class TestErrorHandling:
         await tag_provider.stop()
 
     async def test_no_callback_set_warning(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test warning when no callback is set."""
         # Setup
-        char = Characteristic(
-            id=1, hierarchy_id=1, name="Test", subgroup_size=1,
-            provider_type="TAG", mqtt_topic="test/topic"
+        src = _make_mqtt_source(
+            char_id=1, char_name="Test", subgroup_size=1, topic="test/topic"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         # No callback set
         await tag_provider.start()
@@ -713,19 +731,23 @@ class TestErrorHandling:
         await tag_provider.stop()
 
     async def test_characteristic_without_mqtt_topic(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
-        """Test characteristic without mqtt_topic is skipped."""
-        # Setup - characteristic with no mqtt_topic
-        char = Characteristic(
-            id=1,
-            hierarchy_id=1,
-            name="Test",
-            subgroup_size=1,
-            provider_type="TAG",
-            mqtt_topic=None,  # No topic
-        )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        """Test data source with no characteristic is skipped."""
+        # Setup - data source with no characteristic
+        src = Mock()
+        src.id = 1
+        src.topic = "test/topic"
+        src.trigger_strategy = TriggerStrategy.ON_CHANGE.value
+        src.trigger_tag = None
+        src.metric_name = None
+        src.json_path = None
+        src.is_active = True
+        src.characteristic = None  # No characteristic attached
+        src.product_code = None
+        src.product_json_path = None
+
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         # Start provider
         await tag_provider.start()
@@ -740,15 +762,14 @@ class TestErrorHandling:
         await tag_provider.stop()
 
     async def test_subscription_failure_cleanup(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test cleanup when subscription fails."""
         # Setup
-        char = Characteristic(
-            id=1, hierarchy_id=1, name="Test", subgroup_size=1,
-            provider_type="TAG", mqtt_topic="test/topic"
+        src = _make_mqtt_source(
+            char_id=1, char_name="Test", subgroup_size=1, topic="test/topic"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         # Mock subscribe to raise error
         mock_mqtt_client.subscribe.side_effect = Exception("Connection error")
@@ -760,7 +781,7 @@ class TestErrorHandling:
         # Verify cleanup happened (no configs created)
         assert len(tag_provider._configs) == 0
         assert len(tag_provider._buffers) == 0
-        assert len(tag_provider._topic_to_char) == 0
+        assert len(tag_provider._topic_to_chars) == 0
 
         await tag_provider.stop()
 
@@ -770,15 +791,14 @@ class TestSampleEventCreation:
     """Test SampleEvent creation details."""
 
     async def test_event_has_correct_structure(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test that created events have all required fields."""
         # Setup
-        char = Characteristic(
-            id=1, hierarchy_id=1, name="Test", subgroup_size=1,
-            provider_type="TAG", mqtt_topic="test/topic"
+        src = _make_mqtt_source(
+            char_id=1, char_name="Test", subgroup_size=1, topic="test/topic"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         received_events = []
 
@@ -809,15 +829,14 @@ class TestSampleEventCreation:
         await tag_provider.stop()
 
     async def test_event_timestamp_unique(
-        self, tag_provider, mock_mqtt_client, mock_char_repo
+        self, tag_provider, mock_mqtt_client, mock_ds_repo
     ):
         """Test that each event gets a timestamp."""
         # Setup
-        char = Characteristic(
-            id=1, hierarchy_id=1, name="Test", subgroup_size=1,
-            provider_type="TAG", mqtt_topic="test/topic"
+        src = _make_mqtt_source(
+            char_id=1, char_name="Test", subgroup_size=1, topic="test/topic"
         )
-        mock_char_repo.get_by_provider_type = AsyncMock(return_value=[char])
+        mock_ds_repo.get_active_mqtt_sources = AsyncMock(return_value=[src])
 
         received_events = []
 

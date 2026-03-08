@@ -58,7 +58,6 @@ async def test_characteristic(
         subgroup_size=1,
         ucl=103.0,
         lcl=97.0,
-        provider_type="MANUAL",
     )
     async_session.add(char)
     await async_session.flush()
@@ -499,7 +498,6 @@ class TestAlertManagerStatistics:
             subgroup_size=1,
             ucl=103.0,
             lcl=97.0,
-            provider_type="MANUAL",
         )
         async_session.add(char2)
         await async_session.flush()
@@ -510,9 +508,10 @@ class TestAlertManagerStatistics:
         async_session.add_all([sample1, sample2])
         await async_session.flush()
 
-        # Create violations
+        # Create violations (char_id is denormalized on Violation)
         v1 = Violation(
             sample_id=sample1.id,
+            char_id=test_characteristic.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -520,6 +519,7 @@ class TestAlertManagerStatistics:
         )
         v2 = Violation(
             sample_id=sample2.id,
+            char_id=char2.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -546,6 +546,7 @@ class TestAlertManagerStatistics:
         violations = [
             Violation(
                 sample_id=test_sample.id,
+                char_id=test_sample.char_id,
                 rule_id=1,
                 rule_name="Outlier",
                 severity="CRITICAL",
@@ -553,6 +554,7 @@ class TestAlertManagerStatistics:
             ),
             Violation(
                 sample_id=test_sample.id,
+                char_id=test_sample.char_id,
                 rule_id=1,
                 rule_name="Outlier",
                 severity="CRITICAL",
@@ -563,6 +565,7 @@ class TestAlertManagerStatistics:
             ),
             Violation(
                 sample_id=test_sample.id,
+                char_id=test_sample.char_id,
                 rule_id=2,
                 rule_name="Nine Points",
                 severity="WARNING",
@@ -570,6 +573,7 @@ class TestAlertManagerStatistics:
             ),
             Violation(
                 sample_id=test_sample.id,
+                char_id=test_sample.char_id,
                 rule_id=2,
                 rule_name="Nine Points",
                 severity="WARNING",
@@ -614,9 +618,10 @@ class TestAlertManagerStatistics:
         async_session.add_all([old_sample, recent_sample])
         await async_session.flush()
 
-        # Create violations
+        # Create violations (char_id is denormalized on Violation)
         v1 = Violation(
             sample_id=old_sample.id,
+            char_id=test_characteristic.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -624,6 +629,7 @@ class TestAlertManagerStatistics:
         )
         v2 = Violation(
             sample_id=recent_sample.id,
+            char_id=test_characteristic.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",

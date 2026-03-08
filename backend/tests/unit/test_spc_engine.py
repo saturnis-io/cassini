@@ -26,7 +26,6 @@ from cassini.core.engine.spc_engine import (
 )
 from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.models.sample import Measurement, Sample
-from cassini.db.models.violation import Violation
 
 
 @pytest.fixture
@@ -94,7 +93,6 @@ def characteristic_with_rules():
         subgroup_size=3,
         ucl=106.0,
         lcl=94.0,
-        provider_type="MANUAL",
     )
     char.rules = [
         CharacteristicRule(char_id=1, rule_id=i, is_enabled=True) for i in range(1, 9)
@@ -249,9 +247,8 @@ class TestSampleProcessing:
         assert violation.severity == "CRITICAL"
         assert 1 in violation.involved_sample_ids
 
-        # Verify violation was created in database
-        mock_sample_repo.session.add.assert_called()
-        mock_sample_repo.session.flush.assert_called()
+        # Verify violation was created via repository
+        spc_engine._violation_repo.create.assert_called()
 
     @pytest.mark.asyncio
     async def test_process_sample_with_rule2_violation(
@@ -394,15 +391,30 @@ class TestValidation:
             await spc_engine.process_sample(characteristic_id=999, measurements=[10.0])
 
     @pytest.mark.asyncio
-    async def test_wrong_measurement_count(
+    async def test_too_many_measurements_rejected(
         self, spc_engine, mock_char_repo, characteristic_with_rules
     ):
-        """Test error when measurement count doesn't match subgroup size."""
+        """Test error when measurement count exceeds subgroup size (NOMINAL_TOLERANCE mode)."""
         characteristic_with_rules.subgroup_size = 3
+        characteristic_with_rules.subgroup_mode = "NOMINAL_TOLERANCE"
         mock_char_repo.get_with_rules.return_value = characteristic_with_rules
 
-        with pytest.raises(ValueError, match="Expected 3 measurements"):
-            await spc_engine.process_sample(characteristic_id=1, measurements=[10.0, 10.1])
+        with pytest.raises(ValueError, match="Too many measurements"):
+            await spc_engine.process_sample(
+                characteristic_id=1, measurements=[10.0, 10.1, 10.2, 10.3]
+            )
+
+    @pytest.mark.asyncio
+    async def test_insufficient_measurements_rejected(
+        self, spc_engine, mock_char_repo, characteristic_with_rules
+    ):
+        """Test error when measurement count is below min_measurements."""
+        characteristic_with_rules.subgroup_size = 3
+        characteristic_with_rules.min_measurements = 2
+        mock_char_repo.get_with_rules.return_value = characteristic_with_rules
+
+        with pytest.raises(ValueError, match="Insufficient measurements"):
+            await spc_engine.process_sample(characteristic_id=1, measurements=[10.0])
 
 
 class TestRuleEvaluation:
@@ -477,11 +489,9 @@ class TestZoneBoundaries:
         characteristic_with_rules,
     ):
         """Test using stored UCL/LCL for zone boundaries."""
-        characteristic_with_rules.ucl = 106.0
-        characteristic_with_rules.lcl = 94.0
-        mock_char_repo.get_by_id.return_value = characteristic_with_rules
-
-        boundaries = await spc_engine._get_zone_boundaries(1, characteristic_with_rules)
+        boundaries = await spc_engine._get_zone_boundaries_with_values(
+            characteristic_id=1, ucl=106.0, lcl=94.0
+        )
 
         assert boundaries.center_line == 100.0
         assert boundaries.sigma == pytest.approx(2.0, rel=1e-9)
@@ -494,21 +504,19 @@ class TestZoneBoundaries:
     ):
         """Test calculating limits from historical data when not stored."""
         # Remove stored limits
-        characteristic_with_rules.ucl = None
-        characteristic_with_rules.lcl = None
         characteristic_with_rules.subgroup_size = 1
         mock_char_repo.get_by_id.return_value = characteristic_with_rules
 
-        # Create historical samples
-        samples = []
-        for i in range(10):
-            sample = Sample(id=i, char_id=1, timestamp=datetime.utcnow())
-            sample.measurements = [Measurement(id=i, sample_id=i, value=100.0 + i)]
-            samples.append(sample)
+        # Create historical sample data as dicts (matching get_rolling_window_data format)
+        sample_data = [
+            {"values": [100.0 + i]} for i in range(10)
+        ]
 
-        mock_sample_repo.get_rolling_window.return_value = samples
+        mock_sample_repo.get_rolling_window_data.return_value = sample_data
 
-        boundaries = await spc_engine._get_zone_boundaries(1, characteristic_with_rules)
+        boundaries = await spc_engine._get_zone_boundaries_with_values(
+            characteristic_id=1, ucl=None, lcl=None
+        )
 
         # Verify boundaries were calculated
         assert boundaries.center_line > 0
@@ -529,19 +537,14 @@ class TestRecalculateLimits:
             hierarchy_id=1,
             name="Test",
             subgroup_size=1,
-            provider_type="MANUAL",
         )
         mock_char_repo.get_by_id.return_value = char
 
-        # Create historical samples
-        samples = []
+        # Create historical sample data as dicts (matching get_rolling_window_data format)
         values = [10.0, 12.0, 11.0, 13.0, 10.0, 12.0, 11.0, 13.0]
-        for i, val in enumerate(values):
-            sample = Sample(id=i, char_id=1, timestamp=datetime.utcnow())
-            sample.measurements = [Measurement(id=i, sample_id=i, value=val)]
-            samples.append(sample)
+        sample_data = [{"values": [v]} for v in values]
 
-        mock_sample_repo.get_rolling_window.return_value = samples
+        mock_sample_repo.get_rolling_window_data.return_value = sample_data
 
         center_line, ucl, lcl = await spc_engine.recalculate_limits(1)
 
@@ -559,22 +562,16 @@ class TestRecalculateLimits:
             hierarchy_id=1,
             name="Test",
             subgroup_size=3,
-            provider_type="MANUAL",
         )
         mock_char_repo.get_by_id.return_value = char
 
-        # Create historical samples with subgroups
-        samples = []
-        for i in range(10):
-            sample = Sample(id=i, char_id=1, timestamp=datetime.utcnow())
-            sample.measurements = [
-                Measurement(id=i * 3 + 0, sample_id=i, value=10.0 + i * 0.1),
-                Measurement(id=i * 3 + 1, sample_id=i, value=10.1 + i * 0.1),
-                Measurement(id=i * 3 + 2, sample_id=i, value=10.2 + i * 0.1),
-            ]
-            samples.append(sample)
+        # Create historical sample data as dicts (matching get_rolling_window_data format)
+        sample_data = [
+            {"values": [10.0 + i * 0.1, 10.1 + i * 0.1, 10.2 + i * 0.1]}
+            for i in range(10)
+        ]
 
-        mock_sample_repo.get_rolling_window.return_value = samples
+        mock_sample_repo.get_rolling_window_data.return_value = sample_data
 
         center_line, ucl, lcl = await spc_engine.recalculate_limits(1)
 
@@ -592,10 +589,9 @@ class TestRecalculateLimits:
             hierarchy_id=1,
             name="Test",
             subgroup_size=1,
-            provider_type="MANUAL",
         )
         mock_char_repo.get_by_id.return_value = char
-        mock_sample_repo.get_rolling_window.return_value = []
+        mock_sample_repo.get_rolling_window_data.return_value = []
 
         with pytest.raises(ValueError, match="No samples available"):
             await spc_engine.recalculate_limits(1)
@@ -617,7 +613,7 @@ class TestSubgroupModeValidation:
             subgroup_mode="NOMINAL_TOLERANCE",
             ucl=106.0,
             lcl=94.0,
-            provider_type="MANUAL",
+
         )
         char.rules = []
         return char
@@ -637,7 +633,7 @@ class TestSubgroupModeValidation:
             stored_center_line=100.0,
             ucl=106.0,
             lcl=94.0,
-            provider_type="MANUAL",
+
         )
         char.rules = []
         return char
@@ -657,7 +653,7 @@ class TestSubgroupModeValidation:
             stored_center_line=100.0,
             ucl=106.0,
             lcl=94.0,
-            provider_type="MANUAL",
+
         )
         char.rules = []
         return char
@@ -726,7 +722,7 @@ class TestModeSpecificComputation:
             stored_center_line=100.0,
             ucl=115.0,
             lcl=85.0,
-            provider_type="MANUAL",
+
         )
         return char
 
@@ -744,7 +740,7 @@ class TestModeSpecificComputation:
             stored_center_line=100.0,
             ucl=115.0,
             lcl=85.0,
-            provider_type="MANUAL",
+
         )
         return char
 
@@ -760,7 +756,7 @@ class TestModeSpecificComputation:
             subgroup_mode="NOMINAL_TOLERANCE",
             ucl=115.0,
             lcl=85.0,
-            provider_type="MANUAL",
+
         )
         return char
 
@@ -827,7 +823,7 @@ class TestUndersizedFlagging:
             subgroup_mode="NOMINAL_TOLERANCE",
             ucl=106.0,
             lcl=94.0,
-            provider_type="MANUAL",
+
         )
         return char
 
