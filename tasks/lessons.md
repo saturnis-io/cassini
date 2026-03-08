@@ -135,3 +135,13 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 - Check `ControlChart.tsx` internal domain — used when no external domain
 - Both must have identical logic for spec limits, control limits, and Z-scale handling
 - Add console logs at branch entry points to confirm which code path actually executes
+
+---
+
+## L-009: Don't Re-Present Resolved Decisions as Open Questions (2026-03-07)
+
+**Mistake**: Presented subagent audit findings that contradicted an earlier in-conversation decision as if they were new ambiguity. The user had already decided "OPC-UA stays commercial-only" but the audit summary resurfaced it without acknowledging the decision was already made.
+
+**Why it matters**: Subagents don't have conversation context. Their findings may surface issues already resolved. The orchestrator must filter subagent output against decisions already made in the session, not blindly relay everything.
+
+**Rule**: When presenting subagent findings, cross-check against decisions already made in the conversation. If a finding covers already-decided ground, state "we already decided X — the website/doc needs to be updated to match" rather than re-opening the question.
