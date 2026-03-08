@@ -17,9 +17,14 @@ from cassini.api.schemas.material import (
     MaterialCreate,
     MaterialResponse,
     MaterialUpdate,
+    MaterialUsageItem,
 )
 from cassini.db.models.user import User
+from cassini.db.repositories.hierarchy import HierarchyRepository
 from cassini.db.repositories.material import MaterialRepository
+from cassini.db.repositories.material_limit_override import (
+    MaterialLimitOverrideRepository,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -101,6 +106,43 @@ async def create_material(
     # Re-fetch to load material_class relationship
     m = await repo.get_by_id(m.id)
     return _to_response(m)
+
+
+# ---------------------------------------------------------------------------
+# Usage — which characteristics reference this material?
+# ---------------------------------------------------------------------------
+@router.get("/usage/{material_id}", response_model=list[MaterialUsageItem])
+async def get_material_usage(
+    plant_id: int,
+    material_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_user),
+) -> list[MaterialUsageItem]:
+    """List characteristics that have limit overrides for this material."""
+    check_plant_role(_user, plant_id, "operator")
+
+    override_repo = MaterialLimitOverrideRepository(session)
+    rows = await override_repo.list_characteristics_by_material(material_id)
+
+    if not rows:
+        return []
+
+    # Build hierarchy paths in batch: collect unique hierarchy_ids
+    hierarchy_ids = {r["hierarchy_id"] for r in rows}
+    hierarchy_repo = HierarchyRepository(session)
+    path_cache: dict[int, str] = {}
+    for hid in hierarchy_ids:
+        parts = await hierarchy_repo.get_ancestor_path(hid)
+        path_cache[hid] = " > ".join(parts) if parts else None
+
+    return [
+        MaterialUsageItem(
+            characteristic_id=r["characteristic_id"],
+            name=r["name"],
+            hierarchy_path=path_cache.get(r["hierarchy_id"]),
+        )
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

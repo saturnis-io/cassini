@@ -1,12 +1,21 @@
 """Repository for MaterialLimitOverride model."""
 
+from typing import TypedDict
+
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.material_class import MaterialClass
 from cassini.db.models.material_limit_override import MaterialLimitOverride
 from cassini.db.repositories.base import BaseRepository
+
+
+class CharacteristicUsageRow(TypedDict):
+    characteristic_id: int
+    name: str
+    hierarchy_id: int
 
 
 class MaterialLimitOverrideRepository(BaseRepository[MaterialLimitOverride]):
@@ -172,3 +181,71 @@ class MaterialLimitOverrideRepository(BaseRepository[MaterialLimitOverride]):
         await self.session.delete(instance)
         await self.session.flush()
         return True
+
+    async def list_characteristics_by_material(
+        self, material_id: int
+    ) -> list[CharacteristicUsageRow]:
+        """Find all characteristics that have an override for a material.
+
+        Args:
+            material_id: Material ID to look up
+
+        Returns:
+            List of dicts with characteristic_id, name, and hierarchy_id
+        """
+        stmt = (
+            select(
+                Characteristic.id,
+                Characteristic.name,
+                Characteristic.hierarchy_id,
+            )
+            .join(
+                MaterialLimitOverride,
+                MaterialLimitOverride.characteristic_id == Characteristic.id,
+            )
+            .where(MaterialLimitOverride.material_id == material_id)
+            .order_by(Characteristic.name)
+        )
+        result = await self.session.execute(stmt)
+        return [
+            CharacteristicUsageRow(
+                characteristic_id=row.id,
+                name=row.name,
+                hierarchy_id=row.hierarchy_id,
+            )
+            for row in result.all()
+        ]
+
+    async def list_characteristics_by_class(
+        self, class_id: int
+    ) -> list[CharacteristicUsageRow]:
+        """Find all characteristics that have an override for a material class.
+
+        Args:
+            class_id: MaterialClass ID to look up
+
+        Returns:
+            List of dicts with characteristic_id, name, and hierarchy_id
+        """
+        stmt = (
+            select(
+                Characteristic.id,
+                Characteristic.name,
+                Characteristic.hierarchy_id,
+            )
+            .join(
+                MaterialLimitOverride,
+                MaterialLimitOverride.characteristic_id == Characteristic.id,
+            )
+            .where(MaterialLimitOverride.class_id == class_id)
+            .order_by(Characteristic.name)
+        )
+        result = await self.session.execute(stmt)
+        return [
+            CharacteristicUsageRow(
+                characteristic_id=row.id,
+                name=row.name,
+                hierarchy_id=row.hierarchy_id,
+            )
+            for row in result.all()
+        ]

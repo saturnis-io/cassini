@@ -105,6 +105,15 @@ class MaterialResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Material usage schemas ---
+
+
+class MaterialUsageItem(BaseModel):
+    characteristic_id: int
+    name: str
+    hierarchy_path: str | None = None
+
+
 # --- MaterialLimitOverride schemas ---
 
 
