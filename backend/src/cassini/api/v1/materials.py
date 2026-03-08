@@ -5,7 +5,7 @@ class assignment and search capabilities.
 """
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
@@ -77,6 +77,7 @@ async def list_materials(
 async def create_material(
     plant_id: int,
     body: MaterialCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialResponse:
@@ -105,6 +106,22 @@ async def create_material(
 
     # Re-fetch to load material_class relationship
     m = await repo.get_by_id(m.id)
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material",
+        "resource_id": m.id,
+        "action": "create",
+        "summary": f"Material '{body.name}' ({body.code}) created",
+        "fields": {
+            "name": body.name,
+            "code": body.code,
+            "class_id": body.class_id,
+            "description": body.description,
+            "properties": body.properties,
+        },
+    }
+
     return _to_response(m)
 
 
@@ -177,6 +194,7 @@ async def update_material(
     plant_id: int,
     material_id: int,
     body: MaterialUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialResponse:
@@ -198,6 +216,9 @@ async def update_material(
             detail="No fields to update",
         )
 
+    # Capture old values before mutation
+    old_values = {k: getattr(existing, k, None) for k in fields}
+
     # Check code uniqueness if code is changing
     if "code" in fields and fields["code"] is not None:
         normalized = fields["code"].strip().upper()
@@ -214,6 +235,20 @@ async def update_material(
 
     # Re-fetch to load material_class relationship
     m = await repo.get_by_id(material_id)
+
+    # Tier 1 audit context
+    new_values = {k: getattr(m, k, None) for k in fields}
+    request.state.audit_context = {
+        "resource_type": "material",
+        "resource_id": material_id,
+        "action": "update",
+        "summary": f"Material '{m.name}' ({m.code}) updated",
+        "fields": {
+            "old_values": old_values,
+            "new_values": new_values,
+        },
+    }
+
     return _to_response(m)
 
 
@@ -224,6 +259,7 @@ async def update_material(
 async def delete_material(
     plant_id: int,
     material_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> None:
@@ -238,6 +274,11 @@ async def delete_material(
             detail="Material not found",
         )
 
+    # Capture record before deletion
+    old_name = existing.name
+    old_code = existing.code
+    old_class_id = existing.class_id
+
     try:
         await repo.delete(material_id)
     except ValueError:
@@ -247,3 +288,16 @@ async def delete_material(
         )
 
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material",
+        "resource_id": material_id,
+        "action": "delete",
+        "summary": f"Material '{old_name}' ({old_code}) deleted",
+        "fields": {
+            "name": old_name,
+            "code": old_code,
+            "class_id": old_class_id,
+        },
+    }

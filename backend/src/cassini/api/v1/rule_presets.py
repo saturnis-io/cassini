@@ -6,7 +6,7 @@ Provides listing, retrieval, creation, and application of Nelson Rule presets
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -89,6 +89,7 @@ async def get_preset(
 @router.post("/rule-presets", response_model=PresetResponse, status_code=status.HTTP_201_CREATED)
 async def create_preset(
     body: CreatePresetRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> PresetResponse:
@@ -103,6 +104,20 @@ async def create_preset(
     session.add(preset)
     await session.commit()
     await session.refresh(preset)
+
+    request.state.audit_context = {
+        "resource_type": "rule_preset",
+        "resource_id": preset.id,
+        "action": "create",
+        "summary": f"Rule preset '{body.name}' created",
+        "fields": {
+            "name": body.name,
+            "description": body.description,
+            "plant_id": body.plant_id,
+            "rule_count": len(body.rules_config),
+        },
+    }
+
     return _parse_preset(preset)
 
 
@@ -110,6 +125,7 @@ async def create_preset(
 async def apply_preset(
     char_id: int,
     body: ApplyPresetRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> list[dict]:
@@ -164,4 +180,18 @@ async def apply_preset(
         })
 
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "rule_preset",
+        "resource_id": body.preset_id,
+        "action": "apply",
+        "summary": f"Preset '{preset.name}' applied to characteristic {char_id}",
+        "fields": {
+            "preset_id": body.preset_id,
+            "preset_name": preset.name,
+            "char_id": char_id,
+            "rules_applied": len(created),
+        },
+    }
+
     return created

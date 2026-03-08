@@ -5,7 +5,7 @@ Implements ISA-95 equipment hierarchy management endpoints.
 
 import structlog
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 logger = structlog.get_logger(__name__)
 from sqlalchemy import func, select
@@ -124,6 +124,7 @@ async def get_hierarchy_tree(
 @router.post("/", response_model=HierarchyResponse, status_code=status.HTTP_201_CREATED)
 async def create_hierarchy_node(
     data: HierarchyCreate,
+    request: Request,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
@@ -176,6 +177,20 @@ async def create_hierarchy_node(
             name=data.name,
             type=data.type,
         )
+
+        # Tier 1 audit context
+        request.state.audit_context = {
+            "resource_type": "hierarchy",
+            "resource_id": node.id,
+            "action": "create",
+            "summary": f"Hierarchy node '{data.name}' ({data.type}) created",
+            "fields": {
+                "name": data.name,
+                "level_type": data.type,
+                "parent_id": data.parent_id,
+            },
+        }
+
         return HierarchyResponse.model_validate(node)
     except IntegrityError:
         logger.exception("Database integrity error in hierarchy operation")
@@ -227,6 +242,7 @@ async def get_hierarchy_node(
 async def update_hierarchy_node(
     node_id: int,
     data: HierarchyUpdate,
+    request: Request,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     _user: User = Depends(get_current_engineer),
 ) -> HierarchyResponse:
@@ -276,6 +292,15 @@ async def update_hierarchy_node(
             )
         return HierarchyResponse.model_validate(node)
 
+    # Capture old values before mutation
+    old_node = await repo.get_by_id(node_id)
+    if old_node is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Hierarchy node {node_id} not found",
+        )
+    old_values = {k: getattr(old_node, k, None) for k in update_data}
+
     try:
         node = await repo.update(node_id, **update_data)
         if node is None:
@@ -283,6 +308,20 @@ async def update_hierarchy_node(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Hierarchy node {node_id} not found",
             )
+
+        # Tier 1 audit context
+        new_values = {k: getattr(node, k, None) for k in update_data}
+        request.state.audit_context = {
+            "resource_type": "hierarchy",
+            "resource_id": node_id,
+            "action": "update",
+            "summary": f"Hierarchy node '{node.name}' ({node.type}) updated",
+            "fields": {
+                "old_values": old_values,
+                "new_values": new_values,
+            },
+        }
+
         return HierarchyResponse.model_validate(node)
     except IntegrityError:
         logger.exception("Database integrity error in hierarchy operation")
@@ -295,6 +334,7 @@ async def update_hierarchy_node(
 @router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_hierarchy_node(
     node_id: int,
+    request: Request,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     _user: User = Depends(get_current_engineer),
 ) -> None:
@@ -330,6 +370,11 @@ async def delete_hierarchy_node(
             detail=f"Cannot delete hierarchy node {node_id}: has {len(children)} child node(s)",
         )
 
+    # Capture record before deletion
+    old_name = node.name
+    old_type = node.type
+    old_parent_id = node.parent_id
+
     # Delete the node
     success = await repo.delete(node_id)
     if not success:
@@ -337,6 +382,19 @@ async def delete_hierarchy_node(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Hierarchy node {node_id} not found",
         )
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "hierarchy",
+        "resource_id": node_id,
+        "action": "delete",
+        "summary": f"Hierarchy node '{old_name}' ({old_type}) deleted",
+        "fields": {
+            "name": old_name,
+            "level_type": old_type,
+            "parent_id": old_parent_id,
+        },
+    }
 
 
 @router.get("/{node_id}/characteristics", response_model=list[CharacteristicResponse])
@@ -498,6 +556,7 @@ async def get_plant_hierarchy_tree(
 async def create_plant_hierarchy_node(
     data: HierarchyCreate,
     plant_id: int,
+    request: Request,
     repo: HierarchyRepository = Depends(get_hierarchy_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -542,6 +601,20 @@ async def create_plant_hierarchy_node(
             type=data.type,
             parent_id=data.parent_id,
         )
+
+        # Tier 1 audit context
+        request.state.audit_context = {
+            "resource_type": "hierarchy",
+            "resource_id": node.id,
+            "action": "create",
+            "summary": f"Hierarchy node '{data.name}' ({data.type}) created in plant {plant_id}",
+            "fields": {
+                "name": data.name,
+                "level_type": data.type,
+                "parent_id": data.parent_id,
+            },
+        }
+
         return HierarchyResponse.model_validate(node)
     except IntegrityError:
         logger.exception("Database integrity error in hierarchy operation")

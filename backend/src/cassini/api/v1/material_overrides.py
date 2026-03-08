@@ -5,7 +5,7 @@ plus a resolution endpoint that walks the material class hierarchy.
 """
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
@@ -82,6 +82,7 @@ async def list_material_overrides(
 async def create_material_override(
     char_id: int,
     body: MaterialLimitOverrideCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialLimitOverrideResponse:
@@ -107,6 +108,20 @@ async def create_material_override(
         )
 
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material_override",
+        "resource_id": override.id,
+        "action": "create",
+        "summary": f"Material override created for characteristic {char_id}",
+        "fields": {
+            "characteristic_id": char_id,
+            "material_id": body.material_id,
+            "class_id": body.class_id,
+            **limit_fields,
+        },
+    }
 
     # Re-fetch with relationships loaded
     overrides = await repo.list_by_characteristic(char_id)
@@ -216,6 +231,7 @@ async def update_material_override(
     char_id: int,
     override_id: int,
     body: MaterialLimitOverrideUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialLimitOverrideResponse:
@@ -238,6 +254,9 @@ async def update_material_override(
             detail="No fields to update",
         )
 
+    # Capture old values before mutation
+    old_values = {k: getattr(existing, k, None) for k in fields}
+
     await repo.update(override_id, **fields)
     await session.commit()
 
@@ -245,6 +264,18 @@ async def update_material_override(
     overrides = await repo.list_by_characteristic(char_id)
     for o in overrides:
         if o.id == override_id:
+            # Tier 1 audit context
+            new_values = {k: getattr(o, k, None) for k in fields}
+            request.state.audit_context = {
+                "resource_type": "material_override",
+                "resource_id": override_id,
+                "action": "update",
+                "summary": f"Material override {override_id} updated for characteristic {char_id}",
+                "fields": {
+                    "old_values": old_values,
+                    "new_values": new_values,
+                },
+            }
             return _to_response(o)
 
     raise HTTPException(
@@ -260,6 +291,7 @@ async def update_material_override(
 async def delete_material_override(
     char_id: int,
     override_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> None:
@@ -275,5 +307,21 @@ async def delete_material_override(
             detail="Material limit override not found",
         )
 
+    # Capture record before deletion
+    old_material_id = existing.material_id
+    old_characteristic_id = existing.characteristic_id
+
     await repo.delete(override_id)
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material_override",
+        "resource_id": override_id,
+        "action": "delete",
+        "summary": f"Material override {override_id} deleted for characteristic {char_id}",
+        "fields": {
+            "material_id": old_material_id,
+            "characteristic_id": old_characteristic_id,
+        },
+    }

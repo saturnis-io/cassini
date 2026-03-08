@@ -169,6 +169,7 @@ async def get_config(
 async def update_config(
     char_id: int,
     body: AnomalyConfigUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> AnomalyConfigResponse:
@@ -192,12 +193,25 @@ async def update_config(
         fields=list(update_data.keys()),
     )
 
+    request.state.audit_context = {
+        "resource_type": "anomaly",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Anomaly config updated for characteristic {char_id}",
+        "fields": {
+            "char_id": char_id,
+            "updated_fields": list(update_data.keys()),
+            **{k: v for k, v in update_data.items() if isinstance(v, (str, int, float, bool, type(None)))},
+        },
+    }
+
     return AnomalyConfigResponse.model_validate(config)
 
 
 @router.delete("/{char_id}/config", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def reset_config(
     char_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> None:
@@ -217,6 +231,16 @@ async def reset_config(
         char_id=char_id,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "anomaly",
+        "resource_id": char_id,
+        "action": "delete",
+        "summary": f"Anomaly config reset to defaults for characteristic {char_id}",
+        "fields": {
+            "char_id": char_id,
+        },
+    }
 
 
 # ===========================================================================
@@ -302,6 +326,7 @@ async def get_event(
 async def acknowledge_event(
     char_id: int,
     event_id: int,
+    request: Request,
     body: AcknowledgeRequest = AcknowledgeRequest(),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
@@ -331,6 +356,19 @@ async def acknowledge_event(
         user=user.username,
     )
 
+    request.state.audit_context = {
+        "resource_type": "anomaly",
+        "resource_id": event_id,
+        "action": "acknowledge",
+        "summary": f"Anomaly event {event_id} acknowledged for characteristic {char_id}",
+        "fields": {
+            "event_id": event_id,
+            "char_id": char_id,
+            "detector_type": event.detector_type,
+            "severity": event.severity,
+        },
+    }
+
     return AnomalyEventResponse.model_validate(event)
 
 
@@ -341,6 +379,7 @@ async def acknowledge_event(
 async def dismiss_event(
     char_id: int,
     event_id: int,
+    request: Request,
     body: DismissRequest = DismissRequest(),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
@@ -370,6 +409,20 @@ async def dismiss_event(
         user=user.username,
         reason=body.reason,
     )
+
+    request.state.audit_context = {
+        "resource_type": "anomaly",
+        "resource_id": event_id,
+        "action": "dismiss",
+        "summary": f"Anomaly event {event_id} dismissed for characteristic {char_id}",
+        "fields": {
+            "event_id": event_id,
+            "char_id": char_id,
+            "detector_type": event.detector_type,
+            "severity": event.severity,
+            "reason": body.reason,
+        },
+    }
 
     return AnomalyEventResponse.model_validate(event)
 
@@ -599,6 +652,17 @@ async def trigger_analysis(
         user=user.username,
         events_detected=len(results),
     )
+
+    request.state.audit_context = {
+        "resource_type": "anomaly",
+        "resource_id": char_id,
+        "action": "analyze",
+        "summary": f"On-demand anomaly analysis for characteristic {char_id} ({len(results)} events detected)",
+        "fields": {
+            "char_id": char_id,
+            "events_detected": len(results),
+        },
+    }
 
     return AnalysisResultResponse(
         characteristic_id=char_id,

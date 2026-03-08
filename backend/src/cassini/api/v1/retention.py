@@ -88,6 +88,7 @@ async def get_global_default(
 @router.put("/default", response_model=RetentionPolicyResponse)
 async def set_global_default(
     data: RetentionPolicySet,
+    request: Request,
     plant_id: int = Query(..., description="Plant ID"),
     repo: RetentionRepository = Depends(get_retention_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -99,6 +100,12 @@ async def set_global_default(
     """
     check_plant_role(user, plant_id, "engineer")
 
+    # Capture old values before mutation
+    old_policy = await repo.get_global_default(plant_id)
+    old_type = old_policy.retention_type if old_policy else None
+    old_value = old_policy.retention_value if old_policy else None
+    old_unit = old_policy.retention_unit if old_policy else None
+
     policy = await repo.set_global_default(
         plant_id=plant_id,
         retention_type=data.retention_type.value,
@@ -106,6 +113,25 @@ async def set_global_default(
         retention_unit=data.retention_unit.value if data.retention_unit else None,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": policy.id,
+        "action": "update",
+        "summary": f"Default retention policy updated to {data.retention_type.value}"
+        + (f" {data.retention_value} {data.retention_unit.value}" if data.retention_value else ""),
+        "fields": {
+            "scope": "global",
+            "plant_id": plant_id,
+            "old_retention_type": old_type,
+            "old_retention_value": old_value,
+            "old_retention_unit": old_unit,
+            "new_retention_type": data.retention_type.value,
+            "new_retention_value": data.retention_value,
+            "new_retention_unit": data.retention_unit.value if data.retention_unit else None,
+        },
+    }
+
     return RetentionPolicyResponse.model_validate(policy)
 
 
@@ -147,6 +173,7 @@ async def get_hierarchy_policy(
 async def set_hierarchy_policy(
     hierarchy_id: int,
     data: RetentionPolicySet,
+    request: Request,
     repo: RetentionRepository = Depends(get_retention_repo),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_engineer),
@@ -165,6 +192,12 @@ async def set_hierarchy_policy(
 
     check_plant_role(user, hierarchy.plant_id, "engineer")
 
+    # Capture old values before mutation
+    old_policy = await repo.get_hierarchy_policy(hierarchy_id)
+    old_type = old_policy.retention_type if old_policy else None
+    old_value = old_policy.retention_value if old_policy else None
+    old_unit = old_policy.retention_unit if old_policy else None
+
     policy = await repo.set_hierarchy_policy(
         hierarchy_id=hierarchy_id,
         plant_id=hierarchy.plant_id,
@@ -173,12 +206,33 @@ async def set_hierarchy_policy(
         retention_unit=data.retention_unit.value if data.retention_unit else None,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": policy.id,
+        "action": "update",
+        "summary": f"Hierarchy override for '{hierarchy.name}' updated to {data.retention_type.value}"
+        + (f" {data.retention_value} {data.retention_unit.value}" if data.retention_value else ""),
+        "fields": {
+            "scope": "hierarchy",
+            "hierarchy_id": hierarchy_id,
+            "hierarchy_name": hierarchy.name,
+            "old_retention_type": old_type,
+            "old_retention_value": old_value,
+            "old_retention_unit": old_unit,
+            "new_retention_type": data.retention_type.value,
+            "new_retention_value": data.retention_value,
+            "new_retention_unit": data.retention_unit.value if data.retention_unit else None,
+        },
+    }
+
     return RetentionPolicyResponse.model_validate(policy)
 
 
 @router.delete("/hierarchy/{hierarchy_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_hierarchy_policy(
     hierarchy_id: int,
+    request: Request,
     repo: RetentionRepository = Depends(get_retention_repo),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_engineer),
@@ -197,6 +251,9 @@ async def delete_hierarchy_policy(
 
     check_plant_role(user, hierarchy.plant_id, "engineer")
 
+    # Capture old values before deletion
+    old_policy = await repo.get_hierarchy_policy(hierarchy_id)
+
     deleted = await repo.delete_hierarchy_policy(hierarchy_id)
     if not deleted:
         raise HTTPException(
@@ -204,6 +261,21 @@ async def delete_hierarchy_policy(
             detail=f"No retention override for hierarchy node {hierarchy_id}",
         )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": old_policy.id if old_policy else None,
+        "action": "delete",
+        "summary": f"Hierarchy retention override for '{hierarchy.name}' removed",
+        "fields": {
+            "scope": "hierarchy",
+            "hierarchy_id": hierarchy_id,
+            "hierarchy_name": hierarchy.name,
+            "deleted_retention_type": old_policy.retention_type if old_policy else None,
+            "deleted_retention_value": old_policy.retention_value if old_policy else None,
+            "deleted_retention_unit": old_policy.retention_unit if old_policy else None,
+        },
+    }
 
 
 # ------------------------------------------------------------------
@@ -249,6 +321,7 @@ async def get_characteristic_policy(
 async def set_characteristic_policy(
     characteristic_id: int,
     data: RetentionPolicySet,
+    request: Request,
     repo: RetentionRepository = Depends(get_retention_repo),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_engineer),
@@ -256,6 +329,12 @@ async def set_characteristic_policy(
     """Set a retention override for a characteristic. Requires engineer+."""
     plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
     check_plant_role(user, plant_id, "engineer")
+
+    # Capture old values before mutation
+    old_policy = await repo.get_characteristic_policy(characteristic_id)
+    old_type = old_policy.retention_type if old_policy else None
+    old_value = old_policy.retention_value if old_policy else None
+    old_unit = old_policy.retention_unit if old_policy else None
 
     policy = await repo.set_characteristic_policy(
         characteristic_id=characteristic_id,
@@ -265,6 +344,25 @@ async def set_characteristic_policy(
         retention_unit=data.retention_unit.value if data.retention_unit else None,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": policy.id,
+        "action": "update",
+        "summary": f"Characteristic {characteristic_id} retention override updated to {data.retention_type.value}"
+        + (f" {data.retention_value} {data.retention_unit.value}" if data.retention_value else ""),
+        "fields": {
+            "scope": "characteristic",
+            "characteristic_id": characteristic_id,
+            "old_retention_type": old_type,
+            "old_retention_value": old_value,
+            "old_retention_unit": old_unit,
+            "new_retention_type": data.retention_type.value,
+            "new_retention_value": data.retention_value,
+            "new_retention_unit": data.retention_unit.value if data.retention_unit else None,
+        },
+    }
+
     return RetentionPolicyResponse.model_validate(policy)
 
 
@@ -275,6 +373,7 @@ async def set_characteristic_policy(
 )
 async def delete_characteristic_policy(
     characteristic_id: int,
+    request: Request,
     repo: RetentionRepository = Depends(get_retention_repo),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_engineer),
@@ -283,6 +382,9 @@ async def delete_characteristic_policy(
     plant_id = await resolve_plant_id_for_characteristic(characteristic_id, session)
     check_plant_role(user, plant_id, "engineer")
 
+    # Capture old values before deletion
+    old_policy = await repo.get_characteristic_policy(characteristic_id)
+
     deleted = await repo.delete_characteristic_policy(characteristic_id)
     if not deleted:
         raise HTTPException(
@@ -290,6 +392,20 @@ async def delete_characteristic_policy(
             detail=f"No retention override for characteristic {characteristic_id}",
         )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "retention",
+        "resource_id": old_policy.id if old_policy else None,
+        "action": "delete",
+        "summary": f"Characteristic {characteristic_id} retention override removed",
+        "fields": {
+            "scope": "characteristic",
+            "characteristic_id": characteristic_id,
+            "deleted_retention_type": old_policy.retention_type if old_policy else None,
+            "deleted_retention_value": old_policy.retention_value if old_policy else None,
+            "deleted_retention_unit": old_policy.retention_unit if old_policy else None,
+        },
+    }
 
 
 # ------------------------------------------------------------------

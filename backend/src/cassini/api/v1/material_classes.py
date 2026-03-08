@@ -4,7 +4,7 @@ Provides CRUD operations and tree traversal for plant-scoped material classes.
 """
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -104,6 +104,7 @@ async def list_material_classes(
 async def create_material_class(
     plant_id: int,
     body: MaterialClassCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialClassResponse:
@@ -127,6 +128,21 @@ async def create_material_class(
         )
 
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material_class",
+        "resource_id": mc.id,
+        "action": "create",
+        "summary": f"Material class '{body.name}' ({body.code}) created",
+        "fields": {
+            "name": body.name,
+            "code": body.code,
+            "parent_id": body.parent_id,
+            "description": body.description,
+        },
+    }
+
     return _enrich_response(mc, 0, 0)
 
 
@@ -201,6 +217,7 @@ async def update_material_class(
     plant_id: int,
     class_id: int,
     body: MaterialClassUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> MaterialClassResponse:
@@ -222,6 +239,9 @@ async def update_material_class(
             detail="No fields to update",
         )
 
+    # Capture old values before mutation
+    old_values = {k: getattr(existing, k, None) for k in fields}
+
     try:
         mc = await repo.update(class_id, **fields)
     except ValueError:
@@ -237,6 +257,20 @@ async def update_material_class(
     mc = await repo.get_by_id(class_id)
     children_count = len(mc.children) if mc.children else 0
     material_count = len(mc.materials) if mc.materials else 0
+
+    # Tier 1 audit context
+    new_values = {k: getattr(mc, k, None) for k in fields}
+    request.state.audit_context = {
+        "resource_type": "material_class",
+        "resource_id": class_id,
+        "action": "update",
+        "summary": f"Material class '{mc.name}' ({mc.code}) updated",
+        "fields": {
+            "old_values": old_values,
+            "new_values": new_values,
+        },
+    }
+
     return _enrich_response(mc, children_count, material_count)
 
 
@@ -247,6 +281,7 @@ async def update_material_class(
 async def delete_material_class(
     plant_id: int,
     class_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> None:
@@ -261,6 +296,11 @@ async def delete_material_class(
             detail="Material class not found",
         )
 
+    # Capture record before deletion
+    old_name = existing.name
+    old_code = existing.code
+    old_parent_id = existing.parent_id
+
     try:
         await repo.delete(class_id)
     except ValueError:
@@ -270,6 +310,19 @@ async def delete_material_class(
         )
 
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "material_class",
+        "resource_id": class_id,
+        "action": "delete",
+        "summary": f"Material class '{old_name}' ({old_code}) deleted",
+        "fields": {
+            "name": old_name,
+            "code": old_code,
+            "parent_id": old_parent_id,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

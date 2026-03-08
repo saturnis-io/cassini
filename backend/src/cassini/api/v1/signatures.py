@@ -475,6 +475,7 @@ async def list_workflows(
 )
 async def create_workflow(
     body: WorkflowCreate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -500,6 +501,20 @@ async def create_workflow(
         description=body.description,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": workflow.id,
+        "action": "create",
+        "summary": f"Signature workflow '{body.name}' created for resource type '{body.resource_type}'",
+        "fields": {
+            "name": body.name,
+            "workflow_resource_type": body.resource_type,
+            "is_active": body.is_active,
+            "is_required": body.is_required,
+        },
+    }
+
     return WorkflowResponse.model_validate(workflow)
 
 
@@ -507,6 +522,7 @@ async def create_workflow(
 async def update_workflow(
     workflow_id: int,
     body: WorkflowUpdate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -518,17 +534,39 @@ async def update_workflow(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
+    # Capture old values before mutation
+    old_values = {
+        "name": workflow.name,
+        "resource_type": workflow.resource_type,
+        "is_active": workflow.is_active,
+        "is_required": workflow.is_required,
+        "description": workflow.description,
+    }
+
     update_data = body.model_dump(exclude_unset=True)
     if update_data:
         update_data["updated_at"] = datetime.utcnow()
         workflow = await repo.update(workflow_id, **update_data)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": workflow_id,
+        "action": "update",
+        "summary": f"Signature workflow '{workflow.name}' updated",
+        "fields": {
+            "old_values": {k: v for k, v in old_values.items() if k in body.model_dump(exclude_unset=True)},
+            "new_values": body.model_dump(exclude_unset=True),
+        },
+    }
+
     return WorkflowResponse.model_validate(workflow)
 
 
 @router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_workflow(
     workflow_id: int,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -536,10 +574,30 @@ async def delete_workflow(
     """Delete a signature workflow."""
     check_plant_role(user, plant_id, "engineer")
     repo = WorkflowRepository(session)
+
+    # Capture old values before deletion
+    workflow = await repo.get_by_id(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    old_name = workflow.name
+    old_resource_type = workflow.resource_type
+
     deleted = await repo.delete(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": workflow_id,
+        "action": "delete",
+        "summary": f"Signature workflow '{old_name}' deleted (type: {old_resource_type})",
+        "fields": {
+            "deleted_name": old_name,
+            "deleted_resource_type": old_resource_type,
+        },
+    }
 
 
 @router.get("/workflows/{workflow_id}/steps", response_model=list[StepResponse])
@@ -564,6 +622,7 @@ async def list_workflow_steps(
 async def add_workflow_step(
     workflow_id: int,
     body: StepCreate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -589,6 +648,22 @@ async def add_workflow_step(
         timeout_hours=body.timeout_hours,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": step.id,
+        "action": "create",
+        "summary": f"Step '{body.name}' (order {body.step_order}) added to workflow '{workflow.name}'",
+        "fields": {
+            "workflow_id": workflow_id,
+            "workflow_name": workflow.name,
+            "step_name": body.name,
+            "step_order": body.step_order,
+            "min_role": body.min_role,
+            "meaning_code": body.meaning_code,
+        },
+    }
+
     return StepResponse.model_validate(step)
 
 
@@ -596,6 +671,7 @@ async def add_workflow_step(
 async def update_workflow_step(
     step_id: int,
     body: StepUpdate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -603,6 +679,21 @@ async def update_workflow_step(
     """Update a workflow step."""
     check_plant_role(user, plant_id, "engineer")
     repo = WorkflowStepRepository(session)
+
+    # Capture old values before mutation
+    old_step = await repo.get_by_id(step_id)
+    if old_step is None:
+        raise HTTPException(status_code=404, detail="Step not found")
+    old_values = {
+        "name": old_step.name,
+        "step_order": old_step.step_order,
+        "min_role": old_step.min_role,
+        "meaning_code": old_step.meaning_code,
+        "is_required": old_step.is_required,
+        "allow_self_sign": old_step.allow_self_sign,
+        "timeout_hours": old_step.timeout_hours,
+    }
+
     update_data = body.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -611,12 +702,25 @@ async def update_workflow_step(
     if step is None:
         raise HTTPException(status_code=404, detail="Step not found")
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": step_id,
+        "action": "update",
+        "summary": f"Workflow step '{step.name}' updated",
+        "fields": {
+            "old_values": {k: v for k, v in old_values.items() if k in update_data},
+            "new_values": update_data,
+        },
+    }
+
     return StepResponse.model_validate(step)
 
 
 @router.delete("/workflows/steps/{step_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_workflow_step(
     step_id: int,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -624,10 +728,31 @@ async def delete_workflow_step(
     """Delete a workflow step."""
     check_plant_role(user, plant_id, "engineer")
     repo = WorkflowStepRepository(session)
+
+    # Capture old values before deletion
+    old_step = await repo.get_by_id(step_id)
+    if old_step is None:
+        raise HTTPException(status_code=404, detail="Step not found")
+    old_name = old_step.name
+    old_order = old_step.step_order
+    old_workflow_id = old_step.workflow_id
+
     deleted = await repo.delete(step_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Step not found")
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": step_id,
+        "action": "delete",
+        "summary": f"Workflow step '{old_name}' (order {old_order}) deleted",
+        "fields": {
+            "deleted_step_name": old_name,
+            "deleted_step_order": old_order,
+            "workflow_id": old_workflow_id,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +781,7 @@ async def list_meanings(
 )
 async def create_meaning(
     body: MeaningCreate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -680,6 +806,19 @@ async def create_meaning(
         sort_order=body.sort_order,
     )
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": meaning.id,
+        "action": "create",
+        "summary": f"Signature meaning '{body.display_name}' (code: {body.code}) created",
+        "fields": {
+            "code": body.code,
+            "display_name": body.display_name,
+            "requires_comment": body.requires_comment,
+        },
+    }
+
     return MeaningResponse.model_validate(meaning)
 
 
@@ -687,6 +826,7 @@ async def create_meaning(
 async def update_meaning(
     meaning_id: int,
     body: MeaningUpdate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -694,6 +834,20 @@ async def update_meaning(
     """Update a signature meaning."""
     check_plant_role(user, plant_id, "admin")
     repo = SignatureMeaningRepository(session)
+
+    # Capture old values before mutation
+    old_meaning = await repo.get_by_id(meaning_id)
+    if old_meaning is None:
+        raise HTTPException(status_code=404, detail="Meaning not found")
+    old_values = {
+        "code": old_meaning.code,
+        "display_name": old_meaning.display_name,
+        "description": old_meaning.description,
+        "requires_comment": old_meaning.requires_comment,
+        "is_active": old_meaning.is_active,
+        "sort_order": old_meaning.sort_order,
+    }
+
     update_data = body.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -702,12 +856,25 @@ async def update_meaning(
     if meaning is None:
         raise HTTPException(status_code=404, detail="Meaning not found")
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": meaning_id,
+        "action": "update",
+        "summary": f"Signature meaning '{meaning.display_name}' updated",
+        "fields": {
+            "old_values": {k: v for k, v in old_values.items() if k in update_data},
+            "new_values": update_data,
+        },
+    }
+
     return MeaningResponse.model_validate(meaning)
 
 
 @router.delete("/meanings/{meaning_id}", status_code=status.HTTP_200_OK)
 async def delete_meaning(
     meaning_id: int,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -715,10 +882,30 @@ async def delete_meaning(
     """Soft-delete a signature meaning (set inactive)."""
     check_plant_role(user, plant_id, "admin")
     repo = SignatureMeaningRepository(session)
+
+    # Capture old values before soft-delete
+    old_meaning = await repo.get_by_id(meaning_id)
+    if old_meaning is None:
+        raise HTTPException(status_code=404, detail="Meaning not found")
+    old_name = old_meaning.display_name
+    old_code = old_meaning.code
+
     meaning = await repo.update(meaning_id, is_active=False)
     if meaning is None:
         raise HTTPException(status_code=404, detail="Meaning not found")
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": meaning_id,
+        "action": "delete",
+        "summary": f"Signature meaning '{old_name}' (code: {old_code}) deactivated",
+        "fields": {
+            "deleted_code": old_code,
+            "deleted_display_name": old_name,
+        },
+    }
+
     return {"message": "Meaning deactivated"}
 
 
@@ -745,6 +932,7 @@ async def get_password_policy(
 @router.put("/password-policy", response_model=PasswordPolicyResponse)
 async def update_password_policy(
     body: PasswordPolicyUpdate,
+    request: Request,
     plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
@@ -752,7 +940,28 @@ async def update_password_policy(
     """Create or update password policy for a plant."""
     check_plant_role(user, plant_id, "admin")
     repo = PasswordPolicyRepository(session)
+
+    # Capture old values before mutation
+    old_policy = await repo.get_for_plant(plant_id)
     update_data = body.model_dump(exclude_unset=True)
+
+    old_values = {}
+    if old_policy:
+        old_values = {k: getattr(old_policy, k, None) for k in update_data}
+
     policy = await repo.upsert(plant_id, **update_data)
     await session.commit()
+
+    action = "update" if old_policy else "create"
+    request.state.audit_context = {
+        "resource_type": "signature",
+        "resource_id": policy.id,
+        "action": action,
+        "summary": f"Password policy {'updated' if old_policy else 'created'} for plant {plant_id}",
+        "fields": {
+            "old_values": old_values if old_policy else None,
+            "new_values": update_data,
+        },
+    }
+
     return PasswordPolicyResponse.model_validate(policy)

@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -279,6 +279,7 @@ async def list_studies(
 )
 async def create_study(
     body: DOEStudyCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> DOEStudyResponse:
@@ -330,6 +331,20 @@ async def create_study(
         user=user.username,
     )
 
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study.id,
+        "action": "create",
+        "summary": f"DOE study '{body.name}' created ({body.design_type})",
+        "fields": {
+            "name": body.name,
+            "design_type": body.design_type,
+            "plant_id": body.plant_id,
+            "response_name": body.response_name,
+            "factor_count": len(factors),
+        },
+    }
+
     return _build_study_response(study, factors=factors)
 
 
@@ -362,6 +377,7 @@ async def get_study(
 async def update_study(
     study_id: int,
     body: DOEStudyUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> DOEStudyResponse:
@@ -380,6 +396,8 @@ async def update_study(
         )
 
     update_data = body.model_dump(exclude_unset=True)
+    old_name = study.name
+    old_values = {field: getattr(study, field, None) for field in update_data}
     for field, value in update_data.items():
         setattr(study, field, value)
 
@@ -394,6 +412,18 @@ async def update_study(
         user=user.username,
         fields=list(update_data.keys()),
     )
+
+    new_values = {field: getattr(study, field, None) for field in update_data}
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "update",
+        "summary": f"DOE study '{old_name}' updated",
+        "fields": {
+            "old_values": old_values,
+            "new_values": new_values,
+        },
+    }
 
     run_count = len(study.runs)
     completed_run_count = sum(1 for r in study.runs if r.response_value is not None)
@@ -413,6 +443,7 @@ async def update_study(
 )
 async def delete_study(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> None:
@@ -423,10 +454,28 @@ async def delete_study(
     study = await _get_study_or_404(session, study_id)
     check_plant_role(user, study.plant_id, "admin")
 
+    deleted_name = study.name
+    deleted_type = study.design_type
+    deleted_status = study.status
+    deleted_plant_id = study.plant_id
+
     await session.delete(study)
     await session.commit()
 
     logger.info("doe_study_deleted", study_id=study_id, user=user.username)
+
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "delete",
+        "summary": f"DOE study '{deleted_name}' deleted",
+        "fields": {
+            "name": deleted_name,
+            "design_type": deleted_type,
+            "status": deleted_status,
+            "plant_id": deleted_plant_id,
+        },
+    }
 
 
 # ===========================================================================
@@ -437,6 +486,7 @@ async def delete_study(
 @router.post("/studies/{study_id}/generate", response_model=list[DOERunResponse])
 async def generate_design(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[DOERunResponse]:
@@ -485,6 +535,18 @@ async def generate_design(
         user=user.username,
     )
 
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "generate",
+        "summary": f"Design matrix generated for DOE study {study_id} ({len(runs)} runs)",
+        "fields": {
+            "study_id": study_id,
+            "run_count": len(runs),
+            "design_type": study.design_type,
+        },
+    }
+
     return [_build_run_response(r) for r in runs]
 
 
@@ -521,6 +583,7 @@ async def get_runs(
 async def batch_update_runs(
     study_id: int,
     body: DOERunBatchUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[DOERunResponse]:
@@ -583,6 +646,18 @@ async def batch_update_runs(
         user=user.username,
     )
 
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "update",
+        "summary": f"Batch updated {updated_count} run(s) for DOE study {study_id}",
+        "fields": {
+            "study_id": study_id,
+            "updated_run_count": updated_count,
+            "run_ids": sorted(update_map.keys()),
+        },
+    }
+
     return [_build_run_response(r) for r in runs]
 
 
@@ -594,6 +669,7 @@ async def batch_update_runs(
 @router.post("/studies/{study_id}/analyze", response_model=DOEAnalysisResponse)
 async def analyze_study(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> DOEAnalysisResponse:
@@ -656,6 +732,19 @@ async def analyze_study(
         r_squared=analysis.r_squared,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "analyze",
+        "summary": f"DOE study '{study.name}' analyzed (R²={analysis.r_squared:.4f})" if analysis.r_squared else f"DOE study '{study.name}' analyzed",
+        "fields": {
+            "study_id": study_id,
+            "study_name": study.name,
+            "r_squared": analysis.r_squared,
+            "adj_r_squared": analysis.adj_r_squared,
+        },
+    }
 
     return _build_analysis_response(analysis)
 
