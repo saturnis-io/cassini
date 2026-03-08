@@ -11,7 +11,7 @@ import {
 import { NumberInput } from '../NumberInput'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, X, Check, FolderTree, Package } from 'lucide-react'
-import type { MaterialLimitOverride, Material, MaterialClass } from '@/types'
+import type { MaterialLimitOverride } from '@/types'
 
 interface MaterialOverridesTabProps {
   characteristicId: number
