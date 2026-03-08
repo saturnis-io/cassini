@@ -550,15 +550,16 @@ async def batch_acknowledge(
 
     request.state.audit_context = {
         "resource_type": "violation",
-        "action": "acknowledge",
-        "summary": f"{successful} violation(s) acknowledged — {body.reason}"
+        "resource_id": None,
+        "action": "batch_acknowledge",
+        "summary": f"Batch acknowledged {successful} violations"
                    + (f" ({failed} failed)" if failed else ""),
         "fields": {
             "violation_ids": body.violation_ids,
+            "count": successful,
             "reason": body.reason,
-            "successful": successful,
-            "failed": failed,
             "acknowledged_by": body.user,
+            "failed": failed,
         },
     }
 

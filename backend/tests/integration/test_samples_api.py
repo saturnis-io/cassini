@@ -655,6 +655,7 @@ class TestBatchImport:
         characteristic: Characteristic,
         async_session: AsyncSession,
         spc_engine: SPCEngine,
+        mock_request: MagicMock,
         mock_user: MagicMock,
     ):
         """Test batch import with Nelson Rule evaluation."""
@@ -675,6 +676,7 @@ class TestBatchImport:
 
         result = await batch_import(
             request=req,
+            http_request=mock_request,
             session=async_session,
             engine=spc_engine,
             _user=mock_user,
@@ -695,6 +697,7 @@ class TestBatchImport:
         characteristic: Characteristic,
         async_session: AsyncSession,
         spc_engine: SPCEngine,
+        mock_request: MagicMock,
         mock_user: MagicMock,
     ):
         """Test batch import without Nelson Rule evaluation."""
@@ -713,6 +716,7 @@ class TestBatchImport:
 
         result = await batch_import(
             request=req,
+            http_request=mock_request,
             session=async_session,
             engine=spc_engine,
             _user=mock_user,
@@ -727,6 +731,7 @@ class TestBatchImport:
         characteristic: Characteristic,
         async_session: AsyncSession,
         spc_engine: SPCEngine,
+        mock_request: MagicMock,
         mock_user: MagicMock,
     ):
         """Test batch import with some invalid samples."""
@@ -750,6 +755,7 @@ class TestBatchImport:
 
         result = await batch_import(
             request=req,
+            http_request=mock_request,
             session=async_session,
             engine=spc_engine,
             _user=mock_user,
@@ -763,6 +769,7 @@ class TestBatchImport:
         self,
         async_session: AsyncSession,
         spc_engine: SPCEngine,
+        mock_request: MagicMock,
         mock_user: MagicMock,
     ):
         """Test batch import with empty list."""
@@ -774,6 +781,7 @@ class TestBatchImport:
 
         result = await batch_import(
             request=req,
+            http_request=mock_request,
             session=async_session,
             engine=spc_engine,
             _user=mock_user,

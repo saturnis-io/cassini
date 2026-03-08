@@ -268,6 +268,7 @@ async def list_characteristics(
 @router.post("/", response_model=CharacteristicResponse, status_code=status.HTTP_201_CREATED)
 async def create_characteristic(
     data: CharacteristicCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
@@ -307,6 +308,23 @@ async def create_characteristic(
     # Re-load with data_source relationship
     characteristic = await repo.get_with_data_source(characteristic.id)
 
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": characteristic.id,
+        "action": "create",
+        "summary": f"Characteristic '{data.name}' created under hierarchy {data.hierarchy_id}",
+        "fields": {
+            "name": data.name,
+            "chart_type": data.chart_type,
+            "hierarchy_id": data.hierarchy_id,
+            "usl": data.usl,
+            "lsl": data.lsl,
+            "target": data.target_value,
+            "subgroup_size": data.subgroup_size,
+        },
+    }
+
     return CharacteristicResponse.model_validate(characteristic)
 
 
@@ -331,6 +349,7 @@ async def get_characteristic(
 async def update_characteristic(
     char_id: int,
     data: CharacteristicUpdate,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -347,6 +366,13 @@ async def update_characteristic(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    # Capture old values for audit trail (before mutation)
+    old_name = characteristic.name
+    old_values_snapshot = {
+        field: getattr(characteristic, field, None)
+        for field in data.model_dump(exclude_unset=True)
+    }
 
     # Plant-scoped authorization
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
@@ -416,6 +442,26 @@ async def update_characteristic(
     # Re-load with data_source relationship
     characteristic = await repo.get_with_data_source(char_id)
 
+    # Tier 1 audit context — only log changed fields
+    new_values = {}
+    old_values = {}
+    for field, old_val in old_values_snapshot.items():
+        new_val = getattr(characteristic, field, None)
+        if old_val != new_val:
+            old_values[field] = old_val
+            new_values[field] = new_val
+
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Characteristic '{old_name}' updated",
+        "fields": {
+            "old_values": old_values,
+            "new_values": new_values,
+        },
+    }
+
     return CharacteristicResponse.model_validate(characteristic)
 
 
@@ -424,6 +470,7 @@ async def update_characteristic(
 @router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_characteristic(
     char_id: int,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -454,9 +501,27 @@ async def delete_characteristic(
             detail=f"Cannot delete characteristic {char_id} with {len(samples)} existing samples"
         )
 
+    # Capture values for audit before deletion
+    deleted_name = characteristic.name
+    deleted_chart_type = characteristic.chart_type
+    deleted_hierarchy_id = characteristic.hierarchy_id
+
     # Delete characteristic (will cascade to rules via database)
     await session.delete(characteristic)
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "delete",
+        "summary": f"Characteristic '{deleted_name}' deleted",
+        "fields": {
+            "name": deleted_name,
+            "chart_type": deleted_chart_type,
+            "hierarchy_id": deleted_hierarchy_id,
+        },
+    }
 
 
 async def _recalculate_attribute_limits(
@@ -1783,6 +1848,7 @@ async def get_rules(
 async def update_rules(
     char_id: int,
     rules: list[NelsonRuleConfig],
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -1799,6 +1865,12 @@ async def update_rules(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    # Capture old rules for audit trail
+    old_rules = [
+        {"rule_id": r.rule_id, "is_enabled": r.is_enabled}
+        for r in characteristic.rules
+    ]
 
     # Validate rule IDs
     for rule in rules:
@@ -1828,6 +1900,24 @@ async def update_rules(
 
     # Return updated rules
     await session.refresh(characteristic)
+
+    new_rules = [
+        {"rule_id": r.rule_id, "is_enabled": r.is_enabled}
+        for r in characteristic.rules
+    ]
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Rule configuration updated for characteristic {char_id}",
+        "fields": {
+            "old_rules": old_rules,
+            "new_rules": new_rules,
+        },
+    }
+
     return [
         NelsonRuleConfig(
             rule_id=rule.rule_id,

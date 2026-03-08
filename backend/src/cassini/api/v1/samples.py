@@ -1047,6 +1047,7 @@ class BatchImportRequest(BaseModel):
 @router.post("/batch", response_model=BatchImportResult)
 async def batch_import(
     request: BatchImportRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_db_session),
     engine: SPCEngine = Depends(get_spc_engine),
     _user: User = Depends(get_current_user),
@@ -1133,6 +1134,31 @@ async def batch_import(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to commit batch import",
         )
+
+    # Look up characteristic name for audit context
+    char_name = None
+    try:
+        from cassini.db.models.characteristic import Characteristic
+        char_result = await session.execute(
+            select(Characteristic.name).where(Characteristic.id == char_id)
+        )
+        char_name = char_result.scalar_one_or_none()
+    except Exception:
+        pass
+
+    http_request.state.audit_context = {
+        "resource_type": "sample",
+        "resource_id": None,
+        "action": "batch_create",
+        "summary": f"Batch import: {successful} samples for characteristic {char_id}",
+        "fields": {
+            "sample_count": successful,
+            "characteristic_id": char_id,
+            "characteristic_name": char_name,
+            "total_submitted": total,
+            "failed": failed,
+        },
+    }
 
     return BatchImportResult(
         total=total,
