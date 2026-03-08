@@ -361,6 +361,8 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(brokers_router)
 app.include_router(providers_router)
 app.include_router(license_router)
+app.include_router(audit_router)
+app.include_router(explain_router)
 
 # Commercial routers — only registered with a valid commercial license
 # Reuse the same LicenseService config as lifespan (single instance created here,
@@ -372,12 +374,10 @@ _license_svc = LicenseService(
 )
 if _license_svc.is_commercial:
     app.include_router(anomaly_router)
-    app.include_router(audit_router)
     app.include_router(api_keys_router)
     app.include_router(opcua_servers_router)
     app.include_router(database_admin_router)
     app.include_router(distributions_router)
-    app.include_router(explain_router)
     app.include_router(fai_router)
     app.include_router(gage_bridges_router)
     app.include_router(ishikawa_router)
@@ -396,7 +396,7 @@ if _license_svc.is_commercial:
     app.include_router(ai_analysis_router)
     app.include_router(doe_router)
     logger.info("Commercial license detected — enterprise routers registered",
-                router_count=24)
+                router_count=22)
 else:
     logger.info("Community edition — enterprise routers not registered")
 
