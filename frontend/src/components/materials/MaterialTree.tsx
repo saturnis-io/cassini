@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   ChevronRight,
   ChevronDown,
@@ -230,11 +230,18 @@ function ClassNode({
     setConfirmDelete(false)
   }
 
-  // Close menu when clicking outside (blur approach)
-  const handleMenuBlur = useCallback(() => {
-    // Small delay to allow button clicks to register
-    setTimeout(() => setShowMenu(false), 150)
-  }, [])
+  // Close menu when clicking outside
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
 
   return (
     <div>
@@ -291,8 +298,8 @@ function ClassNode({
           {/* Inline menu */}
           {showMenu && (
             <div
+              ref={menuRef}
               className="bg-card border-border absolute top-full right-0 z-50 mt-1 w-40 rounded-md border shadow-lg"
-              onBlur={handleMenuBlur}
             >
               <button
                 onClick={handleAddSubclass}

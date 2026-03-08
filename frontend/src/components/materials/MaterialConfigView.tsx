@@ -118,13 +118,14 @@ export function MaterialConfigView({ plantId }: MaterialConfigViewProps) {
           />
         ) : selectedClass ? (
           <MaterialClassDetail
+            key={selectedClass.id}
             plantId={plantId}
             classItem={selectedClass}
             classes={classes}
             materials={materials}
           />
         ) : selectedMaterial ? (
-          <MaterialDetail plantId={plantId} material={selectedMaterial} />
+          <MaterialDetail key={selectedMaterial.id} plantId={plantId} material={selectedMaterial} />
         ) : (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
             <Package className="h-8 w-8 opacity-50" />
