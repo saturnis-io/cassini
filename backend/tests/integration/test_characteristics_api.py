@@ -13,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 
 from cassini.api.v1.characteristics import router
 from cassini.db.database import get_session
-from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Measurement, Sample
 from cassini.db.repositories import CharacteristicRepository, HierarchyRepository
@@ -72,9 +72,6 @@ async def test_characteristic(async_session, test_hierarchy):
         lsl=90.0,
         ucl=106.0,
         lcl=94.0,
-        provider_type=ProviderType.MANUAL,
-        mqtt_topic=None,
-        trigger_tag=None,
     )
     async_session.add(char)
 
@@ -150,7 +147,7 @@ class TestListCharacteristics:
             hierarchy_id=test_hierarchy.id,
             name="Char 1",
             subgroup_size=1,
-            provider_type=ProviderType.MANUAL,
+
         )
         async_session.add(char1)
 
@@ -162,7 +159,7 @@ class TestListCharacteristics:
             hierarchy_id=hierarchy2.id,
             name="Char 2",
             subgroup_size=1,
-            provider_type=ProviderType.MANUAL,
+
         )
         async_session.add(char2)
         await async_session.commit()
@@ -185,7 +182,7 @@ class TestListCharacteristics:
             hierarchy_id=test_hierarchy.id,
             name="Manual Char",
             subgroup_size=1,
-            provider_type=ProviderType.MANUAL,
+
         )
         async_session.add(char_manual)
 
@@ -193,8 +190,8 @@ class TestListCharacteristics:
             hierarchy_id=test_hierarchy.id,
             name="Tag Char",
             subgroup_size=1,
-            provider_type=ProviderType.TAG,
-            mqtt_topic="factory/line1/temperature",
+
+
         )
         async_session.add(char_tag)
         await async_session.commit()
@@ -216,7 +213,7 @@ class TestListCharacteristics:
                 hierarchy_id=test_hierarchy.id,
                 name=f"Char {i}",
                 subgroup_size=1,
-                provider_type=ProviderType.MANUAL,
+    
             )
             async_session.add(char)
         await async_session.commit()
@@ -498,7 +495,7 @@ class TestGetChartData:
             hierarchy_id=test_hierarchy.id,
             name="No Limits",
             subgroup_size=1,
-            provider_type=ProviderType.MANUAL,
+
             ucl=None,
             lcl=None,
         )

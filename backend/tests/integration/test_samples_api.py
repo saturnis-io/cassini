@@ -26,7 +26,7 @@ from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 from cassini.core.engine.rolling_window import RollingWindowManager
 from cassini.core.engine.spc_engine import SPCEngine
 from cassini.core.providers.manual import ManualProvider
-from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Measurement, Sample
 from cassini.db.repositories import (
@@ -41,7 +41,7 @@ async def hierarchy(async_session: AsyncSession) -> Hierarchy:
     """Create test hierarchy node."""
     hierarchy = Hierarchy(
         name="Test Plant",
-        hierarchy_type="PLANT",
+        type="Site",
         parent_id=None,
     )
     async_session.add(hierarchy)
@@ -57,7 +57,7 @@ async def characteristic(async_session: AsyncSession, hierarchy: Hierarchy) -> C
         hierarchy_id=hierarchy.id,
         name="Test Dimension",
         subgroup_size=5,
-        provider_type=ProviderType.MANUAL,
+
         target_value=100.0,
         usl=110.0,
         lsl=90.0,
@@ -90,7 +90,7 @@ async def characteristic_individual(
         hierarchy_id=hierarchy.id,
         name="Test Temperature",
         subgroup_size=1,
-        provider_type=ProviderType.MANUAL,
+
         target_value=75.0,
         usl=80.0,
         lsl=70.0,

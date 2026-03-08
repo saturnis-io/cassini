@@ -12,7 +12,7 @@ from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 from cassini.core.engine.rolling_window import RollingWindowManager
 from cassini.core.engine.spc_engine import SPCEngine
 from cassini.core.providers.protocol import SampleContext
-from cassini.db.models.characteristic import Characteristic, CharacteristicRule, ProviderType
+from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.repositories import (
     CharacteristicRepository,
@@ -44,7 +44,7 @@ async def characteristic_n1(async_session, hierarchy):
         target_value=100.0,
         ucl=106.0,
         lcl=94.0,
-        provider_type=ProviderType.MANUAL,
+
     )
     async_session.add(char)
 
@@ -69,7 +69,7 @@ async def characteristic_n3(async_session, hierarchy):
         target_value=50.0,
         ucl=55.0,
         lcl=45.0,
-        provider_type=ProviderType.MANUAL,
+
     )
     async_session.add(char)
 

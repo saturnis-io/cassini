@@ -16,7 +16,7 @@ from cassini.api.v1.websocket import (
     notify_violation,
     notify_acknowledgment,
 )
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Sample, Measurement
 from cassini.db.models.violation import Violation
@@ -47,7 +47,7 @@ async def characteristic(async_session: AsyncSession, hierarchy: Hierarchy) -> C
         target_value=10.0,
         usl=12.0,
         lsl=8.0,
-        provider_type=ProviderType.MANUAL,
+
     )
     async_session.add(char)
     await async_session.commit()

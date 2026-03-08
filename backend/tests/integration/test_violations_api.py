@@ -17,7 +17,7 @@ from cassini.api.v1.violations import (
 )
 from cassini.api.schemas.violation import BatchAcknowledgeRequest, ViolationAcknowledge
 from cassini.core.alerts.manager import AlertManager
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.violation import Violation
@@ -45,7 +45,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
     char = Characteristic(
         hierarchy_id=hierarchy.id,
         name="Test Characteristic",
-        provider_type=ProviderType.MANUAL,
+
         target_value=100.0,
         usl=110.0,
         lsl=90.0,

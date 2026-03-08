@@ -10,7 +10,7 @@ from fastapi import FastAPI, status
 from httpx import AsyncClient
 
 from cassini.api.v1.hierarchy import router as hierarchy_router
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.repositories.characteristic import CharacteristicRepository
 from cassini.db.repositories.hierarchy import HierarchyRepository
@@ -79,15 +79,12 @@ async def hierarchy_with_characteristics(async_session, sample_hierarchy):
         name="Temperature",
         description="Process temperature",
         subgroup_size=1,
-        provider_type=ProviderType.TAG,
-        mqtt_topic="sensors/temp1",
     )
     char2 = Characteristic(
         hierarchy_id=line1.id,
         name="Pressure",
         description="Process pressure",
         subgroup_size=3,
-        provider_type=ProviderType.MANUAL,
     )
 
     # Add characteristic to Line 2
@@ -96,8 +93,6 @@ async def hierarchy_with_characteristics(async_session, sample_hierarchy):
         name="Flow Rate",
         description="Process flow rate",
         subgroup_size=1,
-        provider_type=ProviderType.TAG,
-        mqtt_topic="sensors/flow1",
     )
 
     async_session.add_all([char1, char2, char3])
