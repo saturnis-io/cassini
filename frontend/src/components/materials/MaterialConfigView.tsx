@@ -139,6 +139,22 @@ export function MaterialConfigView({ plantId }: MaterialConfigViewProps) {
 
 // ─── Add Class Form ──────────────────────────────────────────────────
 
+function buildClassBreadcrumb(
+  classes: MaterialClass[],
+  classId: number | null,
+): string | null {
+  if (!classId) return null
+  const parts: string[] = []
+  let current = classes.find((c) => c.id === classId)
+  while (current) {
+    parts.unshift(current.name)
+    current = current.parent_id
+      ? classes.find((c) => c.id === current!.parent_id)
+      : undefined
+  }
+  return parts.join(' > ')
+}
+
 function AddClassForm({
   plantId,
   classes,
@@ -152,10 +168,10 @@ function AddClassForm({
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [selectedParentId, setSelectedParentId] = useState<number | null>(parentId)
   const [description, setDescription] = useState('')
 
   const createMutation = useCreateMaterialClass(plantId)
+  const parentBreadcrumb = buildClassBreadcrumb(classes, parentId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,7 +180,7 @@ function AddClassForm({
       {
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        parent_id: selectedParentId,
+        parent_id: parentId,
         description: description.trim() || null,
       },
       { onSuccess: onDone },
@@ -174,6 +190,14 @@ function AddClassForm({
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-4 p-6">
       <h3 className="text-lg font-semibold">New Material Class</h3>
+
+      {parentBreadcrumb ? (
+        <div className="text-muted-foreground text-sm">
+          Creating under: <span className="text-foreground font-medium">{parentBreadcrumb}</span>
+        </div>
+      ) : (
+        <div className="text-muted-foreground text-sm">Creating at root level</div>
+      )}
 
       <div className="space-y-1.5">
         <label className={labelClasses()}>Name</label>
@@ -195,24 +219,6 @@ function AddClassForm({
           onBlur={() => setCode((c) => c.toUpperCase())}
           required
         />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className={labelClasses()}>Parent Class</label>
-        <select
-          className={fieldClasses()}
-          value={selectedParentId ?? ''}
-          onChange={(e) =>
-            setSelectedParentId(e.target.value ? Number(e.target.value) : null)
-          }
-        >
-          <option value="">None (top-level)</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.path ? `${c.path} / ${c.name}` : c.name} ({c.code})
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="space-y-1.5">
@@ -260,10 +266,10 @@ function AddMaterialForm({
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const [classId, setClassId] = useState<number | null>(parentClassId)
   const [description, setDescription] = useState('')
 
   const createMutation = useCreateMaterial(plantId)
+  const classBreadcrumb = buildClassBreadcrumb(classes, parentClassId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -272,7 +278,7 @@ function AddMaterialForm({
       {
         name: name.trim(),
         code: code.trim().toUpperCase(),
-        class_id: classId,
+        class_id: parentClassId,
         description: description.trim() || null,
       },
       { onSuccess: onDone },
@@ -282,6 +288,14 @@ function AddMaterialForm({
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-md space-y-4 p-6">
       <h3 className="text-lg font-semibold">New Material</h3>
+
+      {classBreadcrumb ? (
+        <div className="text-muted-foreground text-sm">
+          Class: <span className="text-foreground font-medium">{classBreadcrumb}</span>
+        </div>
+      ) : (
+        <div className="text-muted-foreground text-sm">Unclassified material</div>
+      )}
 
       <div className="space-y-1.5">
         <label className={labelClasses()}>Name</label>
@@ -303,22 +317,6 @@ function AddMaterialForm({
           onBlur={() => setCode((c) => c.toUpperCase())}
           required
         />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className={labelClasses()}>Class</label>
-        <select
-          className={fieldClasses()}
-          value={classId ?? ''}
-          onChange={(e) => setClassId(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">Unclassified</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.path ? `${c.path} / ${c.name}` : c.name} ({c.code})
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="space-y-1.5">
