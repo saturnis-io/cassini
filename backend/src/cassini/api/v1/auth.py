@@ -344,6 +344,14 @@ async def change_password(
     current_user.password_changed_at = datetime.now(timezone.utc)
     await session.commit()
 
+    request.state.audit_context = {
+        "resource_type": "auth",
+        "resource_id": current_user.id,
+        "action": "update",
+        "summary": f"User '{current_user.username}' changed their password",
+        "fields": {"action_type": "password_changed"},
+    }
+
     return {"message": "Password changed successfully"}
 
 

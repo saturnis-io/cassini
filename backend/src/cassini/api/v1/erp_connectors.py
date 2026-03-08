@@ -182,6 +182,7 @@ async def list_connectors(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_connector(
+    request: Request,
     data: ERPConnectorCreate,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_admin),
@@ -218,6 +219,21 @@ async def create_connector(
         type=connector.connector_type,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": connector.id,
+        "action": "create",
+        "summary": f"ERP connector '{data.name}' created",
+        "fields": {
+            "name": data.name,
+            "connector_type": data.connector_type,
+            "base_url": data.base_url,
+            "auth_type": data.auth_type,
+            "plant_id": data.plant_id,
+        },
+    }
+
     return _connector_to_response(connector)
 
 
@@ -239,6 +255,7 @@ async def get_connector(
 
 @router.put("/connectors/{connector_id}", response_model=ERPConnectorResponse)
 async def update_connector(
+    request: Request,
     connector_id: int,
     data: ERPConnectorUpdate,
     session: AsyncSession = Depends(get_db_session),
@@ -277,11 +294,26 @@ async def update_connector(
         user=user.username,
         fields=list(update_data.keys()),
     )
+
+    # Build safe audit fields (exclude auth_config which may contain secrets)
+    safe_fields = {k: v for k, v in update_data.items() if k not in ("auth_config",)}
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": connector_id,
+        "action": "update",
+        "summary": f"ERP connector '{connector.name}' updated",
+        "fields": {
+            "name": connector.name,
+            "updated_fields": list(safe_fields.keys()),
+        },
+    }
+
     return _connector_to_response(connector)
 
 
 @router.delete("/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_connector(
+    request: Request,
     connector_id: int,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_admin),
@@ -299,6 +331,14 @@ async def delete_connector(
         name=connector.name,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": connector_id,
+        "action": "delete",
+        "summary": f"ERP connector '{connector.name}' deleted",
+        "fields": {"name": connector.name, "connector_type": connector.connector_type},
+    }
 
 
 @router.post("/connectors/{connector_id}/test", response_model=ERPTestConnectionResponse)
@@ -404,6 +444,7 @@ async def list_mappings(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_mapping(
+    request: Request,
     connector_id: int,
     data: ERPFieldMappingCreate,
     session: AsyncSession = Depends(get_db_session),
@@ -435,6 +476,21 @@ async def create_mapping(
         name=mapping.name,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": mapping.id,
+        "action": "create",
+        "summary": f"ERP field mapping '{data.name}' created on connector #{connector_id}",
+        "fields": {
+            "name": data.name,
+            "direction": data.direction,
+            "erp_entity": data.erp_entity,
+            "openspc_entity": data.openspc_entity,
+            "connector_id": connector_id,
+        },
+    }
+
     return _mapping_to_response(mapping)
 
 
@@ -443,6 +499,7 @@ async def create_mapping(
     response_model=ERPFieldMappingResponse,
 )
 async def update_mapping(
+    request: Request,
     connector_id: int,
     mapping_id: int,
     data: ERPFieldMappingUpdate,
@@ -485,6 +542,19 @@ async def update_mapping(
         user=user.username,
         fields=list(update_data.keys()),
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": mapping_id,
+        "action": "update",
+        "summary": f"ERP field mapping '{mapping.name}' updated on connector #{connector_id}",
+        "fields": {
+            "name": mapping.name,
+            "updated_fields": list(update_data.keys()),
+            "connector_id": connector_id,
+        },
+    }
+
     return _mapping_to_response(mapping)
 
 
@@ -494,6 +564,7 @@ async def update_mapping(
     response_model=None,
 )
 async def delete_mapping(
+    request: Request,
     connector_id: int,
     mapping_id: int,
     session: AsyncSession = Depends(get_db_session),
@@ -525,6 +596,14 @@ async def delete_mapping(
         user=user.username,
     )
 
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": mapping_id,
+        "action": "delete",
+        "summary": f"ERP field mapping '{mapping.name}' deleted from connector #{connector_id}",
+        "fields": {"name": mapping.name, "connector_id": connector_id},
+    }
+
 
 # ===========================================================================
 # SYNC SCHEDULE
@@ -536,6 +615,7 @@ async def delete_mapping(
     response_model=ERPSyncScheduleResponse,
 )
 async def upsert_schedule(
+    request: Request,
     connector_id: int,
     data: ERPSyncScheduleUpdate,
     session: AsyncSession = Depends(get_db_session),
@@ -605,6 +685,20 @@ async def upsert_schedule(
         cron=data.cron_expression,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": schedule.id,
+        "action": "update",
+        "summary": f"ERP sync schedule upserted for connector #{connector_id} ({data.direction})",
+        "fields": {
+            "connector_id": connector_id,
+            "direction": data.direction,
+            "cron_expression": data.cron_expression,
+            "is_active": data.is_active,
+        },
+    }
+
     return ERPSyncScheduleResponse.model_validate(schedule)
 
 
@@ -614,6 +708,7 @@ async def upsert_schedule(
     response_model=None,
 )
 async def delete_schedule(
+    request: Request,
     connector_id: int,
     direction: str,
     session: AsyncSession = Depends(get_db_session),
@@ -650,6 +745,14 @@ async def delete_schedule(
         direction=direction,
         user=user.username,
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": connector_id,
+        "action": "delete",
+        "summary": f"ERP sync schedule ({direction}) deleted for connector #{connector_id}",
+        "fields": {"connector_id": connector_id, "direction": direction},
+    }
 
 
 # ===========================================================================
@@ -726,6 +829,21 @@ async def trigger_manual_sync(
             )
 
         sync_log = await erp_sync_engine.execute_manual_sync(connector_id, direction)
+
+        request.state.audit_context = {
+            "resource_type": "erp_connector",
+            "resource_id": connector_id,
+            "action": "update",
+            "summary": f"Manual {direction} sync triggered for connector #{connector_id}",
+            "fields": {
+                "connector_id": connector_id,
+                "direction": direction,
+                "status": sync_log.status,
+                "records_processed": sync_log.records_processed,
+                "records_failed": sync_log.records_failed,
+            },
+        }
+
         return ERPManualSyncResponse(
             status=sync_log.status,
             records_processed=sync_log.records_processed,
@@ -867,6 +985,18 @@ async def receive_webhook(
         connector_id=connector_id,
         entities=list(mapped_data.keys()),
     )
+
+    request.state.audit_context = {
+        "resource_type": "erp_connector",
+        "resource_id": connector_id,
+        "action": "create",
+        "summary": f"ERP webhook received for connector #{connector_id}",
+        "fields": {
+            "connector_id": connector_id,
+            "entities_mapped": list(mapped_data.keys()),
+            "records": len(mapped_data),
+        },
+    }
 
     return {
         "status": "accepted",

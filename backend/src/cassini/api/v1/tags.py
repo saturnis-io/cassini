@@ -8,7 +8,7 @@ import asyncio
 import structlog
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -96,6 +96,7 @@ async def list_mappings(
 
 @router.post("/map", response_model=TagMappingResponse)
 async def create_mapping(
+    request: Request,
     data: TagMappingCreate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -167,6 +168,21 @@ async def create_mapping(
     except Exception as e:
         logger.warning("tag_subscription_refresh_failed", error=str(e))
 
+    request.state.audit_context = {
+        "resource_type": "tag_mapping",
+        "resource_id": source.id,
+        "action": "create",
+        "summary": f"Tag mapping created: topic '{data.mqtt_topic}' -> characteristic '{char.name}'",
+        "fields": {
+            "characteristic_id": data.characteristic_id,
+            "characteristic_name": char.name,
+            "mqtt_topic": data.mqtt_topic,
+            "broker_id": data.broker_id,
+            "broker_name": broker.name,
+            "trigger_strategy": data.trigger_strategy,
+        },
+    }
+
     return TagMappingResponse(
         data_source_id=source.id,
         characteristic_id=char.id,
@@ -184,6 +200,7 @@ async def create_mapping(
 
 @router.delete("/map/{characteristic_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_mapping(
+    request: Request,
     characteristic_id: int,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -205,6 +222,14 @@ async def delete_mapping(
         )
 
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "tag_mapping",
+        "resource_id": characteristic_id,
+        "action": "delete",
+        "summary": f"Tag mapping deleted for characteristic #{characteristic_id}",
+        "fields": {"characteristic_id": characteristic_id},
+    }
 
     # Refresh TagProvider subscriptions
     try:

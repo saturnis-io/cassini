@@ -4,7 +4,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,6 +152,7 @@ async def get_system_settings(
 
 @router.put("/", response_model=SystemSettingsResponse)
 async def update_system_settings(
+    request: Request,
     data: SystemSettingsUpdate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
@@ -183,11 +184,26 @@ async def update_system_settings(
         has_brand_config=settings.brand_config is not None,
         has_display_key_format=settings.display_key_format is not None,
     )
+
+    request.state.audit_context = {
+        "resource_type": "system_settings",
+        "resource_id": None,
+        "action": "update",
+        "summary": "System settings updated",
+        "fields": {
+            "date_format": settings.date_format,
+            "datetime_format": settings.datetime_format,
+            "has_brand_config": settings.brand_config is not None,
+            "has_display_key_format": settings.display_key_format is not None,
+        },
+    }
+
     return _settings_to_response(settings)
 
 
 @router.put("/brand-override/{plant_id}", response_model=BrandConfigSchema)
 async def update_plant_brand_override(
+    request: Request,
     plant_id: int,
     data: BrandConfigSchema,
     session: AsyncSession = Depends(get_db_session),
@@ -218,6 +234,18 @@ async def update_plant_brand_override(
         plant_id=plant_id,
         plant_name=plant.name,
     )
+
+    request.state.audit_context = {
+        "resource_type": "system_settings",
+        "resource_id": plant_id,
+        "action": "update",
+        "summary": f"Brand override updated for plant '{plant.name}'",
+        "fields": {
+            "plant_id": plant_id,
+            "plant_name": plant.name,
+            "override_fields": list(data.model_dump(exclude_none=True).keys()),
+        },
+    }
 
     saved_override = (plant.settings or {}).get("brand_override", {})
     return BrandConfigSchema.model_validate(saved_override)

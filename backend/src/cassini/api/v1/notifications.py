@@ -67,6 +67,7 @@ async def get_smtp_config(
 
 @router.put("/smtp", response_model=SmtpConfigResponse)
 async def update_smtp_config(
+    request: Request,
     data: SmtpConfigUpdate,
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
@@ -74,6 +75,7 @@ async def update_smtp_config(
     """Create or update SMTP configuration (singleton upsert)."""
     result = await session.execute(select(SmtpConfig))
     config = result.scalar_one_or_none()
+    is_new = config is None
 
     enc_key = get_encryption_key()
 
@@ -101,6 +103,20 @@ async def update_smtp_config(
 
     await session.commit()
     await session.refresh(config)
+
+    request.state.audit_context = {
+        "resource_type": "notification",
+        "resource_id": config.id,
+        "action": "create" if is_new else "update",
+        "summary": f"SMTP configuration {'created' if is_new else 'updated'}",
+        "fields": {
+            "server": data.server,
+            "port": data.port,
+            "use_tls": data.use_tls,
+            "from_address": data.from_address,
+            "is_active": data.is_active,
+        },
+    }
 
     return SmtpConfigResponse(
         id=config.id,
@@ -211,6 +227,7 @@ async def list_webhooks(
 
 @router.post("/webhooks", response_model=WebhookConfigResponse, status_code=201)
 async def create_webhook(
+    request: Request,
     data: WebhookConfigCreate,
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
@@ -229,11 +246,26 @@ async def create_webhook(
     session.add(wh)
     await session.commit()
     await session.refresh(wh)
+
+    request.state.audit_context = {
+        "resource_type": "notification",
+        "resource_id": wh.id,
+        "action": "create",
+        "summary": f"Webhook '{data.name}' created",
+        "fields": {
+            "name": data.name,
+            "url": data.url,
+            "is_active": data.is_active,
+            "retry_count": data.retry_count,
+        },
+    }
+
     return _webhook_to_response(wh)
 
 
 @router.put("/webhooks/{webhook_id}", response_model=WebhookConfigResponse)
 async def update_webhook(
+    request: Request,
     webhook_id: int,
     data: WebhookConfigUpdate,
     session: AsyncSession = Depends(get_db_session),
@@ -260,11 +292,24 @@ async def update_webhook(
 
     await session.commit()
     await session.refresh(wh)
+
+    request.state.audit_context = {
+        "resource_type": "notification",
+        "resource_id": webhook_id,
+        "action": "update",
+        "summary": f"Webhook '{wh.name}' updated",
+        "fields": {
+            "updated_fields": list(data.model_dump(exclude_unset=True).keys()),
+            "name": wh.name,
+        },
+    }
+
     return _webhook_to_response(wh)
 
 
 @router.delete("/webhooks/{webhook_id}", status_code=204)
 async def delete_webhook(
+    request: Request,
     webhook_id: int,
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
@@ -273,8 +318,18 @@ async def delete_webhook(
     wh = await session.get(WebhookConfig, webhook_id)
     if wh is None:
         raise HTTPException(status_code=404, detail="Webhook not found")
+
+    webhook_name = wh.name
     await session.delete(wh)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "notification",
+        "resource_id": webhook_id,
+        "action": "delete",
+        "summary": f"Webhook '{webhook_name}' deleted",
+        "fields": {"name": webhook_name},
+    }
 
 
 @router.post("/webhooks/{webhook_id}/test")
@@ -333,6 +388,7 @@ async def get_preferences(
 
 @router.put("/preferences", response_model=list[NotificationPreferenceResponse])
 async def update_preferences(
+    request: Request,
     data: NotificationPreferenceUpdate,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
@@ -363,5 +419,15 @@ async def update_preferences(
     # Refresh to get IDs
     for pref in new_prefs:
         await session.refresh(pref)
+
+    request.state.audit_context = {
+        "resource_type": "notification",
+        "resource_id": user.id,
+        "action": "update",
+        "summary": f"Notification preferences updated for user '{user.username}'",
+        "fields": {
+            "preference_count": len(new_prefs),
+        },
+    }
 
     return [NotificationPreferenceResponse.model_validate(p) for p in new_prefs]

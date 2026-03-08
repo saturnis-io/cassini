@@ -4,7 +4,7 @@ Provides CRUD endpoints for chart annotations (point and period types),
 scoped under characteristics.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -86,6 +86,7 @@ async def list_annotations(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_annotation(
+    request: Request,
     characteristic_id: int,
     data: AnnotationCreate,
     session: AsyncSession = Depends(get_db_session),
@@ -152,6 +153,19 @@ async def create_annotation(
                 existing.color = data.color
             await session.commit()
             await session.refresh(existing, attribute_names=["history"])
+
+            request.state.audit_context = {
+                "resource_type": "annotation",
+                "resource_id": existing.id,
+                "action": "update",
+                "summary": f"Annotation updated on characteristic #{characteristic_id}",
+                "fields": {
+                    "characteristic_id": characteristic_id,
+                    "annotation_type": data.annotation_type,
+                    "sample_id": data.sample_id,
+                },
+            }
+
             return AnnotationResponse.model_validate(existing)
 
     annotation = Annotation(
@@ -168,6 +182,19 @@ async def create_annotation(
     await session.commit()
     await session.refresh(annotation, attribute_names=["history"])
 
+    request.state.audit_context = {
+        "resource_type": "annotation",
+        "resource_id": annotation.id,
+        "action": "create",
+        "summary": f"Annotation created on characteristic #{characteristic_id}",
+        "fields": {
+            "characteristic_id": characteristic_id,
+            "annotation_type": data.annotation_type,
+            "sample_id": data.sample_id,
+            "created_by": user.username,
+        },
+    }
+
     return AnnotationResponse.model_validate(annotation)
 
 
@@ -176,6 +203,7 @@ async def create_annotation(
     response_model=AnnotationResponse,
 )
 async def update_annotation(
+    request: Request,
     characteristic_id: int,
     annotation_id: int,
     data: AnnotationUpdate,
@@ -233,6 +261,19 @@ async def update_annotation(
     await session.commit()
     await session.refresh(annotation, attribute_names=["history"])
 
+    request.state.audit_context = {
+        "resource_type": "annotation",
+        "resource_id": annotation_id,
+        "action": "update",
+        "summary": f"Annotation #{annotation_id} updated on characteristic #{characteristic_id}",
+        "fields": {
+            "characteristic_id": characteristic_id,
+            "text_changed": data.text is not None,
+            "color_changed": data.color is not None,
+            "changed_by": user.username,
+        },
+    }
+
     return AnnotationResponse.model_validate(annotation)
 
 
@@ -242,6 +283,7 @@ async def update_annotation(
     response_model=None,
 )
 async def delete_annotation(
+    request: Request,
     characteristic_id: int,
     annotation_id: int,
     session: AsyncSession = Depends(get_db_session),
@@ -274,5 +316,19 @@ async def delete_annotation(
             detail=f"Annotation {annotation_id} not found for characteristic {characteristic_id}",
         )
 
+    annotation_text = annotation.text[:100] if annotation.text else ""
+    annotation_type = annotation.annotation_type
     await session.delete(annotation)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "annotation",
+        "resource_id": annotation_id,
+        "action": "delete",
+        "summary": f"Annotation #{annotation_id} deleted from characteristic #{characteristic_id}",
+        "fields": {
+            "characteristic_id": characteristic_id,
+            "annotation_type": annotation_type,
+            "text_preview": annotation_text,
+        },
+    }

@@ -213,6 +213,7 @@ async def list_configs(
 
 @router.post("/config", response_model=OIDCConfigResponse, status_code=status.HTTP_201_CREATED)
 async def create_config(
+    request: Request,
     data: OIDCConfigCreate,
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
@@ -245,11 +246,27 @@ async def create_config(
     await session.commit()
 
     logger.info("oidc_config_created", config_id=config.id, name=config.name)
+
+    request.state.audit_context = {
+        "resource_type": "oidc_config",
+        "resource_id": config.id,
+        "action": "create",
+        "summary": f"OIDC provider '{data.name}' created",
+        "fields": {
+            "name": data.name,
+            "issuer_url": data.issuer_url,
+            "client_id": data.client_id,
+            "auto_provision": data.auto_provision,
+            "default_role": data.default_role,
+        },
+    }
+
     return _build_config_response(config)
 
 
 @router.put("/config/{config_id}", response_model=OIDCConfigResponse)
 async def update_config(
+    request: Request,
     config_id: int,
     data: OIDCConfigUpdate,
     session: AsyncSession = Depends(get_db_session),
@@ -286,17 +303,35 @@ async def update_config(
     await session.commit()
 
     logger.info("oidc_config_updated", config_id=config_id)
+
+    request.state.audit_context = {
+        "resource_type": "oidc_config",
+        "resource_id": config_id,
+        "action": "update",
+        "summary": f"OIDC provider '{updated.name}' updated",
+        "fields": {
+            "updated_fields": [k for k in data.model_dump(exclude_unset=True).keys() if k != "client_secret"],
+            "name": updated.name,
+        },
+    }
+
     return _build_config_response(updated)
 
 
 @router.delete("/config/{config_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_config(
+    request: Request,
     config_id: int,
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
 ) -> None:
     """Delete an OIDC provider configuration (admin only)."""
     repo = OIDCConfigRepository(session)
+
+    # Capture name before deletion for audit
+    config = await repo.get_by_id(config_id)
+    config_name = config.name if config else str(config_id)
+
     deleted = await repo.delete(config_id)
     if not deleted:
         raise HTTPException(
@@ -306,6 +341,14 @@ async def delete_config(
 
     await session.commit()
     logger.info("oidc_config_deleted", config_id=config_id)
+
+    request.state.audit_context = {
+        "resource_type": "oidc_config",
+        "resource_id": config_id,
+        "action": "delete",
+        "summary": f"OIDC provider '{config_name}' deleted",
+        "fields": {"name": config_name},
+    }
 
 
 # -------------------------------------------------------------------------
@@ -337,6 +380,7 @@ async def get_account_links(
 
 @router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_account_link(
+    request: Request,
     link_id: int,
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -346,10 +390,22 @@ async def delete_account_link(
     repo = OIDCStateRepository(session)
     # Verify link belongs to current user
     links = await repo.get_account_links(current_user.id)
-    if not any(l.id == link_id for l in links):
+    link = next((l for l in links if l.id == link_id), None)
+    if link is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account link not found")
     await repo.delete_account_link(link_id)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "oidc_config",
+        "resource_id": link_id,
+        "action": "delete",
+        "summary": f"OIDC account link removed for user '{current_user.username}'",
+        "fields": {
+            "provider_id": link.provider_id,
+            "oidc_subject": link.oidc_subject,
+        },
+    }
 
 
 @router.get("/logout/{provider_id}", response_model=OIDCLogoutResponse)

@@ -196,7 +196,7 @@ async def submit_sample(
         violation_repo = ViolationRepository(session)
         violations = await violation_repo.get_by_sample(result.sample_id)
 
-        return DataEntryResponse(
+        response = DataEntryResponse(
             sample_id=result.sample_id,
             characteristic_id=data.characteristic_id,
             timestamp=result.timestamp,
@@ -213,6 +213,21 @@ async def submit_sample(
                 for v in violations
             ],
         )
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": result.sample_id,
+            "action": "create",
+            "summary": f"Sample submitted for characteristic #{data.characteristic_id}",
+            "fields": {
+                "characteristic_id": data.characteristic_id,
+                "measurement_count": len(data.measurements),
+                "in_control": result.in_control,
+                "violation_count": len(violations),
+            },
+        }
+
+        return response
 
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
@@ -278,7 +293,7 @@ async def submit_attribute_sample(
 
         await session.commit()
 
-        return AttributeDataEntryResponse(
+        response = AttributeDataEntryResponse(
             sample_id=result.sample_id,
             characteristic_id=result.characteristic_id,
             timestamp=result.timestamp,
@@ -298,6 +313,21 @@ async def submit_attribute_sample(
                 for v in result.violations
             ],
         )
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": result.sample_id,
+            "action": "create",
+            "summary": f"Attribute sample submitted for characteristic #{data.characteristic_id}",
+            "fields": {
+                "characteristic_id": data.characteristic_id,
+                "defect_count": data.defect_count,
+                "sample_size": data.sample_size,
+                "in_control": result.in_control,
+            },
+        }
+
+        return response
 
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
@@ -357,7 +387,7 @@ async def submit_cusum_sample(
 
         await session.commit()
 
-        return CUSUMDataEntryResponse(
+        response = CUSUMDataEntryResponse(
             sample_id=result.sample_id,
             characteristic_id=result.characteristic_id,
             timestamp=result.timestamp,
@@ -369,6 +399,20 @@ async def submit_cusum_sample(
             in_control=result.in_control,
             violations=result.violations,
         )
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": result.sample_id,
+            "action": "create",
+            "summary": f"CUSUM sample submitted for characteristic #{data.characteristic_id}",
+            "fields": {
+                "characteristic_id": data.characteristic_id,
+                "measurement": data.measurement,
+                "in_control": result.in_control,
+            },
+        }
+
+        return response
 
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
@@ -428,7 +472,7 @@ async def submit_ewma_sample(
 
         await session.commit()
 
-        return EWMADataEntryResponse(
+        response = EWMADataEntryResponse(
             sample_id=result.sample_id,
             characteristic_id=result.characteristic_id,
             timestamp=result.timestamp,
@@ -440,6 +484,20 @@ async def submit_ewma_sample(
             in_control=result.in_control,
             violations=result.violations,
         )
+
+        request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": result.sample_id,
+            "action": "create",
+            "summary": f"EWMA sample submitted for characteristic #{data.characteristic_id}",
+            "fields": {
+                "characteristic_id": data.characteristic_id,
+                "measurement": data.measurement,
+                "in_control": result.in_control,
+            },
+        }
+
+        return response
 
     except ValueError as e:
         logger.warning("validation_error", detail=str(e))
@@ -462,6 +520,7 @@ async def submit_ewma_sample(
     description="Submit multiple samples in a single request. Each sample is processed independently.",
 )
 async def submit_batch(
+    request: Request,
     data: BatchEntryRequest,
     auth: object = Depends(get_current_user_or_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -590,6 +649,18 @@ async def submit_batch(
 
     # Commit all successful samples
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "sample",
+        "resource_id": None,
+        "action": "create",
+        "summary": f"Batch submission: {len(results)} succeeded, {len(errors)} failed out of {len(data.samples)} samples",
+        "fields": {
+            "total": len(data.samples),
+            "successful": len(results),
+            "failed": len(errors),
+        },
+    }
 
     return BatchEntryResponse(
         total=len(data.samples),
