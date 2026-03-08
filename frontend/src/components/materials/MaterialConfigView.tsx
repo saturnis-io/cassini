@@ -125,7 +125,7 @@ export function MaterialConfigView({ plantId }: MaterialConfigViewProps) {
             materials={materials}
           />
         ) : selectedMaterial ? (
-          <MaterialDetail key={selectedMaterial.id} plantId={plantId} material={selectedMaterial} />
+          <MaterialDetail key={selectedMaterial.id} plantId={plantId} material={selectedMaterial} classes={classes} />
         ) : (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
             <Package className="h-8 w-8 opacity-50" />
@@ -231,6 +231,10 @@ function AddClassForm({
         />
       </div>
 
+      {createMutation.isError && (
+        <p className="text-destructive text-sm">{createMutation.error.message}</p>
+      )}
+
       <div className="flex gap-2">
         <button
           type="submit"
@@ -328,6 +332,10 @@ function AddMaterialForm({
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
+
+      {createMutation.isError && (
+        <p className="text-destructive text-sm">{createMutation.error.message}</p>
+      )}
 
       <div className="flex gap-2">
         <button

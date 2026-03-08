@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Pencil, Trash2, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConfigStore } from '@/stores/configStore'
@@ -7,7 +7,7 @@ import {
   useDeleteMaterial,
   useMaterialUsage,
 } from '@/api/hooks/materials'
-import type { Material } from '@/types'
+import type { Material, MaterialClass } from '@/types'
 
 // ─── Shared style helpers ────────────────────────────────────────────
 
@@ -24,11 +24,12 @@ function labelClasses() {
 interface MaterialDetailProps {
   plantId: number
   material: Material
+  classes: MaterialClass[]
 }
 
 // ─── Component ───────────────────────────────────────────────────────
 
-export function MaterialDetail({ plantId, material }: MaterialDetailProps) {
+export function MaterialDetail({ plantId, material, classes }: MaterialDetailProps) {
   const setSelectedMaterialId = useConfigStore((s) => s.setSelectedMaterialId)
   const setSelectedMaterialClassId = useConfigStore((s) => s.setSelectedMaterialClassId)
   const setConfigView = useConfigStore((s) => s.setConfigView)
@@ -44,6 +45,20 @@ export function MaterialDetail({ plantId, material }: MaterialDetailProps) {
   const updateMutation = useUpdateMaterial(plantId)
   const deleteMutation = useDeleteMaterial(plantId)
   const { data: usage = [] } = useMaterialUsage(plantId, material.id)
+
+  // Build human-readable breadcrumb from class hierarchy
+  const classBreadcrumbParts = useMemo(() => {
+    if (!material.class_id) return null
+    const parts: string[] = []
+    let current = classes.find((c) => c.id === material.class_id)
+    while (current) {
+      parts.unshift(current.name)
+      current = current.parent_id
+        ? classes.find((c) => c.id === current!.parent_id)
+        : undefined
+    }
+    return parts.length > 0 ? parts : null
+  }, [classes, material.class_id])
 
   // Reset form when material changes
   const [prevId, setPrevId] = useState(material.id)
@@ -157,15 +172,15 @@ export function MaterialDetail({ plantId, material }: MaterialDetailProps) {
         </div>
 
         {/* Class breadcrumb */}
-        {material.class_path && (
+        {classBreadcrumbParts && (
           <button
             onClick={handleClassClick}
             className="text-muted-foreground hover:text-primary mb-4 flex items-center gap-1 text-xs transition-colors"
           >
-            {material.class_path.split('/').map((segment, i) => (
+            {classBreadcrumbParts.map((name, i) => (
               <span key={i} className="flex items-center gap-1">
                 {i > 0 && <ChevronRight className="h-3 w-3" />}
-                <span>{segment}</span>
+                <span>{name}</span>
               </span>
             ))}
           </button>
