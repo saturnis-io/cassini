@@ -42,7 +42,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Don't precache API calls
         navigateFallbackDenylist: [/^\/api/, /^\/ws/],
       },

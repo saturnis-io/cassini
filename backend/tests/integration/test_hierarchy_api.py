@@ -7,7 +7,7 @@ and database operations.
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI, status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from cassini.api.v1.hierarchy import router as hierarchy_router
 from cassini.db.models.characteristic import Characteristic
@@ -60,7 +60,7 @@ async def app(async_session):
 @pytest_asyncio.fixture
 async def client(app):
     """Create async HTTP client for testing."""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
 
