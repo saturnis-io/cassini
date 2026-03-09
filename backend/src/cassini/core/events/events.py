@@ -324,3 +324,24 @@ class CorrelationAlertEvent(Event):
     method: str
     max_correlation: float
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class PurgeCompletedEvent(Event):
+    """Emitted when a retention purge run completes for a plant.
+
+    This is a data-destructive background operation and must be audited.
+
+    Attributes:
+        plant_id: ID of the plant that was purged
+        samples_deleted: Number of samples removed
+        violations_deleted: Number of violations removed
+        characteristics_processed: Number of characteristics evaluated
+        timestamp: When the purge completed
+    """
+
+    plant_id: int
+    samples_deleted: int
+    violations_deleted: int
+    characteristics_processed: int
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

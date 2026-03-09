@@ -40,6 +40,7 @@ from cassini.core.events.events import (
     ERPSyncCompletedEvent,
     Event,
     PredictedOOCEvent,
+    PurgeCompletedEvent,
     SampleProcessedEvent,
     SignatureCreatedEvent,
     SignatureInvalidatedEvent,
@@ -84,4 +85,6 @@ __all__ = [
     "PredictedOOCEvent",
     # Correlation events
     "CorrelationAlertEvent",
+    # Purge events
+    "PurgeCompletedEvent",
 ]

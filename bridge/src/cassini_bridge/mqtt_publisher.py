@@ -1,4 +1,9 @@
-"""MQTT publisher for gage readings and heartbeat."""
+"""MQTT publisher for gage readings and heartbeat.
+
+Includes automatic reconnection with exponential backoff (1s -> 30s max)
+and a bounded buffer queue that retains readings during disconnection.
+"""
+import collections
 import json
 import logging
 import os
@@ -9,12 +14,17 @@ import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
 
+# Maximum readings buffered while disconnected.  When full, oldest are dropped.
+DEFAULT_BUFFER_SIZE = 500
+
 
 class GageMQTTPublisher:
     """Publishes gage readings and heartbeat to MQTT broker.
 
     Includes automatic reconnection with exponential backoff when the
-    broker disconnects unexpectedly.
+    broker disconnects unexpectedly.  Readings arriving while the broker
+    is unreachable are buffered in a bounded deque; when the connection
+    is re-established the buffer is flushed in FIFO order.
     """
 
     def __init__(
@@ -29,6 +39,7 @@ class GageMQTTPublisher:
         client_cert_pem: str | None = None,
         client_key_pem: str | None = None,
         tls_insecure: bool = False,
+        buffer_size: int = DEFAULT_BUFFER_SIZE,
     ):
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         if username:
@@ -80,10 +91,19 @@ class GageMQTTPublisher:
 
         # Reconnection state
         self._reconnect_delay = 1.0
-        self._max_reconnect_delay = 60.0
+        self._max_reconnect_delay = 30.0
         self._max_reconnect_attempts = 30
         self._reconnect_count = 0
         self._connected = False
+
+        # Bounded buffer for readings received while disconnected.
+        # When the deque reaches ``buffer_size``, the oldest entry is
+        # silently discarded to prevent unbounded memory growth.
+        self._buffer: collections.deque[tuple[str, str]] = collections.deque(
+            maxlen=buffer_size
+        )
+        self._buffer_lock = threading.Lock()
+        self._dropped_count = 0
 
         # Wire up callbacks (VERSION2 signatures: client, userdata, flags, reason_code, properties)
         self.client.on_connect = self._on_connect
@@ -107,6 +127,8 @@ class GageMQTTPublisher:
                 logger.info("MQTT reconnected to %s:%d", self._host, self._port)
             else:
                 logger.info("MQTT connected to %s:%d", self._host, self._port)
+            # Flush any buffered readings now that we are connected
+            self._flush_buffer()
         else:
             logger.error("MQTT connect failed: reason_code=%s", reason_code)
 
@@ -145,6 +167,12 @@ class GageMQTTPublisher:
         def _attempt() -> None:
             time.sleep(delay)
             self._reconnect_count += 1
+            logger.info(
+                "MQTT reconnect attempt %d/%d (delay=%.1fs)",
+                self._reconnect_count,
+                self._max_reconnect_attempts,
+                delay,
+            )
             try:
                 self.client.reconnect()
                 # on_connect callback will fire if successful
@@ -161,6 +189,25 @@ class GageMQTTPublisher:
                 self._schedule_reconnect()
 
         threading.Thread(target=_attempt, daemon=True, name="mqtt-reconnect").start()
+
+    def _flush_buffer(self) -> None:
+        """Publish all buffered readings.  Called from _on_connect."""
+        with self._buffer_lock:
+            buffered = list(self._buffer)
+            self._buffer.clear()
+            dropped = self._dropped_count
+            self._dropped_count = 0
+
+        if not buffered:
+            return
+
+        logger.info(
+            "Flushing %d buffered reading(s) (%d dropped while full)",
+            len(buffered),
+            dropped,
+        )
+        for topic, payload in buffered:
+            self.client.publish(topic, payload, qos=1)
 
     def connect(self) -> None:
         self.client.connect(self._host, self._port, keepalive=60)
@@ -180,10 +227,24 @@ class GageMQTTPublisher:
         self._cert_files.clear()
 
     def publish_value(self, topic: str, value: float) -> None:
-        if not self._connected:
-            logger.warning("MQTT not connected, skipping publish to %s", topic)
-            return
         payload = json.dumps({"value": value, "timestamp": time.time()})
+        if not self._connected:
+            with self._buffer_lock:
+                was_full = len(self._buffer) == self._buffer.maxlen
+                self._buffer.append((topic, payload))
+                if was_full:
+                    self._dropped_count += 1
+                    logger.debug(
+                        "Buffer full, oldest reading dropped (buffered=%d)",
+                        len(self._buffer),
+                    )
+                else:
+                    logger.debug(
+                        "Buffered reading for %s (buffered=%d)",
+                        topic,
+                        len(self._buffer),
+                    )
+            return
         self.client.publish(topic, payload, qos=1)
 
     def publish_heartbeat(self, topic: str, status: str = "online") -> None:

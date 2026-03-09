@@ -246,11 +246,15 @@ class AuditService:
             CharacteristicDeletedEvent,
             ControlLimitsUpdatedEvent,
             ERPSyncCompletedEvent,
+            PredictedOOCEvent,
+            PurgeCompletedEvent,
             SampleProcessedEvent,
             SignatureCreatedEvent,
+            SignatureInvalidatedEvent,
             SignatureRejectedEvent,
             ViolationCreatedEvent,
             WorkflowCompletedEvent,
+            WorkflowExpiredEvent,
         )
 
         async def _audit_violation_created(event):
@@ -365,6 +369,59 @@ class AuditService:
                 },
             )
 
+        async def _audit_signature_invalidated(event):
+            await self.log_event(
+                action="invalidate",
+                resource_type="signature",
+                detail={
+                    "source": "event_bus",
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                    "invalidated_count": len(event.invalidated_signature_ids),
+                    "reason": event.reason,
+                },
+            )
+
+        async def _audit_workflow_expired(event):
+            await self.log_event(
+                action="expire",
+                resource_type="workflow",
+                resource_id=event.workflow_instance_id,
+                detail={
+                    "source": "event_bus",
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                },
+            )
+
+        async def _audit_predicted_ooc(event):
+            await self.log_event(
+                action="predict_ooc",
+                resource_type="prediction",
+                resource_id=event.characteristic_id,
+                detail={
+                    "source": "event_bus",
+                    "forecast_step": event.forecast_step,
+                    "predicted_value": event.predicted_value,
+                    "limit_type": event.limit_type,
+                    "limit_value": event.limit_value,
+                    "model_type": event.model_type,
+                },
+            )
+
+        async def _audit_purge_completed(event):
+            await self.log_event(
+                action="purge",
+                resource_type="retention",
+                resource_id=event.plant_id,
+                detail={
+                    "source": "event_bus",
+                    "samples_deleted": event.samples_deleted,
+                    "violations_deleted": event.violations_deleted,
+                    "characteristics_processed": event.characteristics_processed,
+                },
+            )
+
         # Registry of all audited events for visibility
         _AUDITED_EVENTS = {
             ViolationCreatedEvent: _audit_violation_created,
@@ -377,6 +434,10 @@ class AuditService:
             SignatureCreatedEvent: _audit_signature_created,
             SignatureRejectedEvent: _audit_signature_rejected,
             WorkflowCompletedEvent: _audit_workflow_completed,
+            SignatureInvalidatedEvent: _audit_signature_invalidated,
+            WorkflowExpiredEvent: _audit_workflow_expired,
+            PredictedOOCEvent: _audit_predicted_ooc,
+            PurgeCompletedEvent: _audit_purge_completed,
         }
 
         for event_type, handler in _AUDITED_EVENTS.items():

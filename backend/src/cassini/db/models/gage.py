@@ -38,7 +38,9 @@ class GageBridge(Base):
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="offline")
     last_heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    registered_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    registered_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )

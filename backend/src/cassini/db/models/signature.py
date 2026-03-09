@@ -29,8 +29,8 @@ class ElectronicSignature(Base):
     __tablename__ = "electronic_signature"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("user.id"), nullable=False
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True
     )
     username: Mapped[str] = mapped_column(String(50), nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -223,7 +223,7 @@ class SignatureWorkflowInstance(Base):
     )
     current_step: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
     initiated_by: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("user.id"), nullable=True
+        Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True
     )
     initiated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

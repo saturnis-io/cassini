@@ -39,10 +39,13 @@ _UNIT_MULTIPLIERS = {
 class PurgeEngine:
     """Background service that periodically purges expired SPC data."""
 
-    def __init__(self, interval_hours: float = 24) -> None:
+    def __init__(
+        self, interval_hours: float = 24, event_bus=None
+    ) -> None:
         self.interval_hours = interval_hours
         self._running = False
         self._task: asyncio.Task | None = None
+        self._event_bus = event_bus
 
     async def start(self) -> None:
         """Start the background purge loop."""
@@ -171,6 +174,19 @@ class PurgeEngine:
                 violations_deleted=total_violations_deleted,
                 characteristics_processed=chars_processed,
             )
+
+            # Emit event for audit trail — purge is data-destructive
+            if self._event_bus and total_samples_deleted > 0:
+                from cassini.core.events import PurgeCompletedEvent
+
+                await self._event_bus.publish(
+                    PurgeCompletedEvent(
+                        plant_id=plant_id,
+                        samples_deleted=total_samples_deleted,
+                        violations_deleted=total_violations_deleted,
+                        characteristics_processed=chars_processed,
+                    )
+                )
 
         except Exception as e:
             # Mark run as failed

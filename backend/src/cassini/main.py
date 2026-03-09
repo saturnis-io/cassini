@@ -257,7 +257,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Audit trail service initialized")
 
         # Start retention purge engine (background, 24h interval)
-        purge_engine = PurgeEngine()
+        purge_engine = PurgeEngine(event_bus=event_bus)
         await purge_engine.start()
         app.state.purge_engine = purge_engine
 

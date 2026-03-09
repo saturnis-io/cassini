@@ -46,9 +46,9 @@ class FAIReport(Base):
 
     # Status tracking
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
-    # NOTE: user FKs intentionally lack ondelete — users should be soft-deleted
-    # (is_active=False) rather than physically removed to preserve audit trail.
-    created_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )
@@ -57,9 +57,13 @@ class FAIReport(Base):
     # (approve_report checks submitted_by != current_user.id).  A DB-level CHECK
     # constraint is not used because approved_by is NULL at insert time and
     # cross-column CHECK behaviour varies across dialects.
-    submitted_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)
+    submitted_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("user.id"), nullable=True)
+    approved_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 

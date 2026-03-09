@@ -36,9 +36,9 @@ class MSAStudy(Base):
     num_replicates: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     tolerance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="setup")  # setup, collecting, complete
-    # NOTE: user FK intentionally lacks ondelete — users should be soft-deleted
-    # (is_active=False) rather than physically removed to preserve audit trail.
-    created_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )
