@@ -38,8 +38,8 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 ```bash
 # Clone the repository
-git clone https://github.com/djbrandl/Cassini.git
-cd Cassini
+git clone https://github.com/saturnis-io/cassini.git
+cd cassini
 
 # Start the backend
 cd backend
