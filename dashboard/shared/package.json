@@ -1,7 +1,0 @@
-{
-  "name": "@cvc-dashboard/shared",
-  "version": "1.0.0",
-  "private": true,
-  "main": "./types.ts",
-  "types": "./types.ts"
-}
