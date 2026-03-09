@@ -387,30 +387,43 @@ class SPCEngine:
         char_warn_below_count = char.warn_below_count
         char_ucl = char.ucl
         char_lcl = char.lcl
+        char_usl = getattr(char, "usl", None)
+        char_lsl = getattr(char, "lsl", None)
         char_stored_sigma = char.stored_sigma
         char_stored_center_line = char.stored_center_line
         char_short_run_mode = getattr(char, "short_run_mode", None)
         char_target_value = getattr(char, "target_value", None)
 
-        # Product-limit resolution: override characteristic defaults with
-        # per-product-code limits when a product_code is provided.
-        if context.product_code:
-            from cassini.db.repositories.product_limit import ProductLimitRepository
-            pl_repo = ProductLimitRepository(self._char_repo.session)
-            product_limit = await pl_repo.get_by_char_and_code(
-                characteristic_id, context.product_code
+        # Material limit resolution: override characteristic defaults with
+        # per-material cascading limits when a material_id is provided.
+        if context.material_id:
+            from cassini.core.material_resolver import MaterialResolver
+            resolver = MaterialResolver(self._char_repo.session)
+            char_defaults = {
+                "ucl": char_ucl, "lcl": char_lcl,
+                "stored_sigma": char_stored_sigma,
+                "stored_center_line": char_stored_center_line,
+                "target_value": char_target_value,
+                "usl": char_usl,
+                "lsl": char_lsl,
+            }
+            resolved = await resolver.resolve_flat(
+                characteristic_id, context.material_id, char_defaults
             )
-            if product_limit is not None:
-                if product_limit.ucl is not None:
-                    char_ucl = product_limit.ucl
-                if product_limit.lcl is not None:
-                    char_lcl = product_limit.lcl
-                if product_limit.stored_sigma is not None:
-                    char_stored_sigma = product_limit.stored_sigma
-                if product_limit.stored_center_line is not None:
-                    char_stored_center_line = product_limit.stored_center_line
-                if product_limit.target_value is not None:
-                    char_target_value = product_limit.target_value
+            if resolved["ucl"] is not None:
+                char_ucl = resolved["ucl"]
+            if resolved["lcl"] is not None:
+                char_lcl = resolved["lcl"]
+            if resolved["stored_sigma"] is not None:
+                char_stored_sigma = resolved["stored_sigma"]
+            if resolved["stored_center_line"] is not None:
+                char_stored_center_line = resolved["stored_center_line"]
+            if resolved["target_value"] is not None:
+                char_target_value = resolved["target_value"]
+            if resolved["usl"] is not None:
+                char_usl = resolved["usl"]
+            if resolved["lsl"] is not None:
+                char_lsl = resolved["lsl"]
 
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)
@@ -485,7 +498,7 @@ class SPCEngine:
             values=measurements,
             batch_number=context.batch_number,
             operator_id=context.operator_id,
-            product_code=context.product_code,
+            material_id=context.material_id,
             actual_n=actual_n,
             is_undersized=is_undersized,
             effective_ucl=effective_ucl,

@@ -77,6 +77,7 @@ def _require_draft(report: FAIReport) -> None:
 @router.post("/reports", response_model=FAIReportResponse, status_code=status.HTTP_201_CREATED)
 async def create_report(
     body: FAIReportCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
@@ -108,6 +109,19 @@ async def create_report(
     session.add(report)
     await session.commit()
     await session.refresh(report)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report.id,
+        "action": "create",
+        "summary": f"FAI report '{report.part_name}' created for part '{report.part_number}'",
+        "fields": {
+            "name": report.part_name,
+            "part_number": report.part_number,
+            "revision": report.revision,
+            "status": report.status,
+        },
+    }
 
     logger.info("fai_report_created", report_id=report.id, user=user.username)
     return FAIReportResponse.model_validate(report)
@@ -158,6 +172,7 @@ async def get_report(
 async def update_report(
     report_id: int,
     body: FAIReportUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
@@ -171,6 +186,11 @@ async def update_report(
     _require_draft(report)
 
     update_data = body.model_dump(exclude_unset=True)
+
+    # Capture old values for audit trail before mutation
+    old_values = {field: getattr(report, field) for field in update_data}
+    old_name = report.part_name
+
     for field, value in update_data.items():
         setattr(report, field, value)
 
@@ -183,6 +203,23 @@ async def update_report(
     await session.commit()
     await session.refresh(report)
 
+    # Build changed-fields dict for audit (old vs new, only changed)
+    changed_fields: dict = {}
+    for field in update_data:
+        if old_values[field] != update_data[field]:
+            changed_fields[field] = {"old": old_values[field], "new": update_data[field]}
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "update",
+        "summary": f"FAI report '{old_name}' updated",
+        "fields": {
+            "old_values": {f: v["old"] for f, v in changed_fields.items()},
+            "new_values": {f: v["new"] for f, v in changed_fields.items()},
+        },
+    }
+
     logger.info("fai_report_updated", report_id=report_id, user=user.username, fields=list(update_data.keys()))
     return FAIReportResponse.model_validate(report)
 
@@ -190,6 +227,7 @@ async def update_report(
 @router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_report(
     report_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> None:
@@ -201,8 +239,30 @@ async def delete_report(
     check_plant_role(user, report.plant_id, "engineer")
     _require_draft(report)
 
+    # Capture details before deletion for audit trail
+    report_name = report.part_name
+    report_part_number = report.part_number
+    report_status = report.status
+    item_count_result = await session.execute(
+        select(sa_func.count()).where(FAIItem.report_id == report_id)
+    )
+    item_count = item_count_result.scalar_one()
+
     await session.delete(report)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "delete",
+        "summary": f"FAI report '{report_name}' ({report_part_number}) deleted",
+        "fields": {
+            "name": report_name,
+            "part_number": report_part_number,
+            "status": report_status,
+            "item_count": item_count,
+        },
+    }
 
     logger.info("fai_report_deleted", report_id=report_id, user=user.username)
 
@@ -220,6 +280,7 @@ async def delete_report(
 async def add_item(
     report_id: int,
     body: FAIItemCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIItemResponse:
@@ -259,6 +320,20 @@ async def add_item(
     await session.commit()
     await session.refresh(item)
 
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "create",
+        "summary": f"Inspection item added to FAI report {report_id}",
+        "fields": {
+            "item_id": item.id,
+            "characteristic_name": item.characteristic_name,
+            "balloon_number": item.balloon_number,
+            "sequence_order": item.sequence_order,
+            "report_id": report_id,
+        },
+    }
+
     logger.info("fai_item_added", report_id=report_id, item_id=item.id, user=user.username)
     return FAIItemResponse.model_validate(item)
 
@@ -268,6 +343,7 @@ async def update_item(
     report_id: int,
     item_id: int,
     body: FAIItemUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIItemResponse:
@@ -289,11 +365,33 @@ async def update_item(
         )
 
     update_data = body.model_dump(exclude_unset=True)
+
+    # Capture old values for audit trail before mutation
+    old_values = {field: getattr(item, field) for field in update_data}
+
     for field, value in update_data.items():
         setattr(item, field, value)
 
     await session.commit()
     await session.refresh(item)
+
+    # Build changed-fields dict for audit (old vs new, only changed)
+    changed_fields: dict = {}
+    for field in update_data:
+        if old_values[field] != update_data[field]:
+            changed_fields[field] = {"old": old_values[field], "new": update_data[field]}
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "update",
+        "summary": f"Inspection item {item_id} updated in FAI report {report_id}",
+        "fields": {
+            "item_id": item_id,
+            "old_values": {f: v["old"] for f, v in changed_fields.items()},
+            "new_values": {f: v["new"] for f, v in changed_fields.items()},
+        },
+    }
 
     logger.info("fai_item_updated", report_id=report_id, item_id=item_id, user=user.username)
     return FAIItemResponse.model_validate(item)
@@ -303,6 +401,7 @@ async def update_item(
 async def delete_item(
     report_id: int,
     item_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> None:
@@ -323,8 +422,28 @@ async def delete_item(
             detail=f"FAI item {item_id} not found in report {report_id}",
         )
 
+    # Capture item details before deletion for audit trail
+    item_characteristic_name = item.characteristic_name
+    item_balloon_number = item.balloon_number
+    item_sequence_order = item.sequence_order
+    item_result = item.result
+
     await session.delete(item)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "delete",
+        "summary": f"Inspection item deleted from FAI report {report_id}",
+        "fields": {
+            "item_id": item_id,
+            "characteristic_name": item_characteristic_name,
+            "balloon_number": item_balloon_number,
+            "sequence_order": item_sequence_order,
+            "result": item_result,
+        },
+    }
 
     logger.info("fai_item_deleted", report_id=report_id, item_id=item_id, user=user.username)
 

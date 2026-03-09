@@ -368,6 +368,7 @@ class TestCalculateLimits:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
 
         # Setup samples
@@ -410,6 +411,7 @@ class TestCalculateLimits:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 5
+        characteristic.sigma_method = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
 
         # Setup samples (30 subgroups of 5)
@@ -454,6 +456,7 @@ class TestCalculateLimits:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 15
+        characteristic.sigma_method = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
 
         # Setup samples (30 subgroups of 15)
@@ -501,6 +504,7 @@ class TestCalculateLimits:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
 
         # Setup samples (some excluded)
@@ -540,6 +544,7 @@ class TestCalculateLimits:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
 
         # Setup too few samples
@@ -594,6 +599,7 @@ class TestRecalculateAndPersist:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         characteristic.ucl = None
         characteristic.lcl = None
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
@@ -646,6 +652,7 @@ class TestRecalculateAndPersist:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         characteristic.ucl = 15.0
         characteristic.lcl = 5.0
         char_repo.get_by_id = AsyncMock(return_value=characteristic)
@@ -695,6 +702,7 @@ class TestStoredParametersPersistence:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         characteristic.ucl = None
         characteristic.lcl = None
         characteristic.stored_sigma = None
@@ -740,6 +748,7 @@ class TestStoredParametersPersistence:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
         characteristic.ucl = None
         characteristic.lcl = None
         characteristic.stored_sigma = None
@@ -792,6 +801,7 @@ class TestModeSpecificLimitCalculation:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 5
+        characteristic.sigma_method = None
         characteristic.subgroup_mode = "STANDARDIZED"
         characteristic.ucl = None
         characteristic.lcl = None
@@ -847,6 +857,7 @@ class TestModeSpecificLimitCalculation:
         characteristic = MagicMock(spec=Characteristic)
         characteristic.id = 1
         characteristic.subgroup_size = 5
+        characteristic.sigma_method = None
         characteristic.subgroup_mode = "VARIABLE_LIMITS"
         characteristic.ucl = None
         characteristic.lcl = None

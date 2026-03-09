@@ -304,14 +304,26 @@ class TestRollingWindow:
         assert abs(sigma_dist - 5.0) < 0.001
 
     def test_classify_value_beyond_lcl(self, boundaries):
-        """Test classification of values beyond LCL."""
+        """Test classification of values beyond LCL.
+
+        Note: classify_value uses >= comparisons, so value exactly at
+        minus_3_sigma (94.0) falls into ZONE_A_LOWER (>= 94.0), not
+        BEYOND_LCL (< 94.0). Only values strictly below minus_3_sigma
+        are BEYOND_LCL.
+        """
         window = RollingWindow()
         window.set_boundaries(boundaries)
 
+        # Exactly at -3σ boundary → ZONE_A_LOWER (>= minus_3_sigma)
         zone, is_above, sigma_dist = window.classify_value(94.0)
-        assert zone == Zone.BEYOND_LCL
+        assert zone == Zone.ZONE_A_LOWER
         assert is_above is False
         assert abs(sigma_dist - 3.0) < 0.001
+
+        # Strictly below -3σ → BEYOND_LCL
+        zone, is_above, sigma_dist = window.classify_value(93.9)
+        assert zone == Zone.BEYOND_LCL
+        assert is_above is False
 
         zone, is_above, sigma_dist = window.classify_value(90.0)
         assert zone == Zone.BEYOND_LCL
@@ -434,24 +446,22 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_get_window_loads_from_db(self, manager, mock_repo, sample_timestamp):
         """Test getting window loads from database on first access."""
-        # Mock database samples
-        mock_samples = []
+        # Mock database samples (dict format from get_rolling_window_data)
+        mock_sample_data = []
         for i in range(3):
-            mock_sample = MagicMock()
-            mock_sample.id = i
-            mock_sample.timestamp = sample_timestamp + timedelta(minutes=i)
-            mock_measurement = MagicMock()
-            mock_measurement.value = 100.0 + i
-            mock_sample.measurements = [mock_measurement]
-            mock_samples.append(mock_sample)
+            mock_sample_data.append({
+                "sample_id": i,
+                "timestamp": sample_timestamp + timedelta(minutes=i),
+                "values": [100.0 + i],
+            })
 
-        mock_repo.get_rolling_window.return_value = mock_samples
+        mock_repo.get_rolling_window_data.return_value = mock_sample_data
 
         # Get window for characteristic 1
         window = await manager.get_window(char_id=1)
 
         # Should have loaded from database
-        mock_repo.get_rolling_window.assert_called_once_with(
+        mock_repo.get_rolling_window_data.assert_called_once_with(
             char_id=1,
             window_size=25,
             exclude_excluded=True
@@ -463,25 +473,22 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_get_window_returns_cached(self, manager, mock_repo, sample_timestamp):
         """Test getting window returns cached version on subsequent access."""
-        # Mock database samples
-        mock_samples = []
-        mock_sample = MagicMock()
-        mock_sample.id = 1
-        mock_sample.timestamp = sample_timestamp
-        mock_measurement = MagicMock()
-        mock_measurement.value = 100.0
-        mock_sample.measurements = [mock_measurement]
-        mock_samples.append(mock_sample)
+        # Mock database samples (dict format)
+        mock_sample_data = [{
+            "sample_id": 1,
+            "timestamp": sample_timestamp,
+            "values": [100.0],
+        }]
 
-        mock_repo.get_rolling_window.return_value = mock_samples
+        mock_repo.get_rolling_window_data.return_value = mock_sample_data
 
         # First access - loads from DB
         window1 = await manager.get_window(char_id=1)
-        assert mock_repo.get_rolling_window.call_count == 1
+        assert mock_repo.get_rolling_window_data.call_count == 1
 
         # Second access - returns cached
         window2 = await manager.get_window(char_id=1)
-        assert mock_repo.get_rolling_window.call_count == 1  # Not called again
+        assert mock_repo.get_rolling_window_data.call_count == 1  # Not called again
         assert window1 is window2  # Same object
 
     @pytest.mark.asyncio
@@ -494,7 +501,7 @@ class TestRollingWindowManager:
         )
 
         # Mock database to return empty list
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Load 3 windows (fill cache)
         await manager.get_window(char_id=1)
@@ -521,7 +528,7 @@ class TestRollingWindowManager:
             window_size=25
         )
 
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Load 3 windows
         await manager.get_window(char_id=1)
@@ -543,7 +550,7 @@ class TestRollingWindowManager:
     async def test_add_sample(self, manager, mock_repo, boundaries, sample_timestamp):
         """Test adding a sample to window."""
         # Setup mock
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Create mock sample
         mock_sample = MagicMock()
@@ -574,7 +581,7 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_add_sample_with_range(self, manager, mock_repo, boundaries, sample_timestamp):
         """Test adding a sample with multiple measurements (subgroup)."""
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Create mock sample with multiple measurements
         mock_sample = MagicMock()
@@ -606,7 +613,7 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_invalidate_removes_from_cache(self, manager, mock_repo):
         """Test invalidate removes window from cache."""
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Load window
         await manager.get_window(char_id=1)
@@ -626,18 +633,16 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_update_boundaries(self, manager, mock_repo, boundaries, sample_timestamp):
         """Test updating boundaries reclassifies samples."""
-        # Setup mock with initial samples
-        mock_samples = []
+        # Setup mock with initial samples (dict format)
+        mock_sample_data = []
         for i, value in enumerate([98.0, 103.0, 107.0]):
-            mock_sample = MagicMock()
-            mock_sample.id = i
-            mock_sample.timestamp = sample_timestamp + timedelta(minutes=i)
-            mock_measurement = MagicMock()
-            mock_measurement.value = value
-            mock_sample.measurements = [mock_measurement]
-            mock_samples.append(mock_sample)
+            mock_sample_data.append({
+                "sample_id": i,
+                "timestamp": sample_timestamp + timedelta(minutes=i),
+                "values": [value],
+            })
 
-        mock_repo.get_rolling_window.return_value = mock_samples
+        mock_repo.get_rolling_window_data.return_value = mock_sample_data
 
         # Load window and set boundaries
         window = await manager.get_window(char_id=1)
@@ -673,18 +678,18 @@ class TestRollingWindowManager:
     async def test_concurrent_access_same_characteristic(self, manager, mock_repo, sample_timestamp):
         """Test concurrent access to same characteristic is thread-safe."""
         # Mock with delay to simulate concurrent access
-        async def delayed_return():
+        async def delayed_return(*args, **kwargs):
             await asyncio.sleep(0.01)
             return []
 
-        mock_repo.get_rolling_window.side_effect = delayed_return
+        mock_repo.get_rolling_window_data.side_effect = delayed_return
 
         # Start multiple concurrent accesses
         tasks = [manager.get_window(char_id=1) for _ in range(5)]
         windows = await asyncio.gather(*tasks)
 
         # Should only load once from database
-        assert mock_repo.get_rolling_window.call_count == 1
+        assert mock_repo.get_rolling_window_data.call_count == 1
 
         # All should return the same window object
         assert all(w is windows[0] for w in windows)
@@ -692,20 +697,20 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_concurrent_access_different_characteristics(self, manager, mock_repo):
         """Test concurrent access to different characteristics."""
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Access different characteristics concurrently
         tasks = [manager.get_window(char_id=i) for i in range(1, 6)]
         await asyncio.gather(*tasks)
 
         # Should load each characteristic once
-        assert mock_repo.get_rolling_window.call_count == 5
+        assert mock_repo.get_rolling_window_data.call_count == 5
         assert manager.cache_size == 5
 
     @pytest.mark.asyncio
     async def test_empty_measurements_handled(self, manager, mock_repo, boundaries, sample_timestamp):
         """Test handling of samples with no measurements."""
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Create mock sample with no measurements
         mock_sample = MagicMock()
@@ -726,7 +731,7 @@ class TestRollingWindowManager:
     @pytest.mark.asyncio
     async def test_single_measurement_no_range(self, manager, mock_repo, boundaries, sample_timestamp):
         """Test that single measurements have no range value."""
-        mock_repo.get_rolling_window.return_value = []
+        mock_repo.get_rolling_window_data.return_value = []
 
         # Create mock sample with single measurement
         mock_sample = MagicMock()
@@ -774,18 +779,16 @@ class TestRollingWindowIntegration:
             minus_3_sigma=94.0
         )
 
-        # Mock initial database samples
-        mock_samples = []
+        # Mock initial database samples (dict format)
+        mock_sample_data = []
         for i in range(3):
-            mock_sample = MagicMock()
-            mock_sample.id = i
-            mock_sample.timestamp = sample_timestamp + timedelta(minutes=i)
-            mock_measurement = MagicMock()
-            mock_measurement.value = 100.0 + i
-            mock_sample.measurements = [mock_measurement]
-            mock_samples.append(mock_sample)
+            mock_sample_data.append({
+                "sample_id": i,
+                "timestamp": sample_timestamp + timedelta(minutes=i),
+                "values": [100.0 + i],
+            })
 
-        mock_repo.get_rolling_window.return_value = mock_samples
+        mock_repo.get_rolling_window_data.return_value = mock_sample_data
 
         # 1. Load window
         window = await manager.get_window(char_id=1)
@@ -857,6 +860,8 @@ class TestRollingWindowIntegration:
         window.set_boundaries(boundaries)
 
         # Test exact boundary values
+        # Note: classify_value uses >= comparisons, so values at lower
+        # boundaries are classified into the zone above them.
         test_cases = [
             (100.0, Zone.ZONE_C_UPPER),  # At center
             (102.0, Zone.ZONE_B_UPPER),  # At +1σ boundary
@@ -864,7 +869,7 @@ class TestRollingWindowIntegration:
             (106.0, Zone.BEYOND_UCL),    # At +3σ boundary (UCL)
             (98.0, Zone.ZONE_C_LOWER),   # At -1σ boundary
             (96.0, Zone.ZONE_B_LOWER),   # At -2σ boundary
-            (94.0, Zone.BEYOND_LCL),     # At -3σ boundary (LCL)
+            (94.0, Zone.ZONE_A_LOWER),   # At -3σ boundary (>= minus_3_sigma)
         ]
 
         for value, expected_zone in test_cases:

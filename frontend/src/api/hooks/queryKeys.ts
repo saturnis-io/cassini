@@ -35,10 +35,10 @@ export const queryKeys = {
       limit?: number,
       startDate?: string,
       endDate?: string,
-      productCode?: string,
+      materialId?: number,
       chartType?: string,
     ) =>
-      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate, productCode, chartType }] as const,
+      [...queryKeys.characteristics.all, 'chartData', id, { limit, startDate, endDate, materialId, chartType }] as const,
     rules: (id: number) => [...queryKeys.characteristics.all, 'rules', id] as const,
     config: (id: number) => [...queryKeys.characteristics.all, 'config', id] as const,
   },
@@ -130,12 +130,14 @@ export const queryKeys = {
     meanings: () => ['signatures', 'meanings'] as const,
     passwordPolicy: () => ['signatures', 'password-policy'] as const,
   },
-  productLimits: {
-    all: ['product-limits'] as const,
-    list: (charId: number) => ['product-limits', 'list', charId] as const,
-    detail: (charId: number, productCode: string) =>
-      ['product-limits', 'detail', charId, productCode] as const,
-    codes: (charId: number) => ['product-codes', charId] as const,
+  materials: {
+    all: ['materials'] as const,
+    classes: (plantId: number) => ['materials', 'classes', plantId] as const,
+    list: (plantId: number, classId?: number, search?: string) =>
+      ['materials', 'list', plantId, { classId, search }] as const,
+    overrides: (charId: number) => ['materials', 'overrides', charId] as const,
+    resolved: (charId: number, materialId: number) =>
+      ['materials', 'resolved', charId, materialId] as const,
   },
   gageBridges: {
     all: ['gageBridges'] as const,
@@ -158,6 +160,20 @@ export const queryKeys = {
     attribute: (metric: string, charId: string | number) =>
       ['explain', 'attribute', metric, charId] as const,
   },
+}
+
+export const materialKeys = {
+  all: ['materials'] as const,
+  classes: (plantId: number) => ['materials', 'classes', plantId] as const,
+  list: (plantId: number, classId?: number, search?: string) =>
+    ['materials', 'list', plantId, { classId, search }] as const,
+  overrides: (charId: number) => ['materials', 'overrides', charId] as const,
+  resolved: (charId: number, materialId: number) =>
+    ['materials', 'resolved', charId, materialId] as const,
+  materialUsage: (plantId: number, materialId: number) =>
+    ['materials', 'usage', plantId, materialId] as const,
+  classUsage: (plantId: number, classId: number) =>
+    ['materials', 'classUsage', plantId, classId] as const,
 }
 
 export const retentionKeys = {

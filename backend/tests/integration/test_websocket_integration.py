@@ -16,7 +16,7 @@ from cassini.api.v1.websocket import (
     notify_violation,
     notify_acknowledgment,
 )
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Sample, Measurement
 from cassini.db.models.violation import Violation
@@ -47,7 +47,7 @@ async def characteristic(async_session: AsyncSession, hierarchy: Hierarchy) -> C
         target_value=10.0,
         usl=12.0,
         lsl=8.0,
-        provider_type=ProviderType.MANUAL,
+
     )
     async_session.add(char)
     await async_session.commit()
@@ -116,11 +116,12 @@ class TestWebSocketNotifications:
 
             message = call_args[0][1]
             assert message["type"] == "sample"
-            assert message["payload"]["sample_id"] == sample.id
-            assert message["payload"]["characteristic_id"] == characteristic.id
-            assert message["payload"]["value"] == 10.1
-            assert message["payload"]["zone"] == "zone_c_upper"
-            assert message["payload"]["in_control"] is True
+            assert message["characteristic_id"] == characteristic.id
+            assert message["sample"]["id"] == sample.id
+            assert message["sample"]["characteristic_id"] == characteristic.id
+            assert message["sample"]["mean"] == 10.1
+            assert message["sample"]["zone"] == "zone_c_upper"
+            assert message["sample"]["in_control"] is True
 
     @pytest.mark.asyncio
     async def test_notify_violation(
@@ -147,11 +148,11 @@ class TestWebSocketNotifications:
 
             message = call_args[0][1]
             assert message["type"] == "violation"
-            assert message["payload"]["violation_id"] == violation.id
-            assert message["payload"]["characteristic_id"] == characteristic.id
-            assert message["payload"]["sample_id"] == sample.id
-            assert message["payload"]["rule_id"] == violation.rule_id
-            assert message["payload"]["severity"] == violation.severity
+            assert message["violation"]["id"] == violation.id
+            assert message["violation"]["characteristic_id"] == characteristic.id
+            assert message["violation"]["sample_id"] == sample.id
+            assert message["violation"]["rule_id"] == violation.rule_id
+            assert message["violation"]["severity"] == violation.severity
 
     @pytest.mark.asyncio
     async def test_notify_acknowledgment(
@@ -176,11 +177,11 @@ class TestWebSocketNotifications:
 
             message = call_args[0][1]
             assert message["type"] == "ack_update"
-            assert message["payload"]["violation_id"] == violation.id
-            assert message["payload"]["characteristic_id"] == characteristic.id
-            assert message["payload"]["acknowledged"] is True
-            assert message["payload"]["ack_user"] == "operator1"
-            assert message["payload"]["ack_reason"] == "Process adjusted"
+            assert message["characteristic_id"] == characteristic.id
+            assert message["violation_id"] == violation.id
+            assert message["acknowledged"] is True
+            assert message["ack_user"] == "operator1"
+            assert message["ack_reason"] == "Process adjusted"
 
     @pytest.mark.asyncio
     async def test_notify_acknowledgment_unack(
@@ -200,9 +201,9 @@ class TestWebSocketNotifications:
             call_args = mock_broadcast.call_args
             message = call_args[0][1]
 
-            assert message["payload"]["acknowledged"] is False
-            assert message["payload"]["ack_user"] is None
-            assert message["payload"]["ack_reason"] is None
+            assert message["acknowledged"] is False
+            assert message["ack_user"] is None
+            assert message["ack_reason"] is None
 
     @pytest.mark.asyncio
     async def test_connection_manager_integration(self):

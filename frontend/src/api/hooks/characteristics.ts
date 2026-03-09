@@ -103,7 +103,7 @@ export function useChartData(
     limit?: number
     startDate?: string
     endDate?: string
-    productCode?: string
+    materialId?: number
     chartType?: string
   },
   config?: {
@@ -117,7 +117,7 @@ export function useChartData(
       options?.limit,
       options?.startDate,
       options?.endDate,
-      options?.productCode,
+      options?.materialId,
       options?.chartType,
     ),
     queryFn: () => characteristicApi.getChartData(id, options),

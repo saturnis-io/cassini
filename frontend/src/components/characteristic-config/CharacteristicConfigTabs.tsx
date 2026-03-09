@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Info, Gauge, BarChart3, Shield, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type TabId = 'general' | 'limits' | 'sampling' | 'rules' | 'product-limits'
+export type TabId = 'general' | 'limits' | 'sampling' | 'rules' | 'material-overrides'
 
 interface Tab {
   id: TabId
@@ -16,7 +16,7 @@ const TABS: Tab[] = [
   { id: 'limits', label: 'Limits', icon: <Gauge className="h-4 w-4" /> },
   { id: 'sampling', label: 'Sampling', icon: <BarChart3 className="h-4 w-4" /> },
   { id: 'rules', label: 'Rules', icon: <Shield className="h-4 w-4" /> },
-  { id: 'product-limits', label: 'Product Limits', icon: <Package className="h-4 w-4" /> },
+  { id: 'material-overrides', label: 'Material Overrides', icon: <Package className="h-4 w-4" /> },
 ]
 
 interface CharacteristicConfigTabsProps {

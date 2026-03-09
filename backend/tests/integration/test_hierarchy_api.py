@@ -10,10 +10,24 @@ from fastapi import FastAPI, status
 from httpx import AsyncClient
 
 from cassini.api.v1.hierarchy import router as hierarchy_router
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.user import User
 from cassini.db.repositories.characteristic import CharacteristicRepository
 from cassini.db.repositories.hierarchy import HierarchyRepository
+
+
+def _make_mock_user():
+    """Create a mock User object for auth override."""
+    from unittest.mock import MagicMock
+
+    user = MagicMock(spec=User)
+    user.id = 1
+    user.username = "testuser"
+    user.email = "test@example.com"
+    user.is_active = True
+    user.plant_roles = []
+    return user
 
 
 @pytest_asyncio.fixture
@@ -23,12 +37,22 @@ async def app(async_session):
     app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
 
     # Override dependencies to use test session
-    from cassini.api.deps import get_db_session
+    from cassini.api.deps import get_current_engineer, get_current_user, get_db_session
+
+    mock_user = _make_mock_user()
 
     async def override_get_db():
         yield async_session
 
+    async def override_get_current_user():
+        return mock_user
+
+    async def override_get_current_engineer():
+        return mock_user
+
     app.dependency_overrides[get_db_session] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_current_engineer] = override_get_current_engineer
 
     return app
 
@@ -79,15 +103,12 @@ async def hierarchy_with_characteristics(async_session, sample_hierarchy):
         name="Temperature",
         description="Process temperature",
         subgroup_size=1,
-        provider_type=ProviderType.TAG,
-        mqtt_topic="sensors/temp1",
     )
     char2 = Characteristic(
         hierarchy_id=line1.id,
         name="Pressure",
         description="Process pressure",
         subgroup_size=3,
-        provider_type=ProviderType.MANUAL,
     )
 
     # Add characteristic to Line 2
@@ -96,8 +117,6 @@ async def hierarchy_with_characteristics(async_session, sample_hierarchy):
         name="Flow Rate",
         description="Process flow rate",
         subgroup_size=1,
-        provider_type=ProviderType.TAG,
-        mqtt_topic="sensors/flow1",
     )
 
     async_session.add_all([char1, char2, char3])
@@ -232,16 +251,17 @@ class TestCreateHierarchyNode:
         assert "Parent hierarchy node 99999 not found" in response.json()["detail"]
 
     @pytest.mark.asyncio
-    async def test_create_node_invalid_type(self, client):
-        """Test creating node with invalid hierarchy type."""
+    async def test_create_node_custom_type(self, client):
+        """Test creating node with a custom hierarchy type (free-form string)."""
         payload = {
             "parent_id": None,
             "name": "Test Node",
-            "type": "InvalidType",
+            "type": "CustomType",
         }
 
         response = await client.post("/api/v1/hierarchy/", json=payload)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["type"] == "CustomType"
 
     @pytest.mark.asyncio
     async def test_create_node_missing_name(self, client):
@@ -379,14 +399,15 @@ class TestUpdateHierarchyNode:
         assert data["name"] == "Factory A"  # Unchanged
 
     @pytest.mark.asyncio
-    async def test_update_with_invalid_type(self, client, sample_hierarchy):
-        """Test updating with invalid hierarchy type."""
+    async def test_update_with_custom_type(self, client, sample_hierarchy):
+        """Test updating with a custom hierarchy type (free-form string)."""
         factory_id = sample_hierarchy["factory"].id
 
-        payload = {"type": "InvalidType"}
+        payload = {"type": "CustomType"}
 
         response = await client.patch(f"/api/v1/hierarchy/{factory_id}", json=payload)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["type"] == "CustomType"
 
 
 class TestDeleteHierarchyNode:
@@ -489,8 +510,8 @@ class TestGetNodeCharacteristics:
         for char in data:
             assert "id" in char
             assert "name" in char
-            assert "provider_type" in char
-            assert "in_control" in char
+            assert "hierarchy_id" in char
+            assert "subgroup_size" in char
             assert "unacknowledged_violations" in char
 
     @pytest.mark.asyncio
@@ -548,26 +569,22 @@ class TestGetNodeCharacteristics:
         assert len(data) == 2  # Only direct characteristics
 
     @pytest.mark.asyncio
-    async def test_get_characteristics_filter_by_provider(
+    async def test_get_characteristics_data_source_field(
         self, client, hierarchy_with_characteristics
     ):
-        """Test characteristic filtering by provider type."""
+        """Test that characteristics include data_source field."""
         line1_id = hierarchy_with_characteristics["line1"].id
 
         response = await client.get(f"/api/v1/hierarchy/{line1_id}/characteristics")
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
+        assert len(data) == 2
 
-        # Verify provider types are present
-        providers = {char["provider_type"] for char in data}
-        assert providers == {"TAG", "MANUAL"}
-
-        # Count by type
-        tag_count = sum(1 for char in data if char["provider_type"] == "TAG")
-        manual_count = sum(1 for char in data if char["provider_type"] == "MANUAL")
-        assert tag_count == 1
-        assert manual_count == 1
+        # All test characteristics are manual (no data source configured)
+        for char in data:
+            assert "data_source" in char
+            assert char["data_source"] is None
 
 
 class TestEndToEndScenarios:

@@ -111,6 +111,7 @@ async def get_user(
 
 @router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
+    request: Request,
     user_id: int,
     data: UserUpdate,
     current_user: User = Depends(get_current_admin),
@@ -119,20 +120,28 @@ async def update_user(
     """Update a user. Admin only."""
     update_data = data.model_dump(exclude_unset=True)
 
+    # Capture old values before mutation for audit trail
+    old_user = await repo.get_by_id(user_id)
+    if old_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found",
+        )
+    old_values = {
+        "username": old_user.username,
+        "email": old_user.email,
+        "is_active": old_user.is_active,
+    }
+
     # Hash password if provided
-    if "password" in update_data and update_data["password"] is not None:
+    password_changed = "password" in update_data and update_data["password"] is not None
+    if password_changed:
         update_data["hashed_password"] = hash_password(update_data.pop("password"))
     else:
         update_data.pop("password", None)
 
     if not update_data:
-        user = await repo.get_by_id(user_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_id} not found",
-            )
-        return UserResponse.model_validate(user)
+        return UserResponse.model_validate(old_user)
 
     try:
         user = await repo.update(user_id, **update_data)
@@ -141,6 +150,24 @@ async def update_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User {user_id} not found",
             )
+
+        # Build audit fields — only include changed fields
+        audit_fields: dict = {}
+        for field in ("username", "email", "is_active"):
+            if field in update_data and update_data[field] != old_values.get(field):
+                audit_fields[f"old_{field}"] = old_values[field]
+                audit_fields[f"new_{field}"] = update_data[field]
+        if password_changed:
+            audit_fields["password_changed"] = True
+
+        request.state.audit_context = {
+            "resource_type": "user",
+            "resource_id": user_id,
+            "action": "update",
+            "summary": f"User '{user.username}' updated by '{current_user.username}'",
+            "fields": audit_fields,
+        }
+
         return UserResponse.model_validate(user)
     except IntegrityError:
         raise HTTPException(
@@ -187,6 +214,7 @@ async def deactivate_user(
 
 @router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user_permanent(
+    request: Request,
     user_id: int,
     current_user: User = Depends(get_current_admin),
     repo: UserRepository = Depends(get_user_repo),
@@ -202,6 +230,9 @@ async def delete_user_permanent(
             detail="Cannot delete your own account",
         )
 
+    # Capture username before permanent deletion
+    target_user = await repo.get_by_id(user_id)
+
     try:
         success = await repo.hard_delete(user_id)
     except ValueError:
@@ -216,6 +247,18 @@ async def delete_user_permanent(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User {user_id} not found",
         )
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "delete",
+        "summary": f"User '{target_user.username if target_user else user_id}' permanently deleted",
+        "fields": {
+            "target_username": target_user.username if target_user else str(user_id),
+            "deleted_by": current_user.username,
+            "permanent": True,
+        },
+    }
 
 
 @router.post("/{user_id}/roles", response_model=UserWithRolesResponse)

@@ -108,9 +108,9 @@ interface DashboardState {
   showPredictions: boolean
   setShowPredictions: (show: boolean) => void
 
-  // Product code filter for per-product limits
-  productCodeFilter: string | null
-  setProductCodeFilter: (code: string | null) => void
+  // Material filter for per-material limits
+  materialIdFilter: number | null
+  setMaterialIdFilter: (id: number | null) => void
 
   // Bottom drawer state
   drawerOpen: boolean
@@ -269,8 +269,8 @@ export const useDashboardStore = create<DashboardState>()(
       setShowPredictions: (show) => set({ showPredictions: show }),
 
       // Product code filter
-      productCodeFilter: null,
-      setProductCodeFilter: (code) => set({ productCodeFilter: code }),
+      materialIdFilter: null,
+      setMaterialIdFilter: (id) => set({ materialIdFilter: id }),
 
       // Bottom drawer
       drawerOpen: false,

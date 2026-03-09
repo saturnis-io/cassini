@@ -28,18 +28,19 @@ def manual_provider(mock_char_repo):
 
 @pytest.fixture
 def sample_characteristic():
-    """Create a sample characteristic for testing."""
+    """Create a sample characteristic for testing (manual entry, no data_source)."""
     char = Characteristic(
         id=1,
         hierarchy_id=1,
         name="Test Characteristic",
         description="Test description",
         subgroup_size=3,
-        provider_type="MANUAL",
         target_value=10.0,
         usl=12.0,
         lsl=8.0,
     )
+    # Manual characteristics have no data_source
+    char.data_source = None
     return char
 
 
@@ -77,7 +78,7 @@ class TestManualProviderSubmitSample:
     ):
         """Test successful sample submission with valid data."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -90,7 +91,7 @@ class TestManualProviderSubmitSample:
         )
 
         # Verify repository was called
-        mock_char_repo.get_by_id.assert_called_once_with(1)
+        mock_char_repo.get_with_data_source.assert_called_once_with(1)
 
         # Verify callback was invoked
         callback.assert_called_once()
@@ -111,7 +112,7 @@ class TestManualProviderSubmitSample:
     ):
         """Test submission with only required parameters."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -134,7 +135,7 @@ class TestManualProviderValidation:
     async def test_characteristic_not_found(self, manual_provider, mock_char_repo):
         """Test error when characteristic doesn't exist."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=None)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=None)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -148,28 +149,27 @@ class TestManualProviderValidation:
         # Verify callback was NOT invoked
         callback.assert_not_called()
 
-    async def test_wrong_provider_type(
-        self, manual_provider, mock_char_repo, sample_characteristic
+    async def test_characteristic_with_data_source_rejected(
+        self, manual_provider, mock_char_repo
     ):
-        """Test error when characteristic is TAG type, not MANUAL."""
-        # Setup - create TAG characteristic
-        tag_char = Characteristic(
-            id=2,
-            hierarchy_id=1,
-            name="Tag Characteristic",
-            subgroup_size=1,
-            provider_type="TAG",
-            mqtt_topic="factory/line1/temp",
-        )
-        mock_char_repo.get_by_id = AsyncMock(return_value=tag_char)
+        """Test error when characteristic has a data source (not manual entry)."""
+        # Setup - mock a characteristic that has a data_source attached
+        mock_data_source = Mock()
+        mock_data_source.type = "mqtt"
+
+        mock_char = Mock()
+        mock_char.id = 2
+        mock_char.data_source = mock_data_source
+        mock_char.subgroup_size = 1
+
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=mock_char)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
         # Execute and verify
         with pytest.raises(
             ValueError,
-            match="Characteristic 2 has provider_type=TAG, not MANUAL. "
-            "Use the appropriate provider.",
+            match="Characteristic 2 has a data source",
         ):
             await manual_provider.submit_sample(
                 characteristic_id=2,
@@ -184,7 +184,7 @@ class TestManualProviderValidation:
     ):
         """Test error when too few measurements provided."""
         # Setup - characteristic expects 3 measurements
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -206,7 +206,7 @@ class TestManualProviderValidation:
     ):
         """Test error when too many measurements provided."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -226,7 +226,7 @@ class TestManualProviderValidation:
     async def test_no_callback_set(self, manual_provider, mock_char_repo, sample_characteristic):
         """Test error when no callback is set."""
         # Setup - no callback set
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
 
         # Execute and verify
         with pytest.raises(
@@ -248,7 +248,7 @@ class TestManualProviderIntegration:
     ):
         """Test submitting multiple samples for the same characteristic."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -285,7 +285,7 @@ class TestManualProviderIntegration:
     ):
         """Test that callback receives complete and accurate event data."""
         # Setup
-        mock_char_repo.get_by_id = AsyncMock(return_value=sample_characteristic)
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=sample_characteristic)
         received_events = []
 
         async def capture_callback(event: SampleEvent) -> None:
@@ -321,9 +321,9 @@ class TestManualProviderIntegration:
             hierarchy_id=1,
             name="Individual Characteristic",
             subgroup_size=1,
-            provider_type="MANUAL",
         )
-        mock_char_repo.get_by_id = AsyncMock(return_value=char)
+        char.data_source = None
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=char)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 
@@ -346,9 +346,9 @@ class TestManualProviderIntegration:
             hierarchy_id=1,
             name="Large Subgroup Characteristic",
             subgroup_size=10,
-            provider_type="MANUAL",
         )
-        mock_char_repo.get_by_id = AsyncMock(return_value=char)
+        char.data_source = None
+        mock_char_repo.get_with_data_source = AsyncMock(return_value=char)
         callback = AsyncMock()
         manual_provider.set_callback(callback)
 

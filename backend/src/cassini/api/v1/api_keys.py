@@ -1,6 +1,6 @@
 """API Key management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ async def list_api_keys(
 
 @router.post("/", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
+    request: Request,
     data: APIKeyCreate,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -57,6 +58,19 @@ async def create_api_key(
     session.add(api_key)
     await session.commit()
     await session.refresh(api_key)
+
+    request.state.audit_context = {
+        "resource_type": "api_key",
+        "resource_id": api_key.id,
+        "action": "create",
+        "summary": f"API key '{data.name}' created",
+        "fields": {
+            "name": data.name,
+            "key_prefix": api_key.key_prefix,
+            "expires_at": str(api_key.expires_at) if api_key.expires_at else None,
+            "rate_limit_per_minute": api_key.rate_limit_per_minute,
+        },
+    }
 
     # Return with the plain key (only time it's visible)
     return APIKeyCreateResponse(
@@ -92,6 +106,7 @@ async def get_api_key(
 
 @router.patch("/{key_id}", response_model=APIKeyResponse)
 async def update_api_key(
+    request: Request,
     key_id: str,
     data: APIKeyUpdate,
     session: AsyncSession = Depends(get_db_session),
@@ -116,11 +131,23 @@ async def update_api_key(
     await session.commit()
     await session.refresh(api_key)
 
+    request.state.audit_context = {
+        "resource_type": "api_key",
+        "resource_id": key_id,
+        "action": "update",
+        "summary": f"API key '{api_key.name}' updated",
+        "fields": {
+            "updated_fields": list(update_data.keys()),
+            "name": api_key.name,
+        },
+    }
+
     return APIKeyResponse.model_validate(api_key)
 
 
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_api_key(
+    request: Request,
     key_id: str,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
@@ -136,12 +163,22 @@ async def delete_api_key(
             detail=f"API key {key_id} not found",
         )
 
+    key_name = api_key.name
     await session.delete(api_key)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "api_key",
+        "resource_id": key_id,
+        "action": "delete",
+        "summary": f"API key '{key_name}' deleted",
+        "fields": {"name": key_name},
+    }
 
 
 @router.post("/{key_id}/revoke", response_model=APIKeyResponse)
 async def revoke_api_key(
+    request: Request,
     key_id: str,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
@@ -160,5 +197,13 @@ async def revoke_api_key(
     api_key.is_active = False
     await session.commit()
     await session.refresh(api_key)
+
+    request.state.audit_context = {
+        "resource_type": "api_key",
+        "resource_id": key_id,
+        "action": "update",
+        "summary": f"API key '{api_key.name}' revoked",
+        "fields": {"name": api_key.name, "is_active": False},
+    }
 
     return APIKeyResponse.model_validate(api_key)

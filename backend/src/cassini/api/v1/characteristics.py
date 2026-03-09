@@ -268,6 +268,7 @@ async def list_characteristics(
 @router.post("/", response_model=CharacteristicResponse, status_code=status.HTTP_201_CREATED)
 async def create_characteristic(
     data: CharacteristicCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
 ) -> CharacteristicResponse:
@@ -307,6 +308,23 @@ async def create_characteristic(
     # Re-load with data_source relationship
     characteristic = await repo.get_with_data_source(characteristic.id)
 
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": characteristic.id,
+        "action": "create",
+        "summary": f"Characteristic '{data.name}' created under hierarchy {data.hierarchy_id}",
+        "fields": {
+            "name": data.name,
+            "chart_type": data.chart_type,
+            "hierarchy_id": data.hierarchy_id,
+            "usl": data.usl,
+            "lsl": data.lsl,
+            "target": data.target_value,
+            "subgroup_size": data.subgroup_size,
+        },
+    }
+
     return CharacteristicResponse.model_validate(characteristic)
 
 
@@ -331,6 +349,7 @@ async def get_characteristic(
 async def update_characteristic(
     char_id: int,
     data: CharacteristicUpdate,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -347,6 +366,13 @@ async def update_characteristic(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    # Capture old values for audit trail (before mutation)
+    old_name = characteristic.name
+    old_values_snapshot = {
+        field: getattr(characteristic, field, None)
+        for field in data.model_dump(exclude_unset=True)
+    }
 
     # Plant-scoped authorization
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
@@ -416,6 +442,26 @@ async def update_characteristic(
     # Re-load with data_source relationship
     characteristic = await repo.get_with_data_source(char_id)
 
+    # Tier 1 audit context — only log changed fields
+    new_values = {}
+    old_values = {}
+    for field, old_val in old_values_snapshot.items():
+        new_val = getattr(characteristic, field, None)
+        if old_val != new_val:
+            old_values[field] = old_val
+            new_values[field] = new_val
+
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Characteristic '{old_name}' updated",
+        "fields": {
+            "old_values": old_values,
+            "new_values": new_values,
+        },
+    }
+
     return CharacteristicResponse.model_validate(characteristic)
 
 
@@ -424,6 +470,7 @@ async def update_characteristic(
 @router.delete("/{char_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_characteristic(
     char_id: int,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -454,9 +501,27 @@ async def delete_characteristic(
             detail=f"Cannot delete characteristic {char_id} with {len(samples)} existing samples"
         )
 
+    # Capture values for audit before deletion
+    deleted_name = characteristic.name
+    deleted_chart_type = characteristic.chart_type
+    deleted_hierarchy_id = characteristic.hierarchy_id
+
     # Delete characteristic (will cascade to rules via database)
     await session.delete(characteristic)
     await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "delete",
+        "summary": f"Characteristic '{deleted_name}' deleted",
+        "fields": {
+            "name": deleted_name,
+            "chart_type": deleted_chart_type,
+            "hierarchy_id": deleted_hierarchy_id,
+        },
+    }
 
 
 async def _recalculate_attribute_limits(
@@ -531,7 +596,7 @@ async def _get_attribute_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
-    product_code: str | None = None,
+    material_id: int | None = None,
 ) -> ChartDataResponse:
     """Build chart data response for attribute characteristics."""
     from cassini.core.engine.attribute_engine import (
@@ -554,7 +619,7 @@ async def _get_attribute_chart_data(
         char_id=char_id,
         window_size=limit,
         exclude_excluded=True,
-        product_code=product_code,
+        material_id=material_id,
     )
 
     # Calculate limits from data if not stored
@@ -575,7 +640,7 @@ async def _get_attribute_chart_data(
     # Compute display keys — fetch raw samples for timestamps
     samples_for_keys = await sample_repo.get_rolling_window(
         char_id=char_id, window_size=limit, exclude_excluded=True,
-        product_code=product_code,
+        material_id=material_id,
     )
     _display_keys = await _compute_display_keys(samples_for_keys, char_id, session)
 
@@ -668,7 +733,7 @@ async def _get_cusum_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
-    product_code: str | None = None,
+    material_id: int | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
 ) -> ChartDataResponse:
@@ -689,7 +754,7 @@ async def _get_cusum_chart_data(
         # Estimate sigma from sample data (same fallback as engine)
         all_samples = await sample_repo.get_rolling_window(
             char_id=char_id, window_size=100, exclude_excluded=True,
-            product_code=product_code,
+            material_id=material_id,
         )
         all_vals: list[float] = []
         for s in all_samples:
@@ -711,7 +776,7 @@ async def _get_cusum_chart_data(
             char_id=char_id,
             start_date=start_date,
             end_date=end_date,
-            product_code=product_code,
+            material_id=material_id,
         )
         # Exclude user-excluded samples (get_rolling_window does this, but
         # get_by_characteristic does not)
@@ -721,7 +786,7 @@ async def _get_cusum_chart_data(
     else:
         samples = await sample_repo.get_rolling_window(
             char_id=char_id, window_size=limit, exclude_excluded=True,
-            product_code=product_code,
+            material_id=material_id,
         )
 
     # Batch-load violations
@@ -838,7 +903,7 @@ async def _get_ewma_chart_data(
     limit: int,
     sample_repo: SampleRepository,
     session: AsyncSession,
-    product_code: str | None = None,
+    material_id: int | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
 ) -> ChartDataResponse:
@@ -860,7 +925,7 @@ async def _get_ewma_chart_data(
             char_id=char_id,
             start_date=start_date,
             end_date=end_date,
-            product_code=product_code,
+            material_id=material_id,
         )
         # Exclude user-excluded samples (get_rolling_window does this, but
         # get_by_characteristic does not)
@@ -870,7 +935,7 @@ async def _get_ewma_chart_data(
     else:
         samples = await sample_repo.get_rolling_window(
             char_id=char_id, window_size=limit, exclude_excluded=True,
-            product_code=product_code,
+            material_id=material_id,
         )
 
     # Estimate sigma
@@ -1009,7 +1074,7 @@ async def get_chart_data(
     limit: int = Query(100, ge=1, le=1000, description="Number of recent samples to return"),
     start_date: datetime | None = Query(None, description="Start date for filtering samples"),
     end_date: datetime | None = Query(None, description="End date for filtering samples"),
-    product_code: str | None = Query(None, description="Filter by product code"),
+    material_id: int | None = Query(None, description="Filter by material"),
     chart_type: str | None = Query(None, description="Override chart type for rendering (cusum, ewma, etc.)"),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
@@ -1033,7 +1098,7 @@ async def get_chart_data(
     if characteristic.data_type == "attribute":
         return await _get_attribute_chart_data(
             char_id, characteristic, limit, sample_repo, session,
-            product_code=product_code,
+            material_id=material_id,
         )
 
     # --- CUSUM chart branch ---
@@ -1041,7 +1106,7 @@ async def get_chart_data(
     if effective_chart_type == "cusum":
         return await _get_cusum_chart_data(
             char_id, characteristic, limit, sample_repo, session,
-            product_code=product_code,
+            material_id=material_id,
             start_date=start_date,
             end_date=end_date,
         )
@@ -1050,12 +1115,12 @@ async def get_chart_data(
     if effective_chart_type == "ewma":
         return await _get_ewma_chart_data(
             char_id, characteristic, limit, sample_repo, session,
-            product_code=product_code,
+            material_id=material_id,
             start_date=start_date,
             end_date=end_date,
         )
 
-    # Resolve product-specific limit overrides when product_code is set
+    # Resolve material-specific limit overrides when material_id is set
     _effective_ucl = characteristic.ucl
     _effective_lcl = characteristic.lcl
     _effective_sigma = characteristic.stored_sigma
@@ -1064,26 +1129,31 @@ async def get_chart_data(
     _effective_lsl = characteristic.lsl
     _effective_target = characteristic.target_value
 
-    if product_code:
-        product_code = product_code.strip().upper()
-        from cassini.db.repositories.product_limit import ProductLimitRepository
-        _pl_repo = ProductLimitRepository(session)
-        _pl = await _pl_repo.get_by_char_and_code(char_id, product_code)
-        if _pl is not None:
-            if _pl.ucl is not None:
-                _effective_ucl = _pl.ucl
-            if _pl.lcl is not None:
-                _effective_lcl = _pl.lcl
-            if _pl.stored_sigma is not None:
-                _effective_sigma = _pl.stored_sigma
-            if _pl.stored_center_line is not None:
-                _effective_center = _pl.stored_center_line
-            if _pl.usl is not None:
-                _effective_usl = _pl.usl
-            if _pl.lsl is not None:
-                _effective_lsl = _pl.lsl
-            if _pl.target_value is not None:
-                _effective_target = _pl.target_value
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(session)
+        _char_defaults = {
+            "ucl": _effective_ucl, "lcl": _effective_lcl,
+            "stored_sigma": _effective_sigma,
+            "stored_center_line": _effective_center,
+            "target_value": _effective_target,
+            "usl": _effective_usl, "lsl": _effective_lsl,
+        }
+        _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
+        if _resolved["ucl"] is not None:
+            _effective_ucl = _resolved["ucl"]
+        if _resolved["lcl"] is not None:
+            _effective_lcl = _resolved["lcl"]
+        if _resolved["stored_sigma"] is not None:
+            _effective_sigma = _resolved["stored_sigma"]
+        if _resolved["stored_center_line"] is not None:
+            _effective_center = _resolved["stored_center_line"]
+        if _resolved["usl"] is not None:
+            _effective_usl = _resolved["usl"]
+        if _resolved["lsl"] is not None:
+            _effective_lsl = _resolved["lsl"]
+        if _resolved["target_value"] is not None:
+            _effective_target = _resolved["target_value"]
 
     # Track whether limits come from stored values or are trial-computed
     _limits_source = "stored"
@@ -1105,7 +1175,7 @@ async def get_chart_data(
                 char_id=char_id,
                 start_date=start_date,
                 end_date=end_date,
-                product_code=product_code,
+                material_id=material_id,
             )
             if len(_prefetched_samples) > limit:
                 _prefetched_samples = _prefetched_samples[-limit:]
@@ -1114,7 +1184,7 @@ async def get_chart_data(
                 char_id=char_id,
                 window_size=limit,
                 exclude_excluded=True,
-                product_code=product_code,
+                material_id=material_id,
             )
 
         # Filter to non-excluded samples for trial computation
@@ -1202,7 +1272,7 @@ async def get_chart_data(
             char_id=char_id,
             start_date=start_date,
             end_date=end_date,
-            product_code=product_code,
+            material_id=material_id,
         )
         # Limit to most recent N samples if exceeded
         if len(samples) > limit:
@@ -1212,7 +1282,7 @@ async def get_chart_data(
             char_id=char_id,
             window_size=limit,
             exclude_excluded=True,
-            product_code=product_code,
+            material_id=material_id,
         )
 
     import math as _math
@@ -1391,7 +1461,7 @@ async def get_chart_data(
         stored_sigma=_effective_sigma,
         data_type=characteristic.data_type,
         short_run_mode=characteristic.short_run_mode,
-        active_product_code=product_code if product_code else None,
+        active_product_code=str(material_id) if material_id else None,
     )
 
 
@@ -1404,7 +1474,7 @@ async def recalculate_limits(
     start_date: datetime | None = Query(None, description="Start date for baseline period"),
     end_date: datetime | None = Query(None, description="End date for baseline period"),
     last_n: int | None = Query(None, ge=1, description="Use only the most recent N samples"),
-    product_code: str | None = Query(None, description="Recalculate for a specific product code"),
+    material_id: int | None = Query(None, description="Recalculate for a specific material"),
     service: ControlLimitService = Depends(get_control_limit_service),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1456,11 +1526,9 @@ async def recalculate_limits(
         }
         return attr_result
 
-    # --- Product-code-specific recalculation ---
-    if product_code:
-        product_code = product_code.strip().upper()
-
-        # Calculate limits from product-filtered samples
+    # --- Material-specific recalculation ---
+    if material_id:
+        # Calculate limits from material-filtered samples
         try:
             result = await service.calculate_limits(
                 characteristic_id=char_id,
@@ -1469,34 +1537,51 @@ async def recalculate_limits(
                 start_date=start_date,
                 end_date=end_date,
                 last_n=last_n,
-                product_code=product_code,
+                material_id=material_id,
             )
         except ValueError as ve:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient samples for product '{product_code}'"
+                detail="Insufficient samples for material"
                 if "Insufficient" in str(ve) else "Invalid input for limit calculation",
             )
 
-        # Store in product_limit table (not on characteristic)
-        from cassini.db.repositories.product_limit import ProductLimitRepository
-        pl_repo = ProductLimitRepository(session)
-        await pl_repo.upsert(char_id, product_code, {
+        # Store as material-level limit override (find existing or create)
+        from cassini.db.models.material_limit_override import MaterialLimitOverride
+        _existing_stmt = (
+            select(MaterialLimitOverride)
+            .where(
+                MaterialLimitOverride.characteristic_id == char_id,
+                MaterialLimitOverride.material_id == material_id,
+            )
+        )
+        _existing = (await session.execute(_existing_stmt)).scalar_one_or_none()
+        limit_vals = {
             "ucl": result.ucl,
             "lcl": result.lcl,
             "stored_sigma": result.sigma,
             "stored_center_line": result.center_line,
-        })
+        }
+        if _existing is not None:
+            for _k, _v in limit_vals.items():
+                setattr(_existing, _k, _v)
+        else:
+            session.add(MaterialLimitOverride(
+                characteristic_id=char_id,
+                material_id=material_id,
+                **limit_vals,
+            ))
+        await session.flush()
         await session.commit()
 
         request.state.audit_context = {
-            "resource_type": "product_limit",
+            "resource_type": "material_limit_override",
             "resource_id": char_id,
             "action": "recalculate",
-            "summary": f"Product limits recalculated for '{characteristic.name}' / '{product_code}'",
+            "summary": f"Material limits recalculated for '{characteristic.name}' / material {material_id}",
             "fields": {
                 "characteristic_name": characteristic.name,
-                "product_code": product_code,
+                "material_id": material_id,
                 "ucl": result.ucl,
                 "centerline": result.center_line,
                 "lcl": result.lcl,
@@ -1515,11 +1600,11 @@ async def recalculate_limits(
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
                 "last_n": last_n,
-                "product_code": product_code,
+                "material_id": material_id,
             },
         }
 
-    # Recalculate limits (standard — no product_code)
+    # Recalculate limits (standard — no material filter)
     try:
         result = await service.recalculate_and_persist(
             characteristic_id=char_id,
@@ -1763,6 +1848,7 @@ async def get_rules(
 async def update_rules(
     char_id: int,
     rules: list[NelsonRuleConfig],
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -1779,6 +1865,12 @@ async def update_rules(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    # Capture old rules for audit trail
+    old_rules = [
+        {"rule_id": r.rule_id, "is_enabled": r.is_enabled}
+        for r in characteristic.rules
+    ]
 
     # Validate rule IDs
     for rule in rules:
@@ -1808,6 +1900,24 @@ async def update_rules(
 
     # Return updated rules
     await session.refresh(characteristic)
+
+    new_rules = [
+        {"rule_id": r.rule_id, "is_enabled": r.is_enabled}
+        for r in characteristic.rules
+    ]
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Rule configuration updated for characteristic {char_id}",
+        "fields": {
+            "old_rules": old_rules,
+            "new_rules": new_rules,
+        },
+    }
+
     return [
         NelsonRuleConfig(
             rule_id=rule.rule_id,

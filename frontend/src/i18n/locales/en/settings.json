@@ -23,6 +23,7 @@
     "reports": "Reports",
     "ai": "AI Config",
     "account": "Account",
-    "emailWebhooks": "Email & Webhooks"
+    "emailWebhooks": "Email & Webhooks",
+    "materials": "Materials"
   }
 }

@@ -125,7 +125,7 @@ class TestMQTTClientConnection:
 
     @pytest.mark.asyncio
     async def test_connect_with_retry_on_failure(self) -> None:
-        """Test connection retries with exponential backoff on failure."""
+        """Test that failed initial connect starts background reconnection."""
         config = MQTTConfig(host="test.broker", max_reconnect_delay=4)
         client = MQTTClient(config)
 
@@ -151,18 +151,28 @@ class TestMQTTClientConnection:
         with (
             patch("cassini.mqtt.client.Client", side_effect=failing_client),
             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            patch.object(client, "_message_loop", new_callable=AsyncMock),
         ):
-                await client.connect()
+            # connect() does a single attempt then starts background loop
+            await client.connect()
 
-                # Should have retried
-                assert attempt == 3
-                assert client.is_connected is True
+            # Initial connect fails (attempt 1), not connected yet
+            assert attempt == 1
+            assert client.is_connected is False
 
-                # Verify exponential backoff (1s, 2s)
-                assert mock_sleep.call_count >= 2
-                delays = [call[0][0] for call in mock_sleep.call_args_list]
-                assert delays[0] == 1
-                assert delays[1] == 2
+            # Background reconnect task was started; await it to let retries run
+            assert client._reconnect_task is not None
+            await client._reconnect_task
+
+            # Background loop retried and succeeded on attempt 3
+            assert attempt == 3
+            assert client.is_connected is True
+
+            # Verify exponential backoff (1s, 2s) in background loop
+            assert mock_sleep.call_count >= 2
+            delays = [call[0][0] for call in mock_sleep.call_args_list]
+            assert delays[0] == 1
+            assert delays[1] == 2
 
         await client.disconnect()
 

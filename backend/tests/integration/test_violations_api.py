@@ -1,6 +1,7 @@
 """Integration tests for Violation REST API endpoints."""
 
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -17,12 +18,43 @@ from cassini.api.v1.violations import (
 )
 from cassini.api.schemas.violation import BatchAcknowledgeRequest, ViolationAcknowledge
 from cassini.core.alerts.manager import AlertManager
-from cassini.db.models.characteristic import Characteristic, ProviderType
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.violation import Violation
 from cassini.db.repositories.sample import SampleRepository
 from cassini.db.repositories.violation import ViolationRepository
+
+
+@pytest.fixture
+def mock_request() -> MagicMock:
+    """Create a mock Request object for audit context."""
+    req = MagicMock()
+    req.state = MagicMock()
+    return req
+
+
+@pytest.fixture
+def mock_user() -> MagicMock:
+    """Create a mock User object for auth."""
+    user = MagicMock()
+    user.username = "test_user"
+    user.plant_roles = []
+    return user
+
+
+@pytest.fixture(autouse=True)
+def _bypass_plant_auth():
+    """Bypass plant-scoped authorization for integration tests."""
+    with (
+        patch(
+            "cassini.api.v1.violations.resolve_plant_id_for_characteristic",
+            new_callable=AsyncMock,
+            return_value=1,
+        ),
+        patch("cassini.api.v1.violations.check_plant_role"),
+    ):
+        yield
 
 
 @pytest_asyncio.fixture
@@ -45,7 +77,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
     char = Characteristic(
         hierarchy_id=hierarchy.id,
         name="Test Characteristic",
-        provider_type=ProviderType.MANUAL,
+
         target_value=100.0,
         usl=110.0,
         lsl=90.0,
@@ -78,6 +110,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
     violations = [
         Violation(
             sample_id=samples[0].id,
+            char_id=char.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -85,6 +118,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
         ),
         Violation(
             sample_id=samples[1].id,
+            char_id=char.id,
             rule_id=2,
             rule_name="Trend",
             severity="WARNING",
@@ -92,6 +126,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
         ),
         Violation(
             sample_id=samples[2].id,
+            char_id=char.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -102,6 +137,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
         ),
         Violation(
             sample_id=samples[3].id,
+            char_id=char.id,
             rule_id=3,
             rule_name="Shift",
             severity="WARNING",
@@ -109,6 +145,7 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
         ),
         Violation(
             sample_id=samples[4].id,
+            char_id=char.id,
             rule_id=1,
             rule_name="Outlier",
             severity="CRITICAL",
@@ -129,10 +166,18 @@ async def sample_data(async_session: AsyncSession, hierarchy: Hierarchy) -> dict
 
 
 @pytest.mark.asyncio
-async def test_list_violations_no_filter(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_no_filter(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test listing all violations without filters."""
     repo = ViolationRepository(async_session)
-    result = await list_violations(repo=repo)
+    result = await list_violations(
+        repo=repo,
+        session=async_session,
+        _user=mock_user,
+        plant_id=None,
+        requires_acknowledgement=None,
+    )
 
     assert result.total == 5
     assert len(result.items) == 5
@@ -141,92 +186,137 @@ async def test_list_violations_no_filter(async_session: AsyncSession, sample_dat
 
 
 @pytest.mark.asyncio
-async def test_list_violations_filter_acknowledged(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_filter_acknowledged(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test filtering violations by acknowledgment status."""
     repo = ViolationRepository(async_session)
 
     # Get unacknowledged
-    result = await list_violations(acknowledged=False, repo=repo)
+    result = await list_violations(
+        acknowledged=False, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 4
     assert all(not item.acknowledged for item in result.items)
 
     # Get acknowledged
-    result = await list_violations(acknowledged=True, repo=repo)
+    result = await list_violations(
+        acknowledged=True, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 1
     assert all(item.acknowledged for item in result.items)
 
 
 @pytest.mark.asyncio
-async def test_list_violations_filter_severity(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_filter_severity(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test filtering violations by severity."""
     repo = ViolationRepository(async_session)
 
     # Get CRITICAL
-    result = await list_violations(severity="CRITICAL", repo=repo)
+    result = await list_violations(
+        severity="CRITICAL", repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 3
     assert all(item.severity == "CRITICAL" for item in result.items)
 
     # Get WARNING
-    result = await list_violations(severity="WARNING", repo=repo)
+    result = await list_violations(
+        severity="WARNING", repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 2
     assert all(item.severity == "WARNING" for item in result.items)
 
 
 @pytest.mark.asyncio
-async def test_list_violations_filter_rule_id(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_filter_rule_id(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test filtering violations by rule ID."""
     repo = ViolationRepository(async_session)
-    result = await list_violations(rule_id=1, repo=repo)
+    result = await list_violations(
+        rule_id=1, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
 
     assert result.total == 3
     assert all(item.rule_id == 1 for item in result.items)
 
 
 @pytest.mark.asyncio
-async def test_list_violations_filter_characteristic(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_filter_characteristic(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test filtering violations by characteristic ID."""
     repo = ViolationRepository(async_session)
     char_id = sample_data["characteristic"].id
 
-    result = await list_violations(characteristic_id=char_id, repo=repo)
+    result = await list_violations(
+        characteristic_id=char_id, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 5
 
 
 @pytest.mark.asyncio
-async def test_list_violations_filter_sample(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_filter_sample(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test filtering violations by sample ID."""
     repo = ViolationRepository(async_session)
     sample_id = sample_data["samples"][0].id
 
-    result = await list_violations(sample_id=sample_id, repo=repo)
+    result = await list_violations(
+        sample_id=sample_id, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 1
     assert result.items[0].sample_id == sample_id
 
 
 @pytest.mark.asyncio
-async def test_list_violations_pagination(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_pagination(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test pagination of violations list."""
     repo = ViolationRepository(async_session)
 
     # First page
-    result = await list_violations(offset=0, limit=2, repo=repo)
+    result = await list_violations(
+        offset=0, limit=2, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 5
     assert len(result.items) == 2
     assert result.offset == 0
     assert result.limit == 2
 
     # Second page
-    result = await list_violations(offset=2, limit=2, repo=repo)
+    result = await list_violations(
+        offset=2, limit=2, repo=repo, session=async_session,
+        _user=mock_user, plant_id=None, requires_acknowledgement=None,
+    )
     assert result.total == 5
     assert len(result.items) == 2
     assert result.offset == 2
 
 
 @pytest.mark.asyncio
-async def test_list_violations_combined_filters(async_session: AsyncSession, sample_data: dict):
+async def test_list_violations_combined_filters(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test combining multiple filters."""
     repo = ViolationRepository(async_session)
-    result = await list_violations(acknowledged=False, severity="CRITICAL", repo=repo)
+    result = await list_violations(
+        acknowledged=False, severity="CRITICAL", repo=repo,
+        session=async_session, _user=mock_user, plant_id=None,
+        requires_acknowledgement=None,
+    )
 
     assert result.total == 2
     assert all(not item.acknowledged for item in result.items)
@@ -234,13 +324,15 @@ async def test_list_violations_combined_filters(async_session: AsyncSession, sam
 
 
 @pytest.mark.asyncio
-async def test_get_violation_stats(async_session: AsyncSession, sample_data: dict):
+async def test_get_violation_stats(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test getting violation statistics."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
     manager = AlertManager(violation_repo, sample_repo)
 
-    result = await get_violation_stats(manager=manager)
+    result = await get_violation_stats(manager=manager, _user=mock_user, plant_id=None)
 
     assert result.total == 5
     assert result.unacknowledged == 4
@@ -249,23 +341,27 @@ async def test_get_violation_stats(async_session: AsyncSession, sample_data: dic
 
 
 @pytest.mark.asyncio
-async def test_get_violation_stats_with_filters(async_session: AsyncSession, sample_data: dict):
+async def test_get_violation_stats_with_filters(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test getting filtered violation statistics."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
     manager = AlertManager(violation_repo, sample_repo)
     char_id = sample_data["characteristic"].id
 
-    result = await get_violation_stats(characteristic_id=char_id, manager=manager)
+    result = await get_violation_stats(
+        characteristic_id=char_id, manager=manager, _user=mock_user, plant_id=None,
+    )
 
     assert result.total == 5
     assert result.unacknowledged == 4
 
 
 @pytest.mark.asyncio
-async def test_get_reason_codes():
+async def test_get_reason_codes(mock_user: MagicMock):
     """Test getting standard reason codes."""
-    result = await get_reason_codes()
+    result = await get_reason_codes(_user=mock_user)
 
     assert isinstance(result, list)
     assert "Tool Change" in result
@@ -275,12 +371,14 @@ async def test_get_reason_codes():
 
 
 @pytest.mark.asyncio
-async def test_get_violation(async_session: AsyncSession, sample_data: dict):
+async def test_get_violation(
+    async_session: AsyncSession, sample_data: dict, mock_user: MagicMock
+):
     """Test getting a single violation."""
     repo = ViolationRepository(async_session)
     violation_id = sample_data["violations"][0].id
 
-    result = await get_violation(violation_id=violation_id, repo=repo)
+    result = await get_violation(violation_id=violation_id, repo=repo, _user=mock_user)
 
     assert result.id == violation_id
     assert result.rule_id == 1
@@ -289,19 +387,22 @@ async def test_get_violation(async_session: AsyncSession, sample_data: dict):
 
 
 @pytest.mark.asyncio
-async def test_get_violation_not_found(async_session: AsyncSession):
+async def test_get_violation_not_found(async_session: AsyncSession, mock_user: MagicMock):
     """Test getting a non-existent violation."""
     repo = ViolationRepository(async_session)
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_violation(violation_id=9999, repo=repo)
+        await get_violation(violation_id=9999, repo=repo, _user=mock_user)
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio
-async def test_acknowledge_violation(async_session: AsyncSession, sample_data: dict):
+async def test_acknowledge_violation(
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
+):
     """Test acknowledging a violation."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
@@ -317,7 +418,11 @@ async def test_acknowledge_violation(async_session: AsyncSession, sample_data: d
     result = await acknowledge_violation(
         violation_id=violation_id,
         data=data,
+        request=mock_request,
         manager=manager,
+        repo=violation_repo,
+        session=async_session,
+        _user=mock_user,
     )
 
     assert result.id == violation_id
@@ -329,7 +434,8 @@ async def test_acknowledge_violation(async_session: AsyncSession, sample_data: d
 
 @pytest.mark.asyncio
 async def test_acknowledge_violation_with_exclude(
-    async_session: AsyncSession, sample_data: dict
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
 ):
     """Test acknowledging a violation with sample exclusion."""
     violation_repo = ViolationRepository(async_session)
@@ -347,7 +453,11 @@ async def test_acknowledge_violation_with_exclude(
     result = await acknowledge_violation(
         violation_id=violation_id,
         data=data,
+        request=mock_request,
         manager=manager,
+        repo=violation_repo,
+        session=async_session,
+        _user=mock_user,
     )
 
     assert result.acknowledged
@@ -358,7 +468,9 @@ async def test_acknowledge_violation_with_exclude(
 
 
 @pytest.mark.asyncio
-async def test_acknowledge_violation_not_found(async_session: AsyncSession):
+async def test_acknowledge_violation_not_found(
+    async_session: AsyncSession, mock_request: MagicMock, mock_user: MagicMock,
+):
     """Test acknowledging a non-existent violation."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
@@ -371,13 +483,20 @@ async def test_acknowledge_violation_not_found(async_session: AsyncSession):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await acknowledge_violation(violation_id=9999, data=data, manager=manager)
+        await acknowledge_violation(
+            violation_id=9999, data=data, request=mock_request,
+            manager=manager, repo=violation_repo, session=async_session,
+            _user=mock_user,
+        )
 
     assert exc_info.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_acknowledge_violation_already_acknowledged(async_session: AsyncSession, sample_data: dict):
+async def test_acknowledge_violation_already_acknowledged(
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
+):
     """Test acknowledging an already acknowledged violation."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
@@ -391,20 +510,27 @@ async def test_acknowledge_violation_already_acknowledged(async_session: AsyncSe
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await acknowledge_violation(violation_id=violation_id, data=data, manager=manager)
+        await acknowledge_violation(
+            violation_id=violation_id, data=data, request=mock_request,
+            manager=manager, repo=violation_repo, session=async_session,
+            _user=mock_user,
+        )
 
     assert exc_info.value.status_code == 409
     assert "already acknowledged" in exc_info.value.detail.lower()
 
 
 @pytest.mark.asyncio
-async def test_batch_acknowledge_success(async_session: AsyncSession, sample_data: dict):
+async def test_batch_acknowledge_success(
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
+):
     """Test batch acknowledgment of multiple violations."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
     manager = AlertManager(violation_repo, sample_repo)
 
-    request = BatchAcknowledgeRequest(
+    body = BatchAcknowledgeRequest(
         violation_ids=[
             sample_data["violations"][0].id,
             sample_data["violations"][1].id,
@@ -415,7 +541,10 @@ async def test_batch_acknowledge_success(async_session: AsyncSession, sample_dat
         exclude_sample=False,
     )
 
-    result = await batch_acknowledge(request=request, manager=manager)
+    result = await batch_acknowledge(
+        body=body, request=mock_request, manager=manager,
+        repo=violation_repo, session=async_session, _user=mock_user,
+    )
 
     assert result.total == 3
     assert result.successful == 3
@@ -425,13 +554,16 @@ async def test_batch_acknowledge_success(async_session: AsyncSession, sample_dat
 
 
 @pytest.mark.asyncio
-async def test_batch_acknowledge_partial_success(async_session: AsyncSession, sample_data: dict):
+async def test_batch_acknowledge_partial_success(
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
+):
     """Test batch acknowledgment with partial success."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
     manager = AlertManager(violation_repo, sample_repo)
 
-    request = BatchAcknowledgeRequest(
+    body = BatchAcknowledgeRequest(
         violation_ids=[
             sample_data["violations"][0].id,
             sample_data["violations"][2].id,  # Already acknowledged
@@ -443,7 +575,10 @@ async def test_batch_acknowledge_partial_success(async_session: AsyncSession, sa
         exclude_sample=False,
     )
 
-    result = await batch_acknowledge(request=request, manager=manager)
+    result = await batch_acknowledge(
+        body=body, request=mock_request, manager=manager,
+        repo=violation_repo, session=async_session, _user=mock_user,
+    )
 
     assert result.total == 4
     assert result.successful == 2
@@ -462,14 +597,15 @@ async def test_batch_acknowledge_partial_success(async_session: AsyncSession, sa
 
 @pytest.mark.asyncio
 async def test_batch_acknowledge_with_exclude(
-    async_session: AsyncSession, sample_data: dict
+    async_session: AsyncSession, sample_data: dict,
+    mock_request: MagicMock, mock_user: MagicMock,
 ):
     """Test batch acknowledgment with sample exclusion."""
     violation_repo = ViolationRepository(async_session)
     sample_repo = SampleRepository(async_session)
     manager = AlertManager(violation_repo, sample_repo)
 
-    request = BatchAcknowledgeRequest(
+    body = BatchAcknowledgeRequest(
         violation_ids=[
             sample_data["violations"][0].id,
             sample_data["violations"][1].id,
@@ -479,7 +615,10 @@ async def test_batch_acknowledge_with_exclude(
         exclude_sample=True,
     )
 
-    result = await batch_acknowledge(request=request, manager=manager)
+    result = await batch_acknowledge(
+        body=body, request=mock_request, manager=manager,
+        repo=violation_repo, session=async_session, _user=mock_user,
+    )
 
     assert result.successful == 2
 

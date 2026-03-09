@@ -78,6 +78,7 @@ async def _get_study_or_404(
 @router.post("/studies", response_model=MSAStudyResponse, status_code=status.HTTP_201_CREATED)
 async def create_study(
     body: MSAStudyCreate,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> MSAStudyResponse:
@@ -102,6 +103,23 @@ async def create_study(
     session.add(study)
     await session.commit()
     await session.refresh(study)
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "create",
+        "summary": f"MSA study '{study.name}' created (type: {study.study_type})",
+        "fields": {
+            "study_name": study.name,
+            "study_type": study.study_type,
+            "plant_id": study.plant_id,
+            "characteristic_id": study.characteristic_id,
+            "num_operators": study.num_operators,
+            "num_parts": study.num_parts,
+            "num_replicates": study.num_replicates,
+            "tolerance": study.tolerance,
+        },
+    }
 
     logger.info("msa_study_created", study_id=study.id, user=user.username)
     return MSAStudyResponse.model_validate(study)
@@ -164,6 +182,7 @@ async def get_study(
 @router.delete("/studies/{study_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_study(
     study_id: int,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> None:
@@ -174,8 +193,27 @@ async def delete_study(
     study = await _get_study_or_404(session, study_id)
     check_plant_role(user, study.plant_id, "engineer")
 
+    # Capture details before deletion for audit trail
+    study_name = study.name
+    study_type = study.study_type
+    study_status = study.status
+    plant_id = study.plant_id
+
     await session.delete(study)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "delete",
+        "summary": f"MSA study '{study_name}' deleted (type: {study_type}, status: {study_status})",
+        "fields": {
+            "study_name": study_name,
+            "study_type": study_type,
+            "status": study_status,
+            "plant_id": plant_id,
+        },
+    }
 
     logger.info("msa_study_deleted", study_id=study_id, user=user.username)
 
@@ -189,6 +227,7 @@ async def delete_study(
 async def set_operators(
     study_id: int,
     body: MSAOperatorsSet,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MSAOperatorResponse]:
@@ -215,6 +254,19 @@ async def set_operators(
     for op in new_operators:
         await session.refresh(op)
 
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "update",
+        "summary": f"Operators set for MSA study '{study.name}': {body.operators}",
+        "fields": {
+            "study_name": study.name,
+            "operators": body.operators,
+            "count": len(new_operators),
+            "plant_id": study.plant_id,
+        },
+    }
+
     logger.info(
         "msa_operators_set", study_id=study_id,
         count=len(new_operators), user=user.username,
@@ -226,6 +278,7 @@ async def set_operators(
 async def set_parts(
     study_id: int,
     body: MSAPartsSet,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MSAPartResponse]:
@@ -257,6 +310,20 @@ async def set_parts(
     for part in new_parts:
         await session.refresh(part)
 
+    part_names = [p.name for p in body.parts]
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "update",
+        "summary": f"Parts set for MSA study '{study.name}': {part_names}",
+        "fields": {
+            "study_name": study.name,
+            "parts": part_names,
+            "count": len(new_parts),
+            "plant_id": study.plant_id,
+        },
+    }
+
     logger.info(
         "msa_parts_set", study_id=study_id,
         count=len(new_parts), user=user.username,
@@ -273,6 +340,7 @@ async def set_parts(
 async def submit_measurements(
     study_id: int,
     body: MSAMeasurementBatch,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MSAMeasurementResponse]:
@@ -302,6 +370,18 @@ async def submit_measurements(
     await session.commit()
     for m in new_measurements:
         await session.refresh(m)
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "create",
+        "summary": f"Submitted {len(new_measurements)} measurements for MSA study '{study.name}'",
+        "fields": {
+            "study_name": study.name,
+            "measurement_count": len(new_measurements),
+            "plant_id": study.plant_id,
+        },
+    }
 
     logger.info(
         "msa_measurements_submitted", study_id=study_id,
@@ -340,6 +420,7 @@ async def get_measurements(
 async def submit_attribute_measurements(
     study_id: int,
     body: MSAAttributeBatch,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> list[MSAMeasurementResponse]:
@@ -370,6 +451,18 @@ async def submit_attribute_measurements(
     await session.commit()
     for m in new_measurements:
         await session.refresh(m)
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "create",
+        "summary": f"Submitted {len(new_measurements)} attribute measurements for MSA study '{study.name}'",
+        "fields": {
+            "study_name": study.name,
+            "measurement_count": len(new_measurements),
+            "plant_id": study.plant_id,
+        },
+    }
 
     logger.info(
         "msa_attribute_measurements_submitted", study_id=study_id,

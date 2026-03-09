@@ -263,13 +263,11 @@ class TestCharacteristicRepository:
         await c_repo.create(
             hierarchy_id=site.id,
             name="Site Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         await c_repo.create(
             hierarchy_id=area.id,
             name="Area Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -296,19 +294,16 @@ class TestCharacteristicRepository:
         await c_repo.create(
             hierarchy_id=site.id,
             name="Site Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         await c_repo.create(
             hierarchy_id=area.id,
             name="Area Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         await c_repo.create(
             hierarchy_id=line.id,
             name="Line Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -317,37 +312,6 @@ class TestCharacteristicRepository:
 
         assert len(all_chars) == 3
         assert {c.name for c in all_chars} == {"Site Char", "Area Char", "Line Char"}
-
-    @pytest.mark.asyncio
-    async def test_get_by_provider_type(self, async_session: AsyncSession) -> None:
-        """Test filtering characteristics by provider type."""
-        h_repo = HierarchyRepository(async_session)
-        c_repo = CharacteristicRepository(async_session)
-
-        site = await h_repo.create(name="Site A", type="Site", parent_id=None)
-
-        # Create characteristics with different provider types
-        await c_repo.create(
-            hierarchy_id=site.id,
-            name="Manual Char",
-            provider_type="MANUAL",
-            subgroup_size=1,
-        )
-        await c_repo.create(
-            hierarchy_id=site.id,
-            name="Tag Char",
-            provider_type="TAG",
-            subgroup_size=1,
-            mqtt_topic="test/topic",
-        )
-
-        manual_chars = await c_repo.get_by_provider_type("MANUAL")
-        tag_chars = await c_repo.get_by_provider_type("TAG")
-
-        assert len(manual_chars) == 1
-        assert manual_chars[0].name == "Manual Char"
-        assert len(tag_chars) == 1
-        assert tag_chars[0].name == "Tag Char"
 
     @pytest.mark.asyncio
     async def test_get_with_rules(self, async_session: AsyncSession) -> None:
@@ -359,7 +323,6 @@ class TestCharacteristicRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -392,7 +355,6 @@ class TestSampleRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -428,7 +390,6 @@ class TestSampleRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -469,7 +430,6 @@ class TestSampleRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -506,7 +466,6 @@ class TestSampleRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -523,10 +482,6 @@ class TestSampleRepository:
         assert sample.operator_id == "OPR-123"
 
         # Verify measurement was created
-        measurements = await async_session.execute(
-            async_session.query(Measurement).filter(Measurement.sample_id == sample.id)
-        )
-        # Note: Using execute for SQLAlchemy 2.0 compatibility
         from sqlalchemy import select as sql_select
 
         stmt = sql_select(Measurement).where(Measurement.sample_id == sample.id)
@@ -548,7 +503,6 @@ class TestSampleRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=5,
         )
 
@@ -585,7 +539,6 @@ class TestViolationRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         sample = await s_repo.create_with_measurements(char_id=char.id, values=[10.5])
@@ -626,13 +579,11 @@ class TestViolationRepository:
         char1 = await c_repo.create(
             hierarchy_id=site.id,
             name="Char 1",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         char2 = await c_repo.create(
             hierarchy_id=site.id,
             name="Char 2",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
 
@@ -641,12 +592,14 @@ class TestViolationRepository:
 
         await v_repo.create(
             sample_id=sample1.id,
+            char_id=char1.id,
             rule_id=1,
             severity="WARNING",
             acknowledged=False,
         )
         await v_repo.create(
             sample_id=sample2.id,
+            char_id=char2.id,
             rule_id=1,
             severity="WARNING",
             acknowledged=False,
@@ -656,7 +609,7 @@ class TestViolationRepository:
         char1_violations = await v_repo.get_unacknowledged(char_id=char1.id)
 
         assert len(char1_violations) == 1
-        assert char1_violations[0].sample.char_id == char1.id
+        assert char1_violations[0].char_id == char1.id
 
     @pytest.mark.asyncio
     async def test_get_by_sample(self, async_session: AsyncSession) -> None:
@@ -670,7 +623,6 @@ class TestViolationRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         sample = await s_repo.create_with_measurements(char_id=char.id, values=[10.5])
@@ -700,7 +652,6 @@ class TestViolationRepository:
         char = await c_repo.create(
             hierarchy_id=site.id,
             name="Test Char",
-            provider_type="MANUAL",
             subgroup_size=1,
         )
         sample = await s_repo.create_with_measurements(char_id=char.id, values=[10.5])

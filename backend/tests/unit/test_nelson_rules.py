@@ -641,9 +641,17 @@ class TestMultiRuleAndEdgeCases:
         assert Rule6ZoneB().check(window) is not None
 
     def test_rule8_exactly_on_zone_c_boundary(self):
-        """110.0 classifies as Zone B upper (≥1σ), not Zone C. 8 such → triggers."""
-        window = _make_window([110.0] * 8)
-        assert Rule8Mixture().check(window) is not None
+        """110.0 classifies as Zone B upper (≥1σ), not Zone C. 8 such points
+        are all outside Zone C, but Rule 8 requires points on BOTH sides of
+        center (mixture = bimodal pattern). All on one side → no trigger.
+        Use alternating upper/lower Zone B values to trigger."""
+        # All same side: no trigger (Rule 8 requires both sides)
+        window_same_side = _make_window([110.0] * 8)
+        assert Rule8Mixture().check(window_same_side) is None
+
+        # Alternating upper/lower Zone B: triggers
+        window_both_sides = _make_window([110.0, 85.0, 115.0, 80.0, 120.0, 85.0, 110.0, 80.0])
+        assert Rule8Mixture().check(window_both_sides) is not None
 
 
 # ===================================================================

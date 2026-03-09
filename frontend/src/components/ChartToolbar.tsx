@@ -15,7 +15,8 @@ import {
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useProductCodes, useAnomalyEvents } from '@/api/hooks'
+import { useMaterials, useAnomalyEvents } from '@/api/hooks'
+import { usePlant } from '@/providers/PlantProvider'
 import { TimeRangeSelector } from './TimeRangeSelector'
 import { HistogramPositionSelector } from './HistogramPositionSelector'
 import { ChartTypeSelector } from './charts/ChartTypeSelector'
@@ -270,11 +271,12 @@ export function ChartToolbar({
     setShowAnomalies,
     showPredictions,
     setShowPredictions,
-    productCodeFilter,
-    setProductCodeFilter,
+    materialIdFilter,
+    setMaterialIdFilter,
   } = useDashboardStore()
 
-  const { data: productCodes } = useProductCodes(characteristicId ?? 0)
+  const { selectedPlant } = usePlant()
+  const { data: plantMaterials } = useMaterials(selectedPlant?.id ?? 0)
 
   // Anomaly data — same query key as ControlChart so React Query deduplicates
   const { data: anomalyData } = useAnomalyEvents(
@@ -290,16 +292,16 @@ export function ChartToolbar({
     'INFO',
   )
 
-  // Reset product code filter when characteristic changes
+  // Reset material filter when characteristic changes
   const prevCharIdRef = useRef(characteristicId)
   useEffect(() => {
     if (characteristicId !== prevCharIdRef.current) {
       prevCharIdRef.current = characteristicId
-      if (productCodeFilter) {
-        setProductCodeFilter(null)
+      if (materialIdFilter) {
+        setMaterialIdFilter(null)
       }
     }
-  }, [characteristicId, productCodeFilter, setProductCodeFilter])
+  }, [characteristicId, materialIdFilter, setMaterialIdFilter])
 
   // Close insights popover when anomalies toggled off
   useEffect(() => {
@@ -357,28 +359,30 @@ export function ChartToolbar({
           />
         )}
 
-        {/* Product code filter */}
-        {productCodes && productCodes.length > 0 && (
+        {/* Material filter */}
+        {plantMaterials && plantMaterials.length > 0 && (
           <>
             <div className="bg-border/40 mx-0.5 h-4 w-px" />
             <div className="flex items-center gap-1">
               <Package className="text-muted-foreground h-3.5 w-3.5" />
               <select
-                value={productCodeFilter ?? ''}
-                onChange={(e) => setProductCodeFilter(e.target.value || null)}
+                value={materialIdFilter ?? ''}
+                onChange={(e) =>
+                  setMaterialIdFilter(e.target.value ? Number(e.target.value) : null)
+                }
                 className={cn(
                   'border-transparent bg-transparent py-0.5 pr-5 pl-1 text-xs',
                   'focus:border-primary focus:ring-primary/20 rounded focus:ring-1 focus:outline-none',
-                  productCodeFilter
+                  materialIdFilter
                     ? 'text-primary font-medium'
                     : 'text-muted-foreground',
                 )}
-                title="Filter by product code"
+                title="Filter by material"
               >
-                <option value="">All Products</option>
-                {productCodes.map((code) => (
-                  <option key={code} value={code}>
-                    {code}
+                <option value="">All Materials</option>
+                {plantMaterials.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.code})
                   </option>
                 ))}
               </select>
