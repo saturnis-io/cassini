@@ -16,6 +16,7 @@ import {
   Brain,
   CircleUser,
   Mail,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/providers/AuthProvider'
@@ -49,6 +50,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
   {
     labelKey: 'groups.organization',
     tabs: [
+      { to: 'license', labelKey: 'tabs.license', icon: ScrollText, minRole: 'admin' },
       { to: 'sites', labelKey: 'tabs.sites', icon: Factory, minRole: 'admin' },
       { to: 'branding', labelKey: 'tabs.branding', icon: Building2, minRole: 'admin' },
       { to: 'localization', labelKey: 'tabs.localization', icon: Globe, minRole: 'admin' },

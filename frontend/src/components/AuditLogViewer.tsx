@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<string, string> = {
   forecast: 'Forecast',
   test: 'Test',
   notify: 'Notify',
+  upload: 'Upload',
   login: 'Login',
   login_failed: 'Login Failed',
   logout: 'Logout',
@@ -90,6 +91,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   material_override: 'Material Override',
   report_schedule: 'Report Schedule',
   notification: 'Notification',
+  license: 'License',
 }
 
 function ActionBadge({ action }: { action: string }) {

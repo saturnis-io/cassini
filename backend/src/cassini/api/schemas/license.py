@@ -1,4 +1,4 @@
-"""Pydantic schemas for license status endpoint."""
+"""Pydantic schemas for license endpoints."""
 
 from pydantic import BaseModel
 
@@ -10,3 +10,8 @@ class LicenseStatusResponse(BaseModel):
     expires_at: str | None = None
     days_until_expiry: int | None = None
     is_expired: bool | None = None
+    license_name: str | None = None
+
+
+class LicenseUploadRequest(BaseModel):
+    key: str
