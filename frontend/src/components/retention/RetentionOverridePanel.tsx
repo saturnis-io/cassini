@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { useHierarchyPath } from '@/api/hooks'
 import { RetentionPolicyForm } from './RetentionPolicyForm'
 import { InheritanceChain, type InheritanceStep } from './InheritanceChain'
-import { formatRetentionPolicy, formatRetentionDescription } from './utils'
+import { formatRetentionPolicy } from './utils'
 import type { SelectedNode } from './RetentionTreeBrowser'
 import type { RetentionOverride, RetentionPolicy, RetentionPolicySet } from '@/types'
 

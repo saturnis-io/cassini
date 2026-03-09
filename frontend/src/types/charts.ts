@@ -40,7 +40,7 @@ export interface ChartTypeDefinition {
   recommendedSubgroupRange?: [number, number]
 
   // Data type requirements
-  dataType: 'continuous' | 'attribute'
+  dataType: 'continuous' | 'attribute' | 'any'
   attributeType?: 'defective' | 'defects'
 
   // Layout configuration

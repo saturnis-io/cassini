@@ -355,7 +355,7 @@ export function resolveColorForMode(
  * - `line`: primary seed hex (or Cassini Gold)
  * - `dot`: destructive seed hex (or Cassini Red)
  */
-export function deriveLogoColors(brand: BrandConfig): Required<LogoColors> {
+export function deriveLogoColors(brand: BrandConfig): { planet: string; ring: string; line: string; dot: string } {
   const accentHex = brand.accent?.hex ?? DEFAULT_ACCENT
   const primaryHex = brand.primary?.hex ?? DEFAULT_PRIMARY
   const destructiveHex = brand.destructive?.hex ?? DEFAULT_DESTRUCTIVE

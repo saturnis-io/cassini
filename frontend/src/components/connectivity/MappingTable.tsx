@@ -189,7 +189,6 @@ export function MappingTable({
 function SortButton({
   label,
   active,
-  dir,
   onClick,
 }: {
   label: string

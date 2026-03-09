@@ -278,8 +278,6 @@ export function OperatorDashboard() {
   }, [unifiedPoints, rangeWindow, showBrush])
 
   const { role } = useAuth()
-  const canBulkAck =
-    canPerformAction(role, 'violations:acknowledge') && visibleViolationIds.length > 0
 
   // Persist attribute chart type changes to backend so limits are recomputed
   const queryClient = useQueryClient()

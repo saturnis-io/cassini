@@ -171,7 +171,7 @@ export function buildAnomalyMarks(
     const color = severityColor(event.severity)
     const tooltipHtml = buildTooltipHtml(event)
 
-    if (event.event_type === 'outlier' || event.event_type === 'anomaly_score') {
+    if (event.event_type === 'outlier' || (event.event_type as string) === 'anomaly_score') {
       const sampleIndex = dataPoints.findIndex((p) => p.sample_id === event.sample_id)
       if (sampleIndex >= 0) {
         const pt = dataPoints[sampleIndex]

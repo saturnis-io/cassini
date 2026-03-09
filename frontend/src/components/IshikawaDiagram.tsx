@@ -1,6 +1,5 @@
 import { useMemo, useCallback } from 'react'
 import { useECharts } from '@/hooks/useECharts'
-import type { ECOption } from '@/lib/echarts'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import type { IshikawaResult, IshikawaCategory } from '@/api/hooks/useIshikawa'
 
@@ -43,7 +42,7 @@ export function IshikawaDiagram({
     return m
   }, [data.categories])
 
-  const option = useMemo<ECOption>(() => {
+  const option = useMemo(() => {
     // Coordinate system: x 0..1000, y 0..500
     const W = 1000
     const H = 500

@@ -11,7 +11,6 @@ import { formatDisplayKey } from '@/lib/display-key'
 import { useLicense } from '@/hooks/useLicense'
 import { useAnnotations, useAnomalyEvents, useChartData, useForecast, useHierarchyPath } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { type ChartColors } from '@/lib/theme-presets'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useDateFormat } from '@/hooks/useDateFormat'
@@ -769,13 +768,6 @@ export function ControlChart({
               }
             }
 
-            // Find which data indices these timestamps match for logging
-            let matchStartIdx = -1
-            let matchEndIdx = -1
-            for (let i = 0; i < data.length; i++) {
-              if (matchStartIdx < 0 && data[i].timestampMs >= startMs) matchStartIdx = i
-              if (data[i].timestampMs <= endMs) matchEndIdx = i
-            }
           } else if (ann.start_sample_id != null && ann.end_sample_id != null) {
             // Legacy sample-based period annotation
             const startPt = sampleMap.get(ann.start_sample_id)
@@ -1676,7 +1668,8 @@ export function ControlChart({
                         data: anomalyOverlay.markPoints as never[],
                         tooltip: {
                           show: true,
-                          formatter: (params: Record<string, Record<string, string>>) =>
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter: (params: Record<string, any>) =>
                             params.data?._tooltipHtml ?? '',
                         },
                       }
@@ -1690,7 +1683,8 @@ export function ControlChart({
                           show: true,
                           formatter: (params: Record<string, unknown>) => {
                             // markArea formatter receives {data} which is the pair array
-                            const item = params.data as Record<string, string>[] | Record<string, string> | undefined
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const item = params.data as any
                             return (
                               item?.[0]?._tooltipHtml ??
                               item?._tooltipHtml ??
@@ -1708,7 +1702,8 @@ export function ControlChart({
                         data: anomalyOverlay.markLines as never[],
                         tooltip: {
                           show: true,
-                          formatter: (params: Record<string, Record<string, string>>) =>
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter: (params: Record<string, any>) =>
                             params.data?._tooltipHtml ?? '',
                         },
                       }

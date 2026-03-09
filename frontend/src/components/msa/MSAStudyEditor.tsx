@@ -39,7 +39,7 @@ import type {
 } from '@/api/client'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
-import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
+import { StudySteps } from '@/components/studies/StudySteps'
 import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'

@@ -38,6 +38,7 @@ export interface ForecastResult {
   generated_at: string
   model_type: string
   predicted_ooc_step: number | null
+  aic?: number | null
 }
 
 export interface PredictionDashboardItem {

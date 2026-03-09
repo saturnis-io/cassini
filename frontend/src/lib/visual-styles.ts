@@ -57,9 +57,9 @@ export type VisualStyle = keyof typeof VISUAL_STYLES
 export const ALL_STYLE_KEYS = Object.keys(VISUAL_STYLES) as VisualStyle[]
 
 /** All CSS class names that need to be removed when switching styles. */
-export const ALL_STYLE_CSS_CLASSES: string[] = Object.values(VISUAL_STYLES)
+export const ALL_STYLE_CSS_CLASSES = Object.values(VISUAL_STYLES)
   .map((s) => s.cssClass)
-  .filter((c): c is string => c !== null)
+  .filter((c): c is NonNullable<typeof c> => c !== null)
 
 /** Options array for UI selectors (AppearanceSettings, BrandingSettings). */
 export const VISUAL_STYLE_OPTIONS = ALL_STYLE_KEYS.map((key) => ({

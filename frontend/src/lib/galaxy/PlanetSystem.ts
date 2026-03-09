@@ -119,7 +119,6 @@ export class PlanetSystem {
   private moonHitGeo: THREE.SphereGeometry | null = null
   private moonHitMat: THREE.MeshBasicMaterial | null = null
   private uMoonsArray: THREE.Vector3[] = []
-  private uMoonStatusArray: number[] = []
 
   // Halo-LOD resources (nullable — only present when LOD === 'halo')
   private haloPlanetGeo: THREE.BufferGeometry | null = null
@@ -258,14 +257,12 @@ export class PlanetSystem {
       // Hide the Saturn ring particles — keep only the shader uniforms
       if (this.ringMesh) this.ringMesh.visible = false
       this.uMoonsArray = rings.uMoonsArray
-      this.uMoonStatusArray = rings.uMoonStatusArray
     } else {
       const rings = this.createRings()
       this.ringGeo = rings.geo
       this.ringShaderMat = rings.mat
       this.ringMesh = rings.ringsMesh
       this.uMoonsArray = rings.uMoonsArray
-      this.uMoonStatusArray = rings.uMoonStatusArray
     }
 
     if (this.skipDefaultMoons) {
@@ -358,7 +355,6 @@ export class PlanetSystem {
     this.moonHitGeo = null
     this.moonHitMat = null
     this.uMoonsArray = []
-    this.uMoonStatusArray = []
 
     this.blackHoleGeo?.dispose()
     this.blackHoleMat?.dispose()
@@ -925,7 +921,7 @@ export class PlanetSystem {
       })
       const moonSize =
         MOON_SIZE_OLDEST + ageFraction * (MOON_SIZE_NEWEST - MOON_SIZE_OLDEST)
-      const mesh = new THREE.Mesh(this.moonGeo, mat)
+      const mesh = new THREE.Mesh(this.moonGeo!, mat)
       mesh.scale.setScalar(moonSize / 0.12) // 0.12 is the base geo radius
       mesh.userData.baseScale = moonSize / 0.12
       this.group.add(mesh)

@@ -9,7 +9,6 @@ import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
 import { StatNote } from './StatNote'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
-import type { EWMAChartSample } from '@/types'
 
 interface EWMAChartProps {
   characteristicId: number

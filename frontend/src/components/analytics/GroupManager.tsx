@@ -87,7 +87,7 @@ export function GroupManager({ plantId, selectedGroupId, onSelectGroup }: GroupM
                 name: m.characteristic_name ?? '',
                 path: m.hierarchy_path ?? '',
               }))
-              .filter((m) => m.name)
+              .filter((m: { name: string; path: string }) => m.name)
 
             return (
               <div
@@ -152,7 +152,7 @@ export function GroupManager({ plantId, selectedGroupId, onSelectGroup }: GroupM
                 {/* Member names — compact inline list */}
                 {memberInfo.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
-                    {memberInfo.map((m, i) => (
+                    {memberInfo.map((m: { name: string; path: string }, i: number) => (
                       <span
                         key={i}
                         title={m.path || m.name}

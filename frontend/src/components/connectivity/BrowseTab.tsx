@@ -28,7 +28,7 @@ export function BrowseTab() {
     setSelectedMetric(null)
   }
 
-  const handleTopicSelect = (topic: string | null, metrics?: SparkplugMetricInfo[]) => {
+  const handleTopicSelect = (topic: string | null, _metrics?: SparkplugMetricInfo[]) => {
     setSelectedTopic(topic)
     setSelectedNode(null)
     setSelectedMetric(null)

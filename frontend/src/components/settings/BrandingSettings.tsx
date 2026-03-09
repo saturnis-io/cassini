@@ -17,7 +17,7 @@ import { HelpTooltip } from '@/components/HelpTooltip'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
-import { VISUAL_STYLE_OPTIONS } from '@/lib/visual-styles'
+import { VISUAL_STYLE_OPTIONS, type VisualStyle } from '@/lib/visual-styles'
 import {
   type BrandConfig,
   type BrandColorSeed,
@@ -742,7 +742,7 @@ export function BrandingSettings() {
         onSuccess: () => {
           setFullBrandConfig(draft)
           if (draft.visualStyle) {
-            setVisualStyle(draft.visualStyle)
+            setVisualStyle(draft.visualStyle as VisualStyle)
           }
           setIsDirty(false)
         },

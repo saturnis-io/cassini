@@ -19,7 +19,7 @@ export function FAIForm2({ report, readonly }: FAIForm2Props) {
 
   const handleBlur = useCallback(
     (field: string, value: string) => {
-      const original = (report as Record<string, unknown>)[field]
+      const original = (report as unknown as Record<string, unknown>)[field]
       if (value === (original ?? '')) return
       updateReport.mutate({
         id: report.id,

@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils'
 import { StatNote } from './StatNote'
 import { useTheme } from '@/providers/ThemeProvider'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
-import type { AttributeChartSample } from '@/types'
 
 interface AttributeChartProps {
   characteristicId: number

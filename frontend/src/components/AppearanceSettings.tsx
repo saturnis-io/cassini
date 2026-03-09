@@ -149,7 +149,6 @@ function ChartPreview({ colors }: { colors: ChartColors }) {
   const { resolvedTheme } = useTheme()
 
   const option = useMemo(() => {
-    const xData = PREVIEW_VALUES.map((_, i) => i + 1)
     const sigma1 = (PREVIEW_UCL - PREVIEW_CL) / 3
     const zoneAbove = [
       { from: PREVIEW_CL + 2 * sigma1, to: PREVIEW_UCL, color: colors.zoneA },

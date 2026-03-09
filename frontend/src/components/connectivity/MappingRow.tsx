@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Trash2, Pencil, Power, PowerOff, Circle } from 'lucide-react'
 import { ProtocolBadge } from './ProtocolBadge'
-import type { TagMappingResponse } from '@/types'
-
 export interface MappingRowData {
   id: number
   characteristicId: number

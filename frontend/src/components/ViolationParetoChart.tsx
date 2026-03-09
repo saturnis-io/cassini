@@ -65,7 +65,7 @@ export function ViolationParetoChart({ characteristicId, chartOptions }: Violati
     countViolations(chartData.data_points ?? [])
 
     // Handle attribute chart data points
-    countViolations(chartData.attribute_samples ?? [])
+    countViolations(chartData.attribute_data_points ?? [])
 
     // Handle CUSUM data points
     countViolations(chartData.cusum_data_points ?? [])

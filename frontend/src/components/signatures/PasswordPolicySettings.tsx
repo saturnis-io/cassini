@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { KeyRound, Loader2, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePasswordPolicy, useUpdatePasswordPolicy } from '@/api/hooks'
-import type { PasswordPolicy } from '@/types/signature'
 
 export function PasswordPolicySettings() {
   const { data: policy, isLoading } = usePasswordPolicy()

@@ -14,7 +14,6 @@ import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
 import { StatNote } from './StatNote'
 import { RotateCcw } from 'lucide-react'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
-import type { CUSUMChartSample } from '@/types'
 
 interface CUSUMChartProps {
   characteristicId: number
@@ -64,8 +63,6 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
 
   const cusumPoints = chartData?.cusum_data_points ?? []
   const h = chartData?.control_limits?.ucl ?? chartData?.cusum_h ?? 5
-  const hDisplay = chartData?.cusum_h ?? 5
-
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
     const rules = new Set<number>()

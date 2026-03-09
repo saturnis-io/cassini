@@ -481,7 +481,6 @@ export function DistributionHistogram({
     if (isVertical) {
       // Vertical layout: xAxis is count (horizontal), yAxis is value (vertical, aligned with X-bar chart)
       // Use custom series for horizontal bars since ECharts bar series defaults to vertical with two value axes
-      const binWidth = bins.length > 1 ? bins[1].binCenter - bins[0].binCenter : 1
       const localBins = bins
       const localHighlight = highlightedBinIndex
       const localColors = colors

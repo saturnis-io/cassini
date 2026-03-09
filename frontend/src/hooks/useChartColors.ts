@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import { getStoredChartColors, type ChartColors } from '@/lib/theme-presets'
+import type { ChartColors } from '@/lib/theme-presets'
+import { getStoredChartColors } from '@/lib/theme-presets'
 import { useTheme } from '@/providers/ThemeProvider'
 
 /**

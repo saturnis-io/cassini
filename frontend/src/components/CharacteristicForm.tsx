@@ -26,12 +26,14 @@ import { RulesTab, type RulesTabRef } from './characteristic-config/RulesTab'
 import { MaterialOverridesTab } from './characteristic-config/MaterialOverridesTab'
 import type { ScheduleConfig, ScheduleType } from './ScheduleConfigSection'
 import type { SubgroupMode } from '@/types'
+import { usePlantContext } from '@/providers/PlantProvider'
 
 interface CharacteristicFormProps {
   characteristicId: number | null
 }
 
 export function CharacteristicForm({ characteristicId }: CharacteristicFormProps) {
+  const { selectedPlant } = usePlantContext()
   const { data: characteristic, isLoading } = useCharacteristic(characteristicId ?? 0)
   const { data: configData } = useCharacteristicConfig(characteristicId)
   const hierarchyPath = useHierarchyPath(characteristicId)
@@ -398,7 +400,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
         return (
           <MaterialOverridesTab
             characteristicId={characteristicId!}
-            plantId={characteristic?.plant_id ?? 0}
+            plantId={selectedPlant?.id ?? 0}
           />
         )
       default:

@@ -124,8 +124,6 @@ function applyDatePattern(yy: string, mm: string, dd: string, pattern: string): 
   const yyyy = `20${yy}`
   const monthIdx = parseInt(mm) - 1
   const monthName = MONTH_NAMES[monthIdx] ?? mm
-  const dayNum = String(parseInt(dd)) // strip leading zero for "MMM DD" style
-
   let result = pattern
   // Replace longest tokens first to avoid partial matches
   result = result.replace(/YYYY/g, yyyy)

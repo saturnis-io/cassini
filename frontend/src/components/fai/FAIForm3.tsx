@@ -50,7 +50,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
 
   const handleBlur = useCallback(
     (item: FAIItem, field: string, value: unknown) => {
-      const original = (item as Record<string, unknown>)[field]
+      const original = (item as unknown as Record<string, unknown>)[field]
       if (value === original) return
       // For numeric fields, convert empty string to null
       let sendValue = value

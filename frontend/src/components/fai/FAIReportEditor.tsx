@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  Save,
   Send,
   CheckCircle2,
   XCircle,
@@ -18,7 +17,6 @@ import { faiReportGuardSchema } from '@/schemas/compliance'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import {
   useFAIReport,
-  useUpdateFAIReport,
   useSubmitFAIReport,
   useApproveFAIReport,
   useRejectFAIReport,
@@ -29,7 +27,7 @@ import { FAIForm1 } from './FAIForm1'
 import { FAIForm2 } from './FAIForm2'
 import { FAIForm3 } from './FAIForm3'
 import { FAIPrintView } from './FAIPrintView'
-import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
+import { StudySteps } from '@/components/studies/StudySteps'
 
 type TabKey = 'form1' | 'form2' | 'form3'
 
@@ -46,7 +44,6 @@ export function FAIReportEditor() {
   const id = Number(reportId)
 
   const { data: report, isLoading } = useFAIReport(id)
-  const updateReport = useUpdateFAIReport()
   const submitReport = useSubmitFAIReport()
   const approveReport = useApproveFAIReport()
   const rejectReport = useRejectFAIReport()

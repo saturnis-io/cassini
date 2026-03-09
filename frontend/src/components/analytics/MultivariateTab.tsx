@@ -141,13 +141,13 @@ export function MultivariateTab() {
                 <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
               </div>
             ) : chartData ? (
-              <T2Chart data={chartData} onOOCClick={handleOOCClick} />
+              <T2Chart data={chartData as never} onOOCClick={handleOOCClick} />
             ) : (
               <div className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">
                 Click "Compute" to generate the T{'\u00B2'} chart
               </div>
             )}
-            {chartData &&
+            {chartData != null &&
               (() => {
                 const points = Array.isArray(chartData) ? chartData : []
                 const oocCount = points.filter(

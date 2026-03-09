@@ -331,7 +331,7 @@ export function DistributionAnalysis({ characteristicId, onClose }: Distribution
             <label className="text-muted-foreground text-sm">Method:</label>
             <select
               value={method}
-              onChange={(e) => setMethod(e.target.value)}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
               className="bg-input border-border text-foreground rounded-md border px-3 py-1.5 text-sm"
             >
               {METHOD_OPTIONS.map((opt) => (

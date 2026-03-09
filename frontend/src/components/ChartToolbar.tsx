@@ -25,7 +25,6 @@ import type { ChartTypeId } from '@/types/charts'
 import { useSampleLabel } from '@/hooks/useSampleLabel'
 import type { AnomalyEvent } from '@/types/anomaly'
 import {
-  EVENT_TYPE_LABELS,
   DETECTOR_FRIENDLY,
   DETECTOR_TECHNICAL,
   SEVERITY_PRIORITY,
@@ -79,12 +78,6 @@ function ToolbarBtn({
       {children}
     </button>
   )
-}
-
-const SEVERITY_DOT: Record<string, string> = {
-  CRITICAL: 'bg-destructive',
-  WARNING: 'bg-warning',
-  INFO: 'bg-primary',
 }
 
 /** Titles for insight popover cards — slightly different from EVENT_TYPE_LABELS. */
@@ -191,7 +184,7 @@ function AnomalyInsightsPopover({
       <div className="max-h-64 space-y-1.5 overflow-y-auto p-2">
         {active.map((event) => {
           const borderStyle = SEVERITY_BORDER[event.severity] ?? SEVERITY_BORDER.INFO
-          const sevStyle = SEVERITY_THEME_CLASS[event.severity] ?? SEVERITY_BADGE.INFO
+          const sevStyle = SEVERITY_THEME_CLASS[event.severity] ?? SEVERITY_THEME_CLASS.INFO
           const title = INSIGHT_TITLES[event.event_type] ?? event.event_type
           const detectorDesc =
             DETECTOR_FRIENDLY[event.detector_type] ?? event.detector_type
@@ -435,7 +428,7 @@ export function ChartToolbar({
                 title="View AI insights"
                 className={cn(
                   'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-colors',
-                  SEVERITY_PILL_CLASS[worstSeverity] ?? SEVERITY_PILL.INFO,
+                  SEVERITY_PILL_CLASS[worstSeverity] ?? SEVERITY_PILL_CLASS.INFO,
                 )}
               >
                 <Sparkles className="h-3 w-3" />

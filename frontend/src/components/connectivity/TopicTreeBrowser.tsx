@@ -275,7 +275,9 @@ function TreeView({
   }
 
   // data.children is an array from the API (TopicTreeNodeResponse)
-  const children = Array.isArray(data.children) ? data.children : Object.values(data.children)
+  const children: TopicTreeNode[] = Array.isArray(data.children)
+    ? data.children
+    : (Object.values(data.children) as TopicTreeNode[])
 
   return (
     <div className="space-y-0.5">
@@ -322,7 +324,9 @@ function TreeNodeItem({
   const isSelected = isLeaf && selectedTopic === node.full_topic
   const hasMetrics = node.sparkplug_metrics && node.sparkplug_metrics.length > 0
 
-  const children = Array.isArray(node.children) ? node.children : Object.values(node.children || {})
+  const children: TopicTreeNode[] = Array.isArray(node.children)
+    ? node.children
+    : (Object.values(node.children || {}) as TopicTreeNode[])
 
   return (
     <div>

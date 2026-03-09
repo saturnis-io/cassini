@@ -575,7 +575,7 @@ export function RangeChart({
     [setRangeWindow, chartType],
   )
 
-  const { containerRef, chartRef, refresh } = useECharts({
+  const { containerRef, refresh } = useECharts({
     option: echartsOption,
     replaceMerge: ['series'],
     onMouseMove: handleMouseMove,
