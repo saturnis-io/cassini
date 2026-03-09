@@ -62,6 +62,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/predictions(?:/(\d+))?"), "prediction"),
     (re.compile(r"/api/v1/ai/"), "ai_config"),
     (re.compile(r"/api/v1/doe/studies(?:/(\d+))?"), "doe_study"),
+    (re.compile(r"/api/v1/license/upload"), "license"),
     (re.compile(r"/api/v1/system-settings"), "system_settings"),
     (re.compile(r"/api/v1/auth/forgot-password"), "auth"),
     (re.compile(r"/api/v1/auth/reset-password"), "auth"),
@@ -86,6 +87,8 @@ def _parse_resource(path: str) -> tuple[Optional[str], Optional[int]]:
 
 def _method_to_action(method: str, path: str) -> str:
     """Map HTTP method + path to an action string."""
+    if "/upload" in path:
+        return "upload"
     if "recalculate" in path:
         return "recalculate"
     if "acknowledge" in path:

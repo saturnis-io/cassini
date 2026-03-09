@@ -46,6 +46,7 @@ import { DOEPage } from '@/pages/DOEPage'
 import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
 import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
 import { AccountSettings } from '@/components/AccountSettings'
+import { LicenseSettings } from '@/components/LicenseSettings'
 import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
 import { KioskView } from '@/pages/KioskView'
 import { WallDashboard } from '@/pages/WallDashboard'
@@ -381,6 +382,14 @@ function App() {
                 <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>}>
                   <Route index element={<Navigate to="account" replace />} />
                   <Route path="account" element={<AccountSettings />} />
+                  <Route
+                    path="license"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <LicenseSettings />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="appearance" element={<AppearanceSettings />} />
                   <Route
                     path="notifications"
