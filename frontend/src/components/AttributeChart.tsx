@@ -20,6 +20,7 @@ interface AttributeChartProps {
     limit?: number
     startDate?: string
     endDate?: string
+    materialId?: number
   }
   /** Callback when a data point is clicked — opens Sample Inspector */
   onPointAnnotation?: (sampleId: number) => void
@@ -529,6 +530,11 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
             </div>
             {allViolatedRules.length > 0 && (
               <ViolationLegend violatedRules={allViolatedRules} compact className="ml-2" />
+            )}
+            {chartData?.active_material_name && (
+              <span className="bg-accent/10 text-accent-foreground flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-medium">
+                Limits: {chartData.active_material_name}
+              </span>
             )}
           </div>
         </div>
