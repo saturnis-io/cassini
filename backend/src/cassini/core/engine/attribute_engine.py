@@ -894,6 +894,7 @@ async def process_attribute_sample(
     char_repo: "CharacteristicRepository",
     violation_repo: "ViolationRepository",
     event_bus=None,
+    material_id: int | None = None,
 ) -> AttributeProcessingResult:
     """Full attribute sample processing pipeline.
 
@@ -975,6 +976,7 @@ async def process_attribute_sample(
         units_inspected=units_inspected,
         batch_number=batch_number,
         operator_id=operator_id,
+        material_id=material_id,
     )
 
     # Step 4: Calculate plotted value

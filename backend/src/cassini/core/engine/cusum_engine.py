@@ -71,6 +71,7 @@ async def process_cusum_sample(
     violation_repo: "ViolationRepository",
     batch_number: str | None = None,
     operator_id: str | None = None,
+    material_id: int | None = None,
 ) -> CUSUMProcessingResult:
     """Full CUSUM sample processing pipeline.
 
@@ -190,6 +191,7 @@ async def process_cusum_sample(
         values=[measurement],
         batch_number=batch_number,
         operator_id=operator_id,
+        material_id=material_id,
     )
 
     # Update the sample with CUSUM running values

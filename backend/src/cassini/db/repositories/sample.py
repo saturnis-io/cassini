@@ -92,7 +92,8 @@ class SampleRepository(BaseRepository[Sample]):
         return list(reversed(samples))
 
     async def get_rolling_window_data(
-        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True
+        self, char_id: int, window_size: int = 25, exclude_excluded: bool = True,
+        material_id: int | None = None,
     ) -> list[dict]:
         """Get rolling window sample data with measurement values pre-extracted.
 
@@ -103,6 +104,7 @@ class SampleRepository(BaseRepository[Sample]):
             char_id: ID of the characteristic to query
             window_size: Number of most recent samples to retrieve (default: 25)
             exclude_excluded: If True, filter out excluded samples (default: True)
+            material_id: If set, only return samples with this material
 
         Returns:
             List of dictionaries with sample_id, timestamp, and values (measurement list)
@@ -118,6 +120,9 @@ class SampleRepository(BaseRepository[Sample]):
 
         if exclude_excluded:
             stmt = stmt.where(Sample.is_excluded == False)
+
+        if material_id is not None:
+            stmt = stmt.where(Sample.material_id == material_id)
 
         result = await self.session.execute(stmt)
         samples = list(result.scalars().all())
@@ -256,6 +261,7 @@ class SampleRepository(BaseRepository[Sample]):
         units_inspected: int | None = None,
         batch_number: str | None = None,
         operator_id: str | None = None,
+        material_id: int | None = None,
     ) -> Sample:
         """Create a sample for attribute charts (no individual measurements).
 
@@ -280,6 +286,7 @@ class SampleRepository(BaseRepository[Sample]):
             units_inspected=units_inspected,
             batch_number=batch_number,
             operator_id=operator_id,
+            material_id=material_id,
             actual_n=sample_size or units_inspected or 1,
         )
         self.session.add(sample)

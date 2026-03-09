@@ -543,6 +543,7 @@ class SPCEngine:
         # Add sample to rolling window with mode-specific data.
         # Pass transformed measurements so WindowSample.value is in the
         # same coordinate system as the zone boundaries.
+        _material_id = context.material_id if context else None
         window_sample = await self._window_manager.add_sample(
             char_id=characteristic_id,
             sample=sample,
@@ -557,10 +558,13 @@ class SPCEngine:
             stored_sigma=char_stored_sigma,
             stored_center_line=char_stored_center_line,
             value_transform=value_transform,
+            material_id=_material_id,
         )
 
         # Step 5: Evaluate enabled Nelson Rules
-        window = await self._window_manager.get_window(characteristic_id)
+        window = await self._window_manager.get_window(
+            characteristic_id, material_id=_material_id,
+        )
 
         # Check all enabled rules (enabled_rules was extracted earlier to avoid lazy loading)
         rule_results = self._rule_library.check_all(window, enabled_rules)

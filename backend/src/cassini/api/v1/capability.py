@@ -37,8 +37,15 @@ async def _get_char_and_values(
     char_id: int,
     session: AsyncSession,
     window_size: int = 1000,
+    material_id: int | None = None,
 ) -> tuple[Characteristic, list[float], float | None]:
     """Load the characteristic and extract individual measurement values.
+
+    Args:
+        char_id: Characteristic ID
+        session: Database session
+        window_size: Number of recent samples
+        material_id: Optional material for filtering samples and resolving limits
 
     Returns:
         Tuple of (characteristic, flat_values, sigma_within).
@@ -69,6 +76,7 @@ async def _get_char_and_values(
         char_id=char_id,
         window_size=window_size,
         exclude_excluded=True,
+        material_id=material_id,
     )
 
     # Flatten all individual measurements
@@ -82,8 +90,29 @@ async def _get_char_and_values(
             detail=f"Insufficient measurement data: {len(all_values)} values (minimum 2 required)",
         )
 
-    # sigma_within from stored control chart parameters
+    # sigma_within from stored control chart parameters, with material override
     sigma_within = characteristic.stored_sigma
+
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(session)
+        _char_defaults = {
+            "ucl": characteristic.ucl, "lcl": characteristic.lcl,
+            "stored_sigma": characteristic.stored_sigma,
+            "stored_center_line": characteristic.stored_center_line,
+            "target_value": characteristic.target_value,
+            "usl": characteristic.usl, "lsl": characteristic.lsl,
+        }
+        _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
+        if _resolved["stored_sigma"] is not None:
+            sigma_within = _resolved["stored_sigma"]
+        # Override spec limits on the characteristic object for downstream callers
+        if _resolved["usl"] is not None:
+            characteristic.usl = _resolved["usl"]
+        if _resolved["lsl"] is not None:
+            characteristic.lsl = _resolved["lsl"]
+        if _resolved["target_value"] is not None:
+            characteristic.target_value = _resolved["target_value"]
 
     return characteristic, all_values, sigma_within
 
@@ -114,6 +143,7 @@ def _infer_sigma_method(characteristic: Characteristic) -> str | None:
 async def get_capability(
     char_id: int,
     window_size: int = Query(1000, ge=10, le=10000, description="Number of recent samples to use"),
+    material_id: int | None = Query(None, description="Filter by material for material-specific capability"),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> CapabilityResponse:
@@ -123,7 +153,7 @@ async def get_capability(
     Requires at least one specification limit (USL or LSL) on the characteristic.
     """
     characteristic, values, sigma_within = await _get_char_and_values(
-        char_id, session, window_size
+        char_id, session, window_size, material_id=material_id,
     )
 
     if characteristic.usl is None and characteristic.lsl is None:
@@ -261,6 +291,7 @@ async def get_capability_history(
 async def save_capability_snapshot(
     char_id: int,
     window_size: int = Query(1000, ge=10, le=10000, description="Number of recent samples to use"),
+    material_id: int | None = Query(None, description="Filter by material for material-specific capability"),
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_engineer),
 ) -> SnapshotResponse:
@@ -274,7 +305,7 @@ async def save_capability_snapshot(
     check_plant_role(user, plant_id, "engineer")
 
     characteristic, values, sigma_within = await _get_char_and_values(
-        char_id, session, window_size
+        char_id, session, window_size, material_id=material_id,
     )
 
     if characteristic.usl is None and characteristic.lsl is None:
