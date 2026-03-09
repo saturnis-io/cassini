@@ -95,7 +95,11 @@ class LicenseService:
 
         try:
             token = path.read_text().strip()
-            self._claims = jwt.decode(token, public_key, algorithms=["EdDSA"])
+            # Disable exp verification — we use our own expires_at claim so Cassini
+            # can show "expired" status with the licensed tier instead of rejecting outright
+            self._claims = jwt.decode(
+                token, public_key, algorithms=["EdDSA"], options={"verify_exp": False}
+            )
             self._valid = True
             logger.info(
                 "License validated",
@@ -137,13 +141,22 @@ class LicenseService:
             raise ValueError("License key is empty")
 
         try:
-            claims = jwt.decode(token, public_key, algorithms=["EdDSA"])
+            claims = jwt.decode(
+                token, public_key, algorithms=["EdDSA"], options={"verify_exp": False}
+            )
         except jwt.InvalidSignatureError:
             raise ValueError("Invalid license signature")
         except jwt.DecodeError:
             raise ValueError("License key is malformed")
         except Exception:
             raise ValueError("License validation failed")
+
+        # Reject expired licenses on upload
+        expires_at = claims.get("expires_at")
+        if expires_at:
+            expiry = datetime.fromisoformat(expires_at)
+            if datetime.now(timezone.utc) > expiry:
+                raise ValueError("License has expired")
 
         # Valid — persist to disk
         _SAVED_LICENSE_PATH.parent.mkdir(parents=True, exist_ok=True)

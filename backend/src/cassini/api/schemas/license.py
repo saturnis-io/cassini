@@ -11,6 +11,7 @@ class LicenseStatusResponse(BaseModel):
     days_until_expiry: int | None = None
     is_expired: bool | None = None
     license_name: str | None = None
+    licensed_tier: str | None = None
 
 
 class LicenseUploadRequest(BaseModel):
