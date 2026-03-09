@@ -2,7 +2,7 @@
 type: lesson
 status: active
 created: 2026-03-06
-updated: 2026-03-06
+updated: 2026-03-08
 severity: critical
 source: multi
 tags: [lesson, active]
@@ -160,3 +160,32 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 - Both must have identical logic for spec limits, control limits, and Z-scale handling
 
 **Relates to**: [[Features/Charts]], [[Features/Short-Run Charts]]
+
+---
+
+## L-009: Don't Re-Present Resolved Decisions as Open Questions (2026-03-07)
+
+**Mistake**: Presented subagent audit findings that contradicted an earlier in-conversation decision as if they were new ambiguity.
+
+**Rule**: When presenting subagent findings, cross-check against decisions already made in the conversation. If a finding covers already-decided ground, state "we already decided X" rather than re-opening the question.
+
+**Relates to**: [[Audits/Skeptic Review Report]]
+
+---
+
+## L-010: MaterialResolver Must Be Applied in ALL SPC-Consuming Paths (2026-03-08)
+
+**Mistake**: Material-specific limit overrides (USL, LSL, target, sigma, control limits) were only applied in the Shewhart chart data path. CUSUM, EWMA, attribute chart data, capability calculations, explain API, and data entry endpoints all used characteristic defaults, ignoring material overrides. The rolling window also mixed samples from different materials, causing phantom Nelson Rule violations.
+
+**Why it matters**: A customer using different materials on the same characteristic (e.g., Aluminum vs Steel on a bore diameter) would see correct limits on the Shewhart chart but wrong limits on CUSUM/EWMA charts, wrong Cpk values, wrong explanations, and cross-material contamination in Nelson Rule evaluation.
+
+**Rule**: When adding a new SPC-consuming path (new chart type, new calculation, new endpoint):
+1. Accept `material_id` as a parameter
+2. Run `MaterialResolver(session).resolve_flat(char_id, material_id)` to get effective values
+3. Use resolved values (`usl`, `lsl`, `target_value`, `stored_sigma`, `stored_center_line`, `ucl`, `lcl`) instead of characteristic defaults
+4. Pass `material_id` to `get_rolling_window_data()`, `get_rolling_window()`, and rolling window manager
+5. The resolution cascade is: material override > deepest class > parent class > root class > characteristic default
+
+**Adversarial review found 6 BLOCKERs** in a single pass -- this pattern is easy to miss because each path works correctly with the default (null) material.
+
+**Relates to**: [[Features/SPC Engine]], [[Features/Capability]]

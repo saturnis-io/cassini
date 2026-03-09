@@ -81,6 +81,7 @@ async def explain_capability_metric(
     limit: int | None = Query(None, ge=2, le=10000, description="Max samples (matches dashboard limit)"),
     start_date: str | None = Query(None, description="ISO start date (matches dashboard range)"),
     end_date: str | None = Query(None, description="ISO end date (matches dashboard range)"),
+    material_id: int | None = Query(None, description="Material ID for material-specific capability"),
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -117,7 +118,33 @@ async def explain_capability_metric(
             detail="Capability analysis is not supported for attribute charts",
         )
 
-    if char.usl is None and char.lsl is None:
+    # Resolve material-specific spec limits and sigma
+    _eff_usl = char.usl
+    _eff_lsl = char.lsl
+    _eff_target = char.target_value
+    _eff_stored_sigma = char.stored_sigma
+
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(db)
+        _char_defaults = {
+            "ucl": char.ucl, "lcl": char.lcl,
+            "stored_sigma": char.stored_sigma,
+            "stored_center_line": char.stored_center_line,
+            "target_value": char.target_value,
+            "usl": char.usl, "lsl": char.lsl,
+        }
+        _resolved = await _resolver.resolve_flat(characteristic_id, material_id, _char_defaults)
+        if _resolved["usl"] is not None:
+            _eff_usl = _resolved["usl"]
+        if _resolved["lsl"] is not None:
+            _eff_lsl = _resolved["lsl"]
+        if _resolved["target_value"] is not None:
+            _eff_target = _resolved["target_value"]
+        if _resolved["stored_sigma"] is not None:
+            _eff_stored_sigma = _resolved["stored_sigma"]
+
+    if _eff_usl is None and _eff_lsl is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one specification limit (USL or LSL) must be set",
@@ -140,6 +167,7 @@ async def explain_capability_metric(
             char_id=characteristic_id,
             start_date=sd,
             end_date=ed,
+            material_id=material_id,
         )
         # Filter excluded samples (get_by_characteristic doesn't do this)
         samples = [s for s in samples if not s.is_excluded]
@@ -159,6 +187,7 @@ async def explain_capability_metric(
             char_id=characteristic_id,
             window_size=1000,
             exclude_excluded=True,
+            material_id=material_id,
         )
         values = []
         for sd_item in sample_data:
@@ -181,7 +210,7 @@ async def explain_capability_metric(
         sigma_fallback = True
         sigma_estimator = "sample_std_dev"
     else:
-        sigma_within = char.stored_sigma
+        sigma_within = _eff_stored_sigma
         if sigma_within is None or sigma_within <= 0:
             sigma_within = float(np.std(np.asarray(values, dtype=np.float64), ddof=1))
             sigma_fallback = True
@@ -211,9 +240,9 @@ async def explain_capability_metric(
         )
     cap_result = calculate_capability(
         values=values,
-        usl=char.usl,
-        lsl=char.lsl,
-        target=char.target_value,
+        usl=_eff_usl,
+        lsl=_eff_lsl,
+        target=_eff_target,
         sigma_within=sigma_within,
         collector=collector,
     )
@@ -324,6 +353,7 @@ ATTRIBUTE_STEP_PREFIXES: dict[str, list[str]] = {
 async def explain_control_limits_metric(
     metric_type: str,
     characteristic_id: int,
+    material_id: int | None = Query(None, description="Material ID for material-specific limits"),
     db: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -368,6 +398,25 @@ async def explain_control_limits_metric(
     subgroup_size = char.subgroup_size
     short_run_mode = getattr(char, "short_run_mode", None)
     target_value = char.target_value
+
+    # Resolve material-specific overrides
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(db)
+        _char_defaults = {
+            "ucl": char.ucl, "lcl": char.lcl,
+            "stored_sigma": stored_sigma,
+            "stored_center_line": stored_center,
+            "target_value": target_value,
+            "usl": char.usl, "lsl": char.lsl,
+        }
+        _resolved = await _resolver.resolve_flat(characteristic_id, material_id, _char_defaults)
+        if _resolved["stored_sigma"] is not None:
+            stored_sigma = _resolved["stored_sigma"]
+        if _resolved["stored_center_line"] is not None:
+            stored_center = _resolved["stored_center_line"]
+        if _resolved["target_value"] is not None:
+            target_value = _resolved["target_value"]
 
     if stored_sigma is None or stored_center is None:
         raise HTTPException(

@@ -464,7 +464,8 @@ class TestRollingWindowManager:
         mock_repo.get_rolling_window_data.assert_called_once_with(
             char_id=1,
             window_size=25,
-            exclude_excluded=True
+            exclude_excluded=True,
+            material_id=None,
         )
 
         assert window.size == 3
@@ -514,10 +515,10 @@ class TestRollingWindowManager:
         await manager.get_window(char_id=4)
 
         assert manager.cache_size == 3
-        assert 1 not in manager._cache
-        assert 2 in manager._cache
-        assert 3 in manager._cache
-        assert 4 in manager._cache
+        assert (1, None) not in manager._cache
+        assert (2, None) in manager._cache
+        assert (3, None) in manager._cache
+        assert (4, None) in manager._cache
 
     @pytest.mark.asyncio
     async def test_lru_order_updated_on_access(self, mock_repo):
@@ -541,10 +542,10 @@ class TestRollingWindowManager:
         # Load 4th window - should evict char_id=2 (now LRU)
         await manager.get_window(char_id=4)
 
-        assert 1 in manager._cache  # Not evicted (was accessed)
-        assert 2 not in manager._cache  # Evicted (LRU)
-        assert 3 in manager._cache
-        assert 4 in manager._cache
+        assert (1, None) in manager._cache  # Not evicted (was accessed)
+        assert (2, None) not in manager._cache  # Evicted (LRU)
+        assert (3, None) in manager._cache
+        assert (4, None) in manager._cache
 
     @pytest.mark.asyncio
     async def test_add_sample(self, manager, mock_repo, boundaries, sample_timestamp):
@@ -622,7 +623,7 @@ class TestRollingWindowManager:
         # Invalidate
         await manager.invalidate(char_id=1)
         assert manager.cache_size == 0
-        assert 1 not in manager._cache
+        assert (1, None) not in manager._cache
 
     @pytest.mark.asyncio
     async def test_invalidate_nonexistent_window(self, manager):

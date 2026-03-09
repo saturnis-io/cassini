@@ -614,6 +614,25 @@ async def _get_attribute_chart_data(
     char_lcl = characteristic.lcl
     use_laney = getattr(characteristic, 'use_laney_correction', False) and chart_type in ("p", "u")
 
+    # Resolve material-specific overrides for attribute chart limits
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(session)
+        _char_defaults = {
+            "ucl": char_ucl, "lcl": char_lcl,
+            "stored_sigma": characteristic.stored_sigma,
+            "stored_center_line": center_line,
+            "target_value": characteristic.target_value,
+            "usl": characteristic.usl, "lsl": characteristic.lsl,
+        }
+        _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
+        if _resolved["ucl"] is not None:
+            char_ucl = _resolved["ucl"]
+        if _resolved["lcl"] is not None:
+            char_lcl = _resolved["lcl"]
+        if _resolved["stored_center_line"] is not None:
+            center_line = _resolved["stored_center_line"]
+
     # Get attribute samples as dicts
     window_data = await sample_repo.get_attribute_rolling_window(
         char_id=char_id,
@@ -741,7 +760,42 @@ async def _get_cusum_chart_data(
     import math
     from cassini.db.repositories import ViolationRepository
 
-    target = characteristic.cusum_target or characteristic.target_value or 0.0
+    # Resolve material-specific overrides for CUSUM parameters
+    _eff_sigma = characteristic.stored_sigma
+    _eff_center = characteristic.stored_center_line
+    _eff_target = characteristic.target_value
+    _eff_ucl = characteristic.ucl
+    _eff_lcl = characteristic.lcl
+    _eff_usl = characteristic.usl
+    _eff_lsl = characteristic.lsl
+
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(session)
+        _char_defaults = {
+            "ucl": _eff_ucl, "lcl": _eff_lcl,
+            "stored_sigma": _eff_sigma,
+            "stored_center_line": _eff_center,
+            "target_value": _eff_target,
+            "usl": _eff_usl, "lsl": _eff_lsl,
+        }
+        _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
+        if _resolved["stored_sigma"] is not None:
+            _eff_sigma = _resolved["stored_sigma"]
+        if _resolved["stored_center_line"] is not None:
+            _eff_center = _resolved["stored_center_line"]
+        if _resolved["target_value"] is not None:
+            _eff_target = _resolved["target_value"]
+        if _resolved["ucl"] is not None:
+            _eff_ucl = _resolved["ucl"]
+        if _resolved["lcl"] is not None:
+            _eff_lcl = _resolved["lcl"]
+        if _resolved["usl"] is not None:
+            _eff_usl = _resolved["usl"]
+        if _resolved["lsl"] is not None:
+            _eff_lsl = _resolved["lsl"]
+
+    target = characteristic.cusum_target or _eff_target or 0.0
     h_sigma = characteristic.cusum_h or 5.0
     cusum_k_val = characteristic.cusum_k or 0.5
     reset_after_id = getattr(characteristic, 'cusum_reset_after_sample_id', None)
@@ -749,7 +803,7 @@ async def _get_cusum_chart_data(
     # Convert h from sigma units to measurement units for chart display
     # The stored cusum_high/cusum_low on samples are in measurement units,
     # so the decision interval threshold must also be in measurement units.
-    sigma = characteristic.stored_sigma
+    sigma = _eff_sigma
     if sigma is None or sigma <= 0:
         # Estimate sigma from sample data (same fallback as engine)
         all_samples = await sample_repo.get_rolling_window(
@@ -860,11 +914,11 @@ async def _get_cusum_chart_data(
             excluded=sample.is_excluded,
         ))
 
-    # Shewhart control limits from characteristic (may be None if not calculated)
+    # Shewhart control limits (material-resolved)
     _shewhart_limits = ControlLimits(
-        center_line=characteristic.stored_center_line,
-        ucl=characteristic.ucl,
-        lcl=characteristic.lcl,
+        center_line=_eff_center,
+        ucl=_eff_ucl,
+        lcl=_eff_lcl,
     )
 
     return ChartDataResponse(
@@ -879,9 +933,9 @@ async def _get_cusum_chart_data(
         ),
         shewhart_control_limits=_shewhart_limits,
         spec_limits=SpecLimits(
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=_eff_usl,
+            lsl=_eff_lsl,
+            target=_eff_target,
         ),
         zone_boundaries=ZoneBoundaries(),
         subgroup_mode=characteristic.subgroup_mode,
@@ -915,9 +969,44 @@ async def _get_ewma_chart_data(
     from cassini.db.models.sample import Sample as SampleModel
     from cassini.db.repositories import ViolationRepository
 
+    # Resolve material-specific overrides for EWMA parameters
+    _eff_sigma = characteristic.stored_sigma
+    _eff_center = characteristic.stored_center_line
+    _eff_target = characteristic.target_value
+    _eff_ucl = characteristic.ucl
+    _eff_lcl = characteristic.lcl
+    _eff_usl = characteristic.usl
+    _eff_lsl = characteristic.lsl
+
+    if material_id:
+        from cassini.core.material_resolver import MaterialResolver
+        _resolver = MaterialResolver(session)
+        _char_defaults = {
+            "ucl": _eff_ucl, "lcl": _eff_lcl,
+            "stored_sigma": _eff_sigma,
+            "stored_center_line": _eff_center,
+            "target_value": _eff_target,
+            "usl": _eff_usl, "lsl": _eff_lsl,
+        }
+        _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
+        if _resolved["stored_sigma"] is not None:
+            _eff_sigma = _resolved["stored_sigma"]
+        if _resolved["stored_center_line"] is not None:
+            _eff_center = _resolved["stored_center_line"]
+        if _resolved["target_value"] is not None:
+            _eff_target = _resolved["target_value"]
+        if _resolved["ucl"] is not None:
+            _eff_ucl = _resolved["ucl"]
+        if _resolved["lcl"] is not None:
+            _eff_lcl = _resolved["lcl"]
+        if _resolved["usl"] is not None:
+            _eff_usl = _resolved["usl"]
+        if _resolved["lsl"] is not None:
+            _eff_lsl = _resolved["lsl"]
+
     ewma_lambda = characteristic.ewma_lambda or 0.2
     ewma_l = characteristic.ewma_l or 2.7
-    target = characteristic.cusum_target or characteristic.target_value or characteristic.stored_center_line or 0.0
+    target = characteristic.cusum_target or _eff_target or _eff_center or 0.0
 
     # Get samples with measurements
     if start_date or end_date:
@@ -939,7 +1028,7 @@ async def _get_ewma_chart_data(
         )
 
     # Estimate sigma
-    sigma = characteristic.stored_sigma
+    sigma = _eff_sigma
     if sigma is None or sigma <= 0:
         all_values = []
         for s in samples:
@@ -1029,11 +1118,11 @@ async def _get_ewma_chart_data(
             excluded=sample.is_excluded,
         ))
 
-    # Shewhart control limits from characteristic (may be None if not calculated)
+    # Shewhart control limits (material-resolved)
     _shewhart_limits = ControlLimits(
-        center_line=characteristic.stored_center_line,
-        ucl=characteristic.ucl,
-        lcl=characteristic.lcl,
+        center_line=_eff_center,
+        ucl=_eff_ucl,
+        lcl=_eff_lcl,
     )
 
     return ChartDataResponse(
@@ -1048,9 +1137,9 @@ async def _get_ewma_chart_data(
         ),
         shewhart_control_limits=_shewhart_limits,
         spec_limits=SpecLimits(
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=_eff_usl,
+            lsl=_eff_lsl,
+            target=_eff_target,
         ),
         zone_boundaries=ZoneBoundaries(),
         subgroup_mode=characteristic.subgroup_mode,

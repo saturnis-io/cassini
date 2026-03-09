@@ -396,23 +396,30 @@ class RollingWindowManager:
             raise ValueError(f"window_size must be at least 1, got {window_size}")
 
         self._repo = sample_repository
-        self._cache: OrderedDict[int, RollingWindow] = OrderedDict()
+        self._cache: OrderedDict[tuple[int, int | None], RollingWindow] = OrderedDict()
         self._max_cached = max_cached_windows
         self._window_size = window_size
-        self._locks: dict[int, asyncio.Lock] = {}
+        self._locks: dict[tuple[int, int | None], asyncio.Lock] = {}
 
-    def _get_lock(self, char_id: int) -> asyncio.Lock:
-        """Get or create lock for a characteristic.
+    @staticmethod
+    def _cache_key(char_id: int, material_id: int | None = None) -> tuple[int, int | None]:
+        """Build cache key from characteristic and optional material."""
+        return (char_id, material_id)
+
+    def _get_lock(self, char_id: int, material_id: int | None = None) -> asyncio.Lock:
+        """Get or create lock for a characteristic/material pair.
 
         Args:
             char_id: Characteristic ID
+            material_id: Optional material ID for material-partitioned windows
 
         Returns:
-            Async lock for the characteristic
+            Async lock for the key
         """
-        if char_id not in self._locks:
-            self._locks[char_id] = asyncio.Lock()
-        return self._locks[char_id]
+        key = self._cache_key(char_id, material_id)
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+        return self._locks[key]
 
     def _evict_lru(self) -> None:
         """Evict least recently used window if cache is full.
@@ -422,26 +429,27 @@ class RollingWindowManager:
         """
         if len(self._cache) >= self._max_cached:
             # Remove the first (oldest) item
-            evicted_char_id, _ = self._cache.popitem(last=False)
+            evicted_key, _ = self._cache.popitem(last=False)
 
             # Clean up the lock if it exists
-            if evicted_char_id in self._locks:
-                del self._locks[evicted_char_id]
+            if evicted_key in self._locks:
+                del self._locks[evicted_key]
 
-    def _touch_window(self, char_id: int) -> None:
+    def _touch_window(self, key: tuple[int, int | None]) -> None:
         """Mark window as recently used (move to end of LRU order).
 
         Args:
-            char_id: Characteristic ID
+            key: Cache key (char_id, material_id)
         """
-        if char_id in self._cache:
+        if key in self._cache:
             # Move to end (most recently used position)
-            self._cache.move_to_end(char_id)
+            self._cache.move_to_end(key)
 
     async def _load_window_from_db(
         self,
         char_id: int,
         value_transform: Callable[[list[float]], list[float]] | None = None,
+        material_id: int | None = None,
     ) -> RollingWindow:
         """Load rolling window from database.
 
@@ -451,6 +459,7 @@ class RollingWindowManager:
                 values into the coordinate system used by zone boundaries
                 (e.g., short-run deviation or standardized transforms).
                 Signature: (raw_values) -> transformed_values.
+            material_id: Optional material ID for material-partitioned windows
 
         Returns:
             RollingWindow populated with samples from database
@@ -462,7 +471,8 @@ class RollingWindowManager:
         sample_data = await self._repo.get_rolling_window_data(
             char_id=char_id,
             window_size=self._window_size,
-            exclude_excluded=True
+            exclude_excluded=True,
+            material_id=material_id,
         )
 
         # Convert to WindowSample objects
@@ -499,32 +509,38 @@ class RollingWindowManager:
 
         return window
 
-    async def get_window(self, char_id: int) -> RollingWindow:
-        """Get or load rolling window for characteristic.
+    async def get_window(
+        self, char_id: int, material_id: int | None = None,
+    ) -> RollingWindow:
+        """Get or load rolling window for characteristic/material pair.
 
         This method is thread-safe and uses LRU caching. If the window
         is not in cache, it will be loaded from the database.
 
         Args:
             char_id: Characteristic ID
+            material_id: Optional material ID for material-partitioned windows
 
         Returns:
-            RollingWindow for the characteristic
+            RollingWindow for the characteristic/material pair
         """
-        async with self._get_lock(char_id):
+        key = self._cache_key(char_id, material_id)
+        async with self._get_lock(char_id, material_id):
             # Check if window is in cache
-            if char_id in self._cache:
-                self._touch_window(char_id)
-                return self._cache[char_id]
+            if key in self._cache:
+                self._touch_window(key)
+                return self._cache[key]
 
             # Load from database
-            window = await self._load_window_from_db(char_id)
+            window = await self._load_window_from_db(
+                char_id, material_id=material_id,
+            )
 
             # Evict LRU if necessary
             self._evict_lru()
 
             # Add to cache
-            self._cache[char_id] = window
+            self._cache[key] = window
 
             return window
 
@@ -543,6 +559,7 @@ class RollingWindowManager:
         stored_sigma: float | None = None,
         stored_center_line: float | None = None,
         value_transform: Callable[[list[float]], list[float]] | None = None,
+        material_id: int | None = None,
     ) -> WindowSample:
         """Add a new sample to the window.
 
@@ -567,17 +584,19 @@ class RollingWindowManager:
         Returns:
             WindowSample that was added
         """
-        async with self._get_lock(char_id):
+        key = self._cache_key(char_id, material_id)
+        async with self._get_lock(char_id, material_id):
             # Get or create window
-            if char_id not in self._cache:
+            if key not in self._cache:
                 window = await self._load_window_from_db(
-                    char_id, value_transform=value_transform
+                    char_id, value_transform=value_transform,
+                    material_id=material_id,
                 )
                 self._evict_lru()
-                self._cache[char_id] = window
+                self._cache[key] = window
             else:
-                window = self._cache[char_id]
-                self._touch_window(char_id)
+                window = self._cache[key]
+                self._touch_window(key)
 
             # Ensure boundaries are set
             if not window.is_ready:
@@ -639,34 +658,54 @@ class RollingWindowManager:
 
             return window_sample
 
-    async def invalidate(self, char_id: int) -> None:
-        """Invalidate window (e.g., after sample exclusion).
+    async def invalidate(
+        self, char_id: int, material_id: int | None = None,
+    ) -> None:
+        """Invalidate window(s) for a characteristic.
 
-        This clears the window from cache, forcing a reload on next access.
+        When material_id is None, invalidates ALL material partitions for
+        the characteristic (safe default for limit recalculation and sample
+        exclusion). When material_id is set, only that specific partition.
 
         Args:
             char_id: Characteristic ID
+            material_id: Specific material to invalidate, or None for all
         """
-        async with self._get_lock(char_id):
-            if char_id in self._cache:
-                del self._cache[char_id]
+        if material_id is not None:
+            # Invalidate a single partition
+            key = self._cache_key(char_id, material_id)
+            async with self._get_lock(char_id, material_id):
+                if key in self._cache:
+                    del self._cache[key]
+        else:
+            # Invalidate ALL partitions for this characteristic
+            keys_to_remove = [
+                k for k in self._cache if k[0] == char_id
+            ]
+            for key in keys_to_remove:
+                async with self._get_lock(key[0], key[1]):
+                    if key in self._cache:
+                        del self._cache[key]
 
     async def update_boundaries(
         self,
         char_id: int,
-        boundaries: ZoneBoundaries
+        boundaries: ZoneBoundaries,
+        material_id: int | None = None,
     ) -> None:
         """Update zone boundaries and reclassify all samples.
 
         Args:
             char_id: Characteristic ID
             boundaries: New zone boundaries
+            material_id: Optional material ID
         """
-        async with self._get_lock(char_id):
-            if char_id in self._cache:
-                window = self._cache[char_id]
+        key = self._cache_key(char_id, material_id)
+        async with self._get_lock(char_id, material_id):
+            if key in self._cache:
+                window = self._cache[key]
                 window.set_boundaries(boundaries)
-                self._touch_window(char_id)
+                self._touch_window(key)
 
     @property
     def cache_size(self) -> int:

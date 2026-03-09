@@ -145,3 +145,16 @@ Patterns and rules to prevent recurring mistakes. Review at session start.
 **Why it matters**: Subagents don't have conversation context. Their findings may surface issues already resolved. The orchestrator must filter subagent output against decisions already made in the session, not blindly relay everything.
 
 **Rule**: When presenting subagent findings, cross-check against decisions already made in the conversation. If a finding covers already-decided ground, state "we already decided X — the website/doc needs to be updated to match" rather than re-opening the question.
+
+## L-010: MaterialResolver Must Be Applied in ALL SPC-Consuming Paths (2026-03-08)
+
+**Mistake**: Material-specific limit overrides were only applied in the Shewhart chart data path. CUSUM, EWMA, attribute chart data, capability calculations, explain API, and data entry endpoints all ignored material overrides. Rolling window mixed samples across materials, causing phantom Nelson Rule violations.
+
+**Why it matters**: Different materials on the same characteristic (e.g., Aluminum vs Steel on a bore diameter) would see correct limits on Shewhart charts but wrong limits everywhere else, wrong Cpk, and cross-material contamination in Nelson Rule evaluation.
+
+**Rule**: When adding a new SPC-consuming path:
+1. Accept `material_id` as a parameter
+2. Run `MaterialResolver(session).resolve_flat(char_id, material_id)` to get effective values
+3. Use resolved values instead of characteristic defaults
+4. Pass `material_id` to rolling window queries
+5. Resolution cascade: material override > deepest class > parent class > root class > characteristic default

@@ -287,6 +287,7 @@ async def list_samples(
                 defect_count=sample.defect_count,
                 sample_size=sample.sample_size,
                 units_inspected=sample.units_inspected,
+                material_id=sample.material_id,
             )
         )
 
@@ -337,6 +338,18 @@ async def submit_sample(
         characteristic = await char_repo.get_by_id(data.characteristic_id)
         if characteristic is None:
             raise ValueError(f"Characteristic {data.characteristic_id} not found")
+
+        # Validate material belongs to the same plant as the characteristic
+        if data.material_id is not None:
+            from sqlalchemy import select as sa_select
+            from cassini.db.models.material import Material
+            mat_stmt = sa_select(Material.plant_id).where(Material.id == data.material_id)
+            mat_result = await session.execute(mat_stmt)
+            mat_plant_id = mat_result.scalar_one_or_none()
+            if mat_plant_id is None:
+                raise ValueError(f"Material {data.material_id} not found")
+            if mat_plant_id != plant_id:
+                raise ValueError("Material does not belong to the same plant as the characteristic")
 
         # Always run standard SPC engine first (Nelson Rules, zone classification)
         context = SampleContext(

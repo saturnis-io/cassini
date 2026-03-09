@@ -34,6 +34,7 @@ class DataEntryRequest(BaseModel):
     batch_number: Optional[str] = Field(None, description="Batch identifier")
     operator_id: Optional[str] = Field(None, description="Operator identifier")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
+    material_id: Optional[int] = Field(None, description="Material ID for material-specific limits")
 
 
 class DataEntryResponse(BaseModel):
@@ -106,6 +107,7 @@ class AttributeDataEntryRequest(BaseModel):
     units_inspected: Optional[int] = Field(None, ge=1, description="Inspection units (u chart)")
     batch_number: Optional[str] = Field(None, description="Batch identifier")
     operator_id: Optional[str] = Field(None, description="Operator identifier")
+    material_id: Optional[int] = Field(None, description="Material ID for material-specific limits")
 
 
 class AttributeDataEntryResponse(BaseModel):
@@ -152,6 +154,7 @@ class CUSUMDataEntryRequest(BaseModel):
     measurement: float = Field(..., description="Individual measurement value")
     batch_number: Optional[str] = Field(None, description="Batch identifier")
     operator_id: Optional[str] = Field(None, description="Operator identifier")
+    material_id: Optional[int] = Field(None, description="Material ID for material-specific limits")
 
 
 class CUSUMDataEntryResponse(BaseModel):
@@ -196,6 +199,7 @@ class EWMADataEntryRequest(BaseModel):
     measurement: float = Field(..., description="Individual measurement value")
     batch_number: Optional[str] = Field(None, description="Batch identifier")
     operator_id: Optional[str] = Field(None, description="Operator identifier")
+    material_id: Optional[int] = Field(None, description="Material ID for material-specific limits")
 
 
 class EWMADataEntryResponse(BaseModel):

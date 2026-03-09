@@ -75,7 +75,7 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
         _shared_window_manager = RollingWindowManager(sample_repo)
     else:
         # Update the repo reference to use the current session
-        _shared_window_manager._sample_repo = sample_repo
+        _shared_window_manager._repo = sample_repo
 
     rule_library = NelsonRuleLibrary()
 
@@ -149,6 +149,7 @@ async def submit_sample(
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
+            material_id=data.material_id,
             source="API",
             metadata=data.metadata,
         )
@@ -289,6 +290,7 @@ async def submit_attribute_sample(
             sample_repo=sample_repo,
             char_repo=char_repo,
             violation_repo=violation_repo,
+            material_id=data.material_id,
         )
 
         await session.commit()
@@ -383,6 +385,7 @@ async def submit_cusum_sample(
             violation_repo=violation_repo,
             batch_number=data.batch_number,
             operator_id=data.operator_id,
+            material_id=data.material_id,
         )
 
         await session.commit()
@@ -468,6 +471,7 @@ async def submit_ewma_sample(
             violation_repo=violation_repo,
             batch_number=data.batch_number,
             operator_id=data.operator_id,
+            material_id=data.material_id,
         )
 
         await session.commit()
@@ -577,6 +581,7 @@ async def submit_batch(
             context = SampleContext(
                 batch_number=sample.batch_number,
                 operator_id=sample.operator_id,
+                material_id=sample.material_id,
                 source="API",
                 metadata=sample.metadata,
             )

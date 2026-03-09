@@ -101,13 +101,15 @@ export function ManualEntryPanel() {
     }
   }, [selectedChar])
 
-  // Initialize measurement inputs when characteristic changes
+  // Initialize measurement inputs and reset material when characteristic changes
   useEffect(() => {
     if (inputCount > 0) {
       setMeasurements(Array(inputCount).fill(''))
     } else {
       setMeasurements([])
     }
+    setMaterialId(null)
+    setMaterialSearch('')
     clearErrors()
   }, [inputCount, clearErrors])
 
