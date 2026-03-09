@@ -13,6 +13,9 @@ import jwt
 
 logger = structlog.get_logger(__name__)
 
+# Bundled public key ships with Cassini — used to verify license JWTs from saturnis.io
+_BUNDLED_PUBLIC_KEY_PATH = Path(__file__).resolve().parent.parent / "license_public_key.pem"
+
 
 class LicenseService:
     """Validates and exposes license state for feature gating."""
@@ -38,13 +41,17 @@ class LicenseService:
             logger.info("DEV MODE: Running as Commercial Edition (CASSINI_DEV_COMMERCIAL=true)")
             return
 
-        # Resolve public key: explicit bytes (testing) > file path (production)
-        resolved_key = public_key or self._load_public_key_file(public_key_path)
+        # Resolve public key: explicit bytes (testing) > file path (config) > bundled key
+        resolved_key = (
+            public_key
+            or self._load_public_key_file(public_key_path)
+            or self._load_public_key_file(str(_BUNDLED_PUBLIC_KEY_PATH))
+        )
         if resolved_key:
             self._load(license_path, resolved_key)
         elif license_path:
             logger.warning(
-                "License file specified but no public key configured — running as Community Edition"
+                "License file specified but no public key available — running as Community Edition"
             )
         else:
             logger.info("No license file configured — running as Community Edition")
