@@ -1,5 +1,36 @@
 """Prompt templates for SPC chart analysis."""
 
+import re
+import unicodedata
+
+# Maximum length for user-supplied strings interpolated into prompts
+_MAX_FIELD_LENGTH = 200
+
+
+def _sanitize_for_prompt(value: str, max_length: int = _MAX_FIELD_LENGTH) -> str:
+    """Sanitize a user-supplied string before interpolating into an LLM prompt.
+
+    Defends against prompt injection by:
+    - Stripping control characters (except basic whitespace)
+    - Collapsing whitespace
+    - Truncating to a safe length
+    - Removing markdown heading markers that could confuse prompt structure
+    """
+    # Strip Unicode control characters (categories Cc/Cf) except \n, \t, space
+    cleaned = "".join(
+        ch for ch in value
+        if ch in ("\n", "\t", " ") or unicodedata.category(ch) not in ("Cc", "Cf")
+    )
+    # Collapse multiple whitespace (including newlines) to single space
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # Remove markdown heading markers that could break prompt structure
+    cleaned = re.sub(r"^#+\s*", "", cleaned)
+    # Truncate
+    if len(cleaned) > max_length:
+        cleaned = cleaned[:max_length] + "..."
+    return cleaned
+
+
 SYSTEM_PROMPT = """You are an expert SPC (Statistical Process Control) quality engineer analyzing control chart data. Your role is to:
 
 1. Identify patterns in the data (trends, shifts, cycles, mixtures, stratification)
@@ -22,10 +53,13 @@ def build_analysis_prompt(context: dict) -> str:
     """Build the user prompt from chart context data."""
     lines = []
 
-    # Characteristic info
+    # Characteristic info — sanitize user-supplied name to prevent injection
     char = context.get("characteristic", {})
-    lines.append(f"## Characteristic: {char.get('name', 'Unknown')}")
-    lines.append(f"- Chart type: {char.get('chart_type', 'unknown')}")
+    char_name = _sanitize_for_prompt(str(char.get("name", "Unknown")))
+    chart_type = _sanitize_for_prompt(str(char.get("chart_type", "unknown")))
+    lines.append(f"## Characteristic")
+    lines.append(f"- Name: {char_name}")
+    lines.append(f"- Chart type: {chart_type}")
     if char.get("usl") is not None:
         lines.append(f"- USL: {char['usl']}")
     if char.get("lsl") is not None:
@@ -76,9 +110,10 @@ def build_analysis_prompt(context: dict) -> str:
     if violations:
         lines.append(f"## Recent Violations ({len(violations)} total)")
         for v in violations[:10]:
+            rule_name = _sanitize_for_prompt(str(v.get("rule_name", "?")), 100)
             lines.append(
                 f"- Rule {v.get('rule_id', '?')}: "
-                f"{v.get('rule_name', '?')} ({v.get('severity', '?')})"
+                f"{rule_name} ({v.get('severity', '?')})"
             )
         lines.append("")
 
@@ -87,8 +122,9 @@ def build_analysis_prompt(context: dict) -> str:
     if anomalies:
         lines.append(f"## Active Anomalies ({len(anomalies)} total)")
         for a in anomalies[:5]:
+            summary = _sanitize_for_prompt(str(a.get("summary", "?")), 200)
             lines.append(
-                f"- {a.get('event_type', '?')}: {a.get('summary', '?')}"
+                f"- {a.get('event_type', '?')}: {summary}"
             )
         lines.append("")
 

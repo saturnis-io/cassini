@@ -54,10 +54,15 @@ REFRESH_COOKIE_KEY = "refresh_token"
 
 
 def _mask_secret(encrypted_secret: str) -> str:
-    """Mask a client secret for display, showing only last 4 chars."""
-    if len(encrypted_secret) <= 4:
-        return "****"
-    return "****" + encrypted_secret[-4:]
+    """Return a fixed mask indicating a client secret is configured.
+
+    Never exposes any part of the encrypted ciphertext — the previous
+    implementation leaked the last 4 chars of the Fernet token, which
+    is both non-informative and a minor information disclosure risk.
+    """
+    if not encrypted_secret:
+        return "(not set)"
+    return "********"
 
 
 def _build_config_response(config: OIDCConfig) -> OIDCConfigResponse:
@@ -119,13 +124,24 @@ async def authorize(
         url = await service.get_authorization_url(provider_id, redirect_uri)
         return OIDCAuthorizationResponse(authorization_url=url)
     except ValueError as e:
-        logger.warning("oidc_authorize_not_found", provider_id=provider_id, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Provider not found or inactive",
+        error_msg = str(e)
+        if "not found or inactive" in error_msg:
+            logger.warning("oidc_authorize_not_found", provider_id=provider_id)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provider not found or inactive",
+            )
+        # redirect_uri validation failures
+        logger.warning(
+            "oidc_authorize_redirect_rejected",
+            provider_id=provider_id,
         )
-    except Exception as e:
-        logger.error("oidc_authorize_failed", provider_id=provider_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or disallowed redirect URI",
+        )
+    except Exception:
+        logger.error("oidc_authorize_failed", provider_id=provider_id, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to contact OIDC provider",

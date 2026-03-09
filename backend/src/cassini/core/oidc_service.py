@@ -15,6 +15,7 @@ import secrets
 import structlog
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from urllib.parse import quote, urlparse
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from authlib.oidc.core import CodeIDToken
@@ -51,6 +52,57 @@ class OIDCService:
         key = get_encryption_key()
         return decrypt_password(encrypted, key)
 
+    def _validate_redirect_uri(
+        self, redirect_uri: str, config: OIDCConfig
+    ) -> None:
+        """Validate redirect_uri against provider allowlist.
+
+        Rejects:
+        - URIs that are not well-formed HTTP/HTTPS URLs
+        - URIs not in the provider's allowed_redirect_uris list
+        - All URIs when no allowlist is configured (fail-closed)
+
+        Raises:
+            ValueError: If the URI is invalid or not allowed.
+        """
+        # Parse and validate basic URL structure
+        parsed = urlparse(redirect_uri)
+        if parsed.scheme not in ("http", "https"):
+            logger.warning(
+                "oidc_redirect_uri_rejected",
+                reason="invalid_scheme",
+                provider_id=config.id,
+            )
+            raise ValueError("redirect_uri must use http or https scheme")
+
+        if not parsed.netloc:
+            logger.warning(
+                "oidc_redirect_uri_rejected",
+                reason="missing_host",
+                provider_id=config.id,
+            )
+            raise ValueError("redirect_uri must include a host")
+
+        # Check against allowlist (fail-closed: reject if no allowlist)
+        allowed_uris = config.allowed_redirect_uris_list
+        if not allowed_uris:
+            logger.warning(
+                "oidc_redirect_uri_rejected",
+                reason="no_allowlist_configured",
+                provider_id=config.id,
+            )
+            raise ValueError(
+                "No allowed redirect URIs configured for this provider"
+            )
+
+        if redirect_uri not in allowed_uris:
+            logger.warning(
+                "oidc_redirect_uri_rejected",
+                reason="not_in_allowlist",
+                provider_id=config.id,
+            )
+            raise ValueError("redirect_uri not in allowed list for this provider")
+
     async def _get_oidc_metadata(self, issuer_url: str) -> dict:
         """Fetch OIDC provider metadata from the well-known endpoint."""
         import httpx
@@ -80,10 +132,8 @@ class OIDCService:
         if config is None or not config.is_active:
             raise ValueError(f"OIDC provider {provider_id} not found or inactive")
 
-        # Validate redirect_uri against allowlist
-        allowed_uris = config.allowed_redirect_uris_list
-        if allowed_uris and redirect_uri not in allowed_uris:
-            raise ValueError("redirect_uri not in allowed list for this provider")
+        # Validate redirect_uri is a well-formed HTTP(S) URL
+        self._validate_redirect_uri(redirect_uri, config)
 
         metadata = await self._get_oidc_metadata(config.issuer_url)
         authorization_endpoint = metadata["authorization_endpoint"]
@@ -545,8 +595,17 @@ class OIDCService:
         # Append post_logout_redirect_uri if configured
         post_logout_uri = getattr(config, "post_logout_redirect_uri", None)
         if post_logout_uri:
-            separator = "&" if "?" in end_session_url else "?"
-            end_session_url = f"{end_session_url}{separator}post_logout_redirect_uri={post_logout_uri}"
+            # Validate it's a well-formed HTTP(S) URL before using
+            parsed_logout = urlparse(post_logout_uri)
+            if parsed_logout.scheme in ("http", "https") and parsed_logout.netloc:
+                separator = "&" if "?" in end_session_url else "?"
+                encoded_uri = quote(post_logout_uri, safe="")
+                end_session_url = f"{end_session_url}{separator}post_logout_redirect_uri={encoded_uri}"
+            else:
+                logger.warning(
+                    "oidc_logout_invalid_redirect",
+                    provider_id=provider_id,
+                )
 
         return end_session_url
 
