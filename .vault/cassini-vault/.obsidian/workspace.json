@@ -1,0 +1,243 @@
+{
+  "main": {
+    "id": "024f68fe23baf9b3",
+    "type": "split",
+    "children": [
+      {
+        "id": "439b83ed3be450bb",
+        "type": "tabs",
+        "dimension": 30.006459948320412,
+        "children": [
+          {
+            "id": "6e76c3a628a22351",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
+          }
+        ]
+      },
+      {
+        "id": "976e9dc3b288c4b9",
+        "type": "tabs",
+        "dimension": 69.99354005167959,
+        "children": [
+          {
+            "id": "366af4fc20a5421a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Strategy/Pricing Strategy 2026.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Pricing Strategy 2026"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "3ead440df6418fd4",
+    "type": "split",
+    "children": [
+      {
+        "id": "5bc9d18adefdb8ca",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f2b0d82c337fa85a",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "b988123bb77d41f7",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "4cf47917f50b5640",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "9d9eef16782f692c",
+    "type": "split",
+    "children": [
+      {
+        "id": "822357cc1939629f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "96ffa516d4841324",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Strategy/Pricing Strategy 2026.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Pricing Strategy 2026"
+            }
+          },
+          {
+            "id": "1e654ea16227db1d",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Strategy/Pricing Strategy 2026.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Pricing Strategy 2026"
+            }
+          },
+          {
+            "id": "94219ceb944ef322",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "a563dabf1ff54901",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "32fcc1ffdcce7049",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Strategy/Pricing Strategy 2026.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Pricing Strategy 2026"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "f2b0d82c337fa85a",
+  "lastOpenFiles": [
+    "Designs/Semantic Pattern Search.md",
+    "Designs/Semantic Pattern Search.md.tmp.185140.1772938042789",
+    "Designs/Snapshot Time Travel.md",
+    "Designs/Snapshot Time Travel.md.tmp.185140.1772937990964",
+    "Designs/AI Quality Agent Research.md",
+    "Designs/AI Quality Agent Research.md.tmp.185140.1772937976840",
+    "Designs/Graph Visualization Research.md",
+    "Designs/Graph Visualization Research.md.tmp.185140.1772937924196",
+    "Strategy/SPC Software Pricing Research.md",
+    "Strategy/SPC Software Pricing Research.md.tmp.71452.1772911671883",
+    "Designs/Open-Core Plugin Architecture.md",
+    "Designs/Open-Core Plugin Architecture.md.tmp.71452.1772850285927",
+    "2026-03-06.md.tmp.71452.1772824038185",
+    "Lessons/Lessons Learned.md.tmp.71452.1772824027879",
+    "Strategy/Pricing Strategy 2026.md",
+    "Strategy/Competitive Analysis 2026.md",
+    "Templates/Daily Note.md",
+    "2026-03-06.md",
+    "Lessons/Pitfalls.md",
+    "Welcome.md",
+    "Archive/v0.4.0 Summary.md",
+    "Archive/v0.4.0 Summary.md.tmp.71452.1772808954693",
+    "Archive/v0.3.0 Summary.md",
+    "Archive/v0.3.0 Summary.md.tmp.71452.1772808902866",
+    "Audits/Skeptic Review Report.md",
+    "Designs/Anomaly Detection.md",
+    "Designs/Electronic Signatures.md",
+    "Designs/Sprint 9 - Advanced Analytics.md",
+    "Features/Advanced Analytics.md",
+    "Designs/Sprint 7 - Gage Bridge.md",
+    "Features/Reporting.md",
+    "Features/Admin.md",
+    "Designs/Sprint 6 - Compliance Gate.md",
+    "Features/Auth.md",
+    "Features/Records Retention.md",
+    "Features/Anomaly Detection.md"
+  ]
+}
