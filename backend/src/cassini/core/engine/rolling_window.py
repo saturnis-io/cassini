@@ -871,3 +871,20 @@ class RollingWindowManager:
     def max_cached_windows(self) -> int:
         """Maximum number of windows that can be cached."""
         return self._max_cached
+
+
+# ── Per-worker singleton ─────────────────────────────────────────────
+_shared_manager: RollingWindowManager | None = None
+
+
+def get_shared_window_manager() -> RollingWindowManager:
+    """Return the per-worker singleton RollingWindowManager.
+
+    Creates the instance on first call. Subsequent calls return the
+    same object. No sample_repository is set on the singleton — callers
+    must pass ``repo=`` to ``get_window()`` and ``add_sample()``.
+    """
+    global _shared_manager
+    if _shared_manager is None:
+        _shared_manager = RollingWindowManager()
+    return _shared_manager

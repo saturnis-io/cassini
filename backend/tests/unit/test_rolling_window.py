@@ -13,7 +13,9 @@ from cassini.core.engine.rolling_window import (
     WindowSample,
     Zone,
     ZoneBoundaries,
+    get_shared_window_manager,
 )
+import cassini.core.engine.rolling_window as _rw_module
 
 
 # Test fixtures
@@ -1212,3 +1214,26 @@ class TestControlLimitCache:
         # Others remain
         assert mgr.get_cached_limits(char_id=1, material_id=20) is not None
         assert mgr.get_cached_limits(char_id=1) is not None
+
+
+class TestSingletonWindowManager:
+    """Tests for the module-level singleton factory."""
+
+    def setup_method(self):
+        """Reset singleton state before each test."""
+        _rw_module._shared_manager = None
+
+    def teardown_method(self):
+        """Reset singleton state after each test."""
+        _rw_module._shared_manager = None
+
+    def test_get_shared_manager_returns_same_instance(self):
+        """Repeated calls return the exact same object."""
+        m1 = get_shared_window_manager()
+        m2 = get_shared_window_manager()
+        assert m1 is m2
+
+    def test_get_shared_manager_returns_rolling_window_manager(self):
+        """Factory returns a RollingWindowManager instance."""
+        m = get_shared_window_manager()
+        assert isinstance(m, RollingWindowManager)

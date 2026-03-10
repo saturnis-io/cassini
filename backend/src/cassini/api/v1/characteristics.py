@@ -50,7 +50,7 @@ import json as _json
 
 from cassini.core.engine.nelson_rules import NELSON_RULE_IDS
 from cassini.db.models.user import User
-from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.rolling_window import RollingWindowManager, get_shared_window_manager
 from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.repositories import CharacteristicRepository, SampleRepository
 
@@ -81,7 +81,7 @@ async def get_control_limit_service(
     sample_repo: SampleRepository = Depends(get_sample_repo),
 ) -> ControlLimitService:
     """Dependency to get ControlLimitService instance."""
-    window_manager = RollingWindowManager(sample_repo)
+    window_manager = get_shared_window_manager()
     return ControlLimitService(sample_repo, char_repo, window_manager)
 
 
@@ -1786,7 +1786,7 @@ async def set_limits(
     await session.commit()
 
     # Invalidate rolling window cache
-    window_manager = RollingWindowManager(sample_repo)
+    window_manager = get_shared_window_manager()
     await window_manager.invalidate(char_id)
 
     # Publish event

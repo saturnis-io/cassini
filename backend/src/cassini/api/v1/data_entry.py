@@ -36,7 +36,7 @@ from cassini.api.schemas.data_entry import (
     SchemaResponse,
 )
 from cassini.core.engine.nelson_rules import NelsonRuleLibrary
-from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.rolling_window import get_shared_window_manager
 from cassini.core.engine.spc_engine import SPCEngine
 from cassini.core.providers.protocol import SampleContext
 from cassini.db.models.api_key import APIKey
@@ -49,17 +49,14 @@ from cassini.db.repositories import (
 router = APIRouter(prefix="/api/v1/data-entry", tags=["data-entry"])
 
 
-# Shared RollingWindowManager — keeps LRU cache warm across requests
-_shared_window_manager: RollingWindowManager | None = None
-
-
 async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     """Create SPC engine instance with all dependencies.
 
-    Reuses a shared RollingWindowManager so the LRU cache persists
-    across requests. Session-scoped repos are created fresh per request
-    and passed to the engine (NOT stored on the shared manager, which
-    would cause cross-request session sharing under concurrency).
+    Reuses the per-worker singleton RollingWindowManager so the LRU
+    cache persists across requests. Session-scoped repos are created
+    fresh per request and passed to the engine (NOT stored on the
+    shared manager, which would cause cross-request session sharing
+    under concurrency).
 
     Args:
         session: Database session for repositories.
@@ -67,14 +64,9 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     Returns:
         Configured SPCEngine instance.
     """
-    global _shared_window_manager
-
     sample_repo = SampleRepository(session)
     char_repo = CharacteristicRepository(session)
     violation_repo = ViolationRepository(session)
-
-    if _shared_window_manager is None:
-        _shared_window_manager = RollingWindowManager()
 
     rule_library = NelsonRuleLibrary()
 
@@ -82,7 +74,7 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
         sample_repo=sample_repo,
         char_repo=char_repo,
         violation_repo=violation_repo,
-        window_manager=_shared_window_manager,
+        window_manager=get_shared_window_manager(),
         rule_library=rule_library,
     )
 

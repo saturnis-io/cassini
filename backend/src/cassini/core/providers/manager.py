@@ -107,7 +107,7 @@ class TagProviderManager:
         """
         # Lazy imports to avoid circular dependencies
         from cassini.core.engine.nelson_rules import NelsonRuleLibrary
-        from cassini.core.engine.rolling_window import RollingWindowManager
+        from cassini.core.engine.rolling_window import get_shared_window_manager
         from cassini.core.engine.spc_engine import SPCEngine
         from cassini.core.events import event_bus
         from cassini.db.repositories import (
@@ -145,8 +145,8 @@ class TagProviderManager:
         sample_repo = SampleRepository(session)
         violation_repo = ViolationRepository(session)
 
-        # Create rolling window manager
-        window_manager = RollingWindowManager(sample_repo)
+        # Get shared rolling window manager (per-worker singleton)
+        window_manager = get_shared_window_manager()
 
         # Create Nelson rule library
         rule_library = NelsonRuleLibrary()

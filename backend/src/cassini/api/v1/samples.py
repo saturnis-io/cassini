@@ -34,7 +34,7 @@ from cassini.api.schemas.sample import (
     SampleEditHistoryResponse,
 )
 from cassini.core.engine.nelson_rules import NelsonRuleLibrary
-from cassini.core.engine.rolling_window import RollingWindowManager
+from cassini.core.engine.rolling_window import RollingWindowManager, get_shared_window_manager
 from cassini.core.engine.spc_engine import SPCEngine
 from cassini.core.providers.manual import ManualProvider
 from cassini.core.providers.protocol import SampleContext
@@ -113,7 +113,7 @@ async def get_spc_engine(
     violation_repo: ViolationRepository = Depends(get_violation_repo),
 ) -> SPCEngine:
     """Get SPC engine instance with all dependencies."""
-    window_manager = RollingWindowManager(sample_repo)
+    window_manager = get_shared_window_manager()
     rule_library = NelsonRuleLibrary()
 
     return SPCEngine(
@@ -135,12 +135,8 @@ async def get_manual_provider(
 async def get_window_manager(
     sample_repo: SampleRepository = Depends(get_sample_repo),
 ) -> RollingWindowManager:
-    """Get rolling window manager instance.
-
-    TODO: Cache as app-state singleton to preserve LRU window cache across
-    requests. Currently recreated per request, losing the in-memory cache.
-    """
-    return RollingWindowManager(sample_repo)
+    """Get rolling window manager instance."""
+    return get_shared_window_manager()
 
 
 # Endpoints
@@ -579,7 +575,7 @@ async def toggle_exclude(
 
         # Invalidate the rolling window to trigger rebuild
         # This ensures the excluded sample is not used in rule evaluation
-        window_manager = RollingWindowManager(sample_repo)
+        window_manager = get_shared_window_manager()
         await window_manager.invalidate(sample.char_id)
 
         # Calculate statistics
