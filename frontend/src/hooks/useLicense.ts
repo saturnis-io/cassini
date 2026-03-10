@@ -1,38 +1,43 @@
 import { useEffect } from 'react'
 import { useLicenseStore } from '@/stores/licenseStore'
-import { getLicenseStatus } from '@/api/license.api'
+import { useLicenseStatus } from '@/api/hooks/license'
+import type { LicenseStatus } from '@/api/license.api'
+
+const COMMUNITY_DEFAULTS: LicenseStatus = {
+	edition: 'community',
+	tier: 'community',
+	max_plants: 1,
+	expires_at: null,
+	days_until_expiry: null,
+	is_expired: null,
+	license_name: null,
+}
 
 export function useLicense() {
-	const store = useLicenseStore()
+	const { data, isLoading, isError } = useLicenseStatus()
+	const setFromApi = useLicenseStore((s) => s.setFromApi)
 
+	// Sync query result to Zustand store so useUploadLicense's
+	// optimistic store write remains consistent
+	const status = isError ? COMMUNITY_DEFAULTS : data
 	useEffect(() => {
-		if (!store.loaded) {
-			getLicenseStatus()
-				.then((status) => store.setFromApi(status))
-				.catch(() => {
-					// On error, finalize as community so the app doesn't hang in limbo
-					store.setFromApi({
-						edition: 'community',
-						tier: 'community',
-						max_plants: 1,
-						expires_at: null,
-						days_until_expiry: null,
-						is_expired: null,
-						license_name: null,
-					})
-				})
+		if (status) {
+			setFromApi(status)
 		}
-	}, [store.loaded])
+	}, [status, setFromApi])
+
+	const loaded = !isLoading
+	const resolved = status ?? COMMUNITY_DEFAULTS
 
 	return {
-		isCommercial: store.edition === 'commercial',
-		edition: store.edition,
-		tier: store.tier,
-		maxPlants: store.maxPlants,
-		expiresAt: store.expiresAt,
-		daysUntilExpiry: store.daysUntilExpiry,
-		isExpired: store.isExpired ?? false,
-		licenseName: store.licenseName,
-		loaded: store.loaded,
+		isCommercial: resolved.edition === 'commercial',
+		edition: resolved.edition,
+		tier: resolved.tier,
+		maxPlants: resolved.max_plants,
+		expiresAt: resolved.expires_at,
+		daysUntilExpiry: resolved.days_until_expiry,
+		isExpired: resolved.is_expired ?? false,
+		licenseName: resolved.license_name,
+		loaded,
 	}
 }
