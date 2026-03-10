@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./cassini.db"
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 3600
 
     # Auth / JWT
     jwt_secret: str = ""

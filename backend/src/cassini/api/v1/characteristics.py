@@ -492,13 +492,13 @@ async def delete_characteristic(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(_user, plant_id, "engineer")
 
-    # Check if characteristic has samples
+    # Check if characteristic has samples (count only — avoids loading all into memory)
     sample_repo = SampleRepository(session)
-    samples = await sample_repo.get_by_characteristic(char_id)
-    if samples:
+    sample_count = await sample_repo.count_by_characteristic(char_id)
+    if sample_count > 0:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete characteristic {char_id} with {len(samples)} existing samples"
+            detail=f"Cannot delete characteristic {char_id} with {sample_count} existing samples"
         )
 
     # Capture values for audit before deletion

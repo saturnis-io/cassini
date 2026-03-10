@@ -99,7 +99,7 @@ class Measurement(Base):
     __tablename__ = "measurement"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False, index=True)
     value: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Relationship
