@@ -1,7 +1,3 @@
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
-import * as XLSX from 'xlsx'
-import html2canvas from 'html2canvas'
 import { applyFormat } from '@/lib/date-format'
 
 /**
@@ -128,6 +124,13 @@ export async function exportToPdf(
   filename: string,
   options?: { orientation?: 'portrait' | 'landscape' },
 ) {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ])
+  // Side-effect import — patches jsPDF prototype with autoTable method
+  await import('jspdf-autotable')
+
   const canvas = await html2canvas(element, {
     scale: 2,
     logging: false,
@@ -175,11 +178,12 @@ export async function exportToPdf(
 /**
  * Export data to Excel (.xlsx)
  */
-export function exportToExcel(
+export async function exportToExcel(
   data: Record<string, unknown>[],
   filename: string,
   sheetName = 'Data',
 ) {
+  const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(data)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
@@ -189,7 +193,8 @@ export function exportToExcel(
 /**
  * Export data to CSV
  */
-export function exportToCsv(data: Record<string, unknown>[], filename: string) {
+export async function exportToCsv(data: Record<string, unknown>[], filename: string) {
+  const XLSX = await import('xlsx')
   const ws = XLSX.utils.json_to_sheet(data)
   const csv = XLSX.utils.sheet_to_csv(ws)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

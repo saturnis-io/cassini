@@ -95,10 +95,10 @@ export function ExportDropdown({
         }
 
         if (format === 'excel') {
-          exportToExcel(data, exportFilename, 'Report Data')
+          await exportToExcel(data, exportFilename, 'Report Data')
           toast.success('Excel file exported successfully')
         } else {
-          exportToCsv(data, exportFilename)
+          await exportToCsv(data, exportFilename)
           toast.success('CSV file exported successfully')
         }
       }
