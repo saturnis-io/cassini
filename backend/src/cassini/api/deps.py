@@ -3,11 +3,14 @@
 Provides database sessions, repository instances, and auth dependencies for API endpoints.
 """
 
+import time
 from collections.abc import AsyncGenerator
 from typing import Optional
 
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import make_transient
 
 from cassini.core.alerts.manager import AlertManager
 from cassini.core.auth.roles import ROLE_HIERARCHY, get_user_role_level_for_plant
@@ -19,6 +22,64 @@ from cassini.db.repositories.hierarchy import HierarchyRepository
 from cassini.db.repositories.sample import SampleRepository
 from cassini.db.repositories.user import UserRepository
 from cassini.db.repositories.violation import ViolationRepository
+
+
+# ---------------------------------------------------------------------------
+# User cache — avoids DB hit on every authenticated request (60s TTL)
+# ---------------------------------------------------------------------------
+_USER_CACHE_TTL = 60  # seconds
+_user_cache: dict[int, tuple[float, User]] = {}
+
+
+def invalidate_user_cache(user_id: int) -> None:
+    """Remove a user from the in-memory cache after mutation."""
+    _user_cache.pop(user_id, None)
+
+
+def _get_cached_user(user_id: int) -> Optional[User]:
+    """Return cached user if present and not expired."""
+    entry = _user_cache.get(user_id)
+    if entry is None:
+        return None
+    cached_at, user = entry
+    if time.monotonic() - cached_at > _USER_CACHE_TTL:
+        del _user_cache[user_id]
+        return None
+    return user
+
+
+def _cache_user(user: User, session: AsyncSession) -> None:
+    """Detach user from session and store in cache."""
+    # Expunge from session so the object isn't bound to a closed session later
+    session.expunge(user)
+    # Make transient so SQLAlchemy doesn't try to track it
+    make_transient(user)
+    # Also make plant_roles and their plants transient
+    for pr in user.plant_roles:
+        session.expunge(pr)
+        make_transient(pr)
+        if pr.plant is not None:
+            session.expunge(pr.plant)
+            make_transient(pr.plant)
+    _user_cache[user.id] = (time.monotonic(), user)
+
+
+# ---------------------------------------------------------------------------
+# Characteristic-to-plant cache — avoids recursive hierarchy walk (5min TTL)
+# ---------------------------------------------------------------------------
+_CHAR_PLANT_CACHE_TTL = 300  # seconds
+_char_plant_cache: dict[int, tuple[float, int]] = {}
+
+
+def invalidate_char_plant_cache(characteristic_id: Optional[int] = None) -> None:
+    """Remove entries from the characteristic-to-plant cache.
+
+    If characteristic_id is None, clears the entire cache.
+    """
+    if characteristic_id is None:
+        _char_plant_cache.clear()
+    else:
+        _char_plant_cache.pop(characteristic_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +157,9 @@ async def get_current_user(
 ) -> User:
     """Extract and validate the current user from JWT Bearer token.
 
+    Uses an in-memory TTL cache (60s) to avoid DB queries on every request.
+    Cache is invalidated on user mutations (password change, role change, etc.).
+
     Args:
         authorization: Authorization header value.
         session: Database session.
@@ -125,6 +189,29 @@ async def get_current_user(
         )
 
     user_id = int(payload["sub"])
+    pwd_changed_claim = payload.get("pwd_changed")
+
+    # Check in-memory cache first
+    cached = _get_cached_user(user_id)
+    if cached is not None:
+        if not cached.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # Validate JWT hasn't been revoked by password change
+        if cached.password_changed_at and pwd_changed_claim is not None:
+            user_pwd_epoch = int(cached.password_changed_at.timestamp())
+            if pwd_changed_claim < user_pwd_epoch:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token invalidated by password change",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        return cached
+
+    # Cache miss — query DB
     repo = UserRepository(session)
     user = await repo.get_by_id(user_id)
 
@@ -136,7 +223,6 @@ async def get_current_user(
         )
 
     # JWT revocation: reject tokens issued before last password change
-    pwd_changed_claim = payload.get("pwd_changed")
     if user.password_changed_at and pwd_changed_claim is not None:
         user_pwd_epoch = int(user.password_changed_at.timestamp())
         if pwd_changed_claim < user_pwd_epoch:
@@ -145,6 +231,9 @@ async def get_current_user(
                 detail="Token invalidated by password change",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+    # Store in cache (detached from session)
+    _cache_user(user, session)
 
     return user
 
@@ -254,16 +343,24 @@ async def resolve_plant_id_for_characteristic(
 ) -> int:
     """Resolve the plant_id that a characteristic belongs to via hierarchy.
 
-    Child hierarchy nodes (Line, Equipment, Cell) may have plant_id=NULL.
-    This function walks up the hierarchy tree via parent_id until it finds
-    a node with plant_id set.
+    Uses a recursive CTE (single query) instead of walking up the tree one
+    node at a time. Results are cached for 5 minutes.
+
+    Works on both SQLite and PostgreSQL.
     """
     from sqlalchemy import select as sa_select
 
     from cassini.db.models.characteristic import Characteristic
-    from cassini.db.models.hierarchy import Hierarchy
 
-    # First, get the hierarchy_id for the characteristic
+    # Check cache first
+    cache_entry = _char_plant_cache.get(characteristic_id)
+    if cache_entry is not None:
+        cached_at, plant_id = cache_entry
+        if time.monotonic() - cached_at <= _CHAR_PLANT_CACHE_TTL:
+            return plant_id
+        del _char_plant_cache[characteristic_id]
+
+    # Get the hierarchy_id for the characteristic
     char_row = (
         await session.execute(
             sa_select(Characteristic.hierarchy_id).where(
@@ -280,32 +377,31 @@ async def resolve_plant_id_for_characteristic(
 
     hierarchy_id = char_row
 
-    # Walk up the hierarchy tree to find the plant_id
-    # Max depth of 20 prevents infinite loops from bad data
-    for _ in range(20):
-        row = (
-            await session.execute(
-                sa_select(Hierarchy.plant_id, Hierarchy.parent_id).where(
-                    Hierarchy.id == hierarchy_id
-                )
-            )
-        ).one_or_none()
+    # Single recursive CTE query — works on SQLite and PostgreSQL
+    cte_sql = text("""
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id, plant_id
+            FROM hierarchy
+            WHERE id = :start_id
+            UNION ALL
+            SELECT h.id, h.parent_id, h.plant_id
+            FROM hierarchy h
+            JOIN ancestors a ON h.id = a.parent_id
+        )
+        SELECT plant_id FROM ancestors WHERE plant_id IS NOT NULL LIMIT 1
+    """)
+    result = await session.execute(cte_sql, {"start_id": hierarchy_id})
+    plant_id = result.scalar_one_or_none()
 
-        if row is None:
-            break
+    if plant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not resolve plant for characteristic {characteristic_id}",
+        )
 
-        if row.plant_id is not None:
-            return row.plant_id
-
-        # Move to parent node
-        if row.parent_id is None:
-            break
-        hierarchy_id = row.parent_id
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Could not resolve plant for characteristic {characteristic_id}",
-    )
+    # Cache the result
+    _char_plant_cache[characteristic_id] = (time.monotonic(), plant_id)
+    return plant_id
 
 
 def get_license_service(request: Request) -> LicenseService:

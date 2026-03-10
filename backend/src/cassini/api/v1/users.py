@@ -8,7 +8,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 
-from cassini.api.deps import get_current_admin, get_user_repo
+from cassini.api.deps import get_current_admin, get_user_repo, invalidate_user_cache
 from cassini.api.schemas.user import (
     PlantRoleAssign,
     PlantRoleResponse,
@@ -151,6 +151,8 @@ async def update_user(
                 detail=f"User {user_id} not found",
             )
 
+        invalidate_user_cache(user_id)
+
         # Build audit fields — only include changed fields
         audit_fields: dict = {}
         for field in ("username", "email", "is_active"):
@@ -200,6 +202,8 @@ async def deactivate_user(
             detail=f"User {user_id} not found",
         )
 
+    invalidate_user_cache(user_id)
+
     request.state.audit_context = {
         "resource_type": "user",
         "resource_id": user_id,
@@ -248,6 +252,8 @@ async def delete_user_permanent(
             detail=f"User {user_id} not found",
         )
 
+    invalidate_user_cache(user_id)
+
     request.state.audit_context = {
         "resource_type": "user",
         "resource_id": user_id,
@@ -289,6 +295,8 @@ async def assign_plant_role(
 
     target_username = user.username
     await repo.assign_plant_role(user_id, data.plant_id, role)
+
+    invalidate_user_cache(user_id)
 
     request.state.audit_context = {
         "resource_type": "user",
@@ -338,6 +346,8 @@ async def remove_plant_role(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No role assignment found for user {user_id} at plant {plant_id}",
         )
+
+    invalidate_user_cache(user_id)
 
     request.state.audit_context = {
         "resource_type": "user",

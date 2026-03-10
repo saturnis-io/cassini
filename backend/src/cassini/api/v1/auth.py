@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
 
-from cassini.api.deps import get_current_user, get_db_session, get_user_repo
+from cassini.api.deps import get_current_user, get_db_session, get_user_repo, invalidate_user_cache
 from cassini.api.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
@@ -344,6 +344,8 @@ async def change_password(
     current_user.password_changed_at = datetime.now(timezone.utc)
     await session.commit()
 
+    invalidate_user_cache(current_user.id)
+
     request.state.audit_context = {
         "resource_type": "auth",
         "resource_id": current_user.id,
@@ -587,6 +589,9 @@ async def reset_password(
     # Consume token
     reset_token.used_at = now
 
+    # Invalidate user cache so next auth check uses fresh data
+    invalidate_user_cache(user.id)
+
     # Note: Refresh tokens are stateless JWTs — we cannot revoke them from the DB.
     # The password_changed_at update ensures the user must re-authenticate.
 
@@ -672,6 +677,8 @@ async def update_profile(
         )
 
     await session.commit()
+    invalidate_user_cache(current_user.id)
+
     return UpdateProfileResponse(
         message="Profile updated successfully",
         email_verification_sent=email_verification_sent,
