@@ -1,12 +1,61 @@
 """Nelson Rules implementation for SPC violation detection.
 
-This module provides all 8 Nelson Rules as pluggable rule classes for detecting
-non-random patterns in control charts. Each rule is implemented as a standalone
-class following the NelsonRule protocol.
+PURPOSE:
+    Implements all 8 Nelson Rules as pluggable, parameterizable rule classes
+    for detecting non-random (special cause) patterns in Shewhart control
+    charts. Each rule targets a specific type of process disturbance.
 
-References:
-    - Lloyd S. Nelson, "The Shewhart Control Chart - Tests for Special Causes" (1984)
-    - AIAG SPC Manual, 2nd Edition
+STANDARDS:
+    - Nelson, L.S. (1984), "The Shewhart Control Chart -- Tests for Special
+      Causes", Journal of Quality Technology, 16(4), pp.237-239.
+      This is the DEFINITIVE reference for the 8 rules. Nelson formalized
+      the zone tests that had been used informally since the Western Electric
+      Statistical Quality Control Handbook (1956).
+    - Western Electric Co. (1956), "Statistical Quality Control Handbook",
+      pp.25-28 -- original zone tests (Rules 1-4 substantially similar)
+    - AIAG SPC Manual, 2nd Ed. (2005), Chapter II -- recommends Rules 1-4
+      as minimum; Rules 5-8 as supplementary
+    - Montgomery (2019), "Introduction to Statistical Quality Control",
+      8th Ed., Section 6.3.3 -- provides run rules table
+
+ARCHITECTURE:
+    Each rule is a standalone class implementing the NelsonRule Protocol.
+    Rules are registered in NelsonRuleLibrary, which provides:
+      - create_from_config(): rebuild rules with custom parameters from DB
+      - check_all(): evaluate all enabled rules against a RollingWindow
+      - check_single(): evaluate one rule
+    The library is stateless between calls -- all state lives in the
+    RollingWindow passed to check().
+
+    Rule evaluation is always performed on the MOST RECENT samples in the
+    window (tail evaluation). This is correct for real-time SPC: we want
+    to detect if the LATEST point is part of a pattern, not scan the
+    entire history.
+
+KEY DECISIONS:
+    - All rules support custom parameters (e.g., consecutive_count,
+      sigma_multiplier) via the params dict. This allows per-characteristic
+      tuning while maintaining the standard defaults.
+    - Guard clauses reset parameters to defaults if invalid (e.g.,
+      consecutive_count < 2 for Rule 2).
+    - Rule 3 (Trend) uses STRICT comparisons (< / >). Equal consecutive
+      values break the trend. This matches Nelson (1984) "all increasing
+      or all decreasing" and the majority of commercial SPC software.
+    - Rule 8 (Mixture) requires points on BOTH sides of center line to
+      distinguish true mixture patterns from sustained shifts (which are
+      caught by Rule 2/6).
+    - Rules 5-8 are zone-based and assume approximate normality. They are
+      NOT applied to attribute charts (see attribute_engine.py).
+
+RULE SUMMARY:
+    Rule 1 (Outlier):       1 point beyond 3-sigma      [CRITICAL]
+    Rule 2 (Shift):         9 consecutive same side      [WARNING]
+    Rule 3 (Trend):         6 consecutive monotonic       [WARNING]
+    Rule 4 (Alternator):    14 consecutive alternating    [WARNING]
+    Rule 5 (Zone A):        2 of 3 in Zone A, same side  [WARNING]
+    Rule 6 (Zone B):        4 of 5 in Zone B+, same side [WARNING]
+    Rule 7 (Stratification): 15 consecutive in Zone C    [WARNING]
+    Rule 8 (Mixture):       8 consecutive outside Zone C  [WARNING]
 """
 
 from dataclasses import dataclass
@@ -84,14 +133,20 @@ class NelsonRule(Protocol):
 
 
 class Rule1Outlier:
-    """Rule 1: One point beyond 3 sigma (Zone A boundary).
+    """Rule 1: One point beyond 3 sigma (beyond control limits).
 
-    This is the most severe violation - a point beyond the control limits.
-    Indicates a special cause or out-of-control condition.
+    The most fundamental Shewhart test. Under normality, the probability
+    of a single point exceeding 3-sigma limits by chance is 0.27% (1 in 370).
+    A point beyond the limits is strong evidence of a special cause.
+
+    Ref: Nelson (1984), Rule 1; AIAG SPC Manual 2nd Ed., Chapter II;
+         Montgomery (2019), Section 6.3.3, Table 6.3.
 
     Parameters:
         sigma_multiplier (float): Sigma distance for outlier detection (default 3.0).
-            When != 3.0, uses manual computation instead of Zone enum.
+            When != 3.0, uses pre-computed sigma_distance instead of Zone enum
+            classification. Allows tighter limits (e.g., 2.5-sigma warning limits)
+            or wider limits for high-volume processes.
     """
 
     rule_id = 1
@@ -141,8 +196,18 @@ class Rule1Outlier:
 class Rule2Shift:
     """Rule 2: Nine points in a row on the same side of the center line.
 
-    Indicates a shift in the process mean. The counter resets when a point
-    crosses the center line.
+    Detects a sustained shift in the process mean. Under normality with a
+    centered process, the probability of 9 consecutive points on the same
+    side is (0.5)^9 = 0.00195 (approximately 1 in 512).
+
+    A value exactly AT the center line is classified as "above" (Zone C upper),
+    consistent with the >= convention in zone classification throughout the
+    Cassini engine. This means a sequence of values all exactly at the center
+    line would register as "all above" -- a correct interpretation since it
+    indicates zero variation, which is itself a special pattern.
+
+    Ref: Nelson (1984), Rule 2; AIAG SPC Manual 2nd Ed., Chapter II;
+         Montgomery (2019), Section 6.3.3.
 
     Parameters:
         consecutive_count (int): Number of consecutive points required (default 9).
@@ -317,7 +382,16 @@ class Rule4Alternator:
 class Rule5ZoneA:
     """Rule 5: Two out of three consecutive points in Zone A or beyond, same side.
 
-    Indicates the process mean may be shifting or there's increased variation.
+    Detects early warning of a process mean shift. Under normality, the
+    probability of a single point in Zone A (>2sigma) on one side is
+    ~2.14%. Two out of three on the same side has a probability of
+    ~0.0069 (approximately 1 in 145).
+
+    "Zone A or beyond" includes both Zone A and Beyond UCL/LCL, so a
+    point that exceeds the control limit also counts toward this rule.
+
+    Ref: Nelson (1984), Rule 5; Western Electric (1956), p.27;
+         Montgomery (2019), Section 6.3.3.
 
     Parameters:
         count (int): Number of points required in zone (default 2).
@@ -380,8 +454,15 @@ class Rule5ZoneA:
 class Rule6ZoneB:
     """Rule 6: Four out of five consecutive points in Zone B or beyond, same side.
 
-    Indicates the process mean may be shifting or there's increased variation,
-    though less severe than Rule 5.
+    Detects a smaller but persistent process shift. Under normality, the
+    probability of a point being in Zone B or beyond (>1sigma) on one side
+    is ~15.73%. Four out of five on the same side is a strong signal of
+    a shifted mean.
+
+    "Zone B or beyond" includes Zone B, Zone A, and Beyond UCL/LCL.
+
+    Ref: Nelson (1984), Rule 6; Western Electric (1956), p.27;
+         Montgomery (2019), Section 6.3.3.
 
     Parameters:
         count (int): Number of points required in zone (default 4).
@@ -444,8 +525,16 @@ class Rule6ZoneB:
 class Rule7Stratification:
     """Rule 7: Fifteen consecutive points within Zone C (both sides).
 
-    Indicates stratification - control limits may be too wide or data is
-    being smoothed/averaged inappropriately.
+    Detects stratification -- the data clusters too tightly around the center
+    line, suggesting the control limits are too wide. Common causes:
+      - Limits calculated from mixed populations (e.g., two machines combined)
+      - Data being excessively smoothed or averaged
+      - Incorrect subgroup size used for limit calculation
+
+    Under normality, the probability of a point in Zone C (either side) is
+    ~68.26%. Fifteen consecutive: (0.6826)^15 = ~0.0047 (1 in 213).
+
+    Ref: Nelson (1984), Rule 7; Montgomery (2019), Section 6.3.3.
 
     Parameters:
         consecutive_count (int): Number of consecutive points required (default 15).
@@ -490,10 +579,25 @@ class Rule7Stratification:
 
 
 class Rule8Mixture:
-    """Rule 8: Eight consecutive points with none in Zone C.
+    """Rule 8: Eight consecutive points with none in Zone C, on BOTH sides.
 
-    Indicates mixture - two or more processes or populations mixed together,
-    or control limits calculated from mixed data.
+    Detects mixture -- two or more distinct populations are being combined
+    into one chart, producing a bimodal distribution that avoids the center.
+    Common causes:
+      - Two machines with different means feeding one chart
+      - Two operators with systematically different results
+      - Control limits calculated from mixed/heterogeneous data
+
+    Under normality, the probability of a point outside Zone C is ~31.74%.
+    Eight consecutive outside Zone C: (0.3174)^8 = ~0.0001 (1 in 10000).
+
+    IMPORTANT: This implementation requires points on BOTH sides of the
+    center line. Without this check, a sustained shift into Zone B/A on
+    one side would falsely trigger Rule 8 in addition to Rule 2/6. The
+    "both sides" requirement is the distinguishing characteristic of
+    mixture vs. shift patterns.
+
+    Ref: Nelson (1984), Rule 8; Montgomery (2019), Section 6.3.3.
 
     Parameters:
         consecutive_count (int): Number of consecutive points required (default 8).

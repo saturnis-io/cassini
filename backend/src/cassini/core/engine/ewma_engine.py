@@ -1,25 +1,64 @@
 """EWMA (Exponentially Weighted Moving Average) SPC engine.
 
-This module provides EWMA chart processing for detecting small shifts
-in the process mean with emphasis on recent observations.
+PURPOSE:
+    Provides EWMA chart processing for detecting small, sustained shifts in
+    the process mean. The EWMA chart smooths individual observations using
+    an exponential weighting scheme, giving more weight to recent data. Like
+    the CUSUM, it is substantially more sensitive than Shewhart charts for
+    detecting shifts of 0.5-2 sigma.
+
+STANDARDS:
+    - Roberts, S.W. (1959), "Control Chart Tests Based on Geometric Moving
+      Averages", Technometrics, 1(3), pp.239-250 -- original EWMA proposal
+    - Montgomery (2019), "Introduction to Statistical Quality Control",
+      8th Ed., Chapter 9, Section 9.2: EWMA Control Chart
+    - Lucas, J.M. & Saccucci, M.S. (1990), "Exponentially Weighted Moving
+      Average Control Schemes: Properties and Enhancements", Technometrics,
+      32(1), pp.1-12 -- ARL analysis and optimal lambda/L combinations
+    - ASTM E2587-16, Section 9: EWMA charts
+
+ARCHITECTURE:
+    Like the CUSUM engine, the EWMA engine operates independently of the
+    Shewhart SPC engine and can be invoked as standalone or supplementary.
+    The EWMA statistic and control limits are persisted per-sample.
 
 EWMA formula:
-    z_n = lambda * x_n + (1 - lambda) * z_(n-1)
-    z_0 = target (process mean)
+    z_n = lambda * x_n + (1 - lambda) * z_{n-1}
+    z_0 = target (process mean / center line)
 
-Time-varying control limits (exact):
-    UCL_i = target + L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
-    LCL_i = target - L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
+    Ref: Montgomery (2019), Eq. (9.16).
+
+Time-varying (exact) control limits:
+    UCL_i = target + L * sigma * sqrt((lambda/(2-lambda)) * (1 - (1-lambda)^{2i}))
+    LCL_i = target - L * sigma * sqrt((lambda/(2-lambda)) * (1 - (1-lambda)^{2i}))
+
+    The factor (1 - (1-lambda)^{2i}) starts near 0 for i=1 and converges
+    to 1 as i increases. This provides tighter limits for the first ~20
+    samples, correctly reflecting the lower variance of the EWMA statistic
+    when the geometric weighting has not yet reached steady state.
+
+    Ref: Montgomery (2019), Eq. (9.20)-(9.21).
 
 Steady-state (asymptotic) control limits:
     UCL = target + L * sigma * sqrt(lambda / (2 - lambda))
     LCL = target - L * sigma * sqrt(lambda / (2 - lambda))
 
-Where:
-    lambda = smoothing constant (0 < lambda <= 1), typical 0.2
-    L = control limit multiplier, typical 2.7
-    sigma = process standard deviation (estimated from historical data)
-    i = 1-based sample index (time-varying factor converges to 1 after ~20 samples)
+    Used when i is large or when time-varying limits are not desired.
+
+KEY DECISIONS:
+    - Default lambda = 0.2, L = 2.7. This combination provides good
+      sensitivity for detecting shifts of 1-sigma with an in-control
+      ARL of approximately 370 (comparable to Shewhart 3-sigma).
+      Ref: Lucas & Saccucci (1990), Table 1.
+    - Time-varying limits are used by default (sample_index > 0). The
+      steady-state formula is available for backward compatibility and
+      bulk chart rendering.
+    - Sigma estimation uses the within-subgroup MR-bar/d2 estimator,
+      consistent with the CUSUM engine and per Montgomery Ch. 9/10
+      recommendation.
+    - EWMA running value (z_n) is persisted on the sample record.
+    - Supplementary EWMA uses rule_id 11/12 to avoid collision with
+      Nelson Rule 1 and CUSUM rule_ids 9/10 in the violations table.
 """
 
 import math
@@ -79,25 +118,33 @@ def calculate_ewma_limits(
     ewma_l: float,
     sample_index: int = 0,
 ) -> tuple[float, float]:
-    """Calculate EWMA control limits.
+    """Calculate EWMA control limits (time-varying or steady-state).
 
-    When sample_index is 0 (default), returns steady-state (asymptotic) limits:
+    The variance of the EWMA statistic z_n is:
+        Var(z_n) = sigma^2 * (lambda/(2-lambda)) * (1 - (1-lambda)^{2n})
+
+    The time-varying factor (1 - (1-lambda)^{2n}) accounts for the
+    startup period where the EWMA has not yet reached its steady-state
+    variance. For lambda=0.2, this factor reaches 0.99 at n~20.
+
+    Ref: Montgomery (2019), Section 9.2, Eq. (9.20)-(9.21);
+         Lucas & Saccucci (1990), Technometrics, 32(1), pp.1-12.
+
+    Steady-state (asymptotic) limits (sample_index=0):
         UCL = target + L * sigma * sqrt(lambda / (2 - lambda))
         LCL = target - L * sigma * sqrt(lambda / (2 - lambda))
 
-    When sample_index > 0, returns time-varying (exact) limits:
-        UCL_i = target + L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
-        LCL_i = target - L * sigma * sqrt((lambda / (2 - lambda)) * (1 - (1 - lambda)^(2*i)))
-
-    The time-varying factor (1 - (1-lambda)^(2i)) starts near 0 for i=1 and
-    converges to 1 after ~20 samples. This provides tighter limits for early
-    samples, improving sensitivity to initial process shifts.
+    Time-varying (exact) limits (sample_index > 0):
+        UCL_i = target + L * sigma * sqrt((lambda/(2-lambda)) * (1-(1-lambda)^{2i}))
+        LCL_i = target - L * sigma * sqrt((lambda/(2-lambda)) * (1-(1-lambda)^{2i}))
 
     Args:
-        target: Process target/mean
-        sigma: Process standard deviation
-        ewma_lambda: Smoothing constant (0 < lambda <= 1)
-        ewma_l: Control limit multiplier
+        target: Process target/mean (z_0 initialization value)
+        sigma: Process standard deviation (within-subgroup estimate)
+        ewma_lambda: Smoothing constant (0 < lambda <= 1). Smaller values
+            give more weight to history; larger values emphasize recent data.
+        ewma_l: Control limit width multiplier. Typically 2.7 for lambda=0.2,
+            giving ARL_0 ~ 370.  Ref: Lucas & Saccucci (1990), Table 1.
         sample_index: 1-based sample index for time-varying limits.
             0 (default) returns steady-state limits for backward compatibility.
 
@@ -296,6 +343,13 @@ async def process_ewma_sample(
         sigma = 1.0  # Fallback to prevent division by zero
 
     # Step 4: Calculate new EWMA value
+    # z_n = lambda * x_n + (1 - lambda) * z_{n-1}
+    # Ref: Montgomery (2019), Section 9.2, Eq. (9.16)
+    # The EWMA is a geometrically weighted average of all past observations:
+    #   z_n = lambda * sum_{j=0}^{n-1} (1-lambda)^j * x_{n-j} + (1-lambda)^n * z_0
+    # Recent observations receive exponentially more weight. For lambda=0.2,
+    # the most recent observation gets weight 0.2, the previous gets 0.16,
+    # etc. After ~13 observations, each additional point contributes < 1%.
     ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
 
     # Step 5: Calculate time-varying control limits for this sample position

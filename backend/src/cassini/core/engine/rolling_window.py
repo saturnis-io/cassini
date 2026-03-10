@@ -1,7 +1,50 @@
 """Rolling window manager for SPC control charts.
 
-This module provides in-memory caching of recent samples with zone classification,
-LRU eviction, and lazy loading from the database.
+PURPOSE:
+    Provides in-memory caching of recent samples with zone classification for
+    Nelson Rules evaluation. The rolling window is the data structure consumed
+    by the Nelson Rule library -- it maintains the last N samples (default 25)
+    with their zone classifications, enabling O(1) access for rule checking.
+
+STANDARDS:
+    - Nelson (1984), "The Shewhart Control Chart -- Tests for Special Causes",
+      JQT 16(4), pp.237-239: zone-based test definitions require classified
+      sample history
+    - AIAG SPC Manual, 2nd Ed. (2005), Chapter II: recommends 20-25 subgroups
+      for rule evaluation
+
+ARCHITECTURE:
+    This module provides two classes:
+      1. RollingWindow: Fixed-size FIFO buffer of WindowSample objects with
+         zone classification. Each sample is classified into one of 8 zones
+         (Beyond UCL/LCL, Zone A/B/C upper/lower) based on sigma distance
+         from the center line.
+      2. RollingWindowManager: LRU cache of RollingWindow instances keyed by
+         (characteristic_id, material_id). Handles lazy loading from DB,
+         cache eviction, and per-key async locking for thread safety.
+
+    The rolling window sits between the SPC engine (which adds new samples)
+    and the Nelson Rule library (which reads the window to evaluate rules).
+
+KEY DECISIONS:
+    - Default window size of 25 (matches AIAG recommendation for Phase II
+      monitoring and covers the longest Nelson Rule window: Rule 7 needs 15,
+      Rule 4 needs 14).
+    - Zone classification uses >= (greater-than-or-equal) comparisons.
+      A value exactly on a zone boundary is placed in the HIGHER zone
+      (e.g., value at +2sigma -> Zone A upper). A value exactly at the
+      center line -> Zone C upper. This convention is consistent across
+      the entire Cassini engine.
+    - LRU cache with OrderedDict ensures O(1) lookup and eviction.
+    - Per-characteristic async locks prevent race conditions when multiple
+      concurrent requests process samples for the same characteristic.
+    - Short-run transformations (deviation/standardized) are applied to
+      measurement values before they enter the window, so zone classification
+      uses the transformed coordinate system. Raw measurements in the DB
+      are never modified.
+    - Material-partitioned windows allow per-material control limits and
+      independent Nelson Rules evaluation (e.g., different raw materials
+      may have different process means).
 
 Key features:
 - Fixed-size rolling window with FIFO eviction
@@ -9,6 +52,7 @@ Key features:
 - LRU cache manager for multiple characteristics
 - Thread-safe async operations with per-characteristic locks
 - Lazy loading from database on first access
+- Support for all three subgroup modes (A/B/C)
 """
 
 import asyncio

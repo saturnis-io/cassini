@@ -238,6 +238,17 @@ async def explain_capability_metric(
             "Within-subgroup sigma (\u03c3_w) not stored \u2014 using sample standard "
             "deviation as estimate. Cp/Cpk values equal Pp/Ppk."
         )
+    # Thread subgroup structure for correct Cp CI degrees of freedom
+    # (ISO 22514-2:2017 §7.2.3).  Only applicable in the non-chart-options
+    # path where values are individual measurements from real subgroups.
+    # In the chart-options path, values ARE subgroup means so df=n-1 is
+    # already correct — we omit subgroup params to trigger the fallback.
+    _sg_count: int | None = None
+    _sg_size: int | None = None
+    if not has_chart_options:
+        _sg_count = len(sample_data) if sample_data else None
+        _sg_size = char.subgroup_size
+
     cap_result = calculate_capability(
         values=values,
         usl=_eff_usl,
@@ -245,6 +256,8 @@ async def explain_capability_metric(
         target=_eff_target,
         sigma_within=sigma_within,
         collector=collector,
+        subgroup_count=_sg_count,
+        subgroup_size=_sg_size,
     )
 
     # Extract the requested metric value

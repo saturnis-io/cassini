@@ -1,17 +1,60 @@
 """Attribute SPC engine for p, np, c, and u control charts.
 
-This module provides control limit calculations, plotted value computation,
-and Nelson Rules 1-4 evaluation for attribute (count-based) charts.
+PURPOSE:
+    Provides complete attribute chart processing: control limit calculation,
+    plotted value computation, per-point variable limits, Laney correction
+    for overdispersion, Nelson Rules 1-4 evaluation, and end-to-end sample
+    processing with violation creation.
 
-Chart types:
-- p-chart: Fraction defective (defects / sample_size)
-- np-chart: Number defective (defect_count, fixed sample_size)
-- c-chart: Defect count per unit (fixed inspection units)
-- u-chart: Defect rate (defects / units_inspected)
+STANDARDS:
+    - Montgomery (2019), "Introduction to Statistical Quality Control",
+      8th Ed., Chapter 7: Control Charts for Attributes
+    - AIAG SPC Manual, 2nd Ed. (2005), Attribute Charts appendix
+    - Laney, D.B. (2002), "Improved Control Charts for Attributes",
+      Quality Engineering, 14(4), pp.531-537 -- Laney p'/u' charts
+    - ASTM E2587-16: Standard Practice for Use of Control Charts
 
-Only Nelson Rules 1-4 apply to attribute charts because Rules 5-8 assume
-a normal distribution with defined sigma zones, which attribute charts
-(based on binomial/Poisson distributions) do not guarantee.
+ARCHITECTURE:
+    This module is parallel to spc_engine.py but handles discrete/count data.
+    It operates independently of the RollingWindowManager and NelsonRuleLibrary
+    used by the variable-data engine, because attribute charts have different
+    distributional assumptions and limit formulas.
+
+Chart types and their underlying distributions:
+    - p-chart:  Fraction defective.     Distribution: Binomial(n, p)
+        p-bar = sum(d_i) / sum(n_i)
+        sigma = sqrt(p-bar * (1-p-bar) / n)
+        UCL/LCL = p-bar +/- 3*sigma         (capped at [0, 1])
+    - np-chart: Number defective.       Distribution: Binomial(n, p)
+        np-bar = mean(d_i)
+        sigma = sqrt(np-bar * (1 - np-bar/n))
+        UCL/LCL = np-bar +/- 3*sigma        (capped at [0, n])
+    - c-chart:  Defect count per unit.  Distribution: Poisson(c)
+        c-bar = mean(c_i)
+        sigma = sqrt(c-bar)
+        UCL/LCL = c-bar +/- 3*sigma         (LCL floored at 0)
+    - u-chart:  Defect rate.            Distribution: Poisson(u*n)
+        u-bar = sum(c_i) / sum(n_i)
+        sigma = sqrt(u-bar / n)
+        UCL/LCL = u-bar +/- 3*sigma         (LCL floored at 0)
+
+    Ref: Montgomery (2019), Sections 7.2-7.5 for each chart type.
+
+KEY DECISIONS:
+    - Only Nelson Rules 1-4 apply to attribute charts. Rules 5-8 assume a
+      normal distribution with defined sigma zones (A, B, C), which attribute
+      charts (based on binomial/Poisson distributions) do not guarantee.
+      Ref: Montgomery (2019), Section 7.4.4.
+    - p-chart and u-chart support variable sample sizes with per-point
+      limits. np-chart and c-chart require constant sample/inspection size.
+    - p-chart UCL is capped at 1.0 (probability bound). np-chart UCL is
+      capped at n (count bound). Ref: Montgomery (2019), Section 7.2.
+    - Laney correction (sigma_z) is supported for p and u charts to handle
+      overdispersion (common in high-volume processes where the binomial/
+      Poisson assumptions are violated). sigma_z multiplies the standard
+      sigma, widening limits when overdispersion exists and tightening
+      them when underdispersion exists.
+      Ref: Laney (2002), Quality Engineering 14(4).
 """
 
 import json
@@ -293,15 +336,25 @@ def _calculate_np_limits(
             result=float(sigma),
         )
 
-    ucl = np_bar + 3 * sigma
+    # ── Physical bounds on np-chart control limits ──────────────────────
+    # The np statistic counts defective items out of n inspected, so by
+    # definition 0 ≤ np ≤ n.  The 3-sigma formula can produce UCL > n when
+    # p̄ is high (e.g. n=50, np̄=45 → UCL ≈ 51.4).  Displaying an
+    # impossible UCL misleads operators, so we cap at n.
+    #
+    # References:
+    #   • Montgomery (2019) §7.2: "The upper control limit cannot exceed n"
+    #   • AIAG SPC Manual, 2nd Ed., Attribute Charts appendix
+    ucl = min(np_bar + 3 * sigma, float(n))
     lcl = max(0.0, np_bar - 3 * sigma)
 
     if collector:
         collector.step(
             label="UCL (Upper Control Limit)",
-            formula_latex=r"UCL = \overline{np} + 3\sigma",
-            substitution_latex=rf"UCL = {round(np_bar, 6)} + 3 \times {round(sigma, 6)}",
+            formula_latex=r"UCL = \min(\overline{np} + 3\sigma,\; n)",
+            substitution_latex=rf"UCL = \min({round(np_bar, 6)} + 3 \times {round(sigma, 6)},\; {n})",
             result=float(ucl),
+            note="Capped at n because np cannot exceed sample size (Montgomery §7.2)",
         )
         collector.step(
             label="LCL (Lower Control Limit)",
@@ -529,7 +582,8 @@ def get_per_point_limits(
             raise ValueError("np-chart per-point limits require positive sample_size")
         p_bar = center_line / sample_size
         sigma = math.sqrt(center_line * (1 - p_bar)) if 0 < p_bar < 1 else 0
-        ucl = center_line + 3 * sigma
+        # Cap at n: np is a count bounded by sample size (Montgomery §7.2)
+        ucl = min(center_line + 3 * sigma, float(sample_size))
         lcl = max(0.0, center_line - 3 * sigma)
         return ucl, lcl
 
@@ -660,10 +714,14 @@ def _check_rule_2(
         return None
 
     last_n = values[-consecutive_points:]
-    # Use >= / <= to match the variable engine's zone-based classification,
-    # where a point exactly at center_line is classified as ZONE_C_UPPER
-    # (i.e., treated as "above"). This ensures consistent Rule 2 behavior
+    # Use >= for "above" and strict < for "below" to match the variable
+    # engine's zone-based classification, where a point exactly at
+    # center_line is classified as ZONE_C_UPPER (i.e., treated as
+    # "above" but NOT "below").  This ensures consistent Rule 2 behavior
     # between attribute and variable chart engines.
+    #
+    # Reference: Nelson (1984), "The Shewhart Control Chart — Tests for
+    # Special Causes", Journal of Quality Technology, 16(4), 237-239.
     all_above = all(v >= center_line for v in last_n)
     all_below = all(v < center_line for v in last_n)
 
@@ -749,14 +807,38 @@ def calculate_laney_sigma_z(
 ) -> float:
     """Calculate Laney overdispersion correction factor sigma_z.
 
-    For p-chart: Z_i = (p_i - p_bar) / sqrt(p_bar(1-p_bar)/n_i)
-    For u-chart: Z_i = (u_i - u_bar) / sqrt(u_bar/n_i)
+    The Laney p'/u' chart addresses a fundamental limitation of standard
+    attribute charts: in high-volume processes, the true variation often
+    exceeds what the binomial/Poisson model predicts (overdispersion).
+    Standard charts then produce false alarms because the theoretical
+    sigma underestimates the actual process variation.
 
-    sigma_z = MR_bar / d2 where d2 = 1.128 (moving range span of 2)
+    Method (Laney 2002):
+      1. Compute standardized residuals Z_i for each sample:
+         p-chart: Z_i = (p_i - p-bar) / sqrt(p-bar*(1-p-bar)/n_i)
+         u-chart: Z_i = (u_i - u-bar) / sqrt(u-bar/n_i)
+      2. Estimate the standard deviation of the Z-series using the
+         moving range method: sigma_z = MR-bar(Z) / d2  (d2=1.128)
+      3. Multiply the standard chart sigma by sigma_z:
+         UCL = center +/- 3 * sigma_z * sigma_i
+
+    Interpretation:
+      sigma_z ~ 1.0: no overdispersion (standard chart is adequate)
+      sigma_z > 1.0: overdispersion (wider limits needed)
+      sigma_z < 1.0: underdispersion (tighter limits appropriate)
+
+    WHY moving range instead of sample std dev: The moving range method
+    estimates WITHIN-subgroup variation of the Z-series, filtering out
+    any trends or shifts. This is the same rationale as I-MR charts for
+    variable data.
+
+    Ref: Laney, D.B. (2002), "Improved Control Charts for Attributes",
+         Quality Engineering, 14(4), pp.531-537.
 
     Returns:
         sigma_z correction factor. ~1.0 means no overdispersion.
-        Returns 1.0 if fewer than 3 samples (can't compute MR).
+        Returns 1.0 if fewer than 3 samples (insufficient for MR).
+        Floored at 0.001 to prevent division by zero.
     """
     if len(samples) < 3:
         return 1.0

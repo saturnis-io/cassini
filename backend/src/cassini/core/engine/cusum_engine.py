@@ -1,18 +1,62 @@
 """CUSUM (Cumulative Sum) SPC engine for detecting small persistent shifts.
 
-This module provides CUSUM chart processing for detecting small, sustained
-shifts in a process mean that standard Shewhart charts may miss.
+PURPOSE:
+    Provides two-sided tabular CUSUM chart processing for detecting small,
+    sustained shifts in a process mean. The CUSUM chart accumulates deviations
+    from a target value, making it far more sensitive to small shifts (0.5-2
+    sigma) than Shewhart charts, which rely on individual point positions.
+
+STANDARDS:
+    - Montgomery (2019), "Introduction to Statistical Quality Control",
+      8th Ed., Chapter 9: Cumulative Sum and Exponentially Weighted
+      Moving Average Control Charts
+    - Page, E.S. (1954), "Continuous Inspection Schemes", Biometrika,
+      41(1/2), pp.100-115 -- original CUSUM proposal
+    - Lucas, J.M. (1976), "The Design and Use of V-Mask Control Schemes",
+      Journal of Quality Technology, 8(1), pp.1-12
+    - ASTM E2587-16, Section 8: CUSUM charts
+
+ARCHITECTURE:
+    The CUSUM engine operates independently of the Shewhart SPC engine.
+    It can be invoked:
+      - As a standalone chart via process_cusum_sample() (primary CUSUM mode)
+      - As a supplementary analysis via process_cusum_supplementary()
+        (run after standard Shewhart processing for dual-chart monitoring)
 
 CUSUM formulas (two-sided tabular CUSUM):
-    C+_n = max(0, C+_(n-1) + (x_n - target - k))
-    C-_n = max(0, C-_(n-1) + (target - x_n - k))
+    C+_n = max(0, C+_{n-1} + (x_n - target - K))   [upper CUSUM]
+    C-_n = max(0, C-_{n-1} + (target - x_n - K))    [lower CUSUM]
 
-    Violation when C+_n > H or C-_n > H
+    Signal (violation) when C+_n > H or C-_n > H
 
-Where:
-    target = process target/mean
-    k = slack value (allowance), typically 0.5 * sigma
-    H = decision interval, typically 4 * sigma or 5 * sigma
+    where:
+      K = k * sigma    (reference value / slack / allowance)
+      H = h * sigma    (decision interval / threshold)
+      k = typically 0.5 (detects shifts of 1-sigma; halves the shift
+          magnitude of interest per Montgomery Ch. 9, Section 9.1.3)
+      h = typically 4 or 5 (higher h = fewer false alarms, lower sensitivity)
+
+    The k and h parameters are stored in sigma units on the characteristic
+    model and converted to measurement units at runtime by multiplying by
+    the estimated process sigma.
+
+    Ref: Montgomery (2019), Section 9.1.3, Eq. (9.1)-(9.2).
+
+KEY DECISIONS:
+    - k and h are stored in SIGMA UNITS (not measurement units). This makes
+      the parameters scale-invariant and portable across characteristics with
+      different natural units. Conversion: K = k*sigma, H = h*sigma.
+    - Defaults: k=0.5, h=5.0. These are the recommended starting values per
+      Montgomery (2019), Table 9.2, for detecting a 1-sigma shift with an
+      in-control ARL of approximately 465.
+    - Sigma estimation uses the within-subgroup estimator (MR-bar/d2 for
+      individuals data) because the CUSUM is designed to detect shifts FROM
+      a stable baseline. Using overall std dev would inflate sigma if shifts
+      already exist, reducing sensitivity.
+    - CUSUM accumulators (C+, C-) are persisted on the sample record to
+      maintain state across API calls without requiring in-memory persistence.
+    - Supplementary CUSUM uses rule_id 9/10 to avoid collision with Nelson
+      Rule 1 in the violations table.
 """
 
 import math
@@ -181,7 +225,12 @@ async def process_cusum_sample(
             prev_cusum_low = prev_sample.cusum_low if prev_sample.cusum_low is not None else 0.0
 
     # Step 4: Calculate new CUSUM values
-    # k and h are now in measurement units (k_sigma*sigma, h_sigma*sigma)
+    # Two-sided tabular CUSUM (Montgomery 2019, Section 9.1.3, Eq. 9.1-9.2):
+    #   C+_n = max(0, C+_{n-1} + (x_n - target - K))  [detects upward shifts]
+    #   C-_n = max(0, C-_{n-1} + (target - x_n - K))  [detects downward shifts]
+    # where K = k*sigma (reference value), H = h*sigma (decision interval)
+    # The max(0, ...) resets the accumulator when it would go negative,
+    # preventing false memory from old deviations in the opposite direction.
     cusum_high = max(0.0, prev_cusum_high + (measurement - target - k))
     cusum_low = max(0.0, prev_cusum_low + (target - measurement - k))
 

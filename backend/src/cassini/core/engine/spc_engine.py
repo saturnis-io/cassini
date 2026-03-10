@@ -1,7 +1,60 @@
 """SPC Engine orchestrator for processing samples through the complete SPC pipeline.
 
-This module provides the main SPCEngine class that coordinates sample processing,
-rule evaluation, violation creation, and statistics calculation.
+PURPOSE:
+    Provides the main SPCEngine class that coordinates the end-to-end processing
+    of a new measurement sample through Shewhart control chart logic: validation,
+    persistence, statistics computation, zone classification, Nelson Rules
+    evaluation, and violation creation.
+
+STANDARDS:
+    - AIAG SPC Manual, 2nd Ed. (2005): Shewhart chart construction, Phase I/II
+      control limit methodology, rational subgrouping
+    - ASTM E2587-16: Control chart standard practice
+    - Nelson (1984): "The Shewhart Control Chart -- Tests for Special Causes",
+      Journal of Quality Technology, 16(4), pp.237-239
+    - Montgomery (2019): "Introduction to Statistical Quality Control", 8th Ed.
+
+ARCHITECTURE:
+    The SPCEngine is the top-level orchestrator for variable (continuous) data.
+    It depends on:
+      - SampleRepository / CharacteristicRepository / ViolationRepository (DB)
+      - RollingWindowManager (in-memory cache + zone classification)
+      - NelsonRuleLibrary (rule evaluation)
+      - EventBus (async event publishing for WebSocket/notifications)
+
+    The processing pipeline follows this sequence:
+      1. Load characteristic config and extract all needed values eagerly
+         (avoids SQLAlchemy lazy-loading in async context)
+      2. Resolve material-specific limits if material_id is provided
+      3. Validate measurements against subgroup mode (A/B/C)
+      4. Compute mode-specific statistics (mean, range, z-score, effective limits)
+      5. Apply short-run transformations (deviation or standardized) if configured
+      6. Persist sample + measurements to database
+      7. Compute zone boundaries from UCL/LCL (or recalculate from history)
+      8. Add sample to rolling window with zone classification
+      9. Evaluate Nelson Rules 1-8 on the X-bar/I chart
+     10. Evaluate R-chart/S-chart Rule 1 (point beyond D3/D4 or B3/B4 limits)
+     11. Create violation records and publish events
+     12. Return ProcessingResult
+
+    For attribute (count) data, see core/engine/attribute_engine.py.
+    For CUSUM/EWMA supplementary charts, see core/engine/cusum_engine.py
+    and core/engine/ewma_engine.py.
+
+KEY DECISIONS:
+    - Subgroup modes (A/B/C) per AIAG SPC Manual, 2nd Ed., Chapter II:
+        Mode A (STANDARDIZED): Variable n, Z-score transform.
+            z = (x-bar - center) / (sigma / sqrt(n))
+        Mode B (VARIABLE_LIMITS): Variable n, per-point UCL/LCL.
+            UCL_i = center + 3*sigma/sqrt(n_i)
+        Mode C (NOMINAL_TOLERANCE): Fixed n, standard limits.
+    - Short-run transformations (deviation, standardized) shift the plotted
+      value and limits into a common coordinate system for multi-part charts.
+      Raw measurements are always persisted untransformed; only the rolling
+      window copy is transformed.
+    - R-chart/S-chart Rule 1 is checked in addition to X-bar chart rules,
+      per AIAG SPC Manual requirement that the dispersion chart must also be
+      evaluated for lack of control.
 """
 
 import structlog

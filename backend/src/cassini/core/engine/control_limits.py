@@ -1,13 +1,71 @@
 """Control limit calculation service for SPC characteristics.
 
-This module provides services for calculating and recalculating control limits
-from historical sample data. It automatically selects the appropriate calculation
-method based on subgroup size and supports OOC (Out of Control) sample exclusion.
+PURPOSE:
+    Provides the ControlLimitService for computing, persisting, and managing
+    Shewhart control limits from historical sample data. This is the heart of
+    Phase I analysis -- establishing trial control limits from baseline data and
+    iteratively excluding out-of-control subgroups to arrive at limits that
+    represent the in-control process.
 
-Calculation methods:
-- n=1: Moving Range (MR-bar / d2)
-- n=2-10: R-bar / d2 method
-- n>10: S-bar / c4 method
+STANDARDS:
+    - AIAG SPC Manual, 2nd Ed. (2005), Chapter II: Trial Control Limits and
+      Phase I analysis procedure
+    - Montgomery (2019), "Introduction to Statistical Quality Control", 8th Ed.,
+      Section 6.3: Phase I Analysis of Control Charts
+    - ASTM E2587-16: Standard Practice for Use of Control Charts
+    - Wheeler & Chambers (1992), "Understanding Statistical Process Control"
+
+ARCHITECTURE:
+    This module sits between the low-level sigma estimators (utils/statistics.py)
+    and the real-time SPC pipeline (core/engine/spc_engine.py). It is invoked:
+      - Explicitly via the API (POST /characteristics/{id}/recalculate-limits)
+      - Implicitly when the SPC engine processes a sample with no stored limits
+    It publishes ControlLimitsUpdatedEvent to the EventBus, which triggers
+    rolling window invalidation and WebSocket notifications.
+
+Calculation methods (automatically selected by subgroup size):
+    - n=1:    Moving Range (MR-bar / d2, d2=1.128 for span=2)
+    - n=2-10: R-bar / d2 method (range-based within-subgroup estimator)
+    - n>10:   S-bar / c4 method (std-dev-based within-subgroup estimator)
+    Ref: AIAG SPC Manual, 2nd Ed., Chapter II;
+         Montgomery (2019), Section 6.4.
+
+OOC Exclusion (Phase I Trial Control Limits):
+    When ``exclude_ooc=True``, this module implements the **iterative** OOC
+    subgroup exclusion procedure specified in the AIAG SPC Manual (2nd Ed.,
+    Chapter II) and Montgomery (2019), Section 6.3.
+
+    The procedure works as follows:
+      1. Compute trial control limits from all currently-included subgroups.
+      2. Identify any included subgroups whose mean falls outside the trial UCL/LCL.
+      3. If new OOC subgroups were found, exclude them and go back to step 1.
+      4. Repeat until convergence (no new exclusions in an iteration).
+
+    A single-pass approach (compute once, exclude, recompute once) is
+    **insufficient** because the tighter limits from the first recomputation
+    may reveal additional subgroups that are now out of control. The AIAG
+    manual's Phase I procedure explicitly requires repeating until no
+    further points fall outside the revised limits.
+
+    Convergence criterion: strict inequality (> UCL or < LCL). Points exactly
+    on the control limit are considered in-control per AIAG convention.
+
+    Safety guards:
+      - _OOC_MAX_ITERATIONS = 25: caps iteration cycles to prevent infinite
+        loops in pathological data (e.g., oscillating exclusion sets).
+      - _OOC_MIN_SUBGROUPS = 5: prevents over-exclusion that would make
+        the sigma estimate unreliable.
+
+KEY DECISIONS:
+    - The user can override the auto-selected sigma method via
+      characteristic.sigma_method (e.g., force S-bar/c4 for n=5).
+      Defense-in-depth: incompatible overrides (e.g., moving_range for n>1)
+      fall back to auto-selection with a warning log.
+    - The ExplanationCollector (Show Your Work) is only attached to the
+      FINAL computation pass, not intermediate OOC iteration passes, to
+      show the user the formulas/values from the converged in-control set.
+    - limits_calc_params is persisted as JSON on the characteristic so that
+      Show Your Work can replay the exact calculation later.
 """
 
 import json
@@ -35,6 +93,26 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Iterative OOC exclusion constants
+#
+# Ref: AIAG SPC Manual 2nd Ed., Chapter II -- Phase I trial control limits.
+# Ref: Montgomery (2019) "Introduction to Statistical Quality Control", S6.3.
+#
+# _OOC_MAX_ITERATIONS: Upper bound on iteration cycles. In practice,
+#   convergence happens in 2-4 iterations. The cap is a safety net against
+#   pathological data that oscillates (e.g., alternating exclusion sets).
+#
+# _OOC_MIN_SUBGROUPS: Minimum number of subgroups that must remain after
+#   exclusion. Below this threshold the sigma estimate becomes unreliable
+#   and the iteration halts with a warning. The value of 5 is a pragmatic
+#   floor; the AIAG manual recommends 25 subgroups for Phase I, but we
+#   protect against over-exclusion rather than enforcing the full 25 here
+#   (the caller's min_samples parameter governs the initial requirement).
+# ---------------------------------------------------------------------------
+_OOC_MAX_ITERATIONS: int = 25
+_OOC_MIN_SUBGROUPS: int = 5
+
 
 @dataclass
 class CalculationResult:
@@ -49,6 +127,8 @@ class CalculationResult:
         sample_count: Number of samples used in calculation
         excluded_count: Number of samples excluded from calculation
         calculated_at: Timestamp when calculation was performed
+        ooc_iterations: Number of iterative OOC exclusion passes performed
+            (0 when exclude_ooc is False; 1+ when iterative exclusion ran).
     """
 
     center_line: float
@@ -59,6 +139,7 @@ class CalculationResult:
     sample_count: int
     excluded_count: int
     calculated_at: datetime
+    ooc_iterations: int = 0
 
 
 class ControlLimitService:
@@ -156,14 +237,17 @@ class ControlLimitService:
             material_id=material_id,
         )
 
-        # Filter out excluded samples if requested
+        # ---------------------------------------------------------------
+        # Phase 0: Pre-filter samples marked as excluded in the database.
+        # These are samples the user has explicitly flagged (e.g., known
+        # assignable causes already investigated).
+        # ---------------------------------------------------------------
         if exclude_ooc:
-            # Exclude samples that are marked as excluded or have violations
             samples = [s for s in all_samples if not s.is_excluded]
-            excluded_count = len(all_samples) - len(samples)
+            db_excluded_count = len(all_samples) - len(samples)
         else:
             samples = all_samples
-            excluded_count = 0
+            db_excluded_count = 0
 
         # Take only the most recent N samples if requested
         if last_n is not None and last_n > 0 and len(samples) > last_n:
@@ -179,19 +263,151 @@ class ControlLimitService:
         subgroup_size = characteristic.subgroup_size
         method = self._select_method(subgroup_size, characteristic.sigma_method)
 
-        # Calculate limits based on method
-        if method == "moving_range":
-            center_line, ucl, lcl, sigma = self._calculate_moving_range(
-                samples, collector=collector
-            )
-        elif method == "r_bar_d2":
-            center_line, ucl, lcl, sigma = self._calculate_r_bar(
-                samples, subgroup_size, collector=collector
-            )
-        else:  # s_bar_c4
-            center_line, ucl, lcl, sigma = self._calculate_s_bar(
-                samples, subgroup_size, collector=collector
-            )
+        # ---------------------------------------------------------------
+        # Phase I: Iterative OOC Subgroup Exclusion
+        #
+        # AIAG SPC Manual 2nd Ed., Chapter II -- Trial Control Limits:
+        #   "If out-of-control points can be attributed to assignable
+        #    causes, they should be eliminated and new trial limits
+        #    computed from the remaining subgroups. This process is
+        #    repeated until all remaining points are in control."
+        #
+        # Montgomery (2019), S6.3 -- Phase I Analysis:
+        #   "After removing out-of-control points and recomputing the
+        #    trial limits, some of the remaining points may now plot
+        #    beyond the new limits. [...] Continue until all points
+        #    plot within the control limits."
+        #
+        # Algorithm:
+        #   1. Compute trial limits from currently-included subgroups.
+        #   2. Compute each included subgroup's plotted value (mean for
+        #      X-bar charts, individual value for I charts).
+        #   3. Identify subgroups whose plotted value exceeds UCL or
+        #      falls below LCL.
+        #   4. If new OOC subgroups found AND enough subgroups remain:
+        #      - Exclude them from the working set.
+        #      - Return to step 1.
+        #   5. Converge when no new OOC subgroups are identified, or
+        #      halt if the safety cap (_OOC_MAX_ITERATIONS) is reached,
+        #      or halt if remaining subgroups < _OOC_MIN_SUBGROUPS.
+        #
+        # When exclude_ooc is False, this entire block is skipped and
+        # the calculation proceeds with all samples (single computation).
+        # ---------------------------------------------------------------
+
+        ooc_iterations = 0
+        iterative_excluded_count = 0
+
+        if exclude_ooc:
+            # Working set: the samples we compute limits from.
+            # We iterate on this list, shrinking it as OOC subgroups are
+            # identified.  The original `samples` list is NOT mutated.
+            working_samples = list(samples)
+
+            for iteration in range(1, _OOC_MAX_ITERATIONS + 1):
+                ooc_iterations = iteration
+
+                # --- Step 1: Compute trial limits from working set ---
+                # (No ExplanationCollector on intermediate iterations --
+                #  we only instrument the final computation below.)
+                trial_cl, trial_ucl, trial_lcl, trial_sigma = (
+                    self._compute_limits_for_method(
+                        method, working_samples, subgroup_size, collector=None
+                    )
+                )
+
+                # --- Step 2-3: Identify OOC subgroups ---
+                # A subgroup is OOC if its plotted value (subgroup mean
+                # for X-bar charts, individual value for I charts) falls
+                # strictly outside the control limits.
+                #
+                # Mathematical criterion (3-sigma limits):
+                #   OOC iff  x_bar_i > UCL  or  x_bar_i < LCL
+                #   where UCL = \bar{\bar{x}} + 3\sigma_{\bar{x}}
+                #         LCL = \bar{\bar{x}} - 3\sigma_{\bar{x}}
+                newly_ooc_indices: list[int] = []
+                for idx, sample in enumerate(working_samples):
+                    plotted_value = self._get_subgroup_mean(sample)
+                    if plotted_value is None:
+                        continue
+                    # Strict inequality: points exactly on the limit are
+                    # considered in-control per AIAG convention.
+                    if plotted_value > trial_ucl or plotted_value < trial_lcl:
+                        newly_ooc_indices.append(idx)
+
+                # --- Step 4: Convergence check ---
+                if not newly_ooc_indices:
+                    # No new OOC points -- limits have converged.
+                    logger.debug(
+                        "ooc_iteration_converged",
+                        iteration=iteration,
+                        remaining_subgroups=len(working_samples),
+                        total_excluded=iterative_excluded_count,
+                    )
+                    break
+
+                # Check minimum subgroup floor BEFORE excluding.
+                remaining_after = len(working_samples) - len(newly_ooc_indices)
+                if remaining_after < _OOC_MIN_SUBGROUPS:
+                    logger.warning(
+                        "ooc_iteration_halted_min_subgroups",
+                        iteration=iteration,
+                        remaining_subgroups=len(working_samples),
+                        would_exclude=len(newly_ooc_indices),
+                        remaining_after=remaining_after,
+                        min_required=_OOC_MIN_SUBGROUPS,
+                        msg=(
+                            "Iterative OOC exclusion halted: excluding "
+                            f"{len(newly_ooc_indices)} more subgroups would "
+                            f"leave only {remaining_after}, below the minimum "
+                            f"floor of {_OOC_MIN_SUBGROUPS}."
+                        ),
+                    )
+                    break
+
+                # Exclude newly-identified OOC subgroups (remove by index,
+                # highest-first to preserve index validity).
+                for idx in sorted(newly_ooc_indices, reverse=True):
+                    working_samples.pop(idx)
+                iterative_excluded_count += len(newly_ooc_indices)
+
+                logger.debug(
+                    "ooc_iteration_excluded",
+                    iteration=iteration,
+                    newly_excluded=len(newly_ooc_indices),
+                    remaining_subgroups=len(working_samples),
+                    total_excluded=iterative_excluded_count,
+                )
+            else:
+                # The for-loop completed without break -- we hit the cap.
+                logger.warning(
+                    "ooc_iteration_cap_reached",
+                    max_iterations=_OOC_MAX_ITERATIONS,
+                    remaining_subgroups=len(working_samples),
+                    total_excluded=iterative_excluded_count,
+                    msg=(
+                        f"Iterative OOC exclusion did not converge within "
+                        f"{_OOC_MAX_ITERATIONS} iterations. Using limits from "
+                        f"the last iteration. This may indicate pathological "
+                        f"data or a process with no stable in-control period."
+                    ),
+                )
+
+            # Update samples to the final working set for the instrumented
+            # computation below.
+            samples = working_samples
+
+        # ---------------------------------------------------------------
+        # Final computation: calculate limits from the (possibly reduced)
+        # sample set.  This pass includes the ExplanationCollector so
+        # "Show Your Work" captures the formulas and values from the
+        # converged in-control subgroup set.
+        # ---------------------------------------------------------------
+        center_line, ucl, lcl, sigma = self._compute_limits_for_method(
+            method, samples, subgroup_size, collector=collector
+        )
+
+        total_excluded = db_excluded_count + iterative_excluded_count
 
         return CalculationResult(
             center_line=center_line,
@@ -200,8 +416,9 @@ class ControlLimitService:
             sigma=sigma,
             method=method,
             sample_count=len(samples),
-            excluded_count=excluded_count,
+            excluded_count=total_excluded,
             calculated_at=datetime.now(timezone.utc),
+            ooc_iterations=ooc_iterations,
         )
 
     async def recalculate_and_persist(
@@ -347,6 +564,61 @@ class ControlLimitService:
             return "r_bar_d2"
         else:
             return "s_bar_c4"
+
+    def _compute_limits_for_method(
+        self,
+        method: str,
+        samples: list,
+        subgroup_size: int,
+        collector: ExplanationCollector | None = None,
+    ) -> tuple[float, float, float, float]:
+        """Dispatch to the appropriate limit calculation method.
+
+        This is a thin routing layer that keeps the iterative OOC loop
+        decoupled from the individual calculation implementations.
+
+        Args:
+            method: One of "moving_range", "r_bar_d2", "s_bar_c4".
+            samples: List of Sample objects with measurements.
+            subgroup_size: Nominal subgroup size.
+            collector: Optional ExplanationCollector for Show Your Work.
+
+        Returns:
+            Tuple of (center_line, ucl, lcl, sigma).
+        """
+        if method == "moving_range":
+            return self._calculate_moving_range(samples, collector=collector)
+        elif method == "r_bar_d2":
+            return self._calculate_r_bar(
+                samples, subgroup_size, collector=collector
+            )
+        else:  # s_bar_c4
+            return self._calculate_s_bar(
+                samples, subgroup_size, collector=collector
+            )
+
+    @staticmethod
+    def _get_subgroup_mean(sample) -> float | None:
+        """Compute the plotted value (subgroup mean) for a single sample.
+
+        For subgrouped data (n > 1), this is the arithmetic mean of the
+        measurements within the subgroup.  For individuals data (n = 1),
+        this is simply the single measurement value.
+
+        This is the value plotted on the X-bar (or I) chart, and the
+        value compared against UCL/LCL during OOC identification.
+
+        Args:
+            sample: A Sample object with a ``measurements`` attribute.
+
+        Returns:
+            The subgroup mean as a float, or None if the sample has no
+            measurements.
+        """
+        measurement_values = [m.value for m in sample.measurements]
+        if not measurement_values:
+            return None
+        return float(np.mean(measurement_values))
 
     def _calculate_moving_range(
         self,

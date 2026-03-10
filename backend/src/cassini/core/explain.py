@@ -1,8 +1,51 @@
-"""Explanation capture for Show Your Work feature.
+"""Explanation capture for the "Show Your Work" transparency feature.
 
-The ExplanationCollector captures computation steps inline within existing
-engine functions. When None is passed (the default), zero overhead — just
-`if collector:` checks which cost nanoseconds vs the numpy/scipy operations.
+PURPOSE:
+    Provides the ExplanationCollector pattern for capturing statistical
+    computation steps (formulas, substitutions, intermediate results)
+    inline within engine functions. This enables regulated-industry users
+    to see EXACTLY how every displayed value was computed, satisfying
+    audit requirements for computational transparency.
+
+STANDARDS:
+    - FDA 21 CFR Part 11: Electronic records and electronic signatures --
+      requires ability to demonstrate computational integrity
+    - IATF 16949 (automotive): Process capability reporting must be
+      verifiable by auditors
+    - ISO 22514-2:2017: Capability calculations must be traceable to
+      published formulas
+
+ARCHITECTURE:
+    The ExplanationCollector uses a "null object" pattern: engine functions
+    accept an optional collector parameter. When None (the default), the
+    `if collector:` guards short-circuit with negligible overhead (a single
+    boolean check per formula step). When provided, the collector accumulates:
+      - inputs: Named input values (n, x-bar, sigma, USL, LSL, etc.)
+      - steps: Formula steps with LaTeX notation, numeric substitution,
+        computed result, and optional notes/references
+      - warnings: Advisory messages (e.g., "subgroup info not provided")
+
+    The collected data is serialized to the API response by the explain
+    endpoint (api/v1/explain.py), where the frontend renders it using
+    KaTeX in the ExplanationPanel slide-out component.
+
+KEY DECISIONS:
+    - Zero-cost when not used: No allocations, no string formatting,
+      no LaTeX construction unless collector is explicitly provided.
+      This is critical because the engine processes thousands of samples
+      per second in production.
+    - LaTeX formulas are embedded as raw strings in the engine code
+      (not in a separate template file) to keep the formula co-located
+      with the computation it describes. If the formula and code diverge,
+      the proximity makes the discrepancy obvious during code review.
+    - Citation objects are defined as module-level constants for reuse
+      across multiple API endpoints.
+
+CITATION REGISTRY:
+    CAPABILITY_CITATION: AIAG SPC Manual, 2nd Ed., Chapter 3
+    MSA_CITATION: AIAG MSA Manual, 4th Ed., Chapter 3
+    ATTRIBUTE_MSA_CITATION: AIAG MSA Manual, 4th Ed., Chapter 5
+    NORMALITY_CITATION: ISO 11462-1:2001, Shapiro-Wilk Test
 """
 
 from __future__ import annotations
@@ -48,12 +91,33 @@ class Explanation:
 class ExplanationCollector:
     """Captures computation steps when active. Zero cost when not used.
 
-    Usage in engine functions:
+    This implements a "passive observer" pattern: engine functions call
+    collector.step() and collector.input() at each computation step, but
+    ONLY when a collector instance is provided. The collector never
+    influences the computation -- it is strictly read-only observation.
+
+    The accumulated steps form a complete audit trail of how a statistical
+    value was computed, including:
+      - The formula (in LaTeX for rendering)
+      - The numeric substitution (actual values plugged in)
+      - The computed result
+      - Optional notes and standard references
+
+    Usage in engine functions::
+
         def calculate_cpk(data, usl, lsl, collector=None):
             mean = np.mean(data)
             if collector:
-                collector.input("x\u0304", round(float(mean), 4))
-            ...
+                collector.input("x-bar", round(float(mean), 4))
+            sigma = estimate_sigma_rbar(ranges, n)
+            if collector:
+                collector.step(
+                    label="sigma (Process Sigma)",
+                    formula_latex=r"\\sigma = \\frac{\\bar{R}}{d_2}",
+                    substitution_latex=r"\\sigma = \\frac{2.5}{2.326}",
+                    result=sigma,
+                    note="Ref: AIAG SPC Manual, 2nd Ed., Chapter II",
+                )
     """
 
     def __init__(self) -> None:

@@ -38,7 +38,7 @@ async def _get_char_and_values(
     session: AsyncSession,
     window_size: int = 1000,
     material_id: int | None = None,
-) -> tuple[Characteristic, list[float], float | None]:
+) -> tuple[Characteristic, list[float], float | None, int]:
     """Load the characteristic and extract individual measurement values.
 
     Args:
@@ -48,7 +48,9 @@ async def _get_char_and_values(
         material_id: Optional material for filtering samples and resolving limits
 
     Returns:
-        Tuple of (characteristic, flat_values, sigma_within).
+        Tuple of (characteristic, flat_values, sigma_within, subgroup_count).
+        subgroup_count is the number of subgroups (samples) in the window,
+        needed for correct Cp CI degrees of freedom (ISO 22514-2:2017 §7.2.3).
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -79,8 +81,9 @@ async def _get_char_and_values(
         material_id=material_id,
     )
 
-    # Flatten all individual measurements
+    # Flatten all individual measurements, tracking subgroup structure
     all_values: list[float] = []
+    subgroup_count = len(sample_data)
     for sd in sample_data:
         all_values.extend(sd["values"])
 
@@ -114,7 +117,7 @@ async def _get_char_and_values(
         if _resolved["target_value"] is not None:
             characteristic.target_value = _resolved["target_value"]
 
-    return characteristic, all_values, sigma_within
+    return characteristic, all_values, sigma_within, subgroup_count
 
 
 def _get_cp_unavailable_reason(characteristic: Characteristic) -> str | None:
@@ -152,7 +155,7 @@ async def get_capability(
     Returns Cp, Cpk, Pp, Ppk, Cpm indices along with normality test results.
     Requires at least one specification limit (USL or LSL) on the characteristic.
     """
-    characteristic, values, sigma_within = await _get_char_and_values(
+    characteristic, values, sigma_within, subgroup_count = await _get_char_and_values(
         char_id, session, window_size, material_id=material_id,
     )
 
@@ -219,12 +222,16 @@ async def get_capability(
             transform_applied=transform_applied,
         )
 
+    # Pass subgroup structure for correct Cp CI degrees of freedom.
+    # ISO 22514-2:2017 §7.2.3: df = k*(m-1) when sigma is within-subgroup.
     result = calculate_capability(
         values=values,
         usl=characteristic.usl,
         lsl=characteristic.lsl,
         target=characteristic.target_value,
         sigma_within=sigma_within,
+        subgroup_count=subgroup_count,
+        subgroup_size=characteristic.subgroup_size,
     )
 
     return CapabilityResponse(
@@ -304,7 +311,7 @@ async def save_capability_snapshot(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(user, plant_id, "engineer")
 
-    characteristic, values, sigma_within = await _get_char_and_values(
+    characteristic, values, sigma_within, subgroup_count = await _get_char_and_values(
         char_id, session, window_size, material_id=material_id,
     )
 
@@ -355,6 +362,8 @@ async def save_capability_snapshot(
             lsl=characteristic.lsl,
             target=characteristic.target_value,
             sigma_within=sigma_within,
+            subgroup_count=subgroup_count,
+            subgroup_size=characteristic.subgroup_size,
         )
 
     # Persist snapshot

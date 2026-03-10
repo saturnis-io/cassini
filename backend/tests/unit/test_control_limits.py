@@ -980,3 +980,396 @@ class TestEdgeCases:
         # Mean should be around 10.5
         expected_mean = (10.0 + 10.5 + 11.0 + 10.2 + 10.8) / 5
         assert abs(center_line - expected_mean) < 0.01
+
+
+class TestIterativeOocExclusion:
+    """Test the iterative OOC subgroup exclusion procedure.
+
+    Ref: AIAG SPC Manual 2nd Ed., Chapter II -- Phase I trial control limits.
+    Ref: Montgomery (2019), section 6.3 -- Phase I analysis.
+
+    The iterative procedure recomputes trial limits after excluding OOC
+    subgroups, then re-checks for new OOC subgroups that may now fall
+    outside the tighter limits.  Repeat until convergence.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_iteration_when_exclude_ooc_false(self):
+        """When exclude_ooc=False, no iterative exclusion occurs."""
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # Include some extreme outliers -- they should NOT be excluded
+        values = [10.0, 10.1, 10.2, 9.9, 10.0] * 6 + [50.0]  # 31 samples
+        samples = []
+        for i, value in enumerate(values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=False, min_samples=25
+        )
+
+        # All samples included, no iterations
+        assert result.sample_count == 31
+        assert result.excluded_count == 0
+        assert result.ooc_iterations == 0
+
+    @pytest.mark.asyncio
+    async def test_single_outlier_excluded_in_first_iteration(self):
+        """A single extreme outlier is caught in the first iteration.
+
+        With a clear outlier and stable in-control data, the procedure
+        should converge after excluding the outlier.
+        """
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # 29 stable samples near 10.0, plus 1 extreme outlier at 50.0
+        stable_values = [10.0, 10.1, 10.2, 9.9, 10.0, 9.8, 10.3, 10.1,
+                         9.9, 10.0, 10.2, 9.8, 10.1, 10.0, 9.9, 10.2,
+                         10.1, 9.8, 10.0, 10.3, 9.9, 10.1, 10.0, 10.2,
+                         9.8, 10.1, 9.9, 10.0, 10.1]
+        all_values = stable_values + [50.0]  # 30 total
+
+        samples = []
+        for i, value in enumerate(all_values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+
+        # The outlier should have been excluded
+        assert result.excluded_count >= 1
+        assert result.sample_count == 30 - result.excluded_count
+        assert result.ooc_iterations >= 1
+
+        # The UCL should be much tighter without the outlier
+        # With outlier excluded, center should be near 10.05, not 11.3
+        assert result.center_line < 11.0
+
+    @pytest.mark.asyncio
+    async def test_multi_iteration_cascading_exclusion(self):
+        """Test that the iterative procedure catches OOC points revealed
+        by earlier exclusions (cascading effect).
+
+        This is the key scenario that a single-pass approach misses:
+        after excluding the most extreme outlier, the limits tighten enough
+        to reveal a second outlier that was previously inside limits.
+        """
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # Design data where:
+        # - Stable process at 100 +/- 0.5
+        # - One massive outlier at 200 (clearly OOC)
+        # - One moderate outlier at 110 that is INSIDE limits when 200
+        #   is included (inflated sigma), but OUTSIDE after 200 is removed
+        stable_values = [100.0 + (i % 5) * 0.2 - 0.4 for i in range(28)]
+        all_values = stable_values + [110.0, 200.0]  # 30 total
+
+        samples = []
+        for i, value in enumerate(all_values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+
+        # Both outliers should be excluded through iterative refinement
+        assert result.excluded_count >= 2
+        # Should have taken at least 2 iterations
+        assert result.ooc_iterations >= 2
+        # Center should be near 100.0, not inflated
+        assert 99.0 < result.center_line < 101.0
+
+    @pytest.mark.asyncio
+    async def test_convergence_with_clean_data(self):
+        """With no outliers, the first iteration finds no OOC points
+        and the procedure converges immediately in 1 iteration."""
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # Clean data -- all within tight range
+        values = [10.0 + (i % 5) * 0.1 for i in range(30)]
+        samples = []
+        for i, value in enumerate(values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+
+        # No exclusions, converged in 1 iteration
+        assert result.excluded_count == 0
+        assert result.sample_count == 30
+        assert result.ooc_iterations == 1
+
+    @pytest.mark.asyncio
+    async def test_min_subgroup_floor_prevents_over_exclusion(self):
+        """When excluding more OOC subgroups would drop below the
+        minimum floor, the iteration halts to prevent unreliable
+        sigma estimates."""
+        from cassini.core.engine.control_limits import _OOC_MIN_SUBGROUPS
+
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # Design data where most points would be OOC after iterating:
+        # 6 stable points, 24 "outliers" spread across a wide range.
+        stable = [10.0, 10.1, 10.0, 10.1, 10.0, 10.1]
+        outliers = [50.0 + i * 5.0 for i in range(24)]
+        all_values = stable + outliers
+
+        samples = []
+        for i, value in enumerate(all_values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=5
+        )
+
+        # The final sample count should be >= _OOC_MIN_SUBGROUPS
+        assert result.sample_count >= _OOC_MIN_SUBGROUPS
+        # Some outliers should have been excluded
+        assert result.excluded_count > 0
+
+    @pytest.mark.asyncio
+    async def test_iterative_ooc_with_subgrouped_data_r_bar(self):
+        """Test iterative OOC exclusion works with R-bar (n=5) method.
+
+        Verifies that subgroup means (not individual measurements) are
+        compared against UCL/LCL for the OOC check.
+
+        Data design: 29 stable subgroups with realistic within-subgroup
+        variation (range ~4.0, mean ~100), plus one outlier subgroup
+        with mean ~120. The within-subgroup ranges are large enough that
+        sigma_xbar produces limits wide enough to contain the 29 stable
+        subgroups but not the 120-mean outlier.
+        """
+        import random
+        random.seed(42)
+
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 5
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # 29 stable subgroups with mean ~100 and within-subgroup std ~2
+        samples = []
+        for i in range(29):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            measurements = []
+            for j in range(5):
+                m = MagicMock(spec=Measurement)
+                m.value = random.gauss(100.0, 2.0)
+                measurements.append(m)
+            sample.measurements = measurements
+            samples.append(sample)
+
+        # Add one outlier subgroup with mean ~120 (same within-group variation)
+        outlier = MagicMock(spec=Sample)
+        outlier.id = 29
+        outlier.is_excluded = False
+        measurements = []
+        for j in range(5):
+            m = MagicMock(spec=Measurement)
+            m.value = random.gauss(120.0, 2.0)
+            measurements.append(m)
+        outlier.measurements = measurements
+        samples.append(outlier)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+
+        # Outlier subgroup should be excluded
+        assert result.excluded_count >= 1
+        assert result.ooc_iterations >= 1
+        assert result.method == "r_bar_d2"
+        # Center should be near 100, not pulled up by 120
+        assert result.center_line < 105.0
+
+    @pytest.mark.asyncio
+    async def test_db_excluded_and_iterative_excluded_combined(self):
+        """When some samples are pre-excluded in the DB (is_excluded=True)
+        and others are caught by iterative OOC exclusion, both counts
+        contribute to excluded_count."""
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        # 28 stable + 1 db-excluded + 1 outlier (not db-excluded)
+        samples = []
+        for i in range(28):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = 10.0 + (i % 3) * 0.1
+            sample.measurements = [m]
+            samples.append(sample)
+
+        # DB-excluded sample
+        db_excluded = MagicMock(spec=Sample)
+        db_excluded.id = 28
+        db_excluded.is_excluded = True
+        m = MagicMock(spec=Measurement)
+        m.value = 10.0
+        db_excluded.measurements = [m]
+        samples.append(db_excluded)
+
+        # OOC outlier (not db-excluded)
+        outlier = MagicMock(spec=Sample)
+        outlier.id = 29
+        outlier.is_excluded = False
+        m = MagicMock(spec=Measurement)
+        m.value = 50.0
+        outlier.measurements = [m]
+        samples.append(outlier)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+        result = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+
+        # 1 db-excluded + at least 1 iteratively excluded
+        assert result.excluded_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_ooc_iterations_field_in_result(self):
+        """Verify the ooc_iterations field is populated correctly."""
+        char_repo = MagicMock()
+        sample_repo = MagicMock()
+        window_manager = MagicMock()
+
+        characteristic = MagicMock(spec=Characteristic)
+        characteristic.id = 1
+        characteristic.subgroup_size = 1
+        characteristic.sigma_method = None
+        char_repo.get_by_id = AsyncMock(return_value=characteristic)
+
+        values = [10.0, 10.1, 10.2, 9.9, 10.0] * 6
+        samples = []
+        for i, value in enumerate(values):
+            sample = MagicMock(spec=Sample)
+            sample.id = i
+            sample.is_excluded = False
+            m = MagicMock(spec=Measurement)
+            m.value = value
+            sample.measurements = [m]
+            samples.append(sample)
+
+        sample_repo.get_by_characteristic = AsyncMock(return_value=samples)
+
+        service = ControlLimitService(sample_repo, char_repo, window_manager)
+
+        # Without exclude_ooc: ooc_iterations = 0
+        result_no_ooc = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=False, min_samples=25
+        )
+        assert result_no_ooc.ooc_iterations == 0
+
+        # With exclude_ooc on clean data: ooc_iterations = 1
+        result_with_ooc = await service.calculate_limits(
+            characteristic_id=1, exclude_ooc=True, min_samples=25
+        )
+        assert result_with_ooc.ooc_iterations == 1  # converged on first pass

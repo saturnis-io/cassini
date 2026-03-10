@@ -1,8 +1,38 @@
 """Statistical constants for SPC control chart calculations.
 
-Constants from ASTM E2587, NIST Engineering Statistics Handbook, and
-AIAG SPC Manual 2nd Edition.  These constants are used for calculating
-control limits and estimating process sigma.
+PURPOSE:
+    Provides the complete table of Shewhart control chart constants (d2, c4,
+    A2, D3, D4, B3, B4) for subgroup sizes n=1 through n=25.  These constants
+    are the foundation of all sigma estimation and control limit calculations
+    in the Cassini SPC engine.
+
+STANDARDS:
+    - ASTM E2587-16, Table 1: "Standard Practice for Use of Control Charts
+      in Statistical Process Control" -- primary source for d2, c4, A2, D3, D4
+    - AIAG SPC Manual, 2nd Ed. (2005), Appendix: Table of Control Chart
+      Constants -- primary source for B3, B4
+    - NIST/SEMATECH e-Handbook of Statistical Methods, Section 6.3.2:
+      "What are Variables Control Charts?" -- verification source
+    - Montgomery (2019), "Introduction to Statistical Quality Control",
+      8th Ed., Appendix Table VI -- verification source
+
+ARCHITECTURE:
+    This module is the lowest layer of the SPC calculation stack. It has
+    zero dependencies within Cassini and is consumed by:
+      - utils/statistics.py (sigma estimation functions)
+      - core/engine/control_limits.py (control limit service)
+      - core/engine/spc_engine.py (R-chart/S-chart limit checks)
+
+KEY DECISIONS:
+    - Constants are stored as a frozen dataclass table rather than computed
+      at runtime.  The published tabulated values are authoritative; computing
+      them from integrals of the relative range distribution introduces
+      floating-point error and adds unnecessary complexity.
+    - The n=1 row stores span=2 constants as a convenience for I-MR charts
+      (see note on _CONSTANTS_TABLE below).
+    - B3/B4 constants default to 0.0 for n<6 because the S-chart LCL is
+      zero for small subgroups (the sampling distribution of S is bounded
+      at zero and highly skewed for small n).
 """
 
 from dataclasses import dataclass
@@ -11,17 +41,34 @@ from typing import Dict
 
 @dataclass(frozen=True)
 class SpcConstants:
-    """Statistical constants for a given subgroup size.
+    """Statistical constants for a given subgroup size n.
+
+    These constants relate the statistics of subgroup ranges and standard
+    deviations to the population standard deviation under normality.
+
+    Mathematical definitions (for a normal population with std dev sigma):
+        d2 = E[R] / sigma           -- expected value of the relative range
+        c4 = E[S] / sigma           -- expected value of the relative std dev
+        A2 = 3 / (d2 * sqrt(n))    -- X-bar chart limit factor using R-bar
+        D3 = 1 - 3*d3/d2           -- R chart lower limit factor (floored at 0)
+        D4 = 1 + 3*d3/d2           -- R chart upper limit factor
+        B3 = 1 - 3*sqrt(1-c4^2)/c4 -- S chart lower limit factor (floored at 0)
+        B4 = 1 + 3*sqrt(1-c4^2)/c4 -- S chart upper limit factor
+
+    where d3 = std dev of the relative range distribution.
+
+    Ref: ASTM E2587-16, Table 1; AIAG SPC Manual 2nd Ed., Appendix;
+         Montgomery (2019), Appendix Table VI.
 
     Attributes:
-        n: Subgroup size
-        d2: Average range factor (used for sigma estimation from R-bar)
-        c4: Standard deviation correction factor (used for sigma estimation from S-bar)
-        A2: Factor for X-bar chart control limits from R-bar
-        D3: Lower control limit factor for R chart
-        D4: Upper control limit factor for R chart
-        B3: Lower control limit factor for S chart (AIAG SPC Manual Table)
-        B4: Upper control limit factor for S chart (AIAG SPC Manual Table)
+        n: Subgroup size (number of observations per rational subgroup)
+        d2: E[R]/sigma -- ratio of expected range to population sigma
+        c4: E[S]/sigma -- ratio of expected std dev to population sigma
+        A2: X-bar chart control limit factor: UCL/LCL = X-double-bar +/- A2*R-bar
+        D3: R chart lower limit factor: LCL_R = D3 * R-bar
+        D4: R chart upper limit factor: UCL_R = D4 * R-bar
+        B3: S chart lower limit factor: LCL_S = B3 * S-bar (AIAG SPC Manual)
+        B4: S chart upper limit factor: UCL_S = B4 * S-bar (AIAG SPC Manual)
     """
     n: int
     d2: float
@@ -107,8 +154,13 @@ def get_constants(subgroup_size: int) -> SpcConstants:
 def get_d2(subgroup_size: int) -> float:
     """Get d2 constant for a given subgroup size.
 
-    The d2 constant is the relationship between the average range and the standard
-    deviation for a normal distribution. Used for estimating sigma from R-bar.
+    The d2 constant is the expected value of the relative range W = R/sigma
+    for samples of size n from a normal distribution:
+        d2 = E[W] = E[R] / sigma
+
+    Used in sigma estimation: sigma_hat = R-bar / d2
+
+    Ref: ASTM E2587-16, Table 1; Montgomery (2019), Table VI.
 
     Args:
         subgroup_size: The subgroup size (n), must be between 1 and 25
@@ -129,8 +181,16 @@ def get_d2(subgroup_size: int) -> float:
 def get_c4(subgroup_size: int) -> float:
     """Get c4 constant for a given subgroup size.
 
-    The c4 constant is the relationship between the average standard deviation
-    and the population standard deviation. Used for estimating sigma from S-bar.
+    The c4 constant is the expected value of the relative standard deviation
+    for samples of size n from a normal distribution:
+        c4 = E[S] / sigma
+
+    Used in sigma estimation: sigma_hat = S-bar / c4
+
+    Note: c4 approaches 1.0 as n increases (c4=0.9400 at n=5, c4=0.9896 at
+    n=25). For large n, S-bar is nearly unbiased for sigma.
+
+    Ref: ASTM E2587-16, Table 1; Montgomery (2019), Table VI.
 
     Args:
         subgroup_size: The subgroup size (n), must be between 1 and 25
@@ -151,8 +211,16 @@ def get_c4(subgroup_size: int) -> float:
 def get_A2(subgroup_size: int) -> float:
     """Get A2 constant for a given subgroup size.
 
-    The A2 constant is used for calculating control limits on X-bar charts
-    when using the range method.
+    A2 is used for X-bar chart control limits when sigma is estimated
+    from R-bar:
+        UCL = X-double-bar + A2 * R-bar
+        LCL = X-double-bar - A2 * R-bar
+
+    Derivation: A2 = 3 / (d2 * sqrt(n)), which yields 3-sigma limits
+    on the distribution of subgroup means.
+
+    Ref: AIAG SPC Manual 2nd Ed., Chapter II, p.45;
+         Montgomery (2019), Section 6.2.1.
 
     Args:
         subgroup_size: The subgroup size (n), must be between 1 and 25
@@ -173,7 +241,15 @@ def get_A2(subgroup_size: int) -> float:
 def get_D3(subgroup_size: int) -> float:
     """Get D3 constant for a given subgroup size.
 
-    The D3 constant is used for calculating the lower control limit on R charts.
+    D3 is the lower 3-sigma factor for the R chart:
+        LCL_R = D3 * R-bar
+
+    Derivation: D3 = max(0, 1 - 3*d3/d2), where d3 is the standard
+    deviation of the relative range distribution. D3 = 0 for n <= 6
+    because the sampling distribution of R is bounded below at zero
+    and the -3sigma point falls at or below zero.
+
+    Ref: ASTM E2587-16, Table 1; Montgomery (2019), Section 6.2.2.
 
     Args:
         subgroup_size: The subgroup size (n), must be between 1 and 25
@@ -194,7 +270,13 @@ def get_D3(subgroup_size: int) -> float:
 def get_D4(subgroup_size: int) -> float:
     """Get D4 constant for a given subgroup size.
 
-    The D4 constant is used for calculating the upper control limit on R charts.
+    D4 is the upper 3-sigma factor for the R chart:
+        UCL_R = D4 * R-bar
+
+    Derivation: D4 = 1 + 3*d3/d2, where d3 is the standard deviation
+    of the relative range distribution.
+
+    Ref: ASTM E2587-16, Table 1; Montgomery (2019), Section 6.2.2.
 
     Args:
         subgroup_size: The subgroup size (n), must be between 1 and 25
