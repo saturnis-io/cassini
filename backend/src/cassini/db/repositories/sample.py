@@ -140,6 +140,23 @@ class SampleRepository(BaseRepository[Sample]):
 
         return data
 
+    async def count_by_characteristic(self, char_id: int) -> int:
+        """Count samples for a characteristic without loading them into memory.
+
+        This is much cheaper than get_by_characteristic() when you only need
+        to know whether samples exist or how many there are.
+
+        Args:
+            char_id: ID of the characteristic to count samples for
+
+        Returns:
+            Number of samples belonging to the characteristic
+        """
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Sample).where(Sample.char_id == char_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     async def get_by_characteristic(
         self,
         char_id: int,
