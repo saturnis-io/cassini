@@ -54,6 +54,12 @@ def mock_violation_repo():
 def mock_window_manager():
     """Mock rolling window manager."""
     manager = AsyncMock()
+    # get_cached_limits, put_cached_limits, and increment_limit_counter are
+    # synchronous methods; configure them as regular Mocks so they don't
+    # return coroutines.
+    manager.get_cached_limits = MagicMock(return_value=None)
+    manager.put_cached_limits = MagicMock()
+    manager.increment_limit_counter = MagicMock()
     return manager
 
 
@@ -902,3 +908,71 @@ class TestPerformance:
         # Verify processing time was recorded and is reasonable
         assert result.processing_time_ms > 0
         assert result.processing_time_ms < 10000  # Should be under 10 seconds
+
+
+class TestControlLimitCacheIntegration:
+    """Tests that SPCEngine uses cached limits to avoid recomputation."""
+
+    @pytest.mark.asyncio
+    async def test_zone_boundaries_uses_cache_on_second_call(self):
+        """Second call to _get_zone_boundaries_with_values uses cache."""
+        from cassini.core.engine.rolling_window import CachedLimits, RollingWindowManager
+        import time
+
+        manager = RollingWindowManager()
+        # Pre-populate the limit cache
+        limits = CachedLimits(
+            center_line=100.0, ucl=106.0, lcl=94.0, sigma=2.0,
+            samples_since_compute=0, computed_at=time.monotonic(),
+        )
+        manager.put_cached_limits(char_id=42, material_id=None, limits=limits)
+
+        # Create engine with this manager
+        engine = SPCEngine(
+            sample_repo=AsyncMock(),
+            char_repo=AsyncMock(),
+            violation_repo=AsyncMock(),
+            window_manager=manager,
+            rule_library=MagicMock(),
+        )
+
+        # Call zone boundaries with NULL ucl/lcl — should use cache
+        boundaries = await engine._get_zone_boundaries_with_values(
+            characteristic_id=42, ucl=None, lcl=None,
+        )
+        assert boundaries.center_line == 100.0
+        assert abs(boundaries.plus_3_sigma - 106.0) < 0.01
+        assert abs(boundaries.minus_3_sigma - 94.0) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_zone_boundaries_falls_through_on_stale_cache(self):
+        """When cache is stale, falls through to recalculate_limits."""
+        from cassini.core.engine.rolling_window import CachedLimits, RollingWindowManager
+        import time
+
+        manager = RollingWindowManager()
+        # Pre-populate with stale entry (count exceeded)
+        limits = CachedLimits(
+            center_line=100.0, ucl=106.0, lcl=94.0, sigma=2.0,
+            samples_since_compute=25,  # at threshold = stale
+            computed_at=time.monotonic(),
+        )
+        manager.put_cached_limits(char_id=42, material_id=None, limits=limits)
+
+        engine = SPCEngine(
+            sample_repo=AsyncMock(),
+            char_repo=AsyncMock(),
+            violation_repo=AsyncMock(),
+            window_manager=manager,
+            rule_library=MagicMock(),
+        )
+
+        # Mock recalculate_limits to return known values
+        engine.recalculate_limits = AsyncMock(return_value=(200.0, 212.0, 188.0))
+
+        boundaries = await engine._get_zone_boundaries_with_values(
+            characteristic_id=42, ucl=None, lcl=None,
+        )
+        # Should have used recalculate_limits values, not cached
+        assert boundaries.center_line == 200.0
+        engine.recalculate_limits.assert_called_once()

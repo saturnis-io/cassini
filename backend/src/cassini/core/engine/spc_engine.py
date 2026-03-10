@@ -64,7 +64,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from cassini.core.engine.rolling_window import WindowSample, ZoneBoundaries
+from cassini.core.engine.rolling_window import CachedLimits, WindowSample, ZoneBoundaries
 from cassini.core.events import EventBus, SampleProcessedEvent, ViolationCreatedEvent
 from cassini.core.providers.protocol import SampleContext
 from cassini.db.models.characteristic import SubgroupMode
@@ -560,10 +560,12 @@ class SPCEngine:
         )
 
         # Step 5: Get zone boundaries and update rolling window
+        _material_id = context.material_id if context else None
         boundaries = await self._get_zone_boundaries_with_values(
             characteristic_id=characteristic_id,
             ucl=char_ucl,
             lcl=char_lcl,
+            material_id=_material_id,
         )
 
         # Build a value_transform for the rolling window cold-load path.
@@ -596,7 +598,6 @@ class SPCEngine:
         # Add sample to rolling window with mode-specific data.
         # Pass transformed measurements so WindowSample.value is in the
         # same coordinate system as the zone boundaries.
-        _material_id = context.material_id if context else None
         window_sample = await self._window_manager.add_sample(
             char_id=characteristic_id,
             sample=sample,
@@ -713,6 +714,11 @@ class SPCEngine:
 
         await self._event_bus.publish(event)
 
+        # Increment limit cache counter so limits refresh every N samples
+        self._window_manager.increment_limit_counter(
+            characteristic_id, _material_id,
+        )
+
         return result
 
 
@@ -721,16 +727,20 @@ class SPCEngine:
         characteristic_id: int,
         ucl: float | None,
         lcl: float | None,
+        material_id: int | None = None,
     ) -> ZoneBoundaries:
         """Get zone boundaries using pre-extracted UCL/LCL values.
 
-        Uses provided control limits if available, otherwise calculates from
-        historical data.
+        Resolution order:
+        1. Explicit UCL/LCL on the characteristic (stored/Phase II limits)
+        2. Cached computed limits (warm cache from recent recalculation)
+        3. Recompute from historical data (cold path, result is cached)
 
         Args:
             characteristic_id: ID of the characteristic
-            ucl: Pre-extracted Upper Control Limit
-            lcl: Pre-extracted Lower Control Limit
+            ucl: Pre-extracted Upper Control Limit (may be None)
+            lcl: Pre-extracted Lower Control Limit (may be None)
+            material_id: Optional material ID for material-partitioned cache
 
         Returns:
             ZoneBoundaries with all zone boundaries calculated
@@ -738,12 +748,10 @@ class SPCEngine:
         Raises:
             ValueError: If no control limits available and insufficient data
         """
-        # If control limits are provided, use them
+        # Path 1: Explicit stored limits on the characteristic
         if ucl is not None and lcl is not None:
-            # Calculate center line and sigma from stored limits
             center_line = (ucl + lcl) / 2
-            sigma = (ucl - lcl) / 6  # UCL/LCL are typically +/- 3 sigma
-
+            sigma = (ucl - lcl) / 6
             zones = calculate_zones(center_line, sigma)
             return ZoneBoundaries(
                 center_line=zones.center_line,
@@ -756,14 +764,44 @@ class SPCEngine:
                 sigma=sigma,
             )
 
-        # Otherwise, calculate from historical data
-        center_line, ucl, lcl = await self.recalculate_limits(
+        # Path 2: Check in-memory limit cache
+        cached = self._window_manager.get_cached_limits(
+            characteristic_id, material_id,
+        )
+        if cached is not None:
+            zones = calculate_zones(cached.center_line, cached.sigma)
+            return ZoneBoundaries(
+                center_line=zones.center_line,
+                plus_1_sigma=zones.plus_1_sigma,
+                plus_2_sigma=zones.plus_2_sigma,
+                plus_3_sigma=zones.plus_3_sigma,
+                minus_1_sigma=zones.minus_1_sigma,
+                minus_2_sigma=zones.minus_2_sigma,
+                minus_3_sigma=zones.minus_3_sigma,
+                sigma=cached.sigma,
+            )
+
+        # Path 3: Compute from historical data and cache result
+        center_line, computed_ucl, computed_lcl = await self.recalculate_limits(
             characteristic_id, exclude_ooc=False
         )
+        sigma = (computed_ucl - computed_lcl) / 6
 
-        sigma = (ucl - lcl) / 6
+        # Cache the computed limits
+        self._window_manager.put_cached_limits(
+            char_id=characteristic_id,
+            material_id=material_id,
+            limits=CachedLimits(
+                center_line=center_line,
+                ucl=computed_ucl,
+                lcl=computed_lcl,
+                sigma=sigma,
+                samples_since_compute=0,
+                computed_at=time.monotonic(),
+            ),
+        )
+
         zones = calculate_zones(center_line, sigma)
-
         return ZoneBoundaries(
             center_line=zones.center_line,
             plus_1_sigma=zones.plus_1_sigma,
