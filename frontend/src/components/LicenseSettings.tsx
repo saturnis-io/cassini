@@ -222,7 +222,7 @@ export function LicenseSettings() {
           <div className="mt-4">
             <div className="mb-1 flex items-center gap-1.5 text-xs font-medium">
               <Factory className="h-3.5 w-3.5" />
-              Site Usage
+              Plant Usage
             </div>
             <PlantUsageBar used={activePlants.length} max={maxPlants} />
           </div>
@@ -281,7 +281,7 @@ export function LicenseSettings() {
         <p className="text-muted-foreground mb-4 text-sm">
           {isCommercial
             ? 'Upload a new license key file to replace your current license.'
-            : 'Upload a license key file (.key) to unlock commercial features.'}
+            : 'Upload a license key file (.license) to unlock commercial features.'}
         </p>
 
         {/* Drag-and-drop zone */}
@@ -310,14 +310,14 @@ export function LicenseSettings() {
             {dragOver ? 'Drop license key here' : 'Drag & drop your license key'}
           </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            or click to browse for a .key file
+            or click to browse for a .license or .key file
           </p>
         </div>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept=".key,.txt,.jwt"
+          accept=".key,.license,.txt,.jwt"
           onChange={handleFileSelect}
           className="hidden"
         />
