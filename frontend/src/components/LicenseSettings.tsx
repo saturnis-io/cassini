@@ -12,7 +12,12 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
-import { useActivateLicense, useRemoveLicense, usePlants } from '@/api/hooks'
+import {
+  useActivateLicense,
+  useRemoveLicense,
+  useDownloadActivationFile,
+  usePlants,
+} from '@/api/hooks'
 import { PlantUsageBar } from '@/components/PlantUsageBar'
 import { LicenseComparisonDialog } from '@/components/LicenseComparisonDialog'
 import type { LicenseStatus } from '@/api/license.api'
@@ -47,6 +52,7 @@ export function LicenseSettings() {
   const license = useLicense()
   const activateLicense = useActivateLicense()
   const removeLicenseMutation = useRemoveLicense()
+  const downloadActivation = useDownloadActivationFile()
   const { data: activePlants = [] } = usePlants(true)
 
   // Upload state
@@ -225,6 +231,22 @@ export function LicenseSettings() {
               Plant Usage
             </div>
             <PlantUsageBar used={activePlants.length} max={maxPlants} />
+          </div>
+        )}
+
+        {/* Download activation file (commercial only) */}
+        {isCommercial && (
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={() => downloadActivation.mutate()}
+              disabled={downloadActivation.isPending}
+              className="border-border hover:bg-muted rounded-lg border px-4 py-2 text-sm font-medium"
+            >
+              {downloadActivation.isPending ? 'Generating...' : 'Download Activation File'}
+            </button>
+            <span className="text-muted-foreground text-xs">
+              Upload this to your saturnis.io portal to register this installation
+            </span>
           </div>
         )}
 

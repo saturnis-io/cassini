@@ -5,6 +5,8 @@ import {
   getLicenseCompliance,
   removeLicense,
   activateLicense,
+  getActivationFile,
+  downloadJsonFile,
 } from '@/api/license.api'
 import { useLicenseStore } from '@/stores/licenseStore'
 import { queryKeys } from './queryKeys'
@@ -24,11 +26,17 @@ export function useRemoveLicense() {
 
   return useMutation({
     mutationFn: removeLicense,
-    onSuccess: (status) => {
-      setFromApi(status)
+    onSuccess: (response) => {
+      setFromApi(response.status)
       queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
-      toast.success('License removed')
+      if (response.deactivation_file) {
+        const id = response.deactivation_file.instanceId.slice(0, 8)
+        downloadJsonFile(response.deactivation_file, `cassini-deactivation-${id}.deactivation`)
+        toast.success('License removed — upload the deactivation file to your saturnis.io portal')
+      } else {
+        toast.success('License removed')
+      }
     },
     onError: handleMutationError('Failed to remove license'),
   })
@@ -60,5 +68,17 @@ export function useLicenseStatus() {
       setFromApi(data)
       return data
     },
+  })
+}
+
+export function useDownloadActivationFile() {
+  return useMutation({
+    mutationFn: async () => {
+      const data = await getActivationFile()
+      downloadJsonFile(data, `cassini-activation-${data.instanceId.slice(0, 8)}.activation`)
+      return data
+    },
+    onSuccess: () => toast.success('Activation file downloaded'),
+    onError: handleMutationError('Failed to download activation file'),
   })
 }

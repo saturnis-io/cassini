@@ -22,8 +22,35 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   return fetchApi<LicenseStatus>('/license/status')
 }
 
-export async function removeLicense(): Promise<LicenseStatus> {
-  return fetchApi<LicenseStatus>('/license', { method: 'DELETE' })
+export interface ActivationFile {
+  type: 'cassini-activation' | 'cassini-deactivation'
+  version: number
+  licenseId: string
+  instanceId: string
+  timestamp: string
+}
+
+export interface LicenseRemoveResponse {
+  status: LicenseStatus
+  deactivation_file: ActivationFile | null
+}
+
+export async function getActivationFile(): Promise<ActivationFile> {
+  return fetchApi<ActivationFile>('/license/activation-file')
+}
+
+export async function removeLicense(): Promise<LicenseRemoveResponse> {
+  return fetchApi<LicenseRemoveResponse>('/license', { method: 'DELETE' })
+}
+
+export function downloadJsonFile(data: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export async function getLicenseCompliance(): Promise<LicenseCompliance> {
