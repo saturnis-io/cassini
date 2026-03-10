@@ -22,7 +22,6 @@ export function PlantComplianceDialog({
   const queryClient = useQueryClient()
 
   const activePlants = plants.filter((p) => p.is_active)
-  const deactivatablePlants = activePlants.filter((p) => p.code !== 'DEFAULT')
   const remaining = compliance.excess - selected.size
 
   const togglePlant = useCallback((plantId: number) => {

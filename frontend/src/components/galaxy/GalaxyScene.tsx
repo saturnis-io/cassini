@@ -857,7 +857,7 @@ export function GalaxyScene({
           for (const mat of materials) {
             // Dispose any textures attached to the material
             for (const key of Object.keys(mat)) {
-              const value = (mat as Record<string, unknown>)[key]
+              const value = (mat as unknown as Record<string, unknown>)[key]
               if (
                 value &&
                 typeof value === 'object' &&

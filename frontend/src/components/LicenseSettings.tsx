@@ -429,7 +429,7 @@ export function LicenseSettings() {
 
 function EditionBadge({
   isCommercial,
-  isExpired,
+  isExpired: _isExpired,
   wasCommercial,
 }: {
   isCommercial: boolean
