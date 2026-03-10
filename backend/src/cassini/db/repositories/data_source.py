@@ -39,11 +39,14 @@ class DataSourceRepository(BaseRepository[DataSource]):
         Note: MQTTDataSource inherits from DataSource via JTI, so SQLAlchemy
         automatically joins the parent table. No explicit join needed.
         """
+        from cassini.db.models.characteristic import Characteristic
+
         stmt = (
             select(MQTTDataSource)
             .where(MQTTDataSource.is_active == True)  # noqa: E712
             .options(
-                selectinload(MQTTDataSource.characteristic),
+                selectinload(MQTTDataSource.characteristic)
+                .selectinload(Characteristic.hierarchy),
                 selectinload(MQTTDataSource.broker),
             )
         )

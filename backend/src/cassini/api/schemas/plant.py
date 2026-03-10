@@ -22,11 +22,15 @@ class PlantCreate(BaseModel):
 
 
 class PlantUpdate(BaseModel):
-    """Schema for updating a plant."""
+    """Schema for updating a plant.
+
+    Note: is_active is NOT exposed here -- use the dedicated
+    /plants/{id}/deactivate and /plants/{id}/reactivate endpoints
+    to enforce compliance checks.
+    """
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     code: Optional[str] = Field(None, min_length=1, max_length=10, pattern=r"^[A-Z0-9_-]+$")
-    is_active: Optional[bool] = None
     settings: Optional[dict[str, Any]] = None
     capability_green_threshold: Optional[float] = Field(
         None, gt=0, description="Cpk threshold for green (good) status"

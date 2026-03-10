@@ -13,6 +13,8 @@ import { usePlant } from '@/providers/PlantProvider'
 import { MobileNav } from '@/components/MobileNav'
 import { ExplanationPanel } from '@/components/ExplanationPanel'
 import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner'
+import { PlantComplianceDialog } from '@/components/PlantComplianceDialog'
+import { useLicenseCompliance, usePlants } from '@/api/hooks'
 
 /**
  * Main application layout with sidebar navigation
@@ -40,6 +42,8 @@ export function Layout() {
     plant_id: selectedPlant?.id,
   })
   const { isOffline, setIsOffline, offlineQueueCount, setOfflineQueueCount } = useUIStore()
+  const { data: compliance } = useLicenseCompliance()
+  const { data: allPlants } = usePlants()
 
   // Set up offline queue auto-flush
   useEffect(() => {
@@ -141,6 +145,11 @@ export function Layout() {
 
       {/* Show Your Work explanation panel */}
       <ExplanationPanel />
+
+      {/* Plant compliance enforcement dialog */}
+      {compliance && compliance.excess > 0 && allPlants && (
+        <PlantComplianceDialog compliance={compliance} plants={allPlants} />
+      )}
     </div>
   )
 }

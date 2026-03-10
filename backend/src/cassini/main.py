@@ -5,6 +5,7 @@ Copyright (c) 2026 Cassini Contributors
 SPDX-License-Identifier: AGPL-3.0-only
 """
 
+import asyncio
 import structlog
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -60,24 +61,51 @@ from cassini.api.v1.doe import router as doe_router
 from cassini.api.v1.violations import router as violations_router
 from cassini.api.v1.websocket import manager as ws_manager
 from cassini.api.v1.websocket import router as websocket_router
-from cassini.core.audit import AuditMiddleware, AuditService
+from cassini.core.audit import AuditMiddleware
 from cassini.core.auth.bootstrap import bootstrap_admin_user
 from cassini.core.broadcast import WebSocketBroadcaster
-from cassini.core.notifications import NotificationDispatcher
+from cassini.core.commercial import activate_commercial_features
+from cassini.core.compliance import refresh_compliance_cache
 from cassini.core.publish import MQTTPublisher
 from cassini.core.config import get_settings
 from cassini.core.licensing import LicenseService
 from cassini.core.events import event_bus
 from cassini.core.rate_limit import limiter
 from cassini.core.providers import tag_provider_manager, opcua_provider_manager
-from cassini.core.purge_engine import PurgeEngine
-from cassini.core.report_scheduler import ReportScheduler
 from cassini.db.database import get_database
 from cassini.mqtt import mqtt_manager
 from cassini.opcua.manager import opcua_manager
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()
+
+# ---------------------------------------------------------------------------
+# Commercial routers -- registered lazily when a commercial license is active
+# ---------------------------------------------------------------------------
+_COMMERCIAL_ROUTERS = [
+    anomaly_router,
+    api_keys_router,
+    opcua_servers_router,
+    database_admin_router,
+    distributions_router,
+    fai_router,
+    gage_bridges_router,
+    ishikawa_router,
+    msa_router,
+    notifications_router,
+    oidc_router,
+    retention_router,
+    rule_presets_router,
+    scheduled_reports_router,
+    signatures_router,
+    system_settings_router,
+    push_router,
+    erp_router,
+    multivariate_router,
+    predictions_router,
+    ai_analysis_router,
+    doe_router,
+]
 
 
 @asynccontextmanager
@@ -94,8 +122,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     license_service = _license_svc
     logger.info("License service initialized", edition=license_service.edition)
 
+    # Lazy commercial activation state
+    app.state.commercial_lock = asyncio.Lock()
+    app.state.commercial_active = False
+    app.state.commercial_routers = _COMMERCIAL_ROUTERS
+    app.state.compliance_excess = 0
+
     # Initialize database connection
     db = get_database()
+
+    # Store db and event_bus on app.state for lazy activation
+    app.state.db = db
+    app.state.event_bus = event_bus
 
     # Bootstrap admin user if no users exist
     try:
@@ -156,7 +194,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     logger.info("TAG provider initialization deferred")
             else:
                 logger.info(
-                    "MQTT manager initialized — brokers connecting in background "
+                    "MQTT manager initialized -- brokers connecting in background "
                     "or no active brokers configured"
                 )
     except Exception as e:
@@ -172,103 +210,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.tag_provider_manager = tag_provider_manager
 
     # -----------------------------------------------------------------------
-    # Commercial-only services — gated behind license
+    # Commercial-only services -- gated behind license
     # -----------------------------------------------------------------------
     if license_service.is_commercial:
-        logger.info("Initializing commercial services")
-
-        # OPC-UA manager (commercial)
-        try:
-            async with db.session() as session:
-                opcua_connected = await opcua_manager.initialize(session)
-                if opcua_connected:
-                    logger.info("OPC-UA manager connected successfully")
-
-                    # Initialize OPC-UA provider if servers are connected
-                    opcua_prov_ok = await opcua_provider_manager.initialize(session)
-                    if opcua_prov_ok:
-                        logger.info("OPC-UA provider initialized successfully")
-                    else:
-                        logger.info("OPC-UA provider initialization deferred")
-                else:
-                    logger.info(
-                        "OPC-UA manager initialized — servers connecting in background "
-                        "or no active servers configured"
-                    )
-        except Exception as e:
-            logger.warning("opcua_init_failed", error=str(e))
-        app.state.opcua_manager = opcua_manager
-        app.state.opcua_provider_manager = opcua_provider_manager
-
-        # Anomaly detector (subscribes to SampleProcessedEvent)
-        from cassini.core.anomaly.detector import AnomalyDetector
-        anomaly_detector = AnomalyDetector(event_bus, db.session)
-        app.state.anomaly_detector = anomaly_detector
-        logger.info("Anomaly detector initialized")
-
-        # Forecasting engine (subscribes to SampleProcessedEvent)
-        try:
-            from cassini.core.forecasting import ForecastingEngine
-            forecasting_engine = ForecastingEngine(event_bus, db.session)
-            forecasting_engine.setup_subscriptions()
-            app.state.forecasting_engine = forecasting_engine
-            logger.info("Forecasting engine initialized")
-        except ImportError:
-            logger.info("Forecasting engine unavailable (statsmodels not installed)")
-
-        # Signature workflow engine
-        from cassini.core.signature_engine import SignatureWorkflowEngine
-        signature_engine = SignatureWorkflowEngine(db.session, event_bus)
-        app.state.signature_engine = signature_engine
-        logger.info("Signature workflow engine initialized")
-
-        # Notification dispatcher (email + webhooks)
-        notification_dispatcher = NotificationDispatcher(event_bus, db.session)
-        app.state.notification_dispatcher = notification_dispatcher
-        logger.info("Notification dispatcher initialized")
-
-        # Push notification service (subscribes to events)
-        from cassini.core.push_service import PushNotificationService
-        push_service = PushNotificationService(event_bus, db.session)
-        app.state.push_service = push_service
-
-        # ERP sync engine (background scheduler)
-        from cassini.core.erp.sync_engine import ERPSyncEngine
-        erp_sync_engine = ERPSyncEngine(event_bus)
-        await erp_sync_engine.start()
-        app.state.erp_sync_engine = erp_sync_engine
-
-        # ERP outbound publisher (subscribes to events)
-        from cassini.core.erp.outbound_publisher import ERPOutboundPublisher
-        erp_outbound_publisher = ERPOutboundPublisher(event_bus, db.session)
-        app.state.erp_outbound_publisher = erp_outbound_publisher
-        logger.info("ERP integration services initialized")
-
-        # Audit trail service and event bus subscriptions
-        audit_service = AuditService(db.session)
-        app.state.audit_service = audit_service
-
-        # Wire audit service into background event subscribers
-        notification_dispatcher._audit_service = audit_service
-        anomaly_detector._audit_service = audit_service
-
-        # Consolidate all audit event subscriptions into AuditService
-        audit_service.setup_subscriptions(event_bus)
-        logger.info("Audit trail service initialized")
-
-        # Start retention purge engine (background, 24h interval)
-        purge_engine = PurgeEngine(event_bus=event_bus)
-        await purge_engine.start()
-        app.state.purge_engine = purge_engine
-
-        # Start report scheduler (background, checks every 15 minutes)
-        report_scheduler = ReportScheduler()
-        await report_scheduler.start()
-        app.state.report_scheduler = report_scheduler
-
-        logger.info("Commercial services initialization complete")
+        await activate_commercial_features(app, _COMMERCIAL_ROUTERS, db, event_bus)
     else:
-        logger.info("Community edition — enterprise services not initialized")
+        logger.info("Community edition -- enterprise services not initialized")
+
+    # Compute initial compliance status
+    try:
+        async with db.session() as session:
+            await refresh_compliance_cache(app, session)
+    except Exception as e:
+        logger.warning("initial_compliance_check_failed", error=str(e))
 
     logger.info("Cassini application startup complete")
 
@@ -287,17 +241,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if hasattr(app.state, 'erp_sync_engine'):
         await app.state.erp_sync_engine.stop()
 
-    # Shutdown OPC-UA (commercial — may not be initialized)
+    # Shutdown OPC-UA (commercial -- may not be initialized)
     if hasattr(app.state, 'opcua_provider_manager'):
         await opcua_provider_manager.shutdown()
 
     if hasattr(app.state, 'opcua_manager'):
         await opcua_manager.shutdown()
 
-    # Shutdown TAG provider first (before MQTT) — community
+    # Shutdown TAG provider first (before MQTT) -- community
     await tag_provider_manager.shutdown()
 
-    # Shutdown MQTT manager — community
+    # Shutdown MQTT manager -- community
     await mqtt_manager.shutdown()
 
     # Wait for pending event handlers to complete
@@ -319,7 +273,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiting — attach limiter to app state and register 429 handler
+# Rate limiting -- attach limiter to app state and register 429 handler
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -335,14 +289,19 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language", "X-API-Key", "X-Hub-Signature-256"],
 )
 
+# Compliance enforcement middleware (between CORS and Audit)
+from cassini.api.middleware.compliance import ComplianceMiddleware
+
+app.add_middleware(ComplianceMiddleware)
+
 # Audit trail middleware (gets AuditService lazily from app.state)
 app.add_middleware(AuditMiddleware)
 
 # ---------------------------------------------------------------------------
-# Register routers — Community (always) vs Commercial (license-gated)
+# Register routers -- Community (always) vs Commercial (license-gated, lazy)
 # ---------------------------------------------------------------------------
 
-# Community routers — always registered regardless of license
+# Community routers -- always registered regardless of license
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
@@ -368,7 +327,9 @@ app.include_router(license_router)
 app.include_router(audit_router)
 app.include_router(explain_router)
 
-# Commercial routers — only registered with a valid commercial license
+# Commercial routers are registered lazily via activate_commercial_features()
+# when a valid commercial license is present at startup or uploaded at runtime.
+
 # Reuse the same LicenseService config as lifespan (single instance created here,
 # stored on app.state during lifespan startup)
 _license_svc = LicenseService(
@@ -376,48 +337,21 @@ _license_svc = LicenseService(
     public_key_path=settings.license_public_key_file or None,
     dev_commercial=settings.dev_commercial,
 )
-if _license_svc.is_commercial:
-    app.include_router(anomaly_router)
-    app.include_router(api_keys_router)
-    app.include_router(opcua_servers_router)
-    app.include_router(database_admin_router)
-    app.include_router(distributions_router)
-    app.include_router(fai_router)
-    app.include_router(gage_bridges_router)
-    app.include_router(ishikawa_router)
-    app.include_router(msa_router)
-    app.include_router(notifications_router)
-    app.include_router(oidc_router)
-    app.include_router(retention_router)
-    app.include_router(rule_presets_router)
-    app.include_router(scheduled_reports_router)
-    app.include_router(signatures_router)
-    app.include_router(system_settings_router)
-    app.include_router(push_router)
-    app.include_router(erp_router)
-    app.include_router(multivariate_router)
-    app.include_router(predictions_router)
-    app.include_router(ai_analysis_router)
-    app.include_router(doe_router)
-    logger.info("Commercial license detected — enterprise routers registered",
-                router_count=22)
-else:
-    logger.info("Community edition — enterprise routers not registered")
 
-# Extension hook — commercial package registers additional routers/services
+# Extension hook -- commercial package registers additional routers/services
 try:
     from cassini_enterprise import initialize as init_enterprise  # type: ignore[import-not-found]
     init_enterprise(app, _license_svc)
     logger.info("Commercial extension package loaded")
 except ImportError:
-    pass  # Community edition — no extension package
+    pass  # Community edition -- no extension package
 
-# Dev tools router — only registered in sandbox mode
+# Dev tools router -- only registered in sandbox mode
 if settings.sandbox:
     from cassini.api.v1.devtools import router as devtools_router
 
     app.include_router(devtools_router)
-    logger.info("Sandbox mode enabled — devtools router registered")
+    logger.info("Sandbox mode enabled -- devtools router registered")
 
 
 @app.get("/health")
@@ -433,11 +367,49 @@ async def health_check():
         return JSONResponse(status_code=503, content={"status": "unhealthy"})
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint."""
-    return {
-        "name": "Cassini",
-        "version": settings.app_version,
-        "docs": "/docs",
-    }
+# ---------------------------------------------------------------------------
+# Frontend static file serving (production / Docker)
+# ---------------------------------------------------------------------------
+# When a built frontend exists (e.g. inside the Docker image at
+# /app/frontend/dist), serve it directly from the backend.  In development
+# the Vite dev server handles the frontend, so this block is skipped.
+# ---------------------------------------------------------------------------
+from pathlib import Path as _Path
+from starlette.responses import FileResponse as _FileResponse
+
+_frontend_dist_candidates = [
+    _Path("/app/frontend/dist"),
+    _Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "dist",
+]
+_frontend_dist = next(
+    (p for p in _frontend_dist_candidates if p.is_dir()), None
+)
+
+if _frontend_dist:
+    _resolved_dist = _frontend_dist.resolve()
+    _index_html = _resolved_dist / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    async def serve_spa_root():
+        """Serve the frontend SPA index page."""
+        return _FileResponse(_index_html)
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def serve_frontend(path: str):
+        """Serve frontend static assets, SPA fallback for client-side routing."""
+        file = (_resolved_dist / path).resolve()
+        if file.is_file() and file.is_relative_to(_resolved_dist):
+            return _FileResponse(file)
+        return _FileResponse(_index_html)
+
+    logger.info("frontend_serving_enabled", dist_dir=str(_resolved_dist))
+else:
+
+    @app.get("/")
+    async def root() -> dict[str, str]:
+        """Root endpoint (no built frontend found)."""
+        return {
+            "name": "Cassini",
+            "version": settings.app_version,
+            "docs": "/docs",
+        }

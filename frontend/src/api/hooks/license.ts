@@ -1,28 +1,64 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { getLicenseStatus, uploadLicense } from '@/api/license.api'
+import {
+  getLicenseStatus,
+  getLicenseCompliance,
+  removeLicense,
+  activateLicense,
+} from '@/api/license.api'
+import { useLicenseStore } from '@/stores/licenseStore'
 import { queryKeys } from './queryKeys'
 import { handleMutationError } from './utils'
-import { useLicenseStore } from '@/stores/licenseStore'
 
-export function useLicenseStatus() {
-	return useQuery({
-		queryKey: queryKeys.license.status(),
-		queryFn: getLicenseStatus,
-	})
+export function useLicenseCompliance() {
+  return useQuery({
+    queryKey: queryKeys.license.compliance(),
+    queryFn: getLicenseCompliance,
+    refetchInterval: 30_000,
+  })
 }
 
-export function useUploadLicense() {
-	const queryClient = useQueryClient()
-	const setFromApi = useLicenseStore((s) => s.setFromApi)
+export function useRemoveLicense() {
+  const queryClient = useQueryClient()
+  const setFromApi = useLicenseStore((s) => s.setFromApi)
 
-	return useMutation({
-		mutationFn: (key: string) => uploadLicense(key),
-		onSuccess: (data) => {
-			queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
-			setFromApi(data)
-			toast.success('License key uploaded successfully')
-		},
-		onError: handleMutationError('Failed to upload license key'),
-	})
+  return useMutation({
+    mutationFn: removeLicense,
+    onSuccess: (status) => {
+      setFromApi(status)
+      queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+      toast.success('License removed')
+    },
+    onError: handleMutationError('Failed to remove license'),
+  })
+}
+
+export function useActivateLicense() {
+  const queryClient = useQueryClient()
+  const setFromApi = useLicenseStore((s) => s.setFromApi)
+
+  return useMutation({
+    mutationFn: (key: string) => activateLicense(key),
+    onSuccess: (status) => {
+      setFromApi(status)
+      queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+      toast.success('License activated')
+    },
+    onError: handleMutationError('Failed to activate license'),
+  })
+}
+
+export function useLicenseStatus() {
+  const setFromApi = useLicenseStore((s) => s.setFromApi)
+
+  return useQuery({
+    queryKey: queryKeys.license.status(),
+    queryFn: getLicenseStatus,
+    select: (data) => {
+      setFromApi(data)
+      return data
+    },
+  })
 }

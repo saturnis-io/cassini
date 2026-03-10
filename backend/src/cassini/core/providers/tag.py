@@ -66,6 +66,8 @@ class TagProvider(DataProvider):
         self._configs: dict[int, TagConfig] = {}  # char_id -> config
         self._buffers: dict[int, SubgroupBuffer] = {}  # char_id -> buffer
         self._topic_to_chars: dict[str, list[int]] = {}  # topic -> [char_id, ...]
+        self._char_to_plant: dict[int, int] = {}  # char_id -> plant_id
+        self._inactive_plants: set[int] = set()  # plant IDs to drop data for
         self._timeout_task: asyncio.Task | None = None
         self._running = False
 
@@ -135,6 +137,21 @@ class TagProvider(DataProvider):
         """
         self._callback = callback
 
+    def reload_plant_status(self, inactive_plant_ids: set[int]) -> None:
+        """Update the set of inactive plant IDs.
+
+        Messages from characteristics belonging to inactive plants
+        will be silently dropped.
+
+        Args:
+            inactive_plant_ids: Set of plant IDs that are currently inactive.
+        """
+        self._inactive_plants = inactive_plant_ids
+        logger.info(
+            "tag_provider_plant_status_reloaded",
+            inactive_count=len(inactive_plant_ids),
+        )
+
     async def _load_tag_characteristics(self) -> None:
         """Load all active MQTT data sources and subscribe to their topics."""
         logger.info("Loading MQTT data sources")
@@ -163,6 +180,11 @@ class TagProvider(DataProvider):
 
             self._configs[char.id] = config
             self._buffers[char.id] = SubgroupBuffer(config)
+
+            # Resolve plant_id via hierarchy for compliance enforcement
+            hierarchy = getattr(char, "hierarchy", None)
+            if hierarchy is not None and getattr(hierarchy, "plant_id", None) is not None:
+                self._char_to_plant[char.id] = hierarchy.plant_id
 
             if src.topic not in self._topic_to_chars:
                 self._topic_to_chars[src.topic] = []
@@ -406,6 +428,16 @@ class TagProvider(DataProvider):
         self, char_id: int, config: TagConfig, buffer: SubgroupBuffer, value: float
     ) -> None:
         """Add a value to a buffer and flush if needed based on trigger strategy."""
+        # Drop data for inactive plants (compliance enforcement)
+        plant_id = self._char_to_plant.get(char_id)
+        if plant_id is not None and plant_id in self._inactive_plants:
+            logger.debug(
+                "dropping_value_inactive_plant",
+                characteristic_id=char_id,
+                plant_id=plant_id,
+            )
+            return
+
         if config.trigger_strategy == TriggerStrategy.ON_CHANGE.value:
             is_full = buffer.add(value)
             if is_full:

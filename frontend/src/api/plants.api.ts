@@ -29,6 +29,12 @@ export const plantApi = {
     }),
 
   delete: (id: number) => fetchApi<void>(`/plants/${id}`, { method: 'DELETE' }),
+
+  deactivate: (id: number) =>
+    fetchApi<Plant>(`/plants/${id}/deactivate`, { method: 'POST' }),
+
+  reactivate: (id: number) =>
+    fetchApi<Plant>(`/plants/${id}/reactivate`, { method: 'POST' }),
 }
 
 // Hierarchy API

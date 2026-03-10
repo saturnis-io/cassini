@@ -246,6 +246,15 @@ class TagProviderManager:
                 exc_info=True,
             )
 
+    def reload_plant_status(self, inactive_plant_ids: set[int]) -> None:
+        """Delegate plant status reload to the underlying provider.
+
+        Args:
+            inactive_plant_ids: Set of plant IDs that are currently inactive.
+        """
+        if self._provider:
+            self._provider.reload_plant_status(inactive_plant_ids)
+
     async def restart(self, session: AsyncSession) -> bool:
         """Restart the TAG provider.
 

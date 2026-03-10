@@ -2,7 +2,7 @@
 
 import structlog
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,8 +53,8 @@ async def create_plant(
     uppercased and must be unique. All admin users are automatically assigned
     admin role for the new plant.
     """
-    # Enforce plant limit from license
-    existing_plants = await repo.get_all()
+    # Enforce plant limit from license (only count active plants)
+    existing_plants = await repo.get_all(active_only=True)
     if len(existing_plants) >= license_service.max_plants:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -76,7 +76,7 @@ async def create_plant(
         for user in all_users:
             for pr in user.plant_roles:
                 if pr.role == UserRole.admin:
-                    # This user is admin somewhere — give them admin on the new plant
+                    # This user is admin somewhere -- give them admin on the new plant
                     await user_repo.assign_plant_role(user.id, plant.id, UserRole.admin)
                     admin_count += 1
                     break
@@ -89,6 +89,137 @@ async def create_plant(
             status_code=status.HTTP_409_CONFLICT,
             detail="Plant with this name or code already exists",
         )
+
+
+# --- Static sub-resource routes BEFORE /{plant_id} parameter routes ---
+
+
+@router.post(
+    "/{plant_id}/deactivate",
+    response_model=PlantResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def deactivate_plant(
+    plant_id: int,
+    request: Request,
+    repo: PlantRepository = Depends(get_plant_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_admin),
+) -> PlantResponse:
+    """Deactivate a plant.
+
+    Marks a plant as inactive. Inactive plants do not count toward the
+    license plant limit and their MQTT data ingestion is paused.
+    The Default plant cannot be deactivated.
+    """
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+
+    if plant.code == "DEFAULT":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate the Default plant",
+        )
+
+    if not plant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plant is already inactive",
+        )
+
+    plant = await repo.update(plant_id, is_active=False)
+
+    # Refresh compliance cache
+    from cassini.core.compliance import refresh_compliance_cache
+
+    await refresh_compliance_cache(request.app, session)
+
+    # Update MQTT tag provider if available
+    tag_mgr = getattr(request.app.state, "tag_provider_manager", None)
+    if tag_mgr is not None and hasattr(tag_mgr, "reload_plant_status"):
+        inactive_ids = await _get_inactive_plant_ids(repo)
+        tag_mgr.reload_plant_status(inactive_ids)
+
+    # Audit context
+    request.state.audit_context = {
+        "resource_type": "plant",
+        "resource_id": plant_id,
+        "action": "deactivate",
+        "summary": f"Plant '{plant.name}' deactivated",
+    }
+
+    return PlantResponse.model_validate(plant)
+
+
+@router.post(
+    "/{plant_id}/reactivate",
+    response_model=PlantResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def reactivate_plant(
+    plant_id: int,
+    request: Request,
+    repo: PlantRepository = Depends(get_plant_repo),
+    session: AsyncSession = Depends(get_db_session),
+    license_service: LicenseService = Depends(get_license_service),
+    _user: User = Depends(get_current_admin),
+) -> PlantResponse:
+    """Reactivate a plant.
+
+    Marks a plant as active again. Fails if reactivation would exceed the
+    license plant limit.
+    """
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+
+    if plant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plant is already active",
+        )
+
+    # Check if reactivation would exceed max_plants
+    active_plants = await repo.get_all(active_only=True)
+    if len(active_plants) >= license_service.max_plants:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Cannot reactivate: active plant limit ({license_service.max_plants}) would be exceeded. "
+            "Deactivate another plant or upgrade your license.",
+        )
+
+    plant = await repo.update(plant_id, is_active=True)
+
+    # Refresh compliance cache
+    from cassini.core.compliance import refresh_compliance_cache
+
+    await refresh_compliance_cache(request.app, session)
+
+    # Update MQTT tag provider if available
+    tag_mgr = getattr(request.app.state, "tag_provider_manager", None)
+    if tag_mgr is not None and hasattr(tag_mgr, "reload_plant_status"):
+        inactive_ids = await _get_inactive_plant_ids(repo)
+        tag_mgr.reload_plant_status(inactive_ids)
+
+    # Audit context
+    request.state.audit_context = {
+        "resource_type": "plant",
+        "resource_id": plant_id,
+        "action": "reactivate",
+        "summary": f"Plant '{plant.name}' reactivated",
+    }
+
+    return PlantResponse.model_validate(plant)
+
+
+# --- Parameter routes ---
 
 
 @router.get("/{plant_id}", response_model=PlantResponse)
@@ -149,7 +280,9 @@ async def update_plant(
 @router.delete("/{plant_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_plant(
     plant_id: int,
+    request: Request,
     repo: PlantRepository = Depends(get_plant_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_admin),
 ) -> None:
     """Delete a plant.
@@ -176,3 +309,14 @@ async def delete_plant(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Plant {plant_id} not found",
         )
+
+    # Refresh compliance cache after deletion
+    from cassini.core.compliance import refresh_compliance_cache
+
+    await refresh_compliance_cache(request.app, session)
+
+
+async def _get_inactive_plant_ids(repo: PlantRepository) -> set[int]:
+    """Get the set of inactive plant IDs."""
+    all_plants = await repo.get_all()
+    return {p.id for p in all_plants if not p.is_active}

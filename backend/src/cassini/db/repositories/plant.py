@@ -2,10 +2,13 @@
 
 from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cassini.db.models.characteristic import Characteristic
+from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.plant import Plant
+from cassini.db.models.sample import Sample
 
 
 class PlantRepository:
@@ -79,3 +82,66 @@ class PlantRepository:
         await self.session.delete(plant)
         await self.session.flush()
         return True
+
+    async def get_compliance_stats(self) -> list[dict]:
+        """Get per-plant compliance statistics.
+
+        Returns a list of dicts with plant info, characteristic count,
+        and sample count for compliance enforcement.
+
+        Uses a single query joining plant -> hierarchy (root only) ->
+        characteristic -> sample with COUNT aggregation.
+        """
+        # Subquery: count characteristics per plant via root hierarchies
+        char_count_sub = (
+            select(
+                Hierarchy.plant_id.label("plant_id"),
+                func.count(Characteristic.id).label("char_count"),
+            )
+            .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id, isouter=True)
+            .where(Hierarchy.plant_id.isnot(None))
+            .group_by(Hierarchy.plant_id)
+            .subquery()
+        )
+
+        # Subquery: count samples per plant via hierarchy -> characteristic -> sample
+        sample_count_sub = (
+            select(
+                Hierarchy.plant_id.label("plant_id"),
+                func.count(Sample.id).label("sample_count"),
+            )
+            .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+            .join(Sample, Sample.char_id == Characteristic.id, isouter=True)
+            .where(Hierarchy.plant_id.isnot(None))
+            .group_by(Hierarchy.plant_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                Plant.id,
+                Plant.name,
+                Plant.code,
+                Plant.is_active,
+                func.coalesce(char_count_sub.c.char_count, 0).label("char_count"),
+                func.coalesce(sample_count_sub.c.sample_count, 0).label("sample_count"),
+            )
+            .outerjoin(char_count_sub, char_count_sub.c.plant_id == Plant.id)
+            .outerjoin(sample_count_sub, sample_count_sub.c.plant_id == Plant.id)
+            .order_by(Plant.name)
+        )
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        return [
+            {
+                "plant_id": row[0],
+                "plant_name": row[1],
+                "plant_code": row[2],
+                "is_active": row[3],
+                "characteristic_count": row[4],
+                "sample_count": row[5],
+            }
+            for row in rows
+        ]

@@ -18,10 +18,8 @@ Cassini is developed by [Saturnis LLC](https://saturnis.io) and released under t
 ### Prerequisites
 
 - Python 3.11+
-- Node.js 18+
+- Node.js 18+ (22 LTS recommended)
 - Git
-
-For a complete development environment setup, see [`docs/development.md`](docs/development.md).
 
 ### Quick Start
 
@@ -32,17 +30,22 @@ cd cassini
 
 # Backend
 cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+python -m venv .venv
+source .venv/bin/activate       # macOS/Linux
+# .venv\Scripts\activate        # Windows
 pip install -e ".[dev]"
 alembic upgrade head
+export CASSINI_ADMIN_PASSWORD=dev-password     # or `set` on Windows
+export CASSINI_COOKIE_SECURE=false             # required for HTTP dev
 uvicorn cassini.main:app --reload
 
-# Frontend
+# Frontend (in a new terminal)
 cd frontend
 npm install
 npm run dev
 ```
+
+See the [README](README.md#quick-start-manual) for detailed platform-specific instructions and troubleshooting.
 
 ## Coding Standards
 

@@ -4,8 +4,10 @@ services:
     ports:
       - "${CASSINI_PORT:-8000}:8000"
     environment:
-      - CASSINI_DATABASE_URL=postgresql+asyncpg://cassini:cassini@postgres:5432/cassini
+      - CASSINI_DATABASE_URL=postgresql+asyncpg://cassini:${POSTGRES_PASSWORD:-cassini}@postgres:5432/cassini
       - CASSINI_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - CASSINI_ADMIN_PASSWORD=${CASSINI_ADMIN_PASSWORD:-cassini}
+      - CASSINI_COOKIE_SECURE=${CASSINI_COOKIE_SECURE:-false}
       - CASSINI_HOST=0.0.0.0
       - CASSINI_PORT=8000
     depends_on:
@@ -19,7 +21,7 @@ services:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=cassini
-      - POSTGRES_PASSWORD=cassini
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-cassini}
       - POSTGRES_DB=cassini
     volumes:
       - postgres-data:/var/lib/postgresql/data

@@ -145,13 +145,14 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.gageBridges.all, 'detail', id] as const,
     profiles: ['gageBridges', 'profiles'] as const,
   },
-  license: {
-    all: ['license'] as const,
-    status: () => ['license', 'status'] as const,
-  },
   systemSettings: {
     all: ['systemSettings'] as const,
     current: () => ['systemSettings', 'current'] as const,
+  },
+  license: {
+    all: ['license'] as const,
+    status: () => ['license', 'status'] as const,
+    compliance: () => ['license', 'compliance'] as const,
   },
   explain: {
     all: ['explain'] as const,

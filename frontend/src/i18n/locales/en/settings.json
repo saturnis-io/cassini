@@ -11,6 +11,7 @@
   "tabs": {
     "appearance": "Appearance",
     "notifications": "Notifications",
+    "license": "License",
     "sites": "Sites",
     "branding": "Branding",
     "localization": "Localization",
@@ -23,7 +24,6 @@
     "reports": "Reports",
     "ai": "AI Config",
     "account": "Account",
-    "license": "License",
     "emailWebhooks": "Email & Webhooks",
     "materials": "Materials"
   }
