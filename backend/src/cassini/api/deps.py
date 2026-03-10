@@ -26,8 +26,10 @@ from cassini.db.repositories.violation import ViolationRepository
 
 # ---------------------------------------------------------------------------
 # User cache — avoids DB hit on every authenticated request (60s TTL)
+# Bounded to _USER_CACHE_MAX entries; oldest-first eviction on overflow.
 # ---------------------------------------------------------------------------
 _USER_CACHE_TTL = 60  # seconds
+_USER_CACHE_MAX = 500  # max cached users — prevents unbounded growth
 _user_cache: dict[int, tuple[float, User]] = {}
 
 
@@ -49,18 +51,31 @@ def _get_cached_user(user_id: int) -> Optional[User]:
 
 
 def _cache_user(user: User, session: AsyncSession) -> None:
-    """Detach user from session and store in cache."""
-    # Expunge from session so the object isn't bound to a closed session later
-    session.expunge(user)
-    # Make transient so SQLAlchemy doesn't try to track it
-    make_transient(user)
-    # Also make plant_roles and their plants transient
-    for pr in user.plant_roles:
-        session.expunge(pr)
-        make_transient(pr)
-        if pr.plant is not None:
-            session.expunge(pr.plant)
-            make_transient(pr.plant)
+    """Detach user from session and store in cache.
+
+    Bounded to ``_USER_CACHE_MAX`` entries. When the limit is reached the
+    oldest entry (by insertion time) is evicted — dict preserves insertion
+    order since Python 3.7.
+    """
+    try:
+        # Expunge from session so the object isn't bound to a closed session later
+        session.expunge(user)
+        # Make transient so SQLAlchemy doesn't try to track it
+        make_transient(user)
+        # Also make plant_roles and their plants transient
+        for pr in user.plant_roles:
+            session.expunge(pr)
+            make_transient(pr)
+            if pr.plant is not None:
+                session.expunge(pr.plant)
+                make_transient(pr.plant)
+    except Exception:
+        # If expunge/make_transient fails (e.g. object already detached),
+        # skip caching rather than crashing the request.
+        return
+    # Evict oldest entries if at capacity
+    while len(_user_cache) >= _USER_CACHE_MAX:
+        _user_cache.pop(next(iter(_user_cache)))
     _user_cache[user.id] = (time.monotonic(), user)
 
 
@@ -315,9 +330,19 @@ async def get_current_user_or_api_key(
         payload = _verify_access(token)
         if payload is not None:
             user_id = int(payload["sub"])
+            pwd_changed_claim = payload.get("pwd_changed")
             repo = UserRepository(session)
             user = await repo.get_by_id(user_id)
             if user and user.is_active:
+                # Validate JWT hasn't been revoked by password change
+                if user.password_changed_at and pwd_changed_claim is not None:
+                    user_pwd_epoch = int(user.password_changed_at.timestamp())
+                    if pwd_changed_claim < user_pwd_epoch:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Token invalidated by password change",
+                            headers={"WWW-Authenticate": "Bearer"},
+                        )
                 return user
 
     # Fall back to API key (lazy import to avoid circular dependency)
@@ -377,16 +402,18 @@ async def resolve_plant_id_for_characteristic(
 
     hierarchy_id = char_row
 
-    # Single recursive CTE query — works on SQLite and PostgreSQL
+    # Single recursive CTE query — works on SQLite and PostgreSQL.
+    # depth < 50 guard prevents infinite recursion on cyclic data.
     cte_sql = text("""
         WITH RECURSIVE ancestors AS (
-            SELECT id, parent_id, plant_id
+            SELECT id, parent_id, plant_id, 1 AS depth
             FROM hierarchy
             WHERE id = :start_id
             UNION ALL
-            SELECT h.id, h.parent_id, h.plant_id
+            SELECT h.id, h.parent_id, h.plant_id, a.depth + 1
             FROM hierarchy h
             JOIN ancestors a ON h.id = a.parent_id
+            WHERE a.depth < 50
         )
         SELECT plant_id FROM ancestors WHERE plant_id IS NOT NULL LIMIT 1
     """)

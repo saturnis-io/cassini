@@ -539,7 +539,13 @@ class AuditMiddleware:
         # ---------------------------------------------------------------
         # Run the inner app
         # ---------------------------------------------------------------
-        await self.app(scope, receive_wrapper, send_wrapper)
+        try:
+            await self.app(scope, receive_wrapper, send_wrapper)
+        except Exception:
+            # If the inner app raises, mark as 500 so the audit log
+            # correctly records the request as failed (not a false success).
+            response_status = 500
+            raise
 
         # ---------------------------------------------------------------
         # Post-response audit logging (fire-and-forget)

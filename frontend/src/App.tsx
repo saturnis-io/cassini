@@ -330,9 +330,11 @@ function App() {
               <Route
                 path="/guide/:seedKey"
                 element={
-                  <Suspense fallback={<PageSpinner />}>
-                    <GuidePage />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageSpinner />}>
+                      <GuidePage />
+                    </Suspense>
+                  </ErrorBoundary>
                 }
               />
 
@@ -729,9 +731,11 @@ function App() {
                 element={
                   <AuthenticatedDisplayMode>
                     <KioskLayout>
-                      <Suspense fallback={<PageSpinner />}>
-                        <KioskView />
-                      </Suspense>
+                      <ErrorBoundary>
+                        <Suspense fallback={<PageSpinner />}>
+                          <KioskView />
+                        </Suspense>
+                      </ErrorBoundary>
                     </KioskLayout>
                   </AuthenticatedDisplayMode>
                 }
@@ -741,9 +745,11 @@ function App() {
                 element={
                   <AuthenticatedDisplayMode>
                     <KioskLayout showStatusBar={false}>
-                      <Suspense fallback={<PageSpinner />}>
-                        <WallDashboard />
-                      </Suspense>
+                      <ErrorBoundary>
+                        <Suspense fallback={<PageSpinner />}>
+                          <WallDashboard />
+                        </Suspense>
+                      </ErrorBoundary>
                     </KioskLayout>
                   </AuthenticatedDisplayMode>
                 }
