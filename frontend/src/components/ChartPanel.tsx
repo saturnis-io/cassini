@@ -186,6 +186,7 @@ export function ChartPanel({
             <ControlChart
               characteristicId={characteristicId}
               chartOptions={chartDataOptions}
+              chartData={chartData}
               label={label}
               showSpecLimits={showSpecLimits}
               colorScheme={colorScheme}
