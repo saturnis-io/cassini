@@ -12,7 +12,7 @@ import { X } from 'lucide-react'
 import { useSamples, useCharacteristic } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartColors } from '@/hooks/useChartColors'
-import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { useChartHoverSync } from '@/stores/chartHoverStore'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import type { Sample } from '@/types'
 

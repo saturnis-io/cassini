@@ -8,7 +8,7 @@ import { useChartData } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { cn } from '@/lib/utils'
 import { useChartColors } from '@/hooks/useChartColors'
-import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { useChartHoverSync } from '@/stores/chartHoverStore'
 import { Explainable } from '@/components/Explainable'
 
 interface DistributionHistogramProps {
