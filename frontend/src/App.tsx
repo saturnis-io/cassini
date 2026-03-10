@@ -5,53 +5,11 @@
  */
 
 import './i18n/config'
-import { Component, Suspense, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useState, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Layout } from '@/components/Layout'
-import { OperatorDashboard } from '@/pages/OperatorDashboard'
-import { ConfigurationView } from '@/pages/ConfigurationView'
-import { DataEntryView } from '@/pages/DataEntryView'
-import { SettingsPage } from '@/pages/SettingsView'
-import { AppearanceSettings } from '@/components/AppearanceSettings'
-import { NotificationsSettings } from '@/components/NotificationsSettings'
-import { BrandingSettings } from '@/components/settings/BrandingSettings'
-import { PlantSettings } from '@/components/PlantSettings'
-import { ApiKeysSettings } from '@/components/ApiKeysSettings'
-import { DatabaseSettings } from '@/components/DatabaseSettings'
-import { LicenseSettings } from '@/components/LicenseSettings'
-import { RetentionSettings } from '@/components/RetentionSettings'
-import { LocalizationSettings } from '@/components/LocalizationSettings'
-import { ScheduledReports } from '@/components/settings/ScheduledReports'
-import { AuditLogViewer } from '@/components/AuditLogViewer'
-import { SSOSettings } from '@/components/SSOSettings'
-import { SignatureSettingsPage } from '@/components/signatures/SignatureSettingsPage'
-import { UserManagementPage } from '@/pages/UserManagementPage'
-import { DevToolsPage } from '@/pages/DevToolsPage'
-import { ConnectivityPage } from '@/pages/ConnectivityPage'
-import { MonitorTab } from '@/components/connectivity/MonitorTab'
-import { ServersTab } from '@/components/connectivity/ServersTab'
-import { BrowseTab } from '@/components/connectivity/BrowseTab'
-import { MappingTab } from '@/components/connectivity/MappingTab'
-import { GagesTab } from '@/components/connectivity/GagesTab'
-import { IntegrationsTab } from '@/components/erp/IntegrationsTab'
-import { ViolationsView } from '@/pages/ViolationsView'
-import { ReportsView } from '@/pages/ReportsView'
-import { MSAPage } from '@/pages/MSAPage'
-import { FAIPage } from '@/pages/FAIPage'
-import { FAIReportEditor } from '@/components/fai/FAIReportEditor'
-import { MSAStudyEditor } from '@/components/msa/MSAStudyEditor'
-import { AnalyticsPage } from '@/pages/AnalyticsPage'
-import { DOEPage } from '@/pages/DOEPage'
-import { DOEStudyEditor } from '@/components/doe/DOEStudyEditor'
-import { AIConfigSettings } from '@/components/analytics/AIConfigSettings'
-import { AccountSettings } from '@/components/AccountSettings'
-import { EmailWebhookSettings } from '@/components/EmailWebhookSettings'
-import { KioskView } from '@/pages/KioskView'
-import { WallDashboard } from '@/pages/WallDashboard'
-import { GalaxyPage } from '@/pages/GalaxyPage'
-import { GuidePage } from '@/pages/GuidePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
@@ -67,6 +25,162 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useLicense } from '@/hooks/useLicense'
 import { UpgradePage } from '@/pages/UpgradePage'
 import { getRegistry } from '@/lib/extensionRegistry'
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded page/view components — each becomes its own chunk
+// ---------------------------------------------------------------------------
+const OperatorDashboard = lazy(() =>
+  import('@/pages/OperatorDashboard').then((m) => ({ default: m.OperatorDashboard })),
+)
+const ConfigurationView = lazy(() =>
+  import('@/pages/ConfigurationView').then((m) => ({ default: m.ConfigurationView })),
+)
+const DataEntryView = lazy(() =>
+  import('@/pages/DataEntryView').then((m) => ({ default: m.DataEntryView })),
+)
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsView').then((m) => ({ default: m.SettingsPage })),
+)
+const ViolationsView = lazy(() =>
+  import('@/pages/ViolationsView').then((m) => ({ default: m.ViolationsView })),
+)
+const ReportsView = lazy(() =>
+  import('@/pages/ReportsView').then((m) => ({ default: m.ReportsView })),
+)
+const MSAPage = lazy(() => import('@/pages/MSAPage').then((m) => ({ default: m.MSAPage })))
+const FAIPage = lazy(() => import('@/pages/FAIPage').then((m) => ({ default: m.FAIPage })))
+const AnalyticsPage = lazy(() =>
+  import('@/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })),
+)
+const DOEPage = lazy(() => import('@/pages/DOEPage').then((m) => ({ default: m.DOEPage })))
+const ConnectivityPage = lazy(() =>
+  import('@/pages/ConnectivityPage').then((m) => ({ default: m.ConnectivityPage })),
+)
+const UserManagementPage = lazy(() =>
+  import('@/pages/UserManagementPage').then((m) => ({ default: m.UserManagementPage })),
+)
+const DevToolsPage = lazy(() =>
+  import('@/pages/DevToolsPage').then((m) => ({ default: m.DevToolsPage })),
+)
+const KioskView = lazy(() =>
+  import('@/pages/KioskView').then((m) => ({ default: m.KioskView })),
+)
+const WallDashboard = lazy(() =>
+  import('@/pages/WallDashboard').then((m) => ({ default: m.WallDashboard })),
+)
+const GalaxyPage = lazy(() =>
+  import('@/pages/GalaxyPage').then((m) => ({ default: m.GalaxyPage })),
+)
+const GuidePage = lazy(() =>
+  import('@/pages/GuidePage').then((m) => ({ default: m.GuidePage })),
+)
+
+// Lazy-loaded settings sub-pages
+const AppearanceSettings = lazy(() =>
+  import('@/components/AppearanceSettings').then((m) => ({ default: m.AppearanceSettings })),
+)
+const NotificationsSettings = lazy(() =>
+  import('@/components/NotificationsSettings').then((m) => ({
+    default: m.NotificationsSettings,
+  })),
+)
+const BrandingSettings = lazy(() =>
+  import('@/components/settings/BrandingSettings').then((m) => ({
+    default: m.BrandingSettings,
+  })),
+)
+const PlantSettings = lazy(() =>
+  import('@/components/PlantSettings').then((m) => ({ default: m.PlantSettings })),
+)
+const ApiKeysSettings = lazy(() =>
+  import('@/components/ApiKeysSettings').then((m) => ({ default: m.ApiKeysSettings })),
+)
+const DatabaseSettings = lazy(() =>
+  import('@/components/DatabaseSettings').then((m) => ({ default: m.DatabaseSettings })),
+)
+const LicenseSettings = lazy(() =>
+  import('@/components/LicenseSettings').then((m) => ({ default: m.LicenseSettings })),
+)
+const RetentionSettings = lazy(() =>
+  import('@/components/RetentionSettings').then((m) => ({ default: m.RetentionSettings })),
+)
+const LocalizationSettings = lazy(() =>
+  import('@/components/LocalizationSettings').then((m) => ({
+    default: m.LocalizationSettings,
+  })),
+)
+const ScheduledReports = lazy(() =>
+  import('@/components/settings/ScheduledReports').then((m) => ({
+    default: m.ScheduledReports,
+  })),
+)
+const AuditLogViewer = lazy(() =>
+  import('@/components/AuditLogViewer').then((m) => ({ default: m.AuditLogViewer })),
+)
+const SSOSettings = lazy(() =>
+  import('@/components/SSOSettings').then((m) => ({ default: m.SSOSettings })),
+)
+const SignatureSettingsPage = lazy(() =>
+  import('@/components/signatures/SignatureSettingsPage').then((m) => ({
+    default: m.SignatureSettingsPage,
+  })),
+)
+const AIConfigSettings = lazy(() =>
+  import('@/components/analytics/AIConfigSettings').then((m) => ({
+    default: m.AIConfigSettings,
+  })),
+)
+const AccountSettings = lazy(() =>
+  import('@/components/AccountSettings').then((m) => ({ default: m.AccountSettings })),
+)
+const EmailWebhookSettings = lazy(() =>
+  import('@/components/EmailWebhookSettings').then((m) => ({
+    default: m.EmailWebhookSettings,
+  })),
+)
+
+// Lazy-loaded connectivity sub-tabs
+const MonitorTab = lazy(() =>
+  import('@/components/connectivity/MonitorTab').then((m) => ({ default: m.MonitorTab })),
+)
+const ServersTab = lazy(() =>
+  import('@/components/connectivity/ServersTab').then((m) => ({ default: m.ServersTab })),
+)
+const BrowseTab = lazy(() =>
+  import('@/components/connectivity/BrowseTab').then((m) => ({ default: m.BrowseTab })),
+)
+const MappingTab = lazy(() =>
+  import('@/components/connectivity/MappingTab').then((m) => ({ default: m.MappingTab })),
+)
+const GagesTab = lazy(() =>
+  import('@/components/connectivity/GagesTab').then((m) => ({ default: m.GagesTab })),
+)
+const IntegrationsTab = lazy(() =>
+  import('@/components/erp/IntegrationsTab').then((m) => ({ default: m.IntegrationsTab })),
+)
+
+// Lazy-loaded editors (heavy sub-pages)
+const FAIReportEditor = lazy(() =>
+  import('@/components/fai/FAIReportEditor').then((m) => ({ default: m.FAIReportEditor })),
+)
+const MSAStudyEditor = lazy(() =>
+  import('@/components/msa/MSAStudyEditor').then((m) => ({ default: m.MSAStudyEditor })),
+)
+const DOEStudyEditor = lazy(() =>
+  import('@/components/doe/DOEStudyEditor').then((m) => ({ default: m.DOEStudyEditor })),
+)
+
+/** Shared loading spinner used as Suspense fallback for lazy-loaded pages */
+function PageSpinner() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="text-center">
+        <div className="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
+        <p className="text-muted-foreground mt-3 text-sm">Loading...</p>
+      </div>
+    </div>
+  )
+}
 
 /** Default stale time for React Query caches (ms) */
 const QUERY_STALE_TIME_MS = 10_000
@@ -215,7 +329,14 @@ function App() {
               <Route path="/change-password" element={<ChangePasswordPage />} />
 
               {/* Companion guides — accessible without login for evaluation */}
-              <Route path="/guide/:seedKey" element={<GuidePage />} />
+              <Route
+                path="/guide/:seedKey"
+                element={
+                  <Suspense fallback={<PageSpinner />}>
+                    <GuidePage />
+                  </Suspense>
+                }
+              />
 
               {/* Main app with sidebar layout - requires auth */}
               <Route
@@ -231,14 +352,16 @@ function App() {
                 }
               >
                 <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard/:charId?" element={<OperatorDashboard />} />
-                <Route path="data-entry" element={<ErrorBoundary><DataEntryView /></ErrorBoundary>} />
-                <Route path="violations" element={<ErrorBoundary><ViolationsView /></ErrorBoundary>} />
+                <Route path="dashboard/:charId?" element={<Suspense fallback={<PageSpinner />}><OperatorDashboard /></Suspense>} />
+                <Route path="data-entry" element={<ErrorBoundary><Suspense fallback={<PageSpinner />}><DataEntryView /></Suspense></ErrorBoundary>} />
+                <Route path="violations" element={<ErrorBoundary><Suspense fallback={<PageSpinner />}><ViolationsView /></Suspense></ErrorBoundary>} />
                 <Route
                   path="reports"
                   element={
                     <ProtectedRoute requiredRole="supervisor">
-                      <ReportsView />
+                      <Suspense fallback={<PageSpinner />}>
+                        <ReportsView />
+                      </Suspense>
                     </ProtectedRoute>
                   }
                 />
@@ -247,20 +370,22 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole="engineer">
                       <ErrorBoundary>
-                        <ConnectivityPage />
+                        <Suspense fallback={<PageSpinner />}>
+                          <ConnectivityPage />
+                        </Suspense>
                       </ErrorBoundary>
                     </ProtectedRoute>
                   }
                 >
                   <Route index element={<Navigate to="monitor" replace />} />
-                  <Route path="monitor" element={<MonitorTab />} />
-                  <Route path="servers" element={<ServersTab />} />
-                  <Route path="mapping" element={<MappingTab />} />
+                  <Route path="monitor" element={<Suspense fallback={<PageSpinner />}><MonitorTab /></Suspense>} />
+                  <Route path="servers" element={<Suspense fallback={<PageSpinner />}><ServersTab /></Suspense>} />
+                  <Route path="mapping" element={<Suspense fallback={<PageSpinner />}><MappingTab /></Suspense>} />
                   <Route
                     path="browse"
                     element={
                       <RequireCommercial>
-                        <BrowseTab />
+                        <Suspense fallback={<PageSpinner />}><BrowseTab /></Suspense>
                       </RequireCommercial>
                     }
                   />
@@ -268,7 +393,7 @@ function App() {
                     path="gages"
                     element={
                       <RequireCommercial>
-                        <GagesTab />
+                        <Suspense fallback={<PageSpinner />}><GagesTab /></Suspense>
                       </RequireCommercial>
                     }
                   />
@@ -276,7 +401,7 @@ function App() {
                     path="integrations"
                     element={
                       <RequireCommercial>
-                        <IntegrationsTab />
+                        <Suspense fallback={<PageSpinner />}><IntegrationsTab /></Suspense>
                       </RequireCommercial>
                     }
                   />
@@ -286,7 +411,9 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole="engineer">
                       <ErrorBoundary>
-                        <ConfigurationView />
+                        <Suspense fallback={<PageSpinner />}>
+                          <ConfigurationView />
+                        </Suspense>
                       </ErrorBoundary>
                     </ProtectedRoute>
                   }
@@ -297,7 +424,9 @@ function App() {
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
-                          <MSAPage />
+                          <Suspense fallback={<PageSpinner />}>
+                            <MSAPage />
+                          </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
@@ -308,7 +437,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <MSAStudyEditor />
+                        <Suspense fallback={<PageSpinner />}>
+                          <MSAStudyEditor />
+                        </Suspense>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -319,7 +450,9 @@ function App() {
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
-                          <FAIPage />
+                          <Suspense fallback={<PageSpinner />}>
+                            <FAIPage />
+                          </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
@@ -330,7 +463,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <FAIReportEditor />
+                        <Suspense fallback={<PageSpinner />}>
+                          <FAIReportEditor />
+                        </Suspense>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -341,7 +476,9 @@ function App() {
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
-                          <AnalyticsPage />
+                          <Suspense fallback={<PageSpinner />}>
+                            <AnalyticsPage />
+                          </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
@@ -353,7 +490,9 @@ function App() {
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
-                          <DOEPage />
+                          <Suspense fallback={<PageSpinner />}>
+                            <DOEPage />
+                          </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
                     </RequireCommercial>
@@ -364,7 +503,9 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <DOEStudyEditor />
+                        <Suspense fallback={<PageSpinner />}>
+                          <DOEStudyEditor />
+                        </Suspense>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
@@ -374,20 +515,22 @@ function App() {
                   element={
                     <RequireCommercial>
                       <ProtectedRoute requiredRole="engineer">
-                        <DOEStudyEditor />
+                        <Suspense fallback={<PageSpinner />}>
+                          <DOEStudyEditor />
+                        </Suspense>
                       </ProtectedRoute>
                     </RequireCommercial>
                   }
                 />
-                <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>}>
+                <Route path="settings" element={<ErrorBoundary><Suspense fallback={<PageSpinner />}><SettingsPage /></Suspense></ErrorBoundary>}>
                   <Route index element={<Navigate to="account" replace />} />
-                  <Route path="account" element={<AccountSettings />} />
-                  <Route path="appearance" element={<AppearanceSettings />} />
+                  <Route path="account" element={<Suspense fallback={null}><AccountSettings /></Suspense>} />
+                  <Route path="appearance" element={<Suspense fallback={null}><AppearanceSettings /></Suspense>} />
                   <Route
                     path="notifications"
                     element={
                       <RequireCommercial>
-                        <NotificationsSettings />
+                        <Suspense fallback={null}><NotificationsSettings /></Suspense>
                       </RequireCommercial>
                     }
                   />
@@ -395,7 +538,7 @@ function App() {
                     path="branding"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <BrandingSettings />
+                        <Suspense fallback={null}><BrandingSettings /></Suspense>
                       </ProtectedRoute>
                     }
                   />
@@ -403,7 +546,7 @@ function App() {
                     path="license"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <LicenseSettings />
+                        <Suspense fallback={null}><LicenseSettings /></Suspense>
                       </ProtectedRoute>
                     }
                   />
@@ -411,7 +554,7 @@ function App() {
                     path="sites"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <PlantSettings />
+                        <Suspense fallback={null}><PlantSettings /></Suspense>
                       </ProtectedRoute>
                     }
                   />
@@ -419,7 +562,7 @@ function App() {
                     path="localization"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <LocalizationSettings />
+                        <Suspense fallback={null}><LocalizationSettings /></Suspense>
                       </ProtectedRoute>
                     }
                   />
@@ -427,7 +570,7 @@ function App() {
                     path="email-webhooks"
                     element={
                       <ProtectedRoute requiredRole="admin">
-                        <EmailWebhookSettings />
+                        <Suspense fallback={null}><EmailWebhookSettings /></Suspense>
                       </ProtectedRoute>
                     }
                   />
@@ -436,7 +579,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="engineer">
-                          <ApiKeysSettings />
+                          <Suspense fallback={null}><ApiKeysSettings /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -446,7 +589,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="engineer">
-                          <RetentionSettings />
+                          <Suspense fallback={null}><RetentionSettings /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -456,7 +599,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="engineer">
-                          <ScheduledReports />
+                          <Suspense fallback={null}><ScheduledReports /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -466,7 +609,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="admin">
-                          <SSOSettings />
+                          <Suspense fallback={null}><SSOSettings /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -476,7 +619,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="admin">
-                          <AuditLogViewer />
+                          <Suspense fallback={null}><AuditLogViewer /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -486,7 +629,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="engineer">
-                          <SignatureSettingsPage />
+                          <Suspense fallback={null}><SignatureSettingsPage /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -496,7 +639,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="admin">
-                          <AIConfigSettings />
+                          <Suspense fallback={null}><AIConfigSettings /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -506,7 +649,7 @@ function App() {
                     element={
                       <RequireCommercial>
                         <ProtectedRoute requiredRole="engineer">
-                          <DatabaseSettings />
+                          <Suspense fallback={null}><DatabaseSettings /></Suspense>
                         </ProtectedRoute>
                       </RequireCommercial>
                     }
@@ -538,7 +681,9 @@ function App() {
                   path="admin/users"
                   element={
                     <ProtectedRoute requiredRole="admin">
-                      <UserManagementPage />
+                      <Suspense fallback={<PageSpinner />}>
+                        <UserManagementPage />
+                      </Suspense>
                     </ProtectedRoute>
                   }
                 />
@@ -546,7 +691,9 @@ function App() {
                   path="dev-tools"
                   element={
                     <ProtectedRoute requiredRole="admin">
-                      <DevToolsPage />
+                      <Suspense fallback={<PageSpinner />}>
+                        <DevToolsPage />
+                      </Suspense>
                     </ProtectedRoute>
                   }
                 />
@@ -584,7 +731,9 @@ function App() {
                 element={
                   <AuthenticatedDisplayMode>
                     <KioskLayout>
-                      <KioskView />
+                      <Suspense fallback={<PageSpinner />}>
+                        <KioskView />
+                      </Suspense>
                     </KioskLayout>
                   </AuthenticatedDisplayMode>
                 }
@@ -594,7 +743,9 @@ function App() {
                 element={
                   <AuthenticatedDisplayMode>
                     <KioskLayout showStatusBar={false}>
-                      <WallDashboard />
+                      <Suspense fallback={<PageSpinner />}>
+                        <WallDashboard />
+                      </Suspense>
                     </KioskLayout>
                   </AuthenticatedDisplayMode>
                 }
@@ -604,7 +755,9 @@ function App() {
                 element={
                   <AuthenticatedDisplayMode>
                     <ErrorBoundary>
-                      <GalaxyPage />
+                      <Suspense fallback={<PageSpinner />}>
+                        <GalaxyPage />
+                      </Suspense>
                     </ErrorBoundary>
                   </AuthenticatedDisplayMode>
                 }

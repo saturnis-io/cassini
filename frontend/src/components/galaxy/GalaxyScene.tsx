@@ -847,13 +847,38 @@ export function GalaxyScene({
       disposeSigmaBands()
       disposeViolationSparks()
 
+      // Comprehensive GPU resource sweep — catch any stray geometries,
+      // materials, or textures that individual dispose() calls may have missed
+      scene.traverse((obj: THREE.Object3D) => {
+        const mesh = obj as THREE.Mesh
+        if (mesh.geometry) mesh.geometry.dispose()
+        if (mesh.material) {
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+          for (const mat of materials) {
+            // Dispose any textures attached to the material
+            for (const key of Object.keys(mat)) {
+              const value = (mat as unknown as Record<string, unknown>)[key]
+              if (
+                value &&
+                typeof value === 'object' &&
+                'dispose' in value &&
+                typeof (value as { dispose: unknown }).dispose === 'function'
+              ) {
+                ;(value as { dispose: () => void }).dispose()
+              }
+            }
+            mat.dispose()
+          }
+        }
+      })
+
       // Dispose CSS2DRenderer
       if (container.contains(labelRenderer.domElement)) {
         container.removeChild(labelRenderer.domElement)
       }
       labelRendererRef.current = null
 
-      // Dispose renderer
+      // Dispose renderer (AFTER traverse to ensure GPU resources freed first)
       renderer.dispose()
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement)

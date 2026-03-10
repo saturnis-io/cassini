@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Outlet, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Wifi, WifiOff, AlertTriangle, Info } from 'lucide-react'
@@ -11,10 +11,15 @@ import { Header } from '@/components/Header'
 import { PlantSelector } from '@/components/PlantSelector'
 import { usePlant } from '@/providers/PlantProvider'
 import { MobileNav } from '@/components/MobileNav'
-import { ExplanationPanel } from '@/components/ExplanationPanel'
+import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
 import { LicenseExpiryBanner } from '@/components/LicenseExpiryBanner'
 import { PlantComplianceDialog } from '@/components/PlantComplianceDialog'
 import { useLicenseCompliance, usePlants } from '@/api/hooks'
+
+// Lazy-load ExplanationPanel — pulls in katex (~300KB) only when Show Your Work is active
+const ExplanationPanel = lazy(() =>
+  import('@/components/ExplanationPanel').then((m) => ({ default: m.ExplanationPanel })),
+)
 
 /**
  * Main application layout with sidebar navigation
@@ -37,6 +42,7 @@ export function Layout() {
   const { t: tNav } = useTranslation('navigation')
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { selectedPlant } = usePlant()
+  const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
   const { data: stats } = useViolationStats({
     refetchInterval: wsConnected ? false : undefined,
     plant_id: selectedPlant?.id,
@@ -143,8 +149,12 @@ export function Layout() {
       {/* Mobile bottom navigation */}
       <MobileNav />
 
-      {/* Show Your Work explanation panel */}
-      <ExplanationPanel />
+      {/* Show Your Work explanation panel — lazy-loaded with katex */}
+      {showYourWorkEnabled && (
+        <Suspense fallback={null}>
+          <ExplanationPanel />
+        </Suspense>
+      )}
 
       {/* Plant compliance enforcement dialog */}
       {compliance && compliance.excess > 0 && allPlants && (
