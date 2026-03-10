@@ -26,7 +26,7 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 *"In-control, like the Cassini Division."*
 
-> **Open-core model**: The Community Edition is free under AGPL-3.0 and includes a complete SPC platform. [Commercial licenses](LICENSE-COMMERCIAL.md) unlock multi-plant, compliance, and advanced analytics features for organizations that need them.
+> **Open-core model**: The Community Edition is free under AGPL-3.0 and includes a complete SPC platform. [Commercial licenses](https://saturnis.io/pricing) unlock multi-plant, compliance, and advanced analytics features for organizations that need them.
 
 ---
 
@@ -734,7 +734,7 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ## Commercial Features
 
-> Unlock additional capabilities with a [commercial license](LICENSE-COMMERCIAL.md) at $299/site/month. [Learn more](https://saturnis.io/pricing).
+> Unlock additional capabilities with a [commercial license](https://saturnis.io/pricing) at $3,500/plant/year. [Learn more](https://saturnis.io/pricing).
 
 ### Industrial Connectivity Hub
 
@@ -839,7 +839,7 @@ Anomalies overlay directly on control charts and integrate with the notification
 | Source code access | Yes | Yes |
 | Modification rights | AGPL (share-alike) | Proprietary |
 | Support | Community (GitHub) | Dedicated with SLA |
-| | **Free** | **$299/site/mo** |
+| | **Free** | **$3,500/plant/yr** |
 
 > Need custom terms, on-premise deployment assistance, validation documentation, or SLA guarantees? [Contact sales](mailto:sales@saturnis.io).
 
@@ -976,9 +976,9 @@ The Community Edition is **genuinely free** and includes a complete SPC platform
 
 The AGPL-3.0 is a strong copyleft license that ensures improvements stay open. The key requirement: **if you modify Cassini and make it available over a network -- including internal company networks -- the AGPL requires you to share your complete source code with all users.** This is what keeps open source sustainable.
 
-If your organization needs to make proprietary modifications, embed Cassini in a closed-source product, or requires commercial features like electronic signatures and multi-plant management, a [commercial license](LICENSE-COMMERCIAL.md) removes the AGPL obligations and unlocks the full platform.
+If your organization needs to make proprietary modifications, embed Cassini in a closed-source product, or requires commercial features like electronic signatures and multi-plant management, a [commercial license](https://saturnis.io/pricing) removes the AGPL obligations and unlocks the full platform.
 
-**Not sure which you need?** See the [Commercial License FAQ](LICENSE-COMMERCIAL.md#faq) or email [sales@saturnis.io](mailto:sales@saturnis.io).
+**Not sure which you need?** Email [sales@saturnis.io](mailto:sales@saturnis.io).
 
 ---
 
@@ -987,7 +987,7 @@ If your organization needs to make proprietary modifications, embed Cassini in a
 | | |
 |---|---|
 | **Pricing** | [saturnis.io/pricing](https://saturnis.io/pricing) |
-| **Commercial License** | [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) |
+| **Commercial License** | [saturnis.io/pricing](https://saturnis.io/pricing) |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | **Security** | [SECURITY.md](SECURITY.md) |
 | **Code of Conduct** | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
