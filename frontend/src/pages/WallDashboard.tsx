@@ -1,8 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { X, Save, FolderOpen, Grid2x2, Orbit } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCharacteristics, useChartData } from '@/api/hooks'
+import { CHART_DATA_REFETCH_MS } from '@/api/hooks/queryKeys'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useTheme } from '@/providers/ThemeProvider'
 import { WallChartCard } from '@/components/WallChartCard'
@@ -194,6 +196,16 @@ export function WallDashboard() {
     () => searchParams.get('galaxy') === 'true',
   )
 
+  // Batch-invalidate all chart data queries on a single interval instead of
+  // each WallChartCard polling independently (N staggered requests → 1 burst)
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['characteristics', 'chartData'] })
+    }, CHART_DATA_REFETCH_MS)
+    return () => clearInterval(interval)
+  }, [queryClient])
+
   // Parse characteristic IDs from URL
   const charIds = useMemo(() => {
     const chars = searchParams.get('chars')
@@ -375,7 +387,7 @@ export function WallDashboard() {
         )}
 
         {displayCharacteristics.map((char) => (
-          <WallChartCard key={char.id} characteristicId={char.id} onExpand={setExpandedId} />
+          <WallChartCard key={char.id} characteristicId={char.id} onExpand={setExpandedId} disablePolling />
         ))}
 
         {/* Empty slots */}

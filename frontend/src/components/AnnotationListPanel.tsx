@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { useAnnotations, useUpdateAnnotation, useDeleteAnnotation } from '@/api/hooks'
-import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { useChartHoverSync } from '@/stores/chartHoverStore'
 import type { Annotation } from '@/types'
 
 interface AnnotationListPanelProps {

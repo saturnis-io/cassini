@@ -10,13 +10,14 @@ import type { RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useLicense } from '@/hooks/useLicense'
 import { useAnnotations, useAnomalyEvents, useChartData, useForecast, useHierarchyPath } from '@/api/hooks'
+import type { ChartData } from '@/types'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
-import { useChartHoverSync } from '@/contexts/ChartHoverContext'
+import { useChartHoverSync } from '@/stores/chartHoverStore'
 import { AnnotationDetailPopover } from './AnnotationDetailPopover'
 import { Explainable } from '@/components/Explainable'
 import type { Annotation } from '@/types'
@@ -57,6 +58,8 @@ interface ControlChartProps {
   showPredictions?: boolean
   /** Callback reporting the chart's grid.bottom value (px) for alignment with adjacent charts */
   onGridBottom?: (px: number) => void
+  /** Pre-fetched chart data — when provided, skips internal useChartData fetch */
+  chartData?: ChartData
 }
 
 // --- Data point type for the chart ---
@@ -334,11 +337,15 @@ export function ControlChart({
   highlightSampleId,
   showPredictions,
   onGridBottom,
+  chartData: externalChartData,
 }: ControlChartProps) {
-  const { data: chartData, isLoading } = useChartData(
+  const { data: fetchedChartData, isLoading: fetchLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
+    { enabled: !externalChartData },
   )
+  const chartData = externalChartData ?? fetchedChartData
+  const isLoading = externalChartData ? false : fetchLoading
   const chartColors = useChartColors()
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'

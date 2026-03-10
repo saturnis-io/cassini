@@ -19,7 +19,7 @@ import { WebSocketProvider } from '@/providers/WebSocketProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PlantProvider } from '@/providers/PlantProvider'
 import { AuthProvider, useAuth } from '@/providers/AuthProvider'
-import { ChartHoverProvider } from '@/contexts/ChartHoverContext'
+// ChartHoverProvider removed — hover sync now uses Zustand store (chartHoverStore)
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useLicense } from '@/hooks/useLicense'
@@ -280,9 +280,7 @@ function RequireCommercial({ children }: { children: ReactNode }) {
 function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   return (
     <PlantProvider>
-      <ChartHoverProvider>
-        <WebSocketProvider>{children}</WebSocketProvider>
-      </ChartHoverProvider>
+      <WebSocketProvider>{children}</WebSocketProvider>
     </PlantProvider>
   )
 }

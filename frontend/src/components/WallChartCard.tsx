@@ -9,6 +9,8 @@ interface WallChartCardProps {
   characteristicId: number
   onExpand: (id: number) => void
   className?: string
+  /** When true, disables per-card polling (parent manages refresh via query invalidation) */
+  disablePolling?: boolean
 }
 
 /**
@@ -40,9 +42,13 @@ function StatusDot({ status }: { status: 'ok' | 'warning' | 'violation' }) {
  *   onExpand={(id) => setExpandedId(id)}
  * />
  */
-export function WallChartCard({ characteristicId, onExpand, className }: WallChartCardProps) {
+export function WallChartCard({ characteristicId, onExpand, className, disablePolling }: WallChartCardProps) {
   const { data: characteristic } = useCharacteristic(characteristicId)
-  const { data: chartData, isLoading } = useChartData(characteristicId, { limit: 30 })
+  const { data: chartData, isLoading } = useChartData(
+    characteristicId,
+    { limit: 30 },
+    disablePolling ? { refetchInterval: false } : undefined,
+  )
 
   // Determine status from latest point
   const { status, violationCount } = useMemo(() => {

@@ -109,6 +109,8 @@ export function useChartData(
   config?: {
     /** Override refetch interval. Pass `false` to disable polling (e.g. when WS is delivering live updates). */
     refetchInterval?: number | false
+    /** Override enabled flag. When false, disables the query entirely (e.g. when data is passed as a prop). */
+    enabled?: boolean
   },
 ) {
   return useQuery({
@@ -121,7 +123,7 @@ export function useChartData(
       options?.chartType,
     ),
     queryFn: () => characteristicApi.getChartData(id, options),
-    enabled: id > 0,
+    enabled: (config?.enabled ?? true) && id > 0,
     refetchInterval: config?.refetchInterval ?? CHART_DATA_REFETCH_MS,
   })
 }

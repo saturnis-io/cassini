@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import {
   useHierarchyTreeByPlant,
-  useHierarchyCharacteristics,
   useCharacteristic,
   useCharacteristics,
 } from '@/api/hooks'
@@ -227,6 +226,22 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
     return counts
   }, [allPlantChars])
 
+  // Build a lookup map: hierarchy_id → Characteristic[] from the bulk fetch.
+  // This eliminates per-node useHierarchyCharacteristics calls (N+1 → 1).
+  const characteristicsByHierarchy = useMemo(() => {
+    const map = new Map<number, Characteristic[]>()
+    if (!allPlantChars?.items) return map
+    for (const char of allPlantChars.items) {
+      const existing = map.get(char.hierarchy_id)
+      if (existing) {
+        existing.push(char)
+      } else {
+        map.set(char.hierarchy_id, [char])
+      }
+    }
+    return map
+  }, [allPlantChars])
+
   const toggleNodeExpanded = (id: number) => {
     setExpandedNodeIds((prev) => {
       const next = new Set(prev)
@@ -273,6 +288,7 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
                 expandedNodeIds={expandedNodeIds}
                 toggleNodeExpanded={toggleNodeExpanded}
                 onCharacteristicSelect={handleCharacteristicSelect}
+                characteristicsByHierarchy={characteristicsByHierarchy}
               />
             ))}
           </div>
@@ -332,6 +348,7 @@ export function HierarchyTodoList({ className, embedded }: HierarchyTodoListProp
               statusFilter={statusFilter}
               expandedNodeIds={expandedNodeIds}
               toggleNodeExpanded={toggleNodeExpanded}
+              characteristicsByHierarchy={characteristicsByHierarchy}
             />
           ))}
         </div>
@@ -347,6 +364,8 @@ interface TodoTreeNodeProps {
   expandedNodeIds: Set<number>
   toggleNodeExpanded: (id: number) => void
   onCharacteristicSelect?: (charId: number) => void
+  /** Pre-built map of hierarchy_id → Characteristic[] from bulk fetch */
+  characteristicsByHierarchy: Map<number, Characteristic[]>
 }
 
 function TodoTreeNode({
@@ -356,6 +375,7 @@ function TodoTreeNode({
   expandedNodeIds,
   toggleNodeExpanded,
   onCharacteristicSelect,
+  characteristicsByHierarchy,
 }: TodoTreeNodeProps) {
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
@@ -364,10 +384,11 @@ function TodoTreeNode({
   const isExpanded = expandedNodeIds.has(node.id)
   const hasChildren = node.children && node.children.length > 0
 
-  // Load characteristics for this node when expanded
-  const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
-    isExpanded ? node.id : 0,
-  )
+  // Use pre-built map from bulk fetch instead of per-node API call
+  const characteristics = isExpanded
+    ? characteristicsByHierarchy.get(node.id) ?? []
+    : []
+  const isLoadingChars = false
 
   // Calculate status counts for this folder
   const statusCounts = useMemo(() => {
@@ -444,6 +465,7 @@ function TodoTreeNode({
               expandedNodeIds={expandedNodeIds}
               toggleNodeExpanded={toggleNodeExpanded}
               onCharacteristicSelect={onCharacteristicSelect}
+              characteristicsByHierarchy={characteristicsByHierarchy}
             />
           ))}
 
