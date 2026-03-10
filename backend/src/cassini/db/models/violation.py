@@ -33,7 +33,7 @@ class Violation(Base):
     __tablename__ = "violation"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False)
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id", ondelete="CASCADE"), nullable=False, index=True)
     char_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("characteristic.id", ondelete="CASCADE"), nullable=True, index=True
     )
