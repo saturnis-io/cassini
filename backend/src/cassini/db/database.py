@@ -34,16 +34,25 @@ class DatabaseConfig:
         self,
         database_url: str = "sqlite+aiosqlite:///./cassini.db",
         echo: bool = False,
+        pool_size: int = 10,
+        max_overflow: int = 20,
+        pool_recycle: int = 3600,
     ) -> None:
         """Initialize database configuration.
 
         Args:
             database_url: SQLAlchemy database URL (async driver required)
             echo: Enable SQL query logging
+            pool_size: Number of persistent connections in the pool
+            max_overflow: Additional connections allowed above pool_size
+            pool_recycle: Seconds before a connection is recycled
         """
         self.database_url = database_url
         self.dialect = detect_dialect(database_url)
         self.echo = echo
+        self._pool_size = pool_size
+        self._max_overflow = max_overflow
+        self._pool_recycle = pool_recycle
         self._engine: Optional[AsyncEngine] = None
         self._session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
@@ -64,9 +73,9 @@ class DatabaseConfig:
                 engine_kwargs["poolclass"] = NullPool
             else:
                 # Server databases benefit from connection pooling
-                engine_kwargs["pool_size"] = 10
-                engine_kwargs["max_overflow"] = 20
-                engine_kwargs["pool_recycle"] = 3600
+                engine_kwargs["pool_size"] = self._pool_size
+                engine_kwargs["max_overflow"] = self._max_overflow
+                engine_kwargs["pool_recycle"] = self._pool_recycle
                 engine_kwargs["pool_pre_ping"] = True
 
             self._engine = create_async_engine(
@@ -208,9 +217,15 @@ def get_database() -> DatabaseConfig:
         with _db_lock:
             # Double-checked locking
             if _db_config is None:
+                from cassini.core.config import get_settings
+
+                settings = get_settings()
                 _db_config = DatabaseConfig(
                     database_url=_resolve_database_url(),
                     echo=False,
+                    pool_size=settings.db_pool_size,
+                    max_overflow=settings.db_max_overflow,
+                    pool_recycle=settings.db_pool_recycle,
                 )
     return _db_config
 
