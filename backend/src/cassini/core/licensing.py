@@ -5,7 +5,9 @@ Community edition (no license) provides core SPC functionality.
 Commercial edition (valid license AND not expired) unlocks enterprise features.
 """
 
+import os
 import structlog
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,6 +32,7 @@ class LicenseService:
         self._claims: dict | None = None
         self._valid = False
         self._dev_commercial = dev_commercial
+        self._instance_id: str | None = None
 
         if dev_commercial:
             self._valid = True
@@ -67,6 +70,36 @@ class LicenseService:
             return None
         return p.read_bytes()
 
+    @property
+    def _data_dir(self) -> Path:
+        """Compute the data directory path for license and instance files."""
+        return Path(__file__).resolve().parent.parent.parent.parent / "data"
+
+    @property
+    def instance_id(self) -> str | None:
+        """Return the instance ID, or None if no license has been loaded."""
+        return self._instance_id
+
+    def _resolve_instance_id(self) -> str:
+        """Resolve the instance ID from env var, file, or generate a new one.
+
+        Priority: CASSINI_INSTANCE_ID env var > data/instance-id file > new UUID.
+        """
+        env_id = os.environ.get("CASSINI_INSTANCE_ID")
+        if env_id:
+            return env_id
+
+        instance_file = self._data_dir / "instance-id"
+        if instance_file.exists():
+            stored_id = instance_file.read_text().strip()
+            if stored_id:
+                return stored_id
+
+        new_id = str(uuid.uuid4())
+        self._data_dir.mkdir(parents=True, exist_ok=True)
+        instance_file.write_text(new_id)
+        return new_id
+
     def _load(self, license_path: str | None, public_key: bytes) -> None:
         if not license_path:
             logger.info("No license file configured — running as Community Edition")
@@ -81,11 +114,13 @@ class LicenseService:
             token = path.read_text().strip()
             self._claims = jwt.decode(token, public_key, algorithms=["EdDSA"])
             self._valid = True
+            self._instance_id = self._resolve_instance_id()
             logger.info(
                 "License validated",
                 tier=self._claims.get("tier"),
                 customer=self._claims.get("sub"),
                 expires_at=self._claims.get("expires_at"),
+                instance_id=self._instance_id,
             )
         except jwt.InvalidSignatureError:
             logger.warning("License file has invalid signature — running as Community Edition")
@@ -163,18 +198,19 @@ class LicenseService:
             raise ValueError(f"License validation failed: {type(e).__name__}")
 
         # Write to data/license.key for persistence across restarts
-        data_dir = Path(__file__).resolve().parent.parent.parent.parent / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-        key_path = data_dir / "license.key"
+        self._data_dir.mkdir(parents=True, exist_ok=True)
+        key_path = self._data_dir / "license.key"
         key_path.write_text(token)
 
         self._claims = claims
         self._valid = True
+        self._instance_id = self._resolve_instance_id()
         logger.info(
             "License activated via upload",
             tier=claims.get("tier"),
             customer=claims.get("sub"),
             expires_at=claims.get("expires_at"),
+            instance_id=self._instance_id,
         )
 
     def clear(self) -> None:
@@ -187,6 +223,7 @@ class LicenseService:
             raise ValueError("Cannot remove license in dev-commercial mode")
         self._claims = None
         self._valid = False
+        self._instance_id = None
         logger.info("License cleared, reverted to Community Edition")
 
     def status(self) -> dict:

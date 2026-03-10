@@ -1,7 +1,9 @@
 """Tests for license validation and LicenseService."""
 
+import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from unittest.mock import PropertyMock
 
 import jwt
 import pytest
@@ -204,3 +206,171 @@ class TestLicenseServiceCommercial:
         assert status["max_plants"] == 20
         assert "expires_at" in status
         assert "days_until_expiry" in status
+
+
+class TestInstanceId:
+    """Tests for instance ID persistence."""
+
+    @pytest.fixture
+    def data_dir(self, tmp_path):
+        """Provide a temporary data directory for instance ID tests."""
+        d = tmp_path / "data"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def patch_data_dir(self, data_dir, monkeypatch):
+        """Patch LicenseService._data_dir to use a temporary directory."""
+        monkeypatch.setattr(
+            LicenseService, "_data_dir", PropertyMock(return_value=data_dir),
+        )
+        return data_dir
+
+    @pytest.fixture
+    def valid_claims(self):
+        """Standard valid license claims for instance ID tests."""
+        return {
+            "sub": "acme",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        }
+
+    def test_data_dir_property_returns_correct_path(self):
+        """_data_dir should resolve to the backend data/ directory."""
+        svc = LicenseService(license_path=None, public_key=b"unused")
+        expected = Path(__file__).resolve().parent.parent.parent / "src" / "cassini" / "core"
+        # _data_dir is 4 parents up from licensing.py, then / "data"
+        # licensing.py is at src/cassini/core/licensing.py
+        # 4 parents up = backend/, then / "data" = backend/data
+        from cassini.core import licensing
+        expected = Path(licensing.__file__).resolve().parent.parent.parent.parent / "data"
+        assert svc._data_dir == expected
+
+    def test_instance_id_none_before_license_loaded(self):
+        """Instance ID should be None when no license is loaded."""
+        svc = LicenseService(license_path=None, public_key=b"unused")
+        assert svc.instance_id is None
+
+    def test_instance_id_generated_on_load(self, make_license, valid_claims, patch_data_dir):
+        """Instance ID should be generated when a valid license is loaded via _load."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id is not None
+        # Should be a valid UUID
+        uuid.UUID(svc.instance_id)
+
+    def test_instance_id_persisted_to_file(self, make_license, valid_claims, patch_data_dir, data_dir):
+        """Instance ID should be written to data/instance-id file."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        instance_file = data_dir / "instance-id"
+        assert instance_file.exists()
+        assert instance_file.read_text().strip() == svc.instance_id
+
+    def test_instance_id_stable_across_restarts(self, make_license, valid_claims, patch_data_dir, data_dir):
+        """Instance ID should be the same when reloading from file (simulating restart)."""
+        path, pub = make_license(valid_claims)
+        svc1 = LicenseService(license_path=str(path), public_key=pub)
+        first_id = svc1.instance_id
+        assert first_id is not None
+
+        # "Restart" — create a new service instance loading the same license
+        svc2 = LicenseService(license_path=str(path), public_key=pub)
+        assert svc2.instance_id == first_id
+
+    def test_env_var_overrides_file(self, make_license, valid_claims, patch_data_dir, data_dir, monkeypatch):
+        """CASSINI_INSTANCE_ID env var should take priority over file."""
+        env_id = "env-override-id-12345"
+        monkeypatch.setenv("CASSINI_INSTANCE_ID", env_id)
+
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id == env_id
+
+    def test_env_var_overrides_existing_file(self, make_license, valid_claims, patch_data_dir, data_dir, monkeypatch):
+        """CASSINI_INSTANCE_ID env var should override even when file already exists."""
+        # Pre-populate the instance-id file
+        instance_file = data_dir / "instance-id"
+        instance_file.write_text("file-based-id")
+
+        env_id = "env-override-id-67890"
+        monkeypatch.setenv("CASSINI_INSTANCE_ID", env_id)
+
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id == env_id
+
+    def test_instance_id_none_after_clear(self, make_license, valid_claims, patch_data_dir):
+        """Instance ID should be None after clear() is called."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id is not None
+
+        svc.clear()
+        assert svc.instance_id is None
+
+    def test_instance_id_file_persists_after_clear(self, make_license, valid_claims, patch_data_dir, data_dir):
+        """Instance ID file should NOT be deleted by clear() — preserved for reuse."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        original_id = svc.instance_id
+
+        svc.clear()
+
+        instance_file = data_dir / "instance-id"
+        assert instance_file.exists(), "instance-id file should persist after clear()"
+        assert instance_file.read_text().strip() == original_id
+
+    def test_instance_id_set_on_activate_from_token(
+        self, ed25519_keypair, valid_claims, patch_data_dir, data_dir, monkeypatch
+    ):
+        """Instance ID should be set when activating via activate_from_token."""
+        private_pem, public_pem = ed25519_keypair
+        token = jwt.encode(valid_claims, private_pem, algorithm="EdDSA")
+
+        # Patch the bundled key loading to use our test key
+        monkeypatch.setattr(
+            LicenseService,
+            "_load_public_key_file",
+            staticmethod(lambda path: public_pem),
+        )
+
+        svc = LicenseService(license_path=None, public_key=public_pem)
+        assert svc.instance_id is None
+
+        svc.activate_from_token(token)
+        assert svc.instance_id is not None
+        uuid.UUID(svc.instance_id)
+
+    def test_instance_id_reads_existing_file(self, make_license, valid_claims, patch_data_dir, data_dir):
+        """Instance ID should be read from existing file without generating a new one."""
+        pre_existing_id = "pre-existing-uuid-value"
+        instance_file = data_dir / "instance-id"
+        instance_file.write_text(pre_existing_id)
+
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id == pre_existing_id
+
+    def test_instance_id_not_set_on_invalid_license(self, tmp_path, ed25519_keypair, patch_data_dir):
+        """Instance ID should remain None when license validation fails."""
+        _, pub = ed25519_keypair
+        bad_file = tmp_path / "license.key"
+        bad_file.write_text("not-a-valid-jwt")
+        svc = LicenseService(license_path=str(bad_file), public_key=pub)
+        assert svc.instance_id is None
+
+    def test_instance_id_creates_data_dir_if_missing(self, make_license, valid_claims, tmp_path, monkeypatch):
+        """_resolve_instance_id should create the data directory if it doesn't exist."""
+        new_data_dir = tmp_path / "nonexistent" / "data"
+        monkeypatch.setattr(
+            LicenseService, "_data_dir", PropertyMock(return_value=new_data_dir),
+        )
+
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id is not None
+        assert new_data_dir.exists()
+        assert (new_data_dir / "instance-id").exists()
