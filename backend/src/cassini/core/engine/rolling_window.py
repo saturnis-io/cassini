@@ -376,14 +376,16 @@ class RollingWindowManager:
 
     def __init__(
         self,
-        sample_repository: "SampleRepository",
+        sample_repository: "SampleRepository | None" = None,
         max_cached_windows: int = 1000,
         window_size: int = 25
     ):
         """Initialize rolling window manager.
 
         Args:
-            sample_repository: Repository for database operations
+            sample_repository: Optional fallback repository for database operations.
+                Prefer passing ``repo`` directly to ``get_window()`` /
+                ``add_sample()`` to avoid cross-request session sharing.
             max_cached_windows: Maximum number of windows to cache
             window_size: Size of each rolling window
 
@@ -450,6 +452,7 @@ class RollingWindowManager:
         char_id: int,
         value_transform: Callable[[list[float]], list[float]] | None = None,
         material_id: int | None = None,
+        repo: "SampleRepository | None" = None,
     ) -> RollingWindow:
         """Load rolling window from database.
 
@@ -460,15 +463,22 @@ class RollingWindowManager:
                 (e.g., short-run deviation or standardized transforms).
                 Signature: (raw_values) -> transformed_values.
             material_id: Optional material ID for material-partitioned windows
+            repo: Per-request repository (preferred over ``self._repo``)
 
         Returns:
             RollingWindow populated with samples from database
         """
+        effective_repo = repo or self._repo
+        if effective_repo is None:
+            raise RuntimeError(
+                "No SampleRepository available. Pass repo= to this method "
+                "or provide sample_repository at construction time."
+            )
         window = RollingWindow(max_size=self._window_size)
 
         # Load sample data with measurement values pre-extracted
         # (avoids lazy loading issues in async contexts)
-        sample_data = await self._repo.get_rolling_window_data(
+        sample_data = await effective_repo.get_rolling_window_data(
             char_id=char_id,
             window_size=self._window_size,
             exclude_excluded=True,
@@ -510,7 +520,10 @@ class RollingWindowManager:
         return window
 
     async def get_window(
-        self, char_id: int, material_id: int | None = None,
+        self,
+        char_id: int,
+        material_id: int | None = None,
+        repo: "SampleRepository | None" = None,
     ) -> RollingWindow:
         """Get or load rolling window for characteristic/material pair.
 
@@ -520,6 +533,7 @@ class RollingWindowManager:
         Args:
             char_id: Characteristic ID
             material_id: Optional material ID for material-partitioned windows
+            repo: Per-request repository (preferred over ``self._repo``)
 
         Returns:
             RollingWindow for the characteristic/material pair
@@ -533,7 +547,7 @@ class RollingWindowManager:
 
             # Load from database
             window = await self._load_window_from_db(
-                char_id, material_id=material_id,
+                char_id, material_id=material_id, repo=repo,
             )
 
             # Evict LRU if necessary
@@ -560,6 +574,7 @@ class RollingWindowManager:
         stored_center_line: float | None = None,
         value_transform: Callable[[list[float]], list[float]] | None = None,
         material_id: int | None = None,
+        repo: "SampleRepository | None" = None,
     ) -> WindowSample:
         """Add a new sample to the window.
 
@@ -580,6 +595,8 @@ class RollingWindowManager:
             value_transform: Optional callable to transform raw DB measurement
                 values into the coordinate system of the zone boundaries
                 (used for short-run charts on cold-load from DB).
+            material_id: Optional material ID for material-partitioned windows
+            repo: Per-request repository (preferred over ``self._repo``)
 
         Returns:
             WindowSample that was added
@@ -590,7 +607,7 @@ class RollingWindowManager:
             if key not in self._cache:
                 window = await self._load_window_from_db(
                     char_id, value_transform=value_transform,
-                    material_id=material_id,
+                    material_id=material_id, repo=repo,
                 )
                 self._evict_lru()
                 self._cache[key] = window

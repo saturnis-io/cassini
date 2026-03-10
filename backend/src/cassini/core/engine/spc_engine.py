@@ -559,11 +559,13 @@ class SPCEngine:
             stored_center_line=char_stored_center_line,
             value_transform=value_transform,
             material_id=_material_id,
+            repo=self._sample_repo,
         )
 
         # Step 5: Evaluate enabled Nelson Rules
         window = await self._window_manager.get_window(
             characteristic_id, material_id=_material_id,
+            repo=self._sample_repo,
         )
 
         # Check all enabled rules (enabled_rules was extracted earlier to avoid lazy loading)

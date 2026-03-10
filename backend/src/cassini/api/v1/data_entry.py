@@ -57,7 +57,9 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     """Create SPC engine instance with all dependencies.
 
     Reuses a shared RollingWindowManager so the LRU cache persists
-    across requests. Session-scoped repos are created fresh per request.
+    across requests. Session-scoped repos are created fresh per request
+    and passed to the engine (NOT stored on the shared manager, which
+    would cause cross-request session sharing under concurrency).
 
     Args:
         session: Database session for repositories.
@@ -72,10 +74,7 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     violation_repo = ViolationRepository(session)
 
     if _shared_window_manager is None:
-        _shared_window_manager = RollingWindowManager(sample_repo)
-    else:
-        # Update the repo reference to use the current session
-        _shared_window_manager._repo = sample_repo
+        _shared_window_manager = RollingWindowManager()
 
     rule_library = NelsonRuleLibrary()
 
