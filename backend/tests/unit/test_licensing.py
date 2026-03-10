@@ -257,20 +257,23 @@ class TestInstanceId:
         path, pub = make_license(valid_claims)
         svc = LicenseService(license_path=str(path), public_key=pub)
         assert svc.instance_id is not None
-        # Should be a valid UUID
-        uuid.UUID(svc.instance_id)
+        # Should be a non-empty string (hostname by default, not a UUID)
+        assert len(svc.instance_id) > 0
 
-    def test_instance_id_persisted_to_file(self, make_license, valid_claims, patch_data_dir, data_dir):
-        """Instance ID should be written to data/instance-id file."""
+    def test_instance_id_uses_hostname_and_persists(self, make_license, valid_claims, patch_data_dir, data_dir):
+        """Instance ID should default to the system hostname and persist to file."""
+        import socket
         path, pub = make_license(valid_claims)
         svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.instance_id == socket.gethostname()
 
+        # Should be persisted so hostname changes don't orphan the slot
         instance_file = data_dir / "instance-id"
         assert instance_file.exists()
-        assert instance_file.read_text().strip() == svc.instance_id
+        assert instance_file.read_text().strip() == socket.gethostname()
 
-    def test_instance_id_stable_across_restarts(self, make_license, valid_claims, patch_data_dir, data_dir):
-        """Instance ID should be the same when reloading from file (simulating restart)."""
+    def test_instance_id_stable_across_restarts(self, make_license, valid_claims, patch_data_dir):
+        """Instance ID should be the same across restarts (persisted to file)."""
         path, pub = make_license(valid_claims)
         svc1 = LicenseService(license_path=str(path), public_key=pub)
         first_id = svc1.instance_id
@@ -279,6 +282,19 @@ class TestInstanceId:
         # "Restart" — create a new service instance loading the same license
         svc2 = LicenseService(license_path=str(path), public_key=pub)
         assert svc2.instance_id == first_id
+
+    def test_instance_id_survives_hostname_change(self, make_license, valid_claims, patch_data_dir, monkeypatch):
+        """Instance ID should be stable even if hostname changes (persisted file takes priority)."""
+        path, pub = make_license(valid_claims)
+        svc1 = LicenseService(license_path=str(path), public_key=pub)
+        original_id = svc1.instance_id
+        assert original_id is not None
+
+        # Simulate hostname change
+        monkeypatch.setattr("socket.gethostname", lambda: "NEW-HOSTNAME-999")
+
+        svc2 = LicenseService(license_path=str(path), public_key=pub)
+        assert svc2.instance_id == original_id  # persisted file wins
 
     def test_env_var_overrides_file(self, make_license, valid_claims, patch_data_dir, data_dir, monkeypatch):
         """CASSINI_INSTANCE_ID env var should take priority over file."""
@@ -316,6 +332,7 @@ class TestInstanceId:
         path, pub = make_license(valid_claims)
         svc = LicenseService(license_path=str(path), public_key=pub)
         original_id = svc.instance_id
+        assert original_id is not None
 
         svc.clear()
 
@@ -342,7 +359,7 @@ class TestInstanceId:
 
         svc.activate_from_token(token)
         assert svc.instance_id is not None
-        uuid.UUID(svc.instance_id)
+        assert len(svc.instance_id) > 0
 
     def test_instance_id_reads_existing_file(self, make_license, valid_claims, patch_data_dir, data_dir):
         """Instance ID should be read from existing file without generating a new one."""

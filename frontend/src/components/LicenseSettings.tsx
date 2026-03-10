@@ -234,7 +234,7 @@ export function LicenseSettings() {
           </div>
         )}
 
-        {/* Download activation file (commercial only) */}
+        {/* Offline registration file (for air-gapped systems) */}
         {isCommercial && (
           <div className="mt-4 flex items-center gap-3">
             <button
@@ -245,7 +245,7 @@ export function LicenseSettings() {
               {downloadActivation.isPending ? 'Generating...' : 'Download Activation File'}
             </button>
             <span className="text-muted-foreground text-xs">
-              Upload this to your saturnis.io portal to register this installation
+              For air-gapped systems: upload this to your saturnis.io portal
             </span>
           </div>
         )}

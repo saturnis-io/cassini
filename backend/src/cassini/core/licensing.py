@@ -6,6 +6,7 @@ Commercial edition (valid license AND not expired) unlocks enterprise features.
 """
 
 import os
+import socket
 import structlog
 import uuid
 from datetime import datetime, timezone
@@ -33,6 +34,7 @@ class LicenseService:
         self._valid = False
         self._dev_commercial = dev_commercial
         self._instance_id: str | None = None
+        self._license_path: str | None = license_path
 
         if dev_commercial:
             self._valid = True
@@ -81,9 +83,17 @@ class LicenseService:
         return self._instance_id
 
     def _resolve_instance_id(self) -> str:
-        """Resolve the instance ID from env var, file, or generate a new one.
+        """Resolve the instance ID for this Cassini installation.
 
-        Priority: CASSINI_INSTANCE_ID env var > data/instance-id file > new UUID.
+        Priority:
+          1. CASSINI_INSTANCE_ID env var (operator-chosen, e.g. "PLANT-DETROIT-LINE2")
+          2. Persisted instance-id file (stable across hostname changes)
+          3. System hostname (e.g. "PLANT-FLOOR-3") — persisted on first use
+          4. Generated UUID (last resort, persisted)
+
+        Human-readable identifiers are strongly preferred. Once resolved,
+        the ID is persisted to data/instance-id so hostname changes don't
+        orphan the activation slot on the portal.
         """
         env_id = os.environ.get("CASSINI_INSTANCE_ID")
         if env_id:
@@ -95,7 +105,15 @@ class LicenseService:
             if stored_id:
                 return stored_id
 
-        new_id = str(uuid.uuid4())
+        # First activation — use hostname, or UUID as last resort
+        hostname = socket.gethostname()
+        if hostname and hostname != "localhost":
+            new_id = hostname
+        else:
+            new_id = str(uuid.uuid4())
+            logger.warning("Using generated UUID as instance ID — set CASSINI_INSTANCE_ID env var for a human-readable name")
+
+        # Persist so the same ID is used if hostname changes later
         self._data_dir.mkdir(parents=True, exist_ok=True)
         instance_file.write_text(new_id)
         return new_id
@@ -195,7 +213,8 @@ class LicenseService:
         except jwt.DecodeError:
             raise ValueError("License file is corrupted")
         except Exception as e:
-            raise ValueError(f"License validation failed: {type(e).__name__}")
+            logger.warning("License validation failed", error=type(e).__name__)
+            raise ValueError("License validation failed")
 
         # Write to data/license.key for persistence across restarts
         self._data_dir.mkdir(parents=True, exist_ok=True)
@@ -241,6 +260,28 @@ class LicenseService:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
+    @property
+    def raw_key(self) -> str | None:
+        """Return the raw license JWT string from disk, or None.
+
+        Checks data/license.key first (written by activate_from_token),
+        then falls back to the original license_path from config.
+        """
+        key_path = self._data_dir / "license.key"
+        if key_path.exists():
+            content = key_path.read_text().strip()
+            if content:
+                return content
+
+        # Fallback: config-provided license path
+        if self._license_path:
+            p = Path(self._license_path)
+            if p.exists():
+                content = p.read_text().strip()
+                if content:
+                    return content
+        return None
+
     def clear(self) -> None:
         """Remove the active license and revert to Community Edition.
 
@@ -262,6 +303,7 @@ class LicenseService:
                 "tier": "community",
                 "licensed_tier": None,
                 "max_plants": 1,
+                "instance_id": None,
             }
         if self.is_expired:
             return {
@@ -271,6 +313,7 @@ class LicenseService:
                 "max_plants": 1,
                 "is_expired": True,
                 "expires_at": self._claims.get("expires_at") if self._claims else None,
+                "instance_id": self._instance_id,
             }
         licensed_tier = self._claims.get("tier", "professional") if self._claims else None
         return {
@@ -281,4 +324,5 @@ class LicenseService:
             "expires_at": self._claims.get("expires_at") if self._claims else None,
             "days_until_expiry": self.days_until_expiry,
             "is_expired": False,
+            "instance_id": self._instance_id,
         }

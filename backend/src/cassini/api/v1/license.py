@@ -154,7 +154,8 @@ async def remove_license(
     Admin-only. Cannot be used when running in dev-commercial mode.
     Returns deactivation file data for offline portal notification.
     """
-    # Generate deactivation file BEFORE clearing
+    # Capture the raw key and deactivation file BEFORE clearing
+    raw_key = license_service.raw_key
     deactivation_file_data = license_service.generate_deactivation_file()
 
     try:
@@ -187,4 +188,5 @@ async def remove_license(
     return LicenseRemoveResponse(
         status=status_response,
         deactivation_file=deactivation_file,
+        license_key=raw_key,
     )

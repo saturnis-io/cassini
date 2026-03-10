@@ -9,6 +9,7 @@ export interface LicenseStatus {
   days_until_expiry: number | null
   is_expired: boolean | null
   license_name?: string | null
+  instance_id: string | null
 }
 
 export interface LicenseCompliance {
@@ -33,6 +34,7 @@ export interface ActivationFile {
 export interface LicenseRemoveResponse {
   status: LicenseStatus
   deactivation_file: ActivationFile | null
+  license_key: string | null
 }
 
 export async function getActivationFile(): Promise<ActivationFile> {
@@ -62,4 +64,59 @@ export async function activateLicense(key: string): Promise<LicenseStatus> {
     method: 'POST',
     body: JSON.stringify({ key }),
   })
+}
+
+const PORTAL_BASE_URL = 'https://saturnis.io'
+
+/**
+ * Register this Cassini instance with the saturnis.io portal (online activation).
+ *
+ * The license JWT IS the authentication — no session/cookie needed.
+ * Called automatically after license upload if the instance has internet access.
+ */
+export async function registerOnPortal(
+  licenseKey: string,
+  instanceName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${PORTAL_BASE_URL}/api/licenses/public-activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: licenseKey, instanceName }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      return { ok: false, error: data?.error || `HTTP ${res.status}` }
+    }
+    return { ok: true }
+  } catch {
+    // Network error — instance is likely air-gapped
+    return { ok: false, error: 'Network unreachable' }
+  }
+}
+
+/**
+ * Deregister this Cassini instance from the saturnis.io portal (online deactivation).
+ *
+ * Called automatically when removing a license if the instance has internet access.
+ */
+export async function deregisterFromPortal(
+  licenseKey: string,
+  instanceName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${PORTAL_BASE_URL}/api/licenses/public-deactivate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: licenseKey, instanceName }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      return { ok: false, error: data?.error || `HTTP ${res.status}` }
+    }
+    return { ok: true }
+  } catch {
+    // Network error — instance is likely air-gapped
+    return { ok: false, error: 'Network unreachable' }
+  }
 }

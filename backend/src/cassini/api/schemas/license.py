@@ -12,6 +12,7 @@ class LicenseStatusResponse(BaseModel):
     is_expired: bool | None = None
     license_name: str | None = None
     licensed_tier: str | None = None
+    instance_id: str | None = None
 
 
 class ActivationFileResponse(BaseModel):
@@ -25,6 +26,7 @@ class ActivationFileResponse(BaseModel):
 class LicenseRemoveResponse(BaseModel):
     status: LicenseStatusResponse
     deactivation_file: ActivationFileResponse | None = None
+    license_key: str | None = None
 
 
 class LicenseUploadRequest(BaseModel):

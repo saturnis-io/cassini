@@ -7,6 +7,8 @@ import {
   activateLicense,
   getActivationFile,
   downloadJsonFile,
+  registerOnPortal,
+  deregisterFromPortal,
 } from '@/api/license.api'
 import { useLicenseStore } from '@/stores/licenseStore'
 import { queryKeys } from './queryKeys'
@@ -26,13 +28,34 @@ export function useRemoveLicense() {
 
   return useMutation({
     mutationFn: removeLicense,
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       setFromApi(response.status)
       queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+
+      // Try online deactivation first (non-blocking — license is already removed locally)
+      if (response.license_key && response.deactivation_file) {
+        const { instanceId } = response.deactivation_file
+        const result = await deregisterFromPortal(response.license_key, instanceId)
+        if (result.ok) {
+          toast.success('License removed and deregistered from saturnis.io')
+          return
+        }
+        // Online deactivation failed — fall back to offline file download
+        downloadJsonFile(
+          response.deactivation_file,
+          `cassini-deactivation-${instanceId}.deactivation`,
+        )
+        toast.success('License removed — upload the deactivation file to your saturnis.io portal')
+        return
+      }
+
       if (response.deactivation_file) {
-        const id = response.deactivation_file.instanceId.slice(0, 8)
-        downloadJsonFile(response.deactivation_file, `cassini-deactivation-${id}.deactivation`)
+        const { instanceId } = response.deactivation_file
+        downloadJsonFile(
+          response.deactivation_file,
+          `cassini-deactivation-${instanceId}.deactivation`,
+        )
         toast.success('License removed — upload the deactivation file to your saturnis.io portal')
       } else {
         toast.success('License removed')
@@ -48,10 +71,36 @@ export function useActivateLicense() {
 
   return useMutation({
     mutationFn: (key: string) => activateLicense(key),
-    onSuccess: (status) => {
+    onSuccess: async (status, key) => {
       setFromApi(status)
       queryClient.invalidateQueries({ queryKey: queryKeys.license.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.plants.all })
+
+      // Auto-register with the portal (online activation)
+      if (status.edition === 'commercial' && status.instance_id) {
+        const result = await registerOnPortal(key, status.instance_id)
+        if (result.ok) {
+          toast.success('License activated and registered with saturnis.io')
+          return
+        }
+        // Online registration failed — offer offline file download
+        toast.success('License activated — download the activation file to register offline', {
+          action: {
+            label: 'Download',
+            onClick: async () => {
+              try {
+                const data = await getActivationFile()
+                downloadJsonFile(data, `cassini-activation-${data.instanceId}.activation`)
+              } catch {
+                toast.error('Failed to generate activation file')
+              }
+            },
+          },
+          duration: 10000,
+        })
+        return
+      }
+
       toast.success('License activated')
     },
     onError: handleMutationError('Failed to activate license'),
@@ -75,7 +124,7 @@ export function useDownloadActivationFile() {
   return useMutation({
     mutationFn: async () => {
       const data = await getActivationFile()
-      downloadJsonFile(data, `cassini-activation-${data.instanceId.slice(0, 8)}.activation`)
+      downloadJsonFile(data, `cassini-activation-${data.instanceId}.activation`)
       return data
     },
     onSuccess: () => toast.success('Activation file downloaded'),
