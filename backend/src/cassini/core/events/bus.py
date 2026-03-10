@@ -55,10 +55,16 @@ class EventBus:
         For multi-threaded usage, external synchronization would be required.
     """
 
-    def __init__(self) -> None:
-        """Initialize the event bus."""
+    def __init__(self, max_concurrent_handlers: int = 100) -> None:
+        """Initialize the event bus.
+
+        Args:
+            max_concurrent_handlers: Maximum number of handler invocations that
+                can run concurrently. Excess handlers queue behind the semaphore.
+        """
         self._handlers: dict[Type[Event], list[EventHandler]] = {}
         self._running_tasks: set[asyncio.Task[None]] = set()
+        self._handler_semaphore = asyncio.Semaphore(max_concurrent_handlers)
 
     def subscribe(self, event_type: Type[Event], handler: EventHandler) -> None:
         """Subscribe a handler to an event type.
@@ -142,7 +148,7 @@ class EventBus:
             )
 
         for handler in handlers:
-            task = asyncio.create_task(self._safe_invoke(handler, event))
+            task = asyncio.create_task(self._throttled_invoke(handler, event))
             self._running_tasks.add(task)
             task.add_done_callback(self._running_tasks.discard)
 
@@ -198,6 +204,19 @@ class EventBus:
             )
 
         return errors
+
+    async def _throttled_invoke(self, handler: EventHandler, event: Event) -> None:
+        """Invoke handler with backpressure via semaphore.
+
+        Limits the number of concurrently running handlers to prevent
+        unbounded task creation during event bursts.
+
+        Args:
+            handler: The handler function to invoke
+            event: The event to pass to the handler
+        """
+        async with self._handler_semaphore:
+            await self._safe_invoke(handler, event)
 
     async def _safe_invoke(self, handler: EventHandler, event: Event) -> None:
         """Invoke handler with error isolation.
