@@ -56,6 +56,7 @@ Key features:
 """
 
 import asyncio
+import time as _time
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,6 +68,21 @@ from cassini.utils.statistics import ZoneBoundaries as BaseZoneBoundaries
 if TYPE_CHECKING:
     from cassini.db.models.sample import Sample
     from cassini.db.repositories.sample import SampleRepository
+
+
+@dataclass
+class CachedLimits:
+    """Cached control limit computation result.
+
+    Stored per (characteristic_id, material_id) to avoid recomputing
+    limits from historical data on every sample submission.
+    """
+    center_line: float
+    ucl: float
+    lcl: float
+    sigma: float
+    samples_since_compute: int
+    computed_at: float
 
 
 class Zone(Enum):
@@ -422,7 +438,9 @@ class RollingWindowManager:
         self,
         sample_repository: "SampleRepository | None" = None,
         max_cached_windows: int = 1000,
-        window_size: int = 25
+        window_size: int = 25,
+        limit_cache_refresh_interval: int = 25,
+        limit_cache_ttl_seconds: float = 300.0,
     ):
         """Initialize rolling window manager.
 
@@ -432,6 +450,10 @@ class RollingWindowManager:
                 ``add_sample()`` to avoid cross-request session sharing.
             max_cached_windows: Maximum number of windows to cache
             window_size: Size of each rolling window
+            limit_cache_refresh_interval: Number of new samples before
+                cached control limits are considered stale and must be
+                recomputed.
+            limit_cache_ttl_seconds: Wall-clock TTL for cached limits.
 
         Raises:
             ValueError: If max_cached_windows or window_size is less than 1
@@ -446,6 +468,11 @@ class RollingWindowManager:
         self._max_cached = max_cached_windows
         self._window_size = window_size
         self._locks: dict[tuple[int, int | None], asyncio.Lock] = {}
+
+        # Control-limit cache
+        self._limit_cache: dict[tuple[int, int | None], CachedLimits] = {}
+        self._limit_refresh_interval = limit_cache_refresh_interval
+        self._limit_ttl = limit_cache_ttl_seconds
 
     @staticmethod
     def _cache_key(char_id: int, material_id: int | None = None) -> tuple[int, int | None]:
@@ -490,6 +517,68 @@ class RollingWindowManager:
         if key in self._cache:
             # Move to end (most recently used position)
             self._cache.move_to_end(key)
+
+    def get_cached_limits(
+        self,
+        char_id: int,
+        material_id: int | None = None,
+    ) -> CachedLimits | None:
+        """Return cached control limits if still fresh, else None.
+
+        An entry is considered fresh when both:
+        - ``samples_since_compute`` < ``_limit_refresh_interval``
+        - age (monotonic clock) < ``_limit_ttl``
+
+        Args:
+            char_id: Characteristic ID
+            material_id: Optional material ID
+
+        Returns:
+            CachedLimits if a fresh entry exists, otherwise None
+        """
+        key = self._cache_key(char_id, material_id)
+        entry = self._limit_cache.get(key)
+        if entry is None:
+            return None
+        if entry.samples_since_compute >= self._limit_refresh_interval:
+            return None
+        if (_time.monotonic() - entry.computed_at) >= self._limit_ttl:
+            return None
+        return entry
+
+    def put_cached_limits(
+        self,
+        char_id: int,
+        material_id: int | None,
+        limits: CachedLimits,
+    ) -> None:
+        """Store a control-limit computation result in the cache.
+
+        Args:
+            char_id: Characteristic ID
+            material_id: Material ID (or None)
+            limits: The computed limits to cache
+        """
+        key = self._cache_key(char_id, material_id)
+        self._limit_cache[key] = limits
+
+    def increment_limit_counter(
+        self,
+        char_id: int,
+        material_id: int | None = None,
+    ) -> None:
+        """Bump ``samples_since_compute`` on a cached limit entry.
+
+        No-op if no entry exists for the key.
+
+        Args:
+            char_id: Characteristic ID
+            material_id: Optional material ID
+        """
+        key = self._cache_key(char_id, material_id)
+        entry = self._limit_cache.get(key)
+        if entry is not None:
+            entry.samples_since_compute += 1
 
     async def _load_window_from_db(
         self,
@@ -738,6 +827,7 @@ class RollingWindowManager:
             async with self._get_lock(char_id, material_id):
                 if key in self._cache:
                     del self._cache[key]
+                self._limit_cache.pop(key, None)
         else:
             # Invalidate ALL partitions for this characteristic
             keys_to_remove = [
@@ -747,6 +837,10 @@ class RollingWindowManager:
                 async with self._get_lock(key[0], key[1]):
                     if key in self._cache:
                         del self._cache[key]
+            # Clear all limit-cache entries for this characteristic
+            limit_keys = [k for k in self._limit_cache if k[0] == char_id]
+            for key in limit_keys:
+                del self._limit_cache[key]
 
     async def update_boundaries(
         self,

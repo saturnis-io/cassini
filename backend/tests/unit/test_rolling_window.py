@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cassini.core.engine.rolling_window import (
+    CachedLimits,
     RollingWindow,
     RollingWindowManager,
     WindowSample,
@@ -1067,3 +1068,147 @@ class TestWindowSampleWithModeFields:
         assert sample.effective_ucl is None
         assert sample.effective_lcl is None
         assert sample.z_score is None
+
+
+class TestControlLimitCache:
+    """Tests for the control limit cache on RollingWindowManager."""
+
+    def _make_manager(self, **kwargs):
+        """Create a manager with no repo (cache-only tests)."""
+        return RollingWindowManager(
+            sample_repository=None,
+            max_cached_windows=100,
+            window_size=25,
+            **kwargs,
+        )
+
+    def _make_limits(self, center=100.0, ucl=106.0, lcl=94.0, sigma=2.0,
+                     samples_since=0, computed_at=None):
+        """Helper to create a CachedLimits."""
+        import time as _time
+        return CachedLimits(
+            center_line=center,
+            ucl=ucl,
+            lcl=lcl,
+            sigma=sigma,
+            samples_since_compute=samples_since,
+            computed_at=computed_at if computed_at is not None else _time.monotonic(),
+        )
+
+    def test_put_and_get_cached_limits(self):
+        """Store and retrieve cached limits for a characteristic."""
+        mgr = self._make_manager()
+        limits = self._make_limits()
+
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=limits)
+        result = mgr.get_cached_limits(char_id=1)
+
+        assert result is limits
+        assert result.center_line == 100.0
+        assert result.ucl == 106.0
+        assert result.lcl == 94.0
+        assert result.sigma == 2.0
+
+    def test_get_cached_limits_miss(self):
+        """Returns None for a characteristic that has no cached limits."""
+        mgr = self._make_manager()
+
+        assert mgr.get_cached_limits(char_id=999) is None
+        assert mgr.get_cached_limits(char_id=1, material_id=5) is None
+
+    def test_cached_limits_stale_by_count(self):
+        """Returns None when samples_since_compute >= refresh_interval (25)."""
+        mgr = self._make_manager(limit_cache_refresh_interval=25)
+        limits = self._make_limits(samples_since=25)
+
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=limits)
+        assert mgr.get_cached_limits(char_id=1) is None
+
+    def test_cached_limits_stale_by_ttl(self):
+        """Returns None when the cached entry is older than TTL."""
+        import time as _time
+        mgr = self._make_manager(limit_cache_ttl_seconds=1.0)
+        # computed_at 2 seconds ago — exceeds 1s TTL
+        limits = self._make_limits(computed_at=_time.monotonic() - 2.0)
+
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=limits)
+        assert mgr.get_cached_limits(char_id=1) is None
+
+    def test_increment_limit_counter(self):
+        """Counter increments correctly on each call."""
+        mgr = self._make_manager()
+        limits = self._make_limits(samples_since=0)
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=limits)
+
+        mgr.increment_limit_counter(char_id=1)
+        assert limits.samples_since_compute == 1
+
+        mgr.increment_limit_counter(char_id=1)
+        assert limits.samples_since_compute == 2
+
+    def test_increment_limit_counter_no_entry(self):
+        """Incrementing a non-existent entry is a silent no-op."""
+        mgr = self._make_manager()
+        # Should not raise
+        mgr.increment_limit_counter(char_id=999)
+
+    def test_material_partitioned_cache(self):
+        """Different materials have independent cache entries."""
+        mgr = self._make_manager()
+        limits_a = self._make_limits(center=100.0)
+        limits_b = self._make_limits(center=200.0)
+
+        mgr.put_cached_limits(char_id=1, material_id=10, limits=limits_a)
+        mgr.put_cached_limits(char_id=1, material_id=20, limits=limits_b)
+
+        result_a = mgr.get_cached_limits(char_id=1, material_id=10)
+        result_b = mgr.get_cached_limits(char_id=1, material_id=20)
+
+        assert result_a is limits_a
+        assert result_b is limits_b
+        assert result_a.center_line == 100.0
+        assert result_b.center_line == 200.0
+
+    @pytest.mark.asyncio
+    async def test_invalidate_clears_limit_cache(self):
+        """invalidate(char_id) clears all material partitions for that char, leaves others."""
+        mgr = self._make_manager()
+        mock_repo = AsyncMock()
+        mgr._repo = mock_repo
+        mock_repo.get_rolling_window_data.return_value = []
+
+        # Populate limit cache for char 1 (two materials) and char 2
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=self._make_limits())
+        mgr.put_cached_limits(char_id=1, material_id=10, limits=self._make_limits())
+        mgr.put_cached_limits(char_id=2, material_id=None, limits=self._make_limits())
+
+        # Invalidate char 1 (all materials)
+        await mgr.invalidate(char_id=1)
+
+        # Char 1 entries gone
+        assert mgr.get_cached_limits(char_id=1) is None
+        assert mgr.get_cached_limits(char_id=1, material_id=10) is None
+
+        # Char 2 unaffected
+        assert mgr.get_cached_limits(char_id=2) is not None
+
+    @pytest.mark.asyncio
+    async def test_invalidate_specific_material(self):
+        """invalidate(char_id, material_id=10) only clears that partition."""
+        mgr = self._make_manager()
+        mock_repo = AsyncMock()
+        mgr._repo = mock_repo
+        mock_repo.get_rolling_window_data.return_value = []
+
+        mgr.put_cached_limits(char_id=1, material_id=10, limits=self._make_limits())
+        mgr.put_cached_limits(char_id=1, material_id=20, limits=self._make_limits())
+        mgr.put_cached_limits(char_id=1, material_id=None, limits=self._make_limits())
+
+        await mgr.invalidate(char_id=1, material_id=10)
+
+        # Only material 10 removed
+        assert mgr.get_cached_limits(char_id=1, material_id=10) is None
+
+        # Others remain
+        assert mgr.get_cached_limits(char_id=1, material_id=20) is not None
+        assert mgr.get_cached_limits(char_id=1) is not None
