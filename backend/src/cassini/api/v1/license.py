@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_current_user, get_db_session, get_license_service
 from cassini.api.schemas.compliance import ComplianceStatusResponse, PlantComplianceInfoResponse
-from cassini.api.schemas.license import LicenseStatusResponse, LicenseUploadRequest
+from cassini.api.schemas.license import (
+    ActivationFileResponse,
+    LicenseRemoveResponse,
+    LicenseStatusResponse,
+    LicenseUploadRequest,
+)
 from cassini.core.licensing import LicenseService
 from cassini.db.models.user import User
 
@@ -114,9 +119,28 @@ async def get_compliance(
     )
 
 
+@router.get("/activation-file", response_model=ActivationFileResponse)
+async def get_activation_file(
+    license_service: LicenseService = Depends(get_license_service),
+    _user: User = Depends(get_current_admin),
+) -> ActivationFileResponse:
+    """Generate an activation file for offline portal registration.
+
+    Admin-only. Returns JSON the operator saves and uploads to saturnis.io portal.
+    """
+    try:
+        data = license_service.generate_activation_file()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    return ActivationFileResponse(**data)
+
+
 @router.delete(
     "",
-    response_model=LicenseStatusResponse,
+    response_model=LicenseRemoveResponse,
     status_code=status.HTTP_200_OK,
 )
 async def remove_license(
@@ -124,11 +148,15 @@ async def remove_license(
     session: AsyncSession = Depends(get_db_session),
     license_service: LicenseService = Depends(get_license_service),
     _user: User = Depends(get_current_admin),
-) -> LicenseStatusResponse:
+) -> LicenseRemoveResponse:
     """Remove the active license and revert to Community Edition.
 
     Admin-only. Cannot be used when running in dev-commercial mode.
+    Returns deactivation file data for offline portal notification.
     """
+    # Generate deactivation file BEFORE clearing
+    deactivation_file_data = license_service.generate_deactivation_file()
+
     try:
         license_service.clear()
     except ValueError:
@@ -150,4 +178,13 @@ async def remove_license(
     }
 
     logger.info("license_removed")
-    return LicenseStatusResponse(**license_service.status())
+    status_response = LicenseStatusResponse(**license_service.status())
+    deactivation_file = (
+        ActivationFileResponse(**deactivation_file_data)
+        if deactivation_file_data
+        else None
+    )
+    return LicenseRemoveResponse(
+        status=status_response,
+        deactivation_file=deactivation_file,
+    )

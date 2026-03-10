@@ -213,6 +213,34 @@ class LicenseService:
             instance_id=self._instance_id,
         )
 
+    def generate_activation_file(self) -> dict:
+        """Generate activation file content for offline portal registration."""
+        if not self.is_commercial or not self._instance_id:
+            raise ValueError("No active license to generate activation file")
+        return {
+            "type": "cassini-activation",
+            "version": 1,
+            "licenseId": self._claims.get("sub", ""),
+            "instanceId": self._instance_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def generate_deactivation_file(self) -> dict | None:
+        """Generate deactivation file content before license removal.
+
+        Must be called BEFORE clear() since clear() resets claims.
+        Returns None if no active license or no instance ID.
+        """
+        if not self._valid or not self._instance_id or not self._claims:
+            return None
+        return {
+            "type": "cassini-deactivation",
+            "version": 1,
+            "licenseId": self._claims.get("sub", ""),
+            "instanceId": self._instance_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
     def clear(self) -> None:
         """Remove the active license and revert to Community Edition.
 

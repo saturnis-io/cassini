@@ -374,3 +374,144 @@ class TestInstanceId:
         assert svc.instance_id is not None
         assert new_data_dir.exists()
         assert (new_data_dir / "instance-id").exists()
+
+
+class TestActivationFile:
+    """Tests for generate_activation_file and generate_deactivation_file."""
+
+    @pytest.fixture
+    def data_dir(self, tmp_path):
+        """Provide a temporary data directory."""
+        d = tmp_path / "data"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def patch_data_dir(self, data_dir, monkeypatch):
+        """Patch LicenseService._data_dir to use a temporary directory."""
+        monkeypatch.setattr(
+            LicenseService, "_data_dir", PropertyMock(return_value=data_dir),
+        )
+        return data_dir
+
+    @pytest.fixture
+    def valid_claims(self):
+        """Standard valid license claims."""
+        return {
+            "sub": "acme-corp",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        }
+
+    def test_activation_file_structure(self, make_license, valid_claims, patch_data_dir):
+        """Activation file should contain correct type, version, licenseId, instanceId, timestamp."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        result = svc.generate_activation_file()
+
+        assert result["type"] == "cassini-activation"
+        assert result["version"] == 1
+        assert result["licenseId"] == "acme-corp"
+        assert result["instanceId"] == svc.instance_id
+        assert "timestamp" in result
+        # Verify timestamp is valid ISO format
+        datetime.fromisoformat(result["timestamp"])
+
+    def test_activation_file_raises_for_community(self):
+        """Activation file generation should raise ValueError for community edition."""
+        svc = LicenseService(license_path=None, public_key=b"unused")
+        with pytest.raises(ValueError, match="No active license"):
+            svc.generate_activation_file()
+
+    def test_activation_file_raises_for_expired(self, make_license, patch_data_dir):
+        """Activation file generation should raise ValueError for expired license."""
+        expired_claims = {
+            "sub": "acme-corp",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        }
+        path, pub = make_license(expired_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        with pytest.raises(ValueError, match="No active license"):
+            svc.generate_activation_file()
+
+    def test_activation_file_raises_without_instance_id(self, make_license, valid_claims, patch_data_dir):
+        """Activation file generation should raise if instance_id is somehow None."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        # Force instance_id to None
+        svc._instance_id = None
+
+        with pytest.raises(ValueError, match="No active license"):
+            svc.generate_activation_file()
+
+    def test_deactivation_file_structure(self, make_license, valid_claims, patch_data_dir):
+        """Deactivation file should contain correct type, version, licenseId, instanceId, timestamp."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        result = svc.generate_deactivation_file()
+
+        assert result is not None
+        assert result["type"] == "cassini-deactivation"
+        assert result["version"] == 1
+        assert result["licenseId"] == "acme-corp"
+        assert result["instanceId"] == svc.instance_id
+        assert "timestamp" in result
+        datetime.fromisoformat(result["timestamp"])
+
+    def test_deactivation_file_none_for_community(self):
+        """Deactivation file should return None for community edition (not valid)."""
+        svc = LicenseService(license_path=None, public_key=b"unused")
+        assert svc.generate_deactivation_file() is None
+
+    def test_deactivation_file_none_without_instance_id(self, make_license, valid_claims, patch_data_dir):
+        """Deactivation file should return None if instance_id is None."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        svc._instance_id = None
+
+        assert svc.generate_deactivation_file() is None
+
+    def test_deactivation_file_none_after_clear(self, make_license, valid_claims, patch_data_dir):
+        """Deactivation file should return None after clear() since _valid is False."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        svc.clear()
+        assert svc.generate_deactivation_file() is None
+
+    def test_deactivation_file_before_clear(self, make_license, valid_claims, patch_data_dir):
+        """Deactivation file must be generated BEFORE clear() to capture license data."""
+        path, pub = make_license(valid_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        instance_id = svc.instance_id
+
+        # Generate deactivation file first, then clear — simulating the endpoint flow
+        deactivation = svc.generate_deactivation_file()
+        svc.clear()
+
+        assert deactivation is not None
+        assert deactivation["licenseId"] == "acme-corp"
+        assert deactivation["instanceId"] == instance_id
+
+    def test_deactivation_file_works_for_expired_license(self, make_license, patch_data_dir):
+        """Deactivation file should still work for expired licenses (valid=True, expired=True)."""
+        expired_claims = {
+            "sub": "acme-corp",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        }
+        path, pub = make_license(expired_claims)
+        svc = LicenseService(license_path=str(path), public_key=pub)
+
+        # Expired license still has _valid=True, just is_commercial=False
+        result = svc.generate_deactivation_file()
+        assert result is not None
+        assert result["type"] == "cassini-deactivation"
+        assert result["licenseId"] == "acme-corp"

@@ -14,5 +14,18 @@ class LicenseStatusResponse(BaseModel):
     licensed_tier: str | None = None
 
 
+class ActivationFileResponse(BaseModel):
+    type: str  # "cassini-activation" or "cassini-deactivation"
+    version: int
+    licenseId: str
+    instanceId: str
+    timestamp: str
+
+
+class LicenseRemoveResponse(BaseModel):
+    status: LicenseStatusResponse
+    deactivation_file: ActivationFileResponse | None = None
+
+
 class LicenseUploadRequest(BaseModel):
     key: str
