@@ -19,6 +19,7 @@ from cassini.api.deps import (
     get_current_engineer,
     get_db_session,
     get_hierarchy_repo,
+    invalidate_char_plant_cache,
 )
 from cassini.db.models.user import User
 from cassini.db.models.characteristic import Characteristic
@@ -309,6 +310,9 @@ async def update_hierarchy_node(
                 detail=f"Hierarchy node {node_id} not found",
             )
 
+        # Hierarchy structure changed — clear char-to-plant cache
+        invalidate_char_plant_cache()
+
         # Tier 1 audit context
         new_values = {k: getattr(node, k, None) for k in update_data}
         request.state.audit_context = {
@@ -382,6 +386,9 @@ async def delete_hierarchy_node(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Hierarchy node {node_id} not found",
         )
+
+    # Hierarchy structure changed — clear char-to-plant cache
+    invalidate_char_plant_cache()
 
     # Tier 1 audit context
     request.state.audit_context = {

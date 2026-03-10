@@ -6,13 +6,13 @@ requests (POST/PUT/PATCH/DELETE) without blocking responses.
 """
 
 import asyncio
+import json as _json
 import re
 from typing import Optional
 
 import structlog
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from cassini.db.models.audit_log import AuditLog
 
@@ -454,57 +454,116 @@ class AuditService:
         logger.info("audit_subscriptions_wired", event_count=len(_AUDITED_EVENTS))
 
 
-class AuditMiddleware(BaseHTTPMiddleware):
-    """Logs all mutating API requests (POST/PUT/PATCH/DELETE).
+class AuditMiddleware:
+    """Pure ASGI middleware for audit logging.
 
-    Runs after the response is sent so it does not slow down the request.
-    Gets AuditService lazily from app.state so it can be registered before lifespan.
+    Logs all mutating API requests (POST/PUT/PATCH/DELETE) without
+    double-buffering the request body. Gets AuditService lazily from
+    app.state so it can be registered before lifespan.
+
+    Compatible with ``app.add_middleware(AuditMiddleware)`` — Starlette wraps
+    any class with ``__init__(app)`` + ``__call__(scope, receive, send)``.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Build a lightweight Request wrapper to read headers/path/state
+        request = Request(scope, receive)
+
         # Skip audit logging entirely in Community edition
         license_svc = getattr(request.app.state, "license_service", None)
         if license_svc and not license_svc.is_commercial:
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Cache request body for Tier 2 auto-capture (only for JSON mutating methods)
-        # Skip body parsing for large payloads (>100KB) to prevent memory spikes
+        method = scope["method"]
+
+        # ---------------------------------------------------------------
+        # Body caching: intercept `receive` to capture JSON body <100KB
+        # for Tier 2 auto-capture without consuming the stream.
+        # ---------------------------------------------------------------
         cached_body: dict | None = None
-        if request.method in ("POST", "PUT", "PATCH"):
-            content_type = request.headers.get("content-type", "")
-            content_length = int(request.headers.get("content-length", "0") or "0")
-            if "application/json" in content_type and content_length <= 102400:
-                try:
-                    raw = await request.body()
+        body_chunks: list[bytes] = []
+        body_complete = False
+
+        should_cache_body = method in ("POST", "PUT", "PATCH")
+        if should_cache_body:
+            headers = dict(scope.get("headers", []))
+            content_type = (headers.get(b"content-type", b"") or b"").decode("latin-1")
+            content_length_raw = (headers.get(b"content-length", b"0") or b"0").decode("latin-1")
+            try:
+                content_length = int(content_length_raw)
+            except (ValueError, TypeError):
+                content_length = 0
+            should_cache_body = (
+                "application/json" in content_type
+                and 0 < content_length <= 102400
+            )
+
+        async def receive_wrapper() -> Message:
+            nonlocal body_complete, cached_body
+            message = await receive()
+
+            if should_cache_body and not body_complete and message["type"] == "http.request":
+                chunk = message.get("body", b"")
+                if chunk:
+                    body_chunks.append(chunk)
+                if not message.get("more_body", False):
+                    body_complete = True
+                    raw = b"".join(body_chunks)
                     if raw:
-                        import json as _json
+                        try:
+                            cached_body = _json.loads(raw)
+                        except Exception:
+                            cached_body = None
 
-                        cached_body = _json.loads(raw)
-                except Exception:
-                    cached_body = None
+            return message
 
-        response = await call_next(request)
+        # ---------------------------------------------------------------
+        # Response status capture: intercept `send` to read status code
+        # ---------------------------------------------------------------
+        response_status = 0
 
-        # Get audit service lazily from app state
+        async def send_wrapper(message: Message) -> None:
+            nonlocal response_status
+            if message["type"] == "http.response.start":
+                response_status = message.get("status", 0)
+            await send(message)
+
+        # ---------------------------------------------------------------
+        # Run the inner app
+        # ---------------------------------------------------------------
+        await self.app(scope, receive_wrapper, send_wrapper)
+
+        # ---------------------------------------------------------------
+        # Post-response audit logging (fire-and-forget)
+        # ---------------------------------------------------------------
         audit_service: Optional[AuditService] = getattr(
             request.app.state, "audit_service", None
         )
         if audit_service is None:
-            return response
+            return
 
-        # Only log mutating requests that succeeded
+        path = scope.get("path", "")
+
         if (
-            request.method in ("POST", "PUT", "PATCH", "DELETE")
-            and response.status_code < 400
-            and request.url.path not in _SKIP_PATHS
+            method in ("POST", "PUT", "PATCH", "DELETE")
+            and response_status < 400
+            and path not in _SKIP_PATHS
             and not any(
-                seg in request.url.path
+                seg in path
                 for seg in (
                     "/auth/login", "/auth/logout", "/auth/refresh", "/auth/token",
                 )
             )
         ):
-            # Extract user info from JWT (best-effort, don't block on failure)
+            # Extract user info from JWT (best-effort)
             user_id, username = _extract_user_from_request(request)
             ip = _get_client_ip(request)
             ua = (request.headers.get("user-agent") or "")[:512]
@@ -514,18 +573,18 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             if audit_ctx:
                 # Tier 1: endpoint set rich context
-                resource_type = audit_ctx.get("resource_type") or _parse_resource(request.url.path)[0]
-                resource_id = audit_ctx.get("resource_id") or _parse_resource(request.url.path)[1]
-                action = audit_ctx.get("action") or _method_to_action(request.method, request.url.path)
-                detail = {
+                resource_type = audit_ctx.get("resource_type") or _parse_resource(path)[0]
+                resource_id = audit_ctx.get("resource_id") or _parse_resource(path)[1]
+                action = audit_ctx.get("action") or _method_to_action(method, path)
+                detail: dict = {
                     "summary": audit_ctx.get("summary"),
                     **(audit_ctx.get("fields") or {}),
                 }
             else:
                 # Tier 2: auto-capture sanitized request body
-                resource_type, resource_id = _parse_resource(request.url.path)
-                action = _method_to_action(request.method, request.url.path)
-                detail: dict = {"method": request.method, "path": request.url.path}
+                resource_type, resource_id = _parse_resource(path)
+                action = _method_to_action(method, path)
+                detail = {"method": method, "path": path}
                 if cached_body and isinstance(cached_body, dict):
                     detail["body"] = _sanitize_body(cached_body)
 
@@ -542,8 +601,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     detail=detail,
                 )
             )
-
-        return response
 
 
 def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optional[str]]:

@@ -170,6 +170,7 @@ class ConnectionManager:
     async def broadcast_to_characteristic(self, char_id: int, message: dict[str, Any]) -> None:
         """Send a message to all subscribers of a specific characteristic.
 
+        Sends concurrently via asyncio.gather for better throughput.
         Dead connections (those that raise exceptions during send) are automatically
         disconnected and cleaned up.
 
@@ -180,15 +181,22 @@ class ConnectionManager:
         if char_id not in self._char_subscribers:
             return
 
-        dead_connections = []
-        for conn_id in self._char_subscribers[char_id]:
+        send_tasks: dict[str, Any] = {}
+        for conn_id in list(self._char_subscribers[char_id]):
             if conn_id in self._connections:
-                try:
-                    await self._connections[conn_id].websocket.send_json(message)
-                except Exception:
-                    dead_connections.append(conn_id)
+                send_tasks[conn_id] = self._connections[conn_id].websocket.send_json(message)
+
+        if not send_tasks:
+            return
+
+        results = await asyncio.gather(*send_tasks.values(), return_exceptions=True)
 
         # Clean up dead connections
+        dead_connections = [
+            conn_id
+            for conn_id, result in zip(send_tasks.keys(), results)
+            if isinstance(result, Exception)
+        ]
         for conn_id in dead_connections:
             await self.disconnect(conn_id)
 
