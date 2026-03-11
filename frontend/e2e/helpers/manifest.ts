@@ -50,6 +50,14 @@ export interface SeedManifest {
   settings: { plant_id: number }
   // Notifications
   notifications: { webhook_id: number }
+  // Screenshot tour (commercial feature data)
+  screenshot_tour: StandardHierarchy & {
+    msa_study_id: number
+    fai_report_id: number
+    doe_study_id: number
+    broker_id: number
+    workflow_id: number
+  }
 }
 
 export interface StandardHierarchy {

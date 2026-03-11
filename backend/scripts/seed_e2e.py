@@ -9,6 +9,7 @@ Usage:
 """
 
 import json
+import random
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
@@ -525,6 +526,309 @@ def seed(db_path: str) -> dict:
         ("E2E Seed Hook", "https://httpbin.org/post", utcnow(), utcnow()),
     )
     manifest["notifications"] = {"webhook_id": cur.lastrowid}
+
+    # ── 9. Screenshot Tour Plant (commercial feature data) ──────────────
+    tour = seed_standard_hierarchy(cur, "Screenshot Tour Plant", "SCRNTOUR")
+    insert_role(cur, admin_id, tour["plant_id"], "admin")
+    tour_char_id = tour["char_id"]
+    tour_plant_id = tour["plant_id"]
+
+    # 50 variable samples: mix of normal, near-limits, and OOC
+    rng = random.Random(42)
+    for i in range(40):
+        # Normal values centered around 10.0 with sigma ~0.5
+        val = round(rng.gauss(10.0, 0.4), 3)
+        insert_variable_sample(cur, tour_char_id, val)
+    for i in range(7):
+        # Near-limits values (close to UCL=11.5 / LCL=8.5)
+        val = round(rng.choice([rng.uniform(11.0, 11.4), rng.uniform(8.6, 9.0)]), 3)
+        insert_variable_sample(cur, tour_char_id, val)
+    # 3 OOC values
+    ooc_values = [12.8, 7.2, 13.1]
+    ooc_sample_ids = []
+    for val in ooc_values:
+        sid = insert_variable_sample(cur, tour_char_id, val)
+        ooc_sample_ids.append(sid)
+
+    # 2 violations: 1 acknowledged, 1 unacknowledged
+    v1 = insert_violation(cur, ooc_sample_ids[0], tour_char_id)
+    insert_violation(cur, ooc_sample_ids[1], tour_char_id)
+    # Third OOC sample has no violation (it's just an out-of-spec measurement)
+
+    cur.execute(
+        "UPDATE violation SET acknowledged = 1, ack_user = ?, "
+        "ack_reason = ?, ack_timestamp = ? WHERE id = ?",
+        ("admin", "Expected process adjustment", utcnow(), v1),
+    )
+
+    # ── 9a. MSA Gage R&R Study ──
+    now = utcnow()
+    cur.execute(
+        """INSERT INTO msa_study
+        (plant_id, name, study_type, characteristic_id, num_operators, num_parts,
+         num_replicates, tolerance, status, created_by, created_at, completed_at, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            tour_plant_id, "Bore Diameter Gage R&R", "crossed_anova",
+            tour_char_id, 3, 10, 3, 4.0, "complete", admin_id, now, now,
+            json.dumps({
+                "grr_percent_tolerance": 18.2,
+                "grr_percent_study_var": 22.5,
+                "repeatability": 0.12,
+                "reproducibility": 0.08,
+                "part_variation": 0.95,
+                "ndc": 6,
+            }),
+        ),
+    )
+    msa_study_id = cur.lastrowid
+
+    # 3 operators
+    operator_ids = []
+    for seq, name in enumerate(["Alice", "Bob", "Carlos"]):
+        cur.execute(
+            "INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            (msa_study_id, name, seq),
+        )
+        operator_ids.append(cur.lastrowid)
+
+    # 10 parts
+    part_ids = []
+    rng_msa = random.Random(42)
+    for seq in range(10):
+        ref_val = round(10.0 + rng_msa.uniform(-1.5, 1.5), 3)
+        cur.execute(
+            "INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
+            (msa_study_id, f"Part {seq + 1}", ref_val, seq),
+        )
+        part_ids.append(cur.lastrowid)
+
+    # 90 measurements (3 operators x 10 parts x 3 replicates)
+    for op_id in operator_ids:
+        for part_id in part_ids:
+            # Get reference value for this part
+            cur.execute("SELECT reference_value FROM msa_part WHERE id = ?", (part_id,))
+            ref = cur.fetchone()[0]
+            for rep in range(1, 4):
+                val = round(ref + rng_msa.gauss(0, 0.15), 4)
+                cur.execute(
+                    """INSERT INTO msa_measurement
+                    (study_id, operator_id, part_id, replicate_num, value, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    (msa_study_id, op_id, part_id, rep, val, now),
+                )
+
+    # ── 9b. FAI Report ──
+    cur.execute(
+        """INSERT INTO fai_report
+        (plant_id, part_number, part_name, revision, serial_number, drawing_number,
+         organization_name, supplier, reason_for_inspection, status,
+         created_by, created_at, submitted_by, submitted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            tour_plant_id, "PN-2026-001", "Turbine Housing", "Rev C",
+            "SN-00042", "DWG-TH-100", "Saturnis Manufacturing",
+            "Apex Precision Parts", "new_part", "submitted",
+            admin_id, now, admin_id, now,
+        ),
+    )
+    fai_report_id = cur.lastrowid
+
+    # 6 inspection items (5 PASS, 1 FAIL)
+    fai_items = [
+        (1, "Bore Diameter",     25.000, 25.050, 24.950, 25.012, "mm",  "Bore Micrometer",  True,  "pass"),
+        (2, "Overall Length",    100.000, 100.100, 99.900, 100.045, "mm", "Caliper",          False, "pass"),
+        (3, "Surface Roughness",  0.800,   1.600,  None,   0.920, "Ra",  "Profilometer",     True,  "pass"),
+        (4, "Thread Pitch",       1.500,   1.520,  1.480,  1.505, "mm",  "Thread Gauge",     False, "pass"),
+        (5, "Hardness",          58.000,  62.000, 55.000, 59.200, "HRC", "Rockwell Tester",  True,  "pass"),
+        (6, "Concentricity",      0.000,   0.025,  None,   0.032, "mm",  "CMM",              True,  "fail"),
+    ]
+    for seq, (balloon, name, nom, usl, lsl, actual, unit, tool, designed, result) in enumerate(fai_items):
+        cur.execute(
+            """INSERT INTO fai_item
+            (report_id, balloon_number, characteristic_name, nominal, usl, lsl,
+             actual_value, unit, tools_used, designed_char, result, sequence_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (fai_report_id, balloon, name, nom, usl, lsl, actual, unit, tool, designed, result, seq),
+        )
+
+    # ── 9c. DOE Study ──
+    cur.execute(
+        """INSERT INTO doe_study
+        (plant_id, name, design_type, status, response_name, response_unit,
+         notes, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            tour_plant_id, "Surface Finish Optimization", "full_factorial",
+            "complete", "Surface Roughness", "Ra",
+            "2-factor full factorial study to optimize machining parameters",
+            admin_id, now, now,
+        ),
+    )
+    doe_study_id = cur.lastrowid
+
+    # 2 factors: Temperature, Speed
+    cur.execute(
+        """INSERT INTO doe_factor
+        (study_id, name, low_level, high_level, center_point, unit, display_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (doe_study_id, "Temperature", 150.0, 250.0, 200.0, "C", 0),
+    )
+    cur.execute(
+        """INSERT INTO doe_factor
+        (study_id, name, low_level, high_level, center_point, unit, display_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (doe_study_id, "Cutting Speed", 500.0, 1500.0, 1000.0, "RPM", 1),
+    )
+
+    # 10 runs: 2^2 full factorial (4 combos) + 2 replicates of center point + 4 extra reps
+    rng_doe = random.Random(42)
+    doe_runs = [
+        # (run_order, std_order, temp, speed, is_center, replicate)
+        (1,  1,  150.0,  500.0, False, 1),
+        (2,  2,  250.0,  500.0, False, 1),
+        (3,  3,  150.0, 1500.0, False, 1),
+        (4,  4,  250.0, 1500.0, False, 1),
+        (5,  5,  200.0, 1000.0, True,  1),
+        (6,  6,  200.0, 1000.0, True,  2),
+        (7,  1,  150.0,  500.0, False, 2),
+        (8,  2,  250.0,  500.0, False, 2),
+        (9,  3,  150.0, 1500.0, False, 2),
+        (10, 4,  250.0, 1500.0, False, 2),
+    ]
+    for run_order, std_order, temp, speed, is_center, replicate in doe_runs:
+        # Response model: roughness = 2.0 - 0.3*temp_coded - 0.5*speed_coded + 0.2*interaction + noise
+        temp_coded = (temp - 200.0) / 50.0
+        speed_coded = (speed - 1000.0) / 500.0
+        response = round(2.0 - 0.3 * temp_coded - 0.5 * speed_coded + 0.2 * temp_coded * speed_coded
+                         + rng_doe.gauss(0, 0.1), 3)
+        factor_vals = json.dumps({"Temperature": temp, "Cutting Speed": speed})
+        cur.execute(
+            """INSERT INTO doe_run
+            (study_id, run_order, standard_order, factor_values, factor_actuals,
+             response_value, is_center_point, replicate, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (doe_study_id, run_order, std_order, factor_vals, factor_vals,
+             response, is_center, replicate, now),
+        )
+
+    # DOE Analysis results
+    cur.execute(
+        """INSERT INTO doe_analysis
+        (study_id, anova_table, effects, interactions, r_squared, adj_r_squared,
+         regression_model, optimal_settings, computed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            doe_study_id,
+            json.dumps([
+                {"source": "Temperature", "df": 1, "ss": 0.72, "ms": 0.72, "f_value": 14.4, "p_value": 0.005},
+                {"source": "Cutting Speed", "df": 1, "ss": 2.0, "ms": 2.0, "f_value": 40.0, "p_value": 0.0002},
+                {"source": "Temperature*Speed", "df": 1, "ss": 0.32, "ms": 0.32, "f_value": 6.4, "p_value": 0.035},
+                {"source": "Residual", "df": 6, "ss": 0.30, "ms": 0.05, "f_value": None, "p_value": None},
+            ]),
+            json.dumps({"Temperature": -0.3, "Cutting Speed": -0.5}),
+            json.dumps({"Temperature*Cutting Speed": 0.2}),
+            0.91, 0.87,
+            json.dumps({"intercept": 2.0, "Temperature": -0.3, "Cutting Speed": -0.5,
+                         "Temperature*Cutting Speed": 0.2}),
+            json.dumps({"Temperature": 250.0, "Cutting Speed": 1500.0,
+                         "predicted_response": 1.0}),
+            now,
+        ),
+    )
+
+    # ── 9d. MQTT Broker ──
+    cur.execute(
+        """INSERT INTO mqtt_broker
+        (plant_id, name, host, port, client_id, keepalive, max_reconnect_delay,
+         use_tls, tls_insecure, is_active, payload_format,
+         outbound_enabled, outbound_topic_prefix, outbound_format, outbound_rate_limit,
+         created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            tour_plant_id, "Shop Floor Broker", "localhost", 1883,
+            "cassini-tour-001", 60, 300,
+            0, 0, 1, "json",
+            0, "cassini", "json", 1.0,
+            now, now,
+        ),
+    )
+    tour_broker_id = cur.lastrowid
+
+    # ── 9e. Signature Workflow ──
+    cur.execute(
+        """INSERT INTO signature_workflow
+        (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            tour_plant_id, "Sample Approval Workflow", "sample_approval",
+            1, 1, "Two-step approval for critical sample data",
+            now, now,
+        ),
+    )
+    tour_workflow_id = cur.lastrowid
+
+    # 2 workflow steps
+    cur.execute(
+        """INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (tour_workflow_id, 1, "Engineering Review", "engineer", "reviewed", 1, 0, 48),
+    )
+    cur.execute(
+        """INSERT INTO signature_workflow_step
+        (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (tour_workflow_id, 2, "Quality Approval", "supervisor", "approved", 1, 0, 24),
+    )
+
+    # Signature meanings
+    for sort_order, (code, display, desc, req_comment) in enumerate([
+        ("reviewed", "Reviewed", "Content has been technically reviewed", 0),
+        ("approved", "Approved", "Content has been approved for release", 0),
+        ("rejected", "Rejected", "Content has been rejected — requires rework", 1),
+    ]):
+        cur.execute(
+            """INSERT INTO signature_meaning
+            (plant_id, code, display_name, description, requires_comment, is_active, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (tour_plant_id, code, display, desc, req_comment, 1, sort_order),
+        )
+
+    # ── 9f. Retention Policy (7 years) ──
+    cur.execute(
+        """INSERT INTO retention_policy
+        (plant_id, scope, hierarchy_id, characteristic_id,
+         retention_type, retention_value, retention_unit, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (tour_plant_id, "global", None, None, "time_delta", 7, "years", now, now),
+    )
+
+    # ── 9g. Audit Log Entries ──
+    audit_entries = [
+        (admin_id, "admin", "login",            None,                None,   {"method": "password"},        "192.168.1.100"),
+        (admin_id, "admin", "create_plant",      "plant",             tour_plant_id, {"name": "Screenshot Tour Plant"}, "192.168.1.100"),
+        (admin_id, "admin", "create_characteristic", "characteristic", tour_char_id, {"name": "Test Char"},       "192.168.1.100"),
+        (admin_id, "admin", "submit_sample",     "sample",            ooc_sample_ids[0], {"value": 12.8},         "192.168.1.100"),
+        (admin_id, "admin", "acknowledge_violation", "violation",     v1,             {"reason": "Expected process adjustment"}, "192.168.1.100"),
+        (admin_id, "admin", "export_report",     "report",            None,           {"format": "pdf", "type": "capability"}, "192.168.1.100"),
+    ]
+    for user_id, username, action, res_type, res_id, detail, ip in audit_entries:
+        cur.execute(
+            """INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, username, action, res_type, res_id, json.dumps(detail), ip, now),
+        )
+
+    manifest["screenshot_tour"] = {
+        **tour,
+        "msa_study_id": msa_study_id,
+        "fai_report_id": fai_report_id,
+        "doe_study_id": doe_study_id,
+        "broker_id": tour_broker_id,
+        "workflow_id": tour_workflow_id,
+    }
 
     conn.commit()
     conn.close()
