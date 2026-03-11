@@ -246,6 +246,9 @@ class TestUpdateRulesPublishesEvent:
         mock_repo.get_with_rules.return_value = mock_char
 
         mock_session = AsyncMock()
+        # session.add() is sync in SQLAlchemy — use MagicMock to avoid
+        # RuntimeWarning about unawaited coroutines
+        mock_session.add = MagicMock()
 
         # After session.refresh(), update characteristic.rules to new state
         async def _refresh_side_effect(obj):
@@ -308,6 +311,7 @@ class TestUpdateRulesPublishesEvent:
         mock_repo.get_with_rules.return_value = mock_char
 
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
 
         async def _refresh_side_effect(obj):
             obj.rules = new_rule_objs

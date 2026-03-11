@@ -1300,9 +1300,9 @@ class TestCharDataDedup:
 
     @pytest.mark.asyncio
     async def test_process_sample_char_data_id_mismatch_raises(self, spc_engine):
-        """char_data with wrong id raises AssertionError."""
+        """char_data with wrong id raises ValueError."""
         char_data = {"id": 999, "rules": []}
-        with pytest.raises(AssertionError, match="char_data id 999"):
+        with pytest.raises(ValueError, match="char_data id 999"):
             await spc_engine.process_sample(
                 characteristic_id=1,
                 measurements=[100.0],

@@ -537,9 +537,10 @@ class SPCEngine:
         # When char_data is provided by the caller (pre-loaded), skip the DB
         # query to avoid a redundant SELECT per sample.
         if char_data is not None:
-            assert char_data.get("id") == characteristic_id, (
-                f"char_data id {char_data.get('id')} != characteristic_id {characteristic_id}"
-            )
+            if char_data.get("id") != characteristic_id:
+                raise ValueError(
+                    f"char_data id {char_data.get('id')} != characteristic_id {characteristic_id}"
+                )
 
             # Extract from dict — same fields as ORM path
             enabled_rules = {
