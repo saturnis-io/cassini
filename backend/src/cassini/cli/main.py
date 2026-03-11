@@ -22,7 +22,12 @@ from pathlib import Path
 import click
 import uvicorn
 
-__version__ = "0.0.9"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("cassini")
+except Exception:
+    __version__ = "0.0.9"
 
 
 def _get_backend_dir() -> Path:
