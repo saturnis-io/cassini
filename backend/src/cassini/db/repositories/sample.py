@@ -253,14 +253,15 @@ class SampleRepository(BaseRepository[Sample]):
         self.session.add(sample)
         await self.session.flush()  # Get the sample ID
 
-        # Create measurements for each value
-        measurements = []
-        for value in values:
-            measurement = Measurement(sample_id=sample.id, value=value)
-            self.session.add(measurement)
-            measurements.append(measurement)
+        # Create all measurement objects in-memory first
+        measurements = [
+            Measurement(sample_id=sample.id, value=value)
+            for value in values
+        ]
 
-        await self.session.flush()
+        if measurements:
+            self.session.add_all(measurements)
+            await self.session.flush()
 
         # Use set_committed_value to attach measurements without triggering lazy loading
         # Direct assignment (sample.measurements = measurements) triggers a lazy load
