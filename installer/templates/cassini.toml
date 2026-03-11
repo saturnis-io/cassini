@@ -1,0 +1,16 @@
+# Cassini SPC Configuration
+# Environment variables (CASSINI_*) override these values.
+
+[server]
+host = "0.0.0.0"
+port = 8000
+
+[database]
+# Default: SQLite at C:\ProgramData\Cassini\cassini.db
+# Uncomment for PostgreSQL:
+# url = "postgresql+asyncpg://user:password@localhost:5432/cassini"
+
+[license]
+# Place your license file at C:\ProgramData\Cassini\license.key
+# or set the path here:
+# file = "C:\\ProgramData\\Cassini\\license.key"

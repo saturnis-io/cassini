@@ -1,0 +1,32 @@
+Cassini Installer Wizard Images
+================================
+
+Place branded images in this directory for the Inno Setup installer wizard.
+These are optional — the installer works without them using Inno Setup defaults.
+
+Required image specifications (Inno Setup 6, WizardStyle=modern):
+
+  WizardImageFile (left panel on welcome/finish pages):
+    - Filename: wizard-image.bmp
+    - Dimensions: 164 x 314 pixels
+    - Format: BMP (24-bit)
+
+  WizardSmallImageFile (top-right corner on interior pages):
+    - Filename: wizard-small-image.bmp
+    - Dimensions: 55 x 55 pixels
+    - Format: BMP (24-bit)
+
+  SetupIconFile (setup .exe icon):
+    - Already provided at ../backend/assets/cassini.ico
+    - Format: ICO (multi-resolution: 16x16, 32x32, 48x48, 256x256)
+
+To enable wizard images, add these lines to the [Setup] section in cassini.iss:
+
+  WizardImageFile=assets\wizard-image.bmp
+  WizardSmallImageFile=assets\wizard-small-image.bmp
+
+Design guidance:
+  - Use Saturnis brand colors and the Cassini logo
+  - BMP format is required (Inno Setup does not accept PNG/JPG for wizard images)
+  - The wizard image appears on a white/themed background — avoid hard edges
+  - The small image should be a simple icon or logomark that reads well at 55x55
