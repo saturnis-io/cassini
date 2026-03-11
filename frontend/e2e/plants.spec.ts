@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet } from './helpers/api'
+import { API_BASE, getAuthToken, apiGet } from './helpers/api'
 
 test.describe('Plant Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe('Plant Management', () => {
     const existingPlants = await apiGet(request, '/plants/', token)
     if (existingPlants.length < 2) {
       await (
-        await request.post('http://localhost:8000/api/v1/plants/', {
+        await request.post('${API_BASE}/plants/', {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           data: { name: 'Switch Target', code: 'SWITCH' },
         })
@@ -108,7 +108,7 @@ test.describe('Plant Management', () => {
   test('edit plant name persists after refresh', async ({ page, request }) => {
     // Create a plant to edit (may already exist from prior run, possibly renamed)
     const token = await getAuthToken(request)
-    const res = await request.post('http://localhost:8000/api/v1/plants/', {
+    const res = await request.post('${API_BASE}/plants/', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: { name: 'Edit Test', code: 'EDITTEST' },
     })
@@ -117,7 +117,7 @@ test.describe('Plant Management', () => {
       const plants = await apiGet(request, '/plants/', token)
       const existing = plants.find((p: { code: string }) => p.code === 'EDITTEST')
       if (existing && existing.name !== 'Edit Test') {
-        await request.put(`http://localhost:8000/api/v1/plants/${existing.id}`, {
+        await request.put(`${API_BASE}/plants/${existing.id}`, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           data: { name: 'Edit Test', code: 'EDITTEST' },
         })
@@ -165,7 +165,7 @@ test.describe('Plant Management', () => {
     // Create a plant to delete (may already exist from prior run)
     const token = await getAuthToken(request)
     await (
-      await request.post('http://localhost:8000/api/v1/plants/', {
+      await request.post('${API_BASE}/plants/', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         data: { name: 'Delete Me', code: 'DELME' },
       })

@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet } from './helpers/api'
+import { API_BASE, getAuthToken, apiGet } from './helpers/api'
 import { createPlant, createHierarchyNode, switchToPlant } from './helpers/seed'
 
 test.describe('Hierarchy Management', () => {
@@ -93,7 +93,7 @@ test.describe('Hierarchy Management', () => {
     )
 
     // Create a characteristic via API
-    const res = await request.post('http://localhost:8000/api/v1/characteristics/', {
+    const res = await request.post('${API_BASE}/characteristics/', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: {
         hierarchy_id: station.id,
@@ -140,7 +140,7 @@ test.describe('Hierarchy Management', () => {
     })
 
     // Delete via API (UI delete is complex with tree interaction)
-    await request.delete(`http://localhost:8000/api/v1/hierarchy/${node.id}`, {
+    await request.delete(`${API_BASE}/hierarchy/${node.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 

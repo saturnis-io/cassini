@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet, apiPost } from './helpers/api'
+import { API_BASE, getAuthToken, apiGet, apiPost } from './helpers/api'
 import { switchToPlant } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
@@ -230,7 +230,7 @@ test.describe('Characteristic Configuration', () => {
     expect(before.control_limits.center_line).toBeDefined()
 
     // Recalculate — may fail with 400 if insufficient data; skip in that case
-    const res = await request.post(`http://localhost:8000/api/v1/characteristics/${characteristicId}/recalculate-limits`, {
+    const res = await request.post(`${API_BASE}/characteristics/${characteristicId}/recalculate-limits`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     })
     if (!res.ok()) {

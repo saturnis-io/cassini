@@ -60,7 +60,7 @@ let plant3Id: number
 async function newAuthPage(browser: import('@playwright/test').Browser) {
   const ctx = await browser.newContext({
     storageState: AUTH_FILE,
-    baseURL: 'http://localhost:5173',
+    baseURL: `http://localhost:${process.env.E2E_FRONTEND_PORT || '5174'}`,
   })
   const page = await ctx.newPage()
   await page.goto('/dashboard', { timeout: 30000 })
@@ -129,7 +129,7 @@ test.beforeAll(async ({ request, browser }) => {
 
   // One-time browser login → save storage state for all UI tests
   mkdirSync('e2e/.auth', { recursive: true })
-  const authCtx = await browser.newContext({ baseURL: 'http://localhost:5173' })
+  const authCtx = await browser.newContext({ baseURL: `http://localhost:${process.env.E2E_FRONTEND_PORT || '5174'}` })
   const authPage = await authCtx.newPage()
   await loginAsUser(authPage, 'admin', 'admin')
   await authCtx.storageState({ path: AUTH_FILE })
