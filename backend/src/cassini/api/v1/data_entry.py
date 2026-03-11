@@ -198,9 +198,37 @@ async def submit_sample(
         # Commit the transaction
         await session.commit()
 
-        # Get violations for the sample (includes both standard and supplementary)
-        violation_repo = ViolationRepository(session)
-        violations = await violation_repo.get_by_sample(result.sample_id)
+        # Determine if supplementary analysis (CUSUM/EWMA) ran — those create
+        # additional violations not captured in result.violations.
+        has_supplementary = (
+            (characteristic.cusum_target is not None and characteristic.cusum_k is not None)
+            or characteristic.ewma_lambda is not None
+        )
+
+        if has_supplementary:
+            # Supplementary analysis may have created additional violations — must re-query
+            violation_repo = ViolationRepository(session)
+            all_violations = await violation_repo.get_by_sample(result.sample_id)
+            response_violations = [
+                {
+                    "rule_id": v.rule_id,
+                    "rule_name": v.rule_name,
+                    "severity": v.severity,
+                }
+                for v in all_violations
+            ]
+            violation_count = len(all_violations)
+        else:
+            # No supplementary analysis — use result.violations directly (saves a SELECT)
+            response_violations = [
+                {
+                    "rule_id": v.rule_id,
+                    "rule_name": v.rule_name,
+                    "severity": v.severity,
+                }
+                for v in result.violations
+            ]
+            violation_count = len(result.violations)
 
         response = DataEntryResponse(
             sample_id=result.sample_id,
@@ -210,14 +238,7 @@ async def submit_sample(
             range_value=result.range_value,
             zone=result.zone,
             in_control=result.in_control,
-            violations=[
-                {
-                    "rule_id": v.rule_id,
-                    "rule_name": v.rule_name,
-                    "severity": v.severity,
-                }
-                for v in violations
-            ],
+            violations=response_violations,
         )
 
         request.state.audit_context = {
@@ -229,7 +250,7 @@ async def submit_sample(
                 "characteristic_id": data.characteristic_id,
                 "measurement_count": len(data.measurements),
                 "in_control": result.in_control,
-                "violation_count": len(violations),
+                "violation_count": violation_count,
             },
         }
 
