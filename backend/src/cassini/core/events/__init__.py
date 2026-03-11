@@ -32,6 +32,7 @@ from cassini.core.events.bus import EventBus, EventHandler, event_bus
 from cassini.core.events.events import (
     AlertThresholdExceededEvent,
     AnomalyDetectedEvent,
+    BatchEvaluationCompleteEvent,
     CharacteristicCreatedEvent,
     CharacteristicDeletedEvent,
     CharacteristicUpdatedEvent,
@@ -87,4 +88,6 @@ __all__ = [
     "CorrelationAlertEvent",
     # Purge events
     "PurgeCompletedEvent",
+    # Batch evaluation events
+    "BatchEvaluationCompleteEvent",
 ]

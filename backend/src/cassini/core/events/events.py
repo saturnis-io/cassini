@@ -345,3 +345,24 @@ class PurgeCompletedEvent(Event):
     violations_deleted: int
     characteristics_processed: int
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
+class BatchEvaluationCompleteEvent(Event):
+    """Emitted when async batch SPC finishes for a batch.
+
+    Published once per batch (not per sample) to avoid WebSocket flooding.
+    Frontend uses this to trigger a single chart refresh.
+
+    Attributes:
+        characteristic_id: ID of the characteristic assessed
+        sample_count: Number of samples assessed in this batch
+        violation_count: Number of violations created
+        sample_ids: List of sample IDs that were assessed
+    """
+
+    characteristic_id: int
+    sample_count: int
+    violation_count: int
+    sample_ids: list[int] = field(default_factory=list)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
