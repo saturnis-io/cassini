@@ -105,9 +105,10 @@ test.describe('Electronic Signatures', () => {
     await meaningsTab.click()
     await page.waitForTimeout(2000)
 
-    // Should show the Signature Meanings heading
+    // Should show the Signature Meanings content area (not the tab button)
+    const content = page.locator('[data-ui="signature-settings"]')
     await expect(
-      page.getByText('Signature Meanings').nth(1),
+      content.getByText('Signature Meanings').first(),
     ).toBeVisible({ timeout: 5000 })
 
     // The seed creates default meanings: reviewed, approved, rejected

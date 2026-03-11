@@ -15,11 +15,12 @@ test.describe('Database Settings', () => {
       page.locator('[data-ui="database-status-card"]'),
     ).toBeVisible({ timeout: 10000 })
 
-    // Should show current dialect (SQLite in dev)
-    await expect(page.getByText('SQLite')).toBeVisible({ timeout: 5000 })
+    // Should show current dialect (SQLite in dev) — scoped to status card
+    const statusCard = page.locator('[data-ui="database-status-card"]')
+    await expect(statusCard.getByText('SQLite')).toBeVisible({ timeout: 5000 })
 
     // Should show connected status
-    await expect(page.getByText('Connected')).toBeVisible({ timeout: 5000 })
+    await expect(statusCard.getByText('Connected')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('database-settings-loaded', {
       body: await page.screenshot(),
@@ -60,16 +61,18 @@ test.describe('Database Settings', () => {
       page.locator('[data-ui="database-statistics-card"]'),
     ).toBeVisible({ timeout: 10000 })
 
-    // Should show stat card labels
-    await expect(page.getByText('Characteristics')).toBeVisible({
+    // Should show stat card labels (scoped to statistics card to avoid sidebar nav collisions)
+    const statsCard = page.locator('[data-ui="database-statistics-card"]')
+    await expect(statsCard.getByText('Characteristics')).toBeVisible({
       timeout: 5000,
     })
-    await expect(page.getByText('Samples')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Violations')).toBeVisible({ timeout: 5000 })
+    await expect(statsCard.getByText('Samples')).toBeVisible({ timeout: 5000 })
+    await expect(statsCard.getByText('Violations')).toBeVisible({ timeout: 5000 })
 
-    // Should show status info (Tables count, Size)
-    await expect(page.getByText('Tables')).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText('Engine')).toBeVisible({ timeout: 5000 })
+    // Should show status info (Tables count, Size) — scoped to status card
+    const statusCard = page.locator('[data-ui="database-status-card"]')
+    await expect(statusCard.getByText('Tables')).toBeVisible({ timeout: 5000 })
+    await expect(statusCard.getByText('Engine')).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('database-status-stats', {
       body: await page.screenshot(),

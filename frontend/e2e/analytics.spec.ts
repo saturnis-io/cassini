@@ -16,7 +16,7 @@ test.describe('Analytics', () => {
     // and a tabbed interface (Correlation, Multivariate, Predictions, AI Insights)
     const analyticsPage = page.locator('[data-ui="analytics-page"]')
     await expect(analyticsPage).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('Analytics', { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 5000 })
 
     // At least one tab button should be present
     await expect(page.getByText('Correlation')).toBeVisible({ timeout: 5000 })

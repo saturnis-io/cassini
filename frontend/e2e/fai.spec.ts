@@ -21,7 +21,7 @@ test.describe('FAI - First Article Inspection', () => {
     await page.waitForTimeout(2000)
 
     // Verify the page header is visible
-    await expect(page.getByText('First Article Inspection')).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'First Article Inspection' })).toBeVisible({
       timeout: 10000,
     })
 
@@ -52,7 +52,7 @@ test.describe('FAI - First Article Inspection', () => {
     })
 
     // Navigate to Form 3 (Characteristic Accountability) to see items table
-    await page.getByText('Form 3').click()
+    await page.getByRole('tab', { name: 'Form 3' }).click()
     await page.waitForTimeout(1500)
 
     // Verify the Form 3 heading is visible
@@ -106,7 +106,7 @@ test.describe('FAI - First Article Inspection', () => {
     await page.waitForTimeout(2000)
 
     // Navigate to Form 3 for the items table
-    await page.getByText('Form 3').click()
+    await page.getByRole('tab', { name: 'Form 3' }).click()
     await page.waitForTimeout(1500)
 
     // Verify the summary bar shows pass/fail counts
@@ -234,7 +234,7 @@ test.describe('FAI - First Article Inspection', () => {
     })
 
     // Also screenshot Form 3 with the items table
-    await page.getByText('Form 3').click()
+    await page.getByRole('tab', { name: 'Form 3' }).click()
     await page.waitForTimeout(1500)
 
     await test.info().attach('fai-report-detail-form3', {

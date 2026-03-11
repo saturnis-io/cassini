@@ -54,7 +54,7 @@ test.describe('DOE - Design of Experiments', () => {
     ).toBeVisible({ timeout: 10000 })
 
     // Navigate to the Define phase to see the factors table
-    const defineStep = page.getByText('Define', { exact: true })
+    const defineStep = page.getByRole('tab', { name: 'Define' })
     if (await defineStep.isVisible({ timeout: 3000 }).catch(() => false)) {
       await defineStep.click()
       await page.waitForTimeout(1000)
@@ -84,7 +84,7 @@ test.describe('DOE - Design of Experiments', () => {
     await page.waitForTimeout(3000)
 
     // Navigate to the Collect phase to see the runs table
-    const collectStep = page.getByText('Collect', { exact: true })
+    const collectStep = page.getByRole('tab', { name: 'Collect' })
     if (await collectStep.isVisible({ timeout: 3000 }).catch(() => false)) {
       await collectStep.click()
       await page.waitForTimeout(2000)
@@ -99,7 +99,7 @@ test.describe('DOE - Design of Experiments', () => {
     await expect(page.getByText('Run #').or(page.getByText('Run Order'))).toBeVisible({
       timeout: 5000,
     })
-    await expect(page.getByText('Response')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Response').first()).toBeVisible({ timeout: 5000 })
 
     // The data collection progress should indicate completed runs
     await expect(
@@ -120,7 +120,7 @@ test.describe('DOE - Design of Experiments', () => {
     await page.waitForTimeout(3000)
 
     // Navigate to the Analyze phase
-    const analyzeStep = page.getByText('Analyze', { exact: true })
+    const analyzeStep = page.getByRole('tab', { name: 'Analyze' })
     if (await analyzeStep.isVisible({ timeout: 3000 }).catch(() => false)) {
       await analyzeStep.click()
       await page.waitForTimeout(2000)
