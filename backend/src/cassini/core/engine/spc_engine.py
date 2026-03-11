@@ -83,6 +83,37 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Module-level shared rule cache (per-worker singleton, like RollingWindowManager)
+# ---------------------------------------------------------------------------
+# SPCEngine is created per-request, so a per-instance cache never gets hits
+# for single-sample requests.  A shared cache lets successive requests reuse
+# the built NelsonRuleLibrary for a given characteristic.  Event-bus
+# invalidation (CharacteristicUpdatedEvent) is wired once in the app lifespan.
+# ---------------------------------------------------------------------------
+_shared_rule_cache: OrderedDict[int, tuple["NelsonRuleLibrary", float]] | None = None
+_RULE_CACHE_MAX_SIZE: int = 500
+_RULE_CACHE_TTL: float = 300.0  # 5 minutes
+
+
+def get_shared_rule_cache() -> OrderedDict:
+    """Return the per-worker singleton rule cache, creating it lazily."""
+    global _shared_rule_cache
+    if _shared_rule_cache is None:
+        _shared_rule_cache = OrderedDict()
+    return _shared_rule_cache
+
+
+def invalidate_rule_cache(characteristic_id: int) -> None:
+    """Remove cached rule library for a characteristic.
+
+    Called when CharacteristicUpdatedEvent is received.
+    Safe to call even if cache doesn't exist yet.
+    """
+    global _shared_rule_cache
+    if _shared_rule_cache is not None:
+        _shared_rule_cache.pop(characteristic_id, None)
+
 
 def extract_char_data(char) -> dict:
     """Extract char_data dict from ORM Characteristic for process_sample dedup.
@@ -247,11 +278,6 @@ class SPCEngine:
         self._window_manager = window_manager
         self._rule_library = rule_library
 
-        # LRU cache: characteristic_id -> (NelsonRuleLibrary, created_at_monotonic)
-        self._rule_cache: OrderedDict[int, tuple["NelsonRuleLibrary", float]] = OrderedDict()
-        self._rule_cache_max_size: int = 500
-        self._rule_cache_ttl: float = 300.0  # 5 minutes
-
         # Use provided event bus or import global instance
         if event_bus is None:
             from cassini.core.events import event_bus as global_bus
@@ -265,39 +291,40 @@ class SPCEngine:
     ) -> "NelsonRuleLibrary":
         """Get cached rule library or build new one.
 
-        LRU cache keyed by characteristic_id with TTL safety net.
-        Each cached entry is an independent NelsonRuleLibrary instance,
-        preventing cross-contamination between characteristics.
+        Uses the module-level shared cache (per-worker singleton) so that
+        successive per-request SPCEngine instances benefit from cached
+        NelsonRuleLibrary builds.  LRU eviction + TTL safety net.
         """
         from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 
         now = time.monotonic()
+        cache = get_shared_rule_cache()
 
-        if char_id in self._rule_cache:
-            library, created_at = self._rule_cache[char_id]
-            if now - created_at < self._rule_cache_ttl:
-                self._rule_cache.move_to_end(char_id)  # LRU touch
+        if char_id in cache:
+            library, created_at = cache[char_id]
+            if now - created_at < _RULE_CACHE_TTL:
+                cache.move_to_end(char_id)  # LRU touch
                 return library
             else:
-                del self._rule_cache[char_id]  # TTL expired
+                del cache[char_id]  # TTL expired
 
         # Build new library (independent instance)
         library = NelsonRuleLibrary()
         library.create_from_config(rule_configs)
 
         # LRU eviction
-        while len(self._rule_cache) >= self._rule_cache_max_size:
-            self._rule_cache.popitem(last=False)  # Remove oldest
+        while len(cache) >= _RULE_CACHE_MAX_SIZE:
+            cache.popitem(last=False)  # Remove oldest
 
-        self._rule_cache[char_id] = (library, now)
+        cache[char_id] = (library, now)
         return library
 
     def _invalidate_rule_cache(self, characteristic_id: int) -> None:
         """Remove cached rule library for a characteristic.
 
-        Called when CharacteristicUpdatedEvent is received.
+        Delegates to the module-level invalidate_rule_cache().
         """
-        self._rule_cache.pop(characteristic_id, None)
+        invalidate_rule_cache(characteristic_id)
 
     def _validate_measurements(
         self,

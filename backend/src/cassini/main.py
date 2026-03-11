@@ -260,6 +260,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("initial_compliance_check_failed", error=str(e))
 
+    # Wire rule cache invalidation to event bus (must happen once per worker)
+    from cassini.core.events.events import CharacteristicUpdatedEvent
+    from cassini.core.engine.spc_engine import invalidate_rule_cache
+
+    async def _on_characteristic_updated(event: CharacteristicUpdatedEvent) -> None:
+        invalidate_rule_cache(event.characteristic_id)
+
+    event_bus.subscribe(CharacteristicUpdatedEvent, _on_characteristic_updated)
+
     # Start async SPC queue (commercial feature but always starts — community just won't use it)
     from cassini.core.engine.spc_queue import get_spc_queue
     from cassini.core.engine.rolling_window import get_shared_window_manager
