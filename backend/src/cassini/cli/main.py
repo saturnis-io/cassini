@@ -1,7 +1,8 @@
 """Cassini CLI entrypoint.
 
 Provides commands for running the server, managing migrations,
-creating admin users, and performing health checks.
+creating admin users, performing health checks, and managing
+the Windows Service.
 
 Usage:
     cassini serve                  # auto-migrate + start server
@@ -11,12 +12,17 @@ Usage:
     cassini create-admin           # interactive admin creation
     cassini version                # print version + build info
     cassini check                  # validate config, DB, license
+    cassini service install        # install Windows Service
+    cassini service uninstall      # remove Windows Service
+    cassini service start          # start the service
+    cassini service stop           # stop the service
 """
 
 from __future__ import annotations
 
 import asyncio
 import platform
+import sys
 from pathlib import Path
 
 import click
@@ -299,6 +305,94 @@ def check() -> None:
         raise SystemExit(1)
     else:
         click.echo("\nAll checks passed.")
+
+
+# -- Windows Service helpers -----------------------------------------------
+
+
+def _require_windows() -> None:
+    """Raise ClickException if not running on Windows."""
+    if sys.platform != "win32":
+        raise click.ClickException("Windows Service commands are only available on Windows")
+
+
+def _service_install() -> None:
+    """Install the Cassini Windows Service."""
+    _require_windows()
+    import win32serviceutil  # type: ignore[import-untyped]
+
+    from cassini.service.windows_service import CassiniService
+
+    win32serviceutil.InstallService(
+        CassiniService._svc_reg_class_,
+        CassiniService._svc_name_,
+        CassiniService._svc_display_name_,
+        description=CassiniService._svc_description_,
+        startType=win32serviceutil.SERVICE_AUTO_START,
+    )
+
+
+def _service_uninstall() -> None:
+    """Uninstall the Cassini Windows Service."""
+    _require_windows()
+    import win32serviceutil  # type: ignore[import-untyped]
+
+    from cassini.service.windows_service import CassiniService
+
+    win32serviceutil.RemoveService(CassiniService._svc_name_)
+
+
+def _service_start() -> None:
+    """Start the Cassini Windows Service."""
+    _require_windows()
+    import win32serviceutil  # type: ignore[import-untyped]
+
+    from cassini.service.windows_service import CassiniService
+
+    win32serviceutil.StartService(CassiniService._svc_name_)
+
+
+def _service_stop() -> None:
+    """Stop the Cassini Windows Service."""
+    _require_windows()
+    import win32serviceutil  # type: ignore[import-untyped]
+
+    from cassini.service.windows_service import CassiniService
+
+    win32serviceutil.StopService(CassiniService._svc_name_)
+
+
+@cli.group()
+def service() -> None:
+    """Manage the Cassini Windows Service."""
+
+
+@service.command()
+def install() -> None:
+    """Install Cassini as a Windows Service."""
+    _service_install()
+    click.echo("Cassini service installed.")
+
+
+@service.command()
+def uninstall() -> None:
+    """Remove the Cassini Windows Service."""
+    _service_uninstall()
+    click.echo("Cassini service removed.")
+
+
+@service.command()
+def start() -> None:
+    """Start the Cassini Windows Service."""
+    _service_start()
+    click.echo("Cassini service started.")
+
+
+@service.command()
+def stop() -> None:
+    """Stop the Cassini Windows Service."""
+    _service_stop()
+    click.echo("Cassini service stopped.")
 
 
 def _redact_url(url: str) -> str:

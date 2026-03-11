@@ -2,17 +2,23 @@
 
 All environment variable reads are consolidated here. Import `settings`
 from this module rather than reading os.environ directly.
+
+Resolution order (highest priority wins):
+  init kwargs > env vars > .env file > cassini.toml > defaults
 """
+
+from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables.
+    """Application settings loaded from environment variables and TOML.
 
     All env vars are prefixed with CASSINI_ (case-insensitive).
+    TOML config file is loaded as a lower-priority source.
     """
 
     model_config = SettingsConfigDict(
@@ -21,6 +27,29 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Inject TOML config as a settings source below env vars.
+
+        Priority (first wins): init > env > .env > toml > secrets.
+        """
+        from cassini.core.toml_config import TomlConfigSettingsSource
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            TomlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
     # Application
     app_version: str = "0.0.9"

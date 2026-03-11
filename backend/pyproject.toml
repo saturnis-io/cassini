@@ -64,6 +64,9 @@ ml = [
     "scikit-learn>=1.4.0",
     "joblib>=1.3.0",
 ]
+windows = [
+    "pywin32>=306",
+]
 all = [
     "cassini[opcua,databases,notifications,sso,reporting,erp,analytics,ml]",
 ]
