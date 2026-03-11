@@ -49,6 +49,7 @@ from cassini.core.engine.control_limits import ControlLimitService
 import json as _json
 
 from cassini.core.engine.nelson_rules import NELSON_RULE_IDS
+from cassini.core.events import CharacteristicUpdatedEvent, event_bus
 from cassini.db.models.user import User
 from cassini.core.engine.rolling_window import RollingWindowManager, get_shared_window_manager
 from cassini.db.models.characteristic import Characteristic, CharacteristicRule
@@ -461,6 +462,13 @@ async def update_characteristic(
             "new_values": new_values,
         },
     }
+
+    # Publish event for cache invalidation (e.g., NelsonRuleLibrary, control limits)
+    if new_values:
+        await event_bus.publish(CharacteristicUpdatedEvent(
+            characteristic_id=char_id,
+            changes=new_values,
+        ))
 
     return CharacteristicResponse.model_validate(characteristic)
 
@@ -2006,6 +2014,12 @@ async def update_rules(
             "new_rules": new_rules,
         },
     }
+
+    # Publish event for cache invalidation (e.g., NelsonRuleLibrary cache)
+    await event_bus.publish(CharacteristicUpdatedEvent(
+        characteristic_id=char_id,
+        changes={"rules": new_rules},
+    ))
 
     return [
         NelsonRuleConfig(
