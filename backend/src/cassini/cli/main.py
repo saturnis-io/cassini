@@ -1,8 +1,8 @@
 """Cassini CLI entrypoint.
 
 Provides commands for running the server, managing migrations,
-creating admin users, performing health checks, and managing
-the Windows Service.
+creating admin users, performing health checks, managing the
+Windows Service, and launching the system tray companion.
 
 Usage:
     cassini serve                  # auto-migrate + start server
@@ -12,6 +12,7 @@ Usage:
     cassini create-admin           # interactive admin creation
     cassini version                # print version + build info
     cassini check                  # validate config, DB, license
+    cassini tray                   # launch system tray companion
     cassini service install        # install Windows Service
     cassini service uninstall      # remove Windows Service
     cassini service start          # start the service
@@ -305,6 +306,31 @@ def check() -> None:
         raise SystemExit(1)
     else:
         click.echo("\nAll checks passed.")
+
+
+# -- System Tray companion --------------------------------------------------
+
+
+@cli.command()
+@click.option("--host", default="localhost", show_default=True, help="Cassini server host")
+@click.option("--port", default=8000, show_default=True, type=int, help="Cassini server port")
+def tray(host: str, port: int) -> None:
+    """Launch the system tray companion app (Windows).
+
+    Shows a status icon that monitors the Cassini server health
+    and provides quick actions for service control, log viewing,
+    and opening the web UI.
+    """
+    try:
+        from cassini.tray.app import CassiniTray
+    except ImportError:
+        raise click.ClickException(
+            "Tray dependencies not installed. Run: pip install cassini[tray]"
+        )
+
+    app = CassiniTray(host=host, port=port)
+    click.echo(f"Starting Cassini tray (monitoring {app.base_url})...")
+    app.run()
 
 
 # -- Windows Service helpers -----------------------------------------------
