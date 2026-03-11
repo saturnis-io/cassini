@@ -1217,3 +1217,107 @@ class TestBatchViolationCreation:
         # Check the ORM objects have correct requires_acknowledgement
         assert added_objects[0].requires_acknowledgement is True
         assert added_objects[1].requires_acknowledgement is False
+
+
+class TestCharDataDedup:
+    """Tests for char_data dedup in process_sample."""
+
+    @pytest.mark.asyncio
+    async def test_process_sample_with_char_data_skips_query(
+        self,
+        spc_engine,
+        mock_char_repo,
+        mock_sample_repo,
+        mock_window_manager,
+    ):
+        """When char_data is provided, get_with_rules is NOT called."""
+        # Setup mock returns for sample creation
+        sample = Sample(id=1, char_id=1, timestamp=datetime.utcnow())
+        sample.measurements = [Measurement(id=1, sample_id=1, value=100.0)]
+        mock_sample_repo.create_with_measurements.return_value = sample
+
+        # Setup window manager mocks
+        window_sample = WindowSample(
+            sample_id=1,
+            timestamp=datetime.utcnow(),
+            value=100.0,
+            range_value=0.0,
+            zone=Zone.ZONE_C_UPPER,
+            is_above_center=True,
+            sigma_distance=0.0,
+        )
+        mock_window_manager.add_sample.return_value = window_sample
+
+        window = RollingWindow(max_size=25)
+        boundaries = ZoneBoundaries(
+            center_line=100.0,
+            sigma=3.0,
+            plus_1_sigma=103.0,
+            plus_2_sigma=106.0,
+            plus_3_sigma=109.0,
+            minus_1_sigma=97.0,
+            minus_2_sigma=94.0,
+            minus_3_sigma=91.0,
+        )
+        window.set_boundaries(boundaries)
+        window.append(window_sample)
+        mock_window_manager.get_window.return_value = window
+
+        char_data = {
+            "id": 1,
+            "subgroup_mode": "fixed",
+            "subgroup_size": 1,
+            "min_measurements": 1,
+            "warn_below_count": None,
+            "ucl": 110.0,
+            "lcl": 90.0,
+            "usl": None,
+            "lsl": None,
+            "stored_sigma": 3.0,
+            "stored_center_line": 100.0,
+            "short_run_mode": None,
+            "target_value": None,
+            "rules": [
+                {
+                    "rule_id": 1,
+                    "is_enabled": True,
+                    "require_acknowledgement": True,
+                    "parameters": None,
+                }
+            ],
+        }
+
+        result = await spc_engine.process_sample(
+            characteristic_id=1,
+            measurements=[100.0],
+            char_data=char_data,
+        )
+
+        # The key assertion: get_with_rules must NOT have been called
+        mock_char_repo.get_with_rules.assert_not_called()
+        assert isinstance(result, ProcessingResult)
+        assert result.sample_id == 1
+
+    @pytest.mark.asyncio
+    async def test_process_sample_char_data_id_mismatch_raises(self, spc_engine):
+        """char_data with wrong id raises AssertionError."""
+        char_data = {"id": 999, "rules": []}
+        with pytest.raises(AssertionError, match="char_data id 999"):
+            await spc_engine.process_sample(
+                characteristic_id=1,
+                measurements=[100.0],
+                char_data=char_data,
+            )
+
+    @pytest.mark.asyncio
+    async def test_process_sample_without_char_data_uses_db(
+        self, spc_engine, mock_char_repo
+    ):
+        """Without char_data, get_with_rules IS called (existing behavior)."""
+        mock_char_repo.get_with_rules.return_value = None  # Will raise ValueError
+        with pytest.raises(ValueError, match="not found"):
+            await spc_engine.process_sample(
+                characteristic_id=1,
+                measurements=[100.0],
+            )
+        mock_char_repo.get_with_rules.assert_called_once_with(1)

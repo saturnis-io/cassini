@@ -420,6 +420,7 @@ class SPCEngine:
         characteristic_id: int,
         measurements: list[float],
         context: SampleContext | None = None,
+        char_data: dict | None = None,
     ) -> ProcessingResult:
         """Process a new sample through the SPC pipeline.
 
@@ -430,6 +431,9 @@ class SPCEngine:
             characteristic_id: ID of the characteristic to process
             measurements: List of measurement values
             context: Optional context (batch, operator, etc.)
+            char_data: Pre-loaded characteristic dict to skip DB query.
+                Must contain 'id' matching characteristic_id, plus
+                'rules', 'subgroup_mode', 'ucl', 'lcl', etc.
 
         Returns:
             ProcessingResult with statistics, zone info, and violations
@@ -450,51 +454,83 @@ class SPCEngine:
         if context is None:
             context = SampleContext()
 
-        # Step 1: Validate characteristic exists and measurements
-        char = await self._char_repo.get_with_rules(characteristic_id)
-        if char is None:
-            raise ValueError(f"Characteristic {characteristic_id} not found")
+        # Step 1: Validate characteristic exists and extract config values.
+        # When char_data is provided by the caller (pre-loaded), skip the DB
+        # query to avoid a redundant SELECT per sample.
+        if char_data is not None:
+            assert char_data.get("id") == characteristic_id, (
+                f"char_data id {char_data.get('id')} != characteristic_id {characteristic_id}"
+            )
 
-        # Extract ALL needed values immediately after loading to avoid lazy loading issues
-        # (session operations below may expire the ORM object)
-        enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
-        # Also extract require_acknowledgement settings per rule
-        rule_require_ack = {
-            rule.rule_id: rule.require_acknowledgement
-            for rule in char.rules
-        }
+            # Extract from dict — same fields as ORM path
+            enabled_rules = {
+                r["rule_id"] for r in char_data.get("rules", []) if r.get("is_enabled", True)
+            }
+            rule_require_ack = {
+                r["rule_id"]: r.get("require_acknowledgement", True)
+                for r in char_data.get("rules", [])
+            }
+            rule_configs = char_data.get("rules", [])
+            rule_library = self._get_or_build_rule_library(characteristic_id, rule_configs)
 
-        # Build rule configs with custom parameters (Sprint 5 - A2)
-        import json as _json
-        rule_configs = []
-        for rule in char.rules:
-            params = None
-            if rule.parameters:
-                try:
-                    params = _json.loads(rule.parameters)
-                except (ValueError, TypeError):
-                    params = None
-            rule_configs.append({
-                "rule_id": rule.rule_id,
-                "is_enabled": rule.is_enabled,
-                "parameters": params,
-            })
-        # Get cached rule library (independent per char_id) or build a new one.
-        # Each characteristic gets its own NelsonRuleLibrary instance, preventing
-        # cross-contamination between characteristics in the same batch.
-        rule_library = self._get_or_build_rule_library(characteristic_id, rule_configs)
-        char_subgroup_mode = char.subgroup_mode
-        char_subgroup_size = char.subgroup_size
-        char_min_measurements = char.min_measurements
-        char_warn_below_count = char.warn_below_count
-        char_ucl = char.ucl
-        char_lcl = char.lcl
-        char_usl = getattr(char, "usl", None)
-        char_lsl = getattr(char, "lsl", None)
-        char_stored_sigma = char.stored_sigma
-        char_stored_center_line = char.stored_center_line
-        char_short_run_mode = getattr(char, "short_run_mode", None)
-        char_target_value = getattr(char, "target_value", None)
+            char_subgroup_mode = char_data.get("subgroup_mode")
+            char_subgroup_size = char_data.get("subgroup_size", 1)
+            char_min_measurements = char_data.get("min_measurements", 1)
+            char_warn_below_count = char_data.get("warn_below_count")
+            char_ucl = char_data.get("ucl")
+            char_lcl = char_data.get("lcl")
+            char_usl = char_data.get("usl")
+            char_lsl = char_data.get("lsl")
+            char_stored_sigma = char_data.get("stored_sigma")
+            char_stored_center_line = char_data.get("stored_center_line")
+            char_short_run_mode = char_data.get("short_run_mode")
+            char_target_value = char_data.get("target_value")
+        else:
+            # Default path: load from DB
+            char = await self._char_repo.get_with_rules(characteristic_id)
+            if char is None:
+                raise ValueError(f"Characteristic {characteristic_id} not found")
+
+            # Extract ALL needed values immediately after loading to avoid lazy loading issues
+            # (session operations below may expire the ORM object)
+            enabled_rules = {rule.rule_id for rule in char.rules if rule.is_enabled}
+            # Also extract require_acknowledgement settings per rule
+            rule_require_ack = {
+                rule.rule_id: rule.require_acknowledgement
+                for rule in char.rules
+            }
+
+            # Build rule configs with custom parameters (Sprint 5 - A2)
+            import json as _json
+            rule_configs = []
+            for rule in char.rules:
+                params = None
+                if rule.parameters:
+                    try:
+                        params = _json.loads(rule.parameters)
+                    except (ValueError, TypeError):
+                        params = None
+                rule_configs.append({
+                    "rule_id": rule.rule_id,
+                    "is_enabled": rule.is_enabled,
+                    "parameters": params,
+                })
+            # Get cached rule library (independent per char_id) or build a new one.
+            # Each characteristic gets its own NelsonRuleLibrary instance, preventing
+            # cross-contamination between characteristics in the same batch.
+            rule_library = self._get_or_build_rule_library(characteristic_id, rule_configs)
+            char_subgroup_mode = char.subgroup_mode
+            char_subgroup_size = char.subgroup_size
+            char_min_measurements = char.min_measurements
+            char_warn_below_count = char.warn_below_count
+            char_ucl = char.ucl
+            char_lcl = char.lcl
+            char_usl = getattr(char, "usl", None)
+            char_lsl = getattr(char, "lsl", None)
+            char_stored_sigma = char.stored_sigma
+            char_stored_center_line = char.stored_center_line
+            char_short_run_mode = getattr(char, "short_run_mode", None)
+            char_target_value = getattr(char, "target_value", None)
 
         # Material limit resolution: override characteristic defaults with
         # per-material cascading limits when a material_id is provided.
