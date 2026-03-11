@@ -47,6 +47,10 @@ def mock_char_repo():
 def mock_violation_repo():
     """Mock violation repository."""
     repo = AsyncMock()
+    # session.add() is synchronous on real AsyncSession; use MagicMock to
+    # avoid "coroutine was never awaited" warnings in batch violation path.
+    repo.session = MagicMock()
+    repo.session.flush = AsyncMock()
     return repo
 
 
@@ -253,8 +257,9 @@ class TestSampleProcessing:
         assert violation.severity == "CRITICAL"
         assert 1 in violation.involved_sample_ids
 
-        # Verify violation was created via repository
-        spc_engine._violation_repo.create.assert_called()
+        # Verify violations were batch-persisted via session (not repo.create)
+        spc_engine._violation_repo.session.add.assert_called()
+        spc_engine._violation_repo.session.flush.assert_called()
 
     @pytest.mark.asyncio
     async def test_process_sample_with_rule2_violation(
@@ -1001,3 +1006,214 @@ class TestControlLimitCacheIntegration:
         # Should have used recalculate_limits values, not cached
         assert boundaries.center_line == 200.0
         engine.recalculate_limits.assert_called_once()
+
+
+class TestBatchViolationCreation:
+    """Tests for batch violation persistence optimization."""
+
+    @pytest.mark.asyncio
+    async def test_create_violations_batch_returns_ids(self, spc_engine, mock_violation_repo):
+        """Batch violation creation returns ViolationInfo with real violation_ids."""
+        rule_results = [
+            RuleResult(
+                rule_id=1, rule_name="Outlier", triggered=True,
+                severity=Severity.CRITICAL, message="Beyond 3\u03c3",
+                involved_sample_ids=[10],
+            ),
+            RuleResult(
+                rule_id=5, rule_name="Trend", triggered=True,
+                severity=Severity.WARNING, message="6 trending",
+                involved_sample_ids=[5, 6, 7, 8, 9, 10],
+            ),
+        ]
+
+        # Mock the session to assign IDs on flush
+        mock_session = AsyncMock()
+        violation_id_counter = [100]
+        added_objects: list = []
+
+        def fake_add(obj):
+            added_objects.append(obj)
+
+        async def fake_flush():
+            # Simulate DB assigning IDs
+            for obj in added_objects:
+                if hasattr(obj, "id") and obj.id is None:
+                    obj.id = violation_id_counter[0]
+                    violation_id_counter[0] += 1
+
+        mock_session.add = fake_add
+        mock_session.flush = fake_flush
+        mock_violation_repo.session = mock_session
+
+        violations, dicts = await spc_engine._create_violations(
+            sample_id=1,
+            rule_results=rule_results,
+            rule_require_ack={1: True, 5: False},
+            characteristic_id=1,
+        )
+
+        assert len(violations) == 2
+        assert all(v.violation_id is not None for v in violations)
+        assert violations[0].violation_id == 100
+        assert violations[1].violation_id == 101
+        # Verify dicts also have correct IDs
+        assert dicts[0]["id"] == 100
+        assert dicts[1]["id"] == 101
+
+    @pytest.mark.asyncio
+    async def test_create_violations_empty_rules_no_flush(self, spc_engine, mock_violation_repo):
+        """When no rules trigger, no flush should occur."""
+        rule_results = [
+            RuleResult(
+                rule_id=1, rule_name="Outlier", triggered=False,
+                severity=Severity.CRITICAL, message="",
+                involved_sample_ids=[],
+            ),
+        ]
+        mock_session = AsyncMock()
+        mock_violation_repo.session = mock_session
+
+        violations, dicts = await spc_engine._create_violations(
+            sample_id=1,
+            rule_results=rule_results,
+            rule_require_ack={},
+            characteristic_id=1,
+        )
+
+        assert violations == []
+        assert dicts == []
+        mock_session.flush.assert_not_called()
+        mock_session.add.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_violations_includes_violation_id_in_info(
+        self, spc_engine, mock_violation_repo
+    ):
+        """ViolationInfo objects include violation_id after batch flush."""
+        rule_results = [
+            RuleResult(
+                rule_id=1, rule_name="Outlier", triggered=True,
+                severity=Severity.CRITICAL, message="Test",
+                involved_sample_ids=[10],
+            ),
+        ]
+
+        mock_session = AsyncMock()
+        added_objects: list = []
+
+        def fake_add(obj):
+            added_objects.append(obj)
+
+        async def fake_flush():
+            for i, obj in enumerate(added_objects):
+                if hasattr(obj, "id") and obj.id is None:
+                    obj.id = 500 + i
+
+        mock_session.add = fake_add
+        mock_session.flush = fake_flush
+        mock_violation_repo.session = mock_session
+
+        violations, _ = await spc_engine._create_violations(
+            sample_id=1,
+            rule_results=rule_results,
+            rule_require_ack={1: True},
+            characteristic_id=1,
+        )
+
+        assert violations[0].violation_id == 500
+
+    @pytest.mark.asyncio
+    async def test_create_violations_single_flush_for_multiple_rules(
+        self, spc_engine, mock_violation_repo
+    ):
+        """Multiple triggered rules result in exactly one flush call."""
+        rule_results = [
+            RuleResult(
+                rule_id=1, rule_name="Outlier", triggered=True,
+                severity=Severity.CRITICAL, message="Beyond 3\u03c3",
+                involved_sample_ids=[10],
+            ),
+            RuleResult(
+                rule_id=2, rule_name="Shift", triggered=True,
+                severity=Severity.WARNING, message="9 same side",
+                involved_sample_ids=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+            ),
+            RuleResult(
+                rule_id=3, rule_name="Trend", triggered=False,
+                severity=Severity.WARNING, message="",
+                involved_sample_ids=[],
+            ),
+        ]
+
+        flush_count = [0]
+        added_objects: list = []
+
+        def fake_add(obj):
+            added_objects.append(obj)
+
+        async def fake_flush():
+            flush_count[0] += 1
+            for obj in added_objects:
+                if hasattr(obj, "id") and obj.id is None:
+                    obj.id = 200 + len([o for o in added_objects if o.id is not None])
+
+        mock_session = AsyncMock()
+        mock_session.add = fake_add
+        mock_session.flush = fake_flush
+        mock_violation_repo.session = mock_session
+
+        violations, dicts = await spc_engine._create_violations(
+            sample_id=1,
+            rule_results=rule_results,
+            rule_require_ack={},
+            characteristic_id=1,
+        )
+
+        # 2 triggered rules, but only 1 flush
+        assert len(violations) == 2
+        assert flush_count[0] == 1
+
+    @pytest.mark.asyncio
+    async def test_create_violations_respects_require_ack(
+        self, spc_engine, mock_violation_repo
+    ):
+        """Batch creation correctly passes requires_acknowledgement per rule."""
+        rule_results = [
+            RuleResult(
+                rule_id=1, rule_name="Outlier", triggered=True,
+                severity=Severity.CRITICAL, message="Beyond 3\u03c3",
+                involved_sample_ids=[10],
+            ),
+            RuleResult(
+                rule_id=5, rule_name="Trend", triggered=True,
+                severity=Severity.WARNING, message="6 trending",
+                involved_sample_ids=[5, 6, 7, 8, 9, 10],
+            ),
+        ]
+
+        added_objects: list = []
+
+        def fake_add(obj):
+            added_objects.append(obj)
+
+        async def fake_flush():
+            for i, obj in enumerate(added_objects):
+                if hasattr(obj, "id") and obj.id is None:
+                    obj.id = 300 + i
+
+        mock_session = AsyncMock()
+        mock_session.add = fake_add
+        mock_session.flush = fake_flush
+        mock_violation_repo.session = mock_session
+
+        await spc_engine._create_violations(
+            sample_id=1,
+            rule_results=rule_results,
+            rule_require_ack={1: True, 5: False},
+            characteristic_id=1,
+        )
+
+        # Check the ORM objects have correct requires_acknowledgement
+        assert added_objects[0].requires_acknowledgement is True
+        assert added_objects[1].requires_acknowledgement is False

@@ -68,6 +68,7 @@ from cassini.core.engine.rolling_window import CachedLimits, WindowSample, ZoneB
 from cassini.core.events import EventBus, SampleProcessedEvent, ViolationCreatedEvent
 from cassini.core.providers.protocol import SampleContext
 from cassini.db.models.characteristic import SubgroupMode
+from cassini.db.models.violation import Violation
 from cassini.utils.statistics import calculate_zones
 
 if TYPE_CHECKING:
@@ -833,20 +834,19 @@ class SPCEngine:
         Returns:
             Tuple of (ViolationInfo list, violation dicts for event publishing)
         """
-        violations = []
-        violation_dicts: list[dict] = []
         if rule_require_ack is None:
             rule_require_ack = {}
+
+        # Phase 1: Collect Violation ORM objects and their paired RuleResults
+        violation_objects: list[Violation] = []
+        triggered_results: list["RuleResult"] = []
 
         for result in rule_results:
             if not result.triggered:
                 continue
 
-            # Look up require_acknowledgement for this rule (default True)
             requires_ack = rule_require_ack.get(result.rule_id, True)
-
-            # Create violation record through repository
-            violation_record = await self._violation_repo.create(
+            violation = Violation(
                 sample_id=sample_id,
                 char_id=characteristic_id,
                 rule_id=result.rule_id,
@@ -855,11 +855,25 @@ class SPCEngine:
                 acknowledged=False,
                 requires_acknowledgement=requires_ack,
             )
+            violation_objects.append(violation)
+            triggered_results.append(result)
 
-            # Publish ViolationCreatedEvent to Event Bus
+        # Phase 2: Batch persist — single flush for all violations
+        if violation_objects:
+            session = self._violation_repo.session
+            for v in violation_objects:
+                session.add(v)
+            await session.flush()
+
+        # Phase 3: Build ViolationInfo + publish events AFTER flush (IDs now populated)
+        violations: list[ViolationInfo] = []
+        violation_dicts: list[dict] = []
+
+        for violation, result in zip(violation_objects, triggered_results):
+            # Publish event with real DB ID
             if characteristic_id is not None:
                 await self._event_bus.publish(ViolationCreatedEvent(
-                    violation_id=violation_record.id,
+                    violation_id=violation.id,
                     sample_id=sample_id,
                     characteristic_id=characteristic_id,
                     rule_id=result.rule_id,
@@ -868,17 +882,17 @@ class SPCEngine:
                 ))
 
             violation_dicts.append({
-                "id": violation_record.id,
-                "sample_id": violation_record.sample_id,
-                "characteristic_id": violation_record.char_id,
-                "rule_id": violation_record.rule_id,
-                "rule_name": violation_record.rule_name,
-                "severity": violation_record.severity,
+                "id": violation.id,
+                "sample_id": violation.sample_id,
+                "characteristic_id": violation.char_id,
+                "rule_id": violation.rule_id,
+                "rule_name": violation.rule_name,
+                "severity": violation.severity,
             })
 
-            # Create ViolationInfo for result
             violations.append(
                 ViolationInfo(
+                    violation_id=violation.id,
                     rule_id=result.rule_id,
                     rule_name=result.rule_name,
                     severity=result.severity.value,
