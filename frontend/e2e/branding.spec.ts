@@ -58,7 +58,7 @@ test.describe('Branding Settings', () => {
     })
 
     // Logo section should also be visible in Identity
-    await expect(page.getByText('Logo')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('Logo').first()).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('branding-app-name', {
       body: await page.screenshot(),
