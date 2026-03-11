@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     )
 
     # Application
-    app_version: str = "0.3.0"
+    app_version: str = "0.0.9"
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./cassini.db"
