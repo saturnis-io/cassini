@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -58,6 +59,7 @@ class CassiniTray:
         self.status = "unknown"
         self.icon: pystray.Icon | None = None
         self._stop_polling = threading.Event()
+        self._port_conflict_notified = False
 
     # -- Health check -----------------------------------------------------
 
@@ -155,6 +157,53 @@ class CassiniTray:
         except Exception:
             logger.exception("Failed to open data folder")
 
+    def _open_settings(self) -> None:
+        """Open cassini.toml in the default text editor.
+
+        If no config file exists yet, creates a minimal default at the
+        ProgramData location before opening it.
+        """
+        try:
+            from cassini.core.toml_config import find_config_file
+            from cassini.service.windows_service import get_service_data_dir
+
+            config_path = find_config_file()
+            if config_path is None:
+                # Create default config at ProgramData location
+                data_dir = get_service_data_dir()
+                config_path = os.path.join(data_dir, "cassini.toml")
+                os.makedirs(data_dir, exist_ok=True)
+                with open(config_path, "w") as f:
+                    f.write("# Cassini SPC Configuration\n")
+                    f.write("# See https://saturnis.io/docs/configuration\n\n")
+                    f.write("[server]\n")
+                    f.write('host = "0.0.0.0"\n')
+                    f.write("port = 8000\n")
+
+            subprocess.Popen(["notepad.exe", config_path])
+        except Exception:
+            logger.exception("Failed to open settings")
+
+    def _check_port_conflict(self) -> bool:
+        """Check if the configured port is in use by something other than Cassini.
+
+        Attempts to connect to the port. If the connection succeeds but the
+        Cassini health check has failed, another application is occupying
+        the port.
+
+        Returns:
+            True if the port is occupied by a non-Cassini process.
+        """
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(1)
+                s.connect((self.host, self.port))
+                # Port is in use but Cassini health check failed
+                return True
+        except OSError:
+            # Port is not in use at all
+            return False
+
     def _check_updates(self) -> None:
         """Check for updates by pinging saturnis.io/api/version.
 
@@ -207,8 +256,25 @@ class CassiniTray:
         while not self._stop_polling.is_set():
             new_status = self.check_health()
             if new_status != self.status:
+                old_status = self.status
                 self.status = new_status
                 self._update_icon()
+
+                # Detect port conflict when transitioning to stopped
+                if new_status == "stopped" and old_status != "stopped":
+                    if self._check_port_conflict() and not self._port_conflict_notified:
+                        self._port_conflict_notified = True
+                        if self.icon:
+                            self.icon.notify(
+                                f"Port {self.port} is in use by another application.\n"
+                                "Right-click tray icon > Settings to change the port.",
+                                "Cassini Cannot Start",
+                            )
+
+            # Reset conflict flag when server is running again
+            if new_status == "running":
+                self._port_conflict_notified = False
+
             self._stop_polling.wait(_POLL_INTERVAL)
 
     def _build_menu(self) -> pystray.Menu:
@@ -240,6 +306,7 @@ class CassiniTray:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("View Logs", lambda: self._open_logs()),
             pystray.MenuItem("Open Data Folder", lambda: self._open_data_folder()),
+            pystray.MenuItem("Settings", lambda: self._open_settings()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Check for Updates", lambda: self._check_updates()),
             pystray.Menu.SEPARATOR,

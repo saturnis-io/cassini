@@ -64,9 +64,10 @@ class TestServeCommand:
         assert result.exit_code == 0
         assert "--workers" in result.output
 
+    @patch("cassini.cli.main._check_port_available", return_value=True)
     @patch("cassini.cli.main._run_migrations")
     @patch("cassini.cli.main.uvicorn")
-    def test_serve_default(self, mock_uvicorn, mock_migrate):
+    def test_serve_default(self, mock_uvicorn, mock_migrate, mock_check_port):
         runner = CliRunner()
         result = runner.invoke(cli, ["serve"])
         assert result.exit_code == 0
@@ -79,9 +80,10 @@ class TestServeCommand:
             log_level="info",
         )
 
+    @patch("cassini.cli.main._check_port_available", return_value=True)
     @patch("cassini.cli.main._run_migrations")
     @patch("cassini.cli.main.uvicorn")
-    def test_serve_custom_host_port(self, mock_uvicorn, mock_migrate):
+    def test_serve_custom_host_port(self, mock_uvicorn, mock_migrate, mock_check_port):
         runner = CliRunner()
         result = runner.invoke(cli, ["serve", "--host", "0.0.0.0", "--port", "9000"])
         assert result.exit_code == 0
@@ -93,18 +95,20 @@ class TestServeCommand:
             log_level="info",
         )
 
+    @patch("cassini.cli.main._check_port_available", return_value=True)
     @patch("cassini.cli.main._run_migrations")
     @patch("cassini.cli.main.uvicorn")
-    def test_serve_no_migrate(self, mock_uvicorn, mock_migrate):
+    def test_serve_no_migrate(self, mock_uvicorn, mock_migrate, mock_check_port):
         runner = CliRunner()
         result = runner.invoke(cli, ["serve", "--no-migrate"])
         assert result.exit_code == 0
         mock_migrate.assert_not_called()
         mock_uvicorn.run.assert_called_once()
 
+    @patch("cassini.cli.main._check_port_available", return_value=True)
     @patch("cassini.cli.main._run_migrations")
     @patch("cassini.cli.main.uvicorn")
-    def test_serve_workers(self, mock_uvicorn, mock_migrate):
+    def test_serve_workers(self, mock_uvicorn, mock_migrate, mock_check_port):
         runner = CliRunner()
         result = runner.invoke(cli, ["serve", "--workers", "4"])
         assert result.exit_code == 0
@@ -115,6 +119,32 @@ class TestServeCommand:
             workers=4,
             log_level="info",
         )
+
+    @patch("cassini.cli.main._check_port_available", return_value=False)
+    def test_serve_port_in_use(self, mock_check_port):
+        """Test that serve fails with clear message when port is taken."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["serve"])
+        assert result.exit_code != 0
+        assert "already in use" in result.output
+
+    @patch("cassini.cli.main._check_port_available", return_value=False)
+    def test_serve_port_in_use_shows_port_number(self, mock_check_port):
+        """Test that the error message includes the specific port number."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["serve", "--port", "9090"])
+        assert result.exit_code != 0
+        assert "9090" in result.output
+
+    @patch("cassini.cli.main._check_port_available", return_value=True)
+    @patch("cassini.cli.main._run_migrations")
+    @patch("cassini.cli.main.uvicorn")
+    def test_serve_port_available_proceeds(self, mock_uvicorn, mock_migrate, mock_check):
+        """Test that serve proceeds normally when port is available."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["serve"])
+        assert result.exit_code == 0
+        mock_uvicorn.run.assert_called_once()
 
 
 class TestMigrateCommand:

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import platform
+import socket
 import sys
 from pathlib import Path
 
@@ -154,6 +155,20 @@ def _create_admin_user(username: str, password: str) -> None:
     asyncio.run(_inner())
 
 
+def _check_port_available(host: str, port: int) -> bool:
+    """Check if a port is available for binding.
+
+    Attempts to bind a TCP socket to the given host and port. Returns
+    True if the port is free, False if it is already in use.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
+
+
 @click.group()
 def cli() -> None:
     """Cassini SPC — Event-Driven Statistical Process Control."""
@@ -175,6 +190,17 @@ def serve(host: str, port: int, workers: int, no_migrate: bool) -> None:
     By default, runs database migrations before starting. Use --no-migrate
     to skip this step if migrations are managed externally.
     """
+    if not _check_port_available(host, port):
+        click.echo(
+            f"\nError: Port {port} is already in use.\n\n"
+            "Another application is using this port. To fix:\n"
+            "  1. Edit cassini.toml and change [server] port\n"
+            f"  2. Or use: cassini serve --port <other-port>\n"
+            f"  3. Or stop the application using port {port}\n",
+            err=True,
+        )
+        raise SystemExit(1)
+
     if not no_migrate:
         click.echo("Running database migrations...")
         _run_migrations()

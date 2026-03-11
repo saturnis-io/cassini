@@ -212,6 +212,46 @@ class TestMenuStructure:
         assert any("Stop Service" in label for label in labels)
         assert any("Restart Service" in label for label in labels)
 
+    def test_menu_contains_settings(self):
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        menu = tray._build_menu()
+        items = list(menu)
+
+        labels = []
+        for item in items:
+            if hasattr(item, "text"):
+                text = item.text
+                if callable(text):
+                    text = text(item)
+                labels.append(text)
+
+        assert any("Settings" in label for label in labels)
+
+    def test_settings_after_data_folder_before_updates(self):
+        """Settings should appear between Open Data Folder and Check for Updates."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        menu = tray._build_menu()
+        items = list(menu)
+
+        labels = []
+        for item in items:
+            if hasattr(item, "text"):
+                text = item.text
+                if callable(text):
+                    text = text(item)
+                labels.append(text)
+
+        # Find indices of the three relevant items
+        data_folder_idx = next(i for i, l in enumerate(labels) if "Open Data Folder" in l)
+        settings_idx = next(i for i, l in enumerate(labels) if "Settings" in l)
+        updates_idx = next(i for i, l in enumerate(labels) if "Check for Updates" in l)
+
+        assert data_folder_idx < settings_idx < updates_idx
+
 
 # ---------------------------------------------------------------------------
 # CLI integration
@@ -241,3 +281,71 @@ class TestTrayCLI:
         assert result.exit_code == 0
         assert "--host" in result.output
         assert "--port" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Settings and port conflict
+# ---------------------------------------------------------------------------
+
+
+class TestTraySettings:
+    """Tests for the Settings menu item and port conflict detection."""
+
+    def test_tray_has_open_settings_method(self):
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        assert hasattr(tray, "_open_settings")
+        assert callable(tray._open_settings)
+
+    def test_tray_has_check_port_conflict_method(self):
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        assert hasattr(tray, "_check_port_conflict")
+        assert callable(tray._check_port_conflict)
+
+    def test_port_conflict_notified_flag_default(self):
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        assert tray._port_conflict_notified is False
+
+    def test_port_conflict_returns_true_when_port_occupied(self):
+        """When a socket connect succeeds, port is occupied by another app."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+
+        mock_socket = MagicMock()
+        mock_socket.__enter__ = MagicMock(return_value=mock_socket)
+        mock_socket.__exit__ = MagicMock(return_value=False)
+        mock_socket.connect = MagicMock()  # connect succeeds
+
+        with patch("cassini.tray.app.socket.socket", return_value=mock_socket):
+            assert tray._check_port_conflict() is True
+
+    def test_port_conflict_returns_false_when_port_free(self):
+        """When socket connect raises OSError, port is not in use."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+
+        mock_socket = MagicMock()
+        mock_socket.__enter__ = MagicMock(return_value=mock_socket)
+        mock_socket.__exit__ = MagicMock(return_value=False)
+        mock_socket.connect = MagicMock(side_effect=OSError("Connection refused"))
+
+        with patch("cassini.tray.app.socket.socket", return_value=mock_socket):
+            assert tray._check_port_conflict() is False
+
+    @patch("cassini.tray.app.subprocess.Popen")
+    @patch("cassini.core.toml_config.find_config_file", return_value="C:\\test\\cassini.toml")
+    def test_open_settings_existing_config(self, mock_find, mock_popen):
+        """When a config file exists, it should be opened directly."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        tray._open_settings()
+
+        mock_popen.assert_called_once_with(["notepad.exe", "C:\\test\\cassini.toml"])
