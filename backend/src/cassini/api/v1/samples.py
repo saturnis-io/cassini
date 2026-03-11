@@ -96,11 +96,15 @@ class BatchImportResult(BaseModel):
         successful: Alias for imported (backward compat)
         failed: Number of samples that failed
         errors: List of error messages for failed samples
+        status: "complete" for sync imports, "processing" for async SPC
+        sample_ids: Inserted sample IDs (populated in async mode)
     """
     total: int
     imported: int
     failed: int
     errors: list[str]
+    status: str = "complete"
+    sample_ids: list[int] | None = None
 
     @property
     def successful(self) -> int:
@@ -1047,10 +1051,12 @@ class BatchImportRequest(BaseModel):
         characteristic_id: Shared characteristic ID for all samples
         samples: List of sample data (measurements + optional timestamp)
         skip_rule_evaluation: If True, skip Nelson Rule evaluation
+        async_spc: If True, bulk insert and enqueue for async SPC processing
     """
     characteristic_id: int
-    samples: list[dict] = Field(..., max_length=1000)
+    samples: list[dict] = Field(..., max_length=10_000)
     skip_rule_evaluation: bool = False
+    async_spc: bool = False
 
 
 @router.post("/batch", response_model=BatchImportResult)
@@ -1083,6 +1089,91 @@ async def batch_import(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(_user, plant_id, "operator")
 
+    # --- Async SPC path (commercial only) ---
+    if request.async_spc:
+        license_svc = http_request.app.state.license_service
+        if not license_svc.is_commercial:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Async batch SPC requires a commercial license",
+            )
+
+        from cassini.core.engine.spc_queue import get_spc_queue, SPCEvaluationRequest
+        import asyncio as _asyncio
+
+        spc_queue = get_spc_queue()
+        sample_repo = SampleRepository(session)
+        sample_ids: list[int] = []
+        failed = 0
+        errors: list[str] = []
+
+        for idx, sample_dict in enumerate(request.samples):
+            try:
+                measurements = sample_dict.get("measurements", [])
+                batch_number = sample_dict.get("batch_number")
+                operator_id = sample_dict.get("operator_id")
+                material_id = sample_dict.get("material_id")
+
+                sample = await sample_repo.create_with_measurements(
+                    char_id=char_id,
+                    values=measurements,
+                    batch_number=batch_number,
+                    operator_id=operator_id,
+                    material_id=material_id,
+                    spc_status="pending_spc",
+                )
+                sample_ids.append(sample.id)
+            except Exception:
+                logger.exception("Async batch insert error at sample %d", idx + 1)
+                failed += 1
+                errors.append(f"Sample {idx + 1}: Insert failed")
+
+        if not sample_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No samples could be inserted",
+            )
+
+        # CRITICAL: Enqueue BEFORE commit. If queue full -> rollback -> 503
+        eval_request = SPCEvaluationRequest(
+            characteristic_id=char_id,
+            sample_ids=sample_ids,
+            material_id=request.samples[0].get("material_id") if request.samples else None,
+        )
+        try:
+            spc_queue.enqueue_nowait(eval_request)
+        except _asyncio.QueueFull:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SPC queue is full, try again later",
+                headers={"Retry-After": "5"},
+            )
+
+        await session.commit()
+
+        http_request.state.audit_context = {
+            "resource_type": "sample",
+            "resource_id": None,
+            "action": "batch_create_async",
+            "summary": f"Async batch import: {len(sample_ids)} samples for char {char_id}",
+            "fields": {
+                "sample_count": len(sample_ids),
+                "characteristic_id": char_id,
+                "async_spc": True,
+            },
+        }
+
+        return BatchImportResult(
+            total=len(request.samples),
+            imported=len(sample_ids),
+            failed=failed,
+            errors=errors,
+            status="processing",
+            sample_ids=sample_ids,
+        )
+
+    # --- Existing sync paths below (skip_rule_evaluation and full SPC) ---
     skip_rule_evaluation = request.skip_rule_evaluation
     total = len(request.samples)
     successful = 0
