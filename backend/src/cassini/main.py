@@ -108,6 +108,42 @@ _COMMERCIAL_ROUTERS = [
 ]
 
 
+async def _recover_pending_spc(session, spc_queue) -> None:
+    """Re-enqueue samples with spc_status='pending_spc' from a previous crash."""
+    from collections import defaultdict
+    from sqlalchemy import select as sa_select
+    from cassini.db.models.sample import Sample
+    from cassini.core.engine.spc_queue import SPCEvaluationRequest
+
+    stmt = (
+        sa_select(Sample.id, Sample.char_id, Sample.material_id)
+        .where(Sample.spc_status == "pending_spc")
+        .order_by(Sample.id)
+    )
+    result = await session.execute(stmt)
+    rows = result.all()
+
+    if not rows:
+        return
+
+    groups: dict[tuple[int, int | None], list[int]] = defaultdict(list)
+    for row in rows:
+        groups[(row.char_id, row.material_id)].append(row.id)
+
+    for (char_id, material_id), sample_ids in groups.items():
+        try:
+            spc_queue.enqueue_nowait(SPCEvaluationRequest(
+                characteristic_id=char_id,
+                sample_ids=sample_ids,
+                material_id=material_id,
+            ))
+        except asyncio.QueueFull:
+            logger.error("spc_recovery_queue_full", char_id=char_id, pending=len(sample_ids))
+            break
+
+    logger.info("spc_recovery_complete", groups=len(groups), total_samples=len(rows))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
@@ -224,6 +260,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("initial_compliance_check_failed", error=str(e))
 
+    # Start async SPC queue (commercial feature but always starts — community just won't use it)
+    from cassini.core.engine.spc_queue import get_spc_queue
+    from cassini.core.engine.rolling_window import get_shared_window_manager
+
+    spc_queue = get_spc_queue()
+    await spc_queue.start(db.session, event_bus, get_shared_window_manager())
+    app.state.spc_queue = spc_queue
+
+    try:
+        async with db.session() as session:
+            await _recover_pending_spc(session, spc_queue)
+    except Exception as e:
+        logger.warning("spc_recovery_failed", error=str(e))
+
     logger.info("Cassini application startup complete")
 
     yield
@@ -253,6 +303,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown MQTT manager -- community
     await mqtt_manager.shutdown()
+
+    # Shutdown SPC queue (drain remaining items)
+    if hasattr(app.state, 'spc_queue'):
+        await app.state.spc_queue.shutdown(timeout=10.0)
 
     # Wait for pending event handlers to complete
     await event_bus.shutdown()
