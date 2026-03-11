@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5174',
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
   },
@@ -71,14 +71,14 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'cmd /c "cd /d C:\\Users\\djbra\\Projects\\saturnis\\apps\\cassini\\backend && set CASSINI_DATABASE_URL=sqlite+aiosqlite:///./test-e2e.db&& set CASSINI_DEV_MODE=true&& set CASSINI_DEV_COMMERCIAL=true&& set CASSINI_SANDBOX=true&& set CASSINI_ADMIN_PASSWORD=admin&& python -m uvicorn cassini.main:app --port 8000"',
-      port: 8000,
+        'cmd /c "cd /d C:\\Users\\djbra\\Projects\\saturnis\\apps\\cassini\\backend && set CASSINI_DATABASE_URL=sqlite+aiosqlite:///./test-e2e.db&& set CASSINI_DEV_MODE=true&& set CASSINI_DEV_COMMERCIAL=true&& set CASSINI_SANDBOX=true&& set CASSINI_ADMIN_PASSWORD=admin&& python -m uvicorn cassini.main:app --port 8001"',
+      port: 8001,
       timeout: 60000,
       reuseExistingServer: !isCI,
     },
     {
-      command: 'npm run dev',
-      port: 5173,
+      command: 'cmd /c "set VITE_BACKEND_PORT=8001&& npx vite --port 5174"',
+      port: 5174,
       timeout: 15000,
       reuseExistingServer: !isCI,
     },

@@ -74,10 +74,10 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: `http://localhost:${process.env.VITE_BACKEND_PORT || '8000'}`,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: `ws://localhost:${process.env.VITE_BACKEND_PORT || '8000'}`,
         ws: true,
       },
     },

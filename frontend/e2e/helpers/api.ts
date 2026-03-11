@@ -1,6 +1,6 @@
 import { type APIRequestContext } from '@playwright/test'
 
-export const API_BASE = 'http://localhost:8000/api/v1'
+export const API_BASE = `http://localhost:${process.env.E2E_BACKEND_PORT || '8001'}/api/v1`
 
 /**
  * Get a JWT access token by logging in via the API.
