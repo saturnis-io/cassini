@@ -575,3 +575,53 @@ export async function clickConnectivityTab(page: Page, tabName: string) {
   await tab.click()
   await page.waitForTimeout(1000)
 }
+
+/**
+ * Create an MQTT broker via the backend API. Idempotent — returns existing on name match.
+ */
+export async function createMQTTBroker(
+  request: APIRequestContext,
+  token: string,
+  plantId: number,
+  name: string,
+  host = 'localhost',
+  port = 1883,
+) {
+  // Check for existing broker first
+  const existing = await apiGet(request, `/brokers/?plant_id=${plantId}`, token)
+  const found = existing.items?.find((b: { name: string }) => b.name === name)
+  if (found) return found
+
+  return apiPost(request, '/brokers/', token, {
+    name,
+    plant_id: plantId,
+    host,
+    port,
+    use_tls: false,
+  })
+}
+
+/**
+ * Create an MQTT data source mapping (tag → characteristic) via the backend API.
+ */
+export async function createMQTTDataSource(
+  request: APIRequestContext,
+  token: string,
+  characteristicId: number,
+  brokerId: number,
+  topic: string,
+  opts?: {
+    metric_name?: string
+    json_path?: string
+    trigger_strategy?: string
+  },
+) {
+  return apiPost(request, '/tags/map', token, {
+    characteristic_id: characteristicId,
+    broker_id: brokerId,
+    mqtt_topic: topic,
+    metric_name: opts?.metric_name,
+    json_path: opts?.json_path,
+    trigger_strategy: opts?.trigger_strategy ?? 'on_change',
+  })
+}
