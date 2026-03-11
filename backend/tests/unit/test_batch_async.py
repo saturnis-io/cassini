@@ -21,9 +21,15 @@ class TestBatchImportRequestSchema:
 
     def test_max_length_10000(self):
         """Verify samples field allows up to 10,000 items."""
-        # Just verify the field metadata allows it
-        field_info = BatchImportRequest.model_fields["samples"]
-        assert field_info.metadata  # Has validators
+        from pydantic import ValidationError
+
+        # Verify 10,001 items is rejected
+        oversized = [{"measurements": [1.0]}] * 10_001
+        try:
+            BatchImportRequest(characteristic_id=1, samples=oversized)
+            assert False, "Should have rejected 10,001 items"
+        except ValidationError:
+            pass
 
 
 class TestBatchImportResultSchema:
