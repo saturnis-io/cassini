@@ -250,6 +250,7 @@ class AuditService:
         """
         from cassini.core.events import (
             AnomalyDetectedEvent,
+            BatchEvaluationCompleteEvent,
             CharacteristicCreatedEvent,
             CharacteristicDeletedEvent,
             ControlLimitsUpdatedEvent,
@@ -430,8 +431,21 @@ class AuditService:
                 },
             )
 
+        async def _audit_batch_evaluation_complete(event):
+            await self.log_event(
+                action="batch_evaluate",
+                resource_type="sample",
+                resource_id=event.characteristic_id,
+                detail={
+                    "source": "event_bus",
+                    "sample_count": event.sample_count,
+                    "violation_count": event.violation_count,
+                },
+            )
+
         # Registry of all audited events for visibility
         _AUDITED_EVENTS = {
+            BatchEvaluationCompleteEvent: _audit_batch_evaluation_complete,
             ViolationCreatedEvent: _audit_violation_created,
             ControlLimitsUpdatedEvent: _audit_limits_updated,
             CharacteristicCreatedEvent: _audit_char_created,

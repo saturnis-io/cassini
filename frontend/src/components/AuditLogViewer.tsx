@@ -51,6 +51,9 @@ const ACTION_LABELS: Record<string, string> = {
   password_reset_completed: 'Password Reset Completed',
   email_verified: 'Email Verified',
   profile_updated: 'Profile Updated',
+  batch_create: 'Batch Create',
+  batch_create_async: 'Batch Create (Async)',
+  batch_evaluate: 'Batch SPC Evaluate',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
