@@ -23,6 +23,7 @@ from cassini.api.schemas.rule_preset import (
     PresetResponse,
     RuleConfigItem,
 )
+from cassini.core.events import CharacteristicUpdatedEvent, event_bus
 from cassini.db.models.characteristic import CharacteristicRule
 from cassini.db.models.rule_preset import RulePreset
 from cassini.db.models.user import User
@@ -193,5 +194,14 @@ async def apply_preset(
             "rules_applied": len(created),
         },
     }
+
+    # Publish event for cache invalidation (e.g., NelsonRuleLibrary cache)
+    await event_bus.publish(CharacteristicUpdatedEvent(
+        characteristic_id=char_id,
+        changes={
+            "rules_preset": preset.name,
+            "rules": [{"rule_id": r["rule_id"], "is_enabled": r["is_enabled"]} for r in created],
+        },
+    ))
 
     return created

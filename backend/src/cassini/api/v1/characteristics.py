@@ -2147,6 +2147,12 @@ async def change_subgroup_mode(
     # Re-load with data_source relationship
     characteristic = await repo.get_with_data_source(char_id)
 
+    # Publish event for cache invalidation
+    await event_bus.publish(CharacteristicUpdatedEvent(
+        characteristic_id=char_id,
+        changes={"subgroup_mode": new_mode},
+    ))
+
     return ChangeModeResponse(
         previous_mode=previous_mode,
         new_mode=new_mode,
