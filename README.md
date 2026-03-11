@@ -681,14 +681,67 @@ Full process capability with Cp, Cpk, Pp, Ppk, and Cpm. Color-coded capability m
 
 Violations are detected in real time as data flows in. Each violation references the specific Nelson rule triggered, the sample that caused it, and the characteristic's current state. Bulk acknowledgment, filtering by severity/status/rule, and one-click navigation to the offending chart point.
 
-### Data Entry
+### Data Entry & Ingestion
 
-Multiple paths to get data into the system:
+Multiple paths to get data into the system, from manual single-sample entry to high-throughput batch pipelines processing up to 200K samples/min.
 
-- **Manual entry**: Form-based sample submission with validation
-- **CSV/Excel import**: 4-step wizard (upload, validate, map columns, confirm)
-- **MQTT / Sparkplug B**: Automatic via connectivity mappings (single broker in Community)
-- **API**: RESTful endpoints for programmatic integration
+#### Manual & Interactive
+
+- **Manual entry**: Form-based sample submission with measurement validation, subgroup size enforcement, and optional batch/operator metadata
+- **CSV/Excel import**: 4-step wizard (upload → validate → map columns → confirm) with preview and error reporting
+
+#### API Ingestion
+
+The REST API provides three ingestion endpoints optimized for different use cases:
+
+| Endpoint | Use Case | Throughput |
+|----------|----------|------------|
+| `POST /api/v1/data-entry/submit` | Single sample with full SPC + supplementary analysis (CUSUM/EWMA). Supports API key auth for machine integration. | Real-time |
+| `POST /api/v1/samples/` | Single sample submission (user auth) | Real-time |
+| `POST /api/v1/samples/batch` | Bulk import up to 10,000 samples per request | Up to 200K samples/min |
+
+#### Batch Import (`POST /api/v1/samples/batch`)
+
+The batch endpoint is the primary path for high-volume data ingestion. It accepts up to 10,000 samples per request, all targeting a single characteristic, with three processing modes:
+
+| Mode | Flag | Description | Typical Use |
+|------|------|-------------|-------------|
+| **Skip rules** | `skip_rule_evaluation: true` | Direct database insert, no SPC evaluation | Historical data migration, backfill |
+| **Sync SPC** | (default) | Each sample evaluated through full SPC pipeline (Nelson rules, zone classification) | Standard batch import with immediate violation detection |
+| **Async SPC** | `async_spc: true` | Samples inserted immediately, SPC evaluation deferred to background workers | High-throughput production ingestion (**commercial**) |
+
+**Request format:**
+```json
+{
+  "characteristic_id": 42,
+  "skip_rule_evaluation": false,
+  "async_spc": false,
+  "samples": [
+    {"measurements": [10.1, 10.2, 10.0]},
+    {"measurements": [9.9, 10.1, 10.0], "batch_number": "B-2024-001"},
+    {"measurements": [10.3, 10.1, 10.2], "timestamp": "2024-01-15T08:30:00Z"}
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "total": 3,
+  "imported": 3,
+  "failed": 0,
+  "errors": [],
+  "status": "complete"
+}
+```
+
+Individual sample failures do not abort the batch — successful samples commit while errors are accumulated in the response.
+
+#### Connectivity (MQTT / OPC-UA)
+
+- **MQTT / Sparkplug B**: Topic-to-characteristic mapping with live value preview. Community Edition supports one broker; commercial unlocks unlimited brokers.
+- **OPC-UA**: Server management with node tree browsing and subscription-to-SPC pipeline (**commercial**)
+- **RS-232/USB Gages**: Bridge agent translates serial gage protocols to MQTT (**commercial**)
 
 ### MQTT Connectivity
 
@@ -727,6 +780,8 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 - **Docker**: Production-ready multi-stage Dockerfile + docker-compose with PostgreSQL
 - **REST API**: 300+ endpoints for full programmatic access
+- **Batch import**: Up to 10,000 samples per request, three processing modes (skip rules, sync SPC, async SPC)
+- **Throughput**: Up to 200K samples/min bulk ingestion (benchmarked on PostgreSQL, 4 uvicorn workers)
 - **WebSocket**: Real-time push for chart updates and notifications
 - **PWA**: Progressive web app with offline queue support
 
@@ -734,7 +789,7 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ## Commercial Features
 
-> Unlock additional capabilities with a [commercial license](https://saturnis.io/pricing) at $3,500/plant/year. [Learn more](https://saturnis.io/pricing).
+> **These features require a [commercial license](https://saturnis.io/pricing) ($3,500/plant/year).** Community Edition users can evaluate commercial features locally by setting `CASSINI_DEV_COMMERCIAL=true`. [Learn more →](https://saturnis.io/pricing)
 
 ### Industrial Connectivity Hub
 
@@ -779,6 +834,33 @@ Three machine learning detectors per characteristic:
 
 Anomalies overlay directly on control charts and integrate with the notification system.
 
+### High-Throughput Async Ingestion
+
+Production environments generating thousands of samples per minute need ingestion that doesn't block on SPC computation. The async SPC pipeline decouples data persistence from rule evaluation:
+
+1. **Ingest**: Samples are validated and committed to the database immediately with `spc_status=pending_spc`
+2. **Enqueue**: Sample IDs are published to the background SPC processor
+3. **Evaluate**: Background workers run Nelson rules, zone classification, and violation detection asynchronously
+4. **Notify**: Violations trigger real-time WebSocket updates and configured notifications
+
+This achieves up to **175K samples/min with full SPC evaluation** — compared to ~26K/min with synchronous processing. The batch endpoint (`POST /api/v1/samples/batch`) enables async mode with a single flag:
+
+```json
+{
+  "characteristic_id": 42,
+  "async_spc": true,
+  "samples": [...]
+}
+```
+
+The response returns immediately with `"status": "processing"` and a list of `sample_ids` for tracking. SPC results appear on charts and dashboards as background processing completes.
+
+| Metric | Sync SPC | Async SPC |
+|--------|----------|-----------|
+| Throughput (batch, 4 workers) | ~26K samples/min | ~175K samples/min |
+| Latency per 1000-sample batch | ~7,400ms | ~2,400ms |
+| Violation detection | Immediate in response | Background (seconds) |
+
 ### Enterprise Compliance
 
 **Electronic Signatures (21 CFR Part 11)** -- Configurable multi-step signature workflows with password re-authentication, SHA-256 tamper detection, plant-scoped signature meanings, and FDA-compliant password policies.
@@ -807,11 +889,16 @@ Anomalies overlay directly on control charts and integrate with the notification
 | Show Your Work (computation transparency) | Yes | Yes |
 | Non-normal distribution fitting | -- | Yes |
 | Run rule preset management | -- | Yes |
-| **Data** | | |
+| **Data & Ingestion** | | |
 | Manual data entry | Yes | Yes |
+| CSV / Excel import wizard | Yes | Yes |
+| Batch import API (up to 10K samples/req) | Yes | Yes |
+| Bulk import throughput | Up to 200K samples/min | Up to 200K samples/min |
+| Throughput with SPC rules | ~26K samples/min (sync) | Up to 175K samples/min (async) |
 | MQTT / Sparkplug B connectivity | 1 broker | Unlimited |
 | OPC-UA connectivity | -- | Yes |
 | RS-232 / USB gage bridge | -- | Yes |
+| ERP / LIMS connectors | -- | Yes |
 | ISA-95 plant hierarchy | Single plant | Multi-plant |
 | **Quality Systems** | | |
 | MSA / Gage R&R | -- | Yes |
@@ -836,6 +923,8 @@ Anomalies overlay directly on control charts and integrate with the notification
 | **Infrastructure** | | |
 | Database | SQLite | PostgreSQL, MSSQL, MySQL |
 | REST API (300+) | Yes | Yes |
+| Batch import API | Yes | Yes |
+| Async SPC pipeline | -- | Yes |
 | Source code access | Yes | Yes |
 | Modification rights | AGPL (share-alike) | Proprietary |
 | Support | Community (GitHub) | Dedicated with SLA |

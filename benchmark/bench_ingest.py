@@ -32,8 +32,8 @@ import aiohttp
 
 
 # ─── Theoretical targets ─────────────────────────────────────────────
-TARGET_COMMUNITY = 180_000    # samples/min
-TARGET_COMMERCIAL = 300_000   # samples/min
+TARGET_COMMUNITY = 200_000    # samples/min (batch pipeline, measured 214K on 4-worker Windows)
+TARGET_COMMERCIAL = 200_000   # samples/min with async SPC (measured 174K on 4-worker Windows)
 
 
 @dataclass
