@@ -153,10 +153,11 @@ function setupExternalDb(dialect: DbDialect) {
   console.log(`[global-setup] Setup complete for ${dialect}`)
 }
 
-export default function globalSetup(config: FullConfig) {
-  // Determine if any active project specifies a dbDialect
-  const activeProject = config.projects.find((p) => p.metadata?.dbDialect)
-  const dialect = activeProject?.metadata?.dbDialect as DbDialect | undefined
+export default function globalSetup(_config: FullConfig) {
+  // Playwright passes ALL projects to globalSetup, not just the active one.
+  // Use the E2E_DB_DIALECT env var to select multi-DB mode explicitly.
+  // Set it when running: E2E_DB_DIALECT=postgresql npx playwright test --project=multi-db-pg
+  const dialect = process.env.E2E_DB_DIALECT as DbDialect | undefined
 
   if (dialect && BACKEND_URL_MAP[dialect]) {
     setupExternalDb(dialect)
