@@ -507,7 +507,7 @@ class BatchEvaluator:
 
         stmt = (
             update(Sample)
-            .where(Sample.id.in_(sample_ids))
+            .where(Sample.id.in_(sample_ids), Sample.spc_status == "pending_spc")
             .values(spc_status="complete")
         )
         await self._session.execute(stmt)

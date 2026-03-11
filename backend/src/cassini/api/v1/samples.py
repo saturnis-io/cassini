@@ -336,8 +336,11 @@ async def submit_sample(
     # Guard: reject if async batch SPC is still processing for this characteristic
     try:
         await check_no_pending_spc(session, data.characteristic_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This characteristic has pending async SPC processing. Please wait.",
+        )
 
     try:
         # Look up characteristic for supplementary analysis params
@@ -1108,6 +1111,15 @@ async def batch_import(
         from cassini.core.engine.spc_queue import get_spc_queue, SPCEvaluationRequest
         import asyncio as _asyncio
 
+        # Validate homogeneous material_id — batch evaluation uses a single material
+        material_ids = {s.get("material_id") for s in request.samples}
+        if len(material_ids) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Async batch requires all samples to have the same material_id",
+            )
+        batch_material_id = material_ids.pop() if material_ids else None
+
         spc_queue = get_spc_queue()
         sample_repo = SampleRepository(session)
         sample_ids: list[int] = []
@@ -1141,23 +1153,23 @@ async def batch_import(
                 detail="No samples could be inserted",
             )
 
-        # CRITICAL: Enqueue BEFORE commit. If queue full -> rollback -> 503
+        # Commit first — samples are safely persisted with spc_status='pending_spc'.
+        # If enqueue fails (QueueFull), they will be recovered on next startup.
+        await session.commit()
+
         eval_request = SPCEvaluationRequest(
             characteristic_id=char_id,
             sample_ids=sample_ids,
-            material_id=request.samples[0].get("material_id") if request.samples else None,
+            material_id=batch_material_id,
         )
         try:
             spc_queue.enqueue_nowait(eval_request)
         except _asyncio.QueueFull:
-            await session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="SPC queue is full, try again later",
-                headers={"Retry-After": "5"},
+            logger.warning(
+                "spc_queue_full_after_commit",
+                char_id=char_id,
+                sample_count=len(sample_ids),
             )
-
-        await session.commit()
 
         http_request.state.audit_context = {
             "resource_type": "sample",
@@ -1182,6 +1194,16 @@ async def batch_import(
 
     # --- Existing sync paths below (skip_rule_evaluation and full SPC) ---
     skip_rule_evaluation = request.skip_rule_evaluation
+
+    # Guard: if doing full SPC (not skip_rule_evaluation), reject if async batch is pending
+    if not skip_rule_evaluation:
+        try:
+            await check_no_pending_spc(session, char_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This characteristic has pending async SPC processing. Please wait.",
+            )
     total = len(request.samples)
     successful = 0
     failed = 0

@@ -128,8 +128,11 @@ async def submit_sample(
     # Guard: reject if async batch SPC is still processing for this characteristic
     try:
         await check_no_pending_spc(session, data.characteristic_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This characteristic has pending async SPC processing. Please wait.",
+        )
 
     # Look up characteristic for supplementary analysis params
     char_repo = CharacteristicRepository(session)
