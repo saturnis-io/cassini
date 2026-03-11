@@ -35,7 +35,7 @@ from cassini.api.schemas.sample import (
 )
 from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 from cassini.core.engine.rolling_window import RollingWindowManager, get_shared_window_manager
-from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.engine.spc_engine import SPCEngine, extract_char_data
 from cassini.core.engine.spc_guard import check_no_pending_spc
 from cassini.core.providers.manual import ManualProvider
 from cassini.core.providers.protocol import SampleContext
@@ -1204,6 +1204,20 @@ async def batch_import(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This characteristic has pending async SPC processing. Please wait.",
             )
+
+    # Load characteristic once for full SPC dedup (avoids per-sample get_with_rules inside engine)
+    if not skip_rule_evaluation and request.samples:
+        char_repo = CharacteristicRepository(session)
+        characteristic = await char_repo.get_with_rules(char_id)
+        if characteristic is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Characteristic {char_id} not found",
+            )
+        char_data = extract_char_data(characteristic)
+    else:
+        char_data = None
+
     total = len(request.samples)
     successful = 0
     failed = 0
@@ -1239,6 +1253,7 @@ async def batch_import(
                     characteristic_id=char_id,
                     measurements=measurements,
                     context=context,
+                    char_data=char_data,
                 )
 
             successful += 1

@@ -83,6 +83,58 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+
+def extract_char_data(char) -> dict:
+    """Extract char_data dict from ORM Characteristic for process_sample dedup.
+
+    Callers that already hold an eagerly-loaded Characteristic ORM object
+    can pass the returned dict to ``SPCEngine.process_sample(char_data=...)``
+    so that the engine skips its internal ``get_with_rules()`` DB query.
+
+    Args:
+        char: Characteristic ORM object with rules eagerly loaded
+              (use ``CharacteristicRepository.get_with_rules``).
+
+    Returns:
+        Dict matching process_sample's char_data parameter shape.
+    """
+    import json as _json
+
+    rules: list[dict] = []
+    for rule in char.rules:
+        params = None
+        if rule.parameters:
+            try:
+                params = _json.loads(rule.parameters)
+            except (ValueError, TypeError):
+                params = None
+        rules.append(
+            {
+                "rule_id": rule.rule_id,
+                "is_enabled": rule.is_enabled,
+                "require_acknowledgement": getattr(rule, "require_acknowledgement", True),
+                "parameters": params,
+            }
+        )
+
+    return {
+        "id": char.id,
+        "subgroup_mode": char.subgroup_mode,
+        "subgroup_size": char.subgroup_size,
+        "min_measurements": char.min_measurements,
+        "warn_below_count": char.warn_below_count,
+        "ucl": char.ucl,
+        "lcl": char.lcl,
+        "usl": getattr(char, "usl", None),
+        "lsl": getattr(char, "lsl", None),
+        "stored_sigma": char.stored_sigma,
+        "stored_center_line": char.stored_center_line,
+        "short_run_mode": getattr(char, "short_run_mode", None),
+        "target_value": getattr(char, "target_value", None),
+        "rules": rules,
+    }
+
+
 # Default number of recent samples used for auto-limit calculation.
 # Override via CharacteristicConfig or recalculate-limits last_n param.
 # TODO: Make this configurable per-characteristic via a field on the

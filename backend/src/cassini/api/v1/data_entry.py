@@ -37,7 +37,7 @@ from cassini.api.schemas.data_entry import (
 )
 from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 from cassini.core.engine.rolling_window import get_shared_window_manager
-from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.engine.spc_engine import SPCEngine, extract_char_data
 from cassini.core.engine.spc_guard import check_no_pending_spc
 from cassini.core.providers.protocol import SampleContext
 from cassini.db.models.api_key import APIKey
@@ -134,9 +134,9 @@ async def submit_sample(
             detail="This characteristic has pending async SPC processing. Please wait.",
         )
 
-    # Look up characteristic for supplementary analysis params
+    # Load characteristic with rules for SPC engine dedup
     char_repo = CharacteristicRepository(session)
-    characteristic = await char_repo.get_by_id(data.characteristic_id)
+    characteristic = await char_repo.get_with_rules(data.characteristic_id)
     if characteristic is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -146,6 +146,9 @@ async def submit_sample(
     try:
         # Always run standard SPC engine first (Nelson Rules, zone classification)
         engine = await get_spc_engine(session)
+
+        # Extract char_data for process_sample dedup (avoids redundant get_with_rules inside engine)
+        char_data = extract_char_data(characteristic)
 
         context = SampleContext(
             batch_number=data.batch_number,
@@ -159,6 +162,7 @@ async def submit_sample(
             characteristic_id=data.characteristic_id,
             measurements=data.measurements,
             context=context,
+            char_data=char_data,
         )
 
         # Additionally run CUSUM/EWMA analysis if params are configured
