@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -30,6 +30,7 @@ class Sample(Base):
     __tablename__ = "sample"
     __table_args__ = (
         Index("ix_sample_char_id_timestamp", "char_id", "timestamp"),
+        Index("ix_sample_spc_status_pending", "spc_status", postgresql_where=text("spc_status != 'complete'")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -65,6 +66,11 @@ class Sample(Base):
 
     # Edit tracking - indicates sample has been modified from original
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Async SPC processing status (for deferred batch processing)
+    spc_status: Mapped[str] = mapped_column(
+        String(20), default="complete", server_default="complete", nullable=False
+    )
 
     # Relationships
     characteristic: Mapped["Characteristic"] = relationship(
