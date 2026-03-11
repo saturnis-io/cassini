@@ -98,6 +98,7 @@ class ViolationInfo:
         severity: Severity level (WARNING or CRITICAL)
         message: Human-readable description
         involved_sample_ids: Sample IDs involved in the violation
+        violation_id: Database ID of the violation (populated after persistence)
     """
 
     rule_id: int
@@ -105,6 +106,7 @@ class ViolationInfo:
     severity: str
     message: str
     involved_sample_ids: list[int]
+    violation_id: int | None = None
 
 
 @dataclass

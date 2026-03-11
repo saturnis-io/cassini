@@ -910,6 +910,31 @@ class TestPerformance:
         assert result.processing_time_ms < 10000  # Should be under 10 seconds
 
 
+class TestViolationInfo:
+    def test_violation_info_has_violation_id(self):
+        """ViolationInfo must include violation_id field."""
+        vi = ViolationInfo(
+            violation_id=42,
+            rule_id=1,
+            rule_name="Outlier",
+            severity="CRITICAL",
+            message="Beyond 3σ",
+            involved_sample_ids=[10],
+        )
+        assert vi.violation_id == 42
+
+    def test_violation_info_violation_id_default_none(self):
+        """violation_id defaults to None for backward compatibility."""
+        vi = ViolationInfo(
+            rule_id=1,
+            rule_name="Outlier",
+            severity="CRITICAL",
+            message="Beyond 3σ",
+            involved_sample_ids=[10],
+        )
+        assert vi.violation_id is None
+
+
 class TestControlLimitCacheIntegration:
     """Tests that SPCEngine uses cached limits to avoid recomputation."""
 
