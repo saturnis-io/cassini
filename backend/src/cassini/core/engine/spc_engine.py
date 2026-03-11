@@ -60,6 +60,7 @@ KEY DECISIONS:
 import structlog
 import math
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -194,6 +195,11 @@ class SPCEngine:
         self._window_manager = window_manager
         self._rule_library = rule_library
 
+        # LRU cache: characteristic_id -> (NelsonRuleLibrary, created_at_monotonic)
+        self._rule_cache: OrderedDict[int, tuple["NelsonRuleLibrary", float]] = OrderedDict()
+        self._rule_cache_max_size: int = 500
+        self._rule_cache_ttl: float = 300.0  # 5 minutes
+
         # Use provided event bus or import global instance
         if event_bus is None:
             from cassini.core.events import event_bus as global_bus
@@ -201,6 +207,45 @@ class SPCEngine:
             self._event_bus = global_bus
         else:
             self._event_bus = event_bus
+
+    def _get_or_build_rule_library(
+        self, char_id: int, rule_configs: list[dict]
+    ) -> "NelsonRuleLibrary":
+        """Get cached rule library or build new one.
+
+        LRU cache keyed by characteristic_id with TTL safety net.
+        Each cached entry is an independent NelsonRuleLibrary instance,
+        preventing cross-contamination between characteristics.
+        """
+        from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+
+        now = time.monotonic()
+
+        if char_id in self._rule_cache:
+            library, created_at = self._rule_cache[char_id]
+            if now - created_at < self._rule_cache_ttl:
+                self._rule_cache.move_to_end(char_id)  # LRU touch
+                return library
+            else:
+                del self._rule_cache[char_id]  # TTL expired
+
+        # Build new library (independent instance)
+        library = NelsonRuleLibrary()
+        library.create_from_config(rule_configs)
+
+        # LRU eviction
+        while len(self._rule_cache) >= self._rule_cache_max_size:
+            self._rule_cache.popitem(last=False)  # Remove oldest
+
+        self._rule_cache[char_id] = (library, now)
+        return library
+
+    def _invalidate_rule_cache(self, characteristic_id: int) -> None:
+        """Remove cached rule library for a characteristic.
+
+        Called when CharacteristicUpdatedEvent is received.
+        """
+        self._rule_cache.pop(characteristic_id, None)
 
     def _validate_measurements(
         self,
@@ -434,9 +479,10 @@ class SPCEngine:
                 "is_enabled": rule.is_enabled,
                 "parameters": params,
             })
-        # Always rebuild rule library (even if empty) to prevent leaking
-        # rules from a previously-processed characteristic in the same batch
-        self._rule_library.create_from_config(rule_configs)
+        # Get cached rule library (independent per char_id) or build a new one.
+        # Each characteristic gets its own NelsonRuleLibrary instance, preventing
+        # cross-contamination between characteristics in the same batch.
+        rule_library = self._get_or_build_rule_library(characteristic_id, rule_configs)
         char_subgroup_mode = char.subgroup_mode
         char_subgroup_size = char.subgroup_size
         char_min_measurements = char.min_measurements
@@ -626,7 +672,7 @@ class SPCEngine:
         )
 
         # Check all enabled rules (enabled_rules was extracted earlier to avoid lazy loading)
-        rule_results = self._rule_library.check_all(window, enabled_rules)
+        rule_results = rule_library.check_all(window, enabled_rules)
 
         # R-chart / S-chart Rule 1: point beyond D3/D4 limits (AIAG SPC Manual requirement)
         # The R/S chart must be evaluated for lack of control. At minimum, check
