@@ -36,6 +36,7 @@ from cassini.api.schemas.sample import (
 from cassini.core.engine.nelson_rules import NelsonRuleLibrary
 from cassini.core.engine.rolling_window import RollingWindowManager, get_shared_window_manager
 from cassini.core.engine.spc_engine import SPCEngine
+from cassini.core.engine.spc_guard import check_no_pending_spc
 from cassini.core.providers.manual import ManualProvider
 from cassini.core.providers.protocol import SampleContext
 from cassini.db.repositories import (
@@ -331,6 +332,12 @@ async def submit_sample(
     # Plant-scoped authorization: operator+ at the owning plant
     plant_id = await resolve_plant_id_for_characteristic(data.characteristic_id, session)
     check_plant_role(_user, plant_id, "operator")
+
+    # Guard: reject if async batch SPC is still processing for this characteristic
+    try:
+        await check_no_pending_spc(session, data.characteristic_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
     try:
         # Look up characteristic for supplementary analysis params
