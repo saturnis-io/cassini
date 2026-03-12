@@ -75,9 +75,6 @@ test.describe('MSA - Measurement System Analysis', () => {
   })
 
   test('study detail shows operators and parts', async ({ page }) => {
-    // Suppress pre-existing toFixed crash on MSA results tab (renders before Overview click)
-    page.on('pageerror', () => {})
-
     await page.goto(`/msa/${msaStudyId}`)
     await page.waitForTimeout(3000)
 
@@ -86,7 +83,8 @@ test.describe('MSA - Measurement System Analysis', () => {
       timeout: 15000,
     })
 
-    // Click the Overview tab to see operators and parts
+    // The study is complete, so the Results tab is auto-selected.
+    // Click the Overview tab to see operators and parts.
     const overviewTab = page.getByRole('tab', { name: 'Overview' })
     await expect(overviewTab).toBeVisible({ timeout: 5000 })
     await overviewTab.click()
@@ -110,63 +108,33 @@ test.describe('MSA - Measurement System Analysis', () => {
   })
 
   test('results view shows Gage R&R metrics', async ({ page }) => {
-    // MSA results page has a pre-existing toFixed crash when some result fields are null.
-    // Suppress the page error so we can still verify what renders.
-    page.on('pageerror', () => {})
-
     await page.goto(`/msa/${msaStudyId}`)
     await page.waitForTimeout(3000)
 
     // The study is status=complete, so the Results tab should be auto-selected.
-    // If the toFixed bug triggers an error boundary, the metrics won't render.
-    // Check for either the results content OR the error boundary.
 
     // Verdict banner (Acceptable, Marginal, or Unacceptable)
-    const hasVerdict = await page
-      .getByText(/Acceptable|Marginal|Unacceptable/)
-      .first()
-      .isVisible({ timeout: 10000 })
-      .catch(() => false)
+    await expect(
+      page.getByText(/Acceptable|Marginal|Unacceptable/).first(),
+    ).toBeVisible({ timeout: 10000 })
 
     // ndc value should be displayed
-    const hasNdc = await page
-      .getByText(/ndc/)
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false)
+    await expect(page.getByText(/ndc/).first()).toBeVisible({ timeout: 5000 })
 
     // %Study GRR metric
-    const hasGRR = await page
-      .getByText(/%Study GRR|Gage R&R|GRR/i)
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false)
+    await expect(
+      page.getByText(/%Study GRR|Gage R&R|GRR/i).first(),
+    ).toBeVisible({ timeout: 5000 })
 
     // %Contribution table headers
-    const hasContribution = await page
-      .getByText(/%Contribution|Repeatability|Reproducibility/i)
-      .first()
-      .isVisible({ timeout: 5000 })
-      .catch(() => false)
-
-    // Check if the page hit the error boundary (pre-existing toFixed bug)
-    const hasErrorBoundary = await page
-      .getByText(/something went wrong|error/i)
-      .first()
-      .isVisible({ timeout: 2000 })
-      .catch(() => false)
+    await expect(
+      page.getByText(/%Contribution|Repeatability|Reproducibility/i).first(),
+    ).toBeVisible({ timeout: 5000 })
 
     await test.info().attach('msa-study-results', {
       body: await page.screenshot({ fullPage: true }),
       contentType: 'image/png',
     })
-
-    // At least one of the result indicators should be visible, OR the error boundary
-    // (error boundary is a known pre-existing bug with toFixed on null values)
-    expect(
-      hasVerdict || hasNdc || hasGRR || hasContribution || hasErrorBoundary,
-      'Results view should show Gage R&R metrics or error boundary (pre-existing toFixed bug)',
-    ).toBe(true)
   })
 
   test('create new study', async ({ page }) => {

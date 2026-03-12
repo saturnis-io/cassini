@@ -11,13 +11,12 @@ test.describe('Database Settings', () => {
     await page.waitForTimeout(2000)
 
     // Database status card should be visible with the engine badge
-    await expect(
-      page.locator('[data-ui="database-status-card"]'),
-    ).toBeVisible({ timeout: 10000 })
+    const statusCard = page.locator('[data-ui="database-status-card"]')
+    await expect(statusCard).toBeVisible({ timeout: 10000 })
 
     // Should show current dialect (SQLite in dev) — scoped to status card
-    const statusCard = page.locator('[data-ui="database-status-card"]')
-    await expect(statusCard.getByText('SQLite')).toBeVisible({ timeout: 5000 })
+    // The status data loads asynchronously; wait long enough for the API response
+    await expect(statusCard.getByText('SQLite', { exact: true })).toBeVisible({ timeout: 15000 })
 
     // Should show connected status
     await expect(statusCard.getByText('Connected')).toBeVisible({ timeout: 5000 })

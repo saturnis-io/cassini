@@ -27,22 +27,31 @@ test.describe('Audit Log', () => {
   })
 
   test('log entries visible', async ({ page }) => {
-    await page.goto('/settings/audit-log')
-    await page.waitForTimeout(3000)
+    // Wait for both the page navigation and the audit logs API response
+    await Promise.all([
+      page.waitForResponse(
+        (resp) => resp.url().includes('/audit') && resp.request().method() === 'GET' && resp.status() === 200,
+        { timeout: 15000 },
+      ),
+      page.goto('/settings/audit-log'),
+    ])
+    await page.waitForTimeout(1000)
 
     // The seed script creates audit entries, plus the login itself creates one.
     // Table should have at least one row (the admin login we just performed)
     const table = page.locator('[data-ui="audit-log-table"]')
     await expect(table).toBeVisible({ timeout: 10000 })
 
-    // Table should have header columns
-    await expect(table.getByText('Timestamp')).toBeVisible({ timeout: 5000 })
-    await expect(table.getByText('User')).toBeVisible({ timeout: 5000 })
-    await expect(table.getByText('Action')).toBeVisible({ timeout: 5000 })
+    // Table should have header columns (use exact match to avoid collisions
+    // with resource labels like "User" appearing in tbody rows)
+    const thead = table.locator('thead')
+    await expect(thead.getByText('Timestamp')).toBeVisible({ timeout: 5000 })
+    await expect(thead.getByText('User')).toBeVisible({ timeout: 5000 })
+    await expect(thead.getByText('Action')).toBeVisible({ timeout: 5000 })
 
     // At least one data row should exist (login action from beforeEach)
     const rows = table.locator('tbody tr')
-    await expect(rows.first()).toBeVisible({ timeout: 10000 })
+    await expect(rows.first()).toBeVisible({ timeout: 15000 })
 
     // Summary stats should show total events
     await expect(

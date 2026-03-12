@@ -323,6 +323,9 @@ export async function switchToPlant(page: Page, plantName: string) {
   const targetOption = listbox.locator('[role="option"]').filter({ hasText: plantName })
   if (await targetOption.isVisible({ timeout: 2000 })) {
     await targetOption.click()
+    // Wait for the dropdown to close and the selector button to show the new plant name
+    await expect(listbox).not.toBeVisible({ timeout: 3000 })
+    await expect(plantSelector).toContainText(plantName, { timeout: 5000 })
   } else {
     await page.keyboard.press('Escape')
   }

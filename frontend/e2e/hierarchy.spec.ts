@@ -93,7 +93,7 @@ test.describe('Hierarchy Management', () => {
     )
 
     // Create a characteristic via API
-    const res = await request.post('${API_BASE}/characteristics/', {
+    const res = await request.post(`${API_BASE}/characteristics/`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       data: {
         hierarchy_id: station.id,

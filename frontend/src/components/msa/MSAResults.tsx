@@ -87,6 +87,12 @@ function Tip({ id }: { id: string }) {
   )
 }
 
+/** Safe toFixed that handles null/undefined values gracefully */
+function safeFixed(val: number | null | undefined, digits: number): string {
+  if (val == null || isNaN(val)) return '-'
+  return val.toFixed(digits)
+}
+
 /** Color-code a percentage value for Gage R&R tables */
 function pctClass(pct: number): string {
   if (pct <= 10) return 'text-green-600 dark:text-green-400'
@@ -105,34 +111,34 @@ function grrToIshikawa(result: GageRRResult): IshikawaResult {
   const categories = [
     {
       name: 'Measurement',
-      eta_squared: result.pct_contribution_ev / 100,
+      eta_squared: (result.pct_contribution_ev ?? 0) / 100,
       p_value: null,
-      significant: result.pct_contribution_ev > 10,
+      significant: (result.pct_contribution_ev ?? 0) > 10,
       sufficient_data: true,
-      factors: [{ name: `EV (${result.repeatability_ev.toFixed(4)})`, sample_count: 0 }],
+      factors: [{ name: `EV (${safeFixed(result.repeatability_ev, 4)})`, sample_count: 0 }],
       detail: 'Equipment Variation (Repeatability)',
     },
     {
       name: 'Personnel',
-      eta_squared: result.pct_contribution_av / 100,
+      eta_squared: (result.pct_contribution_av ?? 0) / 100,
       p_value: null,
-      significant: result.pct_contribution_av > 10,
+      significant: (result.pct_contribution_av ?? 0) > 10,
       sufficient_data: true,
       factors: [
-        { name: `AV (${result.reproducibility_av.toFixed(4)})`, sample_count: 0 },
+        { name: `AV (${safeFixed(result.reproducibility_av, 4)})`, sample_count: 0 },
         ...(result.pct_contribution_interaction != null
-          ? [{ name: `Interaction (${result.pct_contribution_interaction.toFixed(1)}%)`, sample_count: 0 }]
+          ? [{ name: `Interaction (${safeFixed(result.pct_contribution_interaction, 1)}%)`, sample_count: 0 }]
           : []),
       ],
       detail: 'Appraiser Variation (Reproducibility)',
     },
     {
       name: 'Material',
-      eta_squared: result.pct_contribution_pv / 100,
+      eta_squared: (result.pct_contribution_pv ?? 0) / 100,
       p_value: null,
-      significant: result.pct_contribution_pv > 50,
+      significant: (result.pct_contribution_pv ?? 0) > 50,
       sufficient_data: true,
-      factors: [{ name: `PV (${result.part_variation.toFixed(4)})`, sample_count: 0 }],
+      factors: [{ name: `PV (${safeFixed(result.part_variation, 4)})`, sample_count: 0 }],
       detail: 'Part Variation',
     },
     // Empty categories to complete the fishbone
@@ -143,7 +149,7 @@ function grrToIshikawa(result: GageRRResult): IshikawaResult {
 
   return {
     effect: 'Measurement Variation',
-    total_variance: result.total_variation ** 2,
+    total_variance: (result.total_variation ?? 0) ** 2,
     sample_count: 0,
     categories,
     analysis_window: { start_date: null, end_date: null, limit: null },
@@ -167,8 +173,8 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
       result.pct_contribution_pv,
     ]
     const colors = pctContrib.map((v) => {
-      if (v <= 10) return '#22c55e'
-      if (v <= 30) return '#f59e0b'
+      if ((v ?? 0) <= 10) return '#22c55e'
+      if ((v ?? 0) <= 30) return '#f59e0b'
       return '#ef4444'
     })
 
@@ -196,7 +202,7 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
         {
           type: 'bar' as const,
           data: pctContrib.map((v, i) => ({
-            value: parseFloat(v.toFixed(2)),
+            value: v != null && !isNaN(v) ? parseFloat(v.toFixed(2)) : 0,
             itemStyle: { color: colors[i] },
           })),
           barWidth: 20,
@@ -221,9 +227,9 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
           <span className="text-muted-foreground text-xs">
             %Study GRR ={' '}
             <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
-              {result.pct_study_grr.toFixed(1)}%
+              {safeFixed(result.pct_study_grr, 1)}%
             </Explainable>
-            {result.pct_study_grr < 10 ? ' (\u226410%)' : result.pct_study_grr <= 30 ? ' (10-30%)' : ' (>30%)'}
+            {(result.pct_study_grr ?? 0) < 10 ? ' (\u226410%)' : (result.pct_study_grr ?? 0) <= 30 ? ' (10-30%)' : ' (>30%)'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -232,7 +238,7 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
             <span
               className={cn(
                 'rounded-full px-3 py-1 text-sm font-bold',
-                result.ndc >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
+                (result.ndc ?? 0) >= 5 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600',
               )}
             >
               {result.ndc}
@@ -316,13 +322,13 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                 Repeatability (EV)
                 <Tip id="ev" />
               </td>
-              <td className="px-4 py-2 text-right tabular-nums">{result.repeatability_ev.toFixed(4)}</td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_ev), pctClass(result.pct_contribution_ev))}>
-                {result.pct_contribution_ev.toFixed(2)}%
+              <td className="px-4 py-2 text-right tabular-nums">{safeFixed(result.repeatability_ev, 4)}</td>
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_ev ?? 0), pctClass(result.pct_contribution_ev ?? 0))}>
+                {safeFixed(result.pct_contribution_ev, 2)}%
               </td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_ev))}>
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_ev ?? 0))}>
                 <Explainable metric="pct_study_ev" resourceId={studyId} resourceType="msa">
-                  {result.pct_study_ev.toFixed(2)}%
+                  {safeFixed(result.pct_study_ev, 2)}%
                 </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
@@ -332,13 +338,13 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                 Reproducibility (AV)
                 <Tip id="av" />
               </td>
-              <td className="px-4 py-2 text-right tabular-nums">{result.reproducibility_av.toFixed(4)}</td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_av), pctClass(result.pct_contribution_av))}>
-                {result.pct_contribution_av.toFixed(2)}%
+              <td className="px-4 py-2 text-right tabular-nums">{safeFixed(result.reproducibility_av, 4)}</td>
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_av ?? 0), pctClass(result.pct_contribution_av ?? 0))}>
+                {safeFixed(result.pct_contribution_av, 2)}%
               </td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_av))}>
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_av ?? 0))}>
                 <Explainable metric="pct_study_av" resourceId={studyId} resourceType="msa">
-                  {result.pct_study_av.toFixed(2)}%
+                  {safeFixed(result.pct_study_av, 2)}%
                 </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
@@ -350,10 +356,10 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                   <Tip id="interaction" />
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
-                  {result.interaction !== null ? result.interaction.toFixed(4) : '-'}
+                  {safeFixed(result.interaction, 4)}
                 </td>
-                <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_contribution_interaction!))}>
-                  {result.pct_contribution_interaction!.toFixed(2)}%
+                <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_contribution_interaction ?? 0))}>
+                  {safeFixed(result.pct_contribution_interaction, 2)}%
                 </td>
                 <td className="px-4 py-2 text-right">-</td>
                 {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
@@ -364,19 +370,19 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                 Gage R&amp;R (GRR)
                 <Tip id="grr" />
               </td>
-              <td className="px-4 py-2 text-right tabular-nums">{result.gage_rr.toFixed(4)}</td>
-              <td className={cn('px-4 py-2 text-right tabular-nums', pctBg(result.pct_contribution_grr), pctClass(result.pct_contribution_grr))}>
-                {result.pct_contribution_grr.toFixed(2)}%
+              <td className="px-4 py-2 text-right tabular-nums">{safeFixed(result.gage_rr, 4)}</td>
+              <td className={cn('px-4 py-2 text-right tabular-nums', pctBg(result.pct_contribution_grr ?? 0), pctClass(result.pct_contribution_grr ?? 0))}>
+                {safeFixed(result.pct_contribution_grr, 2)}%
               </td>
-              <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_study_grr))}>
+              <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_study_grr ?? 0))}>
                 <Explainable metric="pct_study_grr" resourceId={studyId} resourceType="msa">
-                  {result.pct_study_grr.toFixed(2)}%
+                  {safeFixed(result.pct_study_grr, 2)}%
                 </Explainable>
               </td>
               {result.pct_tolerance_grr !== null && (
-                <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_tolerance_grr))}>
+                <td className={cn('px-4 py-2 text-right tabular-nums', pctClass(result.pct_tolerance_grr ?? 0))}>
                   <Explainable metric="pct_tolerance_grr" resourceId={studyId} resourceType="msa">
-                    {result.pct_tolerance_grr.toFixed(2)}%
+                    {safeFixed(result.pct_tolerance_grr, 2)}%
                   </Explainable>
                 </td>
               )}
@@ -386,18 +392,18 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                 Part Variation (PV)
                 <Tip id="pv" />
               </td>
-              <td className="px-4 py-2 text-right tabular-nums">{result.part_variation.toFixed(4)}</td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_pv), pctClass(result.pct_contribution_pv))}>
-                {result.pct_contribution_pv.toFixed(2)}%
+              <td className="px-4 py-2 text-right tabular-nums">{safeFixed(result.part_variation, 4)}</td>
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctBg(result.pct_contribution_pv ?? 0), pctClass(result.pct_contribution_pv ?? 0))}>
+                {safeFixed(result.pct_contribution_pv, 2)}%
               </td>
-              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_pv))}>
-                {result.pct_study_pv.toFixed(2)}%
+              <td className={cn('px-4 py-2 text-right tabular-nums font-medium', pctClass(result.pct_study_pv ?? 0))}>
+                {safeFixed(result.pct_study_pv, 2)}%
               </td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
             </tr>
             <tr className="border-border/50 bg-muted/30 border-t font-semibold">
               <td className="px-4 py-2">Total Variation (TV)</td>
-              <td className="px-4 py-2 text-right tabular-nums">{result.total_variation.toFixed(4)}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{safeFixed(result.total_variation, 4)}</td>
               <td className="px-4 py-2 text-right tabular-nums">100.00%</td>
               <td className="px-4 py-2 text-right tabular-nums">100.00%</td>
               {result.pct_tolerance_grr !== null && <td className="px-4 py-2 text-right">-</td>}
@@ -440,15 +446,15 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
               {Object.entries(result.anova_table).map(([source, row]) => (
                 <tr key={source} className="border-border/50 border-t">
                   <td className="px-4 py-2 font-medium capitalize">{source.replace('_', ' x ')}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.SS != null ? row.SS.toFixed(6) : '-'}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{safeFixed(row.SS, 6)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{row.df ?? '-'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.MS != null ? row.MS.toFixed(6) : '-'}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{safeFixed(row.MS, 6)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {row.F != null && ['operator', 'part', 'interaction'].includes(source) ? (
                       <Explainable metric={`f_${source}`} resourceId={studyId} resourceType="msa">
-                        {row.F.toFixed(4)}
+                        {safeFixed(row.F, 4)}
                       </Explainable>
-                    ) : row.F != null ? row.F.toFixed(4) : '-'}
+                    ) : safeFixed(row.F, 4)}
                   </td>
                   <td
                     className={cn(
@@ -456,7 +462,7 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
                       row.p != null && row.p < 0.05 && 'font-medium text-red-600',
                     )}
                   >
-                    {row.p != null ? row.p.toFixed(4) : '-'}
+                    {safeFixed(row.p, 4)}
                   </td>
                 </tr>
               ))}

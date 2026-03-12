@@ -122,20 +122,25 @@ function exportMeasurementsCSV(
   downloadCSV(`${safeName}_measurements.csv`, [header, ...rows].join('\n'))
 }
 
+function safeFixed(val: number | null | undefined, digits: number): string {
+  if (val == null || isNaN(val)) return '-'
+  return val.toFixed(digits)
+}
+
 function exportGageRRResultsCSV(study: MSAStudyDetail, result: GageRRResult) {
   const rows = [
     'Source,StdDev,%Contribution,%Study Var',
-    `"Repeatability (EV)",${result.repeatability_ev.toFixed(6)},${result.pct_contribution_ev.toFixed(2)},${result.pct_study_ev.toFixed(2)}`,
-    `"Reproducibility (AV)",${result.reproducibility_av.toFixed(6)},${result.pct_contribution_av.toFixed(2)},${result.pct_study_av.toFixed(2)}`,
-    `"Gage R&R",${result.gage_rr.toFixed(6)},${result.pct_contribution_grr.toFixed(2)},${result.pct_study_grr.toFixed(2)}`,
-    `"Part Variation",${result.part_variation.toFixed(6)},${result.pct_contribution_pv.toFixed(2)},${result.pct_study_pv.toFixed(2)}`,
-    `"Total Variation",${result.total_variation.toFixed(6)},100.00,100.00`,
+    `"Repeatability (EV)",${safeFixed(result.repeatability_ev, 6)},${safeFixed(result.pct_contribution_ev, 2)},${safeFixed(result.pct_study_ev, 2)}`,
+    `"Reproducibility (AV)",${safeFixed(result.reproducibility_av, 6)},${safeFixed(result.pct_contribution_av, 2)},${safeFixed(result.pct_study_av, 2)}`,
+    `"Gage R&R",${safeFixed(result.gage_rr, 6)},${safeFixed(result.pct_contribution_grr, 2)},${safeFixed(result.pct_study_grr, 2)}`,
+    `"Part Variation",${safeFixed(result.part_variation, 6)},${safeFixed(result.pct_contribution_pv, 2)},${safeFixed(result.pct_study_pv, 2)}`,
+    `"Total Variation",${safeFixed(result.total_variation, 6)},100.00,100.00`,
     '',
-    `"ndc",${result.ndc}`,
-    `"Verdict","${result.verdict}"`,
+    `"ndc",${result.ndc ?? '-'}`,
+    `"Verdict","${result.verdict ?? '-'}"`,
   ]
   if (result.pct_tolerance_grr !== null) {
-    rows.push(`"%Tolerance GRR",${result.pct_tolerance_grr.toFixed(2)}`)
+    rows.push(`"%Tolerance GRR",${safeFixed(result.pct_tolerance_grr, 2)}`)
   }
   const safeName = study.name.replace(/[^a-zA-Z0-9_-]/g, '_')
   downloadCSV(`${safeName}_results.csv`, rows.join('\n'))

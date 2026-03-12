@@ -861,7 +861,7 @@ async def update_sample(
             })
         rule_library.create_from_config(rule_configs)
 
-        window = await window_manager.get_window(sample.char_id)
+        window = await window_manager.get_window(sample.char_id, repo=sample_repo)
 
         violations: list[ViolationInfo] = []
         in_control = True

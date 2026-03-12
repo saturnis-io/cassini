@@ -37,9 +37,9 @@ test.describe('Electronic Signatures', () => {
     await page.goto('/settings/signatures')
     await page.waitForTimeout(3000)
 
-    // The seed script creates an "FAI Approval" workflow
+    // The seed script creates a "Sample Approval Workflow" workflow
     // Look for it in the workflow list
-    await expect(page.getByText('FAI Approval').first()).toBeVisible({
+    await expect(page.getByText('Sample Approval Workflow').first()).toBeVisible({
       timeout: 10000,
     })
 
@@ -58,17 +58,16 @@ test.describe('Electronic Signatures', () => {
     await page.goto('/settings/signatures')
     await page.waitForTimeout(3000)
 
-    // Find the FAI Approval workflow and expand it
-    const faiWorkflow = page.getByText('FAI Approval').first()
+    // Find the Sample Approval Workflow and expand it
+    const faiWorkflow = page.getByText('Sample Approval Workflow').first()
     await expect(faiWorkflow).toBeVisible({ timeout: 10000 })
 
-    // Click the expand chevron (the button before the workflow name)
-    // The WorkflowItem has a button with ChevronRight/ChevronDown as first child
-    const workflowRow = faiWorkflow.locator('..')
-    const expandButton = workflowRow
-      .locator('..')
-      .locator('button')
-      .first()
+    // Click the expand chevron — it's the first button in the workflow row header.
+    // WorkflowItem DOM: div.border > div.flex.items-center.gap-3.p-3 > button(chevron), div(content), div(actions)
+    // The workflow name is inside: div.flex.items-center.gap-3.p-3 > div.min-w-0 > div > span
+    // Navigate up to the row header (div.flex.items-center.gap-3.p-3) and find the first button
+    const workflowCard = faiWorkflow.locator('xpath=ancestor::div[contains(@class, "rounded-lg")]').first()
+    const expandButton = workflowCard.locator('button').first()
     await expandButton.click()
     await page.waitForTimeout(2000)
 

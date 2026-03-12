@@ -98,7 +98,7 @@
     "c_char_id": 17,
     "u_char_id": 18
   },
-  "product_limits": {
+  "material_limits": {
     "plant_id": 15,
     "dept_id": 40,
     "line_id": 41,
@@ -125,5 +125,17 @@
   },
   "notifications": {
     "webhook_id": 1
+  },
+  "screenshot_tour": {
+    "plant_id": 22,
+    "dept_id": 43,
+    "line_id": 44,
+    "station_id": 45,
+    "char_id": 20,
+    "msa_study_id": 1,
+    "fai_report_id": 1,
+    "doe_study_id": 1,
+    "broker_id": 1,
+    "workflow_id": 1
   }
 }

@@ -25,11 +25,11 @@ test.describe('FAI - First Article Inspection', () => {
       timeout: 10000,
     })
 
-    // Verify the seeded report is listed — part number PN-2024-001
-    await expect(page.getByText('PN-2024-001')).toBeVisible({ timeout: 10000 })
+    // Verify the seeded report is listed — part number PN-2026-001
+    await expect(page.getByText('PN-2026-001')).toBeVisible({ timeout: 10000 })
 
     // Verify part name is also shown
-    await expect(page.getByText('Precision Bore Assembly')).toBeVisible({
+    await expect(page.getByText('Turbine Housing')).toBeVisible({
       timeout: 5000,
     })
 
@@ -47,7 +47,7 @@ test.describe('FAI - First Article Inspection', () => {
     await page.waitForTimeout(2000)
 
     // Verify the report header shows part number
-    await expect(page.getByText('PN-2024-001').first()).toBeVisible({
+    await expect(page.getByText('PN-2026-001').first()).toBeVisible({
       timeout: 10000,
     })
 
@@ -114,10 +114,10 @@ test.describe('FAI - First Article Inspection', () => {
     const summary = page.getByText('Summary:')
     await expect(summary).toBeVisible({ timeout: 5000 })
 
-    // Check that Pass count is shown
-    await expect(page.getByText('Pass').first()).toBeVisible({ timeout: 5000 })
-    // Check that Fail count is shown
-    await expect(page.getByText('Fail').first()).toBeVisible({ timeout: 5000 })
+    // Check that Pass and Fail counts are shown in the summary bar
+    // Use exact text like "5 Pass" to avoid matching hidden <option> elements inside <select>
+    await expect(page.getByText('5 Pass')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('1 Fail')).toBeVisible({ timeout: 5000 })
 
     // Verify the failing item "Concentricity" is present
     // (balloon #6 in seed data, result=fail)

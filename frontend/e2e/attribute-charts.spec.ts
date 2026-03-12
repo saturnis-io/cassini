@@ -208,8 +208,8 @@ test.describe('Attribute Charts', () => {
     // Attribute entry form should show "Submit Attribute Data" heading
     await expect(page.getByText('Submit Attribute Data').first()).toBeVisible({ timeout: 5000 })
 
-    // Should show "Defect Count" label (not measurement inputs like M1, M2)
-    await expect(page.getByText('Defect Count')).toBeVisible({ timeout: 3000 })
+    // Should show "Defective Items" label for p-chart (not measurement inputs like M1, M2)
+    await expect(page.getByText('Defective Items')).toBeVisible({ timeout: 3000 })
 
     // Should show "Sample Size" label for p-chart
     await expect(page.getByText('Sample Size').first()).toBeVisible({ timeout: 3000 })
@@ -300,8 +300,8 @@ test.describe('Attribute Charts', () => {
     await charOption.click()
     await page.waitForTimeout(1000)
 
-    // c-chart should show "Defect Count" but NOT "Sample Size"
-    await expect(page.getByText('Defect Count')).toBeVisible({ timeout: 3000 })
+    // c-chart should show "Defects Found" but NOT "Sample Size"
+    await expect(page.getByText('Defects Found')).toBeVisible({ timeout: 3000 })
     await expect(page.getByText('c-chart', { exact: false }).first()).toBeVisible({ timeout: 3000 })
 
     // c-chart does not require sample size

@@ -12,6 +12,7 @@ import json
 import random
 import sqlite3
 import sys
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,6 +21,7 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir / "src"))
 
 from cassini.core.auth.passwords import hash_password
+from cassini.core.msa.engine import GageRREngine
 
 DB_PATH = backend_dir / "test-e2e.db"
 
@@ -563,6 +565,12 @@ def seed(db_path: str) -> dict:
 
     # ── 9a. MSA Gage R&R Study ──
     now = utcnow()
+    msa_n_ops = 3
+    msa_n_parts = 10
+    msa_n_reps = 3
+    msa_tolerance = 4.0
+
+    # Insert study initially without results_json (we'll UPDATE after computing)
     cur.execute(
         """INSERT INTO msa_study
         (plant_id, name, study_type, characteristic_id, num_operators, num_parts,
@@ -570,15 +578,8 @@ def seed(db_path: str) -> dict:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             tour_plant_id, "Bore Diameter Gage R&R", "crossed_anova",
-            tour_char_id, 3, 10, 3, 4.0, "complete", admin_id, now, now,
-            json.dumps({
-                "grr_percent_tolerance": 18.2,
-                "grr_percent_study_var": 22.5,
-                "repeatability": 0.12,
-                "reproducibility": 0.08,
-                "part_variation": 0.95,
-                "ndc": 6,
-            }),
+            tour_char_id, msa_n_ops, msa_n_parts, msa_n_reps, msa_tolerance,
+            "complete", admin_id, now, now, None,
         ),
     )
     msa_study_id = cur.lastrowid
@@ -595,8 +596,10 @@ def seed(db_path: str) -> dict:
     # 10 parts
     part_ids = []
     rng_msa = random.Random(42)
-    for seq in range(10):
+    ref_values = []
+    for seq in range(msa_n_parts):
         ref_val = round(10.0 + rng_msa.uniform(-1.5, 1.5), 3)
+        ref_values.append(ref_val)
         cur.execute(
             "INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
             (msa_study_id, f"Part {seq + 1}", ref_val, seq),
@@ -604,19 +607,34 @@ def seed(db_path: str) -> dict:
         part_ids.append(cur.lastrowid)
 
     # 90 measurements (3 operators x 10 parts x 3 replicates)
-    for op_id in operator_ids:
-        for part_id in part_ids:
-            # Get reference value for this part
-            cur.execute("SELECT reference_value FROM msa_part WHERE id = ?", (part_id,))
-            ref = cur.fetchone()[0]
-            for rep in range(1, 4):
+    # Build 3D array simultaneously for engine computation
+    measurements_3d: list[list[list[float]]] = []
+    for op_idx, op_id in enumerate(operator_ids):
+        op_measurements: list[list[float]] = []
+        for part_idx, part_id in enumerate(part_ids):
+            ref = ref_values[part_idx]
+            rep_measurements: list[float] = []
+            for rep in range(1, msa_n_reps + 1):
                 val = round(ref + rng_msa.gauss(0, 0.15), 4)
+                rep_measurements.append(val)
                 cur.execute(
                     """INSERT INTO msa_measurement
                     (study_id, operator_id, part_id, replicate_num, value, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     (msa_study_id, op_id, part_id, rep, val, now),
                 )
+            op_measurements.append(rep_measurements)
+        measurements_3d.append(op_measurements)
+
+    # Compute real Gage R&R results using the engine
+    grr_engine = GageRREngine()
+    grr_result = grr_engine.calculate_crossed_anova(
+        measurements_3d, tolerance=msa_tolerance,
+    )
+    cur.execute(
+        "UPDATE msa_study SET results_json = ? WHERE id = ?",
+        (json.dumps(asdict(grr_result)), msa_study_id),
+    )
 
     # ── 9b. FAI Report ──
     cur.execute(
@@ -660,7 +678,7 @@ def seed(db_path: str) -> dict:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             tour_plant_id, "Surface Finish Optimization", "full_factorial",
-            "complete", "Surface Roughness", "Ra",
+            "analyzed", "Surface Roughness", "Ra",
             "2-factor full factorial study to optimize machining parameters",
             admin_id, now, now,
         ),
