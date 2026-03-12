@@ -11,7 +11,7 @@ test.describe('Screenshot Tour', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // CORE (6 tests)
+  // CORE (11 tests)
   // ---------------------------------------------------------------------------
 
   test('login page', async ({ page, context }, testInfo) => {
@@ -29,6 +29,29 @@ test.describe('Screenshot Tour', () => {
     await page.waitForTimeout(2000)
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
     await docScreenshot(page, 'core', 'dashboard-control-chart', testInfo)
+  })
+
+  // --- NEW: annotations screenshot ---
+  test('annotations', async ({ page }, testInfo) => {
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(2000)
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+    // Look for annotation indicators or an annotations panel on the chart
+    const annotationsTab = page.getByRole('tab', { name: /annotation/i })
+    if (await annotationsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await annotationsTab.click()
+      await page.waitForTimeout(1500)
+    }
+    // Try the annotations toggle/button if present
+    const annotationsBtn = page.getByRole('button', { name: /annotation/i })
+    if (await annotationsBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await annotationsBtn.click()
+      await page.waitForTimeout(1500)
+    }
+    await docScreenshot(page, 'core', 'annotations', testInfo)
   })
 
   test('data entry', async ({ page }, testInfo) => {
@@ -66,6 +89,51 @@ test.describe('Screenshot Tour', () => {
     await page.waitForTimeout(2000)
     await expect(page.locator('body')).toBeVisible()
     await docScreenshot(page, 'core', 'configuration', testInfo)
+  })
+
+  // --- NEW: capability analysis screenshot ---
+  test('capability analysis', async ({ page }, testInfo) => {
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(1500)
+    // Navigate to capability tab/section if separate
+    const capTab = page.getByRole('tab', { name: /capability/i })
+    if (await capTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await capTab.click()
+      await page.waitForTimeout(2000)
+    }
+    await docScreenshot(page, 'core', 'capability', testInfo)
+  })
+
+  // --- NEW: import wizard screenshot ---
+  test('import wizard', async ({ page }, testInfo) => {
+    await page.goto('/import')
+    await page.waitForTimeout(2000)
+    await docScreenshot(page, 'core', 'import-wizard', testInfo)
+  })
+
+  // --- NEW: hierarchy tree screenshot ---
+  test('hierarchy tree', async ({ page }, testInfo) => {
+    await page.goto('/configuration')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await docScreenshot(page, 'core', 'hierarchy', testInfo)
+  })
+
+  // --- NEW: show your work screenshot ---
+  test('show your work', async ({ page }, testInfo) => {
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(2000)
+    // Enable Show Your Work mode if there's a toggle
+    const sywToggle = page.getByRole('button', { name: /show your work/i })
+    if (await sywToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await sywToggle.click()
+      await page.waitForTimeout(1500)
+    }
+    await docScreenshot(page, 'core', 'show-your-work', testInfo)
   })
 
   // ---------------------------------------------------------------------------

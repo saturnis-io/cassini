@@ -22,6 +22,8 @@
 
 **Open-source statistical process control for manufacturing. Free forever, commercially supported.**
 
+![Cassini SPC Dashboard](docs/screenshots/core/dashboard-control-chart.png)
+
 Monitor process stability, detect out-of-control conditions, run capability studies, and manage quality data across your manufacturing operation — from a single control chart to a regulated multi-plant deployment.
 
 *"In-control, like the Cassini Division."*
@@ -65,6 +67,8 @@ The installer registers Cassini as a Windows Service that starts automatically o
 2. The system tray icon appears — right-click for controls
 3. Open **http://localhost:8000** in your browser
 4. Log in with `admin` / `cassini` (you'll be prompted to change the password)
+
+![Cassini Login](docs/screenshots/core/login.png)
 
 ### Configuration
 
@@ -772,9 +776,13 @@ Full process capability with Cp, Cpk, Pp, Ppk, and Cpm. Color-coded capability m
 
 Violations are detected in real time as data flows in. Each violation references the specific Nelson rule triggered, the sample that caused it, and the characteristic's current state. Bulk acknowledgment, filtering by severity/status/rule, and one-click navigation to the offending chart point.
 
+![Violations](docs/screenshots/core/violations.png)
+
 ### Data Entry & Ingestion
 
 Multiple paths to get data into the system, from manual single-sample entry to high-throughput batch pipelines processing up to 200K samples/min.
+
+![Data Entry](docs/screenshots/core/data-entry.png)
 
 #### Manual & Interactive
 
@@ -838,6 +846,8 @@ Individual sample failures do not abort the batch — successful samples commit 
 
 Native MQTT and Sparkplug B support with topic tree browsing, tag-to-characteristic mapping, and live value preview. Community Edition includes one broker connection; commercial unlocks unlimited brokers.
 
+![Connectivity Monitor](docs/screenshots/connectivity/monitor.png)
+
 ### Equipment Hierarchy
 
 ISA-95 / UNS-compatible equipment hierarchy (Enterprise > Site > Area > Line > Cell > Equipment) with characteristics as leaves. Create, move, and organize your plant structure visually.
@@ -866,6 +876,10 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 - **Reports**: PDF, Excel, and PNG export with built-in templates
 - **Kiosk Mode**: Full-screen auto-rotating characteristic display for factory floor monitors
 - **Wall Dashboard**: Multi-chart grid layouts (2x2, 3x3, 4x4) with saved presets for control room displays
+
+![Kiosk Mode](docs/screenshots/display/kiosk.png)
+
+![Wall Dashboard](docs/screenshots/display/wall-dashboard.png)
 
 ### Infrastructure
 
@@ -903,6 +917,8 @@ Standardize rule configuration across your plant with four built-in presets (Nel
 
 ### Quality Studies
 
+![Measurement System Analysis](docs/screenshots/commercial/msa-study.png)
+
 **Measurement System Analysis (Gage R&R)** -- Crossed ANOVA, range method, nested ANOVA, and attribute agreement analysis (Cohen's and Fleiss' Kappa). Uses AIAG MSA 4th Edition d2* tables. Full wizard from study setup through results interpretation.
 
 **First Article Inspection** -- AS9102 Rev C compliant inspection reports with Forms 1, 2, and 3. Draft-to-submitted-to-approved workflow with separation of duties enforcement. Print-optimized view for physical records.
@@ -910,6 +926,8 @@ Standardize rule configuration across your plant with four built-in presets (Nel
 **Design of Experiments** -- Full factorial, fractional factorial, Plackett-Burman, and central composite designs. Interactive design matrix, run table, ANOVA results, main effects plot, and interaction plots.
 
 ### Advanced Analytics
+
+![Advanced Analytics](docs/screenshots/commercial/analytics.png)
 
 - **Correlation**: Multi-variate correlation heatmap across characteristics
 - **Multivariate SPC**: PCA biplot, Hotelling T-squared chart, MEWMA, decomposition table
@@ -955,6 +973,8 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 | Violation detection | Immediate in response | Background (seconds) |
 
 ### Enterprise Compliance
+
+![Electronic Signatures](docs/screenshots/settings/signatures.png)
 
 **Electronic Signatures (21 CFR Part 11)** -- Configurable multi-step signature workflows with password re-authentication, SHA-256 tamper detection, plant-scoped signature meanings, and FDA-compliant password policies.
 
