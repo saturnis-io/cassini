@@ -362,22 +362,22 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │                        Data Sources                            │
-│  MQTT/SparkplugB  OPC-UA  RS-232 Gages  CSV/Excel  ERP/LIMS  │
+│  MQTT/SparkplugB  OPC-UA  RS-232 Gages  CSV/Excel  ERP/LIMS    │
 └──────────────────────────┬─────────────────────────────────────┘
                            │
 ┌──────────────────────────▼─────────────────────────────────────┐
-│                    FastAPI Backend                              │
-│  JWT Auth · RBAC · Audit Middleware · Rate Limiting             │
+│                    FastAPI Backend                             │
+│  JWT Auth · RBAC · Audit Middleware · Rate Limiting            │
 │                                                                │
-│  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐            │
-│  │ SPC Engine   │ │ Capability   │ │ MSA Engine   │            │
-│  │ 8 Nelson     │ │ Non-normal   │ │ Gage R&R     │            │
-│  │ rules        │ │ distributions│ │ ANOVA        │            │
-│  └─────────────┘ └──────────────┘ └──────────────┘            │
-│  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐            │
-│  │ Anomaly Det.│ │ Signature    │ │ Notification  │            │
-│  │ PELT/KS/IF  │ │ Engine       │ │ Dispatcher    │            │
-│  └─────────────┘ └──────────────┘ └──────────────┘            │
+│  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐             │
+│  │ SPC Engine  │ │ Capability   │ │ MSA Engine   │             │
+│  │ 8 Nelson    │ │ Non-normal   │ │ Gage R&R     │             │
+│  │ rules       │ │ distributions│ │ ANOVA        │             │
+│  └─────────────┘ └──────────────┘ └──────────────┘             │
+│  ┌─────────────┐ ┌──────────────┐ ┌──────────────┐             │
+│  │ Anomaly Det.│ │ Signature    │ │ Notification │             │
+│  │ PELT/KS/IF  │ │ Engine       │ │ Dispatcher   │             │
+│  └─────────────┘ └──────────────┘ └──────────────┘             │
 │                                                                │
 │  Event Bus ──── WebSocket · Notifications · Audit · MQTT Out   │
 │                                                                │
@@ -385,8 +385,8 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 └────────────────────────────────────────────────────────────────┘
                            │
 ┌──────────────────────────▼─────────────────────────────────────┐
-│                    React Frontend                               │
-│  TanStack Query · Zustand · ECharts 6 · Zod · Tailwind CSS    │
+│                    React Frontend                              │
+│  TanStack Query · Zustand · ECharts 6 · Zod · Tailwind CSS     │
 │                                                                │
 │  22 pages · 200+ components · 240+ React Query hooks           │
 │  PWA with push notifications and offline queue                 │
