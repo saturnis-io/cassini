@@ -75,7 +75,36 @@ npm run dev
 
 </details>
 
-See the [README](README.md#quick-start-manual) for detailed instructions and troubleshooting.
+See the [README](README.md#getting-started) for detailed instructions and troubleshooting.
+
+## Project Structure
+
+```
+cassini/
+├── backend/              FastAPI application
+│   ├── src/cassini/
+│   │   ├── api/          Routers, schemas, dependencies
+│   │   ├── cli/          CLI entrypoint (cassini serve, migrate, etc.)
+│   │   ├── core/         SPC engine, capability, MSA, anomaly, signatures
+│   │   ├── db/           Models, repositories, migrations
+│   │   ├── service/      Windows Service (CassiniSPC)
+│   │   └── tray/         System tray companion (pystray)
+│   ├── alembic/          Database migrations
+│   └── pyproject.toml    Python dependencies
+├── frontend/             React SPA
+│   ├── src/
+│   │   ├── api/          API client, hooks, namespaces
+│   │   ├── components/   200+ components organized by domain
+│   │   ├── pages/        22 page components
+│   │   ├── stores/       Zustand state stores
+│   │   └── hooks/        Custom React hooks
+│   └── package.json      Node dependencies
+├── bridge/               Serial gage → MQTT translator
+├── installer/            Inno Setup Windows installer
+├── docs/                 Guides and screenshots
+├── docker-compose.yml    Production-ready Docker setup
+└── Dockerfile            Multi-stage build
+```
 
 ## Coding Standards
 
