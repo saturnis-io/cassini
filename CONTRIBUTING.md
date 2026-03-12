@@ -23,6 +23,9 @@ Cassini is developed by [Saturnis LLC](https://saturnis.io) and released under t
 
 ### Quick Start
 
+<details open>
+<summary><strong>macOS / Linux</strong></summary>
+
 ```bash
 # Clone your fork
 git clone https://github.com/<your-username>/cassini.git
@@ -30,13 +33,12 @@ cd cassini
 
 # Backend
 cd backend
-python -m venv .venv
-source .venv/bin/activate       # macOS/Linux
-# .venv\Scripts\activate        # Windows
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
-export CASSINI_ADMIN_PASSWORD=dev-password     # or `set` on Windows
-export CASSINI_COOKIE_SECURE=false             # required for HTTP dev
+export CASSINI_ADMIN_PASSWORD=dev-password
+export CASSINI_COOKIE_SECURE=false
 uvicorn cassini.main:app --reload
 
 # Frontend (in a new terminal)
@@ -45,7 +47,35 @@ npm install
 npm run dev
 ```
 
-See the [README](README.md#quick-start-manual) for detailed platform-specific instructions and troubleshooting.
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```bash
+# Clone your fork
+git clone https://github.com/<your-username>/cassini.git
+cd cassini
+
+# Backend
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"
+alembic upgrade head
+set CASSINI_ADMIN_PASSWORD=dev-password
+set CASSINI_COOKIE_SECURE=false
+uvicorn cassini.main:app --reload
+
+# Frontend (in a new terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+</details>
+
+See the [README](README.md#quick-start-manual) for detailed instructions and troubleshooting.
 
 ## Coding Standards
 

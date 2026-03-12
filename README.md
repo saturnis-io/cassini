@@ -47,6 +47,7 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 ---
 
+<a id="new-to-the-command-line"></a>
 <details>
 <summary><strong>New to the command line?</strong></summary>
 
