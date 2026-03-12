@@ -73,17 +73,17 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Reverse Boolean server_defaults to SQLite-style text("0")/text("1")
     with op.batch_alter_table("plant") as batch_op:
-        batch_op.alter_column("is_active", server_default=sa.text("1"))
+        batch_op.alter_column("is_active", server_default=sa.text("true"))
 
     with op.batch_alter_table("api_keys") as batch_op:
-        batch_op.alter_column("is_active", server_default=sa.text("1"))
+        batch_op.alter_column("is_active", server_default=sa.text("true"))
 
     with op.batch_alter_table("mqtt_broker") as batch_op:
-        batch_op.alter_column("is_active", server_default=sa.text("1"))
-        batch_op.alter_column("use_tls", server_default=sa.text("0"))
+        batch_op.alter_column("is_active", server_default=sa.text("true"))
+        batch_op.alter_column("use_tls", server_default=sa.text("false"))
 
     with op.batch_alter_table("user") as batch_op:
-        batch_op.alter_column("must_change_password", server_default=sa.text("0"))
+        batch_op.alter_column("must_change_password", server_default=sa.text("false"))
 
     # String length changes are not reversed — SQLite ignores lengths,
     # and reverting on other dialects could truncate data.

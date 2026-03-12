@@ -25,7 +25,7 @@ def upgrade() -> None:
             "require_acknowledgement",
             sa.Boolean(),
             nullable=False,
-            server_default="1"
+            server_default=sa.text("true")
         )
     )
 
@@ -36,7 +36,7 @@ def upgrade() -> None:
             "requires_acknowledgement",
             sa.Boolean(),
             nullable=False,
-            server_default="1"
+            server_default=sa.text("true")
         )
     )
 

@@ -175,7 +175,7 @@ def upgrade() -> None:
         sa.Column("actual_value", sa.Float(), nullable=True),
         sa.Column("unit", sa.String(50), nullable=False, server_default="mm"),
         sa.Column("tools_used", sa.String(255), nullable=True),
-        sa.Column("designed_char", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("designed_char", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("result", sa.String(20), nullable=False, server_default="pass"),
         sa.Column("deviation_reason", sa.Text(), nullable=True),
         sa.Column("characteristic_id", sa.Integer(), nullable=True),

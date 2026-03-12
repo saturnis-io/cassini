@@ -98,7 +98,9 @@ class UserPlantRole(Base):
         Integer, ForeignKey("plant.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole), nullable=False, default=UserRole.operator
+        Enum(UserRole, native_enum=False, length=20),
+        nullable=False,
+        default=UserRole.operator,
     )
     created_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=True

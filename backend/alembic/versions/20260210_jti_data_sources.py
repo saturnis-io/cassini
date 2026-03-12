@@ -128,7 +128,7 @@ def upgrade() -> None:
                 sa.text(
                     "INSERT INTO data_source "
                     "(type, characteristic_id, trigger_strategy, is_active) "
-                    "VALUES ('mqtt', :char_id, :strategy, 1)"
+                    "VALUES ('mqtt', :char_id, :strategy, true)"
                 ),
                 {"char_id": char_id, "strategy": trigger_strategy},
             )

@@ -35,7 +35,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("client_cert_pem", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("client_key_pem", sa.Text(), nullable=True))
         batch_op.add_column(
-            sa.Column("tls_insecure", sa.Boolean(), nullable=False, server_default="0")
+            sa.Column("tls_insecure", sa.Boolean(), nullable=False, server_default=sa.text("false"))
         )
 
     with op.batch_alter_table("opcua_server", naming_convention=naming_convention) as batch_op:
@@ -43,7 +43,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("client_cert_pem", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("client_key_pem", sa.Text(), nullable=True))
         batch_op.add_column(
-            sa.Column("tls_insecure", sa.Boolean(), nullable=False, server_default="0")
+            sa.Column("tls_insecure", sa.Boolean(), nullable=False, server_default=sa.text("false"))
         )
 
 

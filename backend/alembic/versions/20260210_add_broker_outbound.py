@@ -26,7 +26,7 @@ def upgrade() -> None:
                 "outbound_enabled",
                 sa.Boolean(),
                 nullable=False,
-                server_default="0",
+                server_default=sa.text("false"),
             )
         )
         batch_op.add_column(

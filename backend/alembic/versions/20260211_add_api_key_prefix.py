@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("permissions", sa.JSON(), nullable=False),
         sa.Column("rate_limit_per_minute", sa.Integer(), nullable=False, server_default="60"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("last_used_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )

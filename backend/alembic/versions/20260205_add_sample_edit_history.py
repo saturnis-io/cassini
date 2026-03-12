@@ -23,7 +23,7 @@ def upgrade() -> None:
     # Add is_modified column to sample table
     op.add_column(
         "sample",
-        sa.Column("is_modified", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("is_modified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     )
 
     # Create sample_edit_history table

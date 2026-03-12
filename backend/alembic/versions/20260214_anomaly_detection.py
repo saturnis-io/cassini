@@ -36,14 +36,14 @@ def upgrade() -> None:
         sa.Column(
             "is_enabled",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         # PELT configuration
         sa.Column(
             "pelt_enabled",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
@@ -68,7 +68,7 @@ def upgrade() -> None:
         sa.Column(
             "iforest_enabled",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column(
@@ -99,7 +99,7 @@ def upgrade() -> None:
         sa.Column(
             "ks_enabled",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
@@ -124,19 +124,19 @@ def upgrade() -> None:
         sa.Column(
             "notify_on_changepoint",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "notify_on_anomaly_score",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column(
             "notify_on_distribution_shift",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
@@ -200,7 +200,7 @@ def upgrade() -> None:
         sa.Column(
             "is_acknowledged",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column("acknowledged_by", sa.String(100), nullable=True),
@@ -208,7 +208,7 @@ def upgrade() -> None:
         sa.Column(
             "is_dismissed",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column("dismissed_by", sa.String(100), nullable=True),

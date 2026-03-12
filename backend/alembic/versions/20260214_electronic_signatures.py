@@ -43,13 +43,13 @@ def upgrade() -> None:
         sa.Column(
             "requires_comment",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column(
             "is_active",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column("sort_order", sa.Integer(), server_default="0", nullable=False),
@@ -72,13 +72,13 @@ def upgrade() -> None:
         sa.Column(
             "is_active",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "is_required",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column("description", sa.Text(), nullable=True),
@@ -117,13 +117,13 @@ def upgrade() -> None:
         sa.Column(
             "is_required",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "allow_self_sign",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column("timeout_hours", sa.Integer(), nullable=True),
@@ -220,7 +220,7 @@ def upgrade() -> None:
         sa.Column(
             "is_valid",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column("invalidated_at", sa.DateTime(timezone=True), nullable=True),
@@ -281,25 +281,25 @@ def upgrade() -> None:
         sa.Column(
             "require_uppercase",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "require_lowercase",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "require_digit",
             sa.Boolean(),
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             nullable=False,
         ),
         sa.Column(
             "require_special",
             sa.Boolean(),
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
             nullable=False,
         ),
         sa.Column(
@@ -378,11 +378,11 @@ def upgrade() -> None:
     plants = conn.execute(sa.text("SELECT id FROM plant")).fetchall()
 
     default_meanings = [
-        ("approved", "Approved", "Approval of data or action", 0, 0),
-        ("reviewed", "Reviewed", "Review completed", 0, 1),
-        ("verified", "Verified", "Data verification", 0, 2),
-        ("rejected", "Rejected", "Rejection with mandatory comment", 1, 3),
-        ("released", "Released for Production", "Release authorization", 0, 4),
+        ("approved", "Approved", "Approval of data or action", False, 0),
+        ("reviewed", "Reviewed", "Review completed", False, 1),
+        ("verified", "Verified", "Data verification", False, 2),
+        ("rejected", "Rejected", "Rejection with mandatory comment", True, 3),
+        ("released", "Released for Production", "Release authorization", False, 4),
     ]
 
     for plant_row in plants:

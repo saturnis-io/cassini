@@ -53,7 +53,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "sample",
-        sa.Column("is_undersized", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("is_undersized", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     )
     op.add_column(
         "sample",

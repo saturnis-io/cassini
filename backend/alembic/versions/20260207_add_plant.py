@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("code", sa.String(10), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="1"),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("settings", sa.JSON(), nullable=True),
         sa.Column(
             "created_at",
@@ -50,7 +50,7 @@ def upgrade() -> None:
     # Create Default plant first
     op.execute("""
         INSERT INTO plant (name, code, is_active, settings)
-        VALUES ('Default Plant', 'DEFAULT', 1, '{}')
+        VALUES ('Default Plant', 'DEFAULT', true, '{}')
     """)
 
     # Add plant_id to hierarchy using batch mode for SQLite

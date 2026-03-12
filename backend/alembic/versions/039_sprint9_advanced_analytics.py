@@ -66,7 +66,7 @@ def upgrade() -> None:
             "is_active",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
         ),
         sa.Column(
             "created_at",
@@ -207,7 +207,7 @@ def upgrade() -> None:
             "is_enabled",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "model_type",
@@ -273,7 +273,7 @@ def upgrade() -> None:
             "is_current",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
         ),
         sa.ForeignKeyConstraint(
             ["characteristic_id"],
@@ -306,7 +306,7 @@ def upgrade() -> None:
             "predicted_ooc",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "generated_at",
@@ -363,7 +363,7 @@ def upgrade() -> None:
             "is_enabled",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "created_at",
@@ -511,7 +511,7 @@ def upgrade() -> None:
             "is_center_point",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "replicate",

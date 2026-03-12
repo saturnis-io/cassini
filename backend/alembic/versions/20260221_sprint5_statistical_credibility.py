@@ -111,7 +111,7 @@ def upgrade() -> None:
                 "use_laney_correction",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("0"),
+                server_default=sa.text("false"),
             )
         )
 
@@ -135,7 +135,7 @@ def upgrade() -> None:
             "is_builtin",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("0"),
+            server_default=sa.text("false"),
         ),
         sa.Column("rules_config", sa.Text(), nullable=False),
         sa.Column(
@@ -160,7 +160,7 @@ def upgrade() -> None:
         op.execute(
             sa.text(
                 "INSERT INTO rule_preset (name, description, is_builtin, rules_config) "
-                "VALUES (:name, :description, 1, :rules_config)"
+                "VALUES (:name, :description, true, :rules_config)"
             ).bindparams(
                 name=preset_name,
                 description=preset_description,

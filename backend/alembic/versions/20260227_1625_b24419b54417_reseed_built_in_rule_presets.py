@@ -97,14 +97,14 @@ def upgrade() -> None:
     for preset_name, preset_description, preset_rules in _PRESETS:
         # Only insert if not already present (idempotent)
         existing = conn.execute(
-            sa.text("SELECT COUNT(*) FROM rule_preset WHERE name = :name AND is_builtin = 1"),
+            sa.text("SELECT COUNT(*) FROM rule_preset WHERE name = :name AND is_builtin = true"),
             {"name": preset_name},
         ).scalar()
         if not existing:
             conn.execute(
                 sa.text(
                     "INSERT INTO rule_preset (name, description, is_builtin, rules_config) "
-                    "VALUES (:name, :description, 1, :rules_config)"
+                    "VALUES (:name, :description, true, :rules_config)"
                 ),
                 {
                     "name": preset_name,

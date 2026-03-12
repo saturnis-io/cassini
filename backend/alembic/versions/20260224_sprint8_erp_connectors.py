@@ -37,7 +37,7 @@ def upgrade() -> None:
             "is_active",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
         ),
         sa.Column(
             "status",
@@ -82,7 +82,7 @@ def upgrade() -> None:
             "is_active",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
         ),
         sa.ForeignKeyConstraint(
             ["connector_id"],
@@ -108,7 +108,7 @@ def upgrade() -> None:
             "is_active",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
         ),
         sa.Column("last_run_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("next_run_at", sa.DateTime(timezone=True), nullable=True),
