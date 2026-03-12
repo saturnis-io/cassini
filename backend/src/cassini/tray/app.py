@@ -56,10 +56,23 @@ class CassiniTray:
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}"
-        self.status = "unknown"
+        self._status = "unknown"
+        self._status_lock = threading.Lock()
         self.icon: pystray.Icon | None = None
         self._stop_polling = threading.Event()
         self._port_conflict_notified = False
+
+    @property
+    def status(self) -> str:
+        """Thread-safe access to the current server status."""
+        with self._status_lock:
+            return self._status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        """Thread-safe update of the current server status."""
+        with self._status_lock:
+            self._status = value
 
     # -- Health check -----------------------------------------------------
 
@@ -157,6 +170,40 @@ class CassiniTray:
         except Exception:
             logger.exception("Failed to open data folder")
 
+    def _find_config_file(self) -> str | None:
+        """Find cassini.toml without importing backend modules.
+
+        Duplicates the search logic from ``cassini.core.toml_config`` to
+        avoid pulling in pydantic/pydantic_settings which are excluded
+        from the tray PyInstaller bundle.
+
+        Search order:
+          1. ``CASSINI_CONFIG`` environment variable
+          2. ``./cassini.toml`` in the current working directory
+          3. ``<ProgramData>/Cassini/cassini.toml``
+        """
+        # 1. Explicit env override
+        env_path = os.environ.get("CASSINI_CONFIG")
+        if env_path and os.path.isfile(env_path):
+            return os.path.abspath(env_path)
+
+        # 2. Current working directory
+        cwd_path = os.path.join(os.getcwd(), "cassini.toml")
+        if os.path.isfile(cwd_path):
+            return os.path.abspath(cwd_path)
+
+        # 3. ProgramData (using already-imported service module)
+        try:
+            from cassini.service.windows_service import get_service_data_dir
+
+            data_path = os.path.join(get_service_data_dir(), "cassini.toml")
+            if os.path.isfile(data_path):
+                return data_path
+        except Exception:
+            pass
+
+        return None
+
     def _open_settings(self) -> None:
         """Open cassini.toml in the default text editor.
 
@@ -164,12 +211,11 @@ class CassiniTray:
         ProgramData location before opening it.
         """
         try:
-            from cassini.core.toml_config import find_config_file
-            from cassini.service.windows_service import get_service_data_dir
-
-            config_path = find_config_file()
+            config_path = self._find_config_file()
             if config_path is None:
                 # Create default config at ProgramData location
+                from cassini.service.windows_service import get_service_data_dir
+
                 data_dir = get_service_data_dir()
                 config_path = os.path.join(data_dir, "cassini.toml")
                 os.makedirs(data_dir, exist_ok=True)
@@ -180,7 +226,12 @@ class CassiniTray:
                     f.write('host = "0.0.0.0"\n')
                     f.write("port = 8000\n")
 
-            subprocess.Popen(["notepad.exe", config_path])
+            if sys.platform == "win32":
+                os.startfile(config_path)  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", config_path])
+            else:
+                subprocess.Popen(["xdg-open", config_path])
         except Exception:
             logger.exception("Failed to open settings")
 

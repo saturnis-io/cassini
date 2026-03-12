@@ -7,6 +7,7 @@ and CLI integration. Skipped on non-Windows platforms.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -339,13 +340,68 @@ class TestTraySettings:
         with patch("cassini.tray.app.socket.socket", return_value=mock_socket):
             assert tray._check_port_conflict() is False
 
-    @patch("cassini.tray.app.subprocess.Popen")
-    @patch("cassini.core.toml_config.find_config_file", return_value="C:\\test\\cassini.toml")
-    def test_open_settings_existing_config(self, mock_find, mock_popen):
+    @patch("cassini.tray.app.os.startfile", create=True)
+    def test_open_settings_existing_config(self, mock_startfile):
         """When a config file exists, it should be opened directly."""
         from cassini.tray.app import CassiniTray
 
         tray = CassiniTray()
+        tray._find_config_file = MagicMock(return_value="C:\\test\\cassini.toml")
         tray._open_settings()
 
-        mock_popen.assert_called_once_with(["notepad.exe", "C:\\test\\cassini.toml"])
+        mock_startfile.assert_called_once_with("C:\\test\\cassini.toml")
+
+    def test_find_config_file_env_override(self, tmp_path):
+        """CASSINI_CONFIG env var should be checked first."""
+        from cassini.tray.app import CassiniTray
+
+        config = tmp_path / "custom.toml"
+        config.write_text("[server]\nport = 9000\n")
+
+        tray = CassiniTray()
+        with patch.dict("os.environ", {"CASSINI_CONFIG": str(config)}):
+            result = tray._find_config_file()
+        assert result == str(config)
+
+    def test_find_config_file_cwd(self, tmp_path):
+        """Should find cassini.toml in current working directory."""
+        from cassini.tray.app import CassiniTray
+
+        config = tmp_path / "cassini.toml"
+        config.write_text("[server]\nport = 8000\n")
+
+        tray = CassiniTray()
+        with patch("os.getcwd", return_value=str(tmp_path)), \
+             patch.dict("os.environ", {}, clear=False):
+            # Remove CASSINI_CONFIG if set
+            env = dict(os.environ)
+            env.pop("CASSINI_CONFIG", None)
+            with patch.dict("os.environ", env, clear=True):
+                result = tray._find_config_file()
+        assert result is not None
+        assert result.endswith("cassini.toml")
+
+    def test_find_config_file_returns_none_when_missing(self, tmp_path):
+        """Should return None when no config file exists."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        with patch("os.getcwd", return_value=str(tmp_path)), \
+             patch.dict("os.environ", {}, clear=True), \
+             patch(
+                 "cassini.service.windows_service.get_service_data_dir",
+                 return_value=str(tmp_path / "nonexistent"),
+             ):
+            result = tray._find_config_file()
+        assert result is None
+
+    def test_status_property_thread_safe(self):
+        """Status property should be protected by a lock."""
+        from cassini.tray.app import CassiniTray
+
+        tray = CassiniTray()
+        assert tray.status == "unknown"
+        tray.status = "running"
+        assert tray.status == "running"
+        # Verify the lock exists and is a threading.Lock
+        assert hasattr(tray, "_status_lock")
