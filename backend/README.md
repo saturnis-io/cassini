@@ -13,13 +13,23 @@ src/cassini/
   api/
     deps.py            # Shared dependencies (auth, DB session, rate limiter)
     schemas/           # Pydantic request/response models
-    v1/                # 20 route modules (~120+ endpoints)
-      annotations.py       auth.py             api_keys.py
-      brokers.py           characteristics.py   characteristic_config.py
-      data_entry.py        database_admin.py    devtools.py
-      hierarchy.py         opcua_servers.py     plants.py
-      providers.py         samples.py           tags.py
-      users.py             violations.py        websocket.py
+    v1/                # 46 route modules (~300+ endpoints)
+      ai_analysis.py       annotations.py       anomaly.py
+      api_keys.py          audit.py             auth.py
+      brokers.py           capability.py        characteristic_config.py
+      characteristics.py   data_entry.py        database_admin.py
+      devtools.py          distributions.py     doe.py
+      erp_connectors.py    explain.py           fai.py
+      gage_bridges.py      health.py            hierarchy.py
+      import_router.py     ishikawa.py          license.py
+      material_classes.py  material_overrides.py materials.py
+      msa.py               multivariate.py      notifications.py
+      oidc.py              opcua_servers.py      plants.py
+      predictions.py       providers.py         push.py
+      retention.py         rule_presets.py       samples.py
+      scheduled_reports.py signatures.py        system_settings.py
+      tags.py              users.py             violations.py
+      websocket.py
   core/
     config.py          # Pydantic-settings (CASSINI_ env prefix + TOML)
     toml_config.py     # cassini.toml loader and Pydantic settings source
