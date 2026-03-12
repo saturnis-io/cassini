@@ -128,11 +128,18 @@ if sys.platform == "win32":
                 self.ReportServiceStatus(win32service.SERVICE_STOPPED)
                 return
 
+            # Read host/port from Settings (TOML / env vars / defaults)
+            from cassini.core.config import get_settings
+
+            settings = get_settings()
+            host = settings.server_host
+            port = settings.server_port
+
             # Start uvicorn with a programmatic server so we can stop it
             config = uvicorn.Config(
                 "cassini.main:app",
-                host="127.0.0.1",
-                port=8000,
+                host=host,
+                port=port,
                 log_level="info",
             )
             server = uvicorn.Server(config)

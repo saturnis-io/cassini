@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # Application
     app_version: str = "0.0.9"
 
+    # Server
+    server_host: str = "127.0.0.1"
+    server_port: int = 8000
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./cassini.db"
     db_pool_size: int = 10

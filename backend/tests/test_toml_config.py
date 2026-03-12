@@ -188,3 +188,21 @@ class TestTomlSettingsIntegration:
 
         s = Settings()
         assert s.database_url == "sqlite+aiosqlite:///./cassini.db"
+
+    def test_toml_server_host_port_maps_to_settings(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """TOML [server] host/port populate Settings.server_host/server_port."""
+        config_file = tmp_path / "cassini.toml"
+        config_file.write_text(
+            '[server]\nhost = "0.0.0.0"\nport = 9000\n'
+        )
+        monkeypatch.setenv("CASSINI_CONFIG", str(config_file))
+        monkeypatch.delenv("CASSINI_SERVER_HOST", raising=False)
+        monkeypatch.delenv("CASSINI_SERVER_PORT", raising=False)
+
+        from cassini.core.config import Settings
+
+        s = Settings()
+        assert s.server_host == "0.0.0.0"
+        assert s.server_port == 9000
