@@ -879,8 +879,6 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ![Kiosk Mode](docs/screenshots/display/kiosk.png)
 
-![Wall Dashboard](docs/screenshots/display/wall-dashboard.png)
-
 ### Infrastructure
 
 - **Windows Installer**: Download-and-run `.exe` with Windows Service, system tray, and auto-start
@@ -916,8 +914,6 @@ Automatic non-normal distribution handling via Shapiro-Wilk normality testing, B
 Standardize rule configuration across your plant with four built-in presets (Nelson, AIAG, WECO, Wheeler) and the ability to create custom presets. Apply and manage rule configurations in bulk.
 
 ### Quality Studies
-
-![Measurement System Analysis](docs/screenshots/commercial/msa-study.png)
 
 **Measurement System Analysis (Gage R&R)** -- Crossed ANOVA, range method, nested ANOVA, and attribute agreement analysis (Cohen's and Fleiss' Kappa). Uses AIAG MSA 4th Edition d2* tables. Full wizard from study setup through results interpretation.
 
