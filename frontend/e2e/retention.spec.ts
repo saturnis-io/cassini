@@ -19,7 +19,7 @@ test.describe('Data Retention', () => {
 
     // Sub-tab navigation should be present (Policy, Overrides, Activity)
     await expect(
-      page.getByRole('button', { name: 'Policy' }),
+      page.getByRole('button', { name: 'Policy', exact: true }),
     ).toBeVisible({ timeout: 5000 })
     await expect(
       page.getByRole('button', { name: 'Overrides' }),

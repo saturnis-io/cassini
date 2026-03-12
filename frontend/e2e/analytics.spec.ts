@@ -18,9 +18,10 @@ test.describe('Analytics', () => {
     await expect(analyticsPage).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible({ timeout: 5000 })
 
-    // At least one tab button should be present
-    await expect(page.getByRole('tab', { name: 'Correlation' })).toBeVisible({ timeout: 5000 })
-    await expect(page.getByRole('tab', { name: 'Multivariate' })).toBeVisible({ timeout: 5000 })
+    // At least one tab button should be present (analytics uses plain buttons, not role="tab")
+    const header = page.locator('[data-ui="analytics-header"]')
+    await expect(header.getByRole('button', { name: 'Correlation' })).toBeVisible({ timeout: 5000 })
+    await expect(header.getByRole('button', { name: 'Multivariate' })).toBeVisible({ timeout: 5000 })
   })
 
   test('tab navigation works', async ({ page }) => {
@@ -32,17 +33,18 @@ test.describe('Analytics', () => {
     await expect(contentArea).toBeVisible({ timeout: 10000 })
 
     // Click the Multivariate tab and verify URL updates
-    await page.getByRole('tab', { name: 'Multivariate' }).click()
+    const header = page.locator('[data-ui="analytics-header"]')
+    await header.getByRole('button', { name: 'Multivariate' }).click()
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/tab=multivariate/)
 
     // Click the Predictions tab
-    await page.getByRole('tab', { name: 'Predictions' }).click()
+    await header.getByRole('button', { name: 'Predictions' }).click()
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/tab=predictions/)
 
     // Click the AI Insights tab
-    await page.getByRole('tab', { name: 'AI Insights' }).click()
+    await header.getByRole('button', { name: 'AI Insights' }).click()
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/tab=ai-insights/)
 
