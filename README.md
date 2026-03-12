@@ -47,6 +47,37 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 ---
 
+<details>
+<summary><strong>New to the command line?</strong></summary>
+
+The Quick Start guides below use terminal commands. Here's how to open a terminal on your platform.
+
+**Windows**
+
+Open File Explorer and navigate to the folder where you want to put Cassini. Click the address bar at the top, type `cmd`, and press Enter. A command prompt opens, already pointed at that folder.
+
+You can also search for **Terminal** or **PowerShell** in the Start menu.
+
+**macOS**
+
+Press **Cmd + Space**, type **Terminal**, and press Enter. Then navigate to your folder:
+
+```
+cd ~/Desktop
+```
+
+**Linux**
+
+Press **Ctrl + Alt + T** (works on most distributions), or find **Terminal** in your application menu. Then navigate to your folder:
+
+```
+cd ~/Desktop
+```
+
+</details>
+
+---
+
 ## Quick Start (Windows Installer)
 
 Download the installer from [GitHub Releases](https://github.com/saturnis-io/cassini/releases), run it, and Cassini is ready.
@@ -88,7 +119,7 @@ Use **Add or Remove Programs** in Windows Settings. The uninstaller stops the se
 
 ## Quick Start (Docker)
 
-**This is the fastest way to get Cassini running on Linux or macOS.** One command, no dependencies to install (other than Docker).
+**The fastest way to get Cassini running on any platform.** Two commands, no dependencies to install other than Docker.
 
 ### Prerequisites
 
@@ -101,6 +132,8 @@ Install Docker Desktop for your platform:
 | **Linux** | [Docker Engine](https://docs.docker.com/engine/install/) |
 
 ### Run Cassini
+
+Open a terminal ([how?](#new-to-the-command-line)) and run:
 
 ```bash
 # Clone the repository
@@ -140,6 +173,8 @@ Then run `docker compose up -d`. Log in at **http://localhost:8000**.
 
 ### Stopping and Restarting
 
+Open a terminal in the `cassini` folder and run:
+
 ```bash
 # Stop Cassini (data is preserved)
 docker compose down
@@ -155,11 +190,11 @@ docker compose down -v
 
 ## Quick Start (Manual)
 
-Run Cassini directly from source. This gives you the full development experience with hot-reload on both frontend and backend.
+Run Cassini directly from source. This gives you hot-reload on both frontend and backend — useful for development or when Docker isn't an option.
 
 ### Prerequisites
 
-You need three things installed. If you don't have them yet, follow the download links for your platform.
+You need three things installed. If you don't have them yet, follow the download links for your platform. You'll also need a terminal open ([how?](#new-to-the-command-line)).
 
 | Prerequisite | Version | Download |
 |-------------|---------|----------|
@@ -167,36 +202,45 @@ You need three things installed. If you don't have them yet, follow the download
 | **Node.js** | 18 or newer (22 LTS recommended) | [nodejs.org](https://nodejs.org/) |
 | **Git** | Any recent version | [git-scm.com/downloads](https://git-scm.com/downloads) |
 
-> **Verify your installs** by running these commands in a terminal:
-> ```bash
-> python --version   # Should show 3.11+
-> node --version     # Should show v18+
-> git --version      # Any version is fine
+> **Verify your installs.** Open a terminal and type each command, pressing Enter after each one:
 > ```
+> python --version
+> node --version
+> git --version
+> ```
+> You should see version numbers (Python 3.11+, Node v18+, Git any version). If a command says "not recognized" or "not found", that tool isn't installed yet — follow the download links above.
 >
-> **Windows note:** If `python` is not recognized, you may need to check "Add Python to PATH" during installation, or use `python3` instead.
+> **Windows:** If `python` isn't recognized, reinstall from [python.org](https://www.python.org/downloads/) and check **"Add Python to PATH"** during setup. Or try `python3` instead of `python`.
+>
+> **macOS:** Python 3 may need to be called as `python3`. If Git isn't installed, macOS will offer to install the Xcode Command Line Tools — accept the prompt.
 
 ### Step 1: Clone the Repository
+
+In your terminal, run:
 
 ```bash
 git clone https://github.com/saturnis-io/cassini.git
 cd cassini
 ```
 
+This downloads Cassini into a `cassini` folder and moves into it.
+
 ### Step 2: Start the Backend
 
-<details>
-<summary><strong>Windows</strong></summary>
+Run each line one at a time, pressing Enter after each.
+
+<details open>
+<summary><strong>Windows (Command Prompt)</strong></summary>
 
 ```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e .
-alembic upgrade head
-set CASSINI_ADMIN_PASSWORD=my-secure-password
-set CASSINI_COOKIE_SECURE=false
-uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000
+cd backend                                    # go into the backend folder
+python -m venv .venv                          # create a Python virtual environment
+.venv\Scripts\activate                        # activate it (your prompt will change)
+pip install -e .                              # install Cassini and its dependencies
+alembic upgrade head                          # set up the database
+set CASSINI_ADMIN_PASSWORD=my-secure-password  # choose your admin password
+set CASSINI_COOKIE_SECURE=false               # needed for local development (no HTTPS)
+uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000   # start the server
 ```
 
 </details>
@@ -205,14 +249,14 @@ uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000
 <summary><strong>macOS / Linux</strong></summary>
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-alembic upgrade head
-export CASSINI_ADMIN_PASSWORD=my-secure-password
-export CASSINI_COOKIE_SECURE=false
-uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000
+cd backend                                       # go into the backend folder
+python3 -m venv .venv                            # create a Python virtual environment
+source .venv/bin/activate                        # activate it (your prompt will change)
+pip install -e .                                 # install Cassini and its dependencies
+alembic upgrade head                             # set up the database
+export CASSINI_ADMIN_PASSWORD=my-secure-password  # choose your admin password
+export CASSINI_COOKIE_SECURE=false               # needed for local development (no HTTPS)
+uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000   # start the server
 ```
 
 </details>
@@ -224,11 +268,13 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 INFO:     Started reloader process
 ```
 
-> **Leave this terminal running** and open a new terminal for the next step.
+> **Leave this terminal running** — the server needs to stay open. Open a **new** terminal window for the next step (on Windows: right-click the taskbar and choose "Terminal" or "Command Prompt"; on macOS/Linux: Cmd+N or Ctrl+Shift+N in your terminal app).
 
 ### Step 3: Start the Frontend
 
-<details>
+In your **new** terminal, navigate back to the `cassini` folder you cloned earlier, then:
+
+<details open>
 <summary><strong>Windows</strong></summary>
 
 ```bash
@@ -236,12 +282,12 @@ cd frontend
 start.bat
 ```
 
-Or manually:
+Or run it manually:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm install       # download frontend dependencies (takes a minute the first time)
+npm run dev       # start the frontend dev server
 ```
 
 </details>
@@ -254,12 +300,12 @@ cd frontend
 ./start.sh
 ```
 
-Or manually:
+Or run it manually:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm install       # download frontend dependencies (takes a minute the first time)
+npm run dev       # start the frontend dev server
 ```
 
 </details>
@@ -331,7 +377,7 @@ You should see:
 
 ## CLI Reference
 
-The `cassini` command is available after installing via pip (`pip install -e .`) or the Windows Installer (if PATH was added).
+The `cassini` command is available after installing via pip (`pip install -e .`) or the Windows Installer (if PATH was added). These commands work on Windows, macOS, and Linux unless noted.
 
 ```
 cassini serve                  # start server (runs migrations first)
@@ -341,16 +387,18 @@ cassini migrate                # run database migrations only
 cassini create-admin           # create admin user (interactive)
 cassini version                # print version and build info
 cassini check                  # validate config, database, license
-cassini tray                   # launch system tray companion (Windows)
-cassini service install        # install as Windows Service
-cassini service uninstall      # remove Windows Service
-cassini service start          # start the service
-cassini service stop           # stop the service
+cassini tray                   # launch system tray companion (Windows only)
+cassini service install        # install as Windows Service (Windows only)
+cassini service uninstall      # remove Windows Service (Windows only)
+cassini service start          # start the service (Windows only)
+cassini service stop           # stop the service (Windows only)
 ```
 
 `cassini serve` auto-migrates the database before starting. Use `--no-migrate` if migrations are managed separately.
 
 Host and port default to values in `cassini.toml` (see below), falling back to `127.0.0.1:8000`.
+
+> **Linux/macOS tip:** Use `systemd` or `supervisord` to run Cassini as a background service. See [Production Deployment](#production-deployment) for a ready-made systemd unit file.
 
 ---
 
@@ -490,7 +538,11 @@ CASSINI_PORT=8000
 
 > **Generate a JWT secret:**
 > ```bash
+> # macOS / Linux
 > python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+>
+> # Windows
+> python -c "import secrets; print(secrets.token_urlsafe(64))"
 > ```
 
 **2. Update `docker-compose.yml` for production:**
@@ -706,6 +758,9 @@ Before going live, verify each item:
 
 **Database (PostgreSQL):**
 
+<details>
+<summary><strong>macOS / Linux</strong></summary>
+
 ```bash
 # Backup
 pg_dump -U cassini -h localhost cassini > cassini_backup_$(date +%Y%m%d).sql
@@ -714,20 +769,52 @@ pg_dump -U cassini -h localhost cassini > cassini_backup_$(date +%Y%m%d).sql
 psql -U cassini -h localhost cassini < cassini_backup_20260309.sql
 ```
 
-**Database (SQLite):**
+</details>
+
+<details>
+<summary><strong>Windows (Command Prompt)</strong></summary>
 
 ```bash
-# Backup -- just copy the file (stop the server first, or use .backup)
+# Backup
+pg_dump -U cassini -h localhost cassini > cassini_backup_%date:~-4%%date:~4,2%%date:~7,2%.sql
+
+# Restore
+psql -U cassini -h localhost cassini < cassini_backup_20260309.sql
+```
+
+</details>
+
+**Database (SQLite):**
+
+<details>
+<summary><strong>macOS / Linux</strong></summary>
+
+```bash
+# Stop the server first, then copy the file
 cp cassini.db cassini_backup_$(date +%Y%m%d).db
 ```
 
-**Docker volumes:**
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+```bash
+# Stop the server first, then copy the file
+copy cassini.db cassini_backup.db
+```
+
+</details>
+
+**Docker volumes (macOS / Linux):**
 
 ```bash
 # Backup PostgreSQL data volume
 docker run --rm -v cassini_postgres-data:/data -v $(pwd):/backup alpine \
     tar czf /backup/postgres-backup.tar.gz -C /data .
 ```
+
+> **Windows:** Docker volume backups work the same in PowerShell, but replace `$(pwd)` with `${PWD}`.
 
 ### Upgrading
 
