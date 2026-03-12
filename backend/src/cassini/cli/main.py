@@ -25,6 +25,7 @@ import asyncio
 import platform
 import socket
 import sys
+import urllib.parse
 from pathlib import Path
 
 import click
@@ -43,7 +44,14 @@ def _get_backend_dir() -> Path:
 
     Resolves relative to this file's location so it works both in
     development (editable install) and in frozen/bundled builds.
+    In a PyInstaller frozen build, ``__file__`` lives under ``_MEIPASS``
+    which has a flat layout — walking up parents would escape the bundle.
     """
+    # PyInstaller frozen build: data files are relative to _MEIPASS root
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass)
+    # Development / pip install
     # cli/main.py -> cassini/ -> src/ -> backend/
     return Path(__file__).resolve().parent.parent.parent.parent
 
@@ -175,8 +183,8 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address")
-@click.option("--port", default=8000, show_default=True, help="Bind port")
+@click.option("--host", default=None, help="Bind address [default: from config or 127.0.0.1]")
+@click.option("--port", default=None, type=int, help="Bind port [default: from config or 8000]")
 @click.option("--workers", default=1, show_default=True, help="Number of worker processes")
 @click.option(
     "--no-migrate",
@@ -184,12 +192,21 @@ def cli() -> None:
     default=False,
     help="Skip automatic database migrations",
 )
-def serve(host: str, port: int, workers: int, no_migrate: bool) -> None:
+def serve(host: str | None, port: int | None, workers: int, no_migrate: bool) -> None:
     """Start the Cassini server.
 
     By default, runs database migrations before starting. Use --no-migrate
     to skip this step if migrations are managed externally.
+
+    Host and port default to the values in cassini.toml ([server] section),
+    falling back to 127.0.0.1:8000 if not configured.
     """
+    from cassini.core.config import get_settings
+
+    settings = get_settings()
+    host = host if host is not None else settings.server_host
+    port = port if port is not None else settings.server_port
+
     if not _check_port_available(host, port):
         click.echo(
             f"\nError: Port {port} is already in use.\n\n"
@@ -275,8 +292,8 @@ def check() -> None:
         else:
             click.echo("  JWT secret: [configured]")
     except Exception as exc:
-        errors.append(f"Configuration error: {exc}")
-        click.echo(f"  FAILED: {exc}", err=True)
+        errors.append(f"Configuration error: {_redact_url(str(exc))}")
+        click.echo(f"  FAILED: {_redact_url(str(exc))}", err=True)
 
     # 2. Database connectivity
     click.echo("Checking database connectivity...")
@@ -299,8 +316,8 @@ def check() -> None:
         db_url = asyncio.run(_check_db())
         click.echo(f"  Connected: {_redact_url(db_url)}")
     except Exception as exc:
-        errors.append(f"Database error: {exc}")
-        click.echo(f"  FAILED: {exc}", err=True)
+        errors.append(f"Database error: {_redact_url(str(exc))}")
+        click.echo(f"  FAILED: {_redact_url(str(exc))}", err=True)
 
     # 3. License status
     click.echo("Checking license...")
@@ -323,8 +340,8 @@ def check() -> None:
         if status.get("days_until_expiry") is not None:
             click.echo(f"  Days until expiry: {status['days_until_expiry']}")
     except Exception as exc:
-        errors.append(f"License error: {exc}")
-        click.echo(f"  FAILED: {exc}", err=True)
+        errors.append(f"License error: {_redact_url(str(exc))}")
+        click.echo(f"  FAILED: {_redact_url(str(exc))}", err=True)
 
     # Summary
     if errors:
@@ -371,16 +388,17 @@ def _require_windows() -> None:
 def _service_install() -> None:
     """Install the Cassini Windows Service."""
     _require_windows()
+    import win32service  # type: ignore[import-untyped]
     import win32serviceutil  # type: ignore[import-untyped]
 
     from cassini.service.windows_service import CassiniService
 
     win32serviceutil.InstallService(
-        CassiniService._svc_reg_class_,
+        win32serviceutil.GetServiceClassString(CassiniService),
         CassiniService._svc_name_,
         CassiniService._svc_display_name_,
         description=CassiniService._svc_description_,
-        startType=win32serviceutil.SERVICE_AUTO_START,
+        startType=win32service.SERVICE_AUTO_START,
     )
 
 
@@ -448,14 +466,23 @@ def stop() -> None:
 
 
 def _redact_url(url: str) -> str:
-    """Redact credentials from a database URL for display."""
-    if "@" in url:
-        # scheme://user:pass@host -> scheme://***@host
-        scheme_rest = url.split("://", 1)
-        if len(scheme_rest) == 2:
-            at_split = scheme_rest[1].split("@", 1)
-            if len(at_split) == 2:
-                return f"{scheme_rest[0]}://***@{at_split[1]}"
+    """Redact credentials from a database URL for display.
+
+    Uses ``urllib.parse.urlparse`` to correctly handle passwords that
+    contain ``@`` characters (e.g. ``user:p@ss@host``).
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.username or parsed.password:
+            # Reconstruct with credentials replaced by ***
+            # netloc = user:pass@host:port -> ***@host:port
+            host_part = parsed.hostname or ""
+            if parsed.port:
+                host_part = f"{host_part}:{parsed.port}"
+            replaced = parsed._replace(netloc=f"***@{host_part}")
+            return urllib.parse.urlunparse(replaced)
+    except Exception:
+        pass
     return url
 
 

@@ -124,7 +124,9 @@ if sys.platform == "win32":
                 _run_migrations()
                 logger.info("Database migrations complete")
             except Exception:
-                logger.exception("Migration failed — starting server anyway")
+                logger.exception("Migration failed — cannot start server safely")
+                self.ReportServiceStatus(win32service.SERVICE_STOPPED)
+                return
 
             # Start uvicorn with a programmatic server so we can stop it
             config = uvicorn.Config(
