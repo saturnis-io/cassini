@@ -32,9 +32,11 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 ## Table of Contents
 
-- [Quick Start (Docker)](#quick-start-docker) -- fastest path, 2 commands
+- [Quick Start (Windows Installer)](#quick-start-windows-installer) -- download and run, no dependencies
+- [Quick Start (Docker)](#quick-start-docker) -- 2 commands, any platform
 - [Quick Start (Manual)](#quick-start-manual) -- run from source
-- [Configuration Reference](#configuration-reference) -- environment variables and database options
+- [CLI Reference](#cli-reference) -- `cassini serve`, `cassini check`, etc.
+- [Configuration Reference](#configuration-reference) -- environment variables, TOML config, database options
 - [Production Deployment](#production-deployment) -- enterprise-grade setup
 - [Features](#community-edition-free-agpl-30) -- what Cassini can do
 - [Architecture](#architecture) -- tech stack and project structure
@@ -43,9 +45,46 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 
 ---
 
+## Quick Start (Windows Installer)
+
+Download the installer from [GitHub Releases](https://github.com/saturnis-io/cassini/releases), run it, and Cassini is ready.
+
+### What Gets Installed
+
+| Component | Description |
+|-----------|-------------|
+| **Cassini Server** | Backend + frontend bundled into a single executable |
+| **System Tray** | Status icon with health monitoring, service controls, and browser launch |
+| **Bridge** *(optional)* | Serial gage to MQTT translator for shop floor gages |
+
+The installer registers Cassini as a Windows Service that starts automatically on boot. Data is stored in `C:\ProgramData\Cassini\`.
+
+### After Install
+
+1. Cassini starts automatically as a Windows Service
+2. The system tray icon appears — right-click for controls
+3. Open **http://localhost:8000** in your browser
+4. Log in with `admin` / `cassini` (you'll be prompted to change the password)
+
+### Configuration
+
+Edit `C:\ProgramData\Cassini\cassini.toml` to change server port, database, or other settings. See [CLI Reference](#cli-reference) and [Configuration Reference](#configuration-reference).
+
+```bash
+# From any terminal (if PATH was added during install):
+cassini check     # validate config, database, and license
+cassini version   # print version and build info
+```
+
+### Uninstall
+
+Use **Add or Remove Programs** in Windows Settings. The uninstaller stops the service and removes program files. Your data directory (`C:\ProgramData\Cassini\`) is preserved — delete it manually if you want a clean removal.
+
+---
+
 ## Quick Start (Docker)
 
-**This is the fastest way to get Cassini running.** One command, no dependencies to install (other than Docker).
+**This is the fastest way to get Cassini running on Linux or macOS.** One command, no dependencies to install (other than Docker).
 
 ### Prerequisites
 
@@ -286,9 +325,59 @@ You should see:
 
 ---
 
+## CLI Reference
+
+The `cassini` command is available after installing via pip (`pip install -e .`) or the Windows Installer (if PATH was added).
+
+```
+cassini serve                  # start server (runs migrations first)
+cassini serve --no-migrate     # start server, skip migrations
+cassini serve --host 0.0.0.0 --port 9000
+cassini migrate                # run database migrations only
+cassini create-admin           # create admin user (interactive)
+cassini version                # print version and build info
+cassini check                  # validate config, database, license
+cassini tray                   # launch system tray companion (Windows)
+cassini service install        # install as Windows Service
+cassini service uninstall      # remove Windows Service
+cassini service start          # start the service
+cassini service stop           # stop the service
+```
+
+`cassini serve` auto-migrates the database before starting. Use `--no-migrate` if migrations are managed separately.
+
+Host and port default to values in `cassini.toml` (see below), falling back to `127.0.0.1:8000`.
+
+---
+
 ## Configuration Reference
 
-Cassini is configured through environment variables, all prefixed with `CASSINI_`. A complete template is available at [`backend/.env.example`](backend/.env.example).
+Cassini is configured through environment variables, a TOML config file, or both. Environment variables take precedence over the config file.
+
+### Config File (`cassini.toml`)
+
+Cassini looks for `cassini.toml` in this order:
+
+1. Path set in `CASSINI_CONFIG` environment variable
+2. Current working directory
+3. `C:\ProgramData\Cassini\cassini.toml` (Windows) or `/etc/cassini/cassini.toml` (Linux/macOS)
+
+```toml
+[server]
+host = "0.0.0.0"
+port = 8000
+
+[database]
+# Empty = SQLite default at data/cassini.db
+# url = "postgresql+asyncpg://user:pass@localhost/cassini"
+
+[license]
+# file = "data/license.key"
+```
+
+### Environment Variables
+
+All environment variables use the `CASSINI_` prefix. A complete template is available at [`backend/.env.example`](backend/.env.example).
 
 ### Core Settings
 
@@ -354,6 +443,8 @@ pip install -e ".[dev]"          # All of the above + testing tools
 ## Production Deployment
 
 This section covers deploying Cassini for real-world use in a manufacturing environment.
+
+> **Windows on-prem?** The [Windows Installer](#quick-start-windows-installer) handles service registration, auto-start, and configuration out of the box. The sections below cover Docker and manual Linux/macOS deployments.
 
 ### Recommended Architecture
 
@@ -778,7 +869,9 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ### Infrastructure
 
+- **Windows Installer**: Download-and-run `.exe` with Windows Service, system tray, and auto-start
 - **Docker**: Production-ready multi-stage Dockerfile + docker-compose with PostgreSQL
+- **CLI**: `cassini serve`, `cassini check`, `cassini migrate`, and more — from any terminal
 - **REST API**: 300+ endpoints for full programmatic access
 - **Batch import**: Up to 10,000 samples per request, three processing modes (skip rules, sync SPC, async SPC)
 - **Throughput**: Up to 200K samples/min bulk ingestion (benchmarked on PostgreSQL, 4 uvicorn workers)
@@ -921,6 +1014,8 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 | ERP / MES integration | -- | Yes |
 | Push notifications | -- | Yes |
 | **Infrastructure** | | |
+| Windows installer + service | Yes | Yes |
+| CLI (`cassini serve`, etc.) | Yes | Yes |
 | Database | SQLite | PostgreSQL, MSSQL, MySQL |
 | REST API (300+) | Yes | Yes |
 | Batch import API | Yes | Yes |
@@ -974,12 +1069,13 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Python 3.11+, FastAPI, SQLAlchemy async, Alembic, Pydantic |
+| **Backend** | Python 3.11+, FastAPI, SQLAlchemy async, Alembic, Pydantic, Click (CLI) |
 | **Frontend** | React 19, TypeScript 5.9, Vite 7, TanStack Query v5, Zustand v5 |
 | **Charts** | ECharts 6 (tree-shaken, canvas renderer) |
 | **Validation** | Zod v4 (frontend), Pydantic v2 (backend) |
 | **Styling** | Tailwind CSS v4 with retro and glass visual themes |
 | **Bridge** | Python, pyserial, paho-mqtt (pip-installable `cassini-bridge`) |
+| **Desktop** | PyInstaller (freeze), Inno Setup (installer), pystray (tray), pywin32 (service) |
 | **Database** | SQLite, PostgreSQL, MySQL, MSSQL via dialect abstraction |
 | **Real-time** | WebSocket (FastAPI native), MQTT (paho-mqtt / asyncio-mqtt) |
 | **ML** | ruptures (changepoint), scikit-learn (Isolation Forest), scipy |
@@ -988,29 +1084,38 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 
 ```
 cassini/
-├── backend/           FastAPI application
+├── backend/              FastAPI application
 │   ├── src/cassini/
-│   │   ├── api/       Routers, schemas, dependencies
-│   │   ├── core/      SPC engine, capability, MSA, anomaly, signatures
-│   │   └── db/        Models, repositories, migrations
-│   ├── alembic/       Database migrations
-│   ├── .env.example   Environment variable template
-│   └── pyproject.toml Python dependencies
-├── frontend/          React SPA
+│   │   ├── api/          Routers, schemas, dependencies
+│   │   ├── cli/          CLI entrypoint (cassini serve, migrate, etc.)
+│   │   ├── core/         SPC engine, capability, MSA, anomaly, signatures
+│   │   ├── db/           Models, repositories, migrations
+│   │   ├── service/      Windows Service (CassiniSPC)
+│   │   └── tray/         System tray companion (pystray)
+│   ├── alembic/          Database migrations
+│   ├── cassini-server.spec  PyInstaller spec for server executable
+│   ├── cassini-tray.spec   PyInstaller spec for tray executable
+│   ├── .env.example      Environment variable template
+│   └── pyproject.toml    Python dependencies
+├── frontend/             React SPA
 │   ├── src/
-│   │   ├── api/       API client, hooks, namespaces (21 API modules)
-│   │   ├── components/ 200+ components organized by domain
-│   │   ├── pages/     22 page components
-│   │   ├── stores/    Zustand state stores
-│   │   └── hooks/     Custom React hooks
-│   ├── start.sh       One-command dev startup (macOS/Linux)
-│   ├── start.bat      One-command dev startup (Windows)
-│   └── package.json   Node dependencies
-├── bridge/            Serial gage → MQTT translator (commercial)
-│   └── src/cassini_bridge/
-├── docker-compose.yml Production-ready Docker setup
-├── Dockerfile         Multi-stage build (frontend + backend)
-└── docs/              Documentation and images
+│   │   ├── api/          API client, hooks, namespaces (21 API modules)
+│   │   ├── components/   200+ components organized by domain
+│   │   ├── pages/        22 page components
+│   │   ├── stores/       Zustand state stores
+│   │   └── hooks/        Custom React hooks
+│   ├── start.sh          One-command dev startup (macOS/Linux)
+│   ├── start.bat         One-command dev startup (Windows)
+│   └── package.json      Node dependencies
+├── bridge/               Serial gage → MQTT translator (commercial)
+│   ├── src/cassini_bridge/
+│   └── cassini-bridge.spec  PyInstaller spec for bridge executable
+├── installer/            Inno Setup Windows installer
+│   ├── cassini.iss       Installer script
+│   └── templates/        Default config files
+├── docker-compose.yml    Production-ready Docker setup
+├── Dockerfile            Multi-stage build (frontend + backend)
+└── docs/                 Documentation and images
 ```
 
 ---

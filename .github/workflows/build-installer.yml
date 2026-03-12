@@ -1,0 +1,120 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Cassini Installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # ---------------------------------------------------------------
+      # 1. Checkout
+      # ---------------------------------------------------------------
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------
+      # 2. Setup Node 22
+      # ---------------------------------------------------------------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ---------------------------------------------------------------
+      # 3. Install frontend deps
+      # ---------------------------------------------------------------
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      # ---------------------------------------------------------------
+      # 4. Build frontend
+      # ---------------------------------------------------------------
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # ---------------------------------------------------------------
+      # 5. Setup Python 3.11
+      # ---------------------------------------------------------------
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ---------------------------------------------------------------
+      # 6. Install backend deps
+      # ---------------------------------------------------------------
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          pip install -e ".[all,desktop]"
+          pip install "pyinstaller>=6.5.0"
+
+      # ---------------------------------------------------------------
+      # 7. Freeze server
+      # ---------------------------------------------------------------
+      - name: Freeze server (PyInstaller)
+        working-directory: backend
+        run: pyinstaller cassini-server.spec --distpath dist
+
+      # ---------------------------------------------------------------
+      # 8. Freeze tray
+      # ---------------------------------------------------------------
+      - name: Freeze tray (PyInstaller)
+        working-directory: backend
+        run: pyinstaller cassini-tray.spec --distpath dist
+
+      # ---------------------------------------------------------------
+      # 9. Install bridge deps
+      # ---------------------------------------------------------------
+      - name: Install bridge deps
+        working-directory: bridge
+        run: pip install -e .
+
+      # ---------------------------------------------------------------
+      # 10. Freeze bridge
+      # ---------------------------------------------------------------
+      - name: Freeze bridge (PyInstaller)
+        working-directory: bridge
+        run: pyinstaller cassini-bridge.spec --distpath dist
+
+      # ---------------------------------------------------------------
+      # 11. Build installer (Inno Setup)
+      # ---------------------------------------------------------------
+      - name: Build installer
+        run: iscc installer/cassini.iss
+
+      # ---------------------------------------------------------------
+      # 12. Verify installer output
+      # ---------------------------------------------------------------
+      - name: Verify installer
+        run: ls -la installer/output/
+
+      # ---------------------------------------------------------------
+      # 13. Upload to GitHub Release (tag push only)
+      # ---------------------------------------------------------------
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: installer/output/cassini-spc-*-setup.exe
+          draft: true
+          generate_release_notes: true
+
+      # ---------------------------------------------------------------
+      # 14. Upload artifact (manual dispatch / non-tag builds)
+      # ---------------------------------------------------------------
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: cassini-installer
+          path: installer/output/cassini-spc-*-setup.exe

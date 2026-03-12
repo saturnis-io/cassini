@@ -7,6 +7,9 @@ Event-driven Statistical Process Control system built with FastAPI and SQLAlchem
 ```
 src/cassini/
   main.py              # FastAPI app, lifespan, router registration
+  __main__.py          # python -m cassini entrypoint
+  cli/
+    main.py            # Click CLI (serve, migrate, create-admin, check, version, service, tray)
   api/
     deps.py            # Shared dependencies (auth, DB session, rate limiter)
     schemas/           # Pydantic request/response models
@@ -18,7 +21,8 @@ src/cassini/
       providers.py         samples.py           tags.py
       users.py             violations.py        websocket.py
   core/
-    config.py          # Pydantic-settings (CASSINI_ env prefix)
+    config.py          # Pydantic-settings (CASSINI_ env prefix + TOML)
+    toml_config.py     # cassini.toml loader and Pydantic settings source
     broadcast.py       # WebSocket event broadcaster
     publish.py         # MQTT outbound publisher (violations, stats, Nelson)
     rate_limit.py      # SlowAPI rate limiting
@@ -35,6 +39,12 @@ src/cassini/
       opcua_manager.py #   OPC-UA provider lifecycle
       protocol.py      #   Protocol abstraction
       manual.py        #   Manual data entry provider
+  service/
+    windows_service.py # Windows Service (CassiniSPC) via pywin32
+  tray/
+    app.py             # System tray companion (pystray, health polling)
+    icons.py           # Dynamic status icon generation (Pillow)
+    __main__.py        # Frozen tray entrypoint (avoids heavy backend imports)
   db/
     database.py        # Async engine + session factory
     dialects.py        # Multi-dialect helpers (SQLite, PG, MySQL, MSSQL)
@@ -80,10 +90,11 @@ source .venv/bin/activate
 
 pip install -e .
 
-# Run database migrations
-alembic upgrade head
+# Start the server (auto-migrates database)
+cassini serve
 
-# Start the server
+# Or start manually without the CLI
+alembic upgrade head
 uvicorn cassini.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -92,6 +103,43 @@ For development dependencies (pytest, ruff, mypy):
 ```bash
 pip install -e ".[dev]"
 ```
+
+For desktop distribution extras (pystray, pywin32, Pillow):
+
+```bash
+pip install -e ".[desktop]"
+```
+
+## CLI
+
+The `cassini` command is registered as a console script entry point.
+
+```
+cassini serve                  # auto-migrate + start server
+cassini serve --no-migrate     # skip migrations
+cassini serve --host 0.0.0.0 --port 9000
+cassini migrate                # run migrations only
+cassini create-admin           # interactive admin creation
+cassini version                # print version + build info
+cassini check                  # validate config, DB, license
+cassini tray                   # launch system tray (requires [desktop] extra)
+cassini service install        # install Windows Service
+cassini service start/stop     # control Windows Service
+```
+
+Host and port default to values in `cassini.toml`, falling back to `127.0.0.1:8000`. The TOML config file is searched at: `CASSINI_CONFIG` env var, then current directory, then system path (`C:\ProgramData\Cassini\` on Windows, `/etc/cassini/` on Linux).
+
+## Building Executables
+
+PyInstaller spec files are included for freezing into standalone executables:
+
+```bash
+pip install "pyinstaller>=6.5.0"
+pyinstaller cassini-server.spec   # server + frontend + migrations
+pyinstaller cassini-tray.spec     # tray companion (lightweight)
+```
+
+The Inno Setup installer script is at `installer/cassini.iss`. See `installer/assets/README` for wizard image specs.
 
 ## Environment Variables
 
