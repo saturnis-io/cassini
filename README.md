@@ -105,8 +105,9 @@ The installer registers Cassini as a Windows Service that starts automatically o
 
 Edit `C:\ProgramData\Cassini\cassini.toml` to change server port, database, or other settings. See [CLI Reference](#cli-reference) and [Configuration Reference](#configuration-reference).
 
+To run these commands, open a terminal ([how?](#new-to-the-command-line)) and type:
+
 ```bash
-# From any terminal (if PATH was added during install):
 cassini check     # validate config, database, and license
 cassini version   # print version and build info
 ```
@@ -160,7 +161,7 @@ On first startup, Cassini creates an admin account. The default credentials are:
 
 > You will be prompted to change the password on first login.
 
-To set a custom admin password instead of the default, create a `.env` file next to `docker-compose.yml` **before** the first start:
+To set a custom admin password instead of the default, create a file called `.env` in the `cassini` folder (same folder as `docker-compose.yml`) **before** the first start. Use any text editor — Notepad on Windows, TextEdit on macOS, or `nano` on Linux. Save it with this content:
 
 ```env
 CASSINI_ADMIN_PASSWORD=my-secure-password
@@ -818,20 +819,39 @@ docker run --rm -v cassini_postgres-data:/data -v $(pwd):/backup alpine \
 
 ### Upgrading
 
+**Docker (all platforms):**
+
 ```bash
-# Docker
 git pull
 docker compose build
 docker compose up -d
+```
 
-# Manual
+**Manual (macOS / Linux):**
+
+```bash
 git pull
 cd backend && source .venv/bin/activate
 pip install -e ".[all]"
-alembic upgrade head         # Apply new migrations
+alembic upgrade head
 cd ../frontend && npm ci && npm run build
 sudo systemctl restart cassini
 ```
+
+**Manual (Windows):**
+
+```bash
+git pull
+cd backend
+.venv\Scripts\activate
+pip install -e ".[all]"
+alembic upgrade head
+cd ..\frontend
+npm ci
+npm run build
+```
+
+Then restart the Cassini Windows Service from the system tray or `cassini service stop && cassini service start`.
 
 > **Always back up your database before upgrading.**
 
@@ -1225,6 +1245,8 @@ cassini/
 
 ## Development
 
+These commands work on all platforms. Run them from the `cassini` root folder.
+
 ```bash
 # Type checking (frontend)
 cd frontend && npx tsc --noEmit
@@ -1235,7 +1257,7 @@ cd frontend && npx tsc -b
 # Production build
 cd frontend && npm run build
 
-# Run backend with auto-reload
+# Run backend with auto-reload (activate .venv first)
 cd backend && uvicorn cassini.main:app --reload
 
 # Run backend tests
@@ -1247,6 +1269,8 @@ cd backend && alembic revision --autogenerate -m "description"
 # Install bridge for development
 cd bridge && pip install -e .
 ```
+
+> **Reminder:** Activate the Python virtual environment before running backend commands. On Windows: `.venv\Scripts\activate`. On macOS/Linux: `source .venv/bin/activate`.
 
 ### Key Conventions
 
