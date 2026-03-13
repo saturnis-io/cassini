@@ -128,7 +128,7 @@ export function ReportTrendSection({ chartData }: ReportTrendSectionProps) {
           itemStyle: { color: isDark ? 'hsl(46, 70%, 58%)' : 'hsl(212 100% 45%)' },
           markLine:
             markLineData.length > 0
-              ? { silent: true, symbol: 'none', data: markLineData }
+              ? { silent: true, symbol: 'none', precision: 10, data: markLineData }
               : undefined,
         },
         {

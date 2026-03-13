@@ -34,6 +34,11 @@ export function useMSAResults(studyId: number) {
     queryKey: queryKeys.msa.results(studyId),
     queryFn: () => msaApi.getResults(studyId),
     enabled: studyId > 0,
+    // Backend returns 404 when study hasn't been calculated yet — don't retry
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.includes('No results available')) return false
+      return failureCount < 2
+    },
   })
 }
 

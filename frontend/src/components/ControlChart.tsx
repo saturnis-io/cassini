@@ -58,6 +58,8 @@ interface ControlChartProps {
   showPredictions?: boolean
   /** Callback reporting the chart's grid.bottom value (px) for alignment with adjacent charts */
   onGridBottom?: (px: number) => void
+  /** Callback reporting the chart's grid.top value (px) for alignment with adjacent charts */
+  onGridTop?: (px: number) => void
   /** Pre-fetched chart data — when provided, skips internal useChartData fetch */
   chartData?: ChartData
 }
@@ -337,6 +339,7 @@ export function ControlChart({
   highlightSampleId,
   showPredictions,
   onGridBottom,
+  onGridTop,
   chartData: externalChartData,
 }: ControlChartProps) {
   const { data: fetchedChartData, isLoading: fetchLoading } = useChartData(
@@ -385,11 +388,11 @@ export function ControlChart({
     annotationsRef.current = annotations
   }, [annotations])
 
-  // Report grid.bottom to parent for histogram alignment
+  // Grid alignment: configured values (used as fallback) + refs for actual Y domain
   const bottomMarginValue = 60
-  useEffect(() => {
-    onGridBottom?.(bottomMarginValue)
-  }, [onGridBottom, bottomMarginValue])
+  const gridTopRef = useRef(20)
+  const yMinRef = useRef(0)
+  const yMaxRef = useRef(0)
 
   // Maps annotation marker series dataIndex → annotation ID (set inside useMemo, read in click handler)
   const annotationMarkerIdsRef = useRef<number[]>([])
@@ -1239,6 +1242,7 @@ export function ControlChart({
 
     const hasAnomalyLabels = (anomalyOverlay?.markLines?.length ?? 0) > 0
     const gridTop = hasAnomalyLabels ? 48 : hasAnnotationMarkers ? 32 : 20
+    gridTopRef.current = gridTop
 
     // --- Forecast overlay series ---
     const forecastSeries: Record<string, unknown>[] = []
@@ -1423,19 +1427,25 @@ export function ControlChart({
       }
     }
 
+    // Store for convertToPixel grid alignment
+    yMinRef.current = yMin
+    yMaxRef.current = yMax
+
     const option = {
       animation: false,
       grid: { top: gridTop, right: 120, left: 60, bottom: bottomMargin, containLabel: false },
       xAxis: xAxisConfig,
       yAxis: {
         type: 'value',
-        min: yMin,
-        max: yMax,
+        // Use function form to prevent ECharts nice-rounding of axis range
+        min: () => yMin,
+        max: () => yMax,
         axisLabel: {
           fontSize: 12,
           color: axisLabelColor,
           width: 50,
           align: 'right' as const,
+          overflow: 'truncate' as const,
           formatter: (value: number) => value.toFixed(decimal_precision),
         },
         axisLine: { lineStyle: { color: axisLineColor } },
@@ -1549,7 +1559,7 @@ export function ControlChart({
           symbol: 'none',
           showSymbol: false,
           silent: true,
-          markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
+          markLine: { symbol: 'none', silent: true, precision: 10, data: markLineData as never[] },
           markArea: { silent: true, data: allMarkAreas as never[] },
           z: 5,
         },
@@ -1706,6 +1716,7 @@ export function ControlChart({
                     ? {
                         symbol: 'none',
                         silent: false,
+                        precision: 10,
                         data: anomalyOverlay.markLines as never[],
                         tooltip: {
                           show: true,
@@ -1839,6 +1850,32 @@ export function ControlChart({
     onClick: handleClick,
     onDataZoom: handleDataZoom,
   })
+
+  // Report actual rendered grid positions to parent for histogram alignment.
+  // Uses convertToPixel to get the ACTUAL pixel coordinates ECharts rendered,
+  // which may differ from the configured grid values due to internal adjustments.
+  useEffect(() => {
+    if (!onGridTop && !onGridBottom) return
+    const chart = chartRef.current
+    const wrapper = chartWrapperRef.current
+    if (!chart || !wrapper || !echartsOption) return
+    // convertToPixel is only valid after setOption; schedule after current frame
+    const raf = requestAnimationFrame(() => {
+      try {
+        const topPx = chart.convertToPixel({ yAxisIndex: 0 }, yMaxRef.current)
+        const bottomPx = chart.convertToPixel({ yAxisIndex: 0 }, yMinRef.current)
+        const h = wrapper.getBoundingClientRect().height
+        if (Number.isFinite(topPx) && Number.isFinite(bottomPx) && h > 0) {
+          onGridTop?.(Math.round(topPx))
+          onGridBottom?.(Math.round(h - bottomPx))
+          return
+        }
+      } catch { /* fallback below */ }
+      onGridTop?.(gridTopRef.current)
+      onGridBottom?.(bottomMarginValue)
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [echartsOption, onGridTop, onGridBottom, chartRef])
 
   // Dismiss stale tooltip when underlying data changes — prevents the tooltip
   // from showing one sample while a click would resolve to a different one

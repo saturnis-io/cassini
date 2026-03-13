@@ -149,5 +149,9 @@ export function useDOEAnalysis(studyId: number) {
     queryKey: doeKeys.analysis(studyId),
     queryFn: () => doeApi.getAnalysis(studyId),
     enabled: studyId > 0,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message.includes('No analysis')) return false
+      return failureCount < 2
+    },
   })
 }

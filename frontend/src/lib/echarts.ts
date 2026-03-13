@@ -30,12 +30,14 @@ import type {
   GraphicComponentOption,
   VisualMapComponentOption,
 } from 'echarts/components'
+import { LegacyGridContainLabel } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ComposeOption } from 'echarts/core'
 
 // Register all required components once
 registerECharts([
   CanvasRenderer,
+  LegacyGridContainLabel,
   LineChart,
   BarChart,
   CustomChart,

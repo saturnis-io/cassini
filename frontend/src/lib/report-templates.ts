@@ -1,4 +1,15 @@
-import { BarChart2, TrendingUp, AlertTriangle, LineChart, Activity, ClipboardCheck } from 'lucide-react'
+import {
+  BarChart2,
+  TrendingUp,
+  AlertTriangle,
+  LineChart,
+  Activity,
+  ClipboardCheck,
+  FlaskConical,
+  Ruler,
+  GitBranch,
+  ShieldCheck,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 export type ReportSection =
@@ -22,11 +33,29 @@ export type ReportSection =
   | 'measurementSystemHealth'
   | 'doeFindings'
   | 'faiStatus'
+  | 'studySetup'
+  | 'anovaResults'
+  | 'effectPlots'
+  | 'optimalSettings'
+  | 'doeConfirmation'
+  | 'studyInfo'
+  | 'gageRR'
+  | 'attributeAgreement'
+  | 'msaResolution'
+  | 'msaRecommendation'
+  | 'lineOverview'
+  | 'characteristicComparison'
+  | 'capabilityMatrix'
+  | 'violationPatterns'
+  | 'auditSummary'
+  | 'signatureEvidence'
+  | 'capabilityEvidence'
+  | 'measurementData'
 
 export type RequiredData = 'chartData' | 'violations' | 'samples' | 'stats'
 
-/** Template scope: single characteristic or plant-wide (commercial) */
-export type ReportScope = 'characteristic' | 'plant'
+/** Template scope: single characteristic, plant-wide, study-level, or line-level */
+export type ReportScope = 'characteristic' | 'plant' | 'study' | 'line'
 
 export interface ReportTemplate {
   id: string
@@ -39,6 +68,8 @@ export interface ReportTemplate {
   scope?: ReportScope
   /** Whether this template requires a commercial license */
   commercial?: boolean
+  /** For study-scoped templates, which study type this template applies to */
+  studyType?: 'doe' | 'msa'
 }
 
 export const REPORT_TEMPLATES: ReportTemplate[] = [
@@ -106,6 +137,47 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     sections: ['header', 'executiveSummary', 'capabilityScorecard', 'riskRanking', 'violationTrend'],
     requiredData: ['stats'],
     scope: 'plant',
+    commercial: true,
+  },
+  {
+    id: 'doe-summary',
+    name: 'DOE Study Report',
+    description: 'Full factorial/RSM analysis results: ANOVA, effects, optimal settings',
+    icon: FlaskConical,
+    sections: ['header', 'studySetup', 'anovaResults', 'effectPlots', 'optimalSettings', 'doeConfirmation'],
+    requiredData: [],
+    scope: 'study',
+    studyType: 'doe',
+    commercial: true,
+  },
+  {
+    id: 'msa-report',
+    name: 'MSA Study Report',
+    description: 'Gage R&R or Attribute Agreement results with AIAG acceptance criteria',
+    icon: Ruler,
+    sections: ['header', 'studyInfo', 'gageRR', 'attributeAgreement', 'msaRecommendation'],
+    requiredData: [],
+    scope: 'study',
+    studyType: 'msa',
+    commercial: true,
+  },
+  {
+    id: 'line-assessment',
+    name: 'Line Assessment',
+    description: 'Cross-characteristic capability comparison and violation patterns for a production line',
+    icon: GitBranch,
+    sections: ['header', 'lineOverview', 'characteristicComparison', 'capabilityMatrix', 'violationPatterns'],
+    requiredData: [],
+    scope: 'line',
+    commercial: true,
+  },
+  {
+    id: 'audit-package',
+    name: 'Audit Package',
+    description: 'Compliance evidence bundle: audit trail, signatures, measurements, capability',
+    icon: ShieldCheck,
+    sections: ['header', 'auditSummary', 'signatureEvidence', 'capabilityEvidence', 'measurementData'],
+    requiredData: [],
     commercial: true,
   },
 ]

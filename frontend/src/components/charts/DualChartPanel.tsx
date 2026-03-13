@@ -78,6 +78,7 @@ export function DualChartPanel({
   const [hoveredValue, setHoveredValue] = useState<number | null>(null)
   const [hoveredBinRange, setHoveredBinRange] = useState<[number, number] | null>(null)
   const [controlChartBottom, setControlChartBottom] = useState(60)
+  const [controlChartTop, setControlChartTop] = useState(20)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   // Predictions state from global store (toggled via ChartToolbar)
@@ -266,6 +267,7 @@ export function DualChartPanel({
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
               onGridBottom={setControlChartBottom}
+              onGridTop={setControlChartTop}
             />
           </ErrorBoundary>
         </div>
@@ -294,6 +296,7 @@ export function DualChartPanel({
               onHoverBin={setHoveredBinRange}
               showSpecLimits={showSpecLimits}
               gridBottom={controlChartBottom}
+              gridTop={controlChartTop}
             />
           </div>
         )}
@@ -323,6 +326,7 @@ export function DualChartPanel({
               onPointAnnotation={onPointAnnotation}
               onRegionSelect={onRegionSelect}
               onGridBottom={setControlChartBottom}
+              onGridTop={setControlChartTop}
             />
           </ErrorBoundary>
         </div>
@@ -349,6 +353,7 @@ export function DualChartPanel({
               onHoverBin={setHoveredBinRange}
               showSpecLimits={showSpecLimits}
               gridBottom={controlChartBottom}
+              gridTop={controlChartTop}
             />
           </div>
         )}
@@ -383,17 +388,17 @@ export function DualChartPanel({
         {isRightPosition && showHistogram && (
           <div className="h-full flex-shrink-0" style={{ width: histogramWidth }}>
             {secondaryStats && (
-              <div className="border-border bg-card flex h-full flex-col justify-center overflow-hidden rounded-2xl border px-4 py-3">
-                <div className="text-muted-foreground mb-3 truncate text-[10px] tracking-wider uppercase">
-                  {secondaryStats.label} Summary
-                </div>
+              <div className="bg-card border-border h-full overflow-hidden rounded-2xl border p-5">
+                <h3 className="mb-3 truncate text-sm font-semibold">
+                  {secondaryStats.label}
+                </h3>
 
                 {/* Center line — hero value */}
-                <div className="mb-3 text-center">
+                <div className="bg-muted/50 mb-3 rounded-lg px-3 py-2 text-center">
                   <div className="text-muted-foreground mb-0.5 text-[10px]">
                     {secondaryStats.symbol}
                   </div>
-                  <div className="text-foreground font-mono text-lg font-semibold tabular-nums">
+                  <div className="text-foreground font-mono text-lg font-bold tabular-nums">
                     {secondaryStats.mean.toFixed(3)}
                   </div>
                 </div>
@@ -405,7 +410,7 @@ export function DualChartPanel({
                       <span className="border-destructive/60 w-3 border-t-2 border-dashed" />
                       UCL
                     </span>
-                    <span className="text-destructive/80 font-mono">
+                    <span className="text-destructive/80 font-mono font-medium">
                       {secondaryStats.ucl?.toFixed(3) ?? '—'}
                     </span>
                   </div>
@@ -414,7 +419,7 @@ export function DualChartPanel({
                       <span className="border-destructive/60 w-3 border-t-2 border-dashed" />
                       LCL
                     </span>
-                    <span className="text-destructive/80 font-mono">
+                    <span className="text-destructive/80 font-mono font-medium">
                       {secondaryStats.lcl?.toFixed(3) ?? '—'}
                     </span>
                   </div>

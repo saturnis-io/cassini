@@ -15,7 +15,7 @@ import { ChartToolbar } from '@/components/ChartToolbar'
 import { ChartRangeSlider } from '@/components/ChartRangeSlider'
 import { ComparisonSelector } from '@/components/ComparisonSelector'
 import { AnnotationDialog } from '@/components/AnnotationDialog'
-import { AnnotationListPanel } from '@/components/AnnotationListPanel'
+import { AnnotationListPanel, isAnnotationVisible } from '@/components/AnnotationListPanel'
 import { SampleInspectorModal } from '@/components/SampleInspectorModal'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
@@ -126,7 +126,6 @@ export function OperatorDashboard() {
   const materialIdFilter = useDashboardStore((state) => state.materialIdFilter)
 
   const { data: annotationsData } = useAnnotations(selectedId ?? 0)
-  const annotationCount = annotationsData?.length ?? 0
 
   const [showComparisonSelector, setShowComparisonSelector] = useState(false)
   const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
@@ -224,6 +223,10 @@ export function OperatorDashboard() {
     [isBoxWhisker, isShortRun, chartDataForAnnotation, showSpecLimits],
   )
 
+  // Grid positions reported by BoxWhiskerChart for histogram alignment
+  const [bwGridBottom, setBwGridBottom] = useState(50)
+  const [bwGridTop, setBwGridTop] = useState(20)
+
   // Unified data points accessor (variable or attribute)
   const unifiedPoints = useMemo(() => {
     if (!chartDataForAnnotation) return null
@@ -269,6 +272,14 @@ export function OperatorDashboard() {
     if (slice.length === 0) return null
     return [slice[0].timestamp, slice[slice.length - 1].timestamp]
   }, [unifiedPoints, rangeWindow, showBrush])
+
+  // Annotation badge count — filtered to match visible chart range
+  const annotationCount = useMemo(() => {
+    if (!annotationsData) return 0
+    return annotationsData.filter((ann) =>
+      isAnnotationVisible(ann, visibleSampleIds, visibleTimeRange),
+    ).length
+  }, [annotationsData, visibleSampleIds, visibleTimeRange])
 
   // Compute visible unacknowledged violation IDs for bulk acknowledge
   const visibleViolationIds = useMemo(() => {
@@ -480,6 +491,12 @@ export function OperatorDashboard() {
                           showSpecLimits={showSpecLimits}
                           yAxisDomain={boxWhiskerYDomain}
                           hideLegend
+                          onPointAnnotation={(sampleId) => {
+                            setSampleInspectorSampleId(sampleId)
+                            setSampleInspectorOpen(true)
+                          }}
+                          onGridBottom={setBwGridBottom}
+                          onGridTop={setBwGridTop}
                         />
                       </div>
                       <div className="w-[280px] flex-shrink-0">
@@ -489,7 +506,8 @@ export function OperatorDashboard() {
                           chartOptions={chartOptions}
                           yAxisDomain={boxWhiskerYDomain}
                           showSpecLimits={showSpecLimits}
-                          gridBottom={50}
+                          gridBottom={bwGridBottom}
+                          gridTop={bwGridTop}
                         />
                       </div>
                     </div>
@@ -500,6 +518,10 @@ export function OperatorDashboard() {
                           characteristicId={selectedId}
                           chartOptions={chartOptions}
                           showSpecLimits={showSpecLimits}
+                          onPointAnnotation={(sampleId) => {
+                            setSampleInspectorSampleId(sampleId)
+                            setSampleInspectorOpen(true)
+                          }}
                         />
                       </div>
                       <div className="h-[192px] flex-shrink-0">
@@ -516,6 +538,10 @@ export function OperatorDashboard() {
                       characteristicId={selectedId}
                       chartOptions={chartOptions}
                       showSpecLimits={showSpecLimits}
+                      onPointAnnotation={(sampleId) => {
+                        setSampleInspectorSampleId(sampleId)
+                        setSampleInspectorOpen(true)
+                      }}
                     />
                   )
                 ) : isDualChart ? (

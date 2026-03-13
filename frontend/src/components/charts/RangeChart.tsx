@@ -410,7 +410,7 @@ export function RangeChart({
         type: 'value' as const,
         min: yMin,
         max: yMax,
-        axisLabel: { fontSize: 12, width: 50, align: 'right' as const, formatter: (value: number) => value.toFixed(decimalPrecision) },
+        axisLabel: { fontSize: 12, width: 50, align: 'right' as const, overflow: 'truncate' as const, formatter: (value: number) => value.toFixed(decimalPrecision) },
         name: yAxisLabel,
         nameLocation: 'middle' as const,
         nameGap: 45,

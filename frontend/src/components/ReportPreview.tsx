@@ -25,6 +25,24 @@ import {
   ReportMeasurementSystemHealth,
   ReportDOEFindings,
   ReportFAIStatus,
+  ReportStudySetup,
+  ReportAnovaResults,
+  ReportEffectPlots,
+  ReportOptimalSettings,
+  ReportDOEConfirmation,
+  ReportStudyInfo,
+  ReportGageRR,
+  ReportAttributeAgreement,
+  ReportMSAResolution,
+  ReportMSARecommendation,
+  ReportLineOverview,
+  ReportCharacteristicComparison,
+  ReportCapabilityMatrix,
+  ReportViolationPatterns,
+  ReportAuditSummary,
+  ReportSignatureEvidence,
+  ReportCapabilityEvidence,
+  ReportMeasurementData,
 } from '@/components/report-sections'
 
 interface ReportPreviewProps {
@@ -35,6 +53,8 @@ interface ReportPreviewProps {
     startDate?: string
     endDate?: string
   }
+  studyId?: number
+  linePath?: string
   className?: string
 }
 
@@ -45,6 +65,8 @@ export function ReportPreview({
   template,
   characteristicIds,
   chartOptions,
+  studyId,
+  linePath,
   className,
 }: ReportPreviewProps) {
   const primaryCharId = characteristicIds[0]
@@ -64,9 +86,9 @@ export function ReportPreview({
   const { data: annotations } = useAnnotations(primaryCharId || 0, !!primaryCharId)
 
   const isLoading = chartLoading || violationsLoading
-  const isPlantScoped = template.scope === 'plant'
+  const isNonCharScope = template.scope === 'plant' || template.scope === 'study' || template.scope === 'line'
 
-  if (!primaryCharId && !isPlantScoped) {
+  if (!primaryCharId && !isNonCharScope) {
     return (
       <div
         className={cn(
@@ -79,7 +101,7 @@ export function ReportPreview({
     )
   }
 
-  if (isLoading && !isPlantScoped) {
+  if (isLoading && !isNonCharScope) {
     return (
       <div
         className={cn(
@@ -112,7 +134,7 @@ export function ReportPreview({
           </div>
           <div className="text-muted-foreground text-right text-sm">
             <div>Generated: {formatDateTime(new Date())}</div>
-            {characteristic && <div>Characteristic: {characteristic.name}</div>}
+            {!isNonCharScope && characteristic && <div>Characteristic: {characteristic.name}</div>}
           </div>
         </div>
 
@@ -128,6 +150,8 @@ export function ReportPreview({
             characteristicIds={characteristicIds}
             characteristicId={primaryCharId}
             chartOptions={chartOptions}
+            studyId={studyId}
+            linePath={linePath}
           />
         ))}
       </div>
@@ -149,6 +173,8 @@ interface SectionProps {
     startDate?: string
     endDate?: string
   }
+  studyId?: number
+  linePath?: string
 }
 
 function ReportSectionComponent({
@@ -161,6 +187,8 @@ function ReportSectionComponent({
   characteristicIds,
   characteristicId,
   chartOptions,
+  studyId,
+  linePath,
 }: SectionProps) {
   switch (section) {
     case 'header':
@@ -231,6 +259,46 @@ function ReportSectionComponent({
       return <ReportDOEFindings characteristicId={characteristicId} />
     case 'faiStatus':
       return <ReportFAIStatus characteristicId={characteristicId} />
+    // DOE sections
+    case 'studySetup':
+      return <ReportStudySetup studyId={studyId} />
+    case 'anovaResults':
+      return <ReportAnovaResults studyId={studyId} />
+    case 'effectPlots':
+      return <ReportEffectPlots studyId={studyId} />
+    case 'optimalSettings':
+      return <ReportOptimalSettings studyId={studyId} />
+    case 'doeConfirmation':
+      return <ReportDOEConfirmation studyId={studyId} />
+    // MSA sections
+    case 'studyInfo':
+      return <ReportStudyInfo studyId={studyId} />
+    case 'gageRR':
+      return <ReportGageRR studyId={studyId} />
+    case 'attributeAgreement':
+      return <ReportAttributeAgreement studyId={studyId} />
+    case 'msaResolution':
+      return <ReportMSAResolution studyId={studyId} />
+    case 'msaRecommendation':
+      return <ReportMSARecommendation studyId={studyId} />
+    // Line assessment sections
+    case 'lineOverview':
+      return <ReportLineOverview linePath={linePath} />
+    case 'characteristicComparison':
+      return <ReportCharacteristicComparison linePath={linePath} />
+    case 'capabilityMatrix':
+      return <ReportCapabilityMatrix linePath={linePath} />
+    case 'violationPatterns':
+      return <ReportViolationPatterns linePath={linePath} />
+    // Audit package sections
+    case 'auditSummary':
+      return <ReportAuditSummary characteristicId={characteristicId} chartOptions={chartOptions} />
+    case 'signatureEvidence':
+      return <ReportSignatureEvidence characteristicId={characteristicId} chartOptions={chartOptions} />
+    case 'capabilityEvidence':
+      return <ReportCapabilityEvidence characteristicId={characteristicId} />
+    case 'measurementData':
+      return <ReportMeasurementData characteristicId={characteristicId} chartOptions={chartOptions} />
     default:
       return null
   }

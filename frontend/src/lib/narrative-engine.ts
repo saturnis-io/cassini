@@ -718,3 +718,228 @@ export function generateExecutiveSummary(
     recommendation,
   }
 }
+
+// ---------------------------------------------------------------------------
+// assessGageRR
+// ---------------------------------------------------------------------------
+
+interface GageRRInput {
+  pct_study_grr: number
+  pct_study_ev: number
+  pct_study_av: number
+  ndc: number
+  verdict: string
+}
+
+/**
+ * Assesses Gage R&R results against AIAG thresholds for %Study GRR,
+ * dominant error source (EV vs AV), and number of distinct categories (NDC).
+ */
+export function assessGageRR(result: GageRRInput): NarrativeItem[] {
+  const items: NarrativeItem[] = []
+
+  // Overall GRR: ≤10% good, ≤30% warning, >30% critical
+  if (result.pct_study_grr <= 10) {
+    items.push({
+      severity: 'good',
+      category: 'measurement',
+      text: `Gage R&R is ${result.pct_study_grr.toFixed(1)}% of study variation — measurement system is acceptable per AIAG guidelines.`,
+      metric: '%Study GRR',
+      value: result.pct_study_grr,
+      threshold: 10,
+    })
+  } else if (result.pct_study_grr <= 30) {
+    items.push({
+      severity: 'warning',
+      category: 'measurement',
+      text: `Gage R&R is ${result.pct_study_grr.toFixed(1)}% of study variation — marginal, may be acceptable depending on application criticality.`,
+      metric: '%Study GRR',
+      value: result.pct_study_grr,
+      threshold: 30,
+    })
+  } else {
+    items.push({
+      severity: 'critical',
+      category: 'measurement',
+      text: `Gage R&R is ${result.pct_study_grr.toFixed(1)}% of study variation — unacceptable, measurement system needs improvement.`,
+      metric: '%Study GRR',
+      value: result.pct_study_grr,
+      threshold: 30,
+    })
+  }
+
+  // Dominant error source
+  if (result.pct_study_ev > result.pct_study_av * 1.5) {
+    items.push({
+      severity: 'warning',
+      category: 'measurement',
+      text: `Equipment variation (EV = ${result.pct_study_ev.toFixed(1)}%) dominates — focus on instrument calibration and fixturing.`,
+      metric: '%Study EV',
+      value: result.pct_study_ev,
+    })
+  } else if (result.pct_study_av > result.pct_study_ev * 1.5) {
+    items.push({
+      severity: 'warning',
+      category: 'measurement',
+      text: `Appraiser variation (AV = ${result.pct_study_av.toFixed(1)}%) dominates — focus on operator training and standardized procedures.`,
+      metric: '%Study AV',
+      value: result.pct_study_av,
+    })
+  }
+
+  // NDC
+  if (result.ndc < 5) {
+    items.push({
+      severity: result.ndc < 3 ? 'critical' : 'warning',
+      category: 'measurement',
+      text: `NDC = ${result.ndc} (AIAG requires ≥ 5) — measurement resolution is ${result.ndc < 3 ? 'inadequate' : 'marginal'}.`,
+      metric: 'NDC',
+      value: result.ndc,
+      threshold: 5,
+    })
+  }
+
+  return items
+}
+
+// ---------------------------------------------------------------------------
+// assessDOEModel
+// ---------------------------------------------------------------------------
+
+interface DOEModelInput {
+  r_squared: number
+  adj_r_squared: number
+  anova_table: Array<{ source: string; p_value: number | null }>
+  effects: Array<{ factor_name: string; effect: number }>
+}
+
+/**
+ * Assesses DOE model quality by examining R², significant factors from the
+ * ANOVA table, and the largest effect size.
+ */
+export function assessDOEModel(analysis: DOEModelInput): NarrativeItem[] {
+  const items: NarrativeItem[] = []
+
+  // R² quality: ≥0.9 excellent, ≥0.7 adequate, <0.7 poor
+  if (analysis.r_squared >= 0.9) {
+    items.push({
+      severity: 'good',
+      category: 'variation',
+      text: `Model explains ${(analysis.r_squared * 100).toFixed(1)}% of variation — excellent fit.`,
+      metric: 'R²',
+      value: analysis.r_squared,
+      threshold: 0.9,
+    })
+  } else if (analysis.r_squared >= 0.7) {
+    items.push({
+      severity: 'warning',
+      category: 'variation',
+      text: `Model explains ${(analysis.r_squared * 100).toFixed(1)}% of variation — adequate but unexplained variation remains.`,
+      metric: 'R²',
+      value: analysis.r_squared,
+      threshold: 0.7,
+    })
+  } else {
+    items.push({
+      severity: 'critical',
+      category: 'variation',
+      text: `Model explains only ${(analysis.r_squared * 100).toFixed(1)}% of variation — poor fit, consider additional factors or replication.`,
+      metric: 'R²',
+      value: analysis.r_squared,
+      threshold: 0.7,
+    })
+  }
+
+  // Significant factors
+  const significant = analysis.anova_table.filter(
+    (r) => r.p_value !== null && r.p_value < 0.05,
+  )
+  if (significant.length === 0) {
+    items.push({
+      severity: 'critical',
+      category: 'variation',
+      text: 'No factors reached statistical significance (p < 0.05). The experiment may lack power.',
+      metric: 'Significant factors',
+      value: 0,
+    })
+  } else {
+    const topEffect = [...analysis.effects].sort(
+      (a, b) => Math.abs(b.effect) - Math.abs(a.effect),
+    )[0]
+    if (topEffect) {
+      items.push({
+        severity: 'good',
+        category: 'variation',
+        text: `${significant.length} factor(s) significant. Largest effect: ${topEffect.factor_name} (effect = ${topEffect.effect.toFixed(4)}).`,
+        metric: 'Significant factors',
+        value: significant.length,
+      })
+    }
+  }
+
+  return items
+}
+
+// ---------------------------------------------------------------------------
+// assessAttributeAgreement
+// ---------------------------------------------------------------------------
+
+interface AttributeInput {
+  fleiss_kappa: number
+  within_appraiser: Record<string, number>
+  verdict: string
+}
+
+/**
+ * Assesses attribute measurement system agreement using Fleiss' kappa
+ * for overall inter-rater agreement and within-appraiser consistency.
+ */
+export function assessAttributeAgreement(
+  result: AttributeInput,
+): NarrativeItem[] {
+  const items: NarrativeItem[] = []
+
+  // Fleiss' kappa: ≥0.75 good, ≥0.40 marginal, <0.40 poor
+  if (result.fleiss_kappa >= 0.75) {
+    items.push({
+      severity: 'good',
+      category: 'measurement',
+      text: `Overall agreement (Fleiss' κ = ${result.fleiss_kappa.toFixed(3)}) is good — appraisers classify consistently.`,
+      metric: "Fleiss' kappa",
+      value: result.fleiss_kappa,
+      threshold: 0.75,
+    })
+  } else if (result.fleiss_kappa >= 0.4) {
+    items.push({
+      severity: 'warning',
+      category: 'measurement',
+      text: `Overall agreement (Fleiss' κ = ${result.fleiss_kappa.toFixed(3)}) is marginal — review classification criteria.`,
+      metric: "Fleiss' kappa",
+      value: result.fleiss_kappa,
+      threshold: 0.4,
+    })
+  } else {
+    items.push({
+      severity: 'critical',
+      category: 'measurement',
+      text: `Overall agreement (Fleiss' κ = ${result.fleiss_kappa.toFixed(3)}) is poor — classification criteria need revision and retraining.`,
+      metric: "Fleiss' kappa",
+      value: result.fleiss_kappa,
+      threshold: 0.4,
+    })
+  }
+
+  // Check for inconsistent appraisers (within-appraiser kappa < 0.6)
+  const weakAppraisers = Object.entries(result.within_appraiser).filter(
+    ([, k]) => k < 0.6,
+  )
+  if (weakAppraisers.length > 0) {
+    items.push({
+      severity: 'warning',
+      category: 'measurement',
+      text: `${weakAppraisers.length} appraiser(s) have low within-appraiser consistency: ${weakAppraisers.map(([name, k]) => `${name} (κ=${k.toFixed(2)})`).join(', ')}.`,
+    })
+  }
+
+  return items
+}

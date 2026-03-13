@@ -9,7 +9,8 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { useSamples, useCharacteristic } from '@/api/hooks'
+import { useSamples, useCharacteristic, useHierarchyPath } from '@/api/hooks'
+import { formatDisplayKey } from '@/lib/display-key'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useChartHoverSync } from '@/stores/chartHoverStore'
@@ -29,11 +30,18 @@ interface BoxWhiskerChartProps {
   yAxisDomain?: [number, number]
   /** When true, hides the legend row so chart container height matches histogram */
   hideLegend?: boolean
+  /** Callback when a box plot is clicked — opens sample inspector */
+  onPointAnnotation?: (sampleId: number) => void
+  /** Callback reporting the chart's margin.bottom value (px) for alignment with adjacent charts */
+  onGridBottom?: (px: number) => void
+  /** Callback reporting the chart's margin.top value (px) for alignment with adjacent charts */
+  onGridTop?: (px: number) => void
 }
 
 interface BoxPlotData {
   sampleId: number
   index: number
+  displayKey: string
   timestamp: string
   min: number
   q1: number
@@ -57,6 +65,7 @@ function PinnedBoxTooltip({
   centerLineColor,
   violationColor,
   onClose,
+  onViewSample,
 }: {
   box: BoxPlotData
   screenX: number
@@ -66,6 +75,7 @@ function PinnedBoxTooltip({
   centerLineColor: string
   violationColor: string
   onClose: () => void
+  onViewSample?: (sampleId: number) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x: screenX + 14, y: screenY - 14 })
@@ -107,7 +117,7 @@ function PinnedBoxTooltip({
       style={{ left: pos.x, top: pos.y }}
     >
       <div className="border-border flex items-center justify-between border-b px-3 py-2">
-        <span className="text-xs font-semibold">Sample #{box.index}</span>
+        <span className="text-xs font-semibold">Sample {formatDisplayKey(box.displayKey)}</span>
         <button
           onClick={onClose}
           className="text-muted-foreground hover:text-foreground -mr-1 rounded p-0.5 transition-colors"
@@ -145,6 +155,19 @@ function PinnedBoxTooltip({
           </div>
         )}
       </div>
+      {onViewSample && (
+        <div className="border-border border-t px-3 py-2">
+          <button
+            onClick={() => {
+              onClose()
+              onViewSample(box.sampleId)
+            }}
+            className="text-primary hover:text-primary/80 flex items-center gap-1 text-xs font-medium transition-colors"
+          >
+            View Sample Details
+          </button>
+        </div>
+      )}
     </div>,
     document.body,
   )
@@ -201,7 +224,7 @@ function getMeasurementValues(sample: Sample): number[] {
 /**
  * Calculate box plot statistics from a sample's measurements.
  */
-function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData | null {
+function calculateBoxPlotFromSample(sample: Sample, index: number, displayKey: string): BoxPlotData | null {
   // Filter to only valid numeric values
   const values = getMeasurementValues(sample)
 
@@ -232,6 +255,7 @@ function calculateBoxPlotFromSample(sample: Sample, index: number): BoxPlotData 
   const result = {
     sampleId: sample.id,
     index,
+    displayKey,
     timestamp: sample.timestamp,
     min: sorted[0],
     q1,
@@ -270,8 +294,12 @@ export function BoxWhiskerChart({
   showSpecLimits = true,
   yAxisDomain: externalYDomain,
   hideLegend = false,
+  onPointAnnotation,
+  onGridBottom,
+  onGridTop,
 }: BoxWhiskerChartProps) {
   const { formatDateTime } = useDateFormat()
+  const hierarchyPath = useHierarchyPath(characteristicId)
   // Fetch samples with measurements
   const { data: samplesData, isLoading: samplesLoading } = useSamples({
     characteristic_id: characteristicId,
@@ -336,7 +364,9 @@ export function BoxWhiskerChart({
     )
 
     return sortedSamples
-      .map((sample, index) => calculateBoxPlotFromSample(sample, index + 1))
+      .map((sample, index) =>
+        calculateBoxPlotFromSample(sample, index + 1, sample.display_key || `#${index + 1}`),
+      )
       .filter((box): box is BoxPlotData => box !== null)
   }, [samplesData])
 
@@ -355,6 +385,14 @@ export function BoxWhiskerChart({
   const margin = { top: 20, right: 50, bottom: 50, left: 70 }
   const chartWidth = Math.max(100, dimensions.width - margin.left - margin.right)
   const chartHeight = Math.max(100, dimensions.height - margin.top - margin.bottom)
+
+  // Report grid positions to parent for histogram alignment (same pattern as ControlChart)
+  useEffect(() => {
+    onGridBottom?.(margin.bottom)
+  }, [onGridBottom, margin.bottom])
+  useEffect(() => {
+    onGridTop?.(margin.top)
+  }, [onGridTop, margin.top])
 
   // Calculate Y-axis domain from ALL data so axis stays stable while panning
   // When an external domain is provided (for histogram alignment), use it directly
@@ -473,8 +511,15 @@ export function BoxWhiskerChart({
     <div className="bg-card border-border flex h-full flex-col rounded-2xl border p-5">
       {/* Header */}
       <div className="mb-4 flex h-5 flex-shrink-0 items-center justify-between">
-        <h3 className="text-sm leading-5 font-semibold">
-          {characteristic?.name ?? 'Characteristic'} - Box & Whisker Plot
+        <h3 className="truncate text-sm leading-5 font-semibold">
+          {(() => {
+            const hierarchyNames = hierarchyPath.map((h) => h.name)
+            const breadcrumb =
+              hierarchyNames.length > 0
+                ? hierarchyNames.join(' / ') + ' / '
+                : ''
+            return `${breadcrumb}${characteristic?.name ?? 'Characteristic'} - Box & Whisker Plot`
+          })()}
         </h3>
         <div className="text-muted-foreground flex gap-4 text-sm leading-5">
           <span>
@@ -533,7 +578,8 @@ export function BoxWhiskerChart({
                     fontSize={11}
                     dominantBaseline="middle"
                   >
-                    USL
+                    <tspan x={chartWidth + 5} dy={0}>USL</tspan>
+                    <tspan x={chartWidth + 5} dy="1.1em" fontSize={9}>{formatValue(characteristic.usl)}</tspan>
                   </text>
                 </>
               )}
@@ -555,7 +601,8 @@ export function BoxWhiskerChart({
                     fontSize={11}
                     dominantBaseline="middle"
                   >
-                    LSL
+                    <tspan x={chartWidth + 5} dy={0}>LSL</tspan>
+                    <tspan x={chartWidth + 5} dy="1.1em" fontSize={9}>{formatValue(characteristic.lsl)}</tspan>
                   </text>
                 </>
               )}
@@ -579,7 +626,8 @@ export function BoxWhiskerChart({
                     fontSize={10}
                     dominantBaseline="middle"
                   >
-                    UCL
+                    <tspan x={chartWidth + 5} dy={0}>UCL</tspan>
+                    <tspan x={chartWidth + 5} dy="1.1em" fontSize={9}>{formatValue(characteristic.ucl)}</tspan>
                   </text>
                 </>
               )}
@@ -601,7 +649,8 @@ export function BoxWhiskerChart({
                     fontSize={10}
                     dominantBaseline="middle"
                   >
-                    LCL
+                    <tspan x={chartWidth + 5} dy={0}>LCL</tspan>
+                    <tspan x={chartWidth + 5} dy="1.1em" fontSize={9}>{formatValue(characteristic.lcl)}</tspan>
                   </text>
                 </>
               )}
@@ -804,7 +853,7 @@ export function BoxWhiskerChart({
                       fontSize={10}
                       textAnchor="middle"
                     >
-                      {box.index}
+                      {formatDisplayKey(box.displayKey)}
                     </text>
                   ))
               })()}
@@ -827,6 +876,7 @@ export function BoxWhiskerChart({
                 centerLineColor={chartColors.centerLine}
                 violationColor={chartColors.violationPoint}
                 onClose={() => setPinnedBox(null)}
+                onViewSample={onPointAnnotation}
               />
             )
           })()}
@@ -840,7 +890,7 @@ export function BoxWhiskerChart({
               top: Math.max(tooltipPos.y - 100, 10),
             }}
           >
-            <div className="mb-1 font-semibold">Sample #{hoveredBoxData.index}</div>
+            <div className="mb-1 font-semibold">Sample {formatDisplayKey(hoveredBoxData.displayKey)}</div>
             <div className="text-muted-foreground mb-2 text-xs">
               {formatDateTime(hoveredBoxData.timestamp)}
             </div>

@@ -9,17 +9,22 @@ import { CharacteristicContextBar } from '@/components/CharacteristicContextBar'
 import { NoCharacteristicState } from '@/components/NoCharacteristicState'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability } from '@/api/hooks'
+import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability, useDOEStudies, useMSAStudies, usePlantHealth, useDOEStudy, useDOEAnalysis, useMSAStudy, useMSAResults } from '@/api/hooks'
+import { usePlantContext } from '@/providers/PlantProvider'
 import { useLicense } from '@/hooks/useLicense'
 import { FileText, Lock } from 'lucide-react'
 
 export function ReportsView() {
   const [searchParams] = useSearchParams()
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null)
+  const [selectedStudyId, setSelectedStudyId] = useState<number | null>(null)
+  const [selectedLinePath, setSelectedLinePath] = useState<string | null>(null)
   const selectedCharId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedCharId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const reportContentRef = useRef<HTMLDivElement>(null)
   const { isCommercial } = useLicense()
+  const { selectedPlant } = usePlantContext()
+  const plantId = selectedPlant?.id ?? 0
 
   // Use the same time range state as the dashboard
   const timeRange = useDashboardStore((state) => state.timeRange)
@@ -29,6 +34,56 @@ export function ReportsView() {
     () => REPORT_TEMPLATES.filter((t) => !t.commercial || isCommercial),
     [isCommercial],
   )
+
+  // Fetch DOE/MSA studies based on template's studyType
+  const { data: doeStudies } = useDOEStudies(
+    selectedTemplate?.studyType === 'doe' ? plantId : 0,
+  )
+  const { data: msaStudies } = useMSAStudies(
+    selectedTemplate?.studyType === 'msa' ? plantId : 0,
+  )
+
+  // Fetch plant health for line-scoped templates
+  const { data: plantHealth } = usePlantHealth(
+    selectedTemplate?.scope === 'line' ? plantId : 0,
+  )
+
+  // Fetch DOE study detail + analysis for export (conditional on selected study)
+  const { data: doeStudy } = useDOEStudy(
+    selectedTemplate?.studyType === 'doe' && selectedStudyId ? selectedStudyId : 0,
+  )
+  const { data: doeAnalysis } = useDOEAnalysis(
+    selectedTemplate?.studyType === 'doe' && selectedStudyId ? selectedStudyId : 0,
+  )
+
+  // Fetch MSA study detail + results for export (conditional on selected study)
+  const { data: msaStudy } = useMSAStudy(
+    selectedTemplate?.studyType === 'msa' && selectedStudyId ? selectedStudyId : 0,
+  )
+  const { data: msaResults } = useMSAResults(
+    selectedTemplate?.studyType === 'msa' && selectedStudyId ? selectedStudyId : 0,
+  )
+
+  // Extract unique line-level hierarchy paths from plant health data
+  const lineOptions = useMemo(() => {
+    if (!plantHealth?.characteristics) return []
+    const paths = new Set<string>()
+    for (const ch of plantHealth.characteristics) {
+      // hierarchy_path is e.g. "Plant > Line > Station > Char"
+      // Extract the line level (second segment)
+      const segments = ch.hierarchy_path.split(' > ')
+      if (segments.length >= 2) {
+        paths.add(segments.slice(0, 2).join(' > '))
+      }
+    }
+    return Array.from(paths).sort()
+  }, [plantHealth])
+
+  // Reset study/line selection when template or plant changes
+  useEffect(() => {
+    setSelectedStudyId(null)
+    setSelectedLinePath(null)
+  }, [selectedTemplate?.id, plantId])
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit selectedTemplate to avoid re-running on template change
@@ -80,8 +135,11 @@ export function ReportsView() {
     timeRange.endDate,
   ])
 
-  // Plant-scoped templates don't need a characteristic
+  // Non-characteristic-scoped templates don't need a characteristic
   const isPlantScoped = selectedTemplate?.scope === 'plant'
+  const isStudyScoped = selectedTemplate?.scope === 'study'
+  const isLineScoped = selectedTemplate?.scope === 'line'
+  const isNonCharScope = isPlantScoped || isStudyScoped || isLineScoped
 
   // Fetch data for export functionality (React Query caches, so these
   // don't cause extra network requests vs. the ones in ReportPreview)
@@ -104,13 +162,97 @@ export function ReportsView() {
       templateName: selectedTemplate?.name,
       annotations: annotations ?? [],
       capability: capability ?? undefined,
+      doeAnalysis:
+        doeStudy && doeAnalysis
+          ? {
+              studyName: doeStudy.name,
+              designType: doeStudy.design_type,
+              grandMean: doeAnalysis.grand_mean,
+              rSquared: doeAnalysis.r_squared,
+              adjRSquared: doeAnalysis.adj_r_squared,
+              anovaTable: doeAnalysis.anova_table.map((r) => ({
+                source: r.source,
+                sumOfSquares: r.sum_of_squares,
+                df: r.df,
+                meanSquare: r.mean_square,
+                fValue: r.f_value,
+                pValue: r.p_value,
+              })),
+              effects: doeAnalysis.effects.map((e) => ({
+                factorName: e.factor_name,
+                effect: e.effect,
+                coefficient: e.coefficient,
+              })),
+              factors: doeStudy.factors.map((f) => ({
+                name: f.name,
+                lowLevel: f.low_level,
+                highLevel: f.high_level,
+                unit: f.unit ?? undefined,
+              })),
+            }
+          : undefined,
+      msaResults:
+        msaStudy && msaResults
+          ? {
+              studyName: msaStudy.name,
+              studyType: msaStudy.study_type ?? 'crossed',
+              verdict: msaResults.verdict,
+              ...('pct_study_grr' in msaResults
+                ? {
+                    pctStudyGrr: msaResults.pct_study_grr,
+                    pctStudyEv: msaResults.pct_study_ev,
+                    pctStudyAv: msaResults.pct_study_av,
+                    ndc: msaResults.ndc,
+                    pctToleranceGrr: msaResults.pct_tolerance_grr,
+                  }
+                : {}),
+              ...('fleiss_kappa' in msaResults
+                ? { fleissKappa: msaResults.fleiss_kappa }
+                : {}),
+            }
+          : undefined,
+      lineAssessment:
+        selectedLinePath && plantHealth
+          ? {
+              linePath: selectedLinePath,
+              characteristics: plantHealth.characteristics
+                .filter((c) => c.hierarchy_path.startsWith(selectedLinePath))
+                .map((c) => ({
+                  name: c.name,
+                  cpk: c.cpk,
+                  ppk: c.ppk,
+                  inControlPct: c.in_control_pct,
+                  violations: c.violation_count,
+                  riskScore: c.risk_score,
+                })),
+            }
+          : undefined,
     }),
-    [chartData, violations, characteristic, annotations, capability, selectedTemplate],
+    [
+      chartData,
+      violations,
+      characteristic,
+      annotations,
+      capability,
+      selectedTemplate,
+      doeStudy,
+      doeAnalysis,
+      msaStudy,
+      msaResults,
+      selectedLinePath,
+      plantHealth,
+    ],
   )
 
   // Determine whether we can show the report
-  const needsCharacteristic = !isPlantScoped && !selectedCharId
-  const canExport = isPlantScoped || (selectedCharId && chartData)
+  const needsCharacteristic = !isNonCharScope && !selectedCharId
+  const needsStudy = isStudyScoped && !selectedStudyId
+  const needsLine = isLineScoped && !selectedLinePath
+  const canExport =
+    isPlantScoped ||
+    (isStudyScoped && !!selectedStudyId) ||
+    (isLineScoped && !!selectedLinePath) ||
+    (!isNonCharScope && selectedCharId && chartData)
 
   return (
     <div data-ui="reports-page" className="flex h-[calc(100vh-10rem)] flex-col gap-4">
@@ -162,8 +304,8 @@ export function ReportsView() {
         </div>
       </div>
 
-      {/* Characteristic context bar — hidden for plant-scoped templates */}
-      {!isPlantScoped && <CharacteristicContextBar />}
+      {/* Characteristic context bar — hidden for non-characteristic-scoped templates */}
+      {!isNonCharScope && <CharacteristicContextBar />}
 
       {/* Plant scope indicator for plant-wide templates */}
       {isPlantScoped && (
@@ -175,9 +317,77 @@ export function ReportsView() {
         </div>
       )}
 
+      {/* Study selector for study-scoped templates */}
+      {isStudyScoped && (
+        <div className="bg-card border-border flex items-center gap-3 rounded-lg border px-4 py-2 text-sm">
+          <span className="text-muted-foreground font-medium">
+            {selectedTemplate?.studyType === 'doe' ? 'DOE Study' : 'MSA Study'}:
+          </span>
+          <select
+            aria-label="Select study"
+            value={selectedStudyId ?? ''}
+            onChange={(e) => setSelectedStudyId(e.target.value ? Number(e.target.value) : null)}
+            className="bg-background border-input rounded-md border px-3 py-1.5 text-sm"
+          >
+            <option value="">Select a study...</option>
+            {selectedTemplate?.studyType === 'doe'
+              ? doeStudies?.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.status})
+                  </option>
+                ))
+              : msaStudies?.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.status})
+                  </option>
+                ))}
+          </select>
+        </div>
+      )}
+
+      {/* Line selector for line-scoped templates */}
+      {isLineScoped && (
+        <div className="bg-card border-border flex items-center gap-3 rounded-lg border px-4 py-2 text-sm">
+          <span className="text-muted-foreground font-medium">Line:</span>
+          <select
+            aria-label="Select line"
+            value={selectedLinePath ?? ''}
+            onChange={(e) => setSelectedLinePath(e.target.value || null)}
+            className="bg-background border-input rounded-md border px-3 py-1.5 text-sm"
+          >
+            <option value="">Select a line...</option>
+            {lineOptions.map((path) => (
+              <option key={path} value={path}>
+                {path}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Report preview — full width */}
       {needsCharacteristic ? (
         <NoCharacteristicState />
+      ) : needsStudy ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <FileText className="text-muted-foreground/30 mx-auto mb-4 h-12 w-12" />
+            <h3 className="text-foreground mb-1 font-semibold">Select a study</h3>
+            <p className="text-muted-foreground text-sm">
+              Choose a study from the dropdown above to generate the report.
+            </p>
+          </div>
+        </div>
+      ) : needsLine ? (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <FileText className="text-muted-foreground/30 mx-auto mb-4 h-12 w-12" />
+            <h3 className="text-foreground mb-1 font-semibold">Select a line</h3>
+            <p className="text-muted-foreground text-sm">
+              Choose a production line from the dropdown above to generate the report.
+            </p>
+          </div>
+        </div>
       ) : !selectedTemplate ? (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
@@ -195,6 +405,8 @@ export function ReportsView() {
               template={selectedTemplate}
               characteristicIds={selectedCharId ? [selectedCharId] : []}
               chartOptions={chartOptions}
+              studyId={selectedStudyId ?? undefined}
+              linePath={selectedLinePath ?? undefined}
             />
           </ErrorBoundary>
         </div>

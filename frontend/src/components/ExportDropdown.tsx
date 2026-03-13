@@ -63,6 +63,9 @@ interface ExportDropdownProps {
       usl: number | null
       lsl: number | null
     }
+    doeAnalysis?: ReportPdfData['doeAnalysis']
+    msaResults?: ReportPdfData['msaResults']
+    lineAssessment?: ReportPdfData['lineAssessment']
   }
   /** Filename prefix for exported files */
   filename?: string
@@ -119,6 +122,9 @@ export function ExportDropdown({
             violations: exportData?.violations,
             annotations: exportData?.annotations,
             capability: exportData?.capability,
+            doeAnalysis: exportData?.doeAnalysis,
+            msaResults: exportData?.msaResults,
+            lineAssessment: exportData?.lineAssessment,
           },
           exportFilename,
           datetimeFormat,
@@ -134,7 +140,60 @@ export function ExportDropdown({
             ? prepareViolationsForExport(exportData.violations, datetimeFormat)
             : []
 
-        if (chartRows.length === 0 && violationRows.length === 0) {
+        // Prepare DOE sheets
+        const doeAnovaRows = exportData?.doeAnalysis?.anovaTable.map((r) => ({
+          Source: r.source,
+          'Sum of Squares': r.sumOfSquares,
+          df: r.df,
+          'Mean Square': r.meanSquare,
+          'F Value': r.fValue ?? '',
+          'p-value': r.pValue !== null ? (r.pValue < 0.001 ? '< 0.001' : r.pValue) : '',
+        })) ?? []
+        const doeEffectRows = exportData?.doeAnalysis?.effects.map((e) => ({
+          Factor: e.factorName,
+          Effect: e.effect,
+          Coefficient: e.coefficient,
+        })) ?? []
+
+        // Prepare MSA sheet
+        const msaRows: Record<string, unknown>[] = []
+        if (exportData?.msaResults) {
+          const msa = exportData.msaResults
+          if (msa.pctStudyGrr !== undefined) {
+            msaRows.push(
+              { Metric: '%Study GRR', Value: `${msa.pctStudyGrr.toFixed(1)}%` },
+              { Metric: '%Study EV', Value: `${(msa.pctStudyEv ?? 0).toFixed(1)}%` },
+              { Metric: '%Study AV', Value: `${(msa.pctStudyAv ?? 0).toFixed(1)}%` },
+              { Metric: 'NDC', Value: msa.ndc ?? '' },
+            )
+            if (msa.pctToleranceGrr != null) {
+              msaRows.push({ Metric: '%Tolerance GRR', Value: `${msa.pctToleranceGrr.toFixed(1)}%` })
+            }
+          }
+          if (msa.fleissKappa !== undefined) {
+            msaRows.push({ Metric: "Fleiss' Kappa", Value: msa.fleissKappa.toFixed(3) })
+          }
+          msaRows.push({ Metric: 'Verdict', Value: msa.verdict })
+        }
+
+        // Prepare Line Assessment sheet
+        const lineRows = exportData?.lineAssessment?.characteristics.map((c) => ({
+          Characteristic: c.name,
+          Cpk: c.cpk?.toFixed(2) ?? '',
+          Ppk: c.ppk?.toFixed(2) ?? '',
+          'In Control %': `${c.inControlPct.toFixed(0)}%`,
+          Violations: c.violations,
+          'Risk Score': c.riskScore.toFixed(0),
+        })) ?? []
+
+        const hasAnyData =
+          chartRows.length > 0 ||
+          violationRows.length > 0 ||
+          doeAnovaRows.length > 0 ||
+          msaRows.length > 0 ||
+          lineRows.length > 0
+
+        if (!hasAnyData) {
           toast.error('No data to export')
           return
         }
@@ -144,11 +203,24 @@ export function ExportDropdown({
           const sheets: Array<{ name: string; data: Record<string, unknown>[] }> = []
           if (chartRows.length > 0) sheets.push({ name: 'Measurements', data: chartRows })
           if (violationRows.length > 0) sheets.push({ name: 'Violations', data: violationRows })
+          if (doeAnovaRows.length > 0) sheets.push({ name: 'ANOVA', data: doeAnovaRows })
+          if (doeEffectRows.length > 0) sheets.push({ name: 'Effects', data: doeEffectRows })
+          if (msaRows.length > 0) sheets.push({ name: 'Gage RR', data: msaRows })
+          if (lineRows.length > 0) sheets.push({ name: 'Capability Matrix', data: lineRows })
           await exportToExcelMultiSheet(sheets, exportFilename)
           toast.success('Excel file exported successfully')
         } else {
-          // CSV: export primary dataset only (chart data if present, else violations)
-          const primaryData = chartRows.length > 0 ? chartRows : violationRows
+          // CSV: export primary dataset (first non-empty dataset)
+          const primaryData =
+            chartRows.length > 0
+              ? chartRows
+              : violationRows.length > 0
+                ? violationRows
+                : doeAnovaRows.length > 0
+                  ? doeAnovaRows
+                  : msaRows.length > 0
+                    ? msaRows
+                    : lineRows
           await exportToCsv(primaryData, exportFilename)
           toast.success('CSV file exported successfully')
         }

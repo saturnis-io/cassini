@@ -284,6 +284,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
           markLine: {
             symbol: 'none',
             silent: true,
+            precision: 10,
             data: [
               ...(ucl != null
                 ? [

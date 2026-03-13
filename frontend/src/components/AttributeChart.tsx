@@ -6,6 +6,7 @@ import { useChartData, useHierarchyPath } from '@/api/hooks'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
+import { formatDisplayKey } from '@/lib/display-key'
 import { ViolationLegend, NELSON_RULES, getPrimaryViolationRule } from './ViolationLegend'
 import { Explainable } from '@/components/Explainable'
 import { cn } from '@/lib/utils'
@@ -83,7 +84,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     const axisNameColor = isDark ? 'hsl(220, 5%, 65%)' : 'hsl(220, 15%, 40%)'
 
     // X-axis categories
-    const categories = attrPoints.map((pt, i) => pt.display_key || `#${i + 1}`)
+    const categories = attrPoints.map((pt, i) => formatDisplayKey(pt.display_key) || `#${i + 1}`)
 
     // Data series
     const plottedValues = attrPoints.map((pt) => pt.plotted_value)
@@ -335,6 +336,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
                 markLine: {
                   symbol: 'none',
                   silent: true,
+                  precision: 10,
                   data: [
                     ...(controlLimits.ucl != null
                       ? [

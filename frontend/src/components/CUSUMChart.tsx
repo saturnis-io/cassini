@@ -319,6 +319,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
           markLine: {
             symbol: 'none',
             silent: true,
+            precision: 10,
             data: [
               {
                 yAxis: h,

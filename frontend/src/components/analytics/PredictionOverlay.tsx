@@ -139,6 +139,7 @@ export function PredictionOverlay({ forecast, ucl, lcl }: PredictionOverlayProps
       series[series.length - 1].markLine = {
         silent: true,
         symbol: 'none',
+        precision: 10,
         data: markLineData,
       }
     }

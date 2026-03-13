@@ -49,7 +49,7 @@ export function IshikawaDiagram({
     const spineY = H / 2
     const spineLeft = 80
     const spineRight = W - 40
-    const arrowSize = 16
+    const arrowSize = 12
 
     // Positions for the 6 bones along the spine
     const boneXPositions = [0.2, 0.45, 0.7]
@@ -112,7 +112,7 @@ export function IshikawaDiagram({
         max: H,
         show: false,
       },
-      grid: { left: 0, right: 0, top: 0, bottom: 0, containLabel: false },
+      grid: { left: 0, right: 140, top: 0, bottom: 0, containLabel: false },
       series: [
         {
           type: 'custom' as const,
@@ -195,9 +195,10 @@ export function IshikawaDiagram({
             const bonePx = api.coord([boneX, spineY])
             const boneEndPx = api.coord([boneX, endY])
 
-            // Label position
-            const labelY = isTop ? endY + 20 : endY - 20
-            const labelPx = api.coord([boneX, labelY])
+            // Label to the LEFT of the bone tip
+            const labelOffset = 8 // px gap between bone and label
+            const labelX = boneEndPx[0] - labelOffset
+            const labelBaseY = boneEndPx[1]
 
             const children: Record<string, unknown>[] = [
               // Main bone line
@@ -215,15 +216,15 @@ export function IshikawaDiagram({
                   lineDash,
                 },
               },
-              // Category label
+              // Category label — left of bone tip
               {
                 type: 'text',
                 style: {
-                  x: labelPx[0],
-                  y: labelPx[1],
+                  x: labelX,
+                  y: labelBaseY,
                   text: catName,
-                  textAlign: 'center',
-                  textVerticalAlign: isTop ? 'top' : 'bottom',
+                  textAlign: 'right',
+                  textVerticalAlign: 'bottom',
                   fontSize: 11,
                   fontWeight: 600,
                   fill: boneColor,
@@ -231,22 +232,23 @@ export function IshikawaDiagram({
               },
             ]
 
-            // eta-squared badge
+            // eta-squared badge — directly below category label, also left-aligned
             if (cat.eta_squared != null) {
-              const badgeY = isTop ? endY + 8 : endY - 8
-              const badgePx = api.coord([boneX, badgeY])
-              children.push({
-                type: 'text',
-                style: {
-                  x: badgePx[0],
-                  y: badgePx[1],
-                  text: `${(cat.eta_squared * 100).toFixed(1)}%`,
-                  textAlign: 'center',
-                  textVerticalAlign: isTop ? 'top' : 'bottom',
-                  fontSize: 9,
-                  fill: '#6b7280',
+              children.push(
+                {
+                  type: 'text',
+                  style: {
+                    x: labelX,
+                    y: labelBaseY + 2,
+                    text: `η² ${(cat.eta_squared * 100).toFixed(1)}%`,
+                    textAlign: 'right',
+                    textVerticalAlign: 'top',
+                    fontSize: 9,
+                    fontWeight: 500,
+                    fill: '#6b7280',
+                  },
                 },
-              })
+              )
             }
 
             // Sub-bones for factors

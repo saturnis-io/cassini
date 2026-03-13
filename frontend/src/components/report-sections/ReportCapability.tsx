@@ -269,6 +269,7 @@ export function ReportHistogramSection({
           markLine: {
             silent: true,
             symbol: 'none',
+            precision: 10,
             data: markLineData,
           },
         },

@@ -4,7 +4,7 @@ import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { useECharts } from '@/hooks/useECharts'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
 import { Info, X } from 'lucide-react'
-import { useChartData } from '@/api/hooks'
+import { useChartData, useCapability } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { cn } from '@/lib/utils'
 import { useChartColors } from '@/hooks/useChartColors'
@@ -28,6 +28,8 @@ interface DistributionHistogramProps {
   showSpecLimits?: boolean
   /** Override the grid.bottom value in vertical mode (for alignment with adjacent charts) */
   gridBottom?: number
+  /** Override the grid.top value in vertical mode (for alignment with adjacent charts) */
+  gridTop?: number
 }
 
 interface DataPointWithId {
@@ -151,6 +153,7 @@ export function DistributionHistogram({
   onHoverBin,
   showSpecLimits = true,
   gridBottom,
+  gridTop,
 }: DistributionHistogramProps) {
   const { data: chartData, isLoading } = useChartData(
     characteristicId,
@@ -250,27 +253,12 @@ export function DistributionHistogram({
     }
   }, [statsOpen])
 
-  // Capability indices — computed before echartsOption so they're in scope for graphic overlays
-  // stored_sigma = R-bar/d2 process sigma from backend (matches explain API)
+  // Capability indices — fetched from capability endpoint (Mode 2) to match SYW explain API
+  const { data: capability } = useCapability(characteristicId)
   const storedSigma = (hasData && chartData?.stored_sigma) ? chartData.stored_sigma : null
-  let cp = 0
-  let cpk = 0
-  let ppk = 0
-  if (hasData && !isZScale && chartData) {
-    const outerUsl = chartData.spec_limits.usl
-    const outerLsl = chartData.spec_limits.lsl
-    if (outerUsl !== null && outerLsl !== null && stats.stdDev > 0) {
-      const processSigma = storedSigma ?? stats.stdDev
-      cp = (outerUsl - outerLsl) / (6 * processSigma)
-      const cpu = (outerUsl - stats.mean) / (3 * processSigma)
-      const cpl = (stats.mean - outerLsl) / (3 * processSigma)
-      cpk = Math.min(cpu, cpl)
-
-      const ppu = (outerUsl - stats.mean) / (3 * stats.stdDev)
-      const ppl = (stats.mean - outerLsl) / (3 * stats.stdDev)
-      ppk = Math.min(ppu, ppl)
-    }
-  }
+  const cp = (!isZScale && capability?.cp) ? capability.cp : 0
+  const cpk = (!isZScale && capability?.cpk) ? capability.cpk : 0
+  const ppk = (!isZScale && capability?.ppk) ? capability.ppk : 0
 
   // --- ECharts option builder ---
   const echartsOption = useMemo(() => {
@@ -358,7 +346,7 @@ export function DistributionHistogram({
         markLineData.push({
           yAxis: lsl,
           lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 },
-          label: { formatter: 'LSL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
+          label: { formatter: `LSL\n${lsl.toFixed(dp)}`, position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
         })
       } else {
         markLineData.push({
@@ -379,7 +367,7 @@ export function DistributionHistogram({
         markLineData.push({
           yAxis: usl,
           lineStyle: { color: 'hsl(357, 80%, 52%)', width: 1.5 },
-          label: { formatter: 'USL', position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
+          label: { formatter: `USL\n${usl.toFixed(dp)}`, position: 'end', fontSize: 8, color: 'hsl(357, 80%, 45%)' },
         })
       } else {
         markLineData.push({
@@ -402,7 +390,7 @@ export function DistributionHistogram({
         markLineData.push({
           yAxis: lcl,
           lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1 },
-          label: { formatter: 'LCL', position: 'end', fontSize: 8, color: chartColors.lclLine },
+          label: { formatter: `LCL\n${lcl.toFixed(dp)}`, position: 'end', fontSize: 8, color: chartColors.lclLine },
         })
       } else {
         markLineData.push({
@@ -422,7 +410,7 @@ export function DistributionHistogram({
         markLineData.push({
           yAxis: ucl,
           lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1 },
-          label: { formatter: 'UCL', position: 'end', fontSize: 8, color: chartColors.uclLine },
+          label: { formatter: `UCL\n${ucl.toFixed(dp)}`, position: 'end', fontSize: 8, color: chartColors.uclLine },
         })
       } else {
         markLineData.push({
@@ -442,7 +430,7 @@ export function DistributionHistogram({
         markLineData.push({
           yAxis: centerLine,
           lineStyle: { color: 'hsl(104, 55%, 40%)', type: 'dashed', width: 1 },
-          label: { formatter: 'CL', position: 'end', fontSize: 8, color: 'hsl(104, 55%, 35%)' },
+          label: { formatter: `CL\n${centerLine.toFixed(dp)}`, position: 'end', fontSize: 8, color: 'hsl(104, 55%, 35%)' },
         })
       } else {
         markLineData.push({
@@ -486,7 +474,7 @@ export function DistributionHistogram({
       const localColors = colors
 
       // Match ControlChart grid margins for pixel-perfect Y-axis alignment
-      const matchedGridTop = 20
+      const matchedGridTop = gridTop ?? 20
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const histogramRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
@@ -537,8 +525,9 @@ export function DistributionHistogram({
         },
         yAxis: {
           type: 'value' as const,
-          min: yAxisDomain ? yAxisDomain[0] : xMin,
-          max: yAxisDomain ? yAxisDomain[1] : xMax,
+          // Use function form to prevent ECharts nice-rounding of axis range
+          min: () => yAxisDomain ? yAxisDomain[0] : xMin,
+          max: () => yAxisDomain ? yAxisDomain[1] : xMax,
           axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(dp) },
           splitLine: { show: false },
         },
@@ -582,7 +571,7 @@ export function DistributionHistogram({
           {
             type: 'line',
             data: [],
-            markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
+            markLine: { symbol: 'none', silent: true, precision: 10, data: markLineData as never[] },
             markArea: markAreaData.length > 0 ? { silent: true, data: markAreaData as never[] } : undefined,
             silent: true,
           },
@@ -639,7 +628,7 @@ export function DistributionHistogram({
           type: 'bar',
           data: barData,
           barWidth: '85%',
-          markLine: { symbol: 'none', silent: true, data: markLineData as never[] },
+          markLine: { symbol: 'none', silent: true, precision: 10, data: markLineData as never[] },
           z: 5,
         },
       ],
@@ -657,6 +646,7 @@ export function DistributionHistogram({
     highlightedBinIndex,
     showSpecLimits,
     gridBottom,
+    gridTop,
   ])
 
   // Mouse event handlers
@@ -706,7 +696,7 @@ export function DistributionHistogram({
             </h3>
             <div className="flex items-center gap-2 text-sm leading-5">
               {cpk > 0 && (
-                <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+                <Explainable metric="cpk" resourceId={characteristicId}>
                   <span
                     className={cn(
                       'font-medium',
@@ -744,7 +734,7 @@ export function DistributionHistogram({
                         {cp > 0 && (
                           <div className="flex justify-between gap-3">
                             <span>Cp:</span>
-                            <Explainable metric="cp" resourceId={characteristicId} chartOptions={chartOptions}>
+                            <Explainable metric="cp" resourceId={characteristicId}>
                               <span
                                 className={cn(
                                   'font-medium',
@@ -763,7 +753,7 @@ export function DistributionHistogram({
                         {cpk > 0 && (
                           <div className="flex justify-between gap-3">
                             <span>Cpk:</span>
-                            <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+                            <Explainable metric="cpk" resourceId={characteristicId}>
                               <span
                                 className={cn(
                                   'font-medium',
@@ -782,7 +772,7 @@ export function DistributionHistogram({
                         {ppk > 0 && (
                           <div className="flex justify-between gap-3">
                             <span>Ppk:</span>
-                            <Explainable metric="ppk" resourceId={characteristicId} chartOptions={chartOptions}>
+                            <Explainable metric="ppk" resourceId={characteristicId}>
                               <span className="text-foreground font-medium">{ppk.toFixed(3)}</span>
                             </Explainable>
                           </div>
@@ -854,17 +844,17 @@ export function DistributionHistogram({
           </h3>
           <div className="flex items-center gap-2">
             {cp > 0 && (
-              <Explainable metric="cp" resourceId={characteristicId} chartOptions={chartOptions}>
+              <Explainable metric="cp" resourceId={characteristicId}>
                 <span className={getCapabilityStyle(cp)}>Cp {cp.toFixed(2)}</span>
               </Explainable>
             )}
             {cpk > 0 && (
-              <Explainable metric="cpk" resourceId={characteristicId} chartOptions={chartOptions}>
+              <Explainable metric="cpk" resourceId={characteristicId}>
                 <span className={getCapabilityStyle(cpk)}>Cpk {cpk.toFixed(2)}</span>
               </Explainable>
             )}
             {ppk > 0 && (
-              <Explainable metric="ppk" resourceId={characteristicId} chartOptions={chartOptions}>
+              <Explainable metric="ppk" resourceId={characteristicId}>
                 <span className="stat-badge bg-muted text-muted-foreground">
                   Ppk {ppk.toFixed(2)}
                 </span>

@@ -48,6 +48,48 @@ export interface ReportPdfData {
     usl: number | null
     lsl: number | null
   }
+  /** DOE analysis data for doe-summary template */
+  doeAnalysis?: {
+    studyName: string
+    designType: string
+    grandMean: number
+    rSquared: number
+    adjRSquared: number
+    anovaTable: Array<{
+      source: string
+      sumOfSquares: number
+      df: number
+      meanSquare: number
+      fValue: number | null
+      pValue: number | null
+    }>
+    effects: Array<{ factorName: string; effect: number; coefficient: number }>
+    factors: Array<{ name: string; lowLevel: number; highLevel: number; unit?: string }>
+  }
+  /** MSA results data for msa-report template */
+  msaResults?: {
+    studyName: string
+    studyType: string
+    verdict: string
+    pctStudyGrr?: number
+    pctStudyEv?: number
+    pctStudyAv?: number
+    ndc?: number
+    pctToleranceGrr?: number | null
+    fleissKappa?: number
+  }
+  /** Line assessment data for line-assessment template */
+  lineAssessment?: {
+    linePath: string
+    characteristics: Array<{
+      name: string
+      cpk: number | null
+      ppk: number | null
+      inControlPct: number
+      violations: number
+      riskScore: number
+    }>
+  }
 }
 
 /**
@@ -239,6 +281,121 @@ export async function exportReportToPdf(
       headStyles: { fillColor: [142, 68, 173] },
       theme: 'striped',
     })
+  }
+
+  // ── DOE Analysis ─────────────────────────────────────────────────
+  if (data.doeAnalysis) {
+    const doe = data.doeAnalysis
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`DOE Study: ${doe.studyName}`, margin, y)
+    y += 6
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(
+      `Design: ${doe.designType}  |  Grand Mean: ${doe.grandMean.toFixed(4)}  |  R²: ${(doe.rSquared * 100).toFixed(1)}%  |  Adj R²: ${(doe.adjRSquared * 100).toFixed(1)}%`,
+      margin,
+      y,
+    )
+    y += 6
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Source', 'SS', 'df', 'MS', 'F', 'p-value']],
+      body: doe.anovaTable.map((r) => [
+        r.source,
+        r.sumOfSquares.toFixed(4),
+        String(r.df),
+        r.meanSquare.toFixed(4),
+        r.fValue?.toFixed(2) ?? '—',
+        r.pValue !== null ? (r.pValue < 0.001 ? '< 0.001' : r.pValue.toFixed(4)) : '—',
+      ]),
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [41, 128, 185] },
+      theme: 'striped',
+    })
+    y = (doc as any).lastAutoTable.finalY + 6
+
+    if (doe.effects.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [['Factor', 'Effect', 'Coefficient']],
+        body: doe.effects.map((e) => [e.factorName, e.effect.toFixed(4), e.coefficient.toFixed(4)]),
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [52, 152, 219] },
+        theme: 'striped',
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
+    }
+  }
+
+  // ── MSA Results ───────────────────────────────────────────────────
+  if (data.msaResults) {
+    const msa = data.msaResults
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`MSA Study: ${msa.studyName}`, margin, y)
+    y += 6
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Type: ${msa.studyType}  |  Verdict: ${msa.verdict}`, margin, y)
+    y += 5
+
+    if (msa.pctStudyGrr !== undefined) {
+      const rows = [
+        ['%Study GRR', `${msa.pctStudyGrr.toFixed(1)}%`],
+        ['%Study EV', `${(msa.pctStudyEv ?? 0).toFixed(1)}%`],
+        ['%Study AV', `${(msa.pctStudyAv ?? 0).toFixed(1)}%`],
+        ['NDC', String(msa.ndc ?? '—')],
+      ]
+      if (msa.pctToleranceGrr != null) {
+        rows.push(['%Tolerance GRR', `${msa.pctToleranceGrr.toFixed(1)}%`])
+      }
+      autoTable(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: rows,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [155, 89, 182] },
+        theme: 'striped',
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
+    }
+
+    if (msa.fleissKappa !== undefined) {
+      doc.text(`Fleiss' Kappa: ${msa.fleissKappa.toFixed(3)}`, margin, y)
+      y += 6
+    }
+  }
+
+  // ── Line Assessment ───────────────────────────────────────────────
+  if (data.lineAssessment) {
+    const la = data.lineAssessment
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Line Assessment: ${la.linePath}`, margin, y)
+    y += 6
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Characteristic', 'Cpk', 'Ppk', 'In Control %', 'Violations', 'Risk']],
+      body: la.characteristics.map((c) => [
+        c.name,
+        c.cpk?.toFixed(2) ?? '—',
+        c.ppk?.toFixed(2) ?? '—',
+        `${c.inControlPct.toFixed(0)}%`,
+        String(c.violations),
+        c.riskScore.toFixed(0),
+      ]),
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [46, 204, 113] },
+      theme: 'striped',
+    })
+    y = (doc as any).lastAutoTable.finalY + 6
   }
 
   doc.save(`${filename}.pdf`)

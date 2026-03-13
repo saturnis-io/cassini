@@ -34,7 +34,7 @@ function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
   return aStart <= bEnd && bStart <= aEnd
 }
 
-function isAnnotationVisible(
+export function isAnnotationVisible(
   ann: Annotation,
   visibleIds: Set<number> | null | undefined,
   visibleTimeRange: [string, string] | null | undefined,

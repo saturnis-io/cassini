@@ -15,3 +15,27 @@ export { ReportTrendNarrative } from '@/components/report-sections/ReportTrendNa
 export { ReportMeasurementSystemHealth } from '@/components/report-sections/ReportMeasurementSystemHealth'
 export { ReportDOEFindings } from '@/components/report-sections/ReportDOEFindings'
 export { ReportFAIStatus } from '@/components/report-sections/ReportFAIStatus'
+export { ReportStudyInfo } from '@/components/report-sections/ReportStudyInfo'
+export { ReportGageRR } from '@/components/report-sections/ReportGageRR'
+export { ReportAttributeAgreement } from '@/components/report-sections/ReportAttributeAgreement'
+export { ReportMSAResolution } from '@/components/report-sections/ReportMSAResolution'
+export { ReportMSARecommendation } from '@/components/report-sections/ReportMSARecommendation'
+
+// DOE sections
+export { ReportStudySetup } from '@/components/report-sections/ReportStudySetup'
+export { ReportAnovaResults } from '@/components/report-sections/ReportAnovaResults'
+export { ReportEffectPlots } from '@/components/report-sections/ReportEffectPlots'
+export { ReportOptimalSettings } from '@/components/report-sections/ReportOptimalSettings'
+export { ReportDOEConfirmation } from '@/components/report-sections/ReportDOEConfirmation'
+
+// Line assessment sections
+export { ReportLineOverview } from '@/components/report-sections/ReportLineOverview'
+export { ReportCharacteristicComparison } from '@/components/report-sections/ReportCharacteristicComparison'
+export { ReportCapabilityMatrix } from '@/components/report-sections/ReportCapabilityMatrix'
+export { ReportViolationPatterns } from '@/components/report-sections/ReportViolationPatterns'
+
+// Audit package sections
+export { ReportAuditSummary } from '@/components/report-sections/ReportAuditSummary'
+export { ReportSignatureEvidence } from '@/components/report-sections/ReportSignatureEvidence'
+export { ReportCapabilityEvidence } from '@/components/report-sections/ReportCapabilityEvidence'
+export { ReportMeasurementData } from '@/components/report-sections/ReportMeasurementData'

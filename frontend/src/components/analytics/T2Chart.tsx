@@ -162,6 +162,7 @@ export function T2Chart({ data, onOOCClick }: T2ChartProps) {
           markLine: {
             silent: true,
             symbol: 'none',
+            precision: 10,
             data: [
               {
                 yAxis: ucl,
