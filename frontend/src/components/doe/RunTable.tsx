@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { Save, ArrowUpDown, Loader2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +37,24 @@ export function RunTable({ runs, factorNames, onSave, isSaving }: RunTableProps)
     }
     return initial
   })
+
+  // Re-sync localData when runs change (e.g., after save or regeneration)
+  const runKey = useMemo(
+    () => runs.map((r) => `${r.id}:${r.response_value}`).join(','),
+    [runs],
+  )
+  useEffect(() => {
+    setLocalData(() => {
+      const updated: Record<number, { response: string; notes: string }> = {}
+      for (const run of runs) {
+        updated[run.id] = {
+          response: run.response_value != null ? String(run.response_value) : '',
+          notes: run.notes ?? '',
+        }
+      }
+      return updated
+    })
+  }, [runKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [sortField, setSortField] = useState<SortField>('run_order')
 

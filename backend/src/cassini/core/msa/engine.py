@@ -389,11 +389,18 @@ class GageRREngine:
 
         f_operator = ms_operator / ms_int_safe
         f_part = ms_part / ms_int_safe
-        f_interaction = ms_interaction / ms_eq_safe
+        f_interaction = ms_interaction / ms_eq_safe if ms_equipment > 0 else None
 
         p_operator = float(f_dist.sf(f_operator, df_operator, df_interaction))
         p_part = float(f_dist.sf(f_part, df_part, df_interaction))
-        p_interaction = float(f_dist.sf(f_interaction, df_interaction, df_equipment))
+
+        # When ms_equipment is effectively zero, the F-test for interaction
+        # is undefined (no within-cell error to test against). Per AIAG,
+        # pool interaction with equipment unconditionally in this case.
+        if ms_equipment > 0:
+            p_interaction = float(f_dist.sf(f_interaction, df_interaction, df_equipment))
+        else:
+            p_interaction = 1.0  # Force pooling — no within-cell error to test against
 
         if collector:
             collector.step(
@@ -410,13 +417,22 @@ class GageRREngine:
                 result=f_part,
                 note=f"p = {round(p_part, 6)}",
             )
-            collector.step(
-                label="F-stat (Interaction)",
-                formula_latex=r"F_{\text{interaction}} = \frac{MS_{\text{interaction}}}{MS_{\text{equipment}}}",
-                substitution_latex=r"\frac{" + str(round(ms_interaction, 6)) + r"}{" + str(round(ms_eq_safe, 6)) + r"}",
-                result=f_interaction,
-                note=f"p = {round(p_interaction, 6)}",
-            )
+            if ms_equipment <= 0:
+                collector.step(
+                    label="F-stat (Interaction)",
+                    formula_latex=r"F_{\text{interaction}} = \frac{MS_{\text{interaction}}}{MS_{\text{equipment}}}",
+                    substitution_latex=r"\frac{" + str(round(ms_interaction, 6)) + r"}{0}",
+                    result=f_interaction,
+                    note="MS_equipment ≈ 0 — interaction F-test undefined, pooling with equipment",
+                )
+            else:
+                collector.step(
+                    label="F-stat (Interaction)",
+                    formula_latex=r"F_{\text{interaction}} = \frac{MS_{\text{interaction}}}{MS_{\text{equipment}}}",
+                    substitution_latex=r"\frac{" + str(round(ms_interaction, 6)) + r"}{" + str(round(ms_eq_safe, 6)) + r"}",
+                    result=f_interaction,
+                    note=f"p = {round(p_interaction, 6)}",
+                )
 
         # Check if interaction is significant (p <= 0.25)
         interaction_significant = p_interaction <= 0.25

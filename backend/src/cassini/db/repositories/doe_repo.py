@@ -32,7 +32,7 @@ class DOEStudyRepository(BaseRepository[DOEStudy]):
 
         Args:
             plant_id: Filter to a specific plant.
-            status: Optional status filter (design, running, complete).
+            status: Optional status filter (design, collecting, analyzed).
             offset: Pagination offset.
             limit: Maximum rows to return.
 
@@ -81,7 +81,7 @@ class DOEStudyRepository(BaseRepository[DOEStudy]):
 
         Args:
             study_id: PK of the study.
-            status: New status value (design, running, complete).
+            status: New status value (design, collecting, analyzed).
 
         Returns:
             Updated DOEStudy or None if not found.

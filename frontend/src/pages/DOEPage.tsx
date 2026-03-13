@@ -15,8 +15,8 @@ import { useDOEStudies, useDeleteStudy } from '@/api/hooks'
 const DESIGN_TYPE_LABELS: Record<string, string> = {
   full_factorial: 'Full Factorial',
   fractional_factorial: 'Fractional Factorial',
-  plackett_burman: 'Plackett-Burman',
   central_composite: 'Central Composite',
+  box_behnken: 'Box-Behnken',
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -158,13 +158,13 @@ export function DOEPage() {
                   </div>
                 </div>
                 <div className="text-muted-foreground mt-3 flex items-center gap-4 text-xs">
-                  <span>{study.factor_count} factor{study.factor_count !== 1 ? 's' : ''}</span>
+                  <span>{study.factors?.length ?? 0} factor{(study.factors?.length ?? 0) !== 1 ? 's' : ''}</span>
                   <span>{study.run_count} run{study.run_count !== 1 ? 's' : ''}</span>
                   <span>{formatDate(study.created_at)}</span>
                 </div>
-                {study.created_by && (
+                {study.created_by != null && (
                   <div className="text-muted-foreground mt-1 text-xs">
-                    by {study.created_by}
+                    User #{study.created_by}
                   </div>
                 )}
               </div>

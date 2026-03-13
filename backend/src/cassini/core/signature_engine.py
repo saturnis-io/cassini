@@ -628,6 +628,57 @@ class SignatureWorkflowEngine:
                 result.append(inst)
         return result
 
+    async def check_workflow_complete(
+        self,
+        resource_type: str,
+        resource_id: int,
+    ) -> bool:
+        """Check if a completed workflow instance exists for this resource.
+
+        Returns True if at least one workflow instance with status 'completed'
+        exists for the given resource_type and resource_id.
+        """
+        instances = await self._instance_repo.get_for_resource(
+            resource_type, resource_id
+        )
+        return any(inst.status == "completed" for inst in instances)
+
+    async def get_or_create_pending_workflow(
+        self,
+        resource_type: str,
+        resource_id: int,
+        initiated_by: int,
+        plant_id: int,
+        *,
+        invalidate_prior: bool = False,
+    ) -> SignatureWorkflowInstance:
+        """Return an existing pending/in_progress workflow, or create a new one.
+
+        Prevents duplicate workflow instances when an endpoint is retried
+        before the previous workflow is completed.
+
+        If *invalidate_prior* is True and a **new** instance must be created,
+        prior signatures for the resource are invalidated first.  This does
+        NOT happen when an existing pending instance is reused (the user may
+        already be mid-signing).
+        """
+        instances = await self._instance_repo.get_for_resource(
+            resource_type, resource_id
+        )
+        for inst in instances:
+            if inst.status in ("pending", "in_progress"):
+                return inst
+
+        if invalidate_prior:
+            await self.invalidate_signatures_for_resource(
+                resource_type, resource_id,
+                reason=f"{resource_type} workflow — new signature cycle",
+            )
+
+        return await self.initiate_workflow(
+            resource_type, resource_id, initiated_by, plant_id,
+        )
+
     async def invalidate_signatures_for_resource(
         self,
         resource_type: str,

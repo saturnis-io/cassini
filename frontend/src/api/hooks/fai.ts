@@ -16,6 +16,7 @@ export function useFAIReports(params?: { plant_id?: number; status?: string }) {
   return useQuery({
     queryKey: queryKeys.fai.list(params),
     queryFn: () => faiApi.listReports(params),
+    enabled: params?.plant_id == null || params.plant_id > 0,
   })
 }
 

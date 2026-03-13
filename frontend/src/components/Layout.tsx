@@ -43,6 +43,7 @@ export function Layout() {
   const wsConnected = useDashboardStore((state) => state.wsConnected)
   const { selectedPlant } = usePlant()
   const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
+  const showYourWorkPanelOpen = useShowYourWorkStore((s) => s.enabled && s.activeMetric !== null)
   const { data: stats } = useViolationStats({
     refetchInterval: wsConnected ? false : undefined,
     plant_id: selectedPlant?.id,
@@ -90,8 +91,8 @@ export function Layout() {
         {/* Sidebar */}
         <Sidebar />
 
-        {/* Content area */}
-        <main data-ui="main-content" className="flex flex-1 flex-col overflow-auto">
+        {/* Content area — shifts left when Show Your Work panel is open */}
+        <main data-ui="main-content" className={cn('flex flex-1 flex-col overflow-auto transition-[padding] duration-200', showYourWorkPanelOpen && 'pr-[360px] max-md:pr-0')}>
           <LicenseExpiryBanner />
           <div className="flex min-h-0 flex-1 flex-col px-2 py-2 pb-16 md:px-4 md:py-3 md:pb-3">
             <Outlet />

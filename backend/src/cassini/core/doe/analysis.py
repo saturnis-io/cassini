@@ -99,6 +99,8 @@ def compute_main_effects(
     response: np.ndarray,
     factor_names: list[str],
     alpha: float = 0.05,
+    mse_override: float | None = None,
+    df_resid_override: int | None = None,
 ) -> list[EffectResult]:
     """Compute main effects for each factor.
 
@@ -110,6 +112,12 @@ def compute_main_effects(
         response: Response vector, length n.
         factor_names: Names for each factor column.
         alpha: Significance threshold.
+        mse_override: If provided, use this MSE instead of computing from
+            a main-effects-only model.  Allows the caller to supply the
+            full-model MSE so that p-values are comparable across main
+            effects and interactions.
+        df_resid_override: Residual degrees of freedom matching
+            *mse_override*.  Required when *mse_override* is given.
 
     Returns:
         List of :class:`EffectResult`, one per factor.
@@ -138,10 +146,14 @@ def compute_main_effects(
         ss_model += ss_factor
         effects_raw.append((effect, ss_factor))
 
-    df_model = k
-    df_resid = n - k - 1
-    ss_resid = max(ss_total - ss_model, 1e-30)
-    mse = ss_resid / max(df_resid, 1)
+    if mse_override is not None:
+        mse = mse_override
+        df_resid = df_resid_override if df_resid_override is not None else n - k - 1
+    else:
+        df_model = k
+        df_resid = n - k - 1
+        ss_resid = max(ss_total - ss_model, 1e-30)
+        mse = ss_resid / max(df_resid, 1)
 
     for col in range(k):
         effect, ss_factor = effects_raw[col]
@@ -197,6 +209,8 @@ def compute_interactions(
     factor_names: list[str],
     max_order: int = 2,
     alpha: float = 0.05,
+    mse_override: float | None = None,
+    df_resid_override: int | None = None,
 ) -> list[InteractionResult]:
     """Compute two-factor interaction effects.
 
@@ -210,6 +224,12 @@ def compute_interactions(
         factor_names: Names for each factor column.
         max_order: Maximum interaction order (only 2 is supported).
         alpha: Significance threshold.
+        mse_override: If provided, use this MSE instead of computing from
+            the full model internally.  Allows the caller to supply a
+            consistent MSE for comparable p-values across effects and
+            interactions.
+        df_resid_override: Residual degrees of freedom matching
+            *mse_override*.  Required when *mse_override* is given.
 
     Returns:
         List of :class:`InteractionResult` for each pair.
@@ -224,22 +244,26 @@ def compute_interactions(
     for i, j in pairs:
         all_interaction_cols.append(design[:, i] * design[:, j])
 
-    # Build full model matrix for MSE
-    X_full = np.column_stack(
-        [np.ones(n), design]
-        + ([np.column_stack(all_interaction_cols)] if all_interaction_cols else [])
-    )
-    p_full = X_full.shape[1]
-    df_resid = n - p_full
-    # OLS residuals
-    try:
-        beta_hat = np.linalg.lstsq(X_full, response, rcond=None)[0]
-        residuals = response - X_full @ beta_hat
-        ss_resid = float(np.sum(residuals ** 2))
-    except np.linalg.LinAlgError:
-        ss_resid = float(np.sum((response - np.mean(response)) ** 2))
+    if mse_override is not None:
+        mse = mse_override
+        df_resid = df_resid_override if df_resid_override is not None else n - k - 1
+    else:
+        # Build full model matrix for MSE
+        X_full = np.column_stack(
+            [np.ones(n), design]
+            + ([np.column_stack(all_interaction_cols)] if all_interaction_cols else [])
+        )
+        p_full = X_full.shape[1]
+        df_resid = n - p_full
+        # OLS residuals
+        try:
+            beta_hat = np.linalg.lstsq(X_full, response, rcond=None)[0]
+            residuals = response - X_full @ beta_hat
+            ss_resid = float(np.sum(residuals ** 2))
+        except np.linalg.LinAlgError:
+            ss_resid = float(np.sum((response - np.mean(response)) ** 2))
 
-    mse = ss_resid / max(df_resid, 1) if df_resid > 0 else max(ss_resid, 1e-30)
+        mse = ss_resid / max(df_resid, 1) if df_resid > 0 else max(ss_resid, 1e-30)
 
     for idx, (i, j) in enumerate(pairs):
         int_col = design[:, i] * design[:, j]
@@ -374,9 +398,25 @@ def compute_anova(
             f_value=None, p_value=None,
         ))
 
-    # Residual
+    # Compute residual SS via OLS (correct for both orthogonal and non-orthogonal designs).
+    # The per-factor SS values above (computed via marginal contrasts) are kept for the
+    # per-row display, but for non-orthogonal designs (e.g. fractional factorials with
+    # aliased columns) they can sum to more than SS_total.  Using OLS residuals ensures
+    # SS_resid is always physically meaningful.
     df_resid = n - df_model - 1
-    ss_resid = max(ss_total - ss_model, 0.0)
+    columns_ols = [np.ones(n)]
+    for col in range(k):
+        columns_ols.append(design[:, col])
+    for i, j in pairs:
+        columns_ols.append(design[:, i] * design[:, j])
+    X_full = np.column_stack(columns_ols)
+    try:
+        beta_hat = np.linalg.lstsq(X_full, response, rcond=None)[0]
+        residuals_ols = response - X_full @ beta_hat
+        ss_resid = float(np.sum(residuals_ols ** 2))
+    except np.linalg.LinAlgError:
+        # Fallback: subtraction (clamped) — only if OLS itself fails
+        ss_resid = max(ss_total - ss_model, 0.0)
     ms_resid = ss_resid / max(df_resid, 1)
 
     # Fill in F-values and p-values

@@ -161,6 +161,11 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # Build factor name -> index mapping from effects
+    factor_name_to_index: dict[str, int] = {
+        eff.factor_name: eff.factor_index for eff in effects
+    }
+
     # Parse interactions
     interactions: list[InteractionResponse] = []
     try:
@@ -168,11 +173,15 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
             json.loads(analysis.interactions) if analysis.interactions else []
         )
         for ix in raw_interactions:
-            factor_names = ix.get("factors", [])
+            ix_factor_names = ix.get("factors", [])
+            ix_factor_indices = [
+                factor_name_to_index.get(name, idx)
+                for idx, name in enumerate(ix_factor_names)
+            ]
             interactions.append(
                 InteractionResponse(
-                    factor_indices=list(range(len(factor_names))),
-                    factor_names=factor_names,
+                    factor_indices=ix_factor_indices,
+                    factor_names=ix_factor_names,
                     effect=ix.get("effect", 0.0),
                 )
             )
@@ -199,6 +208,7 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
     return DOEAnalysisResponse(
         id=analysis.id,
         study_id=analysis.study_id,
+        grand_mean=analysis.grand_mean or 0.0,
         anova_table=anova_table,
         effects=effects,
         interactions=interactions,
@@ -512,6 +522,7 @@ async def generate_design(
     try:
         run_dicts = await engine.generate_design(session, study_id)
     except ValueError as exc:
+        logger.warning("doe_generate_failed", study_id=study_id, error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to generate design. Check study configuration.",
@@ -703,6 +714,7 @@ async def analyze_study(
     try:
         await engine.analyze(session, study_id)
     except ValueError as exc:
+        logger.warning("doe_analysis_failed", study_id=study_id, error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Analysis failed. Check study data.",

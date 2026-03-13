@@ -13,6 +13,7 @@ import {
   ClipboardList,
   BarChart3,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   useMSAStudy,
@@ -547,12 +548,14 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
           }
         }
       }
-      if (attrMeasurements.length > 0) {
-        await submitAttributeMeasurements.mutateAsync({
-          studyId: study.id,
-          measurements: attrMeasurements,
-        })
+      if (attrMeasurements.length === 0) {
+        toast.info('No measurements to save')
+        return
       }
+      await submitAttributeMeasurements.mutateAsync({
+        studyId: study.id,
+        measurements: attrMeasurements,
+      })
     } else {
       const variableMeasurements: MSAMeasurementInput[] = []
       for (const op of study.operators) {
@@ -571,12 +574,14 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
           }
         }
       }
-      if (variableMeasurements.length > 0) {
-        await submitMeasurements.mutateAsync({
-          studyId: study.id,
-          measurements: variableMeasurements,
-        })
+      if (variableMeasurements.length === 0) {
+        toast.info('No measurements to save')
+        return
       }
+      await submitMeasurements.mutateAsync({
+        studyId: study.id,
+        measurements: variableMeasurements,
+      })
     }
   }
 

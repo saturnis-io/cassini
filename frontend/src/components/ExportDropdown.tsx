@@ -2,21 +2,22 @@ import { useState, useRef } from 'react'
 import { Download, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  exportToPdf,
-  exportToExcel,
+  exportReportToPdf,
+  exportToExcelMultiSheet,
   exportToCsv,
   prepareChartDataForExport,
   prepareViolationsForExport,
 } from '@/lib/export-utils'
+import type { ReportPdfData } from '@/lib/export-utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { toast } from 'sonner'
 
 type ExportFormat = 'pdf' | 'excel' | 'csv'
 
 interface ExportDropdownProps {
-  /** Reference to the element to capture for PDF export */
+  /** Reference to the report content element (used to find chart canvas) */
   contentRef: React.RefObject<HTMLElement | null>
-  /** Data for Excel/CSV export */
+  /** Data for export */
   exportData?: {
     chartData?: {
       data_points: Array<{
@@ -24,7 +25,14 @@ interface ExportDropdownProps {
         mean: number
         zone: string
         violation_rules: number[]
+        excluded: boolean
       }>
+      control_limits: {
+        ucl: number | null
+        lcl: number | null
+        center_line: number | null
+      }
+      decimal_precision?: number
     }
     violations?: Array<{
       id: number
@@ -37,6 +45,24 @@ interface ExportDropdownProps {
       ack_user: string | null
       ack_reason: string | null
     }>
+    characteristicName?: string
+    hierarchyPath?: string
+    templateName?: string
+    annotations?: Array<{
+      text: string
+      annotation_type: string
+      created_by: string | null
+      created_at: string
+    }>
+    capability?: {
+      cp: number | null
+      cpk: number | null
+      pp: number | null
+      ppk: number | null
+      sigma_within: number | null
+      usl: number | null
+      lsl: number | null
+    }
   }
   /** Filename prefix for exported files */
   filename?: string
@@ -67,38 +93,63 @@ export function ExportDropdown({
       const exportFilename = `${filename}-${timestamp}`
 
       if (format === 'pdf') {
-        if (!contentRef.current) {
-          toast.error('No content to export')
-          return
+        // Capture chart image from the ECharts canvas in the report
+        let chartImage: ReportPdfData['chartImage']
+        if (contentRef.current) {
+          const canvases = Array.from(contentRef.current.querySelectorAll('canvas'))
+          // Pick the largest canvas (the main chart)
+          const chartCanvas = canvases.sort(
+            (a, b) => b.width * b.height - a.width * a.height,
+          )[0]
+          if (chartCanvas) {
+            chartImage = {
+              dataURL: chartCanvas.toDataURL('image/png'),
+              aspectRatio: chartCanvas.width / chartCanvas.height,
+            }
+          }
         }
-        await exportToPdf(contentRef.current, exportFilename, {
-          orientation: 'landscape',
-        })
+
+        await exportReportToPdf(
+          {
+            title: exportData?.templateName || 'Report',
+            characteristicName: exportData?.characteristicName || 'Unknown',
+            hierarchyPath: exportData?.hierarchyPath,
+            chartImage,
+            chartData: exportData?.chartData,
+            violations: exportData?.violations,
+            annotations: exportData?.annotations,
+            capability: exportData?.capability,
+          },
+          exportFilename,
+          datetimeFormat,
+        )
         toast.success('PDF exported successfully')
       } else if (format === 'excel' || format === 'csv') {
-        // Prepare data for export
-        const data: Record<string, unknown>[] = []
+        // Prepare datasets separately to avoid mixed-schema blank columns
+        const chartRows = exportData?.chartData
+          ? prepareChartDataForExport(exportData.chartData, datetimeFormat)
+          : []
+        const violationRows =
+          exportData?.violations && exportData.violations.length > 0
+            ? prepareViolationsForExport(exportData.violations, datetimeFormat)
+            : []
 
-        if (exportData?.chartData) {
-          const chartRows = prepareChartDataForExport(exportData.chartData, datetimeFormat)
-          data.push(...chartRows)
-        }
-
-        if (exportData?.violations && exportData.violations.length > 0) {
-          const violationRows = prepareViolationsForExport(exportData.violations, datetimeFormat)
-          data.push(...violationRows)
-        }
-
-        if (data.length === 0) {
+        if (chartRows.length === 0 && violationRows.length === 0) {
           toast.error('No data to export')
           return
         }
 
         if (format === 'excel') {
-          await exportToExcel(data, exportFilename, 'Report Data')
+          // Multi-sheet: each dataset gets its own tab with clean columns
+          const sheets: Array<{ name: string; data: Record<string, unknown>[] }> = []
+          if (chartRows.length > 0) sheets.push({ name: 'Measurements', data: chartRows })
+          if (violationRows.length > 0) sheets.push({ name: 'Violations', data: violationRows })
+          await exportToExcelMultiSheet(sheets, exportFilename)
           toast.success('Excel file exported successfully')
         } else {
-          await exportToCsv(data, exportFilename)
+          // CSV: export primary dataset only (chart data if present, else violations)
+          const primaryData = chartRows.length > 0 ? chartRows : violationRows
+          await exportToCsv(primaryData, exportFilename)
           toast.success('CSV file exported successfully')
         }
       }

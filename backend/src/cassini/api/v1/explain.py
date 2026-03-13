@@ -408,6 +408,8 @@ async def explain_control_limits_metric(
     # Read stored values — these are the source of truth
     stored_sigma = char.stored_sigma
     stored_center = char.stored_center_line
+    stored_ucl = char.ucl
+    stored_lcl = char.lcl
     subgroup_size = char.subgroup_size
     short_run_mode = getattr(char, "short_run_mode", None)
     target_value = char.target_value
@@ -430,6 +432,10 @@ async def explain_control_limits_metric(
             stored_center = _resolved["stored_center_line"]
         if _resolved["target_value"] is not None:
             target_value = _resolved["target_value"]
+        if _resolved.get("ucl") is not None:
+            stored_ucl = _resolved["ucl"]
+        if _resolved.get("lcl") is not None:
+            stored_lcl = _resolved["lcl"]
 
     if stored_sigma is None or stored_center is None:
         raise HTTPException(
@@ -574,15 +580,62 @@ async def explain_control_limits_metric(
         result=computed_lcl,
     )
 
-    # Apply short-run transforms to get displayed values
-    display_ucl = computed_ucl
-    display_lcl = computed_lcl
+    # Use stored UCL/LCL as the authoritative displayed values.
+    # These are set during recalculate-limits or manual entry and are what
+    # the UI actually shows.  The computed values above are for the formula
+    # steps only — if they differ from stored (e.g., manual limits or
+    # rounding), the stored values take precedence.
+    display_ucl = stored_ucl if stored_ucl is not None else computed_ucl
+    display_lcl = stored_lcl if stored_lcl is not None else computed_lcl
     display_center = stored_center
     display_sigma = stored_sigma
 
+    # If stored limits differ from formula-computed values, add a note
+    # so the user understands why the displayed value doesn't match the math
+    ucl_mismatch = stored_ucl is not None and abs(stored_ucl - computed_ucl) > 1e-6
+    lcl_mismatch = stored_lcl is not None and abs(stored_lcl - computed_lcl) > 1e-6
+
+    if ucl_mismatch:
+        collector.step(
+            label="UCL (Stored Override)",
+            formula_latex=r"\text{UCL}_{\text{displayed}} = \text{stored value}",
+            substitution_latex=(
+                r"\text{UCL}_{\text{displayed}} = "
+                + str(round(stored_ucl, 6))
+                + r" \neq "
+                + str(round(computed_ucl, 6))
+            ),
+            result=stored_ucl,
+            note=(
+                "The displayed UCL uses the stored value rather than the formula result. "
+                "This occurs when limits were manually entered, imported, or calculated "
+                "with different data than the current stored sigma. "
+                "Recalculate limits to synchronize."
+            ),
+        )
+
+    if lcl_mismatch:
+        collector.step(
+            label="LCL (Stored Override)",
+            formula_latex=r"\text{LCL}_{\text{displayed}} = \text{stored value}",
+            substitution_latex=(
+                r"\text{LCL}_{\text{displayed}} = "
+                + str(round(stored_lcl, 6))
+                + r" \neq "
+                + str(round(computed_lcl, 6))
+            ),
+            result=stored_lcl,
+            note=(
+                "The displayed LCL uses the stored value rather than the formula result. "
+                "This occurs when limits were manually entered, imported, or calculated "
+                "with different data than the current stored sigma. "
+                "Recalculate limits to synchronize."
+            ),
+        )
+
     if short_run_mode == "deviation" and target_value is not None:
-        display_ucl = computed_ucl - target_value
-        display_lcl = computed_lcl - target_value
+        display_ucl = display_ucl - target_value
+        display_lcl = display_lcl - target_value
         display_center = stored_center - target_value
         collector.step(
             label="UCL (Deviation from Target)",

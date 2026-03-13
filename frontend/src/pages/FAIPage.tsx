@@ -103,7 +103,7 @@ export function FAIPage() {
       </div>
 
       {/* Filters */}
-      <div data-ui="fai-filters" className="flex items-center gap-2">
+      <div data-ui="fai-filters" className="flex gap-1">
         {[
           { value: undefined, label: 'All' },
           { value: 'draft', label: 'Draft' },
@@ -118,7 +118,7 @@ export function FAIPage() {
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
               statusFilter === opt.value
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             {opt.label}
@@ -144,74 +144,59 @@ export function FAIPage() {
           </button>
         </div>
       ) : (
-        <div data-ui="fai-table" className="border-border overflow-hidden rounded-xl border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Part Number</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Part Name</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Rev</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Site</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Created</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((report) => {
-                const statusStyle = STATUS_STYLES[report.status] ?? STATUS_STYLES.draft
-                return (
-                  <tr
-                    key={report.id}
-                    onClick={() => navigate(`/fai/${report.id}`)}
-                    className="border-border/50 hover:bg-muted/30 cursor-pointer border-t transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium">{report.part_number}</td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {report.part_name || '--'}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {report.revision || '--'}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {plantName(report.plant_id)}
-                    </td>
-                    <td className="px-4 py-3">
+        <div data-ui="fai-content" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {reports.map((report) => {
+            const statusStyle = STATUS_STYLES[report.status] ?? STATUS_STYLES.draft
+            return (
+              <div
+                key={report.id}
+                onClick={() => navigate(`/fai/${report.id}`)}
+                className="bg-card text-card-foreground hover:border-primary/50 cursor-pointer rounded-lg border p-4 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-medium">{report.part_number}</h3>
+                    <div className="mt-1 flex items-center gap-2">
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                          'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
                           statusStyle.bg,
                           statusStyle.text,
                         )}
                       >
                         {statusStyle.label}
                       </span>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {formatDate(report.created_at)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {report.status === 'draft' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setConfirmDeleteId(report.id)
-                            }}
-                            className="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
-                            title="Delete report"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                        <ChevronRight className="text-muted-foreground h-4 w-4" />
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      {report.revision && (
+                        <span className="bg-muted rounded px-1.5 py-0.5 text-xs font-medium">
+                          Rev {report.revision}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {report.status === 'draft' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmDeleteId(report.id)
+                        }}
+                        className="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
+                        title="Delete report"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    <ChevronRight className="text-muted-foreground h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-muted-foreground mt-3 flex items-center gap-4 text-xs">
+                  {report.part_name && <span>{report.part_name}</span>}
+                  <span>{plantName(report.plant_id)}</span>
+                  <span>{formatDate(report.created_at)}</span>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

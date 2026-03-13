@@ -23,8 +23,8 @@ class DOEStudy(Base):
     """Design of Experiments study.
 
     Supports full factorial, fractional factorial (with resolution),
-    Plackett-Burman, and Box-Behnken designs.  The ``status`` field
-    tracks the study lifecycle: ``design`` -> ``running`` -> ``complete``.
+    central composite, and Box-Behnken designs.  The ``status`` field
+    tracks the study lifecycle: ``design`` -> ``collecting`` -> ``analyzed``.
 
     The ``created_by`` FK is SET NULL on user deletion to preserve
     the study even if the creator account is removed.
@@ -187,6 +187,7 @@ class DOEAnalysis(Base):
     interactions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     r_squared: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     adj_r_squared: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    grand_mean: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     regression_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     optimal_settings: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(

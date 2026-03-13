@@ -116,66 +116,56 @@ export function MSAPage() {
           </button>
         </div>
       ) : (
-        <div data-ui="msa-table" className="border-border overflow-hidden rounded-xl border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Name</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Type</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Status</th>
-                <th className="text-muted-foreground px-4 py-3 text-center font-medium">Operators</th>
-                <th className="text-muted-foreground px-4 py-3 text-center font-medium">Parts</th>
-                <th className="text-muted-foreground px-4 py-3 text-left font-medium">Created</th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {studies.map((study) => {
-                const statusStyle = STATUS_STYLES[study.status] ?? STATUS_STYLES.setup
-                return (
-                  <tr
-                    key={study.id}
-                    className="border-border/50 hover:bg-muted/30 cursor-pointer border-t transition-colors"
-                    onClick={() => navigate(`/msa/${study.id}`)}
-                  >
-                    <td className="px-4 py-3 font-medium">{study.name}</td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {STUDY_TYPE_LABELS[study.study_type] ?? study.study_type}
-                    </td>
-                    <td className="px-4 py-3">
+        <div data-ui="msa-content" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {studies.map((study) => {
+            const statusStyle = STATUS_STYLES[study.status] ?? STATUS_STYLES.setup
+            return (
+              <div
+                key={study.id}
+                onClick={() => navigate(`/msa/${study.id}`)}
+                className="bg-card text-card-foreground hover:border-primary/50 cursor-pointer rounded-lg border p-4 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-medium">{study.name}</h3>
+                    <div className="mt-1 flex items-center gap-2">
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                          'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
                           statusStyle.bg,
                           statusStyle.text,
                         )}
                       >
                         {statusStyle.label}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">{study.num_operators}</td>
-                    <td className="px-4 py-3 text-center">{study.num_parts}</td>
-                    <td className="text-muted-foreground px-4 py-3">{formatDate(study.created_at)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setConfirmDeleteId(study.id)
-                          }}
-                          className="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
-                          title="Delete study"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                        <ChevronRight className="text-muted-foreground h-4 w-4" />
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      <span className="bg-muted rounded px-1.5 py-0.5 text-xs font-medium">
+                        {STUDY_TYPE_LABELS[study.study_type] ?? study.study_type}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setConfirmDeleteId(study.id)
+                      }}
+                      className="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
+                      title="Delete study"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <ChevronRight className="text-muted-foreground h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-muted-foreground mt-3 flex items-center gap-4 text-xs">
+                  <span>{study.num_operators} operator{study.num_operators !== 1 ? 's' : ''}</span>
+                  <span>{study.num_parts} part{study.num_parts !== 1 ? 's' : ''}</span>
+                  <span>{study.num_replicates} replicate{study.num_replicates !== 1 ? 's' : ''}</span>
+                  <span>{formatDate(study.created_at)}</span>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

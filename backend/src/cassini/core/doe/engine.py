@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -263,17 +264,52 @@ class DOEEngine:
 
             response_arr[row_idx] = run.response_value  # type: ignore[assignment]
 
-        # Compute effects and interactions
+        # Grand mean of all response values
+        grand_mean = float(np.mean(response_arr))
+
+        # Compute full-model MSE once (main effects + two-factor interactions)
+        # so that both compute_main_effects and compute_interactions use the
+        # same denominator for their t-tests, making p-values comparable.
+        _n_obs = design_matrix.shape[0]
+        _k = design_matrix.shape[1]
+        _int_pairs = list(combinations(range(_k), 2))
+        _cols = [np.ones(_n_obs)]
+        for _c in range(_k):
+            _cols.append(design_matrix[:, _c])
+        for _i, _j in _int_pairs:
+            _cols.append(design_matrix[:, _i] * design_matrix[:, _j])
+        _X_full = np.column_stack(_cols)
+        _p_full = _X_full.shape[1]
+        _df_resid_full = _n_obs - _p_full
+
+        try:
+            _beta = np.linalg.lstsq(_X_full, response_arr, rcond=None)[0]
+            _resid = response_arr - _X_full @ _beta
+            _ss_resid = float(np.sum(_resid ** 2))
+        except np.linalg.LinAlgError:
+            _ss_resid = float(np.sum((response_arr - grand_mean) ** 2))
+
+        if _df_resid_full > 0:
+            _mse_full = _ss_resid / _df_resid_full
+        else:
+            _mse_full = max(_ss_resid, 1e-30)
+
+        # Compute effects and interactions with consistent MSE
         effects = compute_main_effects(
-            design_matrix, response_arr, factor_names
+            design_matrix, response_arr, factor_names,
+            mse_override=_mse_full,
+            df_resid_override=_df_resid_full,
         )
         interactions = compute_interactions(
-            design_matrix, response_arr, factor_names
+            design_matrix, response_arr, factor_names,
+            mse_override=_mse_full,
+            df_resid_override=_df_resid_full,
         )
         anova = compute_anova(design_matrix, response_arr, factor_names)
 
         # Build result dict
         result: dict[str, Any] = {
+            "grand_mean": grand_mean,
             "effects": [
                 {
                     "factor_name": e.factor_name,
@@ -348,6 +384,7 @@ class DOEEngine:
             interactions=json.dumps(result["interactions"]),
             r_squared=result["r_squared"],
             adj_r_squared=result["adj_r_squared"],
+            grand_mean=result["grand_mean"],
             regression_model=regression_json,
             optimal_settings=optimal_json,
         )

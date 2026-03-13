@@ -49,7 +49,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/annotations"), "annotation"),
     (re.compile(r"/api/v1/rule-presets(?:/(\d+))?"), "rule_preset"),
     (re.compile(r"/api/v1/msa/studies(?:/(\d+))?"), "msa_study"),
-    (re.compile(r"/api/v1/fai/reports(?:/(\d+))?"), "fai_report"),
+    (re.compile(r"/api/v1/fai/reports(?:/(\d+)(?:/.*)?)?"), "fai_report"),
     (re.compile(r"/api/v1/gage-bridges(?:/(\d+))?"), "gage_bridge"),
     (re.compile(r"/api/v1/anomaly/"), "anomaly"),
     (re.compile(r"/api/v1/signatures/"), "signature"),
@@ -61,7 +61,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/multivariate/correlation/"), "correlation"),
     (re.compile(r"/api/v1/predictions(?:/(\d+))?"), "prediction"),
     (re.compile(r"/api/v1/ai/"), "ai_config"),
-    (re.compile(r"/api/v1/doe/studies(?:/(\d+))?"), "doe_study"),
+    (re.compile(r"/api/v1/doe/studies(?:/(\d+)(?:/.*)?)?"), "doe_study"),
     (re.compile(r"/api/v1/plants/(\d+)/deactivate"), "plant"),
     (re.compile(r"/api/v1/plants/(\d+)/reactivate"), "plant"),
     (re.compile(r"/api/v1/license/compliance"), "license"),
@@ -72,6 +72,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/verify-email"), "auth"),
     (re.compile(r"/api/v1/auth/update-profile"), "auth"),
     (re.compile(r"/api/v1/scheduled-reports(?:/(\d+))?"), "report_schedule"),
+    (re.compile(r"/api/v1/reports/analytics(?:/|$)"), "report_analytics"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -122,7 +123,7 @@ def _method_to_action(method: str, path: str) -> str:
         return "train"
     if "/generate" in path:
         return "generate"
-    if "/analyze" in path:
+    if "/analyze" in path or "/analytics" in path:
         return "analyze"
     if "/sign" in path:
         return "sign"

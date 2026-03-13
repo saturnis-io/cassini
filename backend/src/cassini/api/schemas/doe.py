@@ -73,7 +73,7 @@ class DOERunResponse(BaseModel):
 
 class DOERunUpdate(BaseModel):
     run_id: int
-    response_value: float
+    response_value: float | None
     notes: str | None = None
 
 
@@ -131,6 +131,7 @@ class RegressionResponse(BaseModel):
 class DOEAnalysisResponse(BaseModel):
     id: int
     study_id: int
+    grand_mean: float
     anova_table: list[ANOVARowResponse]
     effects: list[EffectResponse]
     interactions: list[InteractionResponse]

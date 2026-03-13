@@ -1,0 +1,39 @@
+import { useState, useEffect } from 'react'
+import { useTheme } from '@/providers/ThemeProvider'
+import { useECharts } from '@/hooks/useECharts'
+
+/**
+ * Hook that wraps useECharts and captures a static PNG data URL from the chart
+ * once it renders. For print/report contexts, canvas-based ECharts don't
+ * reliably print, so we render a static <img> fallback alongside the
+ * hidden canvas container (which drives the capture).
+ */
+export function useStaticChart(opts: Parameters<typeof useECharts>[0]) {
+  const { containerRef, chartRef } = useECharts(opts)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+  const [dataURL, setDataURL] = useState<string | null>(null)
+  const [lightDataURL, setLightDataURL] = useState<string | null>(null)
+
+  // Capture a static image after the chart has rendered
+  useEffect(() => {
+    // Small delay so ECharts finishes its animation/render cycle
+    const timer = setTimeout(() => {
+      const chart = chartRef.current
+      if (!chart) return
+      try {
+        const bgColor = isDark ? 'hsl(220, 25%, 13%)' : '#fff'
+        const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: bgColor })
+        setDataURL(url)
+        // Always capture a light-mode version for PDF export
+        const lightUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' })
+        setLightDataURL(lightUrl)
+      } catch {
+        // Chart may not be ready yet
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [chartRef, opts.option, isDark])
+
+  return { containerRef, dataURL, lightDataURL }
+}

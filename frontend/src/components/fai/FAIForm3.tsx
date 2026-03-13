@@ -105,12 +105,11 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
   const devCount = items.filter((i) => i.result === 'deviation').length
   const pendingCount = items.filter((i) => !i.result).length
 
-  const cellClass =
-    'border-border border px-2 py-1.5 text-sm'
-  const inputCellClass =
-    'w-full border-0 bg-transparent px-1 py-0.5 text-sm outline-none focus:ring-1 focus:ring-primary rounded disabled:opacity-60'
-  const numericCellClass =
-    'w-full border-0 bg-transparent px-1 py-0.5 text-sm text-right outline-none focus:ring-1 focus:ring-primary rounded disabled:opacity-60'
+  const cellClass = 'px-3 py-2 text-sm'
+  const inputClass =
+    'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-60'
+  const numericInputClass =
+    'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm text-right focus:ring-2 focus:outline-none disabled:opacity-60'
 
   return (
     <div className="flex flex-col gap-4">
@@ -144,22 +143,22 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
       </div>
 
       {/* Grid table */}
-      <div className="overflow-x-auto">
-        <table className="border-border w-full border-collapse border text-left">
+      <div className="border-border overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="bg-muted/50 text-xs font-medium uppercase">
-              <th className={cn(cellClass, 'w-16')}>Balloon #</th>
-              <th className={cn(cellClass, 'min-w-[140px]')}>Characteristic</th>
-              <th className={cn(cellClass, 'w-24 text-right')}>Nominal</th>
-              <th className={cn(cellClass, 'w-24 text-right')}>USL</th>
-              <th className={cn(cellClass, 'w-24 text-right')}>LSL</th>
-              <th className={cn(cellClass, 'w-24 text-right')}>Actual</th>
-              <th className={cn(cellClass, 'w-20')}>Unit</th>
-              <th className={cn(cellClass, 'min-w-[120px]')}>Tools Used</th>
-              <th className={cn(cellClass, 'w-16 text-center')}>Designed</th>
-              <th className={cn(cellClass, 'w-28')}>Result</th>
-              <th className={cn(cellClass, 'min-w-[140px]')}>Deviation Reason</th>
-              {!readonly && <th className={cn(cellClass, 'w-12')} />}
+            <tr className="bg-muted/50">
+              <th className="text-muted-foreground w-16 px-3 py-3 font-medium">Balloon #</th>
+              <th className="text-muted-foreground min-w-[140px] px-3 py-3 font-medium">Characteristic</th>
+              <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">Nominal</th>
+              <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">USL</th>
+              <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">LSL</th>
+              <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">Actual</th>
+              <th className="text-muted-foreground w-20 px-3 py-3 font-medium">Unit</th>
+              <th className="text-muted-foreground min-w-[120px] px-3 py-3 font-medium">Tools Used</th>
+              <th className="text-muted-foreground w-16 px-3 py-3 text-center font-medium">Designed</th>
+              <th className="text-muted-foreground w-28 px-3 py-3 font-medium">Result</th>
+              <th className="text-muted-foreground min-w-[140px] px-3 py-3 font-medium">Deviation Reason</th>
+              {!readonly && <th className="w-12 px-3 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -173,17 +172,19 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, index) => {
                 const result = getLocalValue(item, 'result')
                 const rowBg =
                   result === 'fail'
-                    ? 'bg-red-50 dark:bg-red-900/10'
+                    ? 'bg-red-50 dark:bg-red-950/20'
                     : result === 'deviation'
-                      ? 'bg-amber-50 dark:bg-amber-900/10'
-                      : ''
+                      ? 'bg-amber-50/50 dark:bg-amber-950/10'
+                      : index % 2 === 0
+                        ? 'bg-card'
+                        : 'bg-muted/20'
 
                 return (
-                  <tr key={item.id} className={cn(rowBg, 'transition-colors')}>
+                  <tr key={item.id} className={cn('border-border/50 border-t transition-colors', rowBg)}>
                     {/* Balloon # */}
                     <td className={cellClass}>
                       <input
@@ -195,7 +196,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'balloon_number', e.target.value)}
                         disabled={readonly}
-                        className={numericCellClass}
+                        className={numericInputClass}
                       />
                     </td>
 
@@ -209,7 +210,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
                         disabled={readonly}
-                        className={inputCellClass}
+                        className={inputClass}
                         placeholder="Dimension, tolerance..."
                       />
                     </td>
@@ -225,7 +226,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'nominal', e.target.value)}
                         disabled={readonly}
-                        className={numericCellClass}
+                        className={numericInputClass}
                       />
                     </td>
 
@@ -240,7 +241,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'usl', e.target.value)}
                         disabled={readonly}
-                        className={numericCellClass}
+                        className={numericInputClass}
                       />
                     </td>
 
@@ -255,7 +256,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'lsl', e.target.value)}
                         disabled={readonly}
-                        className={numericCellClass}
+                        className={numericInputClass}
                       />
                     </td>
 
@@ -270,7 +271,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'actual_value', e.target.value)}
                         disabled={readonly}
-                        className={numericCellClass}
+                        className={numericInputClass}
                       />
                     </td>
 
@@ -284,7 +285,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'unit', e.target.value)}
                         disabled={readonly}
-                        className={inputCellClass}
+                        className={inputClass}
                         placeholder="mm"
                       />
                     </td>
@@ -299,7 +300,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'tools_used', e.target.value)}
                         disabled={readonly}
-                        className={inputCellClass}
+                        className={inputClass}
                         placeholder="CMM, caliper..."
                       />
                     </td>
@@ -322,7 +323,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         onChange={(e) => handleResultChange(item, e.target.value)}
                         disabled={readonly}
                         className={cn(
-                          inputCellClass,
+                          'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-60',
                           result === 'pass' && 'text-green-600 dark:text-green-400',
                           result === 'fail' && 'font-semibold text-red-600 dark:text-red-400',
                           result === 'deviation' && 'text-amber-600 dark:text-amber-400',
@@ -346,7 +347,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         }
                         onBlur={(e) => handleBlur(item, 'deviation_reason', e.target.value)}
                         disabled={readonly || result !== 'deviation'}
-                        className={inputCellClass}
+                        className={inputClass}
                         placeholder={result === 'deviation' ? 'Required...' : ''}
                       />
                     </td>
@@ -373,7 +374,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
 
       {/* Summary */}
       {items.length > 0 && (
-        <div className="border-border flex items-center gap-6 rounded-lg border px-4 py-3">
+        <div className="bg-muted/50 flex items-center gap-6 rounded-lg px-4 py-3">
           <span className="text-sm font-medium">Summary:</span>
           <span className="text-sm">
             <span className="font-medium text-green-600 dark:text-green-400">{passCount}</span>{' '}

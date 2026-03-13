@@ -32,7 +32,11 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir / "src"))
 
+from dataclasses import asdict
+
 from cassini.core.auth.passwords import hash_password
+from cassini.core.msa.engine import GageRREngine
+from cassini.core.msa.attribute_msa import AttributeMSAEngine
 
 # ── Constants ────────────────────────────────────────────────────────────
 DB_PATH = backend_dir / "showcase.db"
@@ -2268,76 +2272,69 @@ def seed_signatures(cur: sqlite3.Cursor) -> None:
 
 
 def seed_msa(cur: sqlite3.Cursor) -> None:
-    """3 MSA studies per design doc."""
+    """Insert raw MSA study data (operators, parts, measurements).
+
+    Studies that have complete measurement matrices are inserted with
+    status='pending_calc'.  The finalize_calculations() pass runs the
+    real engines to populate results_json and flip status to 'complete'.
+    """
     now = utcnow()
 
-    # Study 1: Crankshaft Gage R&R (Detroit, crossed_anova, Bearing OD)
+    # ── Study 1: Crankshaft Gage R&R (Detroit, crossed_anova, Bearing OD) ──
     # 3 operators x 10 parts x 3 reps = 90 measurements
     cur.execute("""INSERT INTO msa_study
         (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
          tolerance, status, created_by, created_at, completed_at, results_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, 3, 10, 3, 0.100, 'pending_calc', ?, ?, NULL, NULL)""",
         (IDS["det_plant"], "Crankshaft Gage R&R", "crossed_anova", IDS["bearing_od"],
-         3, 10, 3, 0.100, "complete", IDS["eng_det"], now, now,
-         json.dumps({
-             "grr_percent": 12.3, "ndc": 8, "repeatability": 8.5, "reproducibility": 8.9,
-             "part_variation": 99.2, "total_variation": 100.0,
-             "anova_table": {"source": ["Operator", "Part", "Operator*Part", "Repeatability", "Total"],
-                             "df": [2, 9, 18, 60, 89], "ss": [0.0012, 0.0845, 0.0008, 0.0156, 0.1021],
-                             "ms": [0.0006, 0.0094, 0.00004, 0.00026], "f": [13.5, 214.5, 0.17]},
-         })))
+         IDS["eng_det"], now))
     study1 = cur.lastrowid
 
-    # Operators
     ops1 = []
     for i, name in enumerate(["Marcus Johnson", "Tyler Washington", "Ana Rodriguez"]):
         cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
-            (study1, name, i + 1))
+            (study1, name, i))
         ops1.append(cur.lastrowid)
 
-    # Parts
     parts1 = []
-    part_refs = [25.000 + 0.005 * (i - 5) for i in range(10)]  # spread around nominal
+    part_refs = [25.000 + 0.005 * (i - 5) for i in range(10)]
     for i in range(10):
         cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
-            (study1, f"Part-{i+1:02d}", part_refs[i], i + 1))
+            (study1, f"Part-{i+1:02d}", part_refs[i], i))
         parts1.append(cur.lastrowid)
 
-    # Measurements: 3 ops x 10 parts x 3 reps = 90
     for op_idx, op_id in enumerate(ops1):
         for part_idx, part_id in enumerate(parts1):
             for rep in range(3):
                 base = part_refs[part_idx]
                 op_bias = [-0.001, 0.000, 0.001][op_idx]
-                error = random.gauss(0, 0.003)
-                value = round(base + op_bias + error, 4)
+                value = round(base + op_bias + random.gauss(0, 0.003), 4)
                 cur.execute("""INSERT INTO msa_measurement
                     (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
                     VALUES (?, ?, ?, ?, ?, NULL, ?)""",
                     (study1, op_id, part_id, rep + 1, value, now))
 
-    # Study 2: CMM Repeatability (Detroit, range_method, Pin Height)
+    # ── Study 2: CMM Repeatability (Detroit, range_method, Pin Height) ──
     # 2 operators x 10 parts x 2 reps = 40 measurements
     cur.execute("""INSERT INTO msa_study
         (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
          tolerance, status, created_by, created_at, completed_at, results_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, 2, 10, 2, 0.200, 'pending_calc', ?, ?, NULL, NULL)""",
         (IDS["det_plant"], "CMM Repeatability Study", "range_method", IDS["pin_height"],
-         2, 10, 2, 0.200, "complete", IDS["eng_det"], now, now,
-         json.dumps({"grr_percent": 8.1, "repeatability": 6.2, "reproducibility": 5.2, "ndc": 12})))
+         IDS["eng_det"], now))
     study2 = cur.lastrowid
 
     ops2 = []
     for i, name in enumerate(["Marcus Johnson", "Ana Rodriguez"]):
         cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
-            (study2, name, i + 1))
+            (study2, name, i))
         ops2.append(cur.lastrowid)
 
     parts2 = []
     pin_refs = [12.700 + 0.010 * (i - 5) for i in range(10)]
     for i in range(10):
         cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
-            (study2, f"Pin-{i+1:02d}", pin_refs[i], i + 1))
+            (study2, f"Pin-{i+1:02d}", pin_refs[i], i))
         parts2.append(cur.lastrowid)
 
     for op_idx, op_id in enumerate(ops2):
@@ -2351,40 +2348,39 @@ def seed_msa(cur: sqlite3.Cursor) -> None:
                     VALUES (?, ?, ?, ?, ?, NULL, ?)""",
                     (study2, op_id, part_id, rep + 1, value, now))
 
-    # Study 3: X-Ray Inspection Agreement (Wichita, attribute_agreement, Void %)
+    # ── Study 3: X-Ray Inspection Agreement (Wichita, attribute_agreement) ──
     # 3 operators x 20 parts x 2 reps = 120 measurements
     cur.execute("""INSERT INTO msa_study
         (plant_id, name, study_type, characteristic_id, num_operators, num_parts, num_replicates,
          tolerance, status, created_by, created_at, completed_at, results_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, 3, 20, 2, NULL, 'pending_calc', ?, ?, NULL, NULL)""",
         (IDS["ict_plant"], "X-Ray Inspection Agreement", "attribute_agreement", IDS["void_pct"],
-         3, 20, 2, "complete", IDS["eng_ict"], now, now,
-         json.dumps({"kappa": 0.87, "overall_agreement": 0.93, "operator_agreement": [0.95, 0.90, 0.94]})))
+         IDS["eng_ict"], now))
     study3 = cur.lastrowid
 
+    op_names3 = ["Priya Patel", "Maria Santos", "Ana Rodriguez"]
     ops3 = []
-    for i, name in enumerate(["Priya Patel", "Maria Santos", "Ana Rodriguez"]):
+    for i, name in enumerate(op_names3):
         cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
-            (study3, name, i + 1))
+            (study3, name, i))
         ops3.append(cur.lastrowid)
 
-    parts3 = []
     # Ground truth: 3 of 20 parts are actually defective
     part_truth = [False] * 17 + [True] * 3
     random.shuffle(part_truth)
+    parts3 = []
     for i in range(20):
         cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, NULL, ?)",
-            (study3, f"Panel-{i+1:02d}", i + 1))
+            (study3, f"Panel-{i+1:02d}", i))
         parts3.append((cur.lastrowid, part_truth[i]))
 
     for op_idx, op_id in enumerate(ops3):
         for part_idx, (part_id, is_defective) in enumerate(parts3):
             for rep in range(2):
-                # Operators have ~95% accuracy on clear cases, ~80% on borderline
                 if is_defective:
-                    call = "Fail" if random.random() < 0.85 else "Pass"
+                    call = "fail" if random.random() < 0.85 else "pass"
                 else:
-                    call = "Pass" if random.random() < 0.95 else "Fail"
+                    call = "pass" if random.random() < 0.95 else "fail"
                 cur.execute("""INSERT INTO msa_measurement
                     (study_id, operator_id, part_id, replicate_num, value, attribute_value, timestamp)
                     VALUES (?, ?, ?, ?, 0.0, ?, ?)""",
@@ -2404,7 +2400,7 @@ def seed_msa(cur: sqlite3.Cursor) -> None:
     ops4 = []
     for i, name in enumerate(["David Kim", "Sarah Foster", "Carlos Reyes"]):
         cur.execute("INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
-            (study4, name, i + 1))
+            (study4, name, i))
         ops4.append(cur.lastrowid)
 
     # Parts: 10 parts spread around 50.000mm nominal +/- 0.012
@@ -2412,7 +2408,7 @@ def seed_msa(cur: sqlite3.Cursor) -> None:
     part4_refs = [50.000 + 0.012 * (i - 5) / 5 for i in range(10)]  # 49.988 to 50.012
     for i in range(10):
         cur.execute("INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
-            (study4, f"Part-C{i+1:02d}", round(part4_refs[i], 4), i + 1))
+            (study4, f"Part-C{i+1:02d}", round(part4_refs[i], 4), i))
         parts4.append(cur.lastrowid)
 
     # Partial measurements: operator 1 complete (10 parts x 3 reps = 30),
@@ -2482,13 +2478,13 @@ def seed_fai(cur: sqlite3.Cursor) -> None:
         (10, "Twist Angle", 32.00, 32.50, 31.50, 32.15, "deg", "CMM", True, "pass"),
         (11, "Platform Height", 12.00, 12.15, 11.85, 12.08, "mm", "CMM", True, "pass"),
         (12, "Dovetail Width", 18.50, 18.60, 18.40, 18.52, "mm", "CMM", True, "pass"),
-        (13, "Cooling Hole Diameter", 0.80, 0.85, 0.75, 0.78, "mm", "Pin Gauge", True, "rework"),
+        (13, "Cooling Hole Diameter", 0.80, 0.85, 0.75, 0.78, "mm", "Pin Gauge", True, "deviation"),
         (14, "Weight", 145.0, 150.0, 140.0, 146.2, "g", "Scale", False, "pass"),
         (15, "Hardness HRC", 36.0, 40.0, 34.0, 37.5, "HRC", "Rockwell", False, "pass"),
     ]
 
     for balloon, name, nom, usl, lsl, actual, unit, tools, designed, result in blade_items:
-        deviation = "Cooling hole 0.78mm below min 0.75mm — reworked per NCR-2026-042" if result == "rework" else None
+        deviation = "Cooling hole 0.78mm below min 0.75mm — reworked per NCR-2026-042" if result == "deviation" else None
         cur.execute("""INSERT INTO fai_item
             (report_id, balloon_number, characteristic_name, nominal, usl, lsl, actual_value,
              unit, tools_used, designed_char, result, deviation_reason, characteristic_id, sequence_order)
@@ -2550,13 +2546,13 @@ def seed_fai(cur: sqlite3.Cursor) -> None:
         (1, "Main Bore Diameter", 65.000, 65.025, 64.975, 65.008, "mm", "CMM", True, "pass"),
         (2, "Bearing Seat Width", 25.400, 25.425, 25.375, 25.412, "mm", "CMM", True, "pass"),
         (3, "Face Flatness", 0.000, 0.010, None, 0.004, "mm", "CMM", True, "pass"),
-        (4, "Bolt Hole Pattern PCD", 82.000, 82.050, 81.950, None, "mm", "CMM", True, "pending"),
-        (5, "Oil Gallery Diameter", 8.000, 8.030, 7.970, None, "mm", "Bore Gauge", True, "pending"),
+        (4, "Bolt Hole Pattern PCD", 82.000, 82.050, 81.950, None, "mm", "CMM", True, "fail"),
+        (5, "Oil Gallery Diameter", 8.000, 8.030, 7.970, None, "mm", "Bore Gauge", True, "fail"),
         (6, "Surface Finish Main Bore", 0.400, 0.800, None, 0.520, "um", "Profilometer", False, "pass"),
-        (7, "Parallelism Bearing Faces", 0.000, 0.015, None, None, "mm", "CMM", True, "pending"),
+        (7, "Parallelism Bearing Faces", 0.000, 0.015, None, None, "mm", "CMM", True, "fail"),
         (8, "Thread Depth M8", 12.000, 12.500, 11.500, 12.200, "mm", "Thread Gauge", True, "pass"),
         (9, "Dowel Pin Hole", 10.000, 10.010, 9.990, 10.003, "mm", "Pin Gauge", True, "pass"),
-        (10, "Overall Length", 180.000, 180.100, 179.900, None, "mm", "CMM", True, "pending"),
+        (10, "Overall Length", 180.000, 180.100, 179.900, None, "mm", "CMM", True, "fail"),
         (11, "Weight", 4.200, 4.500, 3.900, 4.280, "kg", "Scale", False, "pass"),
         (12, "Hardness HRC", 28.0, 34.0, 24.0, 30.5, "HRC", "Rockwell", False, "pass"),
     ]
@@ -3022,7 +3018,7 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
     cur.execute("""INSERT INTO doe_study
         (plant_id, name, design_type, resolution, status, response_name, response_unit,
          notes, created_by, created_at, updated_at)
-        VALUES (?, 'Injection Molding Optimization', 'full_factorial', NULL, 'analyzed',
+        VALUES (?, 'Injection Molding Optimization', 'full_factorial', NULL, 'pending_calc',
                 'Tensile Strength', 'MPa',
                 'Full 2^3 factorial to optimize tensile strength of injection-molded housings.',
                 ?, ?, ?)""",
@@ -3041,7 +3037,8 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
             (study_id, name, low, high, center, unit, order))
 
     # 8 runs (2^3): model y = 65 + 5*x1 + 3*x2 - 2*x3 + 1.5*x1*x2 - 0.8*x1*x3
-    design = [
+    # Status is 'pending_calc' — finalize_calculations() will run analysis
+    doe_design = [
         (-1, -1, -1), (+1, -1, -1), (-1, +1, -1), (+1, +1, -1),
         (-1, -1, +1), (+1, -1, +1), (-1, +1, +1), (+1, +1, +1),
     ]
@@ -3049,19 +3046,20 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
     random.shuffle(run_order)
 
     for run_idx, std_idx in enumerate(run_order):
-        x1, x2, x3 = design[std_idx]
-        y = (65.0 + 5.0 * x1 + 3.0 * x2 - 2.0 * x3
-             + 1.5 * x1 * x2 - 0.8 * x1 * x3 + random.gauss(0, 0.8))
-        coded = json.dumps({"Temperature": float(x1), "Pressure": float(x2),
-                            "Cooling Rate": float(x3)})
-        actual = json.dumps({"Temperature": 200.0 + 20.0 * x1,
-                             "Pressure": 50.0 + 10.0 * x2,
-                             "Cooling Rate": 10.0 + 5.0 * x3})
+        x1, x2, x3 = doe_design[std_idx]
+        y = round(65.0 + 5.0 * x1 + 3.0 * x2 - 2.0 * x3
+                  + 1.5 * x1 * x2 - 0.8 * x1 * x3 + random.gauss(0, 0.8), 2)
+        # factor_values stores actual values (matching DOEEngine.generate_design)
+        actual_vals = {"Temperature": 200.0 + 20.0 * x1,
+                       "Pressure": 50.0 + 10.0 * x2,
+                       "Cooling Rate": 10.0 + 5.0 * x3}
+        fv_json = json.dumps(actual_vals)
+        fa_json = json.dumps(actual_vals)
         cur.execute("""INSERT INTO doe_run
             (study_id, run_order, standard_order, factor_values, factor_actuals,
              response_value, is_center_point, replicate, notes, completed_at)
             VALUES (?, ?, ?, ?, ?, ?, 0, 1, NULL, ?)""",
-            (study_id, run_idx + 1, std_idx + 1, coded, actual, round(y, 2), now))
+            (study_id, run_idx + 1, std_idx + 1, fv_json, fa_json, y, now))
 
     # Second DOE study — draft status (Detroit, for demonstrating the design flow)
     cur.execute("""INSERT INTO doe_study
@@ -3083,43 +3081,6 @@ def seed_analytics(cur: sqlite3.Cursor) -> None:
             (study_id, name, low_level, high_level, center_point, unit, display_order)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (study2_id, name, low, high, center, unit, order))
-
-    # Analysis for Study 1
-    anova = {
-        "source": ["Temperature", "Pressure", "Cooling Rate",
-                    "Temperature*Pressure", "Temperature*Cooling Rate", "Residual"],
-        "df": [1, 1, 1, 1, 1, 2],
-        "ss": [200.0, 72.0, 32.0, 18.0, 5.12, 1.85],
-        "ms": [200.0, 72.0, 32.0, 18.0, 5.12, 0.925],
-        "f": [216.2, 77.8, 34.6, 19.5, 5.5],
-        "p": [0.0046, 0.0126, 0.0278, 0.0479, 0.1435],
-    }
-    effects = {
-        "Temperature": {"effect": 10.0, "coefficient": 5.0, "significant": True},
-        "Pressure": {"effect": 6.0, "coefficient": 3.0, "significant": True},
-        "Cooling Rate": {"effect": -4.0, "coefficient": -2.0, "significant": True},
-    }
-    interactions = {
-        "Temperature*Pressure": {"effect": 3.0, "coefficient": 1.5, "significant": True},
-        "Temperature*Cooling Rate": {"effect": -1.6, "coefficient": -0.8, "significant": False},
-    }
-    regression = {
-        "intercept": 65.0,
-        "coefficients": {
-            "Temperature": 5.0, "Pressure": 3.0, "Cooling Rate": -2.0,
-            "Temperature*Pressure": 1.5, "Temperature*Cooling Rate": -0.8,
-        },
-    }
-    optimal = {
-        "Temperature": 220.0, "Pressure": 60.0, "Cooling Rate": 5.0,
-        "predicted_response": 77.3,
-    }
-    cur.execute("""INSERT INTO doe_analysis
-        (study_id, anova_table, effects, interactions, r_squared, adj_r_squared,
-         regression_model, optimal_settings, computed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (study_id, json.dumps(anova), json.dumps(effects), json.dumps(interactions),
-         0.994, 0.979, json.dumps(regression), json.dumps(optimal), now))
 
     # ══════════════════════════════════════════════════════════════════════
     # AI Config + Pre-seeded Insights
@@ -3328,6 +3289,260 @@ def seed_dummy_server() -> None:
     _log.info("Dummy server configuration complete!")
 
 
+# ── Finalize: run engines on raw seed data ────────────────────────────────
+
+
+def finalize_calculations(cur: sqlite3.Cursor) -> None:
+    """Run the real calculation engines on seeded raw data.
+
+    Finds all studies/analyses in 'pending_calc' status, loads their raw
+    data from the DB, runs the same engines the API uses, and stores the
+    computed results.  This guarantees stored values always match what
+    Show Your Work will recalculate.
+    """
+    import math
+
+    now = utcnow()
+
+    # ── Characteristic UCL/LCL ────────────────────────────────────────
+    # Recompute from stored_sigma + stored_center_line + subgroup_size
+    # so they match the explain endpoint's recalculation exactly.
+    # Only for standard Shewhart charts (skip CUSUM/EWMA which compute
+    # their own limits, and attribute charts which have no stored sigma).
+
+    cur.execute(
+        "SELECT id, subgroup_size, stored_sigma, stored_center_line, chart_type "
+        "FROM characteristic "
+        "WHERE stored_sigma IS NOT NULL AND stored_center_line IS NOT NULL "
+        "AND data_type='variable'"
+    )
+    for char_id, n, sigma, center, chart_type in cur.fetchall():
+        if chart_type in ("cusum", "ewma"):
+            continue
+        n = n or 1
+        sigma_for_limits = sigma / math.sqrt(n) if n > 1 else sigma
+        ucl = center + 3 * sigma_for_limits
+        lcl = center - 3 * sigma_for_limits
+        cur.execute(
+            "UPDATE characteristic SET ucl=?, lcl=? WHERE id=?",
+            (ucl, lcl, char_id),
+        )
+
+    # ── MSA studies ──────────────────────────────────────────────────────
+
+    engine = GageRREngine()
+    attr_engine = AttributeMSAEngine()
+
+    cur.execute(
+        "SELECT id, study_type, num_operators, num_parts, num_replicates, tolerance "
+        "FROM msa_study WHERE status='pending_calc'"
+    )
+    pending_msa = cur.fetchall()
+
+    for sid, stype, n_ops, n_parts, n_reps, tolerance in pending_msa:
+        # Load operator/part IDs in sequence order
+        cur.execute(
+            "SELECT id FROM msa_operator WHERE study_id=? ORDER BY sequence_order",
+            (sid,),
+        )
+        op_ids = [r[0] for r in cur.fetchall()]
+        cur.execute(
+            "SELECT id FROM msa_part WHERE study_id=? ORDER BY sequence_order",
+            (sid,),
+        )
+        part_ids = [r[0] for r in cur.fetchall()]
+
+        op_index = {oid: i for i, oid in enumerate(op_ids)}
+        part_index = {pid: i for i, pid in enumerate(part_ids)}
+
+        if stype in ("crossed_anova", "range_method", "nested_anova"):
+            # Variable study — build float 3D array
+            data_3d: list[list[list[float | None]]] = [
+                [[None] * n_reps for _ in range(n_parts)]
+                for _ in range(n_ops)
+            ]
+            cur.execute(
+                "SELECT operator_id, part_id, replicate_num, value "
+                "FROM msa_measurement WHERE study_id=?",
+                (sid,),
+            )
+            for oid, pid, rep, val in cur.fetchall():
+                oi, pi = op_index.get(oid), part_index.get(pid)
+                if oi is not None and pi is not None:
+                    data_3d[oi][pi][rep - 1] = val
+
+            if stype == "crossed_anova":
+                result = engine.calculate_crossed_anova(data_3d, tolerance)  # type: ignore[arg-type]
+            elif stype == "range_method":
+                result = engine.calculate_range_method(data_3d, tolerance)  # type: ignore[arg-type]
+            else:
+                result = engine.calculate_nested_anova(data_3d, tolerance)  # type: ignore[arg-type]
+
+            cur.execute(
+                "UPDATE msa_study SET status='complete', completed_at=?, results_json=? "
+                "WHERE id=?",
+                (now, json.dumps(asdict(result)), sid),
+            )
+
+        elif stype == "attribute_agreement":
+            # Attribute study — build string 3D array
+            attr_3d: list[list[list[str | None]]] = [
+                [[None] * n_reps for _ in range(n_parts)]
+                for _ in range(n_ops)
+            ]
+            cur.execute(
+                "SELECT operator_id, part_id, replicate_num, attribute_value "
+                "FROM msa_measurement WHERE study_id=?",
+                (sid,),
+            )
+            for oid, pid, rep, val in cur.fetchall():
+                oi, pi = op_index.get(oid), part_index.get(pid)
+                if oi is not None and pi is not None:
+                    attr_3d[oi][pi][rep - 1] = val
+
+            cur.execute(
+                "SELECT name FROM msa_operator WHERE study_id=? ORDER BY sequence_order",
+                (sid,),
+            )
+            op_names = [r[0] for r in cur.fetchall()]
+
+            result = attr_engine.calculate(attr_3d, operator_names=op_names)  # type: ignore[arg-type]
+
+            cur.execute(
+                "UPDATE msa_study SET status='complete', completed_at=?, results_json=? "
+                "WHERE id=?",
+                (now, json.dumps(asdict(result)), sid),
+            )
+
+    # ── DOE analyses ─────────────────────────────────────────────────────
+
+    import numpy as np
+    from cassini.core.doe.analysis import (
+        compute_anova,
+        compute_interactions,
+        compute_main_effects,
+    )
+    from itertools import combinations
+
+    cur.execute(
+        "SELECT id, design_type FROM doe_study WHERE status='pending_calc'"
+    )
+    pending_doe = cur.fetchall()
+
+    for study_id, design_type in pending_doe:
+        # Load factor definitions
+        cur.execute(
+            "SELECT name, low_level, high_level, center_point "
+            "FROM doe_factor WHERE study_id=? ORDER BY display_order",
+            (study_id,),
+        )
+        factors = cur.fetchall()
+        if not factors:
+            continue
+        factor_names = [f[0] for f in factors]
+        factor_defs = [
+            {"name": f[0], "low_level": f[1], "high_level": f[2], "center_point": f[3]}
+            for f in factors
+        ]
+
+        # Load runs with responses
+        cur.execute(
+            "SELECT factor_values, response_value FROM doe_run "
+            "WHERE study_id=? AND response_value IS NOT NULL "
+            "ORDER BY standard_order",
+            (study_id,),
+        )
+        runs = cur.fetchall()
+        if not runs:
+            continue
+
+        # Build design matrix by converting actual values → coded
+        # (mirrors DOEEngine.analyze)
+        design_rows = []
+        response_vals = []
+        for fv_json, resp in runs:
+            fv = json.loads(fv_json)
+            row = []
+            for fdef in factor_defs:
+                low = fdef["low_level"]
+                high = fdef["high_level"]
+                center = fdef["center_point"] or (low + high) / 2.0
+                half_range = (high - low) / 2.0
+                if half_range > 0:
+                    actual_val = fv.get(fdef["name"], center)
+                    row.append((actual_val - center) / half_range)
+                else:
+                    row.append(0.0)
+            design_rows.append(row)
+            response_vals.append(float(resp))
+
+        design_mat = np.array(design_rows)
+        response_arr = np.array(response_vals)
+        grand_mean = float(np.mean(response_arr))
+
+        # Compute full-model MSE (same as DOEEngine.analyze)
+        n_obs, k = design_mat.shape
+        int_pairs = list(combinations(range(k), 2))
+        cols = [np.ones(n_obs)]
+        for c in range(k):
+            cols.append(design_mat[:, c])
+        for i, j in int_pairs:
+            cols.append(design_mat[:, i] * design_mat[:, j])
+        X_full = np.column_stack(cols)
+        df_resid_full = n_obs - X_full.shape[1]
+
+        beta = np.linalg.lstsq(X_full, response_arr, rcond=None)[0]
+        resid = response_arr - X_full @ beta
+        ss_resid = float(np.sum(resid ** 2))
+        mse_full = ss_resid / df_resid_full if df_resid_full > 0 else max(ss_resid, 1e-30)
+
+        effects = compute_main_effects(
+            design_mat, response_arr, factor_names,
+            mse_override=mse_full, df_resid_override=df_resid_full,
+        )
+        interactions = compute_interactions(
+            design_mat, response_arr, factor_names,
+            mse_override=mse_full, df_resid_override=df_resid_full,
+        )
+        anova = compute_anova(design_mat, response_arr, factor_names)
+
+        anova_json = json.dumps([
+            {"source": row.source, "df": row.df,
+             "sum_of_squares": row.sum_of_squares,
+             "mean_square": row.mean_square,
+             "f_value": row.f_value, "p_value": row.p_value}
+            for row in anova.rows
+        ])
+        effects_json = json.dumps([
+            {"factor_name": e.factor_name, "effect": e.effect,
+             "coefficient": e.coefficient,
+             "sum_of_squares": e.sum_of_squares,
+             "t_statistic": e.t_statistic,
+             "p_value": e.p_value, "significant": e.significant}
+            for e in effects
+        ])
+        interactions_json = json.dumps([
+            {"factors": list(ix.factors), "effect": ix.effect,
+             "coefficient": ix.coefficient,
+             "sum_of_squares": ix.sum_of_squares,
+             "t_statistic": ix.t_statistic,
+             "p_value": ix.p_value, "significant": ix.significant}
+            for ix in interactions
+        ])
+
+        cur.execute("""INSERT INTO doe_analysis
+            (study_id, anova_table, effects, interactions, r_squared, adj_r_squared,
+             regression_model, optimal_settings, grand_mean, computed_at)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)""",
+            (study_id, anova_json, effects_json, interactions_json,
+             anova.r_squared, anova.adj_r_squared, grand_mean, now))
+
+        cur.execute(
+            "UPDATE doe_study SET status='analyzed', updated_at=? WHERE id=?",
+            (now, study_id),
+        )
+
+
 # ── Async entry point (DevTools page) ─────────────────────────────────────
 
 async def seed() -> None:
@@ -3403,6 +3618,8 @@ async def seed() -> None:
     seed_compliance(cur)
     print("Seeding analytics (multivariate, predictions, DOE, AI)...")
     seed_analytics(cur)
+    print("Finalizing calculations (running engines on raw data)...")
+    finalize_calculations(cur)
 
     conn.commit()
     conn.close()
@@ -3504,6 +3721,8 @@ def main() -> None:
     seed_compliance(cur)
     print("Seeding analytics (multivariate, predictions, DOE, AI)...")
     seed_analytics(cur)
+    print("Finalizing calculations (running engines on raw data)...")
+    finalize_calculations(cur)
 
     conn.commit()
 

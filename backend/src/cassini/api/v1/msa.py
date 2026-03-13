@@ -587,12 +587,12 @@ async def calculate_gage_rr(
         "resource_id": study.id,
         "action": "calculate",
         "summary": f"Gage R&R calculated for '{study.name}'"
-                   + (f": GRR={result.grr_percent:.1f}%, ndc={result.ndc}" if result else ""),
+                   + (f": GRR={result.pct_study_grr:.1f}%, ndc={result.ndc}" if result else ""),
         "fields": {
             "study_name": study.name,
             "study_type": study.study_type,
             "method": study.study_type,
-            "grr_percent": round(result.grr_percent, 2) if result else None,
+            "grr_percent": round(result.pct_study_grr, 2) if result else None,
             "ndc": result.ndc if result else None,
             "plant_id": study.plant_id,
         },
@@ -720,15 +720,19 @@ async def calculate_attribute_msa(
     return AttributeMSAResultResponse.model_validate(asdict(result))
 
 
-@router.get("/studies/{study_id}/results")
+@router.get(
+    "/studies/{study_id}/results",
+    response_model=GageRRResultResponse | AttributeMSAResultResponse,
+)
 async def get_results(
     study_id: int,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
-) -> dict:
+) -> GageRRResultResponse | AttributeMSAResultResponse:
     """Get cached calculation results for an MSA study.
 
-    Returns the stored results_json parsed back to a dictionary.
+    Returns the stored results_json validated through the appropriate
+    response schema based on study type.
     Requires engineer+ role for the study's plant.
     """
     study = await _get_study_or_404(session, study_id)
@@ -740,4 +744,9 @@ async def get_results(
             detail="No results available — run calculate first",
         )
 
-    return json.loads(study.results_json)
+    raw = json.loads(study.results_json)
+
+    if study.study_type == "attribute_agreement":
+        return AttributeMSAResultResponse.model_validate(raw)
+    else:
+        return GageRRResultResponse.model_validate(raw)

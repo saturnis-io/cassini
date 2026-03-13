@@ -118,7 +118,7 @@ class FAIReportResponse(BaseModel):
     special_processes: str | None
     functional_test_results: str | None
     status: str
-    created_by: int
+    created_by: int | None
     created_at: datetime
     submitted_by: int | None
     submitted_at: datetime | None

@@ -7,6 +7,49 @@ import type {
 } from './client'
 import { fetchApi } from './client'
 
+// ---- FAI Form Data (AS9102 export) ----
+
+interface FAIForm1PartAccountability {
+  part_number: string
+  part_name: string | null
+  revision: string | null
+  serial_number: string | null
+  lot_number: string | null
+  drawing_number: string | null
+  organization_name: string | null
+  supplier: string | null
+  purchase_order: string | null
+  reason_for_inspection: string | null
+  created_by: number | null
+  created_at: string | null
+  submitted_at: string | null
+  approved_by: number | null
+  approved_at: string | null
+}
+
+interface FAIForm2ProductAccountability {
+  material_supplier: string | null
+  material_spec: string | null
+  special_processes: string | null
+  functional_test_results: string | null
+}
+
+interface FAIForm3CharacteristicAccountability {
+  total_characteristics: number
+  pass_count: number
+  fail_count: number
+  deviation_count: number
+  items: FAIItem[]
+}
+
+export interface FAIFormData {
+  report_id: number
+  status: string
+  form1_part_accountability: FAIForm1PartAccountability
+  form2_product_accountability: FAIForm2ProductAccountability
+  form3_characteristic_accountability: FAIForm3CharacteristicAccountability
+}
+
 // ---- FAI API ----
 
 export const faiApi = {
@@ -63,5 +106,5 @@ export const faiApi = {
     }),
 
   getForms: (reportId: number) =>
-    fetchApi<FAIReportDetail>(`/fai/reports/${reportId}/forms`),
+    fetchApi<FAIFormData>(`/fai/reports/${reportId}/forms`),
 }

@@ -48,11 +48,6 @@ const DESIGN_TYPES = [
     description: 'Subset of runs using aliasing. Efficient for 4-7 factors.',
   },
   {
-    value: 'plackett_burman',
-    label: 'Plackett-Burman',
-    description: 'Screening design. Identifies significant main effects only.',
-  },
-  {
     value: 'central_composite',
     label: 'Central Composite (CCD)',
     description: 'Full factorial + star points + center points. Response surface methodology.',
@@ -573,7 +568,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
             {analysis ? (
               <div className="space-y-8">
                 <ANOVATable
-                  anova={analysis.anova}
+                  anova={analysis.anova_table}
                   r_squared={analysis.r_squared}
                   adj_r_squared={analysis.adj_r_squared}
                 />
@@ -670,7 +665,7 @@ function DefineOverview({ study }: { study: NonNullable<ReturnType<typeof useDOE
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">Factors</div>
-          <div className="mt-1 text-sm font-semibold">{study.factor_count}</div>
+          <div className="mt-1 text-sm font-semibold">{study.factors?.length ?? 0}</div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">Runs</div>

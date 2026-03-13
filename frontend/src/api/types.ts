@@ -339,9 +339,10 @@ export interface FAIReport {
   functional_test_results: string | null
   status: 'draft' | 'submitted' | 'approved' | 'rejected'
   rejection_reason: string | null
-  created_by: number
+  created_by: number | null
+  submitted_by: number | null
+  approved_by: number | null
   created_at: string
-  updated_at: string | null
   submitted_at: string | null
   approved_at: string | null
 }
@@ -572,4 +573,41 @@ export interface GagePortCreate {
   parse_pattern?: string | null
   characteristic_id?: number | null
   is_active?: boolean
+}
+
+// ---- Plant Health Analytics Types ----
+
+export interface CharacteristicHealth {
+  characteristic_id: number
+  name: string
+  hierarchy_path: string
+  data_type: string
+  cpk: number | null
+  ppk: number | null
+  in_control_pct: number
+  sample_count: number
+  violation_count: number
+  unacknowledged_count: number
+  risk_score: number
+  health_status: 'good' | 'warning' | 'critical'
+  last_sample_at: string | null
+}
+
+export interface HealthSummary {
+  good_count: number
+  warning_count: number
+  critical_count: number
+  avg_cpk: number | null
+  worst_characteristic: string | null
+  worst_cpk: number | null
+}
+
+export interface PlantHealthResponse {
+  plant_id: number
+  plant_name: string
+  generated_at: string
+  window_days: number
+  total_characteristics: number
+  summary: HealthSummary
+  characteristics: CharacteristicHealth[]
 }

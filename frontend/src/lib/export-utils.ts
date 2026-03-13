@@ -1,178 +1,247 @@
 import { applyFormat } from '@/lib/date-format'
+import { NELSON_RULES } from '@/components/ViolationLegend'
 
 /**
- * Convert a CSS color string to RGB using Canvas 2D pixel readback.
- * Works with any color format the browser supports (oklab, oklch, lab, lch, color-mix, etc.)
- * because it renders to a pixel and reads back the RGBA values.
+ * Data accepted by the native PDF report builder.
+ * Uses minimal inline types to avoid coupling to full API type definitions.
  */
-function cssColorToRgb(cssColor: string): string | null {
-  try {
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = 1
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-
-    ctx.clearRect(0, 0, 1, 1)
-    ctx.fillStyle = '#000000' // reset
-    ctx.fillStyle = cssColor // set target color — ignored if invalid
-    ctx.fillRect(0, 0, 1, 1)
-
-    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
-    if (a === 0) return 'transparent'
-    if (a >= 254) return `rgb(${r}, ${g}, ${b})`
-    return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`
-  } catch {
-    return null
-  }
-}
-
-/** Pattern matching modern CSS color functions that html2canvas cannot parse */
-const UNSUPPORTED_COLOR_RE = /oklch|oklab|lab\(|lch\(|color-mix\(|color\(/
-
-/** Names of CSS color functions that need conversion */
-const COLOR_FN_NAMES = ['oklch', 'oklab', 'lab', 'lch', 'color-mix', 'color']
-const COLOR_FN_RE = new RegExp(`(${COLOR_FN_NAMES.join('|')})\\(`, 'g')
-
-/**
- * Replace all modern CSS color functions within a value string with RGB
- * equivalents.  Handles compound values like box-shadow that mix colors
- * with lengths, and nested parens like color-mix(in srgb, oklch(...) 50%, …).
- */
-function replaceModernColors(value: string): string {
-  let result = ''
-  let lastIndex = 0
-  let match
-
-  COLOR_FN_RE.lastIndex = 0
-  while ((match = COLOR_FN_RE.exec(value)) !== null) {
-    result += value.slice(lastIndex, match.index)
-
-    // Walk forward to find the balanced closing paren
-    let depth = 1
-    let i = match.index + match[0].length
-    while (i < value.length && depth > 0) {
-      if (value[i] === '(') depth++
-      else if (value[i] === ')') depth--
-      i++
+export interface ReportPdfData {
+  title: string
+  characteristicName: string
+  hierarchyPath?: string
+  chartImage?: { dataURL: string; aspectRatio: number }
+  chartData?: {
+    data_points: Array<{
+      timestamp: string
+      mean: number
+      zone: string
+      violation_rules: number[]
+      excluded: boolean
+    }>
+    control_limits: {
+      ucl: number | null
+      lcl: number | null
+      center_line: number | null
     }
-
-    const colorExpr = value.substring(match.index, i)
-    const rgb = cssColorToRgb(colorExpr)
-    // If canvas conversion fails (e.g. contains var()), fall back to
-    // transparent so html2canvas doesn't throw on the unsupported function.
-    result += rgb ?? 'transparent'
-    lastIndex = i
+    decimal_precision?: number
   }
-
-  result += value.slice(lastIndex)
-  return result
+  violations?: Array<{
+    id: number
+    created_at: string | null
+    rule_id: number
+    rule_name: string
+    severity: string
+    acknowledged: boolean
+  }>
+  annotations?: Array<{
+    text: string
+    annotation_type: string
+    created_by: string | null
+    created_at: string
+  }>
+  capability?: {
+    cp: number | null
+    cpk: number | null
+    pp: number | null
+    ppk: number | null
+    sigma_within: number | null
+    usl: number | null
+    lsl: number | null
+  }
 }
 
 /**
- * Walk every element in `root` and force any modern-CSS color values
- * to RGB inline styles so html2canvas can parse them.
- *
- * Iterates ALL computed style properties (not a fixed list) so that
- * compound properties like box-shadow, background shorthand, etc. are
- * also covered.
+ * Build a native PDF report using jsPDF + autotable.
+ * Chart rendered as an image; everything else as proper tables.
+ * No html2canvas, no CSS dark-mode issues.
  */
-function forceRgbColors(root: HTMLElement) {
-  const walk = (el: HTMLElement) => {
-    const view = el.ownerDocument.defaultView
-    if (!view) return
-    const computed = view.getComputedStyle(el)
+export async function exportReportToPdf(
+  data: ReportPdfData,
+  filename: string,
+  datetimeFormat = 'YYYY-MM-DD HH:mm:ss',
+) {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
 
-    for (let i = 0; i < computed.length; i++) {
-      const prop = computed[i]
-      const value = computed.getPropertyValue(prop)
-      if (UNSUPPORTED_COLOR_RE.test(value)) {
-        const fixed = replaceModernColors(value)
-        if (fixed !== value) {
-          el.style.setProperty(prop, fixed, 'important')
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  let y = margin
+
+  // ── Header ──────────────────────────────────────────────────────────
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text(data.title, margin, y)
+  y += 7
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100)
+  doc.text(`Characteristic: ${data.characteristicName}`, margin, y)
+  y += 4.5
+  if (data.hierarchyPath) {
+    doc.text(`Path: ${data.hierarchyPath}`, margin, y)
+    y += 4.5
+  }
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y)
+  y += 4.5
+  doc.setTextColor(0)
+
+  // Divider
+  doc.setDrawColor(200)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 5
+
+  // ── Chart Image ─────────────────────────────────────────────────────
+  if (data.chartImage) {
+    const maxHeight = 65 // mm — keep chart compact so tables fit on page 1
+    const naturalHeight = contentWidth / data.chartImage.aspectRatio
+    const chartHeight = Math.min(naturalHeight, maxHeight)
+    const chartWidth = chartHeight * data.chartImage.aspectRatio
+
+    doc.addImage(data.chartImage.dataURL, 'PNG', margin, y, chartWidth, chartHeight)
+    y += chartHeight + 5
+  }
+
+  // ── Nelson Rules (active violations) ────────────────────────────────
+  if (data.chartData) {
+    const ruleCounts = new Map<number, number>()
+    for (const point of data.chartData.data_points) {
+      if (!point.excluded) {
+        for (const ruleId of point.violation_rules) {
+          ruleCounts.set(ruleId, (ruleCounts.get(ruleId) || 0) + 1)
         }
       }
     }
 
-    for (const child of el.children) {
-      if (child instanceof HTMLElement) walk(child)
+    if (ruleCounts.size > 0) {
+      const ruleRows = [...ruleCounts.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([id, count]) => [
+          String(id),
+          NELSON_RULES[id]?.name || `Rule ${id}`,
+          NELSON_RULES[id]?.description || '',
+          String(count),
+        ])
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Rule', 'Name', 'Description', 'Count']],
+        body: ruleRows,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [231, 76, 60] },
+        columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 15 } },
+        theme: 'striped',
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
     }
   }
-  walk(root)
-}
 
-/**
- * Sanitize all stylesheets in the cloned document by replacing unsupported
- * CSS color functions (oklab, oklch, etc.) with RGB equivalents in the raw
- * CSS text.  This is necessary because html2canvas parses stylesheets
- * directly (for pseudo-elements, cascade, etc.) — inline style overrides
- * alone are not sufficient.
- */
-function sanitizeStylesheets(doc: Document) {
-  doc.querySelectorAll('style').forEach((styleEl) => {
-    const text = styleEl.textContent
-    if (text && UNSUPPORTED_COLOR_RE.test(text)) {
-      styleEl.textContent = replaceModernColors(text)
+  // ── Process Statistics ──────────────────────────────────────────────
+  if (data.chartData) {
+    const points = data.chartData.data_points.filter((p) => !p.excluded)
+    const values = points.map((p) => p.mean)
+    const n = values.length
+
+    if (n > 0) {
+      const mean = values.reduce((a, b) => a + b, 0) / n
+      const variance = n > 1 ? values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1) : 0
+      const stdDev = Math.sqrt(variance)
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+
+      const dp = data.chartData.decimal_precision ?? 4
+      const f = (v: number | null | undefined) => (v != null ? v.toFixed(dp) : '—')
+
+      const statsBody = [
+        ['Count', String(n), 'Mean', f(mean)],
+        ['Std Dev', f(stdDev), 'Range', f(max - min)],
+        ['Min', f(min), 'Max', f(max)],
+        [
+          'UCL',
+          f(data.chartData.control_limits.ucl),
+          'LCL',
+          f(data.chartData.control_limits.lcl),
+        ],
+        ['Center Line', f(data.chartData.control_limits.center_line), '', ''],
+      ]
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Statistic', 'Value', 'Statistic', 'Value']],
+        body: statsBody,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [41, 128, 185] },
+        theme: 'striped',
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
     }
-  })
-}
-
-/**
- * Export an HTML element to PDF
- */
-export async function exportToPdf(
-  element: HTMLElement,
-  filename: string,
-  options?: { orientation?: 'portrait' | 'landscape' },
-) {
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-    import('html2canvas'),
-    import('jspdf'),
-  ])
-  // Side-effect import — patches jsPDF prototype with autoTable method
-  await import('jspdf-autotable')
-
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    logging: false,
-    useCORS: true,
-    backgroundColor: '#ffffff',
-    onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
-      // 1. Sanitize raw CSS in <style> tags — covers pseudo-elements,
-      //    cascade rules, and anything html2canvas parses from stylesheets.
-      sanitizeStylesheets(clonedDoc)
-      // 2. Override computed styles on elements as a belt-and-suspenders
-      //    measure for any resolved values that still contain modern colors.
-      forceRgbColors(clonedElement)
-    },
-  })
-
-  const imgData = canvas.toDataURL('image/png')
-
-  const pdf = new jsPDF({
-    orientation: options?.orientation ?? 'portrait',
-    unit: 'mm',
-  })
-
-  const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
-  const imgWidth = pageWidth - 20 // 10mm margins
-  const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-  // Handle multi-page if content is too tall
-  let heightLeft = imgHeight
-  let position = 10 // Top margin
-
-  pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight)
-  heightLeft -= pageHeight
-
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight + 10
-    pdf.addPage()
-    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight
   }
 
-  pdf.save(`${filename}.pdf`)
+  // ── Capability Metrics ──────────────────────────────────────────────
+  if (data.capability) {
+    const cap = data.capability
+    const f = (v: number | null | undefined) => (v != null ? v.toFixed(4) : '—')
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Metric', 'Value', 'Metric', 'Value']],
+      body: [
+        ['Cp', f(cap.cp), 'Cpk', f(cap.cpk)],
+        ['Pp', f(cap.pp), 'Ppk', f(cap.ppk)],
+        ['LSL', f(cap.lsl), 'USL', f(cap.usl)],
+        ['σ within', f(cap.sigma_within), '', ''],
+      ],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [39, 174, 96] },
+      theme: 'striped',
+    })
+    y = (doc as any).lastAutoTable.finalY + 6
+  }
+
+  // ── Violations ──────────────────────────────────────────────────────
+  if (data.violations && data.violations.length > 0) {
+    autoTable(doc, {
+      startY: y,
+      head: [['ID', 'Date', 'Rule', 'Severity', 'Status']],
+      body: data.violations.map((v) => [
+        String(v.id),
+        v.created_at ? applyFormat(new Date(v.created_at), datetimeFormat) : '—',
+        `Rule ${v.rule_id}: ${v.rule_name}`,
+        v.severity,
+        v.acknowledged ? 'Acknowledged' : 'Pending',
+      ]),
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [192, 57, 43] },
+      theme: 'striped',
+    })
+    y = (doc as any).lastAutoTable.finalY + 6
+  }
+
+  // ── Annotations ─────────────────────────────────────────────────────
+  if (data.annotations && data.annotations.length > 0) {
+    autoTable(doc, {
+      startY: y,
+      head: [['Date', 'Type', 'Note', 'Author']],
+      body: data.annotations.map((a) => [
+        applyFormat(new Date(a.created_at), datetimeFormat),
+        a.annotation_type === 'period' ? 'Period' : 'Point',
+        a.text,
+        a.created_by || '—',
+      ]),
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [142, 68, 173] },
+      theme: 'striped',
+    })
+  }
+
+  doc.save(`${filename}.pdf`)
 }
 
 /**
@@ -187,6 +256,25 @@ export async function exportToExcel(
   const ws = XLSX.utils.json_to_sheet(data)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  XLSX.writeFile(wb, `${filename}.xlsx`)
+}
+
+/**
+ * Export data to Excel (.xlsx) with multiple sheets.
+ * Each sheet gets its own tab with independent column schemas,
+ * avoiding the blank-column problem from concatenating mixed-schema rows.
+ */
+export async function exportToExcelMultiSheet(
+  sheets: Array<{ name: string; data: Record<string, unknown>[] }>,
+  filename: string,
+) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  for (const sheet of sheets) {
+    if (sheet.data.length === 0) continue
+    const ws = XLSX.utils.json_to_sheet(sheet.data)
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name)
+  }
   XLSX.writeFile(wb, `${filename}.xlsx`)
 }
 

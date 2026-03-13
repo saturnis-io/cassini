@@ -9,8 +9,9 @@ import { CharacteristicContextBar } from '@/components/CharacteristicContextBar'
 import { NoCharacteristicState } from '@/components/NoCharacteristicState'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useChartData, useViolations } from '@/api/hooks'
-import { FileText } from 'lucide-react'
+import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability } from '@/api/hooks'
+import { useLicense } from '@/hooks/useLicense'
+import { FileText, Lock } from 'lucide-react'
 
 export function ReportsView() {
   const [searchParams] = useSearchParams()
@@ -18,9 +19,16 @@ export function ReportsView() {
   const selectedCharId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedCharId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const reportContentRef = useRef<HTMLDivElement>(null)
+  const { isCommercial } = useLicense()
 
   // Use the same time range state as the dashboard
   const timeRange = useDashboardStore((state) => state.timeRange)
+
+  // Filter templates based on license — commercial templates hidden for community
+  const availableTemplates = useMemo(
+    () => REPORT_TEMPLATES.filter((t) => !t.commercial || isCommercial),
+    [isCommercial],
+  )
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit selectedTemplate to avoid re-running on template change
@@ -35,7 +43,7 @@ export function ReportsView() {
         setSelectedCharId(ids[0])
         // Auto-select first template if not already selected
         if (!selectedTemplate) {
-          setSelectedTemplate(REPORT_TEMPLATES[0])
+          setSelectedTemplate(availableTemplates[0])
         }
       }
     }
@@ -72,21 +80,37 @@ export function ReportsView() {
     timeRange.endDate,
   ])
 
-  // Fetch data for export functionality
+  // Plant-scoped templates don't need a characteristic
+  const isPlantScoped = selectedTemplate?.scope === 'plant'
+
+  // Fetch data for export functionality (React Query caches, so these
+  // don't cause extra network requests vs. the ones in ReportPreview)
   const { data: chartData } = useChartData(selectedCharId || 0, chartOptions)
   const { data: violations } = useViolations({
     characteristic_id: selectedCharId || undefined,
     per_page: 100,
   })
+  const { data: characteristic } = useCharacteristic(selectedCharId || 0)
+  const { data: annotations } = useAnnotations(selectedCharId || 0, !!selectedCharId)
+  const { data: capability } = useCapability(selectedCharId || 0)
 
-  // Build export data
+  // Build export data with all fields needed for PDF/Excel/CSV
   const exportData = useMemo(
     () => ({
       chartData: chartData ?? undefined,
       violations: violations?.items ?? [],
+      characteristicName: characteristic?.name,
+      hierarchyPath: (characteristic as any)?.hierarchy_path as string | undefined,
+      templateName: selectedTemplate?.name,
+      annotations: annotations ?? [],
+      capability: capability ?? undefined,
     }),
-    [chartData, violations],
+    [chartData, violations, characteristic, annotations, capability, selectedTemplate],
   )
+
+  // Determine whether we can show the report
+  const needsCharacteristic = !isPlantScoped && !selectedCharId
+  const canExport = isPlantScoped || (selectedCharId && chartData)
 
   return (
     <div data-ui="reports-page" className="flex h-[calc(100vh-10rem)] flex-col gap-4">
@@ -99,17 +123,27 @@ export function ReportsView() {
             aria-label="Report template"
             value={selectedTemplate?.id ?? ''}
             onChange={(e) => {
-              const tmpl = REPORT_TEMPLATES.find((t) => t.id === e.target.value)
+              const tmpl = availableTemplates.find((t) => t.id === e.target.value)
               setSelectedTemplate(tmpl ?? null)
             }}
             className="bg-background border-input rounded-md border px-3 py-1.5 text-sm font-medium"
           >
             <option value="">Select template...</option>
-            {REPORT_TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+            {availableTemplates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.commercial ? '★ ' : ''}{t.name}
+              </option>
             ))}
           </select>
         </div>
+
+        {/* Commercial badge for selected template */}
+        {selectedTemplate?.commercial && (
+          <span className="bg-primary/10 text-primary flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium">
+            <Lock className="h-3 w-3" />
+            Commercial
+          </span>
+        )}
 
         {/* Divider */}
         <div className="border-border h-6 border-l" />
@@ -123,16 +157,26 @@ export function ReportsView() {
             contentRef={reportContentRef}
             exportData={exportData}
             filename={`${selectedTemplate?.id ?? 'report'}-report`}
-            disabled={!selectedCharId}
+            disabled={!canExport}
           />
         </div>
       </div>
 
-      {/* Characteristic context bar */}
-      <CharacteristicContextBar />
+      {/* Characteristic context bar — hidden for plant-scoped templates */}
+      {!isPlantScoped && <CharacteristicContextBar />}
+
+      {/* Plant scope indicator for plant-wide templates */}
+      {isPlantScoped && (
+        <div className="bg-primary/5 border-primary/20 flex items-center gap-2 rounded-lg border px-4 py-2 text-sm">
+          <Lock className="text-primary h-4 w-4" />
+          <span className="text-muted-foreground">
+            This report covers all characteristics in the current plant.
+          </span>
+        </div>
+      )}
 
       {/* Report preview — full width */}
-      {!selectedCharId ? (
+      {needsCharacteristic ? (
         <NoCharacteristicState />
       ) : !selectedTemplate ? (
         <div className="flex flex-1 items-center justify-center">
@@ -149,7 +193,7 @@ export function ReportsView() {
           <ErrorBoundary>
             <ReportPreview
               template={selectedTemplate}
-              characteristicIds={[selectedCharId]}
+              characteristicIds={selectedCharId ? [selectedCharId] : []}
               chartOptions={chartOptions}
             />
           </ErrorBoundary>

@@ -30,10 +30,10 @@ export interface DOEStudy {
   response_unit: string | null
   notes: string | null
   status: 'design' | 'collecting' | 'analyzed'
-  factor_count: number
   run_count: number
+  factors: DOEFactor[]
   created_at: string
-  created_by: string | null
+  created_by: number | null
 }
 
 export interface DOEStudyDetail extends DOEStudy {
@@ -86,7 +86,7 @@ export interface DOEInteraction {
 }
 
 export interface DOEAnalysis {
-  anova: DOEANOVARow[]
+  anova_table: DOEANOVARow[]
   effects: DOEEffect[]
   interactions: DOEInteraction[]
   r_squared: number

@@ -558,8 +558,8 @@ def calculate_capability(
                         rf"\chi^2_{{0.025, {cp_ci_df}}} = {chi2_lo:.4f},\;"
                         rf"\chi^2_{{0.975, {cp_ci_df}}} = {chi2_hi:.4f}"
                     ),
-                    result=(cp_lower, cp_upper),
-                    note=f"ISO 22514-2:2017 Section 7.2.3, df={cp_ci_df}",
+                    result=cp_lower,
+                    note=f"95% CI: [{cp_lower:.4f}, {cp_upper:.4f}]. ISO 22514-2:2017 Section 7.2.3, df={cp_ci_df}",
                 )
 
         # ---- Cpk CI (normal approximation, Kushler & Hurley 1992) ----

@@ -32,7 +32,7 @@ const TOOLTIPS: Record<string, string> = {
   pv: 'Part Variation. The actual variation between parts being measured. A good measurement system has PV >> GRR.',
   ndc: 'Number of Distinct Categories. How many groups of parts the gage can reliably distinguish. ndc \u2265 5 is required for adequate discrimination (AIAG MSA 4th Ed).',
   pct_contribution: '% Contribution = (variance component / total variance) \u00d7 100. Shows how much each source accounts for in total variation. Values sum to 100%.',
-  pct_study: '% Study Variation = (6\u00d7\u03c3 component / 6\u00d7\u03c3 total) \u00d7 100. Based on standard deviations, not variances. More conservative than %Contribution.',
+  pct_study: '% Study Variation = (\u03c3 component / \u03c3 total) \u00d7 100. Based on standard deviations, not variances. More conservative than %Contribution.',
   pct_tolerance: 'P/T Ratio (Precision to Tolerance) = (5.15\u00d7\u03c3 GRR / tolerance) \u00d7 100. Compares measurement variation to the spec range. Only available when tolerance (USL\u2212LSL) is provided. \u226410% acceptable, 10-30% marginal, >30% unacceptable.',
   anova: 'Analysis of Variance. Decomposes total variation into operator, part, and interaction components. p < 0.05 indicates a statistically significant effect.',
   interaction: 'Operator \u00d7 Part interaction. If significant (p < 0.05), some operators measure certain parts differently \u2014 suggests inconsistent technique.',
@@ -285,7 +285,7 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
           style={{
             width: '100%',
             height: 200,
-            display: varianceView === 'bar' ? 'block' : 'none',
+            visibility: varianceView === 'bar' ? ('visible' as const) : ('hidden' as const),
           }}
         />
         {varianceView === 'fishbone' && (

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -459,26 +460,57 @@ async def submit_report(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
-) -> FAIReportResponse:
+) -> FAIReportResponse | JSONResponse:
     """Submit an FAI report for approval. Changes status: draft → submitted.
 
     Requires engineer+ role for the report's plant.
-    If a signature workflow is configured for ``fai_report``, a workflow
-    instance is automatically initiated.
+    If a signature workflow is configured for ``fai_report``, the endpoint
+    blocks the status transition until signatures are collected.  On first
+    call it returns **428 Precondition Required** with
+    ``signature_required: true`` and a ``workflow_instance_id``.  The
+    frontend collects signatures via the ``SignatureDialog``, then re-calls
+    this endpoint — the second call detects the completed workflow and
+    proceeds with the status change.
     """
     report = await _get_report_or_404(session, report_id)
     check_plant_role(user, report.plant_id, "engineer")
     _require_draft(report)
 
+    # Check if a signature workflow is required BEFORE changing status
+    sig_engine = SignatureWorkflowEngine(session)
+    workflow_required = await sig_engine.check_workflow_required(
+        session, "fai_report", report.plant_id,
+    )
+
+    if workflow_required:
+        workflow_complete = await sig_engine.check_workflow_complete(
+            "fai_report", report.id,
+        )
+        if not workflow_complete:
+            # Re-use an existing pending instance or create a new one
+            instance = await sig_engine.get_or_create_pending_workflow(
+                "fai_report", report.id, user.id, report.plant_id,
+            )
+            await session.commit()
+            logger.info(
+                "fai_submit_blocked_pending_signature",
+                report_id=report_id,
+                workflow_instance_id=instance.id,
+                user=user.username,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                content={
+                    "detail": "Signature required before submission",
+                    "signature_required": True,
+                    "workflow_instance_id": instance.id,
+                },
+            )
+
     report.status = "submitted"
     report.submitted_by = user.id
     report.submitted_at = datetime.now(timezone.utc)
     report.rejection_reason = None  # Clear any previous rejection
-
-    # Initiate signature workflow if required for this plant
-    sig_engine = SignatureWorkflowEngine(session)
-    if await sig_engine.check_workflow_required(session, "fai_report", report.plant_id):
-        await sig_engine.initiate_workflow("fai_report", report.id, user.id, report.plant_id)
 
     await session.commit()
     await session.refresh(report)
@@ -506,13 +538,18 @@ async def approve_report(
     request: Request,
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
-) -> FAIReportResponse:
+) -> FAIReportResponse | JSONResponse:
     """Approve a submitted FAI report. Changes status: submitted → approved.
 
     Requires engineer+ role for the report's plant.
     Enforces separation of duties: approver cannot be the submitter.
-    If a signature workflow is configured for ``fai_report``, a new
-    workflow instance is initiated for the approval action.
+    If a signature workflow is configured for ``fai_report``, the endpoint
+    blocks the status transition until signatures are collected.  On first
+    call it returns **428 Precondition Required** with
+    ``signature_required: true`` and a ``workflow_instance_id``.  The
+    frontend collects signatures via the ``SignatureDialog``, then re-calls
+    this endpoint — the second call detects the completed workflow and
+    proceeds with the status change.
     """
     report = await _get_report_or_404(session, report_id)
     check_plant_role(user, report.plant_id, "engineer")
@@ -530,17 +567,42 @@ async def approve_report(
             detail="Separation of duties: the approver cannot be the same person who submitted the report",
         )
 
+    # Check if a signature workflow is required BEFORE changing status
+    sig_engine = SignatureWorkflowEngine(session)
+    workflow_required = await sig_engine.check_workflow_required(
+        session, "fai_report", report.plant_id,
+    )
+
+    if workflow_required:
+        workflow_complete = await sig_engine.check_workflow_complete(
+            "fai_report", report.id,
+        )
+        if not workflow_complete:
+            # Re-use an existing pending/in-progress workflow, or
+            # create a new one (invalidating stale signatures first).
+            instance = await sig_engine.get_or_create_pending_workflow(
+                "fai_report", report.id, user.id, report.plant_id,
+                invalidate_prior=True,
+            )
+            await session.commit()
+            logger.info(
+                "fai_approve_blocked_pending_signature",
+                report_id=report_id,
+                workflow_instance_id=instance.id,
+                user=user.username,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                content={
+                    "detail": "Signature required before approval",
+                    "signature_required": True,
+                    "workflow_instance_id": instance.id,
+                },
+            )
+
     report.status = "approved"
     report.approved_by = user.id
     report.approved_at = datetime.now(timezone.utc)
-
-    # Invalidate prior signatures and initiate approval workflow if required
-    sig_engine = SignatureWorkflowEngine(session)
-    await sig_engine.invalidate_signatures_for_resource(
-        "fai_report", report.id, reason="FAI report approved — new signature cycle",
-    )
-    if await sig_engine.check_workflow_required(session, "fai_report", report.plant_id):
-        await sig_engine.initiate_workflow("fai_report", report.id, user.id, report.plant_id)
 
     await session.commit()
     await session.refresh(report)
@@ -585,6 +647,12 @@ async def reject_report(
 
     report.status = "draft"
     report.rejection_reason = body.reason
+
+    # Invalidate any prior signatures — status has changed
+    sig_engine = SignatureWorkflowEngine(session)
+    await sig_engine.invalidate_signatures_for_resource(
+        "fai_report", report.id, reason="FAI report rejected",
+    )
 
     await session.commit()
     await session.refresh(report)
