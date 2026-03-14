@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { usePlants } from '@/api/hooks'
+import { useToggleRolesLock } from '@/api/hooks/users'
 import { ROLE_LABELS, type Role } from '@/lib/roles'
 import type { UserResponse } from '@/api/client'
 import { userFormSchema } from '@/schemas/users'
@@ -225,6 +226,9 @@ export function UserFormDialog({
             </div>
           )}
 
+          {/* SSO Role Lock (edit mode only) */}
+          {mode === 'edit' && user && <RolesLockToggle user={user} />}
+
           {/* Plant Role Assignments */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -299,6 +303,37 @@ export function UserFormDialog({
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Standalone toggle for the SSO role lock flag.
+ * Calls the API directly (not part of the form submit flow).
+ */
+function RolesLockToggle({ user }: { user: UserResponse }) {
+  const toggleMutation = useToggleRolesLock()
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <input
+          id="roles-locked"
+          type="checkbox"
+          checked={user.roles_locked}
+          onChange={(e) =>
+            toggleMutation.mutate({ userId: user.id, locked: e.target.checked })
+          }
+          disabled={toggleMutation.isPending}
+          className="border-border h-4 w-4 rounded"
+        />
+        <label htmlFor="roles-locked" className="text-foreground text-sm">
+          Lock roles (prevent SSO overwrite)
+        </label>
+      </div>
+      <p className="text-muted-foreground pl-6 text-xs">
+        When enabled, SSO login will not overwrite manually-assigned roles for this user.
+      </p>
     </div>
   )
 }

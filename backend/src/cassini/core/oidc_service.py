@@ -456,6 +456,9 @@ class OIDCService:
     ) -> None:
         """Map OIDC groups/claims to Cassini roles.
 
+        If the user's roles_locked flag is set, role mapping is skipped entirely.
+        This allows admins to manually assign roles without SSO overwriting them.
+
         The role_mapping config supports two formats:
 
         Legacy (all-plant):
@@ -469,6 +472,14 @@ class OIDCService:
         and values are either a role string or a dict mapping plant IDs to roles.
         The special key "*" means all plants.
         """
+        if user.roles_locked:
+            logger.info(
+                "oidc_role_mapping_skipped",
+                user_id=user.id,
+                username=user.username,
+                reason="roles_locked",
+            )
+            return
         role_mapping = config.role_mapping_dict
         if not role_mapping:
             # No role mapping configured -- assign default role to all plants

@@ -112,6 +112,12 @@ export const userApi = {
 
   removeRole: (userId: number, plantId: number) =>
     fetchApi<void>(`/users/${userId}/roles/${plantId}`, { method: 'DELETE' }),
+
+  toggleRolesLock: (userId: number, locked: boolean) =>
+    fetchApi<UserResponse>(`/users/${userId}/roles-lock`, {
+      method: 'PATCH',
+      body: JSON.stringify({ locked }),
+    }),
 }
 
 // Audit Log API

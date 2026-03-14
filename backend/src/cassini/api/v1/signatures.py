@@ -441,10 +441,13 @@ async def get_signatures_for_resource(
 @router.get("/verify/{signature_id}", response_model=VerifyResponse)
 async def verify_signature(
     signature_id: int,
+    plant_id: int = Query(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Verify a signature's integrity."""
+    """Verify a signature's chain-of-custody integrity (supervisor+)."""
+    check_plant_role(user, plant_id, "supervisor")
+
     engine = SignatureWorkflowEngine(session)
     result = await engine.verify_signature(signature_id)
     return VerifyResponse(**result)

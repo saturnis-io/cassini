@@ -54,6 +54,8 @@ const ACTION_LABELS: Record<string, string> = {
   batch_create: 'Batch Create',
   batch_create_async: 'Batch Create (Async)',
   batch_evaluate: 'Batch SPC Evaluate',
+  lock_roles: 'Lock Roles',
+  unlock_roles: 'Unlock Roles',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -85,6 +87,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   correlation: 'Correlation',
   prediction: 'Prediction',
   ai_config: 'AI Config',
+  correlation_analysis: 'Correlation Analysis',
   doe_study: 'DOE Study',
   system_settings: 'System Settings',
   auth: 'Auth',
@@ -128,6 +131,8 @@ function ActionBadge({ action }: { action: string }) {
     password_reset_completed: 'bg-warning/10 text-warning',
     email_verified: 'bg-primary/10 text-primary',
     profile_updated: 'bg-primary/10 text-primary',
+    lock_roles: 'bg-warning/10 text-warning',
+    unlock_roles: 'bg-warning/10 text-warning',
   }
   return (
     <span

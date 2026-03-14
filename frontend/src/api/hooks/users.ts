@@ -106,3 +106,17 @@ export function useRemoveRole() {
     onError: handleMutationError('Failed to remove role'),
   })
 }
+
+export function useToggleRolesLock() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, locked }: { userId: number; locked: boolean }) =>
+      userApi.toggleRolesLock(userId, locked),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      toast.success(variables.locked ? 'Roles locked (SSO will not overwrite)' : 'Roles unlocked')
+    },
+    onError: handleMutationError('Failed to toggle role lock'),
+  })
+}

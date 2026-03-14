@@ -43,6 +43,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     pending_email: Optional[str] = None
     is_active: bool
+    roles_locked: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -82,6 +83,12 @@ class LoginResponse(TokenResponse):
 
     user: UserWithRolesResponse
     must_change_password: bool = False
+
+
+class RolesLockUpdate(BaseModel):
+    """Schema for toggling the SSO role lock on a user."""
+
+    locked: bool
 
 
 class ChangePasswordRequest(BaseModel):

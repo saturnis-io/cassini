@@ -70,20 +70,17 @@ class SignatureResponse(BaseModel):
 
 
 class VerifyResponse(BaseModel):
-    """Response from verifying a signature's integrity."""
+    """Response from verifying a signature's chain-of-custody integrity."""
 
     signature_id: int
-    is_valid: bool
-    signer_name: str
-    full_name: str | None
-    timestamp: datetime
+    is_tamper_free: bool
+    resource_hash_valid: bool
+    signature_hash_valid: bool
+    signed_by: str
+    signed_at: str
     meaning: str
     resource_type: str
-    resource_id: int
-    stored_hash: str
-    current_hash: str | None
-    hash_match: bool
-    signature_chain_valid: bool
+    resource_id: str
 
 
 class PreviousSignatureInfo(BaseModel):

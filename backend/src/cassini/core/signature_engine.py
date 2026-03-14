@@ -234,6 +234,34 @@ class SignatureWorkflowEngine:
         )
         return instance
 
+    async def _check_password_expiry(self, user: User, plant_id: int) -> None:
+        """Check if the user's password has expired per the plant's policy.
+
+        Raises HTTP 403 if the password is expired.
+        """
+        from cassini.db.models.signature import PasswordPolicy
+
+        policy_result = await self._session.execute(
+            select(PasswordPolicy).where(PasswordPolicy.plant_id == plant_id)
+        )
+        policy = policy_result.scalar_one_or_none()
+        if policy is None or policy.password_expiry_days <= 0:
+            return
+
+        if user.password_changed_at is None:
+            # Never set — treat as expired if policy requires expiry
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password has expired. Please reset your password before signing.",
+            )
+
+        expiry_threshold = user.password_changed_at + timedelta(days=policy.password_expiry_days)
+        if datetime.now(timezone.utc) > expiry_threshold:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password has expired. Please reset your password before signing.",
+            )
+
     async def sign(
         self,
         workflow_instance_id: int,
@@ -247,6 +275,7 @@ class SignatureWorkflowEngine:
     ) -> ElectronicSignature:
         """Execute a signature on the current workflow step.
 
+        0. Check password expiry
         1. Verify password
         2. Check user meets minimum role for this step
         3. Check not self-signing (if disallowed)
@@ -255,6 +284,9 @@ class SignatureWorkflowEngine:
         6. Advance workflow
         7. Publish events
         """
+        # Check password expiry before attempting verification
+        await self._check_password_expiry(user, plant_id)
+
         # Verify password with lockout tracking
         if not verify_password(password, user.hashed_password):
             user.failed_login_count = (user.failed_login_count or 0) + 1
@@ -454,6 +486,9 @@ class SignatureWorkflowEngine:
         user_agent: str | None = None,
     ) -> ElectronicSignature:
         """Execute a standalone signature (no workflow)."""
+        # Check password expiry before attempting verification
+        await self._check_password_expiry(user, plant_id)
+
         if not verify_password(password, user.hashed_password):
             user.failed_login_count = (user.failed_login_count or 0) + 1
             from cassini.db.models.signature import PasswordPolicy
@@ -701,7 +736,15 @@ class SignatureWorkflowEngine:
         return invalidated_ids
 
     async def verify_signature(self, signature_id: int) -> dict:
-        """Verify a signature's integrity by recomputing hashes."""
+        """Verify a signature's full chain-of-custody integrity.
+
+        Performs two independent checks:
+        1. Resource hash — has the signed resource been modified since signing?
+        2. Signature hash — can the stored signature_hash be recomputed from
+           (user_id, timestamp, meaning_code, resource_hash)?
+
+        Returns a structured dict suitable for the SignatureVerificationResult schema.
+        """
         sig = await self._sig_repo.get_by_id(signature_id)
         if sig is None:
             raise HTTPException(
@@ -709,28 +752,32 @@ class SignatureWorkflowEngine:
                 detail="Signature not found",
             )
 
-        # Recompute resource hash from current content
+        # 1. Recompute resource hash from current content
         resource_data = await self.load_resource_content(
             self._session, sig.resource_type, sig.resource_id
         )
         current_resource_hash = compute_resource_hash(sig.resource_type, resource_data)
+        resource_hash_valid = sig.resource_hash == current_resource_hash
+
+        # 2. Recompute signature hash from stored fields
         expected_sig_hash = compute_signature_hash(
             sig.user_id, sig.timestamp, sig.meaning_code, sig.resource_hash
         )
+        signature_hash_valid = sig.signature_hash == expected_sig_hash
+
+        # Tamper-free requires both hashes to match
+        is_tamper_free = resource_hash_valid and signature_hash_valid
 
         return {
             "signature_id": sig.id,
-            "is_valid": sig.is_valid,
-            "signer_name": sig.username,
-            "full_name": sig.full_name,
-            "timestamp": sig.timestamp,
+            "is_tamper_free": is_tamper_free,
+            "resource_hash_valid": resource_hash_valid,
+            "signature_hash_valid": signature_hash_valid,
+            "signed_by": sig.username,
+            "signed_at": sig.timestamp.isoformat() if sig.timestamp else "",
             "meaning": sig.meaning_display,
             "resource_type": sig.resource_type,
-            "resource_id": sig.resource_id,
-            "stored_hash": sig.resource_hash,
-            "current_hash": current_resource_hash,
-            "hash_match": sig.resource_hash == current_resource_hash,
-            "signature_chain_valid": sig.signature_hash == expected_sig_hash,
+            "resource_id": str(sig.resource_id),
         }
 
 

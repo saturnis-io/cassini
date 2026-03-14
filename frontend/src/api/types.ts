@@ -46,6 +46,7 @@ export interface UserResponse {
   username: string
   email: string | null
   is_active: boolean
+  roles_locked: boolean
   created_at: string
   updated_at: string
   plant_roles: {

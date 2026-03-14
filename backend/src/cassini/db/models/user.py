@@ -69,6 +69,9 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     pending_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    roles_locked: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.False_(), nullable=False
+    )
 
     # Relationships
     plant_roles: Mapped[list["UserPlantRole"]] = relationship(

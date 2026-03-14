@@ -12,6 +12,7 @@ from cassini.api.deps import get_current_admin, get_user_repo, invalidate_user_c
 from cassini.api.schemas.user import (
     PlantRoleAssign,
     PlantRoleResponse,
+    RolesLockUpdate,
     UserCreate,
     UserResponse,
     UserUpdate,
@@ -42,6 +43,7 @@ def _build_user_with_roles(user: User) -> UserWithRolesResponse:
         username=user.username,
         email=user.email,
         is_active=user.is_active,
+        roles_locked=user.roles_locked,
         created_at=user.created_at,
         updated_at=user.updated_at,
         plant_roles=plant_roles,
@@ -265,6 +267,48 @@ async def delete_user_permanent(
             "permanent": True,
         },
     }
+
+
+@router.patch("/{user_id}/roles-lock", response_model=UserResponse)
+async def toggle_roles_lock(
+    request: Request,
+    user_id: int,
+    data: RolesLockUpdate,
+    current_user: User = Depends(get_current_admin),
+    repo: UserRepository = Depends(get_user_repo),
+) -> UserResponse:
+    """Toggle the SSO role lock for a user. Admin only.
+
+    When locked, SSO login will not overwrite the user's manually-assigned roles.
+    """
+    user = await repo.get_by_id(user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found",
+        )
+
+    old_value = user.roles_locked
+    user.roles_locked = data.locked
+    await repo.session.flush()
+    await repo.session.refresh(user)
+
+    invalidate_user_cache(user_id)
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "lock_roles" if data.locked else "unlock_roles",
+        "summary": f"SSO role lock {'enabled' if data.locked else 'disabled'} for '{user.username}'",
+        "fields": {
+            "target_username": user.username,
+            "old_roles_locked": old_value,
+            "new_roles_locked": data.locked,
+            "changed_by": current_user.username,
+        },
+    }
+
+    return UserResponse.model_validate(user)
 
 
 @router.post("/{user_id}/roles", response_model=UserWithRolesResponse)

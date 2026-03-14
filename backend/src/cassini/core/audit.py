@@ -57,6 +57,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/oidc/links(?:/(\d+))?"), "oidc_link"),
     (re.compile(r"/api/v1/push/"), "push_subscription"),
     (re.compile(r"/api/v1/erp/connectors(?:/(\d+))?"), "erp_connector"),
+    (re.compile(r"/api/v1/correlation/"), "correlation_analysis"),
     (re.compile(r"/api/v1/multivariate/groups(?:/(\d+))?"), "multivariate_group"),
     (re.compile(r"/api/v1/multivariate/correlation/"), "correlation"),
     (re.compile(r"/api/v1/predictions(?:/(\d+))?"), "prediction"),
@@ -131,6 +132,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "sync"
     if "/dismiss" in path:
         return "dismiss"
+    if "/roles-lock" in path:
+        return "lock_roles"
     if "/purge" in path:
         return "purge"
     if "/cusum-reset" in path:
