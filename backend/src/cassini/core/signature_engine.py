@@ -256,6 +256,9 @@ class SignatureWorkflowEngine:
             )
 
         expiry_threshold = user.password_changed_at + timedelta(days=policy.password_expiry_days)
+        # Normalize for SQLite which strips tzinfo
+        if expiry_threshold.tzinfo is None:
+            expiry_threshold = expiry_threshold.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) > expiry_threshold:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -284,6 +287,17 @@ class SignatureWorkflowEngine:
         6. Advance workflow
         7. Publish events
         """
+        # Check account lockout before any password operations
+        if user.locked_until and user.locked_until.tzinfo is None:
+            locked = user.locked_until.replace(tzinfo=timezone.utc)
+        else:
+            locked = user.locked_until
+        if locked and datetime.now(timezone.utc) < locked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is temporarily locked due to too many failed attempts",
+            )
+
         # Check password expiry before attempting verification
         await self._check_password_expiry(user, plant_id)
 
@@ -486,6 +500,17 @@ class SignatureWorkflowEngine:
         user_agent: str | None = None,
     ) -> ElectronicSignature:
         """Execute a standalone signature (no workflow)."""
+        # Check account lockout before any password operations
+        if user.locked_until and user.locked_until.tzinfo is None:
+            locked = user.locked_until.replace(tzinfo=timezone.utc)
+        else:
+            locked = user.locked_until
+        if locked and datetime.now(timezone.utc) < locked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is temporarily locked due to too many failed attempts",
+            )
+
         # Check password expiry before attempting verification
         await self._check_password_expiry(user, plant_id)
 
@@ -585,6 +610,17 @@ class SignatureWorkflowEngine:
         ip_address: str | None = None,
     ) -> None:
         """Reject a workflow at the current step."""
+        # Check account lockout before any password operations
+        if user.locked_until and user.locked_until.tzinfo is None:
+            locked = user.locked_until.replace(tzinfo=timezone.utc)
+        else:
+            locked = user.locked_until
+        if locked and datetime.now(timezone.utc) < locked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is temporarily locked due to too many failed attempts",
+            )
+
         if not verify_password(password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -821,10 +857,14 @@ def compute_signature_hash(
     resource_hash: str,
 ) -> str:
     """Compute HMAC-SHA256 tamper-detection hash binding signature to record."""
+    # Normalize to UTC naive for deterministic hashing across all DB backends
+    ts = timestamp
+    if ts.tzinfo is not None:
+        ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
     canonical = json.dumps(
         {
             "user_id": user_id,
-            "timestamp": timestamp.isoformat(),
+            "timestamp": ts.isoformat(),
             "meaning_code": meaning_code,
             "resource_hash": resource_hash,
         },
