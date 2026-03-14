@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from cassini.core.licensing import LicenseService
+from cassini.core.licensing import LicenseService, LicenseTier, PRO_FEATURES, ENTERPRISE_FEATURES
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ class TestLicenseServiceCommercial:
         expires = datetime.now(timezone.utc) + timedelta(days=30)
         path, pub = make_license({
             "sub": "acme",
-            "tier": "professional",
+            "tier": "pro",
             "max_plants": 5,
             "expires_at": expires.isoformat(),
         })
@@ -168,13 +168,13 @@ class TestLicenseServiceCommercial:
         key_file.write_bytes(public_pem)
         path, _ = make_license({
             "sub": "acme",
-            "tier": "professional",
+            "tier": "pro",
             "max_plants": 5,
             "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
         })
         svc = LicenseService(license_path=str(path), public_key_path=str(key_file))
         assert svc.is_commercial is True
-        assert svc.tier == "professional"
+        assert svc.tier == "pro"
         assert svc.max_plants == 5
 
     def test_public_key_file_not_found(self, make_license):
@@ -532,3 +532,132 @@ class TestActivationFile:
         assert result is not None
         assert result["type"] == "cassini-deactivation"
         assert result["licenseId"] == "acme-corp"
+
+
+class TestThreeTierLicensing:
+    """Tests for three-tier licensing: community, pro, enterprise."""
+
+    def test_pro_tier_is_commercial(self, make_license):
+        """Pro license: is_commercial=True, tier='pro', is_pro=True, is_enterprise=False."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.is_commercial is True
+        assert svc.tier == "pro"
+        assert svc.is_pro is True
+        assert svc.is_enterprise is False
+
+    def test_enterprise_tier(self, make_license):
+        """Enterprise license: is_commercial=True, tier='enterprise', is_pro=False, is_enterprise=True."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.is_commercial is True
+        assert svc.tier == "enterprise"
+        assert svc.is_pro is False
+        assert svc.is_enterprise is True
+
+    def test_pro_has_feature_msa(self, make_license):
+        """Pro tier should have msa-gage-rr, doe, opc-ua."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.has_feature("msa-gage-rr") is True
+        assert svc.has_feature("doe") is True
+        assert svc.has_feature("opc-ua") is True
+
+    def test_pro_lacks_enterprise_features(self, make_license):
+        """Pro tier should NOT have enterprise-only features."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.has_feature("electronic-signatures") is False
+        assert svc.has_feature("first-article-inspection") is False
+        assert svc.has_feature("multivariate-spc") is False
+        assert svc.has_feature("anomaly-detection") is False
+        assert svc.has_feature("sso-oidc") is False
+
+    def test_enterprise_has_all_features(self, make_license):
+        """Enterprise tier should have both pro and enterprise features."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "enterprise",
+            "max_plants": 20,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        for feature in PRO_FEATURES:
+            assert svc.has_feature(feature) is True, f"Enterprise should have pro feature: {feature}"
+        for feature in ENTERPRISE_FEATURES:
+            assert svc.has_feature(feature) is True, f"Enterprise should have enterprise feature: {feature}"
+
+    def test_community_has_no_paid_features(self):
+        """Community tier should have no paid features."""
+        svc = LicenseService(license_path=None, public_key=b"unused")
+        for feature in PRO_FEATURES:
+            assert svc.has_feature(feature) is False, f"Community should not have: {feature}"
+        for feature in ENTERPRISE_FEATURES:
+            assert svc.has_feature(feature) is False, f"Community should not have: {feature}"
+
+    def test_expired_pro_has_no_features(self, make_license):
+        """Expired pro license should have no features (falls back to community)."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        assert svc.is_expired is True
+        assert svc.has_feature("msa-gage-rr") is False
+        assert svc.has_feature("doe") is False
+        assert svc.has_feature("electronic-signatures") is False
+
+    def test_status_shows_pro_tier(self, make_license):
+        """Pro license status should show tier='pro', edition='commercial'."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        status = svc.status()
+        assert status["tier"] == "pro"
+        assert status["edition"] == "commercial"
+
+    def test_dev_commercial_is_enterprise(self):
+        """dev_commercial=True should be enterprise tier."""
+        svc = LicenseService(license_path=None, dev_commercial=True)
+        assert svc.tier == "enterprise"
+        assert svc.is_enterprise is True
+
+    def test_expired_license_status_shows_original_tier(self, make_license):
+        """Expired pro license status should show edition=community, tier=community, licensed_tier=pro."""
+        path, pub = make_license({
+            "sub": "acme",
+            "tier": "pro",
+            "max_plants": 5,
+            "expires_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        })
+        svc = LicenseService(license_path=str(path), public_key=pub)
+        status = svc.status()
+        assert status["edition"] == "community"
+        assert status["tier"] == "community"
+        assert status["licensed_tier"] == "pro"

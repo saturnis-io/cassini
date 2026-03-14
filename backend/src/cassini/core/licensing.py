@@ -10,11 +10,33 @@ import socket
 import structlog
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 
 import jwt
 
 logger = structlog.get_logger(__name__)
+
+
+class LicenseTier(str, Enum):
+    COMMUNITY = "community"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+
+PRO_FEATURES = frozenset({
+    "multi-plant", "enterprise-databases", "opc-ua", "unlimited-mqtt",
+    "msa-gage-rr", "doe", "non-normal-distributions", "rule-presets",
+    "ishikawa", "correlation", "scheduled-reporting", "api-keys",
+    "push-notifications", "email-alerts",
+})
+
+ENTERPRISE_FEATURES = frozenset({
+    "gage-bridge", "electronic-signatures", "first-article-inspection",
+    "multivariate-spc", "anomaly-detection", "predictive-analytics",
+    "ai-analysis", "sso-oidc", "erp-connectors", "data-retention",
+    "database-admin", "async-spc", "dedicated-support",
+})
 
 # Bundled public key ships with Cassini — used to verify license JWTs from saturnis.io
 _BUNDLED_PUBLIC_KEY_PATH = Path(__file__).resolve().parent.parent / "license_public_key.pem"
@@ -159,8 +181,28 @@ class LicenseService:
     @property
     def tier(self) -> str:
         if not self.is_commercial:
-            return "community"
-        return self._claims.get("tier", "professional")
+            return LicenseTier.COMMUNITY.value
+        raw = self._claims.get("tier", "enterprise") if self._claims else "community"
+        try:
+            return LicenseTier(raw).value
+        except ValueError:
+            return LicenseTier.ENTERPRISE.value
+
+    @property
+    def is_pro(self) -> bool:
+        return self.tier == LicenseTier.PRO.value
+
+    @property
+    def is_enterprise(self) -> bool:
+        return self.tier == LicenseTier.ENTERPRISE.value
+
+    def has_feature(self, feature: str) -> bool:
+        t = self.tier
+        if t == LicenseTier.ENTERPRISE.value:
+            return feature in PRO_FEATURES or feature in ENTERPRISE_FEATURES
+        if t == LicenseTier.PRO.value:
+            return feature in PRO_FEATURES
+        return False
 
     @property
     def max_plants(self) -> int:
@@ -309,16 +351,16 @@ class LicenseService:
             return {
                 "edition": "community",
                 "tier": "community",
-                "licensed_tier": self._claims.get("tier", "professional") if self._claims else None,
+                "licensed_tier": self._claims.get("tier") if self._claims else None,
                 "max_plants": 1,
                 "is_expired": True,
                 "expires_at": self._claims.get("expires_at") if self._claims else None,
                 "instance_id": self._instance_id,
             }
-        licensed_tier = self._claims.get("tier", "professional") if self._claims else None
+        licensed_tier = self._claims.get("tier") if self._claims else None
         return {
             "edition": "commercial",
-            "tier": licensed_tier or "professional",
+            "tier": licensed_tier,
             "licensed_tier": licensed_tier,
             "max_plants": self._claims.get("max_plants", 1) if self._claims else 1,
             "expires_at": self._claims.get("expires_at") if self._claims else None,
