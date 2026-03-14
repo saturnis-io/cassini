@@ -4,7 +4,7 @@ import fs from 'fs'
 
 const SCREENSHOTS_DIR = path.resolve(process.cwd(), '../docs/screenshots')
 
-type ScreenshotCategory = 'core' | 'commercial' | 'settings' | 'connectivity' | 'display'
+type ScreenshotCategory = 'core' | 'commercial' | 'settings' | 'connectivity' | 'display' | 'features'
 
 /**
  * Take a documentation screenshot and save to the screenshots directory.
