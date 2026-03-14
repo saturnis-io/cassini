@@ -81,31 +81,38 @@ logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 # ---------------------------------------------------------------------------
-# Commercial routers -- registered lazily when a commercial license is active
+# Tiered commercial routers -- registered lazily when a commercial license is active
 # ---------------------------------------------------------------------------
-_COMMERCIAL_ROUTERS = [
-    anomaly_router,
-    api_keys_router,
+
+# Pro routers -- available to Pro AND Enterprise licenses
+_PRO_ROUTERS = [
     opcua_servers_router,
-    database_admin_router,
     distributions_router,
-    fai_router,
-    gage_bridges_router,
-    ishikawa_router,
     msa_router,
-    notifications_router,
-    oidc_router,
-    retention_router,
+    doe_router,
     rule_presets_router,
-    report_analytics_router,
+    ishikawa_router,
+    notifications_router,
     scheduled_reports_router,
-    signatures_router,
-    system_settings_router,
+    report_analytics_router,
+    api_keys_router,
     push_router,
-    erp_router,
+]
+
+# Enterprise routers -- available to Enterprise licenses ONLY
+_ENTERPRISE_ROUTERS = [
+    anomaly_router,
+    gage_bridges_router,
+    fai_router,
     multivariate_router,
     predictions_router,
     ai_analysis_router,
+    signatures_router,
+    oidc_router,
+    erp_router,
+    retention_router,
+    database_admin_router,
+    system_settings_router,
 ]
 
 
@@ -161,8 +168,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Lazy commercial activation state
     app.state.commercial_lock = asyncio.Lock()
-    app.state.commercial_active = False
-    app.state.commercial_routers = _COMMERCIAL_ROUTERS
+    app.state.commercial_tier = None  # None = community, "pro", "enterprise"
+    app.state.pro_routers = _PRO_ROUTERS
+    app.state.enterprise_routers = _ENTERPRISE_ROUTERS
+    app.state.registered_routers = set()  # Track registered routers to prevent duplicates
     app.state.compliance_excess = 0
 
     # Initialize database connection
@@ -250,9 +259,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Commercial-only services -- gated behind license
     # -----------------------------------------------------------------------
     if license_service.is_commercial:
-        await activate_commercial_features(app, _COMMERCIAL_ROUTERS, db, event_bus)
+        tier = license_service.tier
+        routers = _PRO_ROUTERS + _ENTERPRISE_ROUTERS if license_service.is_enterprise else _PRO_ROUTERS
+        await activate_commercial_features(app, routers, db, event_bus, tier=tier)
     else:
-        logger.info("Community edition -- enterprise services not initialized")
+        logger.info("Community edition -- commercial services not initialized")
 
     # Compute initial compliance status
     try:
@@ -390,7 +401,6 @@ app.include_router(providers_router)
 app.include_router(license_router)
 app.include_router(audit_router)
 app.include_router(explain_router)
-app.include_router(doe_router)
 
 # Commercial routers are registered lazily via activate_commercial_features()
 # when a valid commercial license is present at startup or uploaded at runtime.

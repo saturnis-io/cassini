@@ -62,11 +62,18 @@ async def activate_license(
     if license_service.is_commercial:
         from cassini.core.commercial import activate_commercial_features
 
+        tier = license_service.tier
+        routers = (
+            request.app.state.pro_routers + request.app.state.enterprise_routers
+            if license_service.is_enterprise
+            else request.app.state.pro_routers
+        )
         await activate_commercial_features(
             request.app,
-            request.app.state.commercial_routers,
+            routers,
             request.app.state.db,
             request.app.state.event_bus,
+            tier=tier,
         )
 
     # Refresh compliance cache
