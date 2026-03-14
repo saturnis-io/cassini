@@ -202,6 +202,7 @@ export function CorrelationTab() {
 										{charNameMap.get(id)}
 										<button
 											type="button"
+											aria-label={`Remove ${charNameMap.get(id)}`}
 											onClick={() =>
 												setSelectedCharIds((prev) => prev.filter((x) => x !== id))
 											}

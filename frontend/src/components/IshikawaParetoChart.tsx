@@ -148,20 +148,18 @@ export function IshikawaParetoChart({ pareto, height = 260 }: IshikawaParetoChar
 
   const { containerRef } = useECharts({ option, notMerge: true })
 
-  if (pareto.length === 0) {
-    return (
-      <div className="border-border flex items-center justify-center rounded-lg border border-dashed py-6">
-        <p className="text-muted-foreground text-sm">
-          No analyzable categories to rank (all categories lack sufficient data)
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-1">
       <h3 className="text-sm font-medium">Pareto Prioritization</h3>
-      <div ref={containerRef} style={{ width: '100%', height }} />
+      <div
+        ref={containerRef}
+        style={{ width: '100%', height, visibility: pareto.length === 0 ? 'hidden' : 'visible' }}
+      />
+      {pareto.length === 0 && (
+        <div className="border-border flex items-center justify-center rounded-lg border border-dashed py-6">
+          <p className="text-muted-foreground text-sm">No analyzable categories</p>
+        </div>
+      )}
       {/* HTML legend (LegendComponent not registered in tree-shaken ECharts) */}
       <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
         <div className="flex items-center gap-1.5">

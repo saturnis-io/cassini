@@ -312,7 +312,7 @@ function IntervalInterpretation({ stats }: { stats: IntervalStats }) {
   return (
     <div className="bg-muted/30 mt-3 rounded-lg border p-3">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-chart-tertiary">
+        <span className="text-xs font-semibold uppercase tracking-[4px] text-gold">
           Interval Analysis
         </span>
         {isWarning && (

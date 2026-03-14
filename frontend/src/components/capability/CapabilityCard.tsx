@@ -53,12 +53,14 @@ function IndexCard({
   label,
   value,
   characteristicId,
+  ci,
   greenThreshold = 1.33,
   yellowThreshold = 1.0,
 }: {
   label: string
   value: number | null
   characteristicId: number
+  ci?: [number, number] | null
   greenThreshold?: number
   yellowThreshold?: number
 }) {
@@ -108,6 +110,11 @@ function IndexCard({
           '--'
         )}
       </div>
+      {ci && (
+        <div className="text-muted-foreground mt-0.5 text-[10px] tabular-nums">
+          ({ci[0].toFixed(2)} – {ci[1].toFixed(2)})
+        </div>
+      )}
       <div className={cn('mt-0.5 text-[10px]', capabilityColor(value, greenThreshold, yellowThreshold))}>
         {capabilityLabel(value, greenThreshold, yellowThreshold)}
       </div>
@@ -210,15 +217,20 @@ function CpkTrendChart({ history }: { history: CapabilityHistoryItem[] }) {
 
   const { containerRef } = useECharts({ option })
 
-  if (sorted.length === 0) {
-    return (
-      <div className="text-muted-foreground flex h-32 items-center justify-center text-xs">
-        No history snapshots yet
-      </div>
-    )
-  }
-
-  return <div ref={containerRef} className="h-32 w-full" />
+  return (
+    <>
+      <div
+        ref={containerRef}
+        className="h-32 w-full"
+        style={{ visibility: sorted.length === 0 ? 'hidden' : 'visible' }}
+      />
+      {sorted.length === 0 && (
+        <div className="text-muted-foreground flex h-32 items-center justify-center text-xs">
+          No history snapshots yet
+        </div>
+      )}
+    </>
+  )
 }
 
 interface CapabilityCardProps {
@@ -228,7 +240,7 @@ interface CapabilityCardProps {
 export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const { role } = useAuth()
   const { selectedPlant } = usePlantContext()
-  const { data: capability, isLoading, error } = useCapability(characteristicId)
+  const { data: capability, isLoading, error } = useCapability(characteristicId, { includeCi: true })
   const { data: history } = useCapabilityHistory(characteristicId)
   const { data: charData } = useCharacteristic(characteristicId)
   const storedMethod = charData?.distribution_method ?? 'auto'
@@ -311,11 +323,11 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
       <div className="space-y-3 px-4 py-3">
         {(() => {
           const indices = [
-            { label: 'Cp', value: capability.cp },
-            { label: 'Cpk', value: capability.cpk },
-            { label: 'Pp', value: capability.pp },
-            { label: 'Ppk', value: capability.ppk },
-            { label: 'Cpm', value: capability.cpm },
+            { label: 'Cp', value: capability.cp, ci: undefined as [number, number] | null | undefined },
+            { label: 'Cpk', value: capability.cpk, ci: capability.cpk_ci },
+            { label: 'Pp', value: capability.pp, ci: capability.pp_ci },
+            { label: 'Ppk', value: capability.ppk, ci: capability.ppk_ci },
+            { label: 'Cpm', value: capability.cpm, ci: undefined as [number, number] | null | undefined },
           ].filter((idx) => idx.value !== null)
 
           if (indices.length === 0) {
@@ -344,12 +356,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
 
           return (
             <div className={cn('grid gap-3', colsClass)}>
-              {indices.map(({ label, value }) => (
+              {indices.map(({ label, value, ci }) => (
                 <IndexCard
                   key={label}
                   label={label}
                   value={value}
                   characteristicId={characteristicId}
+                  ci={ci}
                   greenThreshold={greenThreshold}
                   yellowThreshold={yellowThreshold}
                 />
