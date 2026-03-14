@@ -53,6 +53,15 @@ export interface PredictionDashboardItem {
   predicted_ooc: boolean
 }
 
+export interface IntervalStats {
+  median_width_80: number
+  median_width_95: number
+  width_trend: 'widening' | 'stable' | 'narrowing'
+  sigma_ratio: number
+  horizon_recommendation: number | null
+  interpretation: string
+}
+
 export interface PredictionHistoryEntry {
   characteristic_id: number
   model_type: string
@@ -130,6 +139,9 @@ export const predictionApi = {
 
   getHistory: (charId: number, limit?: number) =>
     fetchApi<PredictionHistoryEntry[]>(`/predictions/${charId}/history?limit=${limit ?? 5}`),
+
+  getIntervalStats: (charId: number) =>
+    fetchApi<IntervalStats>(`/predictions/${charId}/interval-stats`),
 }
 
 // ---- AI API ----

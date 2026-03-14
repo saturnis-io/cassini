@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { TrendingUp, Loader2, ChevronDown, ChevronRight, AlertTriangle, Check } from 'lucide-react'
+import {
+  TrendingUp,
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  Check,
+  TrendingDown,
+  Minus,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HelpTooltip } from '@/components/HelpTooltip'
 import { GuidedEmptyState } from '@/components/GuidedEmptyState'
@@ -7,11 +16,12 @@ import { InterpretResult } from '@/components/InterpretResult'
 import { emptyStates, interpretPrediction } from '@/lib/guidance'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { usePlantContext } from '@/providers/PlantProvider'
-import { usePredictionDashboard, useUpdatePredictionConfig } from '@/api/hooks'
+import { usePredictionDashboard, useUpdatePredictionConfig, useIntervalStats } from '@/api/hooks'
 import { PredictionConfig } from './PredictionConfig'
 import { PredictionOverlay } from './PredictionOverlay'
 import { useForecast } from '@/api/hooks'
 import type { PredictionDashboardItem } from '@/api/predictions.api'
+import type { IntervalStats } from '@/api/predictions.api'
 
 /**
  * PredictionsTab -- dashboard list of characteristics with active predictions.
@@ -211,6 +221,7 @@ function PredictionCard({
 function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast: boolean }) {
   const { formatDateTime } = useDateFormat()
   const { data: forecastResult, isLoading } = useForecast(charId)
+  const { data: intervalStats } = useIntervalStats(charId, hasForecast)
 
   if (isLoading) {
     return (
@@ -262,6 +273,10 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
 
       {/* Forecast chart */}
       <PredictionOverlay forecast={forecast} />
+
+      {/* Interval interpretation panel */}
+      {intervalStats && <IntervalInterpretation stats={intervalStats} />}
+
       <InterpretResult
         interpretation={interpretPrediction({
           forecastSteps: forecast.length,
@@ -271,6 +286,76 @@ function ExpandedForecast({ charId, hasForecast }: { charId: number; hasForecast
         })}
         className="mt-3"
       />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// IntervalInterpretation
+// ---------------------------------------------------------------------------
+
+const TREND_CONFIG = {
+  widening: { label: 'Widening', Icon: TrendingUp, className: 'text-amber-600 dark:text-amber-400' },
+  narrowing: {
+    label: 'Narrowing',
+    Icon: TrendingDown,
+    className: 'text-emerald-600 dark:text-emerald-400',
+  },
+  stable: { label: 'Stable', Icon: Minus, className: 'text-muted-foreground' },
+} as const
+
+function IntervalInterpretation({ stats }: { stats: IntervalStats }) {
+  const trend = TREND_CONFIG[stats.width_trend]
+  const TrendIcon = trend.Icon
+  const isWarning = stats.sigma_ratio >= 1.0
+
+  return (
+    <div className="bg-muted/30 mt-3 rounded-lg border p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-chart-tertiary">
+          Interval Analysis
+        </span>
+        {isWarning && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+            <AlertTriangle className="h-3 w-3" />
+            High Uncertainty
+          </span>
+        )}
+      </div>
+
+      {/* Metrics row */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+        <span className="text-muted-foreground">
+          80% CI width:{' '}
+          <span className="text-foreground font-medium">{stats.median_width_80.toFixed(4)}</span>
+        </span>
+        <span className="text-muted-foreground">
+          95% CI width:{' '}
+          <span className="text-foreground font-medium">{stats.median_width_95.toFixed(4)}</span>
+        </span>
+        <span className="text-muted-foreground">
+          Sigma ratio:{' '}
+          <span
+            className={cn('font-medium', isWarning ? 'text-warning' : 'text-foreground')}
+          >
+            {stats.sigma_ratio.toFixed(2)}
+          </span>
+        </span>
+        <span className={cn('flex items-center gap-1', trend.className)}>
+          <TrendIcon className="h-3 w-3" />
+          {trend.label}
+        </span>
+      </div>
+
+      {/* Interpretation text */}
+      <p className="text-foreground mt-2 text-sm leading-relaxed">{stats.interpretation}</p>
+
+      {/* Horizon recommendation */}
+      {stats.horizon_recommendation != null && (
+        <p className="mt-1.5 text-xs font-medium text-warning">
+          Consider reducing forecast horizon to {stats.horizon_recommendation} steps.
+        </p>
+      )}
     </div>
   )
 }

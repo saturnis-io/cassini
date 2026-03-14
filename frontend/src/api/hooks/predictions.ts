@@ -14,6 +14,7 @@ export const predictionKeys = {
   model: (charId: number) => ['predictions', 'model', charId] as const,
   forecast: (charId: number) => ['predictions', 'forecast', charId] as const,
   history: (charId: number) => ['predictions', 'history', charId] as const,
+  intervalStats: (charId: number) => ['predictions', 'intervalStats', charId] as const,
 }
 
 export const aiKeys = {
@@ -77,6 +78,7 @@ export function useTrainModel() {
       queryClient.invalidateQueries({ queryKey: predictionKeys.model(charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.forecast(charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.history(charId) })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.intervalStats(charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.all })
       toast.success('Model trained successfully')
     },
@@ -108,6 +110,7 @@ export function useGenerateForecast() {
     onSuccess: (_, charId) => {
       queryClient.invalidateQueries({ queryKey: predictionKeys.forecast(charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.history(charId) })
+      queryClient.invalidateQueries({ queryKey: predictionKeys.intervalStats(charId) })
       queryClient.invalidateQueries({ queryKey: predictionKeys.all })
       toast.success('Forecast generated')
     },
@@ -120,6 +123,14 @@ export function usePredictionHistory(charId: number) {
     queryKey: predictionKeys.history(charId),
     queryFn: () => predictionApi.getHistory(charId),
     enabled: charId > 0,
+  })
+}
+
+export function useIntervalStats(charId: number, enabled = true) {
+  return useQuery({
+    queryKey: predictionKeys.intervalStats(charId),
+    queryFn: () => predictionApi.getIntervalStats(charId),
+    enabled: charId > 0 && enabled,
   })
 }
 

@@ -23,6 +23,7 @@ from cassini.api.deps import (
 from cassini.api.schemas.prediction import (
     ForecastPointResponse,
     ForecastResponse,
+    IntervalStatsResponse,
     PredictionConfigResponse,
     PredictionConfigUpdate,
     PredictionDashboardItem,
@@ -828,3 +829,146 @@ async def get_forecast_history(
         )
 
     return responses
+
+
+@router.get("/{char_id}/interval-stats", response_model=IntervalStatsResponse)
+async def get_interval_stats(
+    char_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> IntervalStatsResponse:
+    """Compute statistics about forecast confidence interval widths.
+
+    Analyses the latest forecast batch to produce interval width metrics,
+    a trend indicator, and a natural-language interpretation of forecast
+    reliability relative to the process's stored sigma.
+
+    Requires engineer+ role for the characteristic's plant.
+    """
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(user, plant_id, "engineer")
+
+    # Load the latest forecast batch (same approach as get_latest_forecast)
+    latest_gen_subq = (
+        select(Forecast.generated_at)
+        .where(Forecast.characteristic_id == char_id)
+        .order_by(Forecast.id.desc())
+        .limit(1)
+        .correlate(None)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(Forecast)
+        .where(
+            Forecast.characteristic_id == char_id,
+            Forecast.generated_at == latest_gen_subq,
+        )
+        .order_by(Forecast.step.asc())
+    )
+    result = await session.execute(stmt)
+    forecasts = list(result.scalars().all())
+
+    if not forecasts:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No forecast available — train a model and generate a forecast first",
+        )
+
+    # Compute interval widths
+    widths_80: list[float] = []
+    widths_95: list[float] = []
+    for f in forecasts:
+        if f.upper_80 is not None and f.lower_80 is not None:
+            widths_80.append(f.upper_80 - f.lower_80)
+        if f.upper_95 is not None and f.lower_95 is not None:
+            widths_95.append(f.upper_95 - f.lower_95)
+
+    if not widths_80 or not widths_95:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Forecast has no confidence intervals — retrain with confidence levels enabled",
+        )
+
+    median_width_80 = float(np.median(widths_80))
+    median_width_95 = float(np.median(widths_95))
+
+    # Determine width trend by comparing first-half vs second-half median
+    n = len(widths_95)
+    if n >= 4:
+        first_half = widths_95[: n // 2]
+        second_half = widths_95[n // 2 :]
+        med_first = float(np.median(first_half))
+        med_second = float(np.median(second_half))
+        if med_first > 0:
+            ratio = med_second / med_first
+            if ratio > 1.1:
+                width_trend = "widening"
+            elif ratio < 0.9:
+                width_trend = "narrowing"
+            else:
+                width_trend = "stable"
+        else:
+            width_trend = "stable"
+    else:
+        width_trend = "stable"
+
+    # Load stored_sigma for sigma_ratio computation
+    char_stmt = select(Characteristic.stored_sigma).where(
+        Characteristic.id == char_id
+    )
+    char_result = await session.execute(char_stmt)
+    stored_sigma = char_result.scalar_one_or_none()
+
+    if stored_sigma and stored_sigma > 0:
+        sigma_ratio = median_width_80 / (2.0 * stored_sigma)
+    else:
+        # Fall back: estimate sigma from the forecast spread at step 1
+        sigma_ratio = 0.0
+
+    # Horizon recommendation
+    horizon_recommendation: int | None = None
+    if sigma_ratio >= 1.5 and len(widths_80) >= 2:
+        # Find the last step where width_80 < 2 * stored_sigma
+        for i, w in enumerate(widths_80):
+            if stored_sigma and stored_sigma > 0 and w > 2.0 * stored_sigma:
+                horizon_recommendation = max(i, 1)
+                break
+
+    # Build interpretation text
+    total_steps = len(forecasts)
+    if sigma_ratio < 0.5:
+        interpretation = (
+            "Forecast uncertainty is low relative to process variation. "
+            f"Predictions are reliable out to the full {total_steps}-step horizon."
+        )
+    elif sigma_ratio < 1.0:
+        reliable_steps = horizon_recommendation or int(total_steps * 0.6)
+        interpretation = (
+            "Moderate forecast uncertainty. "
+            f"Consider predictions reliable for the next {reliable_steps} steps."
+        )
+    elif sigma_ratio < 1.5:
+        interpretation = (
+            "High forecast uncertainty — intervals are wider than process variation. "
+            "Consider retraining with more recent data or reducing the forecast horizon."
+        )
+    else:
+        rec_text = (
+            f"Recommend reducing horizon to {horizon_recommendation} steps"
+            if horizon_recommendation
+            else "Recommend reducing the forecast horizon"
+        )
+        interpretation = (
+            f"Very high uncertainty. {rec_text} "
+            "or increasing retraining frequency."
+        )
+
+    return IntervalStatsResponse(
+        median_width_80=round(median_width_80, 6),
+        median_width_95=round(median_width_95, 6),
+        width_trend=width_trend,
+        sigma_ratio=round(sigma_ratio, 4),
+        horizon_recommendation=horizon_recommendation,
+        interpretation=interpretation,
+    )

@@ -71,3 +71,16 @@ class PredictionDashboardItem(BaseModel):
     aic: float | None = None
     has_forecast: bool = False
     predicted_ooc: bool = False
+
+
+class IntervalStatsResponse(BaseModel):
+    """Statistics about forecast confidence interval widths."""
+
+    median_width_80: float
+    median_width_95: float
+    width_trend: str = Field(
+        ..., pattern=r"^(widening|stable|narrowing)$"
+    )
+    sigma_ratio: float
+    horizon_recommendation: int | None = None
+    interpretation: str
