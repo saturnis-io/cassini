@@ -919,6 +919,13 @@ export interface CapabilityResult {
   target: number | null
   sigma_within: number | null
   short_run_mode: string | null
+  // Bootstrap confidence intervals (present when include_ci=true)
+  cpk_ci: [number, number] | null
+  ppk_ci: [number, number] | null
+  pp_ci: [number, number] | null
+  ci_confidence: number | null
+  ci_method: string | null
+  n_bootstrap: number | null
 }
 
 export interface CapabilityHistoryItem {

@@ -207,9 +207,10 @@ export const distributionApi = {
 // ---- Capability API ----
 
 export const capabilityApi = {
-  getCapability: (charId: number, windowSize?: number) => {
+  getCapability: (charId: number, opts?: { windowSize?: number; includeCi?: boolean }) => {
     const params = new URLSearchParams()
-    if (windowSize) params.set('window_size', String(windowSize))
+    if (opts?.windowSize) params.set('window_size', String(opts.windowSize))
+    if (opts?.includeCi) params.set('include_ci', 'true')
     const query = params.toString()
     return fetchApi<CapabilityResult>(
       `/characteristics/${charId}/capability${query ? `?${query}` : ''}`,

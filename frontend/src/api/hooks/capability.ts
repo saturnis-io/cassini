@@ -55,10 +55,10 @@ export function useUpdateDistributionConfig() {
 
 // ---- Capability Hooks ----
 
-export function useCapability(charId: number) {
+export function useCapability(charId: number, opts?: { includeCi?: boolean }) {
   return useQuery({
-    queryKey: queryKeys.capability.current(charId),
-    queryFn: () => capabilityApi.getCapability(charId),
+    queryKey: [...queryKeys.capability.current(charId), opts?.includeCi ?? false],
+    queryFn: () => capabilityApi.getCapability(charId, { includeCi: opts?.includeCi }),
     enabled: charId > 0,
     staleTime: 10_000,
   })

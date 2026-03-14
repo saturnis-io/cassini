@@ -21,7 +21,11 @@ from cassini.api.schemas.capability import (
     CapabilityResponse,
     SnapshotResponse,
 )
-from cassini.core.capability import CapabilityResult, calculate_capability
+from cassini.core.capability import (
+    CapabilityResult,
+    calculate_capability,
+    compute_capability_confidence_intervals,
+)
 from cassini.core.distributions import calculate_capability_nonnormal
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.user import User
@@ -147,6 +151,7 @@ async def get_capability(
     char_id: int,
     window_size: int = Query(1000, ge=10, le=10000, description="Number of recent samples to use"),
     material_id: int | None = Query(None, description="Filter by material for material-specific capability"),
+    include_ci: bool = Query(False, description="Include bootstrap confidence intervals (adds ~100-500ms)"),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> CapabilityResponse:
@@ -168,6 +173,27 @@ async def get_capability(
     cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
     sigma_source_within = "within_subgroup" if sigma_within is not None else None
     sigma_method_str = _infer_sigma_method(characteristic)
+
+    # Compute bootstrap confidence intervals if requested
+    ci_fields: dict = {}
+    if include_ci:
+        bootstrap_cis = compute_capability_confidence_intervals(
+            measurements=values,
+            usl=characteristic.usl,
+            lsl=characteristic.lsl,
+            target=characteristic.target_value,
+            sigma_within=sigma_within,
+        )
+        if "cpk" in bootstrap_cis:
+            ci_fields["cpk_ci"] = bootstrap_cis["cpk"]
+        if "ppk" in bootstrap_cis:
+            ci_fields["ppk_ci"] = bootstrap_cis["ppk"]
+        if "pp" in bootstrap_cis:
+            ci_fields["pp_ci"] = bootstrap_cis["pp"]
+        if bootstrap_cis:
+            ci_fields["ci_confidence"] = 0.95
+            ci_fields["ci_method"] = "bootstrap"
+            ci_fields["n_bootstrap"] = 2000
 
     dist_method = characteristic.distribution_method
     if dist_method and dist_method != "normal":
@@ -220,6 +246,7 @@ async def get_capability(
             cp_unavailable_reason=cp_unavailable_reason,
             distribution_method_applied=dist_method_applied,
             transform_applied=transform_applied,
+            **ci_fields,
         )
 
     # Pass subgroup structure for correct Cp CI degrees of freedom.
@@ -255,6 +282,7 @@ async def get_capability(
         cp_unavailable_reason=cp_unavailable_reason,
         distribution_method_applied="normal",
         transform_applied=None,
+        **ci_fields,
     )
 
 

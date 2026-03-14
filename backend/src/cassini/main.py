@@ -58,6 +58,7 @@ from cassini.api.v1.tags import router as tags_router
 from cassini.api.v1.multivariate import router as multivariate_router
 from cassini.api.v1.predictions import router as predictions_router
 from cassini.api.v1.ai_analysis import router as ai_analysis_router
+from cassini.api.v1.correlation import router as correlation_router
 from cassini.api.v1.doe import router as doe_router
 from cassini.api.v1.violations import router as violations_router
 from cassini.api.v1.websocket import manager as ws_manager
@@ -90,6 +91,7 @@ _PRO_ROUTERS = [
     distributions_router,
     msa_router,
     doe_router,
+    correlation_router,
     rule_presets_router,
     ishikawa_router,
     notifications_router,

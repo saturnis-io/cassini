@@ -25,6 +25,13 @@ class CapabilityResponse(BaseModel):
     cp_unavailable_reason: str | None = None
     distribution_method_applied: str | None = None
     transform_applied: str | None = None
+    # Bootstrap confidence intervals (optional, requested via include_ci=true)
+    cpk_ci: tuple[float, float] | None = None
+    ppk_ci: tuple[float, float] | None = None
+    pp_ci: tuple[float, float] | None = None
+    ci_confidence: float | None = None
+    ci_method: str | None = None
+    n_bootstrap: int | None = None
 
 
 class CapabilityHistoryItem(BaseModel):
