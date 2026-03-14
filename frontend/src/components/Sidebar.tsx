@@ -29,6 +29,8 @@ import { useAuth } from '@/providers/AuthProvider'
 import { usePlant } from '@/providers/PlantProvider'
 import { canAccessView, type Role } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
+import type { LicenseTier } from '@/api/license.api'
+import { TIER_RANK } from '@/components/RequiresTier'
 import { getRegistry } from '@/lib/extensionRegistry'
 import { HierarchyTodoList } from './HierarchyTodoList'
 
@@ -38,7 +40,7 @@ interface NavItem {
   icon: React.ReactNode
   badge?: number
   requiredRole?: Role
-  commercial?: boolean
+  requiredTier?: LicenseTier
 }
 
 interface SidebarProps {
@@ -78,7 +80,7 @@ export function Sidebar({ className }: SidebarProps) {
   })
   const { data: devToolsStatus } = useDevToolsStatus()
   const { role } = useAuth()
-  const { isCommercial } = useLicense()
+  const { tier: currentTier } = useLicense()
   const location = useLocation()
 
   const isCollapsed = sidebarState === 'collapsed'
@@ -166,20 +168,21 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'msa',
       icon: <Microscope className="h-5 w-5" />,
       requiredRole: 'engineer',
-      commercial: true,
+      requiredTier: 'pro',
     },
     {
       path: '/fai',
       labelKey: 'fai',
       icon: <ClipboardCheck className="h-5 w-5" />,
       requiredRole: 'engineer',
-      commercial: true,
+      requiredTier: 'enterprise',
     },
     {
       path: '/doe',
       labelKey: 'doe',
       icon: <FlaskConical className="h-5 w-5" />,
       requiredRole: 'engineer',
+      requiredTier: 'pro',
     },
   ]
 
@@ -189,7 +192,7 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'analytics',
       icon: <TrendingUp className="h-5 w-5" />,
       requiredRole: 'engineer',
-      commercial: true,
+      requiredTier: 'enterprise',
     },
     {
       path: '/connectivity',
@@ -231,36 +234,39 @@ export function Sidebar({ className }: SidebarProps) {
   // Dev tools nav item — only when sandbox mode is active and user is admin
   const showDevTools = devToolsStatus?.sandbox && canAccessView(role, '/dev-tools')
 
-  // Filter navigation items based on current role and license
+  // Filter navigation items based on current role and license tier
+  const hasTier = (requiredTier?: LicenseTier) =>
+    !requiredTier || TIER_RANK[currentTier] >= TIER_RANK[requiredTier]
+
   const visibleMainItems = mainNavItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      (!item.commercial || isCommercial),
+      hasTier(item.requiredTier),
   )
   const visibleStudyItems = studyNavItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      (!item.commercial || isCommercial),
+      hasTier(item.requiredTier),
   )
   const visibleSystemItems = systemNavItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      (!item.commercial || isCommercial),
+      hasTier(item.requiredTier),
   )
   const visibleExtStudyItems = extensionStudyItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      isCommercial,
+      TIER_RANK[currentTier] >= TIER_RANK['enterprise'],
   )
   const visibleExtSystemItems = extensionSystemItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      isCommercial,
+      TIER_RANK[currentTier] >= TIER_RANK['enterprise'],
   )
   const visibleAdminItems = adminNavItems.filter(
     (item) =>
       (!item.requiredRole || canAccessView(role, item.path)) &&
-      (!item.commercial || isCommercial),
+      hasTier(item.requiredTier),
   )
 
   const renderNavItem = (item: NavItem, forMobile = false) => {

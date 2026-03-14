@@ -22,8 +22,8 @@ import { AuthProvider, useAuth } from '@/providers/AuthProvider'
 // ChartHoverProvider removed — hover sync now uses Zustand store (chartHoverStore)
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { useLicense } from '@/hooks/useLicense'
 import { UpgradePage } from '@/pages/UpgradePage'
+import { RequiresTier } from '@/components/RequiresTier'
 import { getRegistry } from '@/lib/extensionRegistry'
 
 // ---------------------------------------------------------------------------
@@ -263,17 +263,6 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * License gate that shows an upgrade page for commercial-only routes.
- * Renders nothing while the license status is still loading.
- */
-function RequireCommercial({ children }: { children: ReactNode }) {
-  const { isCommercial, loaded } = useLicense()
-  if (!loaded) return null
-  if (!isCommercial) return <UpgradePage />
-  return <>{children}</>
-}
-
-/**
  * Providers that depend on authentication (plant data, WebSocket, etc.).
  * Only mounted after auth is confirmed to prevent 401 cascades on fresh sessions.
  */
@@ -384,25 +373,25 @@ function App() {
                   <Route
                     path="browse"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <Suspense fallback={<PageSpinner />}><BrowseTab /></Suspense>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="gages"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <Suspense fallback={<PageSpinner />}><GagesTab /></Suspense>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="integrations"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                         <Suspense fallback={<PageSpinner />}><IntegrationsTab /></Suspense>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                 </Route>
@@ -421,7 +410,7 @@ function App() {
                 <Route
                   path="msa"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
@@ -429,25 +418,25 @@ function App() {
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="msa/:studyId"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <Suspense fallback={<PageSpinner />}>
                           <MSAStudyEditor />
                         </Suspense>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="fai"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
@@ -455,25 +444,25 @@ function App() {
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="fai/:reportId"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <Suspense fallback={<PageSpinner />}>
                           <FAIReportEditor />
                         </Suspense>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="analytics"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
@@ -481,13 +470,13 @@ function App() {
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="doe"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
@@ -495,31 +484,31 @@ function App() {
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="doe/new"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <Suspense fallback={<PageSpinner />}>
                           <DOEStudyEditor />
                         </Suspense>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route
                   path="doe/:studyId"
                   element={
-                    <RequireCommercial>
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
                       <ProtectedRoute requiredRole="engineer">
                         <Suspense fallback={<PageSpinner />}>
                           <DOEStudyEditor />
                         </Suspense>
                       </ProtectedRoute>
-                    </RequireCommercial>
+                    </RequiresTier>
                   }
                 />
                 <Route path="settings" element={<ErrorBoundary><Suspense fallback={<PageSpinner />}><SettingsPage /></Suspense></ErrorBoundary>}>
@@ -529,9 +518,9 @@ function App() {
                   <Route
                     path="notifications"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <Suspense fallback={null}><NotificationsSettings /></Suspense>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
@@ -577,81 +566,81 @@ function App() {
                   <Route
                     path="api-keys"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="engineer">
                           <Suspense fallback={null}><ApiKeysSettings /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="retention"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="engineer">
                           <Suspense fallback={null}><RetentionSettings /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="reports"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="engineer">
                           <Suspense fallback={null}><ScheduledReports /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="sso"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="admin">
                           <Suspense fallback={null}><SSOSettings /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="audit-log"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="admin">
                           <Suspense fallback={null}><AuditLogViewer /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="signatures"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="engineer">
                           <Suspense fallback={null}><SignatureSettingsPage /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="ai"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="admin">
                           <Suspense fallback={null}><AIConfigSettings /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   <Route
                     path="database"
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="pro" fallback={<UpgradePage />}>
                         <ProtectedRoute requiredRole="engineer">
                           <Suspense fallback={null}><DatabaseSettings /></Suspense>
                         </ProtectedRoute>
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                   {/* Extension settings routes */}
@@ -660,7 +649,7 @@ function App() {
                       key={tab.to}
                       path={tab.to}
                       element={
-                        <RequireCommercial>
+                        <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                           {tab.minRole ? (
                             <ProtectedRoute requiredRole={tab.minRole}>
                               <Suspense fallback={null}>
@@ -672,7 +661,7 @@ function App() {
                               <tab.component />
                             </Suspense>
                           )}
-                        </RequireCommercial>
+                        </RequiresTier>
                       }
                     />
                   ))}
@@ -703,7 +692,7 @@ function App() {
                     key={ext.path}
                     path={ext.path}
                     element={
-                      <RequireCommercial>
+                      <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
                         {ext.requiredRole ? (
                           <ProtectedRoute requiredRole={ext.requiredRole}>
                             <ErrorBoundary>
@@ -719,7 +708,7 @@ function App() {
                             </Suspense>
                           </ErrorBoundary>
                         )}
-                      </RequireCommercial>
+                      </RequiresTier>
                     }
                   />
                 ))}
