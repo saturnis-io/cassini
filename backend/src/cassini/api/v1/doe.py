@@ -29,7 +29,9 @@ from cassini.api.schemas.doe import (
     DOEStudyUpdate,
     EffectResponse,
     InteractionResponse,
+    NormalityTestResponse,
     RegressionResponse,
+    ResidualStatsResponse,
 )
 from cassini.db.models.doe import DOEAnalysis, DOEFactor, DOERun, DOEStudy
 from cassini.db.models.user import User
@@ -205,6 +207,47 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
     except (json.JSONDecodeError, TypeError):
         pass
 
+    # Parse residual diagnostics (optional — absent in older analyses)
+    residuals: list[float] | None = None
+    fitted_values: list[float] | None = None
+    normality_test: NormalityTestResponse | None = None
+    outlier_indices: list[int] | None = None
+    residual_stats: ResidualStatsResponse | None = None
+
+    try:
+        if analysis.residuals_json:
+            residuals = json.loads(analysis.residuals_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    try:
+        if analysis.fitted_values_json:
+            fitted_values = json.loads(analysis.fitted_values_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    try:
+        if analysis.normality_test_json:
+            nt = json.loads(analysis.normality_test_json)
+            if nt:
+                normality_test = NormalityTestResponse(**nt)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+
+    try:
+        if analysis.outlier_indices_json:
+            outlier_indices = json.loads(analysis.outlier_indices_json)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    try:
+        if analysis.residual_stats_json:
+            rs = json.loads(analysis.residual_stats_json)
+            if rs:
+                residual_stats = ResidualStatsResponse(**rs)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+
     return DOEAnalysisResponse(
         id=analysis.id,
         study_id=analysis.study_id,
@@ -215,6 +258,11 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
         r_squared=analysis.r_squared or 0.0,
         adj_r_squared=analysis.adj_r_squared or 0.0,
         regression=regression,
+        residuals=residuals,
+        fitted_values=fitted_values,
+        normality_test=normality_test,
+        outlier_indices=outlier_indices,
+        residual_stats=residual_stats,
         computed_at=analysis.computed_at,
     )
 

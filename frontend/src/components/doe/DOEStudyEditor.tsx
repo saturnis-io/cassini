@@ -30,6 +30,7 @@ import { ANOVATable } from './ANOVATable'
 import { MainEffectsPlot } from './MainEffectsPlot'
 import { InteractionPlot } from './InteractionPlot'
 import { EffectsParetoChart } from './EffectsParetoChart'
+import { DOEResidualsPanel } from './DOEResidualsPanel'
 import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 
 // ── Constants ──
@@ -590,6 +591,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                     grandMean={analysis.grand_mean}
                   />
                 )}
+
+                {/* Residual diagnostics */}
+                <DOEResidualsPanel analysis={analysis} />
 
                 {/* Effect coefficients summary */}
                 <div className="border-border rounded-xl border">

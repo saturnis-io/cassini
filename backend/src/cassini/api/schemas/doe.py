@@ -128,6 +128,19 @@ class RegressionResponse(BaseModel):
     optimal_settings: dict[str, float] | None = None
 
 
+class ResidualStatsResponse(BaseModel):
+    mean: float
+    std: float
+    min: float
+    max: float
+
+
+class NormalityTestResponse(BaseModel):
+    statistic: float
+    p_value: float
+    method: str
+
+
 class DOEAnalysisResponse(BaseModel):
     id: int
     study_id: int
@@ -138,4 +151,9 @@ class DOEAnalysisResponse(BaseModel):
     r_squared: float
     adj_r_squared: float
     regression: RegressionResponse | None = None
+    residuals: list[float] | None = None
+    fitted_values: list[float] | None = None
+    normality_test: NormalityTestResponse | None = None
+    outlier_indices: list[int] | None = None
+    residual_stats: ResidualStatsResponse | None = None
     computed_at: datetime

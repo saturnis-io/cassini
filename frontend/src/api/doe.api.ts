@@ -85,6 +85,19 @@ export interface DOEInteraction {
   effect: number
 }
 
+export interface DOENormalityTest {
+  statistic: number
+  p_value: number
+  method: string
+}
+
+export interface DOEResidualStats {
+  mean: number
+  std: number
+  min: number
+  max: number
+}
+
 export interface DOEAnalysis {
   anova_table: DOEANOVARow[]
   effects: DOEEffect[]
@@ -92,6 +105,11 @@ export interface DOEAnalysis {
   r_squared: number
   adj_r_squared: number
   grand_mean: number
+  residuals: number[] | null
+  fitted_values: number[] | null
+  normality_test: DOENormalityTest | null
+  outlier_indices: number[] | null
+  residual_stats: DOEResidualStats | null
 }
 
 export const doeApi = {

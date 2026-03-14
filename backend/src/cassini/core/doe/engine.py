@@ -13,6 +13,7 @@ from itertools import combinations
 from typing import Any
 
 import numpy as np
+from scipy import stats as sp_stats
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -282,6 +283,7 @@ class DOEEngine:
         _p_full = _X_full.shape[1]
         _df_resid_full = _n_obs - _p_full
 
+        _beta: np.ndarray | None = None
         try:
             _beta = np.linalg.lstsq(_X_full, response_arr, rcond=None)[0]
             _resid = response_arr - _X_full @ _beta
@@ -375,6 +377,55 @@ class DOEEngine:
             result["r_squared"] = reg.r_squared
             result["adj_r_squared"] = reg.adj_r_squared
 
+        # Compute residual diagnostics
+        if design_type in _RSM_DESIGNS:
+            # Use regression model residuals (more complete model)
+            residual_arr = np.asarray(reg.residuals, dtype=float)
+            fitted_arr = np.asarray(reg.predicted, dtype=float)
+        elif _beta is not None:
+            # Use full-model OLS residuals (main effects + interactions)
+            fitted_arr = _X_full @ _beta
+            residual_arr = response_arr - fitted_arr
+        else:
+            # Fallback: residuals from grand mean (lstsq failed)
+            fitted_arr = np.full_like(response_arr, grand_mean)
+            residual_arr = response_arr - grand_mean
+
+        result["residuals"] = [float(r) for r in residual_arr]
+        result["fitted_values"] = [float(f) for f in fitted_arr]
+
+        # Normality test (Shapiro-Wilk, requires n >= 3)
+        if len(residual_arr) >= 3:
+            try:
+                stat, p_value = sp_stats.shapiro(residual_arr)
+                result["normality_test"] = {
+                    "statistic": float(stat),
+                    "p_value": float(p_value),
+                    "method": "shapiro-wilk",
+                }
+            except Exception:
+                logger.warning(
+                    "Shapiro-Wilk test failed for study %d", study_id,
+                )
+
+        # Outlier detection (|residual| > 3 * std)
+        residual_std = float(np.std(residual_arr, ddof=1)) if len(residual_arr) > 1 else 0.0
+        if residual_std > 1e-30:
+            result["outlier_indices"] = [
+                int(i) for i, r in enumerate(residual_arr)
+                if abs(r) > 3 * residual_std
+            ]
+        else:
+            result["outlier_indices"] = []
+
+        # Residual statistics
+        result["residual_stats"] = {
+            "mean": float(np.mean(residual_arr)),
+            "std": float(residual_std),
+            "min": float(np.min(residual_arr)),
+            "max": float(np.max(residual_arr)),
+        }
+
         # Persist analysis
         analysis_repo = DOEAnalysisRepository(session)
         analysis = DOEAnalysis(
@@ -387,6 +438,11 @@ class DOEEngine:
             grand_mean=result["grand_mean"],
             regression_model=regression_json,
             optimal_settings=optimal_json,
+            residuals_json=json.dumps(result.get("residuals")),
+            fitted_values_json=json.dumps(result.get("fitted_values")),
+            normality_test_json=json.dumps(result.get("normality_test")),
+            outlier_indices_json=json.dumps(result.get("outlier_indices")),
+            residual_stats_json=json.dumps(result.get("residual_stats")),
         )
         session.add(analysis)
 

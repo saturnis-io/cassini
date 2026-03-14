@@ -190,6 +190,11 @@ class DOEAnalysis(Base):
     grand_mean: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     regression_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     optimal_settings: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    residuals_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fitted_values_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    normality_test_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    outlier_indices_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    residual_stats_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,
