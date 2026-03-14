@@ -416,22 +416,22 @@ async def analyze_variation_sources(
     scored = [
         (c.category, c.eta_squared)
         for c in categories
-        if c.eta_squared is not None and c.eta_squared > 0
+        if c.eta_squared is not None
     ]
     scored.sort(key=lambda x: x[1], reverse=True)
 
     pareto: list[ParetoItem] = []
     if scored:
         total_eta = sum(eta for _, eta in scored)
-        cumulative = 0.0
+        cumulative_raw = 0.0
         for cat_name, eta in scored:
-            pct = (eta / total_eta) * 100.0 if total_eta > 0 else 0.0
-            cumulative += pct
+            pct = (eta / total_eta * 100.0) if total_eta > 0 else 0.0
+            cumulative_raw += pct
             pareto.append(ParetoItem(
                 category=cat_name,
-                eta_squared=eta,
+                eta_squared=round(eta, 6),
                 percentage=round(pct, 1),
-                cumulative=round(cumulative, 1),
+                cumulative=round(cumulative_raw, 1),
             ))
 
     return IshikawaResult(

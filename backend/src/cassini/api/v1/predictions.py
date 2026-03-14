@@ -921,7 +921,7 @@ async def get_interval_stats(
     stored_sigma = char_result.scalar_one_or_none()
 
     if stored_sigma and stored_sigma > 0:
-        sigma_ratio = median_width_80 / (2.0 * stored_sigma)
+        sigma_ratio = median_width_80 / (6.0 * stored_sigma)
     else:
         # Fall back: estimate sigma from the forecast spread at step 1
         sigma_ratio = 0.0
@@ -929,10 +929,12 @@ async def get_interval_stats(
     # Horizon recommendation
     horizon_recommendation: int | None = None
     if sigma_ratio >= 1.5 and len(widths_80) >= 2:
-        # Find the last step where width_80 < 2 * stored_sigma
         for i, w in enumerate(widths_80):
             if stored_sigma and stored_sigma > 0 and w > 2.0 * stored_sigma:
-                horizon_recommendation = max(i, 1)
+                if i == 0:
+                    horizon_recommendation = None  # No reliable horizon
+                else:
+                    horizon_recommendation = i  # Step i is 0-indexed, so this is "i steps reliable"
                 break
 
     # Build interpretation text
