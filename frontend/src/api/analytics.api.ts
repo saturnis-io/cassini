@@ -12,6 +12,7 @@ export const multivariateApi = {
     chart_type?: string
     lambda_param?: number
     alpha?: number
+    covariance_method?: string
     description?: string
   }) =>
     fetchApi('/multivariate/groups', {
@@ -48,6 +49,9 @@ export const multivariateApi = {
 
   freezePhaseI: (id: number) =>
     fetchApi(`/multivariate/groups/${id}/freeze`, { method: 'POST' }),
+
+  getBivariateData: (id: number) =>
+    fetchApi(`/multivariate/groups/${id}/bivariate`),
 }
 
 // Correlation API

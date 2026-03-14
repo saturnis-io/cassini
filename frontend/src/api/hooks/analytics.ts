@@ -12,6 +12,7 @@ export const mvKeys = {
   groups: (plantId: number) => ['multivariate', 'groups', plantId] as const,
   group: (id: number) => ['multivariate', 'group', id] as const,
   chartData: (id: number) => ['multivariate', 'chartData', id] as const,
+  bivariate: (id: number) => ['multivariate', 'bivariate', id] as const,
 }
 
 export const corrKeys = {
@@ -51,6 +52,7 @@ export function useCreateMultivariateGroup() {
       chart_type?: string
       lambda_param?: number
       alpha?: number
+      covariance_method?: string
       description?: string
     }) => multivariateApi.createGroup(data),
     onSuccess: () => {
@@ -123,6 +125,14 @@ export function useFreezePhaseI() {
       toast.success('Phase I frozen — now monitoring in Phase II')
     },
     onError: handleMutationError('Failed to freeze Phase I'),
+  })
+}
+
+export function useBivariateData(id: number) {
+  return useQuery({
+    queryKey: mvKeys.bivariate(id),
+    queryFn: () => multivariateApi.getBivariateData(id),
+    enabled: id > 0,
   })
 }
 

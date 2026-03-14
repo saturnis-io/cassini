@@ -3,9 +3,18 @@
 Implements both Phase I (retrospective parameter estimation) and Phase II
 (prospective monitoring) Hotelling T² charts for multivariate SPC.
 
+Supports two covariance estimation methods:
+  - **classical**: Standard sample mean and covariance (default).
+  - **mcd**: Minimum Covariance Determinant (Rousseeuw & Van Driessen, 1999).
+    MCD is robust to outliers in Phase I data — it finds the subset of *h*
+    observations (h >= n/2) whose classical covariance has the smallest
+    determinant, then re-weights for consistency.
+
 References:
     Montgomery, D.C. (2019). *Introduction to Statistical Quality Control*,
     8th ed., Chapter 11.
+    Rousseeuw, P.J. & Van Driessen, K. (1999). A Fast Algorithm for the
+    Minimum Covariance Determinant Estimator. *Technometrics*, 41(3), 212-223.
 """
 
 from __future__ import annotations
@@ -29,6 +38,8 @@ class PhaseIResult:
         ucl: Upper control limit (F-distribution based).
         n: Number of observations used.
         p: Number of variables (characteristics).
+        outlier_count: Number of Phase I outliers detected by MCD (0 for classical).
+        covariance_method: Method used for estimation ("classical" or "mcd").
     """
 
     mean: np.ndarray
@@ -38,6 +49,8 @@ class PhaseIResult:
     ucl: float
     n: int
     p: int
+    outlier_count: int = 0
+    covariance_method: str = "classical"
 
 
 @dataclass
@@ -59,6 +72,59 @@ class T2Point:
     raw_values: list[float] | None = None
 
 
+def compute_confidence_ellipse(
+    mean: np.ndarray,
+    cov: np.ndarray,
+    ucl: float,
+    n_points: int = 100,
+) -> list[tuple[float, float]]:
+    """Compute parametric ellipse boundary points for 2D bivariate data.
+
+    The ellipse satisfies: (x - mu)^T Sigma^{-1} (x - mu) = UCL
+
+    Uses eigendecomposition of the covariance matrix:
+    - Semi-axes lengths: sqrt(UCL * eigenvalue_i)
+    - Rotation angle: from the first eigenvector
+
+    Args:
+        mean: ``(2,)`` center of the ellipse (mean vector).
+        cov: ``(2, 2)`` covariance matrix.
+        ucl: Upper control limit (determines ellipse size).
+        n_points: Number of boundary points to generate.
+
+    Returns:
+        List of ``(x, y)`` coordinate pairs tracing the ellipse boundary.
+
+    Raises:
+        ValueError: If inputs are not 2-dimensional or UCL is non-positive.
+    """
+    if mean.shape != (2,):
+        raise ValueError(f"Mean must be (2,), got {mean.shape}")
+    if cov.shape != (2, 2):
+        raise ValueError(f"Covariance must be (2, 2), got {cov.shape}")
+    if ucl <= 0:
+        raise ValueError(f"UCL must be positive, got {ucl}")
+
+    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+
+    # Guard against negative eigenvalues from numerical noise
+    eigenvalues = np.maximum(eigenvalues, 0.0)
+
+    angle = np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0])
+
+    # Parametric ellipse
+    theta = np.linspace(0, 2 * np.pi, n_points)
+    a = np.sqrt(ucl * eigenvalues[0])  # semi-axis 1
+    b = np.sqrt(ucl * eigenvalues[1])  # semi-axis 2
+
+    # Rotate and translate
+    cos_a, sin_a = np.cos(angle), np.sin(angle)
+    x = mean[0] + a * np.cos(theta) * cos_a - b * np.sin(theta) * sin_a
+    y = mean[1] + a * np.cos(theta) * sin_a + b * np.sin(theta) * cos_a
+
+    return [(float(xi), float(yi)) for xi, yi in zip(x, y)]
+
+
 class HotellingT2Engine:
     """Hotelling T² multivariate control chart engine."""
 
@@ -70,11 +136,13 @@ class HotellingT2Engine:
         self,
         X: np.ndarray,
         alpha: float = 0.0027,
+        covariance_method: str = "classical",
     ) -> PhaseIResult:
         """Phase I retrospective analysis — estimate parameters and screen
         historical data.
 
-        Computes the sample mean vector and covariance matrix from *X*,
+        Computes the mean vector and covariance matrix from *X* using either
+        classical estimation or the Minimum Covariance Determinant (MCD),
         then calculates T² for every observation.
 
         The upper control limit uses the exact F-distribution:
@@ -84,12 +152,15 @@ class HotellingT2Engine:
         Args:
             X: ``(n, p)`` data matrix — *n* observations of *p* variables.
             alpha: Significance level (default 0.0027 ≈ 3-sigma equivalent).
+            covariance_method: ``"classical"`` (default) or ``"mcd"`` for
+                robust Minimum Covariance Determinant estimation.
 
         Returns:
             :class:`PhaseIResult` with estimated parameters and per-point T².
 
         Raises:
             ValueError: If ``n < 2p`` (insufficient observations).
+            ValueError: If ``covariance_method`` is not ``"classical"`` or ``"mcd"``.
         """
         n, p = X.shape
         if n < 2 * p:
@@ -97,8 +168,28 @@ class HotellingT2Engine:
                 f"Need at least {2 * p} observations for {p} variables (have {n})"
             )
 
-        mean = np.mean(X, axis=0)
-        cov = np.cov(X.T, ddof=1)
+        outlier_count = 0
+
+        if covariance_method == "mcd":
+            from sklearn.covariance import MinCovDet
+
+            mcd = MinCovDet(support_fraction=None)  # auto-select h
+            mcd.fit(X)
+            mean = mcd.location_
+            cov = mcd.covariance_
+
+            # Count Phase I outliers using chi-squared threshold at 97.5%
+            chi2_threshold = float(stats.chi2.ppf(0.975, p))
+            outlier_mask = mcd.dist_ > chi2_threshold
+            outlier_count = int(np.sum(outlier_mask))
+        elif covariance_method == "classical":
+            mean = np.mean(X, axis=0)
+            cov = np.cov(X.T, ddof=1)
+        else:
+            raise ValueError(
+                f"Unknown covariance_method '{covariance_method}' — "
+                "expected 'classical' or 'mcd'"
+            )
 
         # Ensure cov is 2-D even for p == 1
         if cov.ndim == 0:
@@ -130,6 +221,8 @@ class HotellingT2Engine:
             ucl=float(ucl),
             n=n,
             p=p,
+            outlier_count=outlier_count,
+            covariance_method=covariance_method,
         )
 
     # ------------------------------------------------------------------

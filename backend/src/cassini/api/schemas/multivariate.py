@@ -16,6 +16,7 @@ class MultivariateGroupCreate(BaseModel):
     chart_type: str = Field("t_squared", pattern=r"^(t_squared|mewma)$")
     lambda_param: float = Field(0.1, ge=0.01, le=1.0)
     alpha: float = Field(0.0027, gt=0.0, lt=1.0)
+    covariance_method: str = Field("classical", pattern=r"^(classical|mcd)$")
     description: str | None = None
 
 
@@ -24,6 +25,7 @@ class MultivariateGroupUpdate(BaseModel):
     chart_type: str | None = Field(None, pattern=r"^(t_squared|mewma)$")
     lambda_param: float | None = Field(None, ge=0.01, le=1.0)
     alpha: float | None = Field(None, gt=0.0, lt=1.0)
+    covariance_method: str | None = Field(None, pattern=r"^(classical|mcd)$")
     description: str | None = None
     min_samples: int | None = Field(None, ge=10)
 
@@ -48,6 +50,7 @@ class MultivariateGroupResponse(BaseModel):
     chart_type: str
     lambda_param: float
     alpha: float
+    covariance_method: str
     phase: str
     min_samples: int
     is_active: bool
@@ -68,11 +71,31 @@ class MultivariateChartResponse(BaseModel):
     group_id: int
     group_name: str
     chart_type: str
+    covariance_method: str = "classical"
     phase: str
     points: list[T2Point]
     ucl: float
     mean: list[float] | None = None
     characteristic_names: list[str]
+    phase_i_outlier_count: int | None = None
+
+
+class BivariateScatterPoint(BaseModel):
+    x: float
+    y: float
+    t2: float
+    ooc: bool
+
+
+class BivariateResponse(BaseModel):
+    group_id: int
+    char_names: list[str]
+    scatter_points: list[BivariateScatterPoint]
+    ellipse_boundary: list[list[float]]
+    center: list[float]
+    ucl: float
+    ooc_count: int
+    total_count: int
 
 
 class FreezeRequest(BaseModel):

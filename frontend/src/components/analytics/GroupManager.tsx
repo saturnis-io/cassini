@@ -106,6 +106,11 @@ export function GroupManager({ plantId, selectedGroupId, onSelectGroup }: GroupM
                     <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
                       {group.chart_type === 'mewma' ? 'MEWMA' : 'T\u00B2'}
                     </span>
+                    {group.covariance_method === 'mcd' && (
+                      <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                        MCD
+                      </span>
+                    )}
                     {group.phase && (
                       <span
                         className={cn(
@@ -222,6 +227,7 @@ function CreateGroupDialog({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [chartType, setChartType] = useState('t_squared')
+  const [covarianceMethod, setCovarianceMethod] = useState('classical')
   const [selectedCharIds, setSelectedCharIds] = useState<number[]>([])
 
   const createMutation = useCreateMultivariateGroup()
@@ -248,6 +254,7 @@ function CreateGroupDialog({
         plant_id: plantId,
         characteristic_ids: selectedCharIds,
         chart_type: chartType,
+        covariance_method: covarianceMethod,
         description: description.trim() || undefined,
       },
       {
@@ -305,6 +312,50 @@ function CreateGroupDialog({
               <option value="t_squared">Hotelling T{'\u00B2'}</option>
               <option value="mewma">MEWMA</option>
             </select>
+          </div>
+
+          {/* Covariance method */}
+          <div>
+            <label className="text-foreground mb-1.5 block text-sm font-medium">
+              Covariance Estimation
+            </label>
+            <div className="space-y-2">
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <input
+                  type="radio"
+                  name="covarianceMethod"
+                  value="classical"
+                  checked={covarianceMethod === 'classical'}
+                  onChange={() => setCovarianceMethod('classical')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <span className="text-foreground text-sm font-medium">Classical</span>
+                  <p className="text-muted-foreground text-xs">
+                    Standard sample mean and covariance matrix
+                  </p>
+                </div>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <input
+                  type="radio"
+                  name="covarianceMethod"
+                  value="mcd"
+                  checked={covarianceMethod === 'mcd'}
+                  onChange={() => setCovarianceMethod('mcd')}
+                  className="mt-0.5"
+                />
+                <div>
+                  <span className="text-foreground text-sm font-medium">
+                    MCD (Robust)
+                  </span>
+                  <p className="text-muted-foreground text-xs">
+                    Minimum Covariance Determinant — resists outliers in Phase I data. Recommended
+                    when historical data may contain measurement errors or process upsets.
+                  </p>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Characteristics multi-select */}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Play, Lock } from 'lucide-react'
+import { Loader2, Play, Lock, ShieldCheck } from 'lucide-react'
 import { HelpTooltip } from '@/components/HelpTooltip'
 import { ContextualHint } from '@/components/ContextualHint'
 import { InterpretResult } from '@/components/InterpretResult'
@@ -10,9 +10,11 @@ import {
   useComputeMultivariateChart,
   useMultivariateChartData,
   useFreezePhaseI,
+  useBivariateData,
 } from '@/api/hooks'
 import { GroupManager } from './GroupManager'
 import { T2Chart } from './T2Chart'
+import { T2BivariatePlot } from './T2BivariatePlot'
 import { DecompositionTable } from './DecompositionTable'
 
 /**
@@ -26,6 +28,7 @@ export function MultivariateTab() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedOOCPoint, setSelectedOOCPoint] = useState<any>(null)
+  const [chartView, setChartView] = useState<'timeline' | 'bivariate'>('timeline')
 
   // Chart data for selected group
   const { data: chartData, isLoading: isLoadingChart } = useMultivariateChartData(
@@ -36,6 +39,12 @@ export function MultivariateTab() {
   const { data: groups } = useMultivariateGroups(plantId)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const selectedGroup = (groups as any[])?.find((g: any) => g.id === selectedGroupId)
+
+  // Bivariate data (only fetched for 2-member groups when bivariate view is active)
+  const isBivariate = selectedGroup?.members?.length === 2
+  const { data: bivariateData, isLoading: isLoadingBivariate } = useBivariateData(
+    chartView === 'bivariate' && isBivariate ? (selectedGroupId ?? 0) : 0,
+  )
 
   // Mutations
   const computeMutation = useComputeMultivariateChart()
@@ -65,6 +74,7 @@ export function MultivariateTab() {
         onSelectGroup={(id) => {
           setSelectedGroupId(id)
           setSelectedOOCPoint(null)
+          setChartView('timeline')
         }}
       />
 
@@ -134,9 +144,48 @@ export function MultivariateTab() {
             </div>
           </div>
 
+          {/* View toggle for bivariate groups */}
+          {isBivariate && (
+            <div className="mt-3 flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-0.5 w-fit">
+              <button
+                onClick={() => setChartView('timeline')}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  chartView === 'timeline'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Timeline
+              </button>
+              <button
+                onClick={() => setChartView('bivariate')}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  chartView === 'bivariate'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Bivariate
+              </button>
+            </div>
+          )}
+
           {/* Chart area */}
           <div className="mt-4">
-            {isLoadingChart ? (
+            {chartView === 'bivariate' && isBivariate ? (
+              isLoadingBivariate ? (
+                <div className="flex h-[400px] items-center justify-center">
+                  <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                </div>
+              ) : bivariateData ? (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                <T2BivariatePlot data={bivariateData as any} />
+              ) : (
+                <div className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">
+                  Click &ldquo;Compute&rdquo; to generate bivariate data
+                </div>
+              )
+            ) : isLoadingChart ? (
               <div className="flex h-[400px] items-center justify-center">
                 <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
               </div>
@@ -147,6 +196,29 @@ export function MultivariateTab() {
                 Click "Compute" to generate the T{'\u00B2'} chart
               </div>
             )}
+            {/* MCD outlier summary */}
+            {computeMutation.data != null &&
+              (() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const resp = computeMutation.data as any
+                if (
+                  resp?.covariance_method === 'mcd' &&
+                  resp?.phase_i_outlier_count != null &&
+                  resp.phase_i_outlier_count > 0
+                ) {
+                  return (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="text-foreground">
+                        <strong>MCD Robust Estimation:</strong>{' '}
+                        {resp.phase_i_outlier_count} Phase I outlier
+                        {resp.phase_i_outlier_count !== 1 ? 's' : ''} detected and down-weighted
+                      </span>
+                    </div>
+                  )
+                }
+                return null
+              })()}
             {chartData != null &&
               (() => {
                 const points = Array.isArray(chartData) ? chartData : []

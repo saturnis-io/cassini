@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 import structlog
+from scipy import stats as sp_stats
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,8 @@ from cassini.api.deps import (
     get_db_session,
 )
 from cassini.api.schemas.multivariate import (
+    BivariateResponse,
+    BivariateScatterPoint,
     CorrelationComputeRequest,
     CorrelationResultResponse,
     FreezeRequest,
@@ -38,6 +41,7 @@ from cassini.core.multivariate import (
     MEWMAEngine,
     T2Decomposition,
 )
+from cassini.core.multivariate.hotelling import compute_confidence_ellipse
 from cassini.core.multivariate.data_loader import load_aligned_data
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
@@ -139,6 +143,7 @@ async def _build_group_response(
         chart_type=group.chart_type,
         lambda_param=group.lambda_param,
         alpha=group.alpha,
+        covariance_method=group.covariance_method,
         phase=group.phase,
         min_samples=group.min_samples,
         is_active=group.is_active,
@@ -505,6 +510,7 @@ async def create_group(
         chart_type=body.chart_type,
         lambda_param=body.lambda_param,
         alpha=body.alpha,
+        covariance_method=body.covariance_method,
     )
     session.add(group)
     await session.flush()
@@ -664,6 +670,7 @@ async def compute_chart_data(
     points: list[T2Point] = []
     ucl_value: float = 0.0
     mean_vector: list[float] | None = None
+    phase_i_outlier_count: int | None = None
 
     if group.chart_type == "t_squared":
         engine = HotellingT2Engine()
@@ -699,8 +706,12 @@ async def compute_chart_data(
                 ))
         else:
             # Phase I — estimate parameters from data
-            phase_i = engine.compute_phase_i(X, alpha=group.alpha)
+            phase_i = engine.compute_phase_i(
+                X, alpha=group.alpha,
+                covariance_method=group.covariance_method,
+            )
             mean_vector = phase_i.mean.tolist()
+            phase_i_outlier_count = phase_i.outlier_count
             ucl_value = phase_i.ucl
 
             for i, t2_val in enumerate(phase_i.t_squared):
@@ -729,7 +740,19 @@ async def compute_chart_data(
         if group.reference_covariance:
             cov = np.array(json.loads(group.reference_covariance))
         else:
-            cov = np.cov(X.T, ddof=1)
+            if group.covariance_method == "mcd":
+                from sklearn.covariance import MinCovDet
+
+                mcd = MinCovDet(support_fraction=None)
+                mcd.fit(X)
+                cov = mcd.covariance_
+                mcd_mean = mcd.location_
+
+                chi2_threshold = float(sp_stats.chi2.ppf(0.975, X.shape[1]))
+                outlier_mask = mcd.dist_ > chi2_threshold
+                phase_i_outlier_count = int(np.sum(outlier_mask))
+            else:
+                cov = np.cov(X.T, ddof=1)
             if cov.ndim == 0:
                 cov = cov.reshape(1, 1)
 
@@ -741,6 +764,8 @@ async def compute_chart_data(
 
         if group.reference_mean:
             mean_vector = json.loads(group.reference_mean)
+        elif group.covariance_method == "mcd" and not group.reference_covariance:
+            mean_vector = mcd_mean.tolist()  # type: ignore[possibly-undefined]
         else:
             mean_vector = np.mean(X, axis=0).tolist()
 
@@ -792,11 +817,13 @@ async def compute_chart_data(
         group_id=group.id,
         group_name=group.name,
         chart_type=group.chart_type,
+        covariance_method=group.covariance_method,
         phase=group.phase,
         points=points,
         ucl=ucl_value,
         mean=mean_vector,
         characteristic_names=char_names,
+        phase_i_outlier_count=phase_i_outlier_count,
     )
 
 
@@ -860,6 +887,127 @@ async def get_chart_data(
     return points
 
 
+@router.get(
+    "/groups/{group_id}/bivariate",
+    response_model=BivariateResponse,
+)
+async def get_bivariate_data(
+    group_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> BivariateResponse:
+    """Compute bivariate confidence ellipse for a 2-characteristic group.
+
+    Loads aligned data for the two member characteristics, runs Phase I
+    Hotelling T-squared to compute the mean vector and covariance matrix,
+    then generates the parametric ellipse boundary satisfying
+    ``(x - mu)^T Sigma^{-1} (x - mu) = UCL``.
+
+    Returns scatter points (with T-squared and OOC status) and the ellipse
+    boundary for visualization.
+
+    Requires exactly 2 characteristics in the group. Returns 400 otherwise.
+    Requires engineer+ role for the group's plant.
+    """
+    group = await _get_group_or_404(session, group_id)
+    check_plant_role(user, group.plant_id, "engineer")
+
+    if len(group.members) != 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Bivariate plot requires exactly 2 characteristics (group has {len(group.members)})",
+        )
+
+    # Get member characteristic IDs in display order
+    sorted_members = sorted(group.members, key=lambda m: m.display_order)
+    char_ids = [m.characteristic_id for m in sorted_members]
+
+    # Load aligned data
+    try:
+        X, timestamps, char_names = await load_aligned_data(session, char_ids)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to load aligned data for group characteristics",
+        )
+
+    n = X.shape[0]
+    if n < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient aligned data — need at least 4 observations (have {n})",
+        )
+
+    # Use frozen parameters if Phase II, otherwise compute Phase I
+    engine = HotellingT2Engine()
+    if group.phase == "phase_ii" and group.reference_mean and group.reference_covariance:
+        mean = np.array(json.loads(group.reference_mean))
+        cov = np.array(json.loads(group.reference_covariance))
+        cov_inv = np.linalg.pinv(cov) if np.linalg.cond(cov) > 1e10 else np.linalg.inv(cov)
+        n_ref = group.min_samples
+
+        # Compute UCL for Phase II
+        p = 2
+        from scipy import stats as sp_stats
+
+        if n_ref > 100:
+            ucl = float(sp_stats.chi2.ppf(1 - group.alpha, p))
+        else:
+            ucl = float(
+                p * (n_ref + 1) * (n_ref - 1)
+                / (n_ref * (n_ref - p))
+                * sp_stats.f.ppf(1 - group.alpha, p, n_ref - p)
+            )
+    else:
+        phase_i = engine.compute_phase_i(
+            X, alpha=group.alpha,
+            covariance_method=group.covariance_method,
+        )
+        mean = phase_i.mean
+        cov = phase_i.covariance
+        cov_inv = phase_i.cov_inv
+        ucl = phase_i.ucl
+
+    # Compute T-squared for every observation and classify OOC
+    scatter_points: list[BivariateScatterPoint] = []
+    ooc_count = 0
+    for i in range(n):
+        diff = X[i] - mean
+        t2 = float(diff @ cov_inv @ diff)
+        ooc = t2 > ucl
+        if ooc:
+            ooc_count += 1
+        scatter_points.append(BivariateScatterPoint(
+            x=float(X[i, 0]),
+            y=float(X[i, 1]),
+            t2=t2,
+            ooc=ooc,
+        ))
+
+    # Compute ellipse boundary
+    ellipse = compute_confidence_ellipse(mean, cov, ucl, n_points=100)
+    ellipse_boundary = [[pt[0], pt[1]] for pt in ellipse]
+
+    logger.info(
+        "bivariate_data_computed",
+        group_id=group_id,
+        n_points=n,
+        ooc_count=ooc_count,
+        user=user.username,
+    )
+
+    return BivariateResponse(
+        group_id=group.id,
+        char_names=char_names,
+        scatter_points=scatter_points,
+        ellipse_boundary=ellipse_boundary,
+        center=[float(mean[0]), float(mean[1])],
+        ucl=ucl,
+        ooc_count=ooc_count,
+        total_count=n,
+    )
+
+
 @router.post(
     "/groups/{group_id}/freeze",
     response_model=MultivariateGroupResponse,
@@ -906,15 +1054,16 @@ async def freeze_phase_i(
             detail=f"Insufficient data to freeze — need at least {group.min_samples} observations (have {X.shape[0]})",
         )
 
-    # Compute Phase I parameters
-    mean = np.mean(X, axis=0)
-    cov = np.cov(X.T, ddof=1)
-    if cov.ndim == 0:
-        cov = cov.reshape(1, 1)
+    # Compute Phase I parameters using the configured covariance method
+    engine = HotellingT2Engine()
+    phase_i = engine.compute_phase_i(
+        X, alpha=group.alpha,
+        covariance_method=group.covariance_method,
+    )
 
     # Store frozen parameters
-    group.reference_mean = json.dumps(mean.tolist())
-    group.reference_covariance = json.dumps(cov.tolist())
+    group.reference_mean = json.dumps(phase_i.mean.tolist())
+    group.reference_covariance = json.dumps(phase_i.covariance.tolist())
     group.phase = "phase_ii"
     group.updated_at = datetime.now(timezone.utc)
 
@@ -928,6 +1077,8 @@ async def freeze_phase_i(
         group_id=group_id,
         n_observations=X.shape[0],
         n_variables=X.shape[1],
+        covariance_method=group.covariance_method,
+        phase_i_outlier_count=phase_i.outlier_count,
         user=user.username,
     )
 

@@ -48,6 +48,9 @@ class MultivariateGroup(Base):
     alpha: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0027, server_default=sa.text("0.0027")
     )
+    covariance_method: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="classical", server_default="classical"
+    )
     phase: Mapped[str] = mapped_column(
         String(10), nullable=False, default="phase_ii", server_default="phase_ii"
     )
