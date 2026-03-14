@@ -1,9 +1,11 @@
 import { fetchApi } from '@/api/client'
 
+export type LicenseTier = 'community' | 'pro' | 'enterprise'
+
 export interface LicenseStatus {
   edition: 'community' | 'commercial'
-  tier: string
-  licensed_tier: string | null
+  tier: LicenseTier
+  licensed_tier: LicenseTier | null
   max_plants: number
   expires_at: string | null
   days_until_expiry: number | null

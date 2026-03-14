@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLicenseStore } from '@/stores/licenseStore'
 import { getLicenseStatus } from '@/api/license.api'
+import type { LicenseTier } from '@/api/license.api'
 
 const COMMUNITY_DEFAULTS = {
   edition: 'community' as const,
@@ -28,8 +29,11 @@ export function useLicense() {
 
   return {
     isCommercial: store.edition === 'commercial',
+    isPro: store.tier === 'pro',
+    isEnterprise: store.tier === 'enterprise',
+    isProOrAbove: store.tier === 'pro' || store.tier === 'enterprise',
     edition: store.edition,
-    tier: store.tier,
+    tier: store.tier as LicenseTier,
     licensedTier: store.licensedTier,
     maxPlants: store.maxPlants,
     expiresAt: store.expiresAt,
