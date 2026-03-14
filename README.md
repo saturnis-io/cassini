@@ -22,13 +22,15 @@
 
 **Open-source statistical process control for manufacturing. Free forever, commercially supported.**
 
+**Three editions**: Open (free, AGPL-3.0) | [Pro](https://saturnis.io/pricing) ($1,200/plant/yr) | [Enterprise](https://saturnis.io/pricing) ($5,000/plant/yr)
+
 ![Cassini SPC Dashboard](docs/screenshots/core/dashboard-control-chart.png)
 
 Monitor process stability, detect out-of-control conditions, run capability studies, and manage quality data across your manufacturing operation — from a single control chart to a regulated multi-plant deployment.
 
 *"In-control, like the Cassini Division."*
 
-> **Open-core model**: The Community Edition is free under AGPL-3.0 and includes a complete SPC platform. [Commercial licenses](https://saturnis.io/pricing) unlock multi-plant, compliance, and advanced analytics features for organizations that need them.
+> **Open-core model**: The Open Edition is free under AGPL-3.0 and includes a complete SPC platform. [Pro and Enterprise licenses](https://saturnis.io/pricing) unlock multi-plant, compliance, and advanced analytics features for organizations that need them.
 
 ---
 
@@ -38,9 +40,10 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 - [Configuration](docs/configuration.md) -- environment variables, TOML, database options
 - [CLI Reference](docs/cli.md) -- `cassini serve`, `cassini check`, etc.
 - [Production Deployment](docs/deployment.md) -- reverse proxy, services, backups, upgrading
-- [Community Edition](#community-edition-free-agpl-30) -- what's included for free
-- [Commercial Features](#commercial-features) -- what the license unlocks
-- [Feature Comparison](#feature-comparison) -- side-by-side table
+- [Open Edition](#open-edition-free-agpl-30) -- what's included for free
+- [Pro Features](#pro-features) -- what the Pro license unlocks
+- [Enterprise Features](#enterprise-features) -- what the Enterprise license unlocks
+- [Feature Comparison](#feature-comparison) -- three-tier side-by-side table
 - [Architecture](#architecture) -- tech stack and project structure
 - [License](#license--commercial-use) -- AGPL-3.0 and commercial options
 
@@ -62,7 +65,7 @@ Default login: `admin` / `cassini` (you'll be prompted to change the password).
 
 ---
 
-## Community Edition (Free, AGPL-3.0)
+## Open Edition (Free, AGPL-3.0)
 
 Everything you need for production SPC -- no license key required.
 
@@ -119,7 +122,7 @@ The batch endpoint is the primary path for high-volume data ingestion. It accept
 |------|------|-------------|-------------|
 | **Skip rules** | `skip_rule_evaluation: true` | Direct database insert, no SPC evaluation | Historical data migration, backfill |
 | **Sync SPC** | (default) | Each sample evaluated through full SPC pipeline (Nelson rules, zone classification) | Standard batch import with immediate violation detection |
-| **Async SPC** | `async_spc: true` | Samples inserted immediately, SPC evaluation deferred to background workers | High-throughput production ingestion (**commercial**) |
+| **Async SPC** | `async_spc: true` | Samples inserted immediately, SPC evaluation deferred to background workers | High-throughput production ingestion (**Enterprise**) |
 
 **Request format:**
 ```json
@@ -150,13 +153,13 @@ Individual sample failures do not abort the batch — successful samples commit 
 
 #### Connectivity (MQTT / OPC-UA)
 
-- **MQTT / Sparkplug B**: Topic-to-characteristic mapping with live value preview. Community Edition supports one broker; commercial unlocks unlimited brokers.
-- **OPC-UA**: Server management with node tree browsing and subscription-to-SPC pipeline (**commercial**)
-- **RS-232/USB Gages**: Bridge agent translates serial gage protocols to MQTT (**commercial**)
+- **MQTT / Sparkplug B**: Topic-to-characteristic mapping with live value preview. Open Edition supports one broker; Pro/Enterprise unlock unlimited brokers.
+- **OPC-UA**: Server management with node tree browsing and subscription-to-SPC pipeline (**Pro+**)
+- **RS-232/USB Gages**: Bridge agent translates serial gage protocols to MQTT (**Enterprise**)
 
 ### MQTT Connectivity
 
-Native MQTT and Sparkplug B support with topic tree browsing, tag-to-characteristic mapping, and live value preview. Community Edition includes one broker connection; commercial unlocks unlimited brokers.
+Native MQTT and Sparkplug B support with topic tree browsing, tag-to-characteristic mapping, and live value preview. Open Edition includes one broker connection; Pro and Enterprise unlock unlimited brokers.
 
 ![Connectivity Monitor](docs/screenshots/connectivity/monitor.png)
 
@@ -177,7 +180,7 @@ Plant-scoped role-based access control across four tiers:
 
 ### Database
 
-SQLite (default, zero-config) included with Community Edition. PostgreSQL, MySQL, and MSSQL available with commercial license. Database administration panel for backup, vacuum, and migration status.
+SQLite (default, zero-config) included with Open Edition. PostgreSQL, MySQL, and MSSQL available with Pro and Enterprise licenses. Database administration panel for backup, vacuum, and migration status.
 
 ### Audit Trail
 
@@ -204,9 +207,14 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ---
 
-## Commercial Features
+## Pro Features
 
-> **These features require a [commercial license](https://saturnis.io/pricing) ($3,500/plant/year).** Community Edition users can evaluate commercial features locally by setting `CASSINI_DEV_COMMERCIAL=true`. [Learn more →](https://saturnis.io/pricing)
+> **These features require a [Pro license](https://saturnis.io/pricing) ($1,200/plant/year).** Open Edition users can evaluate Pro and Enterprise features locally by setting `CASSINI_DEV_COMMERCIAL=true`. [Learn more →](https://saturnis.io/pricing)
+
+### Multi-Plant & Multi-Database
+
+- **Multi-plant**: Manage multiple sites from a single deployment
+- **Multi-database**: PostgreSQL, MySQL, and MSSQL with encrypted credential storage (Fernet) and one-click switching
 
 ### Industrial Connectivity Hub
 
@@ -214,8 +222,6 @@ A unified Connectivity Hub manages all data sources with a visual data flow pipe
 
 - **Unlimited MQTT Brokers**: Multi-broker management for complex industrial networks
 - **OPC-UA**: Multi-server management, node tree browsing, subscription-to-SPC engine pipeline with priority triggers
-- **RS-232/USB Gages**: Python bridge agent (`cassini-bridge` pip package) translates serial gage protocols (Mitutoyo Digimatic, generic regex) to MQTT on shop floor PCs
-- **ERP/LIMS**: SAP OData, Oracle REST, generic LIMS, and webhook adapters with cron-based sync scheduling
 
 ### Non-Normal Distribution Fitting
 
@@ -229,29 +235,44 @@ Standardize rule configuration across your plant with four built-in presets (Nel
 
 **Measurement System Analysis (Gage R&R)** -- Crossed ANOVA, range method, nested ANOVA, and attribute agreement analysis (Cohen's and Fleiss' Kappa). Uses AIAG MSA 4th Edition d2* tables. Full wizard from study setup through results interpretation.
 
-**First Article Inspection** -- AS9102 Rev C compliant inspection reports with Forms 1, 2, and 3. Draft-to-submitted-to-approved workflow with separation of duties enforcement. Print-optimized view for physical records.
-
 **Design of Experiments** -- Full factorial, fractional factorial, Plackett-Burman, and central composite designs. Interactive design matrix, run table, ANOVA results, main effects plot, and interaction plots.
 
-### Advanced Analytics
+### Analytics & Reporting
 
 ![Advanced Analytics](docs/screenshots/commercial/analytics.png)
 
-- **Correlation**: Multi-variate correlation heatmap across characteristics
-- **Multivariate SPC**: PCA biplot, Hotelling T-squared chart, MEWMA, decomposition table
-- **Predictions**: Time series forecasting with ARIMA/Prophet overlay on control charts
-- **AI Insights**: LLM-generated analysis with guardrails for responsible interpretation
 - **Ishikawa Diagrams**: Interactive fishbone (cause-and-effect) diagrams for root cause analysis
+- **Correlation**: Multi-variate correlation heatmap across characteristics
+- **Scheduled Reports**: Cron-based report scheduling with email delivery
+- **API Keys**: Machine-to-machine authentication for automated ingestion
+- **Push Notifications**: Email, HMAC-signed webhooks, and PWA push notifications
 
-### AI/ML Anomaly Detection
+---
 
-Three machine learning detectors per characteristic:
+## Enterprise Features
 
-- **PELT Changepoint**: Detects abrupt shifts in process mean or variance
-- **Kolmogorov-Smirnov**: Identifies distribution drift over sliding windows
-- **Isolation Forest**: Spots multivariate outliers invisible to univariate rules
+> **These features require an [Enterprise license](https://saturnis.io/pricing) ($5,000/plant/year).** Includes everything in Pro, plus compliance, advanced analytics, and dedicated support. [Learn more →](https://saturnis.io/pricing)
 
-Anomalies overlay directly on control charts and integrate with the notification system.
+### RS-232/USB Gage Bridge
+
+Python bridge agent (`cassini-bridge` pip package) translates serial gage protocols (Mitutoyo Digimatic, generic regex) to MQTT on shop floor PCs.
+
+### Enterprise Compliance
+
+![Electronic Signatures](docs/screenshots/settings/signatures.png)
+
+**Electronic Signatures (21 CFR Part 11)** -- Configurable multi-step signature workflows with password re-authentication, SHA-256 tamper detection, plant-scoped signature meanings, and FDA-compliant password policies.
+
+**First Article Inspection** -- AS9102 Rev C compliant inspection reports with Forms 1, 2, and 3. Draft-to-submitted-to-approved workflow with separation of duties enforcement. Print-optimized view for physical records.
+
+**Data Retention** -- Configurable retention policies with inheritance chain (global > plant > area > line > station). Purge engine with full history tracking for regulatory compliance.
+
+### Advanced Analytics
+
+- **Multivariate SPC**: PCA biplot, Hotelling T-squared chart, MEWMA, decomposition table
+- **Anomaly Detection (ML)**: PELT changepoint, Kolmogorov-Smirnov distribution drift, Isolation Forest multivariate outliers — overlaid on control charts
+- **Predictive Analytics**: Time series forecasting with ARIMA/Prophet overlay on control charts
+- **AI-Powered Analysis**: LLM-generated analysis with guardrails for responsible interpretation
 
 ### High-Throughput Async Ingestion
 
@@ -280,78 +301,70 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 | Latency per 1000-sample batch | ~7,400ms | ~2,400ms |
 | Violation detection | Immediate in response | Background (seconds) |
 
-### Enterprise Compliance
+### SSO/OIDC & ERP
 
-![Electronic Signatures](docs/screenshots/settings/signatures.png)
-
-**Electronic Signatures (21 CFR Part 11)** -- Configurable multi-step signature workflows with password re-authentication, SHA-256 tamper detection, plant-scoped signature meanings, and FDA-compliant password policies.
-
-**Data Retention** -- Configurable retention policies with inheritance chain (global > plant > area > line > station). Purge engine with full history tracking for regulatory compliance.
-
-### Multi-Plant, SSO & Operations
-
-- **Multi-database**: PostgreSQL, MySQL, and MSSQL with encrypted credential storage (Fernet) and one-click switching
-- **Multi-plant**: Manage multiple sites from a single deployment
 - **SSO/OIDC**: Multiple identity providers, claim mapping, plant-scoped role mapping, account linking
-- **Notifications**: Email, HMAC-signed webhooks, and PWA push notifications
-- **Scheduled Reports**: Cron-based report scheduling with email delivery
+- **ERP/LIMS**: SAP OData, Oracle REST, generic LIMS, and webhook adapters with cron-based sync scheduling
+- **Dedicated Support**: SLA-backed support with guaranteed response times
 
 ---
 
 ## Feature Comparison
 
-| Feature | Community | Commercial |
-|---------|:---------:|:----------:|
-| **SPC Engine** | | |
-| Control charts (X-bar, R, S, I-MR, CUSUM, EWMA, p/np/c/u) | Yes | Yes |
-| Capability analysis (Cp, Cpk, Pp, Ppk, Cpm) | Yes | Yes |
-| Nelson / WECO / AIAG run rules | Yes | Yes |
-| Short-run SPC (deviation + Z-score) | Yes | Yes |
-| Show Your Work (computation transparency) | Yes | Yes |
-| Non-normal distribution fitting | -- | Yes |
-| Run rule preset management | -- | Yes |
-| **Data & Ingestion** | | |
-| Manual data entry | Yes | Yes |
-| CSV / Excel import wizard | Yes | Yes |
-| Batch import API (up to 10K samples/req) | Yes | Yes |
-| Bulk import throughput | Up to 200K samples/min | Up to 200K samples/min |
-| Throughput with SPC rules | ~26K samples/min (sync) | Up to 175K samples/min (async) |
-| MQTT / Sparkplug B connectivity | 1 broker | Unlimited |
-| OPC-UA connectivity | -- | Yes |
-| RS-232 / USB gage bridge | -- | Yes |
-| ERP / LIMS connectors | -- | Yes |
-| ISA-95 plant hierarchy | Single plant | Multi-plant |
-| **Quality Systems** | | |
-| MSA / Gage R&R | -- | Yes |
-| First Article Inspection (AS9102) | -- | Yes |
-| Electronic signatures (21 CFR Part 11) | -- | Yes |
-| DOE (Design of Experiments) | -- | Yes |
-| **Analytics & Reporting** | | |
-| Dashboard & violation tracking | Yes | Yes |
-| Anomaly detection (ML) | -- | Yes |
-| Multivariate SPC (T-squared, MEWMA) | -- | Yes |
-| AI-powered analysis | -- | Yes |
-| Predictive analytics | -- | Yes |
-| Scheduled & automated reporting | -- | Yes |
-| Ishikawa root cause diagrams | -- | Yes |
-| **Administration** | | |
-| User management & RBAC | Yes | Yes |
-| Audit trail | Yes | Yes |
-| SSO / OIDC | -- | Yes |
-| Data retention policies | -- | Yes |
-| ERP / MES integration | -- | Yes |
-| Push notifications | -- | Yes |
-| **Infrastructure** | | |
-| Windows installer + service | Yes | Yes |
-| CLI (`cassini serve`, etc.) | Yes | Yes |
-| Database | SQLite | PostgreSQL, MSSQL, MySQL |
-| REST API (300+) | Yes | Yes |
-| Batch import API | Yes | Yes |
-| Async SPC pipeline | -- | Yes |
-| Source code access | Yes | Yes |
-| Modification rights | AGPL (share-alike) | Proprietary |
-| Support | Community (GitHub) | Dedicated with SLA |
-| | **Free** | **$3,500/plant/yr** |
+| Feature | Open | Pro | Enterprise |
+|---------|:----:|:---:|:----------:|
+| **SPC Engine** | | | |
+| Control charts (X-bar, R, S, I-MR, CUSUM, EWMA, p/np/c/u) | Yes | Yes | Yes |
+| Capability analysis (Cp, Cpk, Pp, Ppk, Cpm) | Yes | Yes | Yes |
+| Nelson / WECO / AIAG run rules | Yes | Yes | Yes |
+| Short-run SPC (deviation + Z-score) | Yes | Yes | Yes |
+| Show Your Work (computation transparency) | Yes | Yes | Yes |
+| Non-normal distribution fitting | -- | Yes | Yes |
+| Run rule preset management | -- | Yes | Yes |
+| **Data & Ingestion** | | | |
+| Manual data entry | Yes | Yes | Yes |
+| CSV / Excel import wizard | Yes | Yes | Yes |
+| Batch import API (up to 10K samples/req) | Yes | Yes | Yes |
+| Bulk import throughput | Up to 200K/min | Up to 200K/min | Up to 200K/min |
+| Throughput with SPC rules | ~26K/min (sync) | ~26K/min (sync) | Up to 175K/min (async) |
+| MQTT / Sparkplug B connectivity | 1 broker | Unlimited | Unlimited |
+| OPC-UA connectivity | -- | Yes | Yes |
+| RS-232 / USB gage bridge | -- | -- | Yes |
+| ERP / LIMS connectors | -- | -- | Yes |
+| ISA-95 plant hierarchy | 1 plant | Multi-plant | Multi-plant |
+| **Quality Systems** | | | |
+| MSA / Gage R&R | -- | Yes | Yes |
+| DOE (Design of Experiments) | -- | Yes | Yes |
+| First Article Inspection (AS9102) | -- | -- | Yes |
+| Electronic signatures (21 CFR Part 11) | -- | -- | Yes |
+| **Analytics & Reporting** | | | |
+| Dashboard & violation tracking | Yes | Yes | Yes |
+| Ishikawa root cause diagrams | -- | Yes | Yes |
+| Correlation heatmap | -- | Yes | Yes |
+| Scheduled & automated reporting | -- | Yes | Yes |
+| Multivariate SPC (T-squared, MEWMA) | -- | -- | Yes |
+| Anomaly detection (ML) | -- | -- | Yes |
+| Predictive analytics | -- | -- | Yes |
+| AI-powered analysis | -- | -- | Yes |
+| **Administration** | | | |
+| User management & RBAC | Yes | Yes | Yes |
+| Audit trail | Yes | Yes | Yes |
+| API keys | -- | Yes | Yes |
+| Push notifications | -- | Yes | Yes |
+| SSO / OIDC | -- | -- | Yes |
+| Data retention policies | -- | -- | Yes |
+| ERP / MES integration | -- | -- | Yes |
+| **Infrastructure** | | | |
+| Windows installer + service | Yes | Yes | Yes |
+| CLI (`cassini serve`, etc.) | Yes | Yes | Yes |
+| Database | SQLite | + PostgreSQL, MySQL, MSSQL | + PostgreSQL, MySQL, MSSQL |
+| REST API (300+) | Yes | Yes | Yes |
+| Batch import API | Yes | Yes | Yes |
+| Async SPC pipeline (175K samples/min) | -- | -- | Yes |
+| Source code access | Yes | Yes | Yes |
+| Modification rights | AGPL (share-alike) | Proprietary | Proprietary |
+| Support | Community (GitHub) | Community (GitHub) | Dedicated with SLA |
+| | **Free** | **$1,200/plant/yr** | **$5,000/plant/yr** |
 
 > Need custom terms, on-premise deployment assistance, validation documentation, or SLA guarantees? [Contact sales](mailto:sales@saturnis.io).
 
@@ -430,16 +443,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide.
 
 Cassini is dual-licensed:
 
-- **Community Edition**: [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0)
-- **Commercial License**: Available from [Saturnis LLC](https://saturnis.io/pricing)
+- **Open Edition**: [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0)
+- **Pro / Enterprise**: Commercial licenses available from [Saturnis LLC](https://saturnis.io/pricing)
 
 ### What This Means
 
-The Community Edition is **genuinely free** and includes a complete SPC platform. Use it, deploy it, build on it.
+The Open Edition is **genuinely free** and includes a complete SPC platform. Use it, deploy it, build on it.
 
 The AGPL-3.0 is a strong copyleft license that ensures improvements stay open. The key requirement: **if you modify Cassini and make it available over a network -- including internal company networks -- the AGPL requires you to share your complete source code with all users.** This is what keeps open source sustainable.
 
-If your organization needs to make proprietary modifications, embed Cassini in a closed-source product, or requires commercial features like electronic signatures and multi-plant management, a [commercial license](https://saturnis.io/pricing) removes the AGPL obligations and unlocks the full platform.
+If your organization needs to make proprietary modifications, embed Cassini in a closed-source product, or requires commercial features like multi-plant management and electronic signatures, a [Pro or Enterprise license](https://saturnis.io/pricing) removes the AGPL obligations and unlocks additional capabilities.
 
 **Not sure which you need?** Email [sales@saturnis.io](mailto:sales@saturnis.io).
 
