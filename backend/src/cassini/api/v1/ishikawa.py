@@ -22,6 +22,7 @@ from cassini.api.schemas.ishikawa import (
     IshikawaDiagnoseRequest,
     IshikawaFactorSchema,
     IshikawaResultSchema,
+    ParetoItemSchema,
 )
 from cassini.core.ishikawa import analyze_variation_sources
 from cassini.db.models.user import User
@@ -97,6 +98,15 @@ async def diagnose_characteristic(
                 detail=c.detail,
             )
             for c in result.categories
+        ],
+        pareto=[
+            ParetoItemSchema(
+                category=p.category,
+                eta_squared=p.eta_squared,
+                percentage=p.percentage,
+                cumulative=p.cumulative,
+            )
+            for p in result.pareto
         ],
         analysis_window=result.analysis_window,
         warnings=result.warnings,

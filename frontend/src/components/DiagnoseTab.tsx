@@ -3,6 +3,7 @@ import { Loader2, RefreshCw, Stethoscope, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDiagnose } from '@/api/hooks/useIshikawa'
 import { IshikawaDiagram } from '@/components/IshikawaDiagram'
+import { IshikawaParetoChart } from '@/components/IshikawaParetoChart'
 import type { IshikawaResult } from '@/api/hooks/useIshikawa'
 
 interface DiagnoseTabProps {
@@ -68,6 +69,9 @@ export function DiagnoseTab({ characteristicId, chartOptions }: DiagnoseTabProps
 
       {/* Diagram */}
       <IshikawaDiagram data={result} height={200} />
+
+      {/* Pareto prioritization chart */}
+      {result.pareto.length > 0 && <IshikawaParetoChart pareto={result.pareto} />}
 
       {/* Re-analyze button */}
       <div className="flex justify-end">

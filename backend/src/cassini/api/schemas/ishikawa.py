@@ -20,11 +20,19 @@ class IshikawaCategorySchema(BaseModel):
     detail: str = ""
 
 
+class ParetoItemSchema(BaseModel):
+    category: str
+    eta_squared: float
+    percentage: float
+    cumulative: float
+
+
 class IshikawaResultSchema(BaseModel):
     effect: str
     total_variance: float
     sample_count: int
     categories: list[IshikawaCategorySchema]
+    pareto: list[ParetoItemSchema] = []
     analysis_window: dict[str, str | int | None] = {}
     warnings: list[str] = []
 

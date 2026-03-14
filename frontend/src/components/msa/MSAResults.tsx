@@ -152,6 +152,7 @@ function grrToIshikawa(result: GageRRResult): IshikawaResult {
     total_variance: (result.total_variation ?? 0) ** 2,
     sample_count: 0,
     categories,
+    pareto: [],
     analysis_window: { start_date: null, end_date: null, limit: null },
     warnings: [],
   }

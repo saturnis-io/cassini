@@ -59,6 +59,16 @@ class IshikawaCategory:
 
 
 @dataclass
+class ParetoItem:
+    """A single entry in the Pareto-sorted category ranking."""
+
+    category: str
+    eta_squared: float
+    percentage: float
+    cumulative: float
+
+
+@dataclass
 class IshikawaResult:
     """Complete variance decomposition result."""
 
@@ -68,6 +78,7 @@ class IshikawaResult:
     categories: list[IshikawaCategory]
     analysis_window: dict[str, str | int | None]
     warnings: list[str] = field(default_factory=list)
+    pareto: list[ParetoItem] = field(default_factory=list)
 
 
 def _bucket_hour(ts: datetime) -> str:
@@ -401,6 +412,28 @@ async def analyze_variation_sources(
         "limit": limit,
     }
 
+    # --- Pareto prioritization: rank categories by eta-squared contribution ---
+    scored = [
+        (c.category, c.eta_squared)
+        for c in categories
+        if c.eta_squared is not None and c.eta_squared > 0
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    pareto: list[ParetoItem] = []
+    if scored:
+        total_eta = sum(eta for _, eta in scored)
+        cumulative = 0.0
+        for cat_name, eta in scored:
+            pct = (eta / total_eta) * 100.0 if total_eta > 0 else 0.0
+            cumulative += pct
+            pareto.append(ParetoItem(
+                category=cat_name,
+                eta_squared=eta,
+                percentage=round(pct, 1),
+                cumulative=round(cumulative, 1),
+            ))
+
     return IshikawaResult(
         effect="Process Variation",
         total_variance=total_variance,
@@ -408,4 +441,5 @@ async def analyze_variation_sources(
         categories=categories,
         analysis_window=analysis_window,
         warnings=warnings,
+        pareto=pareto,
     )

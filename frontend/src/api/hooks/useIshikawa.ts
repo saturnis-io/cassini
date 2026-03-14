@@ -20,11 +20,19 @@ export interface IshikawaCategory {
   detail: string
 }
 
+export interface ParetoItem {
+  category: string
+  eta_squared: number
+  percentage: number
+  cumulative: number
+}
+
 export interface IshikawaResult {
   effect: string
   total_variance: number
   sample_count: number
   categories: IshikawaCategory[]
+  pareto: ParetoItem[]
   analysis_window: { start_date: string | null; end_date: string | null; limit: number | null }
   warnings: string[]
 }
