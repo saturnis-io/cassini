@@ -1,17 +1,36 @@
-"""Bridge runner — main event loop for gage data collection."""
+"""Bridge runner — main event loop for gage data collection.
+
+Handles serial port failures gracefully: individual port errors do not
+crash the entire bridge.  Failed ports are retried every 60 seconds so
+that hot-plugged USB devices are picked up automatically.
+"""
 import logging
 import signal
 import threading
 import time
 from pathlib import Path
 
-from cassini_bridge.config import BridgeConfig, load_from_api, load_from_yaml
+from cassini_bridge.config import PortConfig, load_from_api, load_from_yaml
 from cassini_bridge.mqtt_publisher import GageMQTTPublisher
-from cassini_bridge.parsers import create_parser
+from cassini_bridge.parsers import GageParser, create_parser
 from cassini_bridge.serial_reader import SerialReader
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# How often to retry ports that exhausted their reconnection attempts.
+_FAILED_PORT_RETRY_INTERVAL = 60.0
+
+
+def _build_reader(port_cfg: PortConfig) -> SerialReader:
+    """Create a ``SerialReader`` from a ``PortConfig``."""
+    return SerialReader(
+        port=port_cfg.port_name,
+        baud_rate=port_cfg.baud_rate,
+        data_bits=port_cfg.data_bits,
+        parity=port_cfg.parity,
+        stop_bits=port_cfg.stop_bits,
+    )
 
 
 def run_bridge(server_url: str | None = None, api_key: str | None = None, config_file: str | None = None):
@@ -49,29 +68,34 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
     heartbeat_topic = f"cassini/gage/{config.bridge_id}/heartbeat"
 
     # Set up serial readers + parsers for each active port
-    readers: list[tuple[SerialReader, object, str]] = []
+    #   active  — ports that are open and being polled
+    #   deferred — ports that failed to open initially (retried periodically)
+    active: list[tuple[SerialReader, GageParser, str]] = []
+    deferred: list[tuple[SerialReader, GageParser, str]] = []
+
     for port_cfg in config.ports:
         if not port_cfg.is_active:
             continue
-        reader = SerialReader(
-            port=port_cfg.port_name,
-            baud_rate=port_cfg.baud_rate,
-            data_bits=port_cfg.data_bits,
-            parity=port_cfg.parity,
-            stop_bits=port_cfg.stop_bits,
-        )
+        reader = _build_reader(port_cfg)
         parser = create_parser(port_cfg.protocol_profile, port_cfg.parse_pattern)
         try:
             reader.open()
-            readers.append((reader, parser, port_cfg.mqtt_topic))
-            logger.info("Listening on %s → %s", port_cfg.port_name, port_cfg.mqtt_topic)
-        except Exception as e:
-            logger.error("Failed to open %s: %s", port_cfg.port_name, e)
+            active.append((reader, parser, port_cfg.mqtt_topic))
+            logger.info("Listening on %s -> %s", port_cfg.port_name, port_cfg.mqtt_topic)
+        except (Exception,) as exc:
+            logger.error("Failed to open %s: %s — will retry periodically", port_cfg.port_name, exc)
+            deferred.append((reader, parser, port_cfg.mqtt_topic))
 
-    if not readers:
-        print("No ports could be opened. Exiting.")
+    if not active and not deferred:
+        print("No ports could be opened or deferred. Exiting.")
         publisher.disconnect()
         return
+
+    if not active:
+        logger.warning(
+            "No ports opened successfully. %d port(s) deferred — bridge will keep running and retry.",
+            len(deferred),
+        )
 
     # Graceful shutdown
     shutdown = threading.Event()
@@ -87,21 +111,71 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
     hb_thread = threading.Thread(target=heartbeat_loop, daemon=True)
     hb_thread.start()
 
-    print(f"Bridge running ({len(readers)} port(s)). Ctrl+C to stop.")
+    print(f"Bridge running ({len(active)} port(s) active, {len(deferred)} deferred). Ctrl+C to stop.")
 
     # Main read loop
+    last_failed_retry = time.monotonic()
     try:
         while not shutdown.is_set():
-            for reader, parser, topic in readers:
+            # ----------------------------------------------------------
+            # Poll active readers
+            # ----------------------------------------------------------
+            for reader, parser, topic in active:
                 line = reader.readline()
                 if line:
                     value = parser.parse(line)
                     if value is not None:
                         publisher.publish_value(topic, value)
                         logger.debug("Published %.4f to %s", value, topic)
+
+            # ----------------------------------------------------------
+            # Promote reconnected ports / demote failed ports
+            # ----------------------------------------------------------
+            # Move any reader that just failed (exhausted reconnection)
+            # from active to deferred, and vice-versa for recovered ones.
+            still_active: list[tuple[SerialReader, GageParser, str]] = []
+            for entry in active:
+                reader = entry[0]
+                if reader.is_failed:
+                    logger.warning(
+                        "Port %s exhausted reconnection attempts — moved to deferred retry",
+                        reader.port,
+                    )
+                    deferred.append(entry)
+                else:
+                    still_active.append(entry)
+            active = still_active
+
+            # ----------------------------------------------------------
+            # Periodically retry deferred (failed) ports
+            # ----------------------------------------------------------
+            now = time.monotonic()
+            if deferred and (now - last_failed_retry) >= _FAILED_PORT_RETRY_INTERVAL:
+                last_failed_retry = now
+                still_deferred: list[tuple[SerialReader, GageParser, str]] = []
+                for entry in deferred:
+                    reader = entry[0]
+                    if reader.retry_open():
+                        logger.info(
+                            "Deferred port %s recovered — resuming reads",
+                            reader.port,
+                        )
+                        active.append(entry)
+                    else:
+                        still_deferred.append(entry)
+                deferred = still_deferred
+
+                if active:
+                    logger.info(
+                        "Port status: %d active, %d deferred",
+                        len(active),
+                        len(deferred),
+                    )
     finally:
         publisher.publish_heartbeat(heartbeat_topic, "offline")
-        for reader, _, _ in readers:
+        for reader, _, _ in active:
+            reader.close()
+        for reader, _, _ in deferred:
             reader.close()
         publisher.disconnect()
         print("Bridge stopped.")
