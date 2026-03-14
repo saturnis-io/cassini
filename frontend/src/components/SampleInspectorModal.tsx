@@ -123,7 +123,7 @@ export function SampleInspectorModal({
   onClose,
 }: SampleInspectorModalProps) {
   const { user, role } = useAuth()
-  const { isCommercial } = useLicense()
+  const { isEnterprise } = useLicense()
   const { formatDateTime } = useDateFormat()
   const [activeSection, setActiveSection] = useState<SectionId>('measurements')
 
@@ -134,7 +134,7 @@ export function SampleInspectorModal({
   const { data: annotationsData } = useAnnotations(characteristicId)
   const { data: editHistory } = useSampleEditHistory(sampleId)
   const { data: anomalyData } = useAnomalyEvents(
-    isCommercial ? characteristicId : 0,
+    isEnterprise ? characteristicId : 0,
     { limit: 100 },
   )
 
@@ -392,7 +392,7 @@ export function SampleInspectorModal({
                 badge={violationCount > 0 ? violationCount : undefined}
                 badgeColor="red"
               />
-              {isCommercial && sampleInsights.length > 0 && (
+              {isEnterprise && sampleInsights.length > 0 && (
                 <SidebarItem
                   icon={Sparkles}
                   label="AI Insights"

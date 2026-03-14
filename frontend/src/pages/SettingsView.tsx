@@ -23,6 +23,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess, type Role } from '@/lib/roles'
 import { useLicense } from '@/hooks/useLicense'
 import { getRegistry } from '@/lib/extensionRegistry'
+import type { LicenseTier } from '@/api/license.api'
 import type { LucideIcon } from 'lucide-react'
 
 interface TabDef {
@@ -30,7 +31,7 @@ interface TabDef {
   labelKey: string
   icon: LucideIcon
   minRole?: Role
-  commercial?: boolean
+  minTier?: LicenseTier
 }
 
 interface SidebarGroupDef {
@@ -44,7 +45,7 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
     tabs: [
       { to: 'account', labelKey: 'tabs.account', icon: CircleUser },
       { to: 'appearance', labelKey: 'tabs.appearance', icon: Palette },
-      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell, commercial: true },
+      { to: 'notifications', labelKey: 'tabs.notifications', icon: Bell, minTier: 'pro' },
     ],
   },
   {
@@ -60,24 +61,24 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
   {
     labelKey: 'groups.security',
     tabs: [
-      { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin', commercial: true },
-      { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer', commercial: true },
-      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer', commercial: true },
-      { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin', commercial: true },
+      { to: 'sso', labelKey: 'tabs.sso', icon: Fingerprint, minRole: 'admin', minTier: 'enterprise' },
+      { to: 'signatures', labelKey: 'tabs.signatures', icon: PenLine, minRole: 'engineer', minTier: 'enterprise' },
+      { to: 'api-keys', labelKey: 'tabs.apiKeys', icon: Key, minRole: 'engineer', minTier: 'pro' },
+      { to: 'audit-log', labelKey: 'tabs.auditLog', icon: Shield, minRole: 'admin', minTier: 'pro' },
     ],
   },
   {
     labelKey: 'groups.data',
     tabs: [
-      { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer', commercial: true },
-      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer', commercial: true },
-      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer', commercial: true },
+      { to: 'database', labelKey: 'tabs.database', icon: Database, minRole: 'engineer', minTier: 'pro' },
+      { to: 'retention', labelKey: 'tabs.retention', icon: Archive, minRole: 'engineer', minTier: 'enterprise' },
+      { to: 'reports', labelKey: 'tabs.reports', icon: FileText, minRole: 'engineer', minTier: 'pro' },
     ],
   },
   {
     labelKey: 'groups.integrations',
     tabs: [
-      { to: 'ai', labelKey: 'tabs.ai', icon: Brain, minRole: 'admin', commercial: true },
+      { to: 'ai', labelKey: 'tabs.ai', icon: Brain, minRole: 'admin', minTier: 'enterprise' },
     ],
   },
 ]
@@ -89,7 +90,14 @@ const SIDEBAR_GROUPS: SidebarGroupDef[] = [
 export function SettingsPage() {
   const { t } = useTranslation('settings')
   const { role } = useAuth()
-  const { isCommercial } = useLicense()
+  const { isProOrAbove, isEnterprise } = useLicense()
+
+  const meetsMinTier = (minTier?: LicenseTier) => {
+    if (!minTier || minTier === 'community') return true
+    if (minTier === 'pro') return isProOrAbove
+    if (minTier === 'enterprise') return isEnterprise
+    return false
+  }
 
   return (
     <div data-ui="settings-page" className="flex min-h-0 flex-1 flex-col">
@@ -113,7 +121,7 @@ export function SettingsPage() {
             const visibleTabs = group.tabs.filter(
               (tab) =>
                 (!tab.minRole || hasAccess(role, tab.minRole)) &&
-                (tab.commercial !== true || isCommercial),
+                meetsMinTier(tab.minTier),
             )
             if (visibleTabs.length === 0) return null
 
@@ -150,7 +158,7 @@ export function SettingsPage() {
             const extTabs = getRegistry().settingsTabs.filter(
               (tab) =>
                 (!tab.minRole || hasAccess(role, tab.minRole)) &&
-                isCommercial,
+                isProOrAbove,
             )
             if (extTabs.length === 0) return null
             const groups = new Map<string, typeof extTabs>()

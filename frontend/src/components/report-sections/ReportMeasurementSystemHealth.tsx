@@ -11,16 +11,16 @@ interface ReportMeasurementSystemHealthProps {
 export function ReportMeasurementSystemHealth({
   characteristicId,
 }: ReportMeasurementSystemHealthProps) {
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
   const { data: studies, isLoading } = useMSAStudies(
-    isCommercial ? plantId : 0,
+    isProOrAbove ? plantId : 0,
     'completed',
   )
 
-  if (!isCommercial) return null
+  if (!isProOrAbove) return null
   if (isLoading) {
     return (
       <div className="border-border rounded-lg border p-4">

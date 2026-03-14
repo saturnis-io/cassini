@@ -9,16 +9,16 @@ interface ReportDOEFindingsProps {
 }
 
 export function ReportDOEFindings({ characteristicId: _characteristicId }: ReportDOEFindingsProps) {
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
   const { data: studies, isLoading } = useDOEStudies(
-    isCommercial ? plantId : 0,
+    isProOrAbove ? plantId : 0,
     'analyzed',
   )
 
-  if (!isCommercial) return null
+  if (!isProOrAbove) return null
   if (isLoading) {
     return (
       <div className="border-border rounded-lg border p-4">

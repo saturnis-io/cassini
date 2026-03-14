@@ -2,13 +2,14 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { Activity, Server, Search, Link2, Usb, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
+import type { LicenseTier } from '@/api/license.api'
 import type { LucideIcon } from 'lucide-react'
 
 interface TabDef {
   to: string
   label: string
   icon: LucideIcon
-  commercial?: boolean
+  minTier?: LicenseTier
 }
 
 const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
@@ -22,20 +23,20 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
   {
     label: 'Configuration',
     tabs: [
-      { to: 'browse', label: 'Browse', icon: Search, commercial: true },
+      { to: 'browse', label: 'Browse', icon: Search, minTier: 'pro' },
       { to: 'mapping', label: 'Mapping', icon: Link2 },
     ],
   },
   {
     label: 'Instruments',
     tabs: [
-      { to: 'gages', label: 'Gages', icon: Usb, commercial: true },
+      { to: 'gages', label: 'Gages', icon: Usb, minTier: 'enterprise' },
     ],
   },
   {
     label: 'Integrations',
     tabs: [
-      { to: 'integrations', label: 'ERP/LIMS', icon: Building2, commercial: true },
+      { to: 'integrations', label: 'ERP/LIMS', icon: Building2, minTier: 'enterprise' },
     ],
   },
 ]
@@ -45,7 +46,14 @@ const SIDEBAR_GROUPS: { label: string; tabs: TabDef[] }[] = [
  * Each tab renders via nested <Route> and <Outlet>.
  */
 export function ConnectivityPage() {
-  const { isCommercial } = useLicense()
+  const { isProOrAbove, isEnterprise } = useLicense()
+
+  const meetsMinTier = (minTier?: LicenseTier) => {
+    if (!minTier || minTier === 'community') return true
+    if (minTier === 'pro') return isProOrAbove
+    if (minTier === 'enterprise') return isEnterprise
+    return false
+  }
 
   return (
     <div data-ui="connectivity-page" className="flex h-full flex-col">
@@ -67,7 +75,7 @@ export function ConnectivityPage() {
         >
           {SIDEBAR_GROUPS.map((group) => {
             const visibleTabs = group.tabs.filter(
-              (tab) => tab.commercial !== true || isCommercial,
+              (tab) => meetsMinTier(tab.minTier),
             )
             if (visibleTabs.length === 0) return null
 

@@ -9,15 +9,15 @@ interface ReportFAIStatusProps {
 }
 
 export function ReportFAIStatus({ characteristicId }: ReportFAIStatusProps) {
-  const { isCommercial } = useLicense()
+  const { isEnterprise } = useLicense()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
   const { data: reports, isLoading } = useFAIReports(
-    isCommercial ? { plant_id: plantId } : { plant_id: 0 },
+    isEnterprise ? { plant_id: plantId } : { plant_id: 0 },
   )
 
-  if (!isCommercial) return null
+  if (!isEnterprise) return null
   if (isLoading) {
     return (
       <div className="border-border rounded-lg border p-4">

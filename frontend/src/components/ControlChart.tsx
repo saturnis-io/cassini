@@ -358,11 +358,11 @@ export function ControlChart({
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const showBrush = useDashboardStore((state) => state.showBrush)
   const showAnomalies = useDashboardStore((state) => state.showAnomalies)
-  const { isCommercial } = useLicense()
+  const { isEnterprise } = useLicense()
   const { data: annotations } = useAnnotations(characteristicId)
   // Gate anomaly API calls to commercial edition only (hook has enabled: charId > 0)
   const { data: anomalyData } = useAnomalyEvents(
-    isCommercial ? characteristicId : 0,
+    isEnterprise ? characteristicId : 0,
     { limit: 100 },
   )
   // Fetch forecast data when predictions toggle is on
@@ -463,7 +463,7 @@ export function ControlChart({
   // Build sample_id → anomaly events map for tooltip rendering
   const sampleAnomalyMap = useMemo(() => {
     const map = new Map<number, import('@/types/anomaly').AnomalyEvent[]>()
-    if (!isCommercial || !showAnomalies || !anomalyData?.events) return map
+    if (!isEnterprise || !showAnomalies || !anomalyData?.events) return map
     for (const event of anomalyData.events) {
       if (event.is_dismissed || event.sample_id == null) continue
       const existing = map.get(event.sample_id)
@@ -471,7 +471,7 @@ export function ControlChart({
       else map.set(event.sample_id, [event])
     }
     return map
-  }, [isCommercial, showAnomalies, anomalyData])
+  }, [isEnterprise, showAnomalies, anomalyData])
 
   // Store data in ref for event handlers (datazoom, click, hover)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
@@ -490,7 +490,7 @@ export function ControlChart({
   // Only match events against the visible data range so the summary bar
   // hides when the shaded region is scrolled out of view.
   const anomalyOverlay = useMemo(() => {
-    if (!isCommercial || !showAnomalies || !anomalyData?.events?.length || data.length === 0)
+    if (!isEnterprise || !showAnomalies || !anomalyData?.events?.length || data.length === 0)
       return null
     const visibleData = showBrush && rangeWindow
       ? data.slice(rangeWindow[0], rangeWindow[1] + 1)
@@ -506,7 +506,7 @@ export function ControlChart({
       return marks
     }
     return null
-  }, [isCommercial, showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
+  }, [isEnterprise, showAnomalies, anomalyData, data, useTimeCoords, showBrush, rangeWindow])
 
   // --- Forecast overlay data (synthesize coordinates for future steps) ---
   const forecastOverlay = useMemo(() => {

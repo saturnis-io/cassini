@@ -22,7 +22,7 @@ export function ReportsView() {
   const selectedCharId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedCharId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const reportContentRef = useRef<HTMLDivElement>(null)
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
 
@@ -31,8 +31,8 @@ export function ReportsView() {
 
   // Filter templates based on license — commercial templates hidden for community
   const availableTemplates = useMemo(
-    () => REPORT_TEMPLATES.filter((t) => !t.commercial || isCommercial),
-    [isCommercial],
+    () => REPORT_TEMPLATES.filter((t) => !t.commercial || isProOrAbove),
+    [isProOrAbove],
   )
 
   // Fetch DOE/MSA studies based on template's studyType

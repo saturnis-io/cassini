@@ -2,7 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useLicense } from '@/hooks/useLicense'
 
 export function LicenseExpiryBanner() {
-  const { isCommercial, isExpired, licensedTier, daysUntilExpiry } = useLicense()
+  const { isProOrAbove, tier, isExpired, licensedTier, daysUntilExpiry } = useLicense()
 
   // Show expired banner when license was commercial but has expired
   if (isExpired && licensedTier) {
@@ -13,7 +13,7 @@ export function LicenseExpiryBanner() {
       >
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span>
-          Your {licensedTier} license has expired. Commercial features are read-only.
+          Your {licensedTier} license has expired. Licensed features are read-only.
         </span>
         <a
           href="https://saturnis.io/cassini/pricing"
@@ -27,8 +27,8 @@ export function LicenseExpiryBanner() {
     )
   }
 
-  // Show expiring-soon banner for active commercial licenses
-  if (!isCommercial || daysUntilExpiry === null || daysUntilExpiry > 30) return null
+  // Show expiring-soon banner for active licensed (Pro or Enterprise) tiers
+  if (!isProOrAbove || daysUntilExpiry === null || daysUntilExpiry > 30) return null
 
   return (
     <div
@@ -37,7 +37,7 @@ export function LicenseExpiryBanner() {
     >
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span>
-        Your license expires in {daysUntilExpiry} day{daysUntilExpiry === 1 ? '' : 's'}.
+        Your {tier} license expires in {daysUntilExpiry} day{daysUntilExpiry === 1 ? '' : 's'}.
       </span>
       <a
         href="https://saturnis.io/cassini/pricing"

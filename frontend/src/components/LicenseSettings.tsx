@@ -73,20 +73,20 @@ export function LicenseSettings() {
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [removeInput, setRemoveInput] = useState('')
 
-  const { isCommercial, tier, licensedTier, maxPlants, expiresAt, daysUntilExpiry, isExpired } =
+  const { isProOrAbove, tier, licensedTier, maxPlants, expiresAt, daysUntilExpiry, isExpired } =
     license
 
   // An expired license that once was commercial
   const wasCommercial = isExpired && licensedTier !== null
-  const showDangerZone = isCommercial || wasCommercial
+  const showDangerZone = isProOrAbove || wasCommercial
 
   const processKeyContent = useCallback(
     (content: string) => {
       const key = content.trim()
       if (!key) return
 
-      // If currently commercial, show comparison dialog
-      if (isCommercial) {
+      // If currently licensed (Pro or Enterprise), show comparison dialog
+      if (isProOrAbove) {
         const parsed = parseJwtBody(key)
         if (parsed) {
           setIncomingPreview({
@@ -108,7 +108,7 @@ export function LicenseSettings() {
         },
       })
     },
-    [isCommercial, activateLicense],
+    [isProOrAbove, activateLicense],
   )
 
   const handleFileDrop = useCallback(
@@ -187,7 +187,8 @@ export function LicenseSettings() {
             <h3 className="font-semibold">License Status</h3>
           </div>
           <EditionBadge
-            isCommercial={isCommercial}
+            isProOrAbove={isProOrAbove}
+            tier={tier}
             isExpired={isExpired}
             wasCommercial={wasCommercial}
           />
@@ -198,13 +199,13 @@ export function LicenseSettings() {
             <div className="text-muted-foreground mb-1 text-xs">Tier</div>
             <div className="flex items-center gap-1.5 text-sm font-medium">
               <Crown className="h-3.5 w-3.5" />
-              {isCommercial ? tier : wasCommercial ? licensedTier : 'Community'}
+              {isProOrAbove ? tier : wasCommercial ? licensedTier : 'Community'}
             </div>
           </div>
           <div className="bg-card border-border rounded-lg border p-3">
             <div className="text-muted-foreground mb-1 text-xs">License Name</div>
             <div className="truncate text-sm font-medium">
-              {isCommercial ? tier : 'N/A'}
+              {isProOrAbove ? tier : 'N/A'}
             </div>
           </div>
           <div className="bg-card border-border rounded-lg border p-3">
@@ -223,8 +224,8 @@ export function LicenseSettings() {
           </div>
         </div>
 
-        {/* Plant usage bar (commercial only) */}
-        {isCommercial && (
+        {/* Plant usage bar (licensed only) */}
+        {isProOrAbove && (
           <div className="mt-4">
             <div className="mb-1 flex items-center gap-1.5 text-xs font-medium">
               <Factory className="h-3.5 w-3.5" />
@@ -235,7 +236,7 @@ export function LicenseSettings() {
         )}
 
         {/* Offline registration file (for air-gapped systems) */}
-        {isCommercial && (
+        {isProOrAbove && (
           <div className="mt-4 flex items-center gap-3">
             <button
               onClick={() => downloadActivation.mutate()}
@@ -251,14 +252,14 @@ export function LicenseSettings() {
         )}
 
         {/* Inline warning for expiring soon */}
-        {isCommercial &&
+        {isProOrAbove &&
           daysUntilExpiry !== null &&
           daysUntilExpiry <= 30 &&
           daysUntilExpiry > 0 && (
             <div className="bg-warning/10 border-warning/20 text-warning mt-4 flex items-start gap-2 rounded-lg border p-3 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Your license expires in {daysUntilExpiry} day
+                Your {tier} license expires in {daysUntilExpiry} day
                 {daysUntilExpiry === 1 ? '' : 's'}.{' '}
                 <a
                   href="https://saturnis.io/cassini/pricing"
@@ -296,14 +297,14 @@ export function LicenseSettings() {
         <div className="mb-4 flex items-center gap-2">
           <Upload className="text-muted-foreground h-5 w-5" />
           <h3 className="font-semibold">
-            {isCommercial ? 'Replace License Key' : 'Upload License Key'}
+            {isProOrAbove ? 'Replace License Key' : 'Upload License Key'}
           </h3>
         </div>
 
         <p className="text-muted-foreground mb-4 text-sm">
-          {isCommercial
+          {isProOrAbove
             ? 'Upload a new license key file to replace your current license.'
-            : 'Upload a license key file (.license) to unlock commercial features.'}
+            : 'Upload a license key file (.license) to unlock Pro or Enterprise features.'}
         </p>
 
         {/* Drag-and-drop zone */}
@@ -450,18 +451,20 @@ export function LicenseSettings() {
 }
 
 function EditionBadge({
-  isCommercial,
+  isProOrAbove,
+  tier,
   isExpired: _isExpired,
   wasCommercial,
 }: {
-  isCommercial: boolean
+  isProOrAbove: boolean
+  tier: string
   isExpired: boolean
   wasCommercial: boolean
 }) {
-  if (isCommercial) {
+  if (isProOrAbove) {
     return (
-      <span className="bg-success/10 text-success inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-        Commercial
+      <span className="bg-success/10 text-success inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize">
+        {tier}
       </span>
     )
   }

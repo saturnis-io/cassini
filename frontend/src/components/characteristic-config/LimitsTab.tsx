@@ -409,7 +409,7 @@ export function LimitsTab({
   isRecalculating = false,
   isSettingManual = false,
 }: LimitsTabProps) {
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
   const [limitSource, setLimitSource] = useState<LimitSource>('calculate')
   const [excludeOoc, setExcludeOoc] = useState(true)
   const [dateRange, setDateRange] = useState<TimeRangeState>({
@@ -590,7 +590,7 @@ export function LimitsTab({
           )}
 
           {/* Laney p'/u' correction (commercial only) */}
-          {isCommercial &&
+          {isProOrAbove &&
             (characteristic?.attribute_chart_type === 'p' ||
               characteristic?.attribute_chart_type === 'u') && (
               <div className="mt-3 flex items-center gap-2">
@@ -611,7 +611,7 @@ export function LimitsTab({
             )}
 
           {/* Short-Run Mode (variable data only, commercial only) */}
-          {isCommercial && dataType === 'variable' && (
+          {isProOrAbove && dataType === 'variable' && (
             <div className="mt-3 space-y-2">
               <label className="text-sm font-medium">Short-Run Mode</label>
               <p className="text-muted-foreground text-xs">

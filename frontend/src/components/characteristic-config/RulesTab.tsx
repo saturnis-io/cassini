@@ -195,7 +195,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
   { characteristicId, dataType, onDirty },
   ref,
 ) {
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
   const { data: rulesData, isLoading } = useNelsonRules(characteristicId)
   const updateRules = useUpdateNelsonRules()
   const { data: presets } = useRulePresets()
@@ -392,7 +392,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
       </div>
 
       {/* Preset Selector + Quick Actions (commercial only) */}
-      {isCommercial && (
+      {isProOrAbove && (
         <div className="bg-muted/30 border-border flex flex-wrap items-center gap-4 rounded-lg border p-3">
           {presets && (
             <PresetSelector
@@ -474,7 +474,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{rule.name}</span>
-                          {isCommercial && isEnabled && (
+                          {isProOrAbove && isEnabled && (
                             <button
                               onClick={() => toggleParamExpand(rule.id)}
                               className={cn(
@@ -488,7 +488,7 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">{rule.shortDesc}</div>
-                        {isCommercial && isEnabled && isExpanded && (
+                        {isProOrAbove && isEnabled && isExpanded && (
                           <ParameterEditor
                             ruleId={rule.id}
                             parameters={config?.parameters ?? null}

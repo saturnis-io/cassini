@@ -247,7 +247,7 @@ export function ChartToolbar({
   onChangeSecondary,
   onExportExcel,
 }: ChartToolbarProps) {
-  const { isCommercial } = useLicense()
+  const { isEnterprise } = useLicense()
   const {
     comparisonMode,
     setComparisonMode,
@@ -273,7 +273,7 @@ export function ChartToolbar({
 
   // Anomaly data — same query key as ControlChart so React Query deduplicates
   const { data: anomalyData } = useAnomalyEvents(
-    isCommercial && showAnomalies ? (characteristicId ?? 0) : 0,
+    isEnterprise && showAnomalies ? (characteristicId ?? 0) : 0,
     { limit: 100 },
   )
   const [insightsOpen, setInsightsOpen] = useState(false)
@@ -409,7 +409,7 @@ export function ChartToolbar({
 
       {/* Right group — visibility toggles */}
       <div className="flex items-center gap-1">
-        {isCommercial && (
+        {isEnterprise && (
           <div ref={aiWrapperRef} className="relative flex items-center gap-1.5">
             {/* AI toggle */}
             <ToolbarBtn
@@ -449,7 +449,7 @@ export function ChartToolbar({
           </div>
         )}
 
-        {isCommercial && (
+        {isEnterprise && (
           <ToolbarBtn
             active={showPredictions}
             onClick={() => setShowPredictions(!showPredictions)}

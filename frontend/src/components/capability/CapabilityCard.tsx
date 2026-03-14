@@ -236,13 +236,13 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const saveSnapshot = useSaveCapabilitySnapshot()
   const [showDistAnalysis, setShowDistAnalysis] = useState(false)
 
-  const { isCommercial } = useLicense()
+  const { isProOrAbove } = useLicense()
 
   const greenThreshold = selectedPlant?.capability_green_threshold ?? 1.33
   const yellowThreshold = selectedPlant?.capability_yellow_threshold ?? 1.0
 
   const canSaveSnapshot = hasAccess(role, 'engineer')
-  const canFitDist = hasAccess(role, 'engineer') && isCommercial
+  const canFitDist = hasAccess(role, 'engineer') && isProOrAbove
 
   if (isLoading) {
     return (
