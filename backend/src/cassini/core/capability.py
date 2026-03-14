@@ -605,6 +605,137 @@ def calculate_capability(
     )
 
 
+def compute_capability_confidence_intervals(
+    measurements: list[float],
+    usl: float | None,
+    lsl: float | None,
+    target: float | None = None,
+    sigma_within: float | None = None,
+    n_bootstrap: int = 2000,
+    confidence: float = 0.95,
+) -> dict[str, tuple[float, float]]:
+    """Compute bootstrap confidence intervals for Cp, Cpk, Pp, Ppk.
+
+    Bootstrap resampling provides distribution-free confidence intervals
+    that are more accurate than parametric CIs for non-normal data.  For
+    normal data, bootstrap CIs and parametric CIs converge at large n.
+
+    The percentile method is used (Efron & Tibshirani, 1993, Ch. 13).
+
+    Args:
+        measurements: Individual measurement values.
+        usl: Upper specification limit.  None if one-sided.
+        lsl: Lower specification limit.  None if one-sided.
+        target: Process target value.
+        sigma_within: Within-subgroup sigma from control chart (R-bar/d2).
+            If None, Cp/Cpk bootstrap CIs are not computed.
+        n_bootstrap: Number of bootstrap resamples (default 2000).
+        confidence: Confidence level (default 0.95 for 95% CI).
+
+    Returns:
+        Dict mapping index name to (lower, upper) tuple, e.g.
+        ``{"cpk": (1.05, 1.61), "ppk": (0.98, 1.52)}``.
+        Only indices that can be computed are included.
+    """
+    arr = np.asarray(measurements, dtype=np.float64)
+    n = len(arr)
+    if n < 2:
+        return {}
+
+    if usl is None and lsl is None:
+        return {}
+
+    alpha = 1.0 - confidence
+    lo_pct = alpha / 2.0 * 100.0
+    hi_pct = (1.0 - alpha / 2.0) * 100.0
+
+    rng = np.random.default_rng(seed=42)
+
+    # Vectorised bootstrap: resample all at once as (n_bootstrap, n) matrix.
+    # indices shape: (n_bootstrap, n)
+    indices = rng.integers(0, n, size=(n_bootstrap, n))
+    # resamples shape: (n_bootstrap, n)
+    resamples = arr[indices]
+
+    # Per-resample statistics
+    means = np.mean(resamples, axis=1)                         # (n_bootstrap,)
+    sigma_overall_boot = np.std(resamples, axis=1, ddof=1)     # (n_bootstrap,)
+
+    results: dict[str, tuple[float, float]] = {}
+
+    # --- Pp / Ppk (use overall sigma from each resample) ---
+    valid_sigma = sigma_overall_boot > 0
+
+    if usl is not None and lsl is not None:
+        # Pp = (USL - LSL) / (6 * sigma_overall)
+        pp_boot = np.where(
+            valid_sigma,
+            (usl - lsl) / (6.0 * np.where(valid_sigma, sigma_overall_boot, 1.0)),
+            np.nan,
+        )
+        pp_valid = pp_boot[~np.isnan(pp_boot)]
+        if len(pp_valid) > 0:
+            results["pp"] = (
+                round(float(np.percentile(pp_valid, lo_pct)), 4),
+                round(float(np.percentile(pp_valid, hi_pct)), 4),
+            )
+
+    # Ppk = min((USL - mean)/(3*sigma), (mean - LSL)/(3*sigma))
+    ppk_parts: list[np.ndarray] = []
+    if usl is not None:
+        ppu = np.where(
+            valid_sigma,
+            (usl - means) / (3.0 * np.where(valid_sigma, sigma_overall_boot, 1.0)),
+            np.nan,
+        )
+        ppk_parts.append(ppu)
+    if lsl is not None:
+        ppl = np.where(
+            valid_sigma,
+            (means - lsl) / (3.0 * np.where(valid_sigma, sigma_overall_boot, 1.0)),
+            np.nan,
+        )
+        ppk_parts.append(ppl)
+    if ppk_parts:
+        ppk_boot = np.nanmin(np.stack(ppk_parts, axis=0), axis=0)
+        ppk_valid = ppk_boot[~np.isnan(ppk_boot)]
+        if len(ppk_valid) > 0:
+            results["ppk"] = (
+                round(float(np.percentile(ppk_valid, lo_pct)), 4),
+                round(float(np.percentile(ppk_valid, hi_pct)), 4),
+            )
+
+    # --- Cp / Cpk (use sigma_within — held fixed across resamples) ---
+    # sigma_within is a control chart parameter (R-bar/d2), not re-estimated
+    # per resample.  The bootstrap only varies the mean for Cpk, while Cp
+    # is constant (it doesn't depend on the mean).  We still report Cp CI
+    # from the parametric method — the bootstrap adds value primarily for
+    # Cpk where the mean varies.
+    if sigma_within is not None and sigma_within > 0:
+        if usl is not None and lsl is not None:
+            # Cp is independent of sample mean — bootstrap doesn't vary it.
+            # We skip Cp bootstrap and let the parametric CI handle it.
+            pass
+
+        cpk_parts_w: list[np.ndarray] = []
+        if usl is not None:
+            cpu_w = (usl - means) / (3.0 * sigma_within)
+            cpk_parts_w.append(cpu_w)
+        if lsl is not None:
+            cpl_w = (means - lsl) / (3.0 * sigma_within)
+            cpk_parts_w.append(cpl_w)
+        if cpk_parts_w:
+            cpk_boot_w = np.nanmin(np.stack(cpk_parts_w, axis=0), axis=0)
+            cpk_valid = cpk_boot_w[~np.isnan(cpk_boot_w)]
+            if len(cpk_valid) > 0:
+                results["cpk"] = (
+                    round(float(np.percentile(cpk_valid, lo_pct)), 4),
+                    round(float(np.percentile(cpk_valid, hi_pct)), 4),
+                )
+
+    return results
+
+
 def calculate_capability_nonnormal(
     values: list[float],
     usl: float | None,

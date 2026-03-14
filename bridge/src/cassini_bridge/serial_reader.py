@@ -59,6 +59,7 @@ class SerialReader:
 
     def open(self) -> None:
         """Open the serial port.  Raises on failure."""
+        self._shutdown.clear()
         self._serial = serial.Serial(
             port=self.port,
             baudrate=self.baud_rate,
@@ -89,10 +90,12 @@ class SerialReader:
         """
         if self._reconnecting or self._failed:
             return None
-        if not self._serial or not self._serial.is_open:
+        with self._lock:
+            ser = self._serial
+        if ser is None or not ser.is_open:
             return None
         try:
-            raw = self._serial.readline()
+            raw = ser.readline()
             if raw:
                 return raw.decode("ascii", errors="replace").strip()
         except serial.SerialException as exc:
