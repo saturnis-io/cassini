@@ -198,3 +198,35 @@ export function useCalculateLinearity() {
     onError: handleMutationError('Linearity calculation failed'),
   })
 }
+
+export function useCalculateStability() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (studyId: number) => msaApi.calculateStability(studyId),
+    onSuccess: (_, studyId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
+      toast.success('Stability analysis complete')
+    },
+    onError: handleMutationError('Stability calculation failed'),
+  })
+}
+
+export function useCalculateBias() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (studyId: number) => msaApi.calculateBias(studyId),
+    onSuccess: (_, studyId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
+      toast.success('Bias analysis complete')
+    },
+    onError: handleMutationError('Bias calculation failed'),
+  })
+}

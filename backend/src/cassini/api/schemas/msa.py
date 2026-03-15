@@ -13,7 +13,7 @@ class MSAStudyCreate(BaseModel):
     name: str = Field(..., max_length=255)
     study_type: str = Field(
         ...,
-        pattern=r"^(crossed_anova|nested_anova|range_method|attribute_agreement|linearity)$",
+        pattern=r"^(crossed_anova|nested_anova|range_method|attribute_agreement|linearity|stability|bias)$",
     )
     characteristic_id: int | None = None
     num_operators: int = Field(..., ge=1)
@@ -167,3 +167,40 @@ class LinearityResultResponse(BaseModel):
     individual_points: list[dict]
     verdict: str
     p_value: float
+
+
+class StabilityResultResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    values: list[float]
+    center_line: float
+    ucl: float
+    lcl: float
+    sigma: float
+    moving_ranges: list[float]
+    mr_center_line: float
+    mr_ucl: float
+    mr_lcl: float
+    violations: list[dict]
+    verdict: str
+    verdict_reason: str
+    warnings: list[str]
+
+
+class BiasResultResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    reference_value: float
+    n: int
+    mean: float
+    std_dev: float
+    bias: float
+    bias_percent: float | None
+    t_statistic: float
+    p_value: float
+    df: int
+    is_significant: bool
+    verdict: str
+    denominator_used: str
+    measurements: list[float]
+    warnings: list[str]

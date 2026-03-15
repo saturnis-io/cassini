@@ -22,6 +22,7 @@ from cassini.api.deps import (
 )
 from cassini.api.schemas.msa import (
     AttributeMSAResultResponse,
+    BiasResultResponse,
     GageRRResultResponse,
     LinearityResultResponse,
     MSAAttributeBatch,
@@ -34,8 +35,15 @@ from cassini.api.schemas.msa import (
     MSAStudyCreate,
     MSAStudyDetailResponse,
     MSAStudyResponse,
+    StabilityResultResponse,
 )
-from cassini.core.msa import AttributeMSAEngine, GageRREngine, compute_linearity
+from cassini.core.msa import (
+    AttributeMSAEngine,
+    GageRREngine,
+    compute_bias,
+    compute_linearity,
+    compute_stability,
+)
 from cassini.core.signature_engine import SignatureWorkflowEngine
 from cassini.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
 from cassini.db.models.user import User
@@ -502,6 +510,16 @@ async def calculate_gage_rr(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Study type 'linearity' must use the linearity-calculate endpoint",
             )
+        if study.study_type == "stability":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Study type 'stability' must use the stability-calculate endpoint",
+            )
+        if study.study_type == "bias":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Study type 'bias' must use the bias-calculate endpoint",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Study type '{study.study_type}' is not a variable study — use attribute-calculate instead",
@@ -865,9 +883,226 @@ async def calculate_linearity(
     return LinearityResultResponse.model_validate(result_dict)
 
 
+@router.post("/studies/{study_id}/stability-calculate", response_model=StabilityResultResponse)
+async def calculate_stability(
+    study_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> StabilityResultResponse:
+    """Run stability analysis on a study's measurements.
+
+    Uses I-MR chart calculations and Nelson Rules to evaluate measurement
+    system stability over time (AIAG MSA 4th Ed., Chapter 4).
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id, load_children=True)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    if study.study_type != "stability":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Study type '{study.study_type}' is not a stability study — use the appropriate calculate endpoint",
+        )
+
+    # Load measurements
+    meas_result = await session.execute(
+        select(MSAMeasurement).where(MSAMeasurement.study_id == study_id)
+    )
+    measurements = list(meas_result.scalars().all())
+
+    if not measurements:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No measurements found — submit measurements before calculating",
+        )
+
+    # For stability studies, we use part sequence as time ordering
+    # and collect all measurements in time order (by part sequence, then replicate)
+    sorted_parts = sorted(study.parts, key=lambda p: p.sequence_order)
+    part_index = {p.id: i for i, p in enumerate(sorted_parts)}
+
+    # Group by part and replicate to form time-ordered series
+    # For stability: each "part" represents a time point, replicates are repeated measurements
+    n_parts = len(sorted_parts)
+    n_reps = study.num_replicates
+    meas_by_time: list[list[float | None]] = [[None] * n_reps for _ in range(n_parts)]
+
+    for m in measurements:
+        pi = part_index.get(m.part_id)
+        if pi is None:
+            continue
+        ri = m.replicate_num - 1
+        if 0 <= ri < n_reps:
+            meas_by_time[pi][ri] = m.value
+
+    # Flatten to time-ordered individual values
+    time_ordered_values: list[float] = []
+    for time_idx in range(n_parts):
+        for rep_idx in range(n_reps):
+            val = meas_by_time[time_idx][rep_idx]
+            if val is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Measurement matrix is incomplete — ensure all time point/replicate cells are filled",
+                )
+            time_ordered_values.append(val)
+
+    # Run stability engine
+    try:
+        result = compute_stability(measurements=time_ordered_values)
+    except ValueError as exc:
+        logger.warning("msa_stability_failed", study_id=study_id, error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stability calculation failed — check measurement data completeness",
+        )
+
+    # Store result
+    from dataclasses import asdict as _asdict
+    result_dict = _asdict(result)
+    study.results_json = json.dumps(result_dict)
+    study.status = "complete"
+    study.completed_at = datetime.now(timezone.utc)
+
+    # Initiate signature workflow if required
+    sig_engine = SignatureWorkflowEngine(session)
+    if await sig_engine.check_workflow_required(session, "msa_study", study.plant_id):
+        await sig_engine.initiate_workflow("msa_study", study.id, user.id, study.plant_id)
+
+    await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "calculate",
+        "summary": f"Stability study calculated for '{study.name}': verdict={result.verdict}",
+        "fields": {
+            "study_name": study.name,
+            "study_type": "stability",
+            "verdict": result.verdict,
+            "n_violations": len(result.violations),
+            "plant_id": study.plant_id,
+        },
+    }
+
+    logger.info(
+        "msa_stability_calculated", study_id=study_id,
+        verdict=result.verdict, user=user.username,
+    )
+    return StabilityResultResponse.model_validate(result_dict)
+
+
+@router.post("/studies/{study_id}/bias-calculate", response_model=BiasResultResponse)
+async def calculate_bias(
+    study_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> BiasResultResponse:
+    """Run standalone bias analysis on a study's measurements.
+
+    Uses the Independent Sample Bias Method (AIAG MSA 4th Ed., Chapter 3)
+    to assess measurement system bias relative to a known reference value.
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id, load_children=True)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    if study.study_type != "bias":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Study type '{study.study_type}' is not a bias study — use the appropriate calculate endpoint",
+        )
+
+    # Load measurements
+    meas_result = await session.execute(
+        select(MSAMeasurement).where(MSAMeasurement.study_id == study_id)
+    )
+    measurements = list(meas_result.scalars().all())
+
+    if not measurements:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No measurements found — submit measurements before calculating",
+        )
+
+    # For bias study, we need exactly one part with a reference_value
+    sorted_parts = sorted(study.parts, key=lambda p: p.sequence_order)
+    if not sorted_parts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bias study requires at least one part with a reference value",
+        )
+
+    reference_part = sorted_parts[0]
+    if reference_part.reference_value is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Part '{reference_part.name}' is missing a reference value — bias study requires a known reference",
+        )
+
+    reference_value = reference_part.reference_value
+
+    # Collect all measurement values
+    values = [m.value for m in measurements]
+
+    # Run bias engine
+    try:
+        result = compute_bias(
+            measurements=values,
+            reference_value=reference_value,
+            tolerance=study.tolerance,
+        )
+    except ValueError as exc:
+        logger.warning("msa_bias_failed", study_id=study_id, error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bias calculation failed — check measurement data completeness",
+        )
+
+    # Store result
+    from dataclasses import asdict as _asdict
+    result_dict = _asdict(result)
+    study.results_json = json.dumps(result_dict)
+    study.status = "complete"
+    study.completed_at = datetime.now(timezone.utc)
+
+    # Initiate signature workflow if required
+    sig_engine = SignatureWorkflowEngine(session)
+    if await sig_engine.check_workflow_required(session, "msa_study", study.plant_id):
+        await sig_engine.initiate_workflow("msa_study", study.id, user.id, study.plant_id)
+
+    await session.commit()
+
+    bias_pct_str = f"{result.bias_percent:.1f}%" if result.bias_percent is not None else "N/A"
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "calculate",
+        "summary": f"Bias study calculated for '{study.name}': %Bias={bias_pct_str}, verdict={result.verdict}",
+        "fields": {
+            "study_name": study.name,
+            "study_type": "bias",
+            "bias_percent": result.bias_percent,
+            "verdict": result.verdict,
+            "is_significant": result.is_significant,
+            "plant_id": study.plant_id,
+        },
+    }
+
+    logger.info(
+        "msa_bias_calculated", study_id=study_id,
+        verdict=result.verdict, user=user.username,
+    )
+    return BiasResultResponse.model_validate(result_dict)
+
+
 @router.get(
     "/studies/{study_id}/results",
-    response_model=GageRRResultResponse | AttributeMSAResultResponse | LinearityResultResponse,
+    response_model=GageRRResultResponse | AttributeMSAResultResponse | LinearityResultResponse | StabilityResultResponse | BiasResultResponse,
 )
 async def get_results(
     study_id: int,
@@ -895,5 +1130,9 @@ async def get_results(
         return AttributeMSAResultResponse.model_validate(raw)
     elif study.study_type == "linearity":
         return LinearityResultResponse.model_validate(raw)
+    elif study.study_type == "stability":
+        return StabilityResultResponse.model_validate(raw)
+    elif study.study_type == "bias":
+        return BiasResultResponse.model_validate(raw)
     else:
         return GageRRResultResponse.model_validate(raw)

@@ -1,5 +1,6 @@
 import type {
   AttributeMSAResult,
+  BiasResult,
   GageRRResult,
   LinearityResult,
   MSAAttributeInput,
@@ -10,6 +11,7 @@ import type {
   MSAStudy,
   MSAStudyCreate,
   MSAStudyDetail,
+  StabilityResult,
 } from './client'
 import { fetchApi } from './client'
 
@@ -73,8 +75,18 @@ export const msaApi = {
       method: 'POST',
     }),
 
+  calculateStability: (studyId: number) =>
+    fetchApi<StabilityResult>(`/msa/studies/${studyId}/stability-calculate`, {
+      method: 'POST',
+    }),
+
+  calculateBias: (studyId: number) =>
+    fetchApi<BiasResult>(`/msa/studies/${studyId}/bias-calculate`, {
+      method: 'POST',
+    }),
+
   getResults: (studyId: number) =>
-    fetchApi<GageRRResult | AttributeMSAResult | LinearityResult>(
+    fetchApi<GageRRResult | AttributeMSAResult | LinearityResult | StabilityResult | BiasResult>(
       `/msa/studies/${studyId}/results`,
     ),
 }

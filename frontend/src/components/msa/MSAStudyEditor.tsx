@@ -25,6 +25,8 @@ import {
   useCalculateMSA,
   useCalculateAttributeMSA,
   useCalculateLinearity,
+  useCalculateStability,
+  useCalculateBias,
   useMSAResults,
   useMSAMeasurements,
   useCharacteristics,
@@ -39,6 +41,8 @@ import type {
   GageRRResult,
   AttributeMSAResult,
   LinearityResult,
+  StabilityResult,
+  BiasResult,
 } from '@/api/client'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
@@ -47,6 +51,8 @@ import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'
 import { LinearityResults } from './LinearityResults'
+import { StabilityResults } from './StabilityResults'
+import { BiasResults } from './BiasResults'
 import { CharacteristicPicker } from './CharacteristicPicker'
 
 // ── Constants ──
@@ -57,6 +63,8 @@ const STUDY_TYPES = [
   { value: 'nested_anova', label: 'Nested ANOVA (destructive testing)' },
   { value: 'attribute_agreement', label: 'Attribute Agreement Analysis' },
   { value: 'linearity', label: 'Linearity Study (bias vs range)' },
+  { value: 'stability', label: 'Stability Study (I-MR over time)' },
+  { value: 'bias', label: 'Bias Study (independent sample method)' },
 ]
 
 const STUDY_TYPE_LABELS: Record<string, string> = {
@@ -65,6 +73,8 @@ const STUDY_TYPE_LABELS: Record<string, string> = {
   range_method: 'Range Method',
   attribute_agreement: 'Attribute Agreement',
   linearity: 'Linearity',
+  stability: 'Stability',
+  bias: 'Bias',
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -83,6 +93,18 @@ function isAttributeStudy(studyType: string): boolean {
 
 function isLinearityStudy(studyType: string): boolean {
   return studyType === 'linearity'
+}
+
+function isStabilityStudy(studyType: string): boolean {
+  return studyType === 'stability'
+}
+
+function isBiasStudy(studyType: string): boolean {
+  return studyType === 'bias'
+}
+
+function isSingleOperatorStudy(studyType: string): boolean {
+  return studyType === 'linearity' || studyType === 'stability' || studyType === 'bias'
 }
 
 function measurementsToGridData(
@@ -227,6 +249,9 @@ function NewStudyForm() {
   const [referenceValues, setReferenceValues] = useState<string[]>([])
 
   const isLinearity = isLinearityStudy(studyType)
+  const isStability = isStabilityStudy(studyType)
+  const isBias = isBiasStudy(studyType)
+  const isSingleOp = isSingleOperatorStudy(studyType)
 
   const { data: charData } = useCharacteristics(
     plantId > 0 ? { plant_id: plantId, per_page: 500 } : undefined,
@@ -239,7 +264,7 @@ function NewStudyForm() {
 
   const isPending = createStudy.isPending || setOperatorsMut.isPending || setPartsMut.isPending
 
-  // When switching to linearity, set reasonable defaults
+  // When switching to linearity/stability/bias, set reasonable defaults
   useEffect(() => {
     if (isLinearity) {
       setNumOperators(1)
@@ -251,8 +276,24 @@ function NewStudyForm() {
         if (prev.length === 5) return prev
         return ['', '', '', '', '']
       })
+    } else if (isStability) {
+      setNumOperators(1)
+      setNumParts(25)
+      setNumReplicates(1)
+      setOperatorNames(['Operator 1'])
+      setPartNames(
+        Array.from({ length: 25 }, (_, i) => `Time ${i + 1}`),
+      )
+      setReferenceValues([])
+    } else if (isBias) {
+      setNumOperators(1)
+      setNumParts(1)
+      setNumReplicates(25)
+      setOperatorNames(['Operator 1'])
+      setPartNames(['Reference Standard'])
+      setReferenceValues([''])
     }
-  }, [isLinearity])
+  }, [isLinearity, isStability, isBias])
 
   useEffect(() => {
     setOperatorNames((prev) => {
@@ -288,11 +329,17 @@ function NewStudyForm() {
   }, [charId, characteristics])
 
   const handleCreate = async () => {
-    // Validate reference values for linearity studies
+    // Validate reference values for linearity/bias studies
     if (isLinearity) {
       const refs = referenceValues.slice(0, numParts)
       if (refs.some((v) => v === '' || isNaN(parseFloat(v)))) {
         toast.error('All reference standard values must be filled for a linearity study')
+        return
+      }
+    }
+    if (isBias) {
+      if (!referenceValues[0] || isNaN(parseFloat(referenceValues[0]))) {
+        toast.error('Reference value must be provided for a bias study')
         return
       }
     }
@@ -315,7 +362,12 @@ function NewStudyForm() {
       })
       const parts = partNames.slice(0, numParts).map((n, i) => ({
         name: n,
-        reference_value: isLinearity ? parseFloat(referenceValues[i]) : undefined,
+        reference_value:
+          isLinearity
+            ? parseFloat(referenceValues[i])
+            : isBias && referenceValues[0]
+              ? parseFloat(referenceValues[0])
+              : undefined,
       }))
       await setPartsMut.mutateAsync({
         studyId: created.id,
@@ -418,8 +470,8 @@ function NewStudyForm() {
           </p>
         </div>
 
-        <div className={cn('grid gap-4', isLinearity ? 'grid-cols-2' : 'grid-cols-3')}>
-          {!isLinearity && (
+        <div className={cn('grid gap-4', isSingleOp ? 'grid-cols-2' : 'grid-cols-3')}>
+          {!isSingleOp && (
             <div>
               <label className="mb-1.5 block text-sm font-medium">Operators</label>
               <input
@@ -434,7 +486,13 @@ function NewStudyForm() {
           )}
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              {isLinearity ? 'Reference Levels' : 'Parts'}
+              {isLinearity
+                ? 'Reference Levels'
+                : isStability
+                  ? 'Time Points'
+                  : isBias
+                    ? 'Parts'
+                    : 'Parts'}
             </label>
             <input
               type="number"
@@ -447,7 +505,13 @@ function NewStudyForm() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              {isLinearity ? 'Measurements per Level' : 'Replicates'}
+              {isLinearity
+                ? 'Measurements per Level'
+                : isStability
+                  ? 'Measurements per Time Point'
+                  : isBias
+                    ? 'Measurements'
+                    : 'Replicates'}
             </label>
             <input
               type="number"
@@ -460,7 +524,7 @@ function NewStudyForm() {
           </div>
         </div>
 
-        {!isAttributeStudy(studyType) && (
+        {!isAttributeStudy(studyType) && !isStability && (
           <div>
             <label className="mb-1.5 block text-sm font-medium">
               Tolerance (USL - LSL) <span className="text-muted-foreground">(optional)</span>
@@ -476,12 +540,31 @@ function NewStudyForm() {
             <p className="text-muted-foreground mt-1 text-xs">
               {isLinearity
                 ? 'Used to calculate %Linearity and %Bias. Leave blank to skip.'
-                : 'Used to calculate %Tolerance. Leave blank to skip.'}
+                : isBias
+                  ? 'Used to calculate %Bias. Leave blank to use 6*sigma fallback.'
+                  : 'Used to calculate %Tolerance. Leave blank to skip.'}
             </p>
           </div>
         )}
 
-        {!isLinearity && (
+        {isBias && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Reference Value</label>
+            <input
+              type="number"
+              step="any"
+              value={referenceValues[0] ?? ''}
+              onChange={(e) => setReferenceValues([e.target.value])}
+              placeholder="Known true value of the reference standard"
+              className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm tabular-nums focus:ring-2 focus:outline-none"
+            />
+            <p className="text-muted-foreground mt-1 text-xs">
+              Enter the certified/known true value of the reference standard being measured.
+            </p>
+          </div>
+        )}
+
+        {!isSingleOp && (
           <div>
             <label className="mb-1.5 block text-sm font-medium">Operator Names</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -503,6 +586,7 @@ function NewStudyForm() {
           </div>
         )}
 
+        {!isStability && !isBias && (
         <div>
           <label className="mb-1.5 block text-sm font-medium">
             {isLinearity ? 'Reference Standards' : 'Part Names'}
@@ -559,6 +643,7 @@ function NewStudyForm() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   )
@@ -590,6 +675,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   const calculateMSA = useCalculateMSA()
   const calculateAttributeMSA = useCalculateAttributeMSA()
   const calculateLinearityMut = useCalculateLinearity()
+  const calculateStabilityMut = useCalculateStability()
+  const calculateBiasMut = useCalculateBias()
 
   useEffect(() => {
     if (study?.status === 'complete') setActiveTab('results')
@@ -597,6 +684,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
 
   const isAttribute = isAttributeStudy(study?.study_type ?? '')
   const isLin = isLinearityStudy(study?.study_type ?? '')
+  const isStab = isStabilityStudy(study?.study_type ?? '')
+  const isBi = isBiasStudy(study?.study_type ?? '')
   const statusStyle = STATUS_STYLES[study?.status ?? 'setup'] ?? STATUS_STYLES.setup
   const isComplete = study?.status === 'complete'
   const totalExpected = (study?.num_operators ?? 0) * (study?.num_parts ?? 0) * (study?.num_replicates ?? 0)
@@ -627,7 +716,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     submitAttributeMeasurements.isPending ||
     calculateMSA.isPending ||
     calculateAttributeMSA.isPending ||
-    calculateLinearityMut.isPending
+    calculateLinearityMut.isPending ||
+    calculateStabilityMut.isPending ||
+    calculateBiasMut.isPending
 
   if (isLoading) {
     return (
@@ -721,6 +812,10 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
         await calculateAttributeMSA.mutateAsync(study.id)
       } else if (isLin) {
         await calculateLinearityMut.mutateAsync(study.id)
+      } else if (isStab) {
+        await calculateStabilityMut.mutateAsync(study.id)
+      } else if (isBi) {
+        await calculateBiasMut.mutateAsync(study.id)
       } else {
         await calculateMSA.mutateAsync(study.id)
       }
@@ -902,7 +997,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                         'disabled:cursor-not-allowed disabled:opacity-50',
                       )}
                     >
-                      {calculateMSA.isPending || calculateAttributeMSA.isPending || calculateLinearityMut.isPending ? (
+                      {calculateMSA.isPending || calculateAttributeMSA.isPending || calculateLinearityMut.isPending || calculateStabilityMut.isPending || calculateBiasMut.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <ArrowRight className="h-4 w-4" />
@@ -948,6 +1043,10 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                   <AttributeMSAResults result={results as AttributeMSAResult} studyId={studyId} />
                 ) : isLin ? (
                   <LinearityResults result={results as LinearityResult} studyId={studyId} />
+                ) : isStab ? (
+                  <StabilityResults result={results as StabilityResult} studyId={studyId} />
+                ) : isBi ? (
+                  <BiasResults result={results as BiasResult} studyId={studyId} />
                 ) : (
                   <MSAResults result={results as GageRRResult} studyId={studyId} />
                 )}
@@ -1009,6 +1108,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
 
 function OverviewTab({ study }: { study: MSAStudyDetail }) {
   const isLin = isLinearityStudy(study.study_type)
+  const isSingleOp = isSingleOperatorStudy(study.study_type)
+  const isStab = isStabilityStudy(study.study_type)
+  const isBi = isBiasStudy(study.study_type)
 
   return (
     <div className="space-y-6">
@@ -1019,7 +1121,7 @@ function OverviewTab({ study }: { study: MSAStudyDetail }) {
             {STUDY_TYPE_LABELS[study.study_type] ?? study.study_type}
           </div>
         </div>
-        {!isLin && (
+        {!isSingleOp && (
           <div className="bg-muted/50 rounded-lg px-4 py-3">
             <div className="text-muted-foreground text-xs font-medium">Operators</div>
             <div className="mt-1 text-sm font-semibold">{study.num_operators}</div>
@@ -1027,19 +1129,19 @@ function OverviewTab({ study }: { study: MSAStudyDetail }) {
         )}
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">
-            {isLin ? 'Reference Levels' : 'Parts'}
+            {isLin ? 'Reference Levels' : isStab ? 'Time Points' : 'Parts'}
           </div>
           <div className="mt-1 text-sm font-semibold">{study.num_parts}</div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">
-            {isLin ? 'Measurements per Level' : 'Replicates'}
+            {isLin ? 'Measurements per Level' : isStab ? 'Measurements per Time Point' : isBi ? 'Measurements' : 'Replicates'}
           </div>
           <div className="mt-1 text-sm font-semibold">{study.num_replicates}</div>
         </div>
       </div>
 
-      {!isLin && study.operators.length > 0 && (
+      {!isSingleOp && study.operators.length > 0 && (
         <div>
           <h3 className="mb-2 text-sm font-medium">Operators</h3>
           <div className="flex flex-wrap gap-2">
