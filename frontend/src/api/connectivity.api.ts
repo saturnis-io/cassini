@@ -188,11 +188,13 @@ export const opcuaApi = {
 
   browse: (id: number, nodeId?: string) =>
     fetchApi<OPCUABrowsedNode[]>(
-      `/opcua-servers/${id}/browse${nodeId ? `?node_id=${encodeURIComponent(nodeId)}` : ''}`,
+      `/opcua-servers/${id}/browse${nodeId ? `?parent_node_id=${encodeURIComponent(nodeId)}` : ''}`,
     ),
 
   readValue: (id: number, nodeId: string) =>
-    fetchApi<OPCUANodeValue>(`/opcua-servers/${id}/read?node_id=${encodeURIComponent(nodeId)}`),
+    fetchApi<OPCUANodeValue>(
+      `/opcua-servers/${id}/browse/value?node_id=${encodeURIComponent(nodeId)}`,
+    ),
 }
 
 // Tag Mapping API

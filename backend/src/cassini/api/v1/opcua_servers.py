@@ -546,6 +546,7 @@ async def browse_opcua_nodes(
             node_class=node.node_class,
             data_type=node.data_type,
             is_readable=node.is_readable,
+            is_folder=node.is_folder,
             children_count=node.children_count,
         )
         for node in nodes

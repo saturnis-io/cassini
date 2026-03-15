@@ -22,10 +22,11 @@ class BrowsedNode:
     Attributes:
         node_id: OPC-UA NodeId string (e.g. "ns=2;i=1234")
         browse_name: QualifiedName as string
-        display_name: LocalizedText as string
+        display_name: Plain text display name (extracted from LocalizedText)
         node_class: Node class name ("Object", "Variable", "Method", etc.)
         data_type: Data type name (only for Variable nodes)
         is_readable: True if Variable with read access
+        is_folder: True if node is a FolderType object
         children_count: Number of child nodes (populated on browse)
     """
 
@@ -35,6 +36,7 @@ class BrowsedNode:
     node_class: str
     data_type: str | None = None
     is_readable: bool = False
+    is_folder: bool = False
     children_count: int | None = None
 
 
@@ -242,6 +244,10 @@ class NodeBrowsingService:
         display_name = await node.read_display_name()
         node_class = await node.read_node_class()
 
+        # Extract plain text from LocalizedText / QualifiedName objects
+        display_name_str = self._extract_localized_text(display_name)
+        browse_name_str = self._extract_qualified_name(browse_name)
+
         data_type = None
         is_readable = False
 
@@ -253,22 +259,70 @@ class NodeBrowsingService:
             except Exception:
                 data_type = "Unknown"
 
-        # Check if node has children (for lazy-load indicator)
+        # Check if node has children using lightweight reference browse
+        # instead of get_children() which fetches full node objects
         try:
-            children = await node.get_children()
-            children_count = len(children)
+            refs = await node.get_references(
+                refs=ua.ObjectIds.HierarchicalReferences,
+                direction=ua.BrowseDirection.Forward,
+            )
+            children_count = len(refs)
         except Exception:
             children_count = 0
 
+        # Detect folder type via type definition
+        is_folder = False
+        if node_class == ua.NodeClass.Object:
+            try:
+                type_def_refs = await node.get_references(
+                    refs=ua.ObjectIds.HasTypeDefinition,
+                    direction=ua.BrowseDirection.Forward,
+                )
+                for ref in type_def_refs:
+                    type_id = ref.NodeId
+                    # FolderType = i=61, check namespace 0
+                    if type_id.NamespaceIndex == 0 and type_id.Identifier == 61:
+                        is_folder = True
+                        break
+            except Exception:
+                pass
+
         return BrowsedNode(
             node_id=node.nodeid.to_string(),
-            browse_name=str(browse_name),
-            display_name=str(display_name),
+            browse_name=browse_name_str,
+            display_name=display_name_str,
             node_class=str(node_class).split(".")[-1],  # "NodeClass.Variable" -> "Variable"
             data_type=data_type,
             is_readable=is_readable,
+            is_folder=is_folder,
             children_count=children_count,
         )
+
+    @staticmethod
+    def _extract_localized_text(value) -> str:
+        """Extract plain text from a LocalizedText object.
+
+        asyncua returns LocalizedText objects for display names and descriptions.
+        str() on these renders as 'LocalizedText(Locale=None, Text=...)' which
+        is not useful for display. Extract just the .Text property.
+        """
+        if hasattr(value, "Text"):
+            text = value.Text
+            return str(text) if text is not None else ""
+        return str(value)
+
+    @staticmethod
+    def _extract_qualified_name(value) -> str:
+        """Extract name from a QualifiedName object.
+
+        asyncua returns QualifiedName objects for browse names.
+        str() renders as 'QualifiedName(...)'. Extract as 'ns:Name' format.
+        """
+        if hasattr(value, "Name") and hasattr(value, "NamespaceIndex"):
+            ns = value.NamespaceIndex
+            name = value.Name or ""
+            return f"{ns}:{name}" if ns else str(name)
+        return str(value)
 
     def _is_cache_valid(self, key: str) -> bool:
         """Check if cached browse result is still valid."""

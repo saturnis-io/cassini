@@ -142,6 +142,7 @@ class BrowsedNodeResponse(BaseModel):
     node_class: str
     data_type: str | None = None
     is_readable: bool = False
+    is_folder: bool = False
     children_count: int | None = None
 
 
