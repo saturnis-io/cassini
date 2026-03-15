@@ -337,23 +337,32 @@ class TestAuditIntegrityEndpointValid:
 
     @pytest.mark.asyncio
     async def test_valid_chain_returns_true(
-        self, async_engine, async_session: AsyncSession, audit_client: AsyncClient
+        self, async_session: AsyncSession, audit_client: AsyncClient
     ) -> None:
-        """Create entries via AuditService, then hit the endpoint."""
-        svc = AuditService(_make_session_factory(async_engine))
+        """Insert entries with correct hashes, then verify via endpoint."""
+        from datetime import datetime
+
+        previous_hash = GENESIS_HASH
         for i in range(1, 4):
-            await svc.log(
+            # Use fixed naive timestamps (no tz) to match what SQLite stores
+            ts = datetime(2026, 3, 15, 12, 0, i)
+            seq_hash = compute_audit_hash(
+                previous_hash, "create", "sample", i, 1, "admin", ts,
+            )
+            entry = AuditLog(
                 action="create",
                 resource_type="sample",
                 resource_id=i,
                 user_id=1,
                 username="admin",
+                timestamp=ts,
+                sequence_hash=seq_hash,
             )
+            async_session.add(entry)
+            previous_hash = seq_hash
 
-        # The audit_client's session needs to see the committed rows.
-        # Since AuditService uses its own sessions that commit, and the
-        # endpoint session comes from async_session which shares the engine,
-        # rows should be visible via the StaticPool.
+        await async_session.flush()
+
         resp = await audit_client.get("/api/v1/audit/verify-integrity")
         assert resp.status_code == 200
         data = resp.json()
@@ -371,35 +380,40 @@ class TestAuditIntegrityDetectsTampering:
 
     @pytest.mark.asyncio
     async def test_tampered_hash_detected(
-        self, async_engine, async_session: AsyncSession, audit_client: AsyncClient
+        self, async_session: AsyncSession, audit_client: AsyncClient
     ) -> None:
-        """Corrupt one entry's hash and verify the endpoint catches it."""
-        svc = AuditService(_make_session_factory(async_engine))
+        """Insert entries, corrupt one hash, verify endpoint catches it."""
+        from datetime import datetime
+
+        previous_hash = GENESIS_HASH
+        entry_ids: list[int] = []
         for i in range(1, 4):
-            await svc.log(
+            ts = datetime(2026, 3, 15, 13, 0, i)
+            seq_hash = compute_audit_hash(
+                previous_hash, "create", "broker", i, 1, "admin", ts,
+            )
+            entry = AuditLog(
                 action="create",
                 resource_type="broker",
                 resource_id=i,
                 user_id=1,
                 username="admin",
+                timestamp=ts,
+                sequence_hash=seq_hash,
             )
+            async_session.add(entry)
+            await async_session.flush()
+            entry_ids.append(entry.id)
+            previous_hash = seq_hash
 
-        # Find the 2nd entry and corrupt its hash
-        stmt = (
-            select(AuditLog)
-            .where(AuditLog.sequence_hash.isnot(None))
-            .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
-        )
-        rows = (await async_session.execute(stmt)).scalars().all()
-        assert len(rows) == 3
-
-        tampered_id = rows[1].id
+        # Corrupt the 2nd entry's hash
+        tampered_id = entry_ids[1]
         await async_session.execute(
             update(AuditLog)
             .where(AuditLog.id == tampered_id)
             .values(sequence_hash="deadbeef" * 8)
         )
-        await async_session.commit()
+        await async_session.flush()
 
         resp = await audit_client.get("/api/v1/audit/verify-integrity")
         assert resp.status_code == 200
