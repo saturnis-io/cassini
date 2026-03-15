@@ -26,14 +26,52 @@ router = APIRouter(prefix="/api/v1/license", tags=["license"])
 
 @router.get("/status", response_model=LicenseStatusResponse)
 async def get_license_status(
+    request: Request,
     license_service: LicenseService = Depends(get_license_service),
 ) -> LicenseStatusResponse:
     """Get current license status.
 
-    Returns edition type, tier, plant limits, and expiry info.
-    No authentication required.
+    Anonymous callers receive tier and max_plants only.
+    Authenticated admins receive full details including instance_id
+    and expires_at.
     """
-    return LicenseStatusResponse(**license_service.status())
+    full_status = license_service.status()
+
+    # Check if caller is an authenticated admin
+    is_admin = False
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from cassini.core.auth.jwt import decode_access_token
+            from cassini.db.database import get_database
+            from cassini.db.models.user import User as UserModel, UserRole
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+
+            token = auth_header.split(" ", 1)[1]
+            payload = decode_access_token(token)
+            user_id = int(payload.get("sub", 0))
+            if user_id:
+                db = get_database()
+                async with db.session() as session:
+                    stmt = (
+                        select(UserModel)
+                        .options(selectinload(UserModel.plant_roles))
+                        .where(UserModel.id == user_id, UserModel.is_active == True)  # noqa: E712
+                    )
+                    result = await session.execute(stmt)
+                    user = result.scalar_one_or_none()
+                    if user:
+                        is_admin = any(pr.role == UserRole.admin for pr in user.plant_roles)
+        except Exception:
+            pass
+
+    if not is_admin:
+        # Strip sensitive fields for anonymous callers
+        full_status.pop("instance_id", None)
+        full_status.pop("expires_at", None)
+
+    return LicenseStatusResponse(**full_status)
 
 
 @router.post("/activate", response_model=LicenseStatusResponse)

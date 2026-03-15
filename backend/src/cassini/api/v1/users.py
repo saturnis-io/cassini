@@ -6,9 +6,11 @@ Admin-only endpoints for user CRUD operations and plant role assignment.
 import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from cassini.api.deps import get_current_admin, get_user_repo, invalidate_user_cache
+from cassini.api.deps import get_current_admin, get_db_session, get_user_repo, invalidate_user_cache
 from cassini.api.schemas.user import (
     PlantRoleAssign,
     PlantRoleResponse,
@@ -19,6 +21,12 @@ from cassini.api.schemas.user import (
     UserWithRolesResponse,
 )
 from cassini.core.auth.passwords import hash_password
+from cassini.core.auth.policy import (
+    check_password_history,
+    enforce_password_complexity,
+    load_password_policy,
+    update_password_history,
+)
 from cassini.db.models.user import User, UserRole
 from cassini.db.repositories.user import UserRepository
 
@@ -68,8 +76,24 @@ async def create_user(
     data: UserCreate,
     current_user: User = Depends(get_current_admin),
     repo: UserRepository = Depends(get_user_repo),
+    session: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
     """Create a new user. Admin only."""
+    # Username recycling protection — prevent reuse of deactivated usernames
+    existing_deactivated = await session.execute(
+        select(User).where(User.username == data.username, User.is_active == False)  # noqa: E712
+    )
+    if existing_deactivated.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A deactivated user with this username exists. "
+                   "Choose a different username or reactivate the existing account.",
+        )
+
+    # Enforce password policy complexity rules
+    policy = await load_password_policy(session)
+    enforce_password_complexity(data.password, policy)
+
     hashed = hash_password(data.password)
     try:
         user = await repo.create(
@@ -95,6 +119,38 @@ async def create_user(
         )
 
 
+@router.post("/{user_id}/unlock")
+async def unlock_user_account(
+    request: Request,
+    user_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    admin: User = Depends(get_current_admin),
+):
+    """Admin unlocks a locked-out user account."""
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    user.locked_until = None
+    user.failed_login_count = 0
+    await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "user",
+        "resource_id": user_id,
+        "action": "unlock",
+        "summary": f"User '{user.username}' unlocked by '{admin.username}'",
+        "fields": {
+            "target_username": user.username,
+            "unlocked_by": admin.username,
+        },
+    }
+
+    return {"status": "unlocked", "user_id": user_id}
+
+
 @router.get("/{user_id}", response_model=UserWithRolesResponse)
 async def get_user(
     user_id: int,
@@ -118,6 +174,7 @@ async def update_user(
     data: UserUpdate,
     current_user: User = Depends(get_current_admin),
     repo: UserRepository = Depends(get_user_repo),
+    session: AsyncSession = Depends(get_db_session),
 ) -> UserResponse:
     """Update a user. Admin only."""
     update_data = data.model_dump(exclude_unset=True)
@@ -138,7 +195,20 @@ async def update_user(
     # Hash password if provided
     password_changed = "password" in update_data and update_data["password"] is not None
     if password_changed:
-        update_data["hashed_password"] = hash_password(update_data.pop("password"))
+        raw_password = update_data.pop("password")
+
+        # Enforce password policy complexity rules
+        policy = await load_password_policy(session)
+        enforce_password_complexity(raw_password, policy)
+
+        # Check password history for the target user
+        check_password_history(raw_password, old_user, policy)
+
+        old_hash = old_user.hashed_password
+        update_data["hashed_password"] = hash_password(raw_password)
+
+        # Update password history with the old hash
+        update_password_history(old_hash, old_user, policy)
     else:
         update_data.pop("password", None)
 
@@ -229,6 +299,9 @@ async def delete_user_permanent(
 
     The user must be deactivated first. Cannot delete yourself.
     This removes the user record and frees the username for reuse.
+
+    Users with electronic signatures cannot be permanently deleted --
+    they must be deactivated instead to preserve signature attribution.
     """
     if current_user.id == user_id:
         raise HTTPException(
@@ -238,6 +311,19 @@ async def delete_user_permanent(
 
     # Capture username before permanent deletion
     target_user = await repo.get_by_id(user_id)
+
+    # Check for electronic signatures -- user deletion would destroy
+    # signature attribution required for 21 CFR Part 11 compliance
+    signature_count = await repo.count_user_signatures(user_id)
+    if signature_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot permanently delete user with {signature_count} electronic "
+                f"signature(s). Deactivate the user instead (set is_active=False) "
+                f"to preserve signature attribution for regulatory compliance."
+            ),
+        )
 
     try:
         success = await repo.hard_delete(user_id)

@@ -28,12 +28,16 @@ def compute_audit_hash(
     user_id,
     username,
     timestamp,
+    sequence_number=None,
 ) -> str:
     """Compute SHA-256 chain hash for an audit entry.
 
     Normalizes the timestamp to naive UTC (no tzinfo suffix) so the hash
     is consistent regardless of whether the datetime came from Python
     (tz-aware) or was read back from SQLite (tz-stripped).
+
+    When *sequence_number* is provided it is included in the hash input
+    for stronger tamper evidence in multi-instance deployments.
     """
     # Normalize: strip tzinfo so isoformat() never includes +00:00
     ts = timestamp
@@ -48,6 +52,8 @@ def compute_audit_hash(
         f"{username}|"
         f"{ts.isoformat()}"
     )
+    if sequence_number is not None:
+        hash_input += f"|{sequence_number}"
     return hashlib.sha256(hash_input.encode()).hexdigest()
 
 # Map URL path segments to resource types
@@ -168,6 +174,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "lock_roles"
     if "/purge" in path:
         return "purge"
+    if "/unlock" in path:
+        return "unlock"
     if "/cusum-reset" in path:
         return "reset"
     if "/forecast" in path:
@@ -208,12 +216,36 @@ class AuditService:
 
     Uses its own session factory to avoid sharing the request's session.
     All log methods are fire-and-forget safe.
+
+    The hash chain and sequence numbering are DB-authoritative: each call
+    to ``log()`` reads the latest hash/sequence from the database so that
+    multiple application instances can safely append to the same chain.
     """
 
     def __init__(self, session_factory):
         self._session_factory = session_factory
         self._failure_count = 0
-        self._last_hash: str = "0" * 64  # Genesis hash
+        self._last_hash: str = "0" * 64  # Genesis hash (used as fast-path cache)
+
+    async def _get_last_hash_and_seq(self, session) -> tuple[str, int]:
+        """Read the most recent sequence_hash and sequence_number from the DB.
+
+        Returns (last_hash, last_sequence_number). If the table is empty,
+        returns the genesis hash and 0.
+        """
+        from sqlalchemy import select as sa_select
+
+        stmt = (
+            sa_select(AuditLog.sequence_hash, AuditLog.sequence_number)
+            .where(AuditLog.sequence_hash.isnot(None))
+            .order_by(AuditLog.sequence_number.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        row = result.first()
+        if row and row[0]:
+            return row[0], row[1] or 0
+        return "0" * 64, 0
 
     async def log(
         self,
@@ -258,6 +290,10 @@ class AuditService:
 
                 from datetime import datetime, timezone
 
+                # Read authoritative last hash + sequence from DB (multi-instance safe)
+                last_hash, last_seq = await self._get_last_hash_and_seq(session)
+                next_seq = last_seq + 1
+
                 entry = AuditLog(
                     user_id=user_id,
                     username=username,
@@ -269,17 +305,19 @@ class AuditService:
                     ip_address=ip_address,
                     user_agent=user_agent,
                     timestamp=datetime.now(timezone.utc),
+                    sequence_number=next_seq,
                 )
 
-                # Tamper evidence: SHA-256 chain
+                # Tamper evidence: SHA-256 chain (includes sequence_number)
                 entry.sequence_hash = compute_audit_hash(
-                    self._last_hash,
+                    last_hash,
                     entry.action,
                     entry.resource_type,
                     entry.resource_id,
                     entry.user_id,
                     entry.username,
                     entry.timestamp,
+                    sequence_number=entry.sequence_number,
                 )
                 self._last_hash = entry.sequence_hash
 
@@ -327,19 +365,14 @@ class AuditService:
         """Load the last sequence_hash from DB to continue the chain after restart."""
         try:
             async with self._session_factory() as session:
-                from sqlalchemy import select
-
-                stmt = (
-                    select(AuditLog.sequence_hash)
-                    .where(AuditLog.sequence_hash.isnot(None))
-                    .order_by(AuditLog.timestamp.desc())
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                last = result.scalar_one_or_none()
-                if last:
-                    self._last_hash = last
-                    logger.info("audit_hash_chain_recovered", last_hash=last[:12])
+                last_hash, last_seq = await self._get_last_hash_and_seq(session)
+                if last_hash != "0" * 64:
+                    self._last_hash = last_hash
+                    logger.info(
+                        "audit_hash_chain_recovered",
+                        last_hash=last_hash[:12],
+                        last_sequence=last_seq,
+                    )
         except Exception:
             logger.warning("audit_hash_chain_recovery_failed", exc_info=True)
 
@@ -591,12 +624,6 @@ class AuditMiddleware:
         # Build a lightweight Request wrapper to read headers/path/state
         request = Request(scope, receive)
 
-        # Skip audit logging entirely in Community edition
-        license_svc = getattr(request.app.state, "license_service", None)
-        if license_svc and not license_svc.is_commercial:
-            await self.app(scope, receive, send)
-            return
-
         method = scope["method"]
 
         # ---------------------------------------------------------------
@@ -727,15 +754,23 @@ class AuditMiddleware:
 def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optional[str]]:
     """Best-effort JWT user extraction for middleware logging.
 
-    Does NOT validate the token fully — that's the endpoint's job.
-    Just decodes the payload to get user_id and username.
+    If the auth middleware has already verified the token and stored a ``user``
+    object on ``request.state``, we use that (verified attribution).
 
-    NOTE: The username and user_id returned here are UNVERIFIED for requests
-    that fail authentication (401/403 responses). A forged JWT with arbitrary
-    claims would produce attacker-controlled values in audit logs for those cases.
-    This is acceptable because the audit entry also records the HTTP status code,
-    which indicates auth failure.
+    Otherwise we fall back to base64-decoding the JWT payload WITHOUT
+    verifying the signature.  In that case the extracted username is
+    prefixed with ``[unverified] `` so audit logs clearly distinguish
+    verified vs unverified attributions.
     """
+    # Prefer verified user from auth middleware (set on successful auth)
+    verified_user = getattr(request.state, "user", None)
+    if verified_user is not None:
+        uid = getattr(verified_user, "id", None)
+        uname = getattr(verified_user, "username", None)
+        if uid or uname:
+            return uid, uname
+
+    # Fallback: decode JWT payload without verification
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
         return None, None
@@ -755,6 +790,9 @@ def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optiona
 
         user_id = int(payload.get("sub", 0)) or None
         username = payload.get("username") or None
+        # Mark as unverified — JWT signature was NOT checked
+        if username:
+            username = f"[unverified] {username}"
         return user_id, username
     except Exception:
         return None, None

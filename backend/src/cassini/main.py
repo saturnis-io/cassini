@@ -10,7 +10,7 @@ import structlog
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -258,6 +258,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.tag_provider_manager = tag_provider_manager
 
     # -----------------------------------------------------------------------
+    # Audit trail service -- always active for ALL tiers (regulatory compliance)
+    # -----------------------------------------------------------------------
+    from cassini.core.audit import AuditService
+
+    audit_service = AuditService(db.session)
+    app.state.audit_service = audit_service
+    await audit_service.recover_last_hash()
+    logger.info("Audit trail service initialized (all tiers)")
+
+    # -----------------------------------------------------------------------
     # Commercial-only services -- gated behind license
     # -----------------------------------------------------------------------
     if license_service.is_commercial:
@@ -357,6 +367,30 @@ from slowapi.errors import RateLimitExceeded
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Security headers middleware — registered BEFORE CORS so it runs AFTER CORS
+# in Starlette's LIFO middleware chain.
+@app.middleware("http")
+async def security_headers(request: FastAPIRequest, call_next):
+    response = await call_next(request)
+    if request.method == "OPTIONS":
+        return response  # Skip preflight
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # CSP only on HTML responses (not API JSON)
+    if "text/html" in response.headers.get("content-type", ""):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self' ws: wss:; "
+            "frame-ancestors 'none'"
+        )
+    return response
+
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -367,9 +401,15 @@ app.add_middleware(
 )
 
 # Compliance enforcement middleware (between CORS and Audit)
-from cassini.api.middleware.compliance import ComplianceMiddleware
+from cassini.api.middleware.compliance import ComplianceMiddleware, LicenseEnforcementMiddleware
 
 app.add_middleware(ComplianceMiddleware)
+
+# License tier enforcement -- blocks commercial endpoints when license is
+# removed or downgraded at runtime.  Registered after commercial routers
+# so it can inspect them.  Starlette middleware is LIFO, so this runs
+# AFTER ComplianceMiddleware (compliance takes priority).
+app.add_middleware(LicenseEnforcementMiddleware)
 
 # Audit trail middleware (gets AuditService lazily from app.state)
 app.add_middleware(AuditMiddleware)
@@ -487,6 +527,5 @@ else:
         """Root endpoint (no built frontend found)."""
         return {
             "name": "Cassini",
-            "version": settings.app_version,
             "docs": "/docs",
         }
