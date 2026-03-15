@@ -53,6 +53,7 @@ export interface PlantUpdate {
   code?: string
   is_active?: boolean
   settings?: Record<string, unknown> | null
+  change_reason?: string
 }
 
 // Hierarchy types - UNS-compatible generic hierarchy
@@ -775,6 +776,7 @@ export interface OPCUAServerUpdate {
   client_cert_pem?: string | null
   client_key_pem?: string | null
   tls_insecure?: boolean
+  change_reason?: string
 }
 
 export interface OPCUAServerStatus {

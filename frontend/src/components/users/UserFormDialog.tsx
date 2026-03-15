@@ -3,6 +3,7 @@ import { usePlants } from '@/api/hooks'
 import { useToggleRolesLock } from '@/api/hooks/users'
 import { ROLE_LABELS, type Role } from '@/lib/roles'
 import type { UserResponse } from '@/api/client'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import { userFormSchema } from '@/schemas/users'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { FieldError } from '@/components/FieldError'
@@ -25,6 +26,7 @@ interface UserFormDialogProps {
     password?: string
     is_active?: boolean
     plant_roles: PlantRoleEntry[]
+    change_reason?: string
   }) => void
   isSubmitting?: boolean
 }
@@ -50,6 +52,7 @@ export function UserFormDialog({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [plantRoles, setPlantRoles] = useState<PlantRoleEntry[]>([])
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
   const { validate, getError, clearErrors } = useFormValidation(userFormSchema)
 
   // Reset form when dialog opens or user changes
@@ -79,17 +82,14 @@ export function UserFormDialog({
     }
   }, [open, mode, user])
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    const validated = validate({ mode, username, email, password, confirmPassword })
-    if (!validated) return
-
+  function buildSubmitData() {
     const data: {
       username: string
       email?: string
       password?: string
       is_active?: boolean
       plant_roles: PlantRoleEntry[]
+      change_reason?: string
     } = {
       username,
       plant_roles: plantRoles,
@@ -99,6 +99,25 @@ export function UserFormDialog({
     if (password) data.password = password
     if (mode === 'edit') data.is_active = isActive
 
+    return data
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const validated = validate({ mode, username, email, password, confirmPassword })
+    if (!validated) return
+
+    if (mode === 'edit') {
+      setChangeReasonOpen(true)
+    } else {
+      onSubmit(buildSubmitData())
+    }
+  }
+
+  function handleSubmitWithReason(reason: string) {
+    setChangeReasonOpen(false)
+    const data = buildSubmitData()
+    data.change_reason = reason
     onSubmit(data)
   }
 
@@ -302,6 +321,15 @@ export function UserFormDialog({
             </button>
           </div>
         </form>
+
+        <ChangeReasonDialog
+          open={changeReasonOpen}
+          onConfirm={handleSubmitWithReason}
+          onCancel={() => setChangeReasonOpen(false)}
+          title="Reason for Change"
+          description="Describe why this user configuration is being changed."
+          isLoading={isSubmitting}
+        />
       </div>
     </div>
   )

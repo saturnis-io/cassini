@@ -61,6 +61,7 @@ export function UserManagementPage() {
     password?: string
     is_active?: boolean
     plant_roles: { plant_id: number; role: string }[]
+    change_reason?: string
   }) {
     try {
       if (dialogMode === 'create') {
@@ -79,10 +80,11 @@ export function UserManagementPage() {
         }
       } else if (editingUser) {
         // Update user fields
-        const updateData: { email?: string; password?: string; is_active?: boolean } = {}
+        const updateData: { email?: string; password?: string; is_active?: boolean; change_reason?: string } = {}
         if (data.email !== undefined) updateData.email = data.email
         if (data.password) updateData.password = data.password
         if (data.is_active !== undefined) updateData.is_active = data.is_active
+        if (data.change_reason) updateData.change_reason = data.change_reason
 
         await updateUser.mutateAsync({ id: editingUser.id, data: updateData })
 

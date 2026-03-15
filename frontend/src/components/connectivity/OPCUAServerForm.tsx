@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
 import { TlsCertificateSection, type CertAction } from './TlsCertificateSection'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import { usePlant } from '@/providers/PlantProvider'
 import { opcuaApi } from '@/api/client'
 import { opcuaServerSchema } from '@/schemas/connectivity'
@@ -12,7 +13,7 @@ import { useFormValidation } from '@/hooks/useFormValidation'
 import { FieldError } from '@/components/FieldError'
 import { inputErrorClass } from '@/lib/validation'
 import { cn } from '@/lib/utils'
-import type { OPCUAServer, OPCUAServerCreate } from '@/types'
+import type { OPCUAServer, OPCUAServerCreate, OPCUAServerUpdate } from '@/types'
 
 interface OPCUAFormData {
   name: string
@@ -95,6 +96,9 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
     server?.has_client_cert ? 'keep' : 'replace',
   )
 
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
+  const [pendingData, setPendingData] = useState<Record<string, unknown> | null>(null)
+
   const { validate, getError } = useFormValidation(opcuaServerSchema)
 
   const createMutation = useMutation({
@@ -122,10 +126,9 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
     onError: (err: Error) => toast.error(`Failed to update server: ${err.message}`),
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const buildSubmitData = (): Record<string, unknown> | null => {
     const validated = validate(formData)
-    if (!validated) return
+    if (!validated) return null
 
     const data: Record<string, unknown> = {
       name: validated.name,
@@ -162,14 +165,33 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
       }
     }
 
+    return data
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const data = buildSubmitData()
+    if (!data) return
+
     if (isEditing && server) {
-      updateMutation.mutate({ id: server.id, data: data as Parameters<typeof opcuaApi.update>[1] })
+      setPendingData(data)
+      setChangeReasonOpen(true)
     } else {
       createMutation.mutate({
         ...data,
         plant_id: selectedPlant?.id ?? undefined,
       } as OPCUAServerCreate)
     }
+  }
+
+  const handleSubmitWithReason = (reason: string) => {
+    setChangeReasonOpen(false)
+    if (!pendingData || !server) return
+    updateMutation.mutate({
+      id: server.id,
+      data: { ...pendingData, change_reason: reason } as OPCUAServerUpdate,
+    })
+    setPendingData(null)
   }
 
   const handleTest = async () => {
@@ -475,6 +497,18 @@ export function OPCUAServerForm({ server, onClose, onSaved }: OPCUAServerFormPro
           </div>
         </div>
       </form>
+
+      <ChangeReasonDialog
+        open={changeReasonOpen}
+        onConfirm={handleSubmitWithReason}
+        onCancel={() => {
+          setChangeReasonOpen(false)
+          setPendingData(null)
+        }}
+        title="Reason for Change"
+        description="Describe why this OPC-UA server configuration is being changed."
+        isLoading={updateMutation.isPending}
+      />
     </div>
   )
 }

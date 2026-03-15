@@ -74,6 +74,7 @@ export const brokerApi = {
         ca_cert_pem?: string | null
         client_cert_pem?: string | null
         client_key_pem?: string | null
+        change_reason?: string
       }
     >,
   ) =>

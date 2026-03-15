@@ -74,6 +74,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   // Mode change confirmation dialog state
   const [pendingModeChange, setPendingModeChange] = useState<SubgroupMode | null>(null)
   const [showModeDialog, setShowModeDialog] = useState(false)
+  const [modeChangeReason, setModeChangeReason] = useState('')
 
   // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -156,6 +157,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     const hasSamplesToMigrate = characteristic?.stored_sigma !== null
     if (newMode !== formData.subgroup_mode && hasSamplesToMigrate) {
       setPendingModeChange(newMode as SubgroupMode)
+      setModeChangeReason('')
       setShowModeDialog(true)
     } else {
       handleChange('subgroup_mode', newMode)
@@ -166,10 +168,15 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     if (!characteristicId || !pendingModeChange) return
 
     try {
-      await changeMode.mutateAsync({ id: characteristicId, newMode: pendingModeChange })
+      await changeMode.mutateAsync({
+        id: characteristicId,
+        newMode: pendingModeChange,
+        changeReason: modeChangeReason.trim() || undefined,
+      })
       setFormData((prev) => ({ ...prev, subgroup_mode: pendingModeChange }))
       setShowModeDialog(false)
       setPendingModeChange(null)
+      setModeChangeReason('')
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to change mode')
     }
@@ -178,6 +185,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
   const cancelModeChange = () => {
     setShowModeDialog(false)
     setPendingModeChange(null)
+    setModeChangeReason('')
   }
 
   const handleScheduleChange = (config: ScheduleConfig) => {
@@ -504,6 +512,25 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               <div className="text-sm">
                 <span className="text-muted-foreground">To: </span>
                 <span className="font-medium">{pendingModeChange}</span>
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="text-foreground mb-1 block text-sm font-medium">
+                Reason for change
+              </label>
+              <textarea
+                value={modeChangeReason}
+                onChange={(e) => {
+                  if (e.target.value.length <= 500) {
+                    setModeChangeReason(e.target.value)
+                  }
+                }}
+                rows={2}
+                placeholder="Describe why this mode change is needed..."
+                className="bg-input border-border focus:ring-ring w-full resize-none rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              />
+              <div className="text-muted-foreground mt-1 text-right text-xs">
+                {modeChangeReason.length}/500
               </div>
             </div>
             <div className="flex justify-end gap-3">

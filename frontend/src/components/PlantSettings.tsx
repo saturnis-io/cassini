@@ -12,6 +12,7 @@ import {
   Power,
   PowerOff,
 } from 'lucide-react'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import type { Plant, PlantCreate, PlantUpdate } from '@/types'
 import { plantFormSchema } from '@/schemas/admin'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -47,6 +48,9 @@ export function PlantSettings() {
 
   // Delete confirmation state
   const [plantToDelete, setPlantToDelete] = useState<{ id: number; name: string } | null>(null)
+
+  // Change reason dialog state
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
 
   // Validation hooks for create and edit forms
   const { validate: validateCreate, getError: getCreateError, clearErrors: clearCreateErrors } = useFormValidation(plantFormSchema)
@@ -89,10 +93,16 @@ export function PlantSettings() {
     clearEditErrors()
   }
 
-  const handleEdit = async () => {
+  const handleEditClick = () => {
     if (!editingPlant) return
     const validated = validateEdit({ name: editName, code: editCode, settings: editSettings })
     if (!validated) return
+    setChangeReasonOpen(true)
+  }
+
+  const handleEditWithReason = async (reason: string) => {
+    setChangeReasonOpen(false)
+    if (!editingPlant) return
 
     let settings: Record<string, unknown> | null = null
     if (editSettings.trim()) {
@@ -108,6 +118,7 @@ export function PlantSettings() {
         name: editName,
         code: editCode.toUpperCase(),
         settings,
+        change_reason: reason,
       }
       await updatePlant.mutateAsync({ id: editingPlant.id, data })
       setEditingPlant(null)
@@ -364,7 +375,7 @@ export function PlantSettings() {
                 Cancel
               </button>
               <button
-                onClick={handleEdit}
+                onClick={handleEditClick}
                 disabled={updatePlant.isPending}
                 className={cn(
                   'rounded-xl px-5 py-2.5 text-sm font-medium',
@@ -378,6 +389,16 @@ export function PlantSettings() {
           </div>
         </div>
       )}
+
+      {/* Change Reason Dialog */}
+      <ChangeReasonDialog
+        open={changeReasonOpen}
+        onConfirm={handleEditWithReason}
+        onCancel={() => setChangeReasonOpen(false)}
+        title="Reason for Change"
+        description="Describe why this site configuration is being changed."
+        isLoading={updatePlant.isPending}
+      />
 
       {/* Delete Confirmation Dialog */}
       {plantToDelete && (

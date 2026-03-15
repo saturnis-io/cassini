@@ -258,8 +258,8 @@ export function useChangeMode() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, newMode }: { id: number; newMode: string }) =>
-      characteristicApi.changeMode(id, newMode),
+    mutationFn: ({ id, newMode, changeReason }: { id: number; newMode: string; changeReason?: string }) =>
+      characteristicApi.changeMode(id, newMode, changeReason),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
       // Use partial key match to invalidate all chart data variations

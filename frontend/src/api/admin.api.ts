@@ -93,7 +93,7 @@ export const userApi = {
 
   update: (
     id: number,
-    data: { username?: string; email?: string; password?: string; is_active?: boolean },
+    data: { username?: string; email?: string; password?: string; is_active?: boolean; change_reason?: string },
   ) =>
     fetchApi<UserResponse>(`/users/${id}`, {
       method: 'PATCH',

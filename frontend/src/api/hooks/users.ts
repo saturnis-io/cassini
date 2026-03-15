@@ -43,7 +43,7 @@ export function useUpdateUser() {
       data,
     }: {
       id: number
-      data: { username?: string; email?: string; password?: string; is_active?: boolean }
+      data: { username?: string; email?: string; password?: string; is_active?: boolean; change_reason?: string }
     }) => userApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all })

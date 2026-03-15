@@ -140,7 +140,7 @@ export const characteristicApi = {
     )
   },
 
-  changeMode: (id: number, newMode: string) =>
+  changeMode: (id: number, newMode: string, changeReason?: string) =>
     fetchApi<{
       previous_mode: string
       new_mode: string
@@ -148,7 +148,7 @@ export const characteristicApi = {
       characteristic: Characteristic
     }>(`/characteristics/${id}/change-mode`, {
       method: 'POST',
-      body: JSON.stringify({ new_mode: newMode }),
+      body: JSON.stringify({ new_mode: newMode, change_reason: changeReason }),
     }),
 
   getConfig: (id: number) =>

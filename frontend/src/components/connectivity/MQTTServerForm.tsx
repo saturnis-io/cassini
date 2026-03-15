@@ -6,6 +6,7 @@ import { brokerApi } from '@/api/client'
 import { NumberInput } from '@/components/NumberInput'
 import { ConnectionTestButton } from './ConnectionTestButton'
 import { TlsCertificateSection, type CertAction } from './TlsCertificateSection'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import { usePlant } from '@/providers/PlantProvider'
 import { mqttBrokerSchema } from '@/schemas/connectivity'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -97,6 +98,9 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
     broker?.has_client_cert ? 'keep' : 'replace',
   )
 
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
+  const [pendingData, setPendingData] = useState<Record<string, unknown> | null>(null)
+
   const { validate, getError } = useFormValidation(mqttBrokerSchema)
 
   const createMutation = useMutation({
@@ -124,10 +128,9 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
     onError: (err: Error) => toast.error(`Failed to update broker: ${err.message}`),
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const buildSubmitData = (): Record<string, unknown> | null => {
     const validated = validate(formData)
-    if (!validated) return
+    if (!validated) return null
 
     const data: Record<string, unknown> = {
       ...validated,
@@ -162,11 +165,27 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
       delete data.tls_insecure
     }
 
+    return data
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const data = buildSubmitData()
+    if (!data) return
+
     if (isEditing && broker) {
-      updateMutation.mutate({ id: broker.id, data })
+      setPendingData(data)
+      setChangeReasonOpen(true)
     } else {
       createMutation.mutate({ ...data, plant_id: selectedPlant?.id ?? undefined } as Parameters<typeof brokerApi.create>[0])
     }
+  }
+
+  const handleSubmitWithReason = (reason: string) => {
+    setChangeReasonOpen(false)
+    if (!pendingData || !broker) return
+    updateMutation.mutate({ id: broker.id, data: { ...pendingData, change_reason: reason } })
+    setPendingData(null)
   }
 
   const handleTest = async () => {
@@ -464,6 +483,18 @@ export function MQTTServerForm({ broker, onClose, onSaved }: MQTTServerFormProps
           </div>
         </div>
       </form>
+
+      <ChangeReasonDialog
+        open={changeReasonOpen}
+        onConfirm={handleSubmitWithReason}
+        onCancel={() => {
+          setChangeReasonOpen(false)
+          setPendingData(null)
+        }}
+        title="Reason for Change"
+        description="Describe why this broker configuration is being changed."
+        isLoading={updateMutation.isPending}
+      />
     </div>
   )
 }
