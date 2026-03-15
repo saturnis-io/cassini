@@ -1,0 +1,8 @@
+
+# Dev artifacts
+*.db-shm
+*.db-wal
+e2e-manifest.json
+.signature_key
+playground-*.html
+README-org.md
