@@ -203,13 +203,19 @@ class AuditService:
         try:
             async with self._session_factory() as session:
                 # Resolve display name at capture time when not provided
-                if resource_display is None and resource_type and resource_id:
+                if resource_display is None and resource_type:
                     try:
                         from cassini.core.resource_display import resolve_resource_display
 
-                        resource_display = await resolve_resource_display(
-                            session, resource_type, resource_id
-                        )
+                        if resource_id:
+                            resource_display = await resolve_resource_display(
+                                session, resource_type, resource_id
+                            )
+                        else:
+                            # No ID (e.g., POST creating a new resource) — use type label
+                            resource_display = await resolve_resource_display(
+                                session, resource_type, 0
+                            )
                     except Exception:
                         logger.debug(
                             "resource_display_resolve_failed",

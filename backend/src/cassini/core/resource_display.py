@@ -72,6 +72,22 @@ async def resolve_resource_display(
     Returns a formatted string for known resource types, or a fallback
     ``"resource_type #id"`` string for unknown types or lookup failures.
     """
+    # ID=0 means "no specific resource" (e.g., POST creating a new one)
+    if resource_id == 0:
+        labels = {
+            "characteristic": "Characteristic", "plant": "Plant", "user": "User",
+            "broker": "MQTT Broker", "opcua_server": "OPC-UA Server",
+            "fai_report": "FAI Report", "msa_study": "MSA Study",
+            "doe_study": "DOE Study", "sample": "Sample", "violation": "Violation",
+            "hierarchy": "Hierarchy Node", "gage_bridge": "Gage Bridge",
+            "erp_connector": "ERP Connector", "report_schedule": "Scheduled Report",
+            "rule_preset": "Rule Preset", "annotation": "Annotation",
+            "api_key": "API Key", "multivariate_group": "Multivariate Group",
+            "signature": "Electronic Signature", "oidc_config": "SSO Configuration",
+            "import": "Data Import", "license": "License",
+        }
+        return labels.get(resource_type, resource_type.replace("_", " ").title())
+
     try:
         if resource_type == "fai_report":
             from cassini.db.models.fai import FAIReport
@@ -197,6 +213,83 @@ async def resolve_resource_display(
                 if prefix:
                     return f"{prefix}: {char_path}"
                 return char_path
+        elif resource_type == "broker":
+            from cassini.db.models.broker import Broker
+
+            row = (await session.execute(select(Broker.name).where(Broker.id == resource_id))).first()
+            if row:
+                return f"MQTT Broker: {row.name}"
+        elif resource_type == "opcua_server":
+            from cassini.db.models.opcua_server import OPCUAServer
+
+            row = (await session.execute(select(OPCUAServer.name).where(OPCUAServer.id == resource_id))).first()
+            if row:
+                return f"OPC-UA Server: {row.name}"
+        elif resource_type == "gage_bridge":
+            from cassini.db.models.gage_bridge import GageBridge
+
+            row = (await session.execute(select(GageBridge.name).where(GageBridge.id == resource_id))).first()
+            if row:
+                return f"Gage Bridge: {row.name}"
+        elif resource_type == "erp_connector":
+            from cassini.db.models.erp import ERPConnector
+
+            row = (await session.execute(select(ERPConnector.name).where(ERPConnector.id == resource_id))).first()
+            if row:
+                return f"ERP Connector: {row.name}"
+        elif resource_type == "report_schedule":
+            from cassini.db.models.report import ReportSchedule
+
+            row = (await session.execute(select(ReportSchedule.name).where(ReportSchedule.id == resource_id))).first()
+            if row:
+                return f"Scheduled Report: {row.name}"
+        elif resource_type == "rule_preset":
+            from cassini.db.models.rule_preset import RulePreset
+
+            row = (await session.execute(select(RulePreset.name).where(RulePreset.id == resource_id))).first()
+            if row:
+                return f"Rule Preset: {row.name}"
+        elif resource_type == "annotation":
+            return f"Annotation #{resource_id}"
+        elif resource_type == "api_key":
+            return f"API Key #{resource_id}"
+        elif resource_type == "multivariate_group":
+            from cassini.db.models.multivariate import MultivariateGroup
+
+            row = (await session.execute(select(MultivariateGroup.name).where(MultivariateGroup.id == resource_id))).first()
+            if row:
+                return f"Multivariate Group: {row.name}"
+        elif resource_type in ("signature", "oidc_config", "push_subscription",
+                                "anomaly", "prediction", "ai_config",
+                                "correlation_analysis", "tag_mapping", "import",
+                                "database", "system_settings", "license",
+                                "report_analytics", "material_class", "material",
+                                "material_override", "ishikawa", "auth"):
+            # Types without a meaningful name — use a readable label
+            labels = {
+                "signature": "Electronic Signature",
+                "oidc_config": "SSO Configuration",
+                "push_subscription": "Push Subscription",
+                "anomaly": "Anomaly Event",
+                "prediction": "Prediction Config",
+                "ai_config": "AI Configuration",
+                "correlation_analysis": "Correlation Analysis",
+                "tag_mapping": "Tag Mapping",
+                "import": "Data Import",
+                "database": "Database Settings",
+                "system_settings": "System Settings",
+                "license": "License",
+                "report_analytics": "Report Analytics",
+                "material_class": "Material Class",
+                "material": "Material",
+                "material_override": "Material Override",
+                "ishikawa": "Ishikawa Analysis",
+                "auth": "Authentication",
+            }
+            label = labels.get(resource_type, resource_type.replace("_", " ").title())
+            if resource_id:
+                return f"{label} #{resource_id}"
+            return label
     except Exception:
         logger.warning(
             "Failed to resolve resource display",
