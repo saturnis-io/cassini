@@ -39,3 +39,8 @@ export { ReportAuditSummary } from '@/components/report-sections/ReportAuditSumm
 export { ReportSignatureEvidence } from '@/components/report-sections/ReportSignatureEvidence'
 export { ReportCapabilityEvidence } from '@/components/report-sections/ReportCapabilityEvidence'
 export { ReportMeasurementData } from '@/components/report-sections/ReportMeasurementData'
+
+// Additional report sections (Wave 2)
+export { ReportProbabilityPlot } from '@/components/report-sections/ReportProbabilityPlot'
+export { ReportPareto } from '@/components/report-sections/ReportPareto'
+export { ReportDOEResiduals } from '@/components/report-sections/ReportDOEResiduals'

@@ -41,6 +41,9 @@ class Plant(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    # Plant logo (stored as base64 data URL, excluded from list queries for performance)
+    logo_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # Capability thresholds
     capability_green_threshold: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True, server_default=text("1.33")

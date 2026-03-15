@@ -43,6 +43,9 @@ import {
   ReportSignatureEvidence,
   ReportCapabilityEvidence,
   ReportMeasurementData,
+  ReportProbabilityPlot,
+  ReportPareto,
+  ReportDOEResiduals,
 } from '@/components/report-sections'
 
 interface ReportPreviewProps {
@@ -115,9 +118,44 @@ export function ReportPreview({
   }
 
   return (
-    <div
-      className={cn('bg-card border-border overflow-hidden rounded-xl border shadow-sm', className)}
-    >
+    <>
+      {/* Print CSS: hide nav, toolbars, export buttons, sidebar; full-width content */}
+      <style>{`
+        @media print {
+          nav, [data-sidebar], [data-toolbar], [data-export-controls],
+          .no-print, header, aside {
+            display: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          #report-content {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          #report-content > * {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          #report-content > *:not(:first-child) {
+            margin-top: 1rem;
+          }
+          .border {
+            border-color: #e5e7eb !important;
+          }
+          img[data-light-src] {
+            content: attr(data-light-src) !important;
+          }
+        }
+      `}</style>
+      <div
+        className={cn('bg-card border-border overflow-hidden rounded-xl border shadow-sm', className)}
+      >
       <div className="space-y-6 p-6" id="report-content">
         {/* Report Header with Brand Logo */}
         <div className="border-border mb-6 flex items-center justify-between border-b pb-4">
@@ -156,6 +194,7 @@ export function ReportPreview({
         ))}
       </div>
     </div>
+    </>
   )
 }
 
@@ -290,6 +329,18 @@ function ReportSectionComponent({
       return <ReportCapabilityMatrix linePath={linePath} />
     case 'violationPatterns':
       return <ReportViolationPatterns linePath={linePath} />
+    // Probability plot, Pareto, DOE residuals
+    case 'probabilityPlot':
+      return (
+        <ReportProbabilityPlot
+          characteristicId={characteristicId}
+          chartData={chartData}
+        />
+      )
+    case 'pareto':
+      return <ReportPareto violations={violations} />
+    case 'doeResiduals':
+      return <ReportDOEResiduals studyId={studyId} />
     // Audit package sections
     case 'auditSummary':
       return <ReportAuditSummary characteristicId={characteristicId} chartOptions={chartOptions} />

@@ -51,6 +51,9 @@ export type ReportSection =
   | 'signatureEvidence'
   | 'capabilityEvidence'
   | 'measurementData'
+  | 'probabilityPlot'
+  | 'pareto'
+  | 'doeResiduals'
 
 export type RequiredData = 'chartData' | 'violations' | 'samples' | 'stats'
 
@@ -86,7 +89,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Capability Analysis',
     description: 'Process capability metrics (Cp, Cpk, Pp, Ppk) with distribution analysis',
     icon: TrendingUp,
-    sections: ['header', 'executiveSummary', 'histogram', 'capabilityMetrics', 'measurementSystemHealth', 'interpretation', 'annotations'],
+    sections: ['header', 'executiveSummary', 'histogram', 'probabilityPlot', 'capabilityMetrics', 'measurementSystemHealth', 'interpretation', 'annotations'],
     requiredData: ['chartData', 'samples'],
   },
   {
@@ -94,7 +97,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Violation Summary',
     description: 'All violations across selected characteristics with trends',
     icon: AlertTriangle,
-    sections: ['header', 'violationStats', 'violationTable', 'violationTrend'],
+    sections: ['header', 'violationStats', 'pareto', 'violationTable', 'violationTrend'],
     requiredData: ['violations'],
   },
   {
@@ -123,6 +126,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
       'doeFindings',
       'faiStatus',
       'violations',
+      'pareto',
       'interpretation',
       'annotations',
     ],
@@ -144,7 +148,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'DOE Study Report',
     description: 'Full factorial/RSM analysis results: ANOVA, effects, optimal settings',
     icon: FlaskConical,
-    sections: ['header', 'studySetup', 'anovaResults', 'effectPlots', 'optimalSettings', 'doeConfirmation'],
+    sections: ['header', 'studySetup', 'anovaResults', 'effectPlots', 'doeResiduals', 'optimalSettings', 'doeConfirmation'],
     requiredData: [],
     scope: 'study',
     studyType: 'doe',

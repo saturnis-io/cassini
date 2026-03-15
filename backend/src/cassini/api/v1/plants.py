@@ -3,6 +3,7 @@
 import structlog
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,6 +93,67 @@ async def create_plant(
 
 
 # --- Static sub-resource routes BEFORE /{plant_id} parameter routes ---
+
+
+class LogoPayload(BaseModel):
+    """Schema for plant logo upload (base64 data URL)."""
+    logo_url: str = Field(..., max_length=2_000_000, description="Base64-encoded data URL of the plant logo image")
+
+
+class LogoResponse(BaseModel):
+    """Schema for plant logo response."""
+    logo_url: str | None = None
+
+
+@router.get("/{plant_id}/logo", response_model=LogoResponse)
+async def get_plant_logo(
+    plant_id: int,
+    repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_user),
+) -> LogoResponse:
+    """Get the plant logo.
+
+    Returns the logo as a base64 data URL, separate from the default
+    Plant response to avoid bloating list queries.
+    """
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+    return LogoResponse(logo_url=plant.logo_url)
+
+
+@router.put("/{plant_id}/logo", response_model=LogoResponse)
+async def update_plant_logo(
+    plant_id: int,
+    data: LogoPayload,
+    request: Request,
+    repo: PlantRepository = Depends(get_plant_repo),
+    _user: User = Depends(get_current_admin),
+) -> LogoResponse:
+    """Upload/update the plant logo.
+
+    Accepts a base64-encoded data URL. Stored directly in the DB column.
+    """
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plant not found",
+        )
+
+    plant = await repo.update(plant_id, logo_url=data.logo_url)
+
+    request.state.audit_context = {
+        "resource_type": "plant",
+        "resource_id": plant_id,
+        "action": "update",
+        "summary": f"Plant '{plant.name}' logo updated",
+    }
+
+    return LogoResponse(logo_url=plant.logo_url)
 
 
 @router.post(

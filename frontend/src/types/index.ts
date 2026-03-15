@@ -118,6 +118,10 @@ export interface Characteristic {
   distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
   // Sigma estimation method override (null = auto-select)
   sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled' | null
+  // Phase I/II mode
+  limits_frozen?: boolean
+  limits_frozen_at?: string | null
+  limits_frozen_by?: string | null
   // Capability fields (populated by list endpoint)
   latest_cpk?: number | null
   latest_cp?: number | null
@@ -923,6 +927,9 @@ export interface CapabilityResult {
   target: number | null
   sigma_within: number | null
   short_run_mode: string | null
+  // Expected PPM (ISO 3534 / Montgomery 8th Ed.)
+  ppm_within_expected: number | null
+  ppm_overall_expected: number | null
   // Bootstrap confidence intervals (present when include_ci=true)
   cpk_ci: [number, number] | null
   ppk_ci: [number, number] | null

@@ -19,7 +19,7 @@ export function ReportCapabilitySection({
   chartData,
   chartOptions: _chartOptions,
 }: ReportCapabilitySectionProps) {
-  const { data: capability, isLoading, error } = useCapability(characteristicId ?? 0)
+  const { data: capability, isLoading, error } = useCapability(characteristicId ?? 0, { includeCi: true })
 
   // Compute overall sigma from chart data for the footer (sample std dev)
   const sigmaOverall = useMemo(() => {
@@ -118,6 +118,34 @@ export function ReportCapabilitySection({
           </div>
         ))}
       </div>
+      {/* Cpk Confidence Interval */}
+      {capability.cpk_ci && (
+        <div className="bg-muted/30 mt-4 rounded-lg p-3">
+          <h3 className="mb-1 text-sm font-medium">Cpk Confidence Interval</h3>
+          <div className="text-muted-foreground flex flex-wrap gap-4 text-sm">
+            <span>
+              {(capability.ci_confidence ?? 0.95) * 100}% CI: [{capability.cpk_ci[0].toFixed(3)}, {capability.cpk_ci[1].toFixed(3)}]
+            </span>
+            {capability.ci_method && (
+              <span className="text-xs">Method: {capability.ci_method}</span>
+            )}
+          </div>
+        </div>
+      )}
+      {/* Expected PPM (ISO 3534) */}
+      {(capability.ppm_within_expected != null || capability.ppm_overall_expected != null) && (
+        <div className="bg-muted/30 mt-3 rounded-lg p-3">
+          <h3 className="mb-1 text-sm font-medium">Expected PPM (ISO 3534)</h3>
+          <div className="text-muted-foreground flex flex-wrap gap-4 text-sm">
+            {capability.ppm_within_expected != null && (
+              <span>Within: {capability.ppm_within_expected.toFixed(1)} PPM</span>
+            )}
+            {capability.ppm_overall_expected != null && (
+              <span>Overall: {capability.ppm_overall_expected.toFixed(1)} PPM</span>
+            )}
+          </div>
+        </div>
+      )}
       <div className="text-muted-foreground mt-4 text-sm">
         <div className="flex gap-4">
           <span>σ (within): {sigma_within != null ? sigma_within.toFixed(4) : '-'}</span>
