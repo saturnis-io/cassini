@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cassini Sprint 11-12 Recap — 2026-03-14</title>
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy-light: #0f1f38;
+    --navy-mid: #142747;
+    --gold: #c5a44e;
+    --gold-dim: #8a7335;
+    --gold-bright: #e0c56a;
+    --cream: #f5f0e8;
+    --cream-dim: #b8b0a3;
+    --green: #4aba7a;
+    --green-bg: rgba(74, 186, 122, 0.12);
+    --red: #e05555;
+    --blue: #5588cc;
+    --purple: #8866bb;
+    --orange: #d49444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--cream);
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    text-align: center;
+    padding: 64px 24px 48px;
+    border-bottom: 1px solid var(--gold-dim);
+    background: linear-gradient(180deg, #0d1e35 0%, var(--navy) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .logo-mark {
+    display: inline-block;
+    width: 48px;
+    height: 48px;
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 18px; height: 18px;
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  h1 {
+    font-size: clamp(24px, 4vw, 42px);
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--cream);
+    margin-bottom: 8px;
+  }
+
+  h1 span {
+    color: var(--gold);
+  }
+
+  .subtitle {
+    font-size: clamp(13px, 2vw, 16px);
+    color: var(--cream-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .header-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+
+  .header-stat {
+    text-align: center;
+  }
+
+  .header-stat .num {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--gold);
+    display: block;
+    line-height: 1;
+  }
+
+  .header-stat .label {
+    font-size: 11px;
+    color: var(--cream-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 4px;
+  }
+
+  /* ─── SECTIONS ─── */
+  section {
+    padding: 56px 0;
+    border-bottom: 1px solid rgba(197, 164, 78, 0.15);
+  }
+
+  section:last-child {
+    border-bottom: none;
+  }
+
+  h2 {
+    font-size: clamp(18px, 3vw, 26px);
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--cream);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  h2 .section-num {
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .section-desc {
+    color: var(--cream-dim);
+    font-size: 14px;
+    margin-bottom: 32px;
+    max-width: 700px;
+  }
+
+  /* ─── TIER CARDS ─── */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  .tier-card {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.2);
+    padding: 28px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .tier-card:hover {
+    border-color: var(--gold-dim);
+  }
+
+  .tier-card.featured {
+    border-color: var(--gold);
+    box-shadow: 0 0 24px rgba(197, 164, 78, 0.08);
+  }
+
+  .tier-card.featured::before {
+    content: 'RECOMMENDED';
+    position: absolute;
+    top: -10px; right: 16px;
+    background: var(--gold);
+    color: var(--navy);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 2px 10px;
+  }
+
+  .tier-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .tier-price {
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 16px;
+  }
+
+  .tier-features {
+    list-style: none;
+    font-size: 13px;
+  }
+
+  .tier-features li {
+    padding: 5px 0;
+    padding-left: 18px;
+    position: relative;
+    color: var(--cream-dim);
+  }
+
+  .tier-features li::before {
+    content: '+';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  .tier-features li.highlight {
+    color: var(--cream);
+  }
+
+  /* ─── FEATURE MATRIX TABLE ─── */
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    display: block;
+  }
+
+  .matrix-table thead th {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--gold-dim);
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .matrix-table tbody td {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(197, 164, 78, 0.08);
+    color: var(--cream-dim);
+    white-space: nowrap;
+  }
+
+  .matrix-table tbody tr:hover td {
+    background: rgba(197, 164, 78, 0.03);
+  }
+
+  .check {
+    color: var(--green);
+    font-weight: 700;
+  }
+
+  .dash {
+    color: rgba(197, 164, 78, 0.25);
+  }
+
+  /* ─── FEATURE ITEMS ─── */
+  .feature-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .feature-item {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.12);
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .feature-num {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gold-dim);
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .feature-body h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--cream);
+    margin-bottom: 3px;
+  }
+
+  .feature-body p {
+    font-size: 12px;
+    color: var(--cream-dim);
+  }
+
+  .feature-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  /* ─── BADGES ─── */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border: 1px solid;
+  }
+
+  .badge-green {
+    color: var(--green);
+    border-color: var(--green);
+    background: var(--green-bg);
+  }
+
+  .badge-gold {
+    color: var(--gold);
+    border-color: var(--gold-dim);
+    background: rgba(197, 164, 78, 0.08);
+  }
+
+  .badge-blue {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: rgba(85, 136, 204, 0.1);
+  }
+
+  .badge-purple {
+    color: var(--purple);
+    border-color: var(--purple);
+    background: rgba(136, 102, 187, 0.1);
+  }
+
+  .badge-orange {
+    color: var(--orange);
+    border-color: var(--orange);
+    background: rgba(212, 148, 68, 0.1);
+  }
+
+  .test-count {
+    font-size: 12px;
+    color: var(--cream-dim);
+    white-space: nowrap;
+  }
+
+  /* ─── PIPELINE ─── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 32px 0;
+    justify-content: center;
+  }
+
+  .pipeline-step {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.2);
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 100px;
+    position: relative;
+  }
+
+  .pipeline-step .step-label {
+    font-size: 11px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  .pipeline-step .step-detail {
+    font-size: 10px;
+    color: var(--cream-dim);
+    margin-top: 2px;
+  }
+
+  .pipeline-arrow {
+    color: var(--gold-dim);
+    font-size: 18px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .quality-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-top: 32px;
+  }
+
+  .quality-stat {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.12);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .quality-stat .q-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .quality-stat .q-label {
+    font-size: 11px;
+    color: var(--cream-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 6px;
+  }
+
+  /* ─── SKEPTIC FINDINGS ─── */
+  .skeptic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .skeptic-card {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.12);
+    padding: 18px;
+  }
+
+  .skeptic-card h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cream);
+    margin-bottom: 8px;
+  }
+
+  .skeptic-card ul {
+    list-style: none;
+    font-size: 12px;
+    color: var(--cream-dim);
+  }
+
+  .skeptic-card ul li {
+    padding: 3px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+
+  .skeptic-card ul li::before {
+    content: '>';
+    position: absolute;
+    left: 0;
+    color: var(--gold-dim);
+  }
+
+  /* ─── ROADMAP ─── */
+  .roadmap-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .roadmap-item {
+    background: var(--navy-light);
+    border: 1px solid rgba(197, 164, 78, 0.1);
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .roadmap-item h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cream);
+  }
+
+  .roadmap-item p {
+    font-size: 12px;
+    color: var(--cream-dim);
+    margin-top: 2px;
+  }
+
+  .roadmap-effort {
+    font-size: 11px;
+    color: var(--gold);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ─── DIVIDERS ─── */
+  .section-divider {
+    width: 60px;
+    height: 1px;
+    background: var(--gold-dim);
+    margin: 24px 0;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center;
+    padding: 40px 24px;
+    border-top: 1px solid rgba(197, 164, 78, 0.15);
+    color: var(--cream-dim);
+    font-size: 12px;
+  }
+
+  footer a {
+    color: var(--gold);
+    text-decoration: none;
+  }
+
+  /* ─── NOVEL TAG ─── */
+  .novel-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(197, 164, 78, 0.1);
+    border: 1px solid var(--gold-dim);
+    color: var(--gold);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+  }
+
+  .novel-tag::before {
+    content: '*';
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .header-stats { gap: 24px; }
+    .feature-item {
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto;
+    }
+    .feature-meta {
+      grid-column: 2;
+      justify-self: start;
+    }
+    .pipeline-step { min-width: 80px; padding: 10px 12px; }
+    .pipeline-step .step-label { font-size: 9px; }
+    .pipeline-arrow { font-size: 14px; }
+    section { padding: 36px 0; }
+  }
+
+  @media (max-width: 480px) {
+    .tier-grid { grid-template-columns: 1fr; }
+    .pipeline { gap: 4px; }
+    .pipeline-step { min-width: 60px; padding: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header>
+  <div class="container">
+    <div class="logo-mark"></div>
+    <h1>Cassini <span>Sprint 11-12</span> Recap</h1>
+    <div class="subtitle">Three-Tier Licensing + Competitive Differentiators</div>
+    <p style="color: var(--cream-dim); font-size: 13px;">2026-03-14 Session Summary</p>
+
+    <div class="header-stats">
+      <div class="header-stat">
+        <span class="num">~70</span>
+        <span class="label">Subagents</span>
+      </div>
+      <div class="header-stat">
+        <span class="num">40+</span>
+        <span class="label">Commits</span>
+      </div>
+      <div class="header-stat">
+        <span class="num">~250</span>
+        <span class="label">Tests</span>
+      </div>
+      <div class="header-stat">
+        <span class="num">25+</span>
+        <span class="label">Screenshots</span>
+      </div>
+      <div class="header-stat">
+        <span class="num">13</span>
+        <span class="label">Features</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ═══════════════════ SECTION 1: THREE-TIER LICENSING ═══════════════════ -->
+<section>
+  <h2><span class="section-num">01</span> Sprint 11 — Three-Tier Licensing</h2>
+  <p class="section-desc">
+    Restructured licensing from binary Community/Commercial to a three-tier Open/Pro/Enterprise model.
+    31 commits, 49+ files changed, ~150 new tests.
+  </p>
+
+  <div class="tier-grid">
+    <!-- Open -->
+    <div class="tier-card">
+      <div class="tier-name">Open</div>
+      <div class="tier-price">Free / AGPL-3.0</div>
+      <ul class="tier-features">
+        <li class="highlight">X-bar/R, X-bar/S, I-MR, p/np/c/u charts</li>
+        <li class="highlight">Cp/Cpk/Pp/Ppk capability indices</li>
+        <li>Nelson rules (8 standard)</li>
+        <li>Manual data entry</li>
+        <li>Single plant</li>
+        <li>CSV export</li>
+        <li>Show Your Work explainability</li>
+      </ul>
+    </div>
+
+    <!-- Pro -->
+    <div class="tier-card featured">
+      <div class="tier-name">Pro</div>
+      <div class="tier-price">$1,200 / plant / year</div>
+      <ul class="tier-features">
+        <li class="highlight">Everything in Open, plus:</li>
+        <li class="highlight">Correlation analysis (Pearson, Spearman, PCA)</li>
+        <li class="highlight">Non-normal capability (Box-Cox, dist fit)</li>
+        <li class="highlight">DOE factorial + residual diagnostics</li>
+        <li class="highlight">Bootstrap confidence intervals</li>
+        <li class="highlight">MSA linearity study (AIAG complete)</li>
+        <li>Ishikawa Pareto prioritization</li>
+        <li>Short-run SPC (deviation + Z-score)</li>
+        <li>Laney p'/u' overdispersion correction</li>
+        <li>Custom run rule presets</li>
+        <li>Multi-plant (licensed qty)</li>
+      </ul>
+    </div>
+
+    <!-- Enterprise -->
+    <div class="tier-card">
+      <div class="tier-name">Enterprise</div>
+      <div class="tier-price">$5,000 / plant / year</div>
+      <ul class="tier-features">
+        <li class="highlight">Everything in Pro, plus:</li>
+        <li class="highlight">AI-powered investigation (agentic tool-use)</li>
+        <li class="highlight">Multivariate T&sup2; / MEWMA + robust MCD</li>
+        <li class="highlight">ARIMA predictive analytics</li>
+        <li class="highlight">Electronic signatures (21 CFR Part 11)</li>
+        <li class="highlight">SSO/OIDC with role lock</li>
+        <li>ERP/LIMS integration (SAP, Oracle, generic)</li>
+        <li>Gage bridge (serial + MQTT)</li>
+        <li>FAI (AS9102 Rev C)</li>
+        <li>Bivariate confidence ellipses</li>
+        <li>Offline activation</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase;">Implementation Scope</h3>
+
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th>Area</th>
+        <th>Changes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="color: var(--cream);">Backend</td>
+        <td>LicenseTier enum, PRO_FEATURES / ENTERPRISE_FEATURES maps, router split, tier-aware activation</td>
+      </tr>
+      <tr>
+        <td style="color: var(--cream);">Frontend</td>
+        <td>RequiresTier component, sidebar requiredTier, 19 route gates, 13 component gates</td>
+      </tr>
+      <tr>
+        <td style="color: var(--cream);">Website</td>
+        <td>3-column pricing page, tier selector in purchase flow, product page, homepage, portal, 5 email templates</td>
+      </tr>
+      <tr>
+        <td style="color: var(--cream);">Stripe</td>
+        <td>Two products ($1,200 Pro / $5,000 Enterprise), tier in metadata, resolveTierFromSubscription()</td>
+      </tr>
+      <tr>
+        <td style="color: var(--cream);">Docs</td>
+        <td>READMEs, .env.example, design doc, implementation plan, vault notes</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════ SECTION 2: FEATURE ENHANCEMENTS ═══════════════════ -->
+<section>
+  <h2><span class="section-num">02</span> Feature Enhancement Sprint</h2>
+  <p class="section-desc">
+    8 must-ship items identified by a 10-agent specialist audit. All delivered and skeptic-reviewed.
+  </p>
+
+  <div class="feature-list">
+    <div class="feature-item">
+      <div class="feature-num">1</div>
+      <div class="feature-body">
+        <h3>Correlation Analysis — Full Build</h3>
+        <p>Pearson/Spearman matrix, partial correlation, PCA, variable importance. 4 API endpoints, frontend with 4 sub-tabs.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">26 tests</span>
+        <span class="badge badge-gold">Pro</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">2</div>
+      <div class="feature-body">
+        <h3>E-Signature Verification Endpoint</h3>
+        <p>GET /signatures/verify/{id} — forensic chain-of-custody proof for auditors.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">12 tests</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">3</div>
+      <div class="feature-body">
+        <h3>Ishikawa Pareto Prioritization</h3>
+        <p>Auto-ranked 6M categories by eta-squared with cumulative Pareto chart. Novel — no competitor has this.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="novel-tag">Novel</span>
+        <span class="badge badge-gold">Pro</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">4</div>
+      <div class="feature-body">
+        <h3>Prediction Interval Interpretation</h3>
+        <p>Natural language interpretation, sigma ratio, width tracking, horizon recommendations.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">5</div>
+      <div class="feature-body">
+        <h3>SSO Role Lock</h3>
+        <p>Per-user roles_locked flag prevents IdP from overwriting local role assignments.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">4 tests</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">6</div>
+      <div class="feature-body">
+        <h3>Gage Bridge Serial Recovery</h3>
+        <p>Exponential backoff reconnection for serial ports, matching MQTT resilience pattern.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">19 tests</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">7</div>
+      <div class="feature-body">
+        <h3>MEWMA UCL Table Completion</h3>
+        <p>Extended table to p=10 dimensions, dynamic fallback for arbitrary (p, lambda), interpolation.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">29 tests</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">8</div>
+      <div class="feature-body">
+        <h3>Capability Bootstrap CIs</h3>
+        <p>Vectorized numpy bootstrap for Cpk/Ppk/Pp confidence intervals. Cpk without uncertainty is misleading.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">18 tests</span>
+        <span class="badge badge-gold">Pro</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 24px;">
+    <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase;">Skeptic Findings (Sprint 11)</h3>
+    <div class="skeptic-grid">
+      <div class="skeptic-card">
+        <h4>4 Skeptic Agents Dispatched</h4>
+        <ul>
+          <li>15 critical findings identified</li>
+          <li>15 important warnings flagged</li>
+          <li>All critical issues resolved</li>
+        </ul>
+      </div>
+      <div class="skeptic-card">
+        <h4>Critical Fixes Applied</h4>
+        <ul>
+          <li>Correlation 404 prefix mismatch</li>
+          <li>SQLite timezone crash on e-sig</li>
+          <li>Lockout enforcement gaps</li>
+          <li>sigma_ratio denominator error</li>
+          <li>Bootstrap NaN propagation</li>
+          <li>Serial port thread safety</li>
+          <li>Pareto zero-eta inclusion</li>
+        </ul>
+      </div>
+      <div class="skeptic-card">
+        <h4>UI/UX Pro Max Review</h4>
+        <ul>
+          <li>ECharts container DOM compliance</li>
+          <li>Accessibility: aria-labels, touch targets</li>
+          <li>Responsive: table min-width</li>
+          <li>Design system consistency audit</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ SECTION 3: COMPETITIVE DIFFERENTIATORS ═══════════════════ -->
+<section>
+  <h2><span class="section-num">03</span> Sprint 12 — Competitive Differentiators</h2>
+  <p class="section-desc">
+    Five features that build Cassini's competitive moat. Methods that are textbook-recommended
+    but commercially unimplemented.
+  </p>
+
+  <div class="feature-list">
+    <div class="feature-item">
+      <div class="feature-num">1</div>
+      <div class="feature-body">
+        <h3>AI Tool-Use Provider Abstraction</h3>
+        <p>Agentic AI investigation with tool_calls_made tracking. Structured tool definitions let LLMs query SPC data, run capability analysis, and explain findings.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">26 tests</span>
+        <span class="novel-tag">First in SPC</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">2</div>
+      <div class="feature-body">
+        <h3>Robust MCD Covariance Estimation</h3>
+        <p>Minimum Covariance Determinant for Phase I T-squared charts. Handles outlier contamination that breaks classical covariance.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">20 tests</span>
+        <span class="novel-tag">Zero competitors</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">3</div>
+      <div class="feature-body">
+        <h3>DOE Residual Diagnostics</h3>
+        <p>4-panel visualization: residuals vs. fitted, normal Q-Q (Blom formula), histogram, residuals vs. order. Catches up to Minitab.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">15 tests</span>
+        <span class="badge badge-gold">Pro</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">4</div>
+      <div class="feature-body">
+        <h3>2D Bivariate Confidence Ellipse</h3>
+        <p>Scatter plot with parametric ellipse boundary. JMP has it, Minitab and InfinityQS do not.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">13 tests</span>
+        <span class="badge badge-purple">Enterprise</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+
+    <div class="feature-item">
+      <div class="feature-num">5</div>
+      <div class="feature-body">
+        <h3>MSA Linearity Study</h3>
+        <p>Completes the full AIAG MSA 4th Edition suite. Bias analysis, linearity regression, reference-level breakdown.</p>
+      </div>
+      <div class="feature-meta">
+        <span class="test-count">21 tests</span>
+        <span class="badge badge-gold">Pro</span>
+        <span class="badge badge-green">Done</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 24px;">
+    <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase;">Skeptic Findings (Sprint 12)</h3>
+    <div class="skeptic-grid">
+      <div class="skeptic-card">
+        <h4>3 Skeptic Deep-Dives</h4>
+        <ul>
+          <li>Statistical validation with statsmodels lens</li>
+          <li>8 critical findings identified and fixed</li>
+          <li>6 E2E Playwright tests with screenshots</li>
+        </ul>
+      </div>
+      <div class="skeptic-card">
+        <h4>Statistical Fixes</h4>
+        <ul>
+          <li>MCD: dist_ vs dist_&sup2; comparison corrected</li>
+          <li>DOE: outlier sigma uses residual SE (n-p df)</li>
+          <li>Q-Q: switched to Blom formula (matches R/Minitab)</li>
+          <li>MSA: bias_avg from all observations (AIAG)</li>
+          <li>MSA: configurable verdict thresholds</li>
+          <li>AI: tool loop final response fix</li>
+          <li>Tool input value clamping</li>
+          <li>ECharts ellipse rendering</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ SECTION 4: QUALITY PIPELINE ═══════════════════ -->
+<section>
+  <h2><span class="section-num">04</span> Quality Pipeline</h2>
+  <p class="section-desc">
+    Every feature flows through a rigorous multi-stage quality pipeline.
+    No feature ships without adversarial review and skeptic validation.
+  </p>
+
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="step-label">Design</div>
+      <div class="step-detail">Vault doc</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Adversarial</div>
+      <div class="step-detail">5 vectors</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Plan</div>
+      <div class="step-detail">Task waves</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Implement</div>
+      <div class="step-detail">Parallel agents</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Skeptic</div>
+      <div class="step-detail">Stats review</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Fix</div>
+      <div class="step-detail">Critical bugs</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">E2E</div>
+      <div class="step-detail">Playwright</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-label">Screenshots</div>
+      <div class="step-detail">Visual QA</div>
+    </div>
+  </div>
+
+  <div class="quality-stats">
+    <div class="quality-stat">
+      <div class="q-num">~70</div>
+      <div class="q-label">Subagents Dispatched</div>
+    </div>
+    <div class="quality-stat">
+      <div class="q-num">40+</div>
+      <div class="q-label">Commits</div>
+    </div>
+    <div class="quality-stat">
+      <div class="q-num">~250</div>
+      <div class="q-label">New Tests</div>
+    </div>
+    <div class="quality-stat">
+      <div class="q-num">25+</div>
+      <div class="q-label">Screenshots</div>
+    </div>
+    <div class="quality-stat">
+      <div class="q-num">23</div>
+      <div class="q-label">Critical Fixes</div>
+    </div>
+    <div class="quality-stat">
+      <div class="q-num">7</div>
+      <div class="q-label">Skeptic Rounds</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 32px;">
+    <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase;">Adversarial Review Results (Sprint 11)</h3>
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Count</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color: var(--red);">Blockers</td>
+          <td>6</td>
+          <td><span class="check">All fixed</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--orange);">High Risk</td>
+          <td>6</td>
+          <td><span class="check">All fixed</span></td>
+        </tr>
+        <tr>
+          <td style="color: var(--gold);">Medium Risk</td>
+          <td>10</td>
+          <td>Assessed, deferred where appropriate</td>
+        </tr>
+        <tr>
+          <td style="color: var(--cream-dim);">Missing Tasks</td>
+          <td>16</td>
+          <td><span class="check">All addressed</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════ SECTION 5: NEXT PRIORITIES ═══════════════════ -->
+<section>
+  <h2><span class="section-num">05</span> Next Priorities</h2>
+  <p class="section-desc">
+    Strategic investments that deepen Cassini's moat. The quick wins are done — these build long-term defensibility.
+  </p>
+
+  <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase;">Strategic Investments (2+ weeks)</h3>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div>
+        <h3>Cross-Characteristic AI Correlation</h3>
+        <p>"AI that follows causal chains" — conference keynote material. Agentic AI traces correlations across the characteristic graph.</p>
+      </div>
+      <div class="roadmap-effort">2-3 days</div>
+    </div>
+
+    <div class="roadmap-item">
+      <div>
+        <h3>FAI Item-Level Disposition + SPC Linkage</h3>
+        <p>No AS9102 tool links FAI items to live SPC data. Would make Cassini the first with real-time FAI traceability.</p>
+      </div>
+      <div class="roadmap-effort">5-8 days</div>
+    </div>
+
+    <div class="roadmap-item">
+      <div>
+        <h3>SARIMA + Seasonal Auto-Detection</h3>
+        <p>Manufacturing is seasonal. Auto-detection of seasonal patterns with SARIMA modeling is a usability win.</p>
+      </div>
+      <div class="roadmap-effort">6-8 hrs</div>
+    </div>
+
+    <div class="roadmap-item">
+      <div>
+        <h3>Signature Key Versioning / Rotation</h3>
+        <p>Required by enterprise security reviews. Key rotation without invalidating existing signatures.</p>
+      </div>
+      <div class="roadmap-effort">6-8 hrs</div>
+    </div>
+  </div>
+
+  <div class="section-divider" style="margin-top: 32px;"></div>
+
+  <h3 style="font-size: 14px; color: var(--gold); margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase;">The Strategic Bet</h3>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+    <div class="skeptic-card">
+      <h4 style="color: var(--gold);">Explainable Statistics</h4>
+      <ul>
+        <li>Show Your Work mode</li>
+        <li>KaTeX-rendered formulas</li>
+        <li>Step-by-step computation</li>
+        <li>No competitor shows formulas</li>
+      </ul>
+    </div>
+    <div class="skeptic-card">
+      <h4 style="color: var(--gold);">Agentic AI</h4>
+      <ul>
+        <li>Tool-use provider abstraction</li>
+        <li>Cross-characteristic correlation</li>
+        <li>Natural language investigation</li>
+        <li>Genuine industry first</li>
+      </ul>
+    </div>
+    <div class="skeptic-card">
+      <h4 style="color: var(--gold);">Robust Methods</h4>
+      <ul>
+        <li>MCD covariance (zero competitors)</li>
+        <li>Bootstrap confidence intervals</li>
+        <li>Auto-SARIMA forecasting</li>
+        <li>Textbook methods, commercially novel</li>
+      </ul>
+    </div>
+    <div class="skeptic-card">
+      <h4 style="color: var(--gold);">Open-Core Trust</h4>
+      <ul>
+        <li>Source code audit</li>
+        <li>Computation audit</li>
+        <li>AGPL-3.0 base</li>
+        <li>Transparency = trust</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer>
+  <p style="color: var(--gold); font-size: 14px; letter-spacing: 2px; margin-bottom: 8px;">CASSINI</p>
+  <p>Statistical Process Control for regulated manufacturing</p>
+  <p style="margin-top: 8px;">Generated 2026-03-14 &middot; Sprints 11-12 &middot; <a href="https://github.com/saturnis-io/cassini">saturnis-io/cassini</a></p>
+</footer>
+
+</body>
+</html>
