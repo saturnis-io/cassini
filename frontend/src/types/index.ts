@@ -796,6 +796,7 @@ export interface OPCUABrowsedNode {
   display_name: string
   node_class: string
   data_type: string | null
+  is_readable: boolean
   is_folder: boolean
   children_count: number
 }

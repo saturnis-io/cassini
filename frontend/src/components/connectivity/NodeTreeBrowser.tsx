@@ -10,6 +10,7 @@ import {
   Loader2,
   AlertCircle,
   Server,
+  Tag,
 } from 'lucide-react'
 import { opcuaApi } from '@/api/client'
 import type { OPCUABrowsedNode } from '@/types'
@@ -171,7 +172,7 @@ function NodeItem({
   const expandState = expandedNodes.get(node.node_id)
   const isSelected = selectedNodeId === node.node_id
   const canExpand = node.is_folder || node.children_count > 0
-  const isVariable = node.node_class === 'Variable'
+  const isLeafNode = !canExpand && (node.is_readable || node.node_class === 'Variable' || node.node_class === 'Property')
 
   return (
     <div>
@@ -183,7 +184,7 @@ function NodeItem({
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
           if (canExpand) onToggle(node)
-          if (isVariable) onSelect(node)
+          if (isLeafNode) onSelect(node)
         }}
       >
         {/* Expand/collapse chevron */}
@@ -271,6 +272,9 @@ function NodeIcon({ node, isExpanded }: { node: OPCUABrowsedNode; isExpanded: bo
   if (node.node_class === 'Variable') {
     return <Variable className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
   }
+  if (node.node_class === 'Property') {
+    return <Tag className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+  }
   if (node.node_class === 'Object') {
     return <Box className="h-3.5 w-3.5 shrink-0 text-indigo-400/70" />
   }
@@ -285,6 +289,7 @@ function NodeClassBadge({ nodeClass }: { nodeClass: string }) {
   const badgeStyles: Record<string, string> = {
     Object: 'bg-indigo-500/10 text-indigo-400',
     Variable: 'bg-cyan-500/10 text-cyan-400',
+    Property: 'bg-emerald-500/10 text-emerald-400',
     Method: 'bg-warning/10 text-warning',
     ObjectType: 'bg-purple-500/10 text-purple-400',
     VariableType: 'bg-teal-500/10 text-teal-400',
