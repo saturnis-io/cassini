@@ -58,12 +58,12 @@ def compute_linearity(
         :class:`LinearityResult` with regression, bias, and verdict.
 
     Raises:
-        ValueError: If fewer than 2 reference levels or empty measurements.
+        ValueError: If fewer than 3 reference levels or empty measurements.
     """
     n_levels = len(reference_values)
 
-    if n_levels < 2:
-        raise ValueError("Linearity study requires at least 2 reference levels")
+    if n_levels < 3:
+        raise ValueError("Linearity study requires at least 3 reference levels")
     if len(measurements) != n_levels:
         raise ValueError(
             f"Number of measurement groups ({len(measurements)}) must match "
@@ -158,17 +158,22 @@ def compute_linearity(
         )
 
     # ── Bias average ──
-    bias_avg = sum(abs(b) for b in bias_values) / n_levels
+    # AIAG: grand mean of all individual bias observations
+    all_individual_biases = []
+    for i, ref in enumerate(reference_values):
+        for measurement in measurements[i]:
+            all_individual_biases.append(abs(measurement - ref))
+    bias_avg = sum(all_individual_biases) / len(all_individual_biases)
 
     if collector:
         collector.step(
             label="Average |Bias|",
-            formula_latex=r"\text{Avg}|\text{Bias}| = \frac{\sum |b_i|}{g}",
+            formula_latex=r"\text{Avg}|\text{Bias}| = \frac{\sum_{i=1}^{N} |x_i - \text{Ref}_i|}{N}",
             substitution_latex=(
                 r"\frac{"
-                + str(round(sum(abs(b) for b in bias_values), 6))
+                + str(round(sum(all_individual_biases), 6))
                 + r"}{"
-                + str(n_levels)
+                + str(len(all_individual_biases))
                 + r"}"
             ),
             result=bias_avg,
@@ -216,9 +221,9 @@ def compute_linearity(
             verdict = "unacceptable"
     else:
         is_acceptable = linearity_percent <= threshold
-        if linearity_percent <= 5.0:
+        if linearity_percent <= threshold:
             verdict = "acceptable"
-        elif linearity_percent <= 10.0:
+        elif linearity_percent <= threshold * 2:
             verdict = "marginal"
         else:
             verdict = "unacceptable"
@@ -226,7 +231,17 @@ def compute_linearity(
     if collector:
         collector.step(
             label="Verdict",
-            formula_latex=r"\text{Verdict} = \begin{cases} \text{Acceptable} & \%\text{Lin} \le 5\% \\ \text{Marginal} & 5\% < \%\text{Lin} \le 10\% \\ \text{Unacceptable} & \%\text{Lin} > 10\% \end{cases}",
+            formula_latex=(
+                r"\text{Verdict} = \begin{cases} \text{Acceptable} & \%\text{Lin} \le "
+                + str(round(threshold, 1))
+                + r"\% \\ \text{Marginal} & "
+                + str(round(threshold, 1))
+                + r"\% < \%\text{Lin} \le "
+                + str(round(threshold * 2, 1))
+                + r"\% \\ \text{Unacceptable} & \%\text{Lin} > "
+                + str(round(threshold * 2, 1))
+                + r"\% \end{cases}"
+            ),
             substitution_latex=r"\%\text{Linearity} = " + str(round(linearity_percent, 2)) + r"\%",
             result=0.0 if is_acceptable else 1.0,
             note=verdict,

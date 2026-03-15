@@ -4,7 +4,7 @@ Covers:
 - Perfect linearity (zero bias at all levels)
 - Known constant bias (slope=0, bias=offset)
 - Known non-linearity (bias increases with reference)
-- Edge case: only 2 reference levels
+- Edge case: minimum 3 reference levels
 - Tolerance-based percentage calculations
 """
 from __future__ import annotations
@@ -143,16 +143,21 @@ class TestNonLinearity:
 class TestEdgeCases:
     """Minimum inputs and boundary conditions."""
 
-    def test_two_reference_levels(self):
-        """Minimum valid: 2 reference levels."""
-        refs = [5.0, 10.0]
-        meas = [[5.01, 5.02, 4.99], [10.05, 10.04, 10.06]]
+    def test_three_reference_levels(self):
+        """Minimum valid: 3 reference levels."""
+        refs = [5.0, 7.5, 10.0]
+        meas = [[5.01, 5.02, 4.99], [7.51, 7.52, 7.49], [10.05, 10.04, 10.06]]
         result = compute_linearity(refs, meas, tolerance=1.0)
 
         assert isinstance(result, LinearityResult)
-        assert len(result.reference_values) == 2
-        assert len(result.bias_values) == 2
-        assert len(result.individual_points) == 6
+        assert len(result.reference_values) == 3
+        assert len(result.bias_values) == 3
+        assert len(result.individual_points) == 9
+
+    def test_two_reference_levels_raises(self):
+        """2 reference levels is degenerate (r²=1.0 always) — must raise."""
+        with pytest.raises(ValueError, match="at least 3 reference levels"):
+            compute_linearity([5.0, 10.0], [[5.01, 5.02, 4.99], [10.05, 10.04, 10.06]])
 
     def test_single_measurement_per_level(self):
         """One measurement per level is valid."""
@@ -163,20 +168,20 @@ class TestEdgeCases:
         assert isinstance(result, LinearityResult)
         assert len(result.individual_points) == 3
 
-    def test_fewer_than_two_levels_raises(self):
-        """Must have at least 2 reference levels."""
-        with pytest.raises(ValueError, match="at least 2 reference levels"):
+    def test_fewer_than_three_levels_raises(self):
+        """Must have at least 3 reference levels."""
+        with pytest.raises(ValueError, match="at least 3 reference levels"):
             compute_linearity([5.0], [[5.01, 5.02]])
 
     def test_empty_measurements_raises(self):
         """Empty measurement group raises."""
         with pytest.raises(ValueError, match="empty"):
-            compute_linearity([5.0, 10.0], [[], [10.0]])
+            compute_linearity([5.0, 10.0, 15.0], [[], [10.0], [15.0]])
 
     def test_mismatched_lengths_raises(self):
         """Measurements count must match reference count."""
         with pytest.raises(ValueError, match="must match"):
-            compute_linearity([5.0, 10.0], [[5.01]])
+            compute_linearity([5.0, 10.0, 15.0], [[5.01]])
 
     def test_unequal_replicate_counts(self):
         """Different number of measurements per level is valid."""
@@ -252,11 +257,11 @@ class TestIndividualPoints:
     """Validate the individual_points structure for scatter plots."""
 
     def test_individual_points_structure(self):
-        refs = [5.0, 10.0]
-        meas = [[5.1, 4.9], [10.2, 9.8]]
+        refs = [5.0, 7.5, 10.0]
+        meas = [[5.1, 4.9], [7.6, 7.4], [10.2, 9.8]]
         result = compute_linearity(refs, meas)
 
-        assert len(result.individual_points) == 4
+        assert len(result.individual_points) == 6
         for pt in result.individual_points:
             assert "reference" in pt
             assert "measured" in pt

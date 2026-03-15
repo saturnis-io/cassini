@@ -193,7 +193,7 @@ export function LinearityResults({ result, studyId: _studyId }: LinearityResults
           <span className="text-muted-foreground text-sm">Linearity Study</span>
           <span className="text-muted-foreground text-xs">
             %Linearity = {safeFixed(result.linearity_percent, 1)}%
-            {!isNaN(result.linearity_percent) &&
+            {result.linearity_percent != null &&
               (result.linearity_percent <= 5
                 ? ' (\u22645%)'
                 : result.linearity_percent <= 10
@@ -213,9 +213,9 @@ export function LinearityResults({ result, studyId: _studyId }: LinearityResults
           <div
             className={cn(
               'mt-1 text-lg font-bold tabular-nums',
-              !isNaN(result.linearity_percent) && result.linearity_percent <= 5
+              result.linearity_percent != null && result.linearity_percent <= 5
                 ? 'text-green-600 dark:text-green-400'
-                : !isNaN(result.linearity_percent) && result.linearity_percent <= 10
+                : result.linearity_percent != null && result.linearity_percent <= 10
                   ? 'text-amber-600 dark:text-amber-400'
                   : 'text-red-600 dark:text-red-400',
             )}
