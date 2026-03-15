@@ -7,7 +7,7 @@ and node browsing of OPC-UA address spaces.
 import asyncio
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,6 +100,7 @@ async def list_opcua_servers(
 @router.post("/", response_model=OPCUAServerResponse, status_code=status.HTTP_201_CREATED)
 async def create_opcua_server(
     data: OPCUAServerCreate,
+    request: Request,
     repo: OPCUAServerRepository = Depends(get_opcua_server_repository),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -138,6 +139,14 @@ async def create_opcua_server(
 
     server = await repo.create(**create_data)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "opcua_server",
+        "resource_id": server.id,
+        "action": "create",
+        "summary": f"OPC-UA server '{data.name}' created",
+        "fields": {"name": data.name, "endpoint_url": data.endpoint_url},
+    }
 
     return _server_response(server)
 
@@ -313,6 +322,7 @@ async def get_opcua_server(
 async def update_opcua_server(
     server_id: int,
     data: OPCUAServerUpdate,
+    request: Request,
     repo: OPCUAServerRepository = Depends(get_opcua_server_repository),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -338,7 +348,14 @@ async def update_opcua_server(
                 detail=f"OPC-UA server with name '{data.name}' already exists",
             )
 
+    _AUDIT_SKIP = {"password", "ca_cert_pem", "client_cert_pem", "client_key_pem"}
     update_data = data.model_dump(exclude_unset=True)
+    change_reason = update_data.pop("change_reason", None)
+
+    # Snapshot old non-sensitive values before mutation
+    old_values = {
+        f: getattr(server, f, None) for f in update_data if f not in _AUDIT_SKIP
+    }
 
     # Encrypt credentials if provided
     key = get_encryption_key()
@@ -357,6 +374,23 @@ async def update_opcua_server(
 
     await session.commit()
     await session.refresh(server)
+
+    # Compute diff for audit trail (non-sensitive fields only)
+    new_values = {}
+    diff_old = {}
+    for f, old_val in old_values.items():
+        new_val = getattr(server, f, None)
+        if old_val != new_val:
+            diff_old[f] = old_val
+            new_values[f] = new_val
+
+    request.state.audit_context = {
+        "resource_type": "opcua_server",
+        "resource_id": server_id,
+        "action": "update",
+        "summary": f"OPC-UA server '{server.name}' updated",
+        "fields": {"old_values": diff_old, "new_values": new_values, "change_reason": change_reason},
+    }
 
     return _server_response(server)
 

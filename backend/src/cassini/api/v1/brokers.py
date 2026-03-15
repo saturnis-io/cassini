@@ -6,7 +6,7 @@ Provides CRUD operations for MQTT broker configuration and connection management
 import asyncio
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,6 +103,7 @@ async def list_brokers(
 @router.post("/", response_model=BrokerResponse, status_code=status.HTTP_201_CREATED)
 async def create_broker(
     data: BrokerCreate,
+    request: Request,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -136,6 +137,14 @@ async def create_broker(
 
     broker = await repo.create(**create_data)
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "broker",
+        "resource_id": broker.id,
+        "action": "create",
+        "summary": f"MQTT broker '{data.name}' created",
+        "fields": {"name": data.name, "host": data.host, "port": data.port},
+    }
 
     return _broker_response(broker)
 
@@ -336,6 +345,7 @@ async def get_broker(
 async def update_broker(
     broker_id: int,
     data: BrokerUpdate,
+    request: Request,
     repo: BrokerRepository = Depends(get_broker_repository),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -362,7 +372,15 @@ async def update_broker(
             )
 
     # Update fields — encrypt credentials if provided
+    _AUDIT_SKIP = {"password", "ca_cert_pem", "client_cert_pem", "client_key_pem"}
     update_data = data.model_dump(exclude_unset=True)
+    change_reason = update_data.pop("change_reason", None)
+
+    # Snapshot old non-sensitive values before mutation
+    old_values = {
+        f: getattr(broker, f, None) for f in update_data if f not in _AUDIT_SKIP
+    }
+
     if "password" in update_data and update_data["password"]:
         enc_key = get_encryption_key()
         update_data["password"] = encrypt_password(update_data["password"], enc_key)
@@ -381,6 +399,23 @@ async def update_broker(
 
     await session.commit()
     await session.refresh(broker)
+
+    # Compute diff for audit trail (non-sensitive fields only)
+    new_values = {}
+    diff_old = {}
+    for f, old_val in old_values.items():
+        new_val = getattr(broker, f, None)
+        if old_val != new_val:
+            diff_old[f] = old_val
+            new_values[f] = new_val
+
+    request.state.audit_context = {
+        "resource_type": "broker",
+        "resource_id": broker_id,
+        "action": "update",
+        "summary": f"MQTT broker '{broker.name}' updated",
+        "fields": {"old_values": diff_old, "new_values": new_values, "change_reason": change_reason},
+    }
 
     return _broker_response(broker)
 

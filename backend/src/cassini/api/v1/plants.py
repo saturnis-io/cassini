@@ -245,6 +245,7 @@ async def get_plant(
 async def update_plant(
     plant_id: int,
     data: PlantUpdate,
+    request: Request,
     repo: PlantRepository = Depends(get_plant_repo),
     _user: User = Depends(get_current_admin),
 ) -> PlantResponse:
@@ -253,6 +254,8 @@ async def update_plant(
     Updates plant details. All fields are optional; only provided fields are updated.
     """
     update_data = data.model_dump(exclude_unset=True)
+    change_reason = update_data.pop("change_reason", None)
+
     if not update_data:
         plant = await repo.get_by_id(plant_id)
         if plant is None:
@@ -262,6 +265,15 @@ async def update_plant(
             )
         return PlantResponse.model_validate(plant)
 
+    # Snapshot old values before mutation
+    plant = await repo.get_by_id(plant_id)
+    if plant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plant {plant_id} not found",
+        )
+    old_values = {f: getattr(plant, f, None) for f in update_data}
+
     try:
         plant = await repo.update(plant_id, **update_data)
         if plant is None:
@@ -269,6 +281,24 @@ async def update_plant(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Plant {plant_id} not found",
             )
+
+        # Compute diff for audit trail
+        new_values = {}
+        diff_old = {}
+        for f, old_val in old_values.items():
+            new_val = getattr(plant, f, None)
+            if old_val != new_val:
+                diff_old[f] = old_val
+                new_values[f] = new_val
+
+        request.state.audit_context = {
+            "resource_type": "plant",
+            "resource_id": plant_id,
+            "action": "update",
+            "summary": f"Plant '{plant.name}' updated",
+            "fields": {"old_values": diff_old, "new_values": new_values, "change_reason": change_reason},
+        }
+
         return PlantResponse.model_validate(plant)
     except IntegrityError:
         raise HTTPException(

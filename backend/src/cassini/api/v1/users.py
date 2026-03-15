@@ -352,6 +352,7 @@ async def assign_plant_role(
             "role": data.role,
             "plant_id": data.plant_id,
             "assigned_by": current_user.username,
+            "change_reason": data.change_reason,
         },
     }
 

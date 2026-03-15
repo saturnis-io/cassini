@@ -621,6 +621,7 @@ async def toggle_exclude(
             "summary": f"Sample #{sample_id} {action_word} from control limits",
             "fields": {
                 "is_excluded": data.is_excluded,
+                "change_reason": data.reason,
             },
         }
 

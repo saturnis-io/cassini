@@ -434,6 +434,9 @@ async def update_characteristic(
                 detail=f"{update_data['sigma_method']} sigma method requires subgroup_size > 1",
             )
 
+    # Extract change_reason before applying updates to the model
+    change_reason = update_data.pop("change_reason", None)
+
     # Update only provided fields
     for key, value in update_data.items():
         setattr(characteristic, key, value)
@@ -460,6 +463,7 @@ async def update_characteristic(
         "fields": {
             "old_values": old_values,
             "new_values": new_values,
+            "change_reason": change_reason,
         },
     }
 
@@ -1817,10 +1821,14 @@ async def set_limits(
         "action": "update",
         "summary": f"Control limits manually set for '{characteristic.name}'",
         "fields": {
-            "characteristic_name": characteristic.name,
-            "ucl": body.ucl,
-            "centerline": body.center_line,
-            "lcl": body.lcl,
+            "old_values": before,
+            "new_values": {
+                "ucl": body.ucl,
+                "lcl": body.lcl,
+                "center_line": body.center_line,
+                "sigma": body.sigma,
+            },
+            "change_reason": body.change_reason,
         },
     }
 
@@ -1844,6 +1852,7 @@ async def set_limits(
 @router.post("/{char_id}/cusum-reset")
 async def cusum_reset(
     char_id: int,
+    request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1893,6 +1902,17 @@ async def cusum_reset(
 
     characteristic.cusum_reset_after_sample_id = latest_sample.id
     await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "reset",
+        "summary": f"CUSUM accumulator reset for '{characteristic.name}'",
+        "fields": {
+            "reset_after_sample_id": latest_sample.id,
+            "characteristic_name": characteristic.name,
+        },
+    }
 
     return {
         "reset_after_sample_id": latest_sample.id,
@@ -1946,6 +1966,7 @@ async def update_rules(
     char_id: int,
     rules: list[NelsonRuleConfig],
     request: Request,
+    change_reason: str | None = Query(None, max_length=500, description="Reason for rule change"),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_engineer),
@@ -2012,6 +2033,7 @@ async def update_rules(
         "fields": {
             "old_rules": old_rules,
             "new_rules": new_rules,
+            "change_reason": change_reason,
         },
     }
 
@@ -2036,6 +2058,7 @@ async def update_rules(
 async def change_subgroup_mode(
     char_id: int,
     request: ChangeModeRequest,
+    http_request: Request,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     sample_repo: SampleRepository = Depends(get_sample_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -2152,6 +2175,19 @@ async def change_subgroup_mode(
         characteristic_id=char_id,
         changes={"subgroup_mode": new_mode},
     ))
+
+    http_request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "update",
+        "summary": f"Subgroup mode changed for '{characteristic.name}'",
+        "fields": {
+            "old_values": {"subgroup_mode": previous_mode},
+            "new_values": {"subgroup_mode": new_mode},
+            "samples_migrated": samples_migrated,
+            "change_reason": request.change_reason,
+        },
+    }
 
     return ChangeModeResponse(
         previous_mode=previous_mode,
