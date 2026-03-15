@@ -18,6 +18,14 @@ import type {
 } from './client'
 import { fetchApi, getAccessToken } from './client'
 
+export interface AuditIntegrityResult {
+  verified_count: number
+  valid: boolean
+  first_break_id: number | null
+  first_break_timestamp: string | null
+  message: string
+}
+
 // Database Admin API
 export const databaseApi = {
   getConfig: () => fetchApi<DatabaseConfig>('/database/config'),
@@ -136,6 +144,8 @@ export const auditApi = {
   },
 
   getStats: () => fetchApi<AuditStats>('/audit/stats'),
+
+  verifyIntegrity: () => fetchApi<AuditIntegrityResult>('/audit/verify-integrity'),
 
   exportLogs: async (params?: AuditLogParams) => {
     const searchParams = new URLSearchParams()

@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react'
 import { useAuditLogs, useAuditStats, useExportAuditLogs } from '@/api/hooks'
+import { auditApi } from '@/api/client'
+import type { AuditIntegrityResult } from '@/api/admin.api'
 import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import type { AuditLogEntry } from '@/types'
@@ -429,6 +431,27 @@ export function AuditLogViewer() {
   const { data: logsData, isLoading } = useAuditLogs(params)
   const { data: stats } = useAuditStats()
   const exportMutation = useExportAuditLogs()
+  const [integrityResult, setIntegrityResult] = useState<AuditIntegrityResult | null>(null)
+  const [integrityLoading, setIntegrityLoading] = useState(false)
+
+  async function handleVerifyIntegrity() {
+    setIntegrityLoading(true)
+    setIntegrityResult(null)
+    try {
+      const result = await auditApi.verifyIntegrity()
+      setIntegrityResult(result)
+    } catch {
+      setIntegrityResult({
+        verified_count: 0,
+        valid: false,
+        first_break_id: null,
+        first_break_timestamp: null,
+        message: 'Verification failed',
+      })
+    } finally {
+      setIntegrityLoading(false)
+    }
+  }
 
   const totalPages = logsData ? Math.ceil(logsData.total / (filters.limit || 50)) : 0
   const currentPage = Math.floor((filters.offset || 0) / (filters.limit || 50)) + 1
@@ -546,7 +569,20 @@ export function AuditLogViewer() {
           </button>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          {integrityResult && (
+            <span className={`text-sm ${integrityResult.valid ? 'text-green-500' : 'text-red-500'}`}>
+              {integrityResult.valid ? '\u2713' : '\u2717'} {integrityResult.message}
+            </span>
+          )}
+          <button
+            onClick={handleVerifyIntegrity}
+            disabled={integrityLoading}
+            className="border-border text-foreground hover:bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm disabled:opacity-50"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            {integrityLoading ? 'Verifying...' : 'Verify Integrity'}
+          </button>
           <button
             onClick={() => exportMutation.mutate(params)}
             disabled={exportMutation.isPending}
