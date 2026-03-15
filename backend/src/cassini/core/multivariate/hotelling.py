@@ -178,10 +178,10 @@ class HotellingT2Engine:
             mean = mcd.location_
             cov = mcd.covariance_
 
-            # Count Phase I outliers using chi-squared threshold at 97.5%
-            chi2_threshold = float(stats.chi2.ppf(0.975, p))
-            outlier_mask = mcd.dist_ > chi2_threshold
-            outlier_count = int(np.sum(outlier_mask))
+            # Count Phase I outliers using sklearn's MCD support mask
+            # (mcd.dist_ are Mahalanobis distances, not squared — using
+            # support_ avoids the dist_ vs dist_**2 ambiguity entirely)
+            outlier_count = int(np.sum(~mcd.support_))
         elif covariance_method == "classical":
             mean = np.mean(X, axis=0)
             cov = np.cov(X.T, ddof=1)

@@ -1,10 +1,16 @@
-"""AIAnalysisEngine -- on-demand LLM-powered chart analysis."""
+"""AIAnalysisEngine -- on-demand LLM-powered chart analysis.
+
+Supports both one-shot analysis and agentic tool-use loops where the LLM
+can autonomously query violations, capability, sibling characteristics,
+and anomaly events to produce deeper insights.
+"""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import structlog
@@ -13,9 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.ai_analysis.context_builder import build_context
 from cassini.core.ai_analysis.prompts import SYSTEM_PROMPT, build_analysis_prompt
-from cassini.core.ai_analysis.providers import create_provider
+from cassini.core.ai_analysis.providers import create_provider, BaseLLMProvider
+from cassini.core.ai_analysis.tools import (
+    ANALYSIS_TOOLS,
+    LLMResponse,
+    ToolExecutor,
+)
 
 logger = structlog.get_logger(__name__)
+
+MAX_TOOL_ITERATIONS = 5
 
 
 class AINotConfigured(Exception):
@@ -29,7 +42,7 @@ class AIAnalysisEngine:
     1. Load AI config for plant (Fernet-encrypted API key)
     2. Build chart context from DB (characteristic, samples, violations, etc.)
     3. Check cache (same context hash within 1 hour)
-    4. Call LLM provider (Claude or OpenAI)
+    4. Call LLM provider with tool-use loop (Claude or OpenAI)
     5. Parse structured JSON response
     6. Persist insight to ``ai_insight`` table
     7. Return structured result dict
@@ -131,7 +144,7 @@ class AIAnalysisEngine:
             }
         )
 
-        # Call LLM
+        # Call LLM with tool-use loop
         start_time = time.monotonic()
         try:
             provider = create_provider(
@@ -144,7 +157,9 @@ class AIAnalysisEngine:
                 azure_deployment_id=azure_deployment_id,
                 azure_api_version=azure_api_version,
             )
-            llm_response = await provider.generate(SYSTEM_PROMPT, user_prompt)
+            response_text, tool_calls_made = await _analyze_with_tools(
+                provider, session, char_id, SYSTEM_PROMPT, user_prompt
+            )
         except Exception as e:
             logger.warning(
                 "ai_analysis_llm_error", char_id=char_id, error=str(e)
@@ -157,21 +172,22 @@ class AIAnalysisEngine:
 
         # Parse response
         summary, patterns, risks, recommendations = _parse_llm_response(
-            llm_response.content
+            response_text or ""
         )
 
         # Persist insight
         insight = AIInsight(
             characteristic_id=char_id,
             provider_type=provider_type,
-            model_name=llm_response.model,
+            model_name=model_name,
             context_hash=context_hash,
             summary=summary,
             patterns=json.dumps(patterns),
             risks=json.dumps(risks),
             recommendations=json.dumps(recommendations),
-            tokens_used=llm_response.input_tokens + llm_response.output_tokens,
+            tokens_used=0,  # Token tracking is per-turn; aggregate later if needed
             latency_ms=latency_ms,
+            tool_calls_made=tool_calls_made,
         )
         session.add(insight)
         await session.commit()
@@ -238,6 +254,81 @@ class AIAnalysisEngine:
             }
 
 
+# ---------------------------------------------------------------------------
+# Tool-use loop
+# ---------------------------------------------------------------------------
+
+
+async def _analyze_with_tools(
+    provider: BaseLLMProvider,
+    session: AsyncSession,
+    char_id: int,
+    system_prompt: str,
+    user_prompt: str,
+) -> tuple[str | None, int]:
+    """Run the LLM analysis with an agentic tool-use loop.
+
+    The LLM may request tool calls (get_violations, get_capability, etc.)
+    to investigate the data further. We execute each tool, feed results
+    back, and continue until the LLM produces a final text response or
+    we hit the iteration limit.
+
+    Returns:
+        Tuple of (final_text_response, total_tool_calls_made).
+    """
+    tools = ANALYSIS_TOOLS
+    executor = ToolExecutor(session, char_id)
+
+    response = await provider.generate(
+        system_prompt, user_prompt, tools=tools
+    )
+
+    total_tool_calls = 0
+    iterations = 0
+
+    while response.stop_reason == "tool_use" and iterations < MAX_TOOL_ITERATIONS:
+        # Execute all requested tools
+        results = []
+        for tc in response.tool_calls:
+            result = await executor.execute(tc)
+            results.append(result)
+            total_tool_calls += 1
+
+        logger.info(
+            "ai_tool_calls_executed",
+            char_id=char_id,
+            iteration=iterations + 1,
+            tools=[tc.tool_name for tc in response.tool_calls],
+        )
+
+        # Feed results back to LLM with conversation history
+        response = await provider.generate(
+            system_prompt,
+            user_prompt,
+            tools=tools,
+            tool_results=results,
+            prior_messages=response._raw_messages,
+        )
+        iterations += 1
+
+    if response.stop_reason == "tool_use":
+        # Hit max iterations -- LLM still wants tools but we must stop
+        logger.warning(
+            "ai_tool_loop_max_iterations",
+            char_id=char_id,
+            iterations=iterations,
+        )
+        # Force a final text response without tools
+        response = await provider.generate(system_prompt, user_prompt)
+
+    return response.content, total_tool_calls
+
+
+# ---------------------------------------------------------------------------
+# Response parsing
+# ---------------------------------------------------------------------------
+
+
 def _parse_llm_response(
     content: str,
 ) -> tuple[str, list[str], list[str], list[str]]:
@@ -301,6 +392,7 @@ def _insight_to_dict(insight: Any) -> dict:
         "model_name": insight.model_name,
         "tokens_used": insight.tokens_used,
         "latency_ms": insight.latency_ms,
+        "tool_calls_made": getattr(insight, "tool_calls_made", 0) or 0,
         "generated_at": (
             insight.generated_at.isoformat() if insight.generated_at else None
         ),
