@@ -49,6 +49,9 @@ class AuditLog(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
+    sequence_hash: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, doc="SHA-256 chain hash for tamper evidence"
+    )
 
     # Optional relationship to User (for joining)
     user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id], lazy="select")
