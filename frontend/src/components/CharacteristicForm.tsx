@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { characteristicFormSchema } from '@/schemas/characteristics'
 import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import {
   CharacteristicConfigTabs,
   type TabId,
@@ -76,6 +77,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
 
   // Delete confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  // Change reason dialog state
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
 
   // Schedule configuration state (for MANUAL characteristics)
   const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig>({
@@ -181,7 +185,12 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     setIsDirty(true)
   }
 
-  const handleSave = async () => {
+  const handleSaveWithReason = async (reason: string) => {
+    setChangeReasonOpen(false)
+    await handleSave(reason)
+  }
+
+  const handleSave = async (changeReason?: string) => {
     if (!characteristicId) return
 
     // Validate via schema — includes name, spec limits (USL > LSL), subgroup constraints
@@ -216,6 +225,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           | 's_bar_c4'
           | 'moving_range'
           | null,
+        change_reason: changeReason || undefined,
       },
     })
 
@@ -284,6 +294,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     lcl: number
     center_line: number
     sigma: number
+    change_reason?: string
   }) => {
     if (!characteristicId) return
     await setManualLimits.mutateAsync({ id: characteristicId, data })
@@ -462,7 +473,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
             Cancel
           </button>
           <button
-            onClick={handleSave}
+            onClick={() => setChangeReasonOpen(true)}
             disabled={updateCharacteristic.isPending || !isDirty}
             className={cn(
               'rounded-lg px-4 py-2 text-sm font-medium',
@@ -518,6 +529,16 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           </div>
         </div>
       )}
+
+      {/* Change Reason Dialog */}
+      <ChangeReasonDialog
+        open={changeReasonOpen}
+        onConfirm={handleSaveWithReason}
+        onCancel={() => setChangeReasonOpen(false)}
+        title="Reason for Configuration Change"
+        description="Describe why this characteristic configuration is being changed."
+        isLoading={updateCharacteristic.isPending}
+      />
 
       {/* Delete Confirmation Dialog */}
       {showDeleteDialog && (

@@ -43,7 +43,7 @@ export const characteristicApi = {
       body: JSON.stringify(data),
     }),
 
-  update: (id: number, data: Partial<Characteristic>) =>
+  update: (id: number, data: Partial<Characteristic> & { change_reason?: string }) =>
     fetchApi<Characteristic>(`/characteristics/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -94,7 +94,13 @@ export const characteristicApi = {
 
   setManualLimits: (
     id: number,
-    data: { ucl: number; lcl: number; center_line: number; sigma: number },
+    data: {
+      ucl: number
+      lcl: number
+      center_line: number
+      sigma: number
+      change_reason?: string
+    },
   ) =>
     fetchApi<{ before: object; after: object; calculation: object }>(
       `/characteristics/${id}/set-limits`,

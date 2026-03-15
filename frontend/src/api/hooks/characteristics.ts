@@ -209,7 +209,13 @@ export function useSetManualLimits() {
       data,
     }: {
       id: number
-      data: { ucl: number; lcl: number; center_line: number; sigma: number }
+      data: {
+        ucl: number
+        lcl: number
+        center_line: number
+        sigma: number
+        change_reason?: string
+      }
     }) => characteristicApi.setManualLimits(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })

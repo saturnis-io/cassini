@@ -3,6 +3,7 @@ import { Accordion, AccordionSection } from './Accordion'
 import { NumberInput } from '../NumberInput'
 import { HelpTooltip } from '../HelpTooltip'
 import { StatNote } from '@/components/StatNote'
+import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from '../LocalTimeRangeSelector'
 import { RefreshCw, Calculator, Edit3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,7 @@ interface LimitsTabProps {
     lcl: number
     center_line: number
     sigma: number
+    change_reason?: string
   }) => void
   isRecalculating?: boolean
   isSettingManual?: boolean
@@ -423,6 +425,7 @@ export function LimitsTab({
   const [manualLcl, setManualLcl] = useState('')
   const [manualCenterLine, setManualCenterLine] = useState('')
   const [manualSigma, setManualSigma] = useState('')
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false)
 
   const target = isNaN(parseFloat(formData.target_value)) ? null : parseFloat(formData.target_value)
   const usl = isNaN(parseFloat(formData.usl)) ? null : parseFloat(formData.usl)
@@ -458,19 +461,24 @@ export function LimitsTab({
   }
 
   const handleSetManual = () => {
+    if (!isManualValid) return
+    setChangeReasonOpen(true)
+  }
+
+  const handleSetManualWithReason = (reason: string) => {
     const ucl = parseFloat(manualUcl)
     const lcl = parseFloat(manualLcl)
     const centerLine = parseFloat(manualCenterLine)
     const sigma = parseFloat(manualSigma)
 
-    if (isNaN(ucl) || isNaN(lcl) || isNaN(centerLine) || isNaN(sigma)) {
-      return
-    }
-    if (ucl <= lcl) return
-    if (sigma <= 0) return
-    if (centerLine < lcl || centerLine > ucl) return
-
-    onSetManualLimits?.({ ucl, lcl, center_line: centerLine, sigma })
+    onSetManualLimits?.({
+      ucl,
+      lcl,
+      center_line: centerLine,
+      sigma,
+      change_reason: reason || undefined,
+    })
+    setChangeReasonOpen(false)
   }
 
   const isManualValid = (() => {
@@ -943,6 +951,15 @@ export function LimitsTab({
               >
                 {isSettingManual ? 'Applying...' : 'Apply Manual Limits'}
               </button>
+
+              <ChangeReasonDialog
+                open={changeReasonOpen}
+                onConfirm={handleSetManualWithReason}
+                onCancel={() => setChangeReasonOpen(false)}
+                title="Reason for Manual Limits"
+                description="Describe why control limits are being manually set (e.g., external capability study reference)."
+                isLoading={isSettingManual}
+              />
             </div>
           )}
         </div>
