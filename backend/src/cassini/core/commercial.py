@@ -125,6 +125,7 @@ async def activate_commercial_features(
             audit_service = AuditService(db.session)
             app.state.audit_service = audit_service
             audit_service.setup_subscriptions(event_bus)
+            await audit_service.recover_last_hash()
             logger.info("Audit trail service initialized")
 
             # Start report scheduler (background, checks every 15 minutes)

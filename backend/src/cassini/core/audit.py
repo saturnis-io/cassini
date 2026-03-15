@@ -6,6 +6,7 @@ requests (POST/PUT/PATCH/DELETE) without blocking responses.
 """
 
 import asyncio
+import hashlib
 import json as _json
 import re
 from typing import Optional
@@ -181,6 +182,7 @@ class AuditService:
     def __init__(self, session_factory):
         self._session_factory = session_factory
         self._failure_count = 0
+        self._last_hash: str = "0" * 64  # Genesis hash
 
     async def log(
         self,
@@ -234,6 +236,20 @@ class AuditService:
                     ip_address=ip_address,
                     user_agent=user_agent,
                 )
+
+                # Tamper evidence: SHA-256 chain
+                hash_input = (
+                    f"{self._last_hash}|"
+                    f"{entry.action}|"
+                    f"{entry.resource_type}|"
+                    f"{entry.resource_id}|"
+                    f"{entry.user_id}|"
+                    f"{entry.username}|"
+                    f"{entry.timestamp.isoformat()}"
+                )
+                entry.sequence_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+                self._last_hash = entry.sequence_hash
+
                 session.add(entry)
                 await session.commit()
         except Exception:
@@ -273,6 +289,26 @@ class AuditService:
             detail=detail,
             username="system",
         )
+
+    async def recover_last_hash(self) -> None:
+        """Load the last sequence_hash from DB to continue the chain after restart."""
+        try:
+            async with self._session_factory() as session:
+                from sqlalchemy import select
+
+                stmt = (
+                    select(AuditLog.sequence_hash)
+                    .where(AuditLog.sequence_hash.isnot(None))
+                    .order_by(AuditLog.timestamp.desc())
+                    .limit(1)
+                )
+                result = await session.execute(stmt)
+                last = result.scalar_one_or_none()
+                if last:
+                    self._last_hash = last
+                    logger.info("audit_hash_chain_recovered", last_hash=last[:12])
+        except Exception:
+            logger.warning("audit_hash_chain_recovery_failed", exc_info=True)
 
     def setup_subscriptions(self, event_bus) -> None:
         """Wire all audit event subscriptions to the event bus.
