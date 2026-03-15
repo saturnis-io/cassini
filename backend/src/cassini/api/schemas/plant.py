@@ -38,6 +38,7 @@ class PlantUpdate(BaseModel):
     capability_yellow_threshold: Optional[float] = Field(
         None, gt=0, description="Cpk threshold for yellow (marginal) status"
     )
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class PlantResponse(BaseModel):

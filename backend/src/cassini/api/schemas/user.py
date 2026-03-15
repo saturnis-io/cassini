@@ -61,6 +61,7 @@ class PlantRoleAssign(BaseModel):
 
     plant_id: int
     role: str = Field(..., pattern=r"^(operator|supervisor|engineer|admin)$")
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class LoginRequest(BaseModel):

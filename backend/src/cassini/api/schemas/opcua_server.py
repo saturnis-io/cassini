@@ -60,6 +60,7 @@ class OPCUAServerUpdate(BaseModel):
     session_timeout: int | None = Field(None, ge=1000, le=300000)
     publishing_interval: int | None = Field(None, ge=50, le=60000)
     sampling_interval: int | None = Field(None, ge=10, le=60000)
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class OPCUAServerResponse(BaseModel):

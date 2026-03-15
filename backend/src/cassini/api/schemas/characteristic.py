@@ -152,6 +152,7 @@ class CharacteristicUpdate(BaseModel):
         None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range)$",
         description="Sigma estimation method override"
     )
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class CharacteristicResponse(BaseModel):
@@ -490,6 +491,7 @@ class SetLimitsRequest(BaseModel):
     lcl: float
     center_line: float
     sigma: float = Field(gt=0)
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
     @model_validator(mode="after")
     def validate_limits(self) -> Self:
@@ -509,6 +511,7 @@ class ChangeModeRequest(BaseModel):
     """
 
     new_mode: SubgroupModeEnum = Field(..., description="New subgroup handling mode")
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class ChangeModeResponse(BaseModel):

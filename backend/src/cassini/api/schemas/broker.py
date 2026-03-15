@@ -66,6 +66,7 @@ class BrokerUpdate(BaseModel):
     outbound_topic_prefix: str | None = Field(None, max_length=200)
     outbound_format: str | None = Field(None, pattern="^(json|sparkplug)$")
     outbound_rate_limit: float | None = Field(None, ge=0.1, le=60.0)
+    change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
 class BrokerResponse(BaseModel):
