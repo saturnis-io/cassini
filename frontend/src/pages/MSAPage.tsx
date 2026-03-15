@@ -17,6 +17,7 @@ const STUDY_TYPE_LABELS: Record<string, string> = {
   nested_anova: 'Nested ANOVA',
   range_method: 'Range Method',
   attribute_agreement: 'Attribute Agreement',
+  linearity: 'Linearity',
 }
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {

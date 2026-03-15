@@ -510,6 +510,28 @@ export interface AttributeMSAResult {
   verdict: string
 }
 
+export interface LinearityResult {
+  reference_values: number[]
+  bias_values: number[]
+  bias_percentages: (number | null)[]
+  slope: number
+  intercept: number
+  r_squared: number
+  linearity: number
+  linearity_percent: number | null
+  bias_avg: number
+  bias_percent: number | null
+  is_acceptable: boolean
+  individual_points: {
+    reference: number
+    measured: number
+    bias: number
+    replicate: number
+  }[]
+  verdict: string
+  p_value: number
+}
+
 // ---- Gage Bridge Types ----
 
 export interface GageBridge {

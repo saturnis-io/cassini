@@ -13,10 +13,10 @@ class MSAStudyCreate(BaseModel):
     name: str = Field(..., max_length=255)
     study_type: str = Field(
         ...,
-        pattern=r"^(crossed_anova|nested_anova|range_method|attribute_agreement)$",
+        pattern=r"^(crossed_anova|nested_anova|range_method|attribute_agreement|linearity)$",
     )
     characteristic_id: int | None = None
-    num_operators: int = Field(..., ge=2)
+    num_operators: int = Field(..., ge=1)
     num_parts: int = Field(..., ge=2)
     num_replicates: int = Field(2, ge=1)
     tolerance: float | None = None
@@ -148,3 +148,22 @@ class AttributeMSAResultResponse(BaseModel):
     cohens_kappa_pairs: dict[str, float]
     fleiss_kappa: float
     verdict: str
+
+
+class LinearityResultResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    reference_values: list[float]
+    bias_values: list[float]
+    bias_percentages: list[float | None]
+    slope: float
+    intercept: float
+    r_squared: float
+    linearity: float
+    linearity_percent: float | None
+    bias_avg: float
+    bias_percent: float | None
+    is_acceptable: bool
+    individual_points: list[dict]
+    verdict: str
+    p_value: float

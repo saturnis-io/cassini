@@ -24,6 +24,7 @@ import {
   useSubmitMSAAttributeMeasurements,
   useCalculateMSA,
   useCalculateAttributeMSA,
+  useCalculateLinearity,
   useMSAResults,
   useMSAMeasurements,
   useCharacteristics,
@@ -37,6 +38,7 @@ import type {
   MSAAttributeInput,
   GageRRResult,
   AttributeMSAResult,
+  LinearityResult,
 } from '@/api/client'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
@@ -44,6 +46,7 @@ import { StudySteps } from '@/components/studies/StudySteps'
 import { MSADataGrid } from './MSADataGrid'
 import { MSAResults } from './MSAResults'
 import { AttributeMSAResults } from './AttributeMSAResults'
+import { LinearityResults } from './LinearityResults'
 import { CharacteristicPicker } from './CharacteristicPicker'
 
 // ── Constants ──
@@ -53,6 +56,7 @@ const STUDY_TYPES = [
   { value: 'range_method', label: 'Range Method (quick study)' },
   { value: 'nested_anova', label: 'Nested ANOVA (destructive testing)' },
   { value: 'attribute_agreement', label: 'Attribute Agreement Analysis' },
+  { value: 'linearity', label: 'Linearity Study (bias vs range)' },
 ]
 
 const STUDY_TYPE_LABELS: Record<string, string> = {
@@ -60,6 +64,7 @@ const STUDY_TYPE_LABELS: Record<string, string> = {
   nested_anova: 'Nested ANOVA',
   range_method: 'Range Method',
   attribute_agreement: 'Attribute Agreement',
+  linearity: 'Linearity',
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
@@ -74,6 +79,10 @@ type TabKey = 'overview' | 'data' | 'results'
 
 function isAttributeStudy(studyType: string): boolean {
   return studyType === 'attribute_agreement'
+}
+
+function isLinearityStudy(studyType: string): boolean {
+  return studyType === 'linearity'
 }
 
 function measurementsToGridData(
@@ -147,6 +156,30 @@ function exportGageRRResultsCSV(study: MSAStudyDetail, result: GageRRResult) {
   downloadCSV(`${safeName}_results.csv`, rows.join('\n'))
 }
 
+function exportLinearityResultsCSV(study: MSAStudyDetail, result: LinearityResult) {
+  const rows = [
+    '"Metric","Value"',
+    `"Slope",${result.slope.toFixed(6)}`,
+    `"Intercept",${result.intercept.toFixed(6)}`,
+    `"R-squared",${result.r_squared.toFixed(6)}`,
+    `"Linearity",${result.linearity.toFixed(6)}`,
+    `"%Linearity",${safeFixed(result.linearity_percent, 2)}`,
+    `"Average |Bias|",${result.bias_avg.toFixed(6)}`,
+    `"%Bias",${safeFixed(result.bias_percent, 2)}`,
+    `"p-value",${result.p_value.toFixed(6)}`,
+    `"Verdict","${result.verdict}"`,
+    '',
+    '"Per-Level Bias"',
+    '"Reference","Bias","%Bias"',
+    ...result.reference_values.map(
+      (ref, i) =>
+        `${ref},${result.bias_values[i].toFixed(6)},${safeFixed(result.bias_percentages[i], 2)}`,
+    ),
+  ]
+  const safeName = study.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  downloadCSV(`${safeName}_linearity_results.csv`, rows.join('\n'))
+}
+
 function exportAttributeResultsCSV(study: MSAStudyDetail, result: AttributeMSAResult) {
   const rows = [
     '"Metric","Value"',
@@ -191,6 +224,9 @@ function NewStudyForm() {
   const [tolerance, setTolerance] = useState('')
   const [operatorNames, setOperatorNames] = useState<string[]>([])
   const [partNames, setPartNames] = useState<string[]>([])
+  const [referenceValues, setReferenceValues] = useState<string[]>([])
+
+  const isLinearity = isLinearityStudy(studyType)
 
   const { data: charData } = useCharacteristics(
     plantId > 0 ? { plant_id: plantId, per_page: 500 } : undefined,
@@ -203,6 +239,21 @@ function NewStudyForm() {
 
   const isPending = createStudy.isPending || setOperatorsMut.isPending || setPartsMut.isPending
 
+  // When switching to linearity, set reasonable defaults
+  useEffect(() => {
+    if (isLinearity) {
+      setNumOperators(1)
+      setNumParts(5)
+      setNumReplicates(10)
+      setOperatorNames(['Operator 1'])
+      setPartNames(['Ref 1', 'Ref 2', 'Ref 3', 'Ref 4', 'Ref 5'])
+      setReferenceValues((prev) => {
+        if (prev.length === 5) return prev
+        return ['', '', '', '', '']
+      })
+    }
+  }, [isLinearity])
+
   useEffect(() => {
     setOperatorNames((prev) => {
       const next = [...prev]
@@ -212,12 +263,20 @@ function NewStudyForm() {
   }, [numOperators])
 
   useEffect(() => {
+    const label = isLinearity ? 'Ref' : 'Part'
     setPartNames((prev) => {
       const next = [...prev]
-      while (next.length < numParts) next.push(`Part ${next.length + 1}`)
+      while (next.length < numParts) next.push(`${label} ${next.length + 1}`)
       return next.slice(0, numParts)
     })
-  }, [numParts])
+    if (isLinearity) {
+      setReferenceValues((prev) => {
+        const next = [...prev]
+        while (next.length < numParts) next.push('')
+        return next.slice(0, numParts)
+      })
+    }
+  }, [numParts, isLinearity])
 
   useEffect(() => {
     if (charId) {
@@ -229,6 +288,15 @@ function NewStudyForm() {
   }, [charId, characteristics])
 
   const handleCreate = async () => {
+    // Validate reference values for linearity studies
+    if (isLinearity) {
+      const refs = referenceValues.slice(0, numParts)
+      if (refs.some((v) => v === '' || isNaN(parseFloat(v)))) {
+        toast.error('All reference standard values must be filled for a linearity study')
+        return
+      }
+    }
+
     const data: MSAStudyCreate = {
       name,
       study_type: studyType,
@@ -245,9 +313,13 @@ function NewStudyForm() {
         studyId: created.id,
         operators: operatorNames.slice(0, numOperators),
       })
+      const parts = partNames.slice(0, numParts).map((n, i) => ({
+        name: n,
+        reference_value: isLinearity ? parseFloat(referenceValues[i]) : undefined,
+      }))
       await setPartsMut.mutateAsync({
         studyId: created.id,
-        parts: partNames.slice(0, numParts).map((n) => ({ name: n })),
+        parts,
       })
       navigate(`/msa/${created.id}`, { replace: true })
     } catch {
@@ -346,20 +418,24 @@ function NewStudyForm() {
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className={cn('grid gap-4', isLinearity ? 'grid-cols-2' : 'grid-cols-3')}>
+          {!isLinearity && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Operators</label>
+              <input
+                type="number"
+                min={2}
+                max={20}
+                value={numOperators}
+                onChange={(e) => setNumOperators(Math.max(2, parseInt(e.target.value) || 2))}
+                className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              />
+            </div>
+          )}
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Operators</label>
-            <input
-              type="number"
-              min={2}
-              max={20}
-              value={numOperators}
-              onChange={(e) => setNumOperators(Math.max(2, parseInt(e.target.value) || 2))}
-              className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Parts</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              {isLinearity ? 'Reference Levels' : 'Parts'}
+            </label>
             <input
               type="number"
               min={2}
@@ -370,11 +446,13 @@ function NewStudyForm() {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Replicates</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              {isLinearity ? 'Measurements per Level' : 'Replicates'}
+            </label>
             <input
               type="number"
               min={1}
-              max={10}
+              max={50}
               value={numReplicates}
               onChange={(e) => setNumReplicates(Math.max(1, parseInt(e.target.value) || 1))}
               className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
@@ -396,49 +474,90 @@ function NewStudyForm() {
               className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
             <p className="text-muted-foreground mt-1 text-xs">
-              Used to calculate %Tolerance. Leave blank to skip.
+              {isLinearity
+                ? 'Used to calculate %Linearity and %Bias. Leave blank to skip.'
+                : 'Used to calculate %Tolerance. Leave blank to skip.'}
             </p>
           </div>
         )}
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium">Operator Names</label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {Array.from({ length: numOperators }, (_, i) => (
-              <input
-                key={i}
-                type="text"
-                value={operatorNames[i] ?? ''}
-                onChange={(e) => {
-                  const next = [...operatorNames]
-                  next[i] = e.target.value
-                  setOperatorNames(next)
-                }}
-                placeholder={`Operator ${i + 1}`}
-                className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
-              />
-            ))}
+        {!isLinearity && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Operator Names</label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {Array.from({ length: numOperators }, (_, i) => (
+                <input
+                  key={i}
+                  type="text"
+                  value={operatorNames[i] ?? ''}
+                  onChange={(e) => {
+                    const next = [...operatorNames]
+                    next[i] = e.target.value
+                    setOperatorNames(next)
+                  }}
+                  placeholder={`Operator ${i + 1}`}
+                  className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Part Names</label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {Array.from({ length: numParts }, (_, i) => (
-              <input
-                key={i}
-                type="text"
-                value={partNames[i] ?? ''}
-                onChange={(e) => {
-                  const next = [...partNames]
-                  next[i] = e.target.value
-                  setPartNames(next)
-                }}
-                placeholder={`Part ${i + 1}`}
-                className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
-              />
-            ))}
-          </div>
+          <label className="mb-1.5 block text-sm font-medium">
+            {isLinearity ? 'Reference Standards' : 'Part Names'}
+          </label>
+          {isLinearity ? (
+            <div className="space-y-2">
+              {Array.from({ length: numParts }, (_, i) => (
+                <div key={i} className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={partNames[i] ?? ''}
+                    onChange={(e) => {
+                      const next = [...partNames]
+                      next[i] = e.target.value
+                      setPartNames(next)
+                    }}
+                    placeholder={`Ref ${i + 1} name`}
+                    className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    value={referenceValues[i] ?? ''}
+                    onChange={(e) => {
+                      const next = [...referenceValues]
+                      next[i] = e.target.value
+                      setReferenceValues(next)
+                    }}
+                    placeholder="Reference value"
+                    className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm tabular-nums focus:ring-2 focus:outline-none"
+                  />
+                </div>
+              ))}
+              <p className="text-muted-foreground text-xs">
+                Enter known reference standard values spanning the gage&apos;s operating range.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {Array.from({ length: numParts }, (_, i) => (
+                <input
+                  key={i}
+                  type="text"
+                  value={partNames[i] ?? ''}
+                  onChange={(e) => {
+                    const next = [...partNames]
+                    next[i] = e.target.value
+                    setPartNames(next)
+                  }}
+                  placeholder={`Part ${i + 1}`}
+                  className="bg-background border-border focus:ring-primary/50 rounded border px-2.5 py-1.5 text-sm focus:ring-2 focus:outline-none"
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -470,12 +589,14 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
   const submitAttributeMeasurements = useSubmitMSAAttributeMeasurements()
   const calculateMSA = useCalculateMSA()
   const calculateAttributeMSA = useCalculateAttributeMSA()
+  const calculateLinearityMut = useCalculateLinearity()
 
   useEffect(() => {
     if (study?.status === 'complete') setActiveTab('results')
   }, [study?.status])
 
   const isAttribute = isAttributeStudy(study?.study_type ?? '')
+  const isLin = isLinearityStudy(study?.study_type ?? '')
   const statusStyle = STATUS_STYLES[study?.status ?? 'setup'] ?? STATUS_STYLES.setup
   const isComplete = study?.status === 'complete'
   const totalExpected = (study?.num_operators ?? 0) * (study?.num_parts ?? 0) * (study?.num_replicates ?? 0)
@@ -505,7 +626,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     submitMeasurements.isPending ||
     submitAttributeMeasurements.isPending ||
     calculateMSA.isPending ||
-    calculateAttributeMSA.isPending
+    calculateAttributeMSA.isPending ||
+    calculateLinearityMut.isPending
 
   if (isLoading) {
     return (
@@ -597,6 +719,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     try {
       if (isAttribute) {
         await calculateAttributeMSA.mutateAsync(study.id)
+      } else if (isLin) {
+        await calculateLinearityMut.mutateAsync(study.id)
       } else {
         await calculateMSA.mutateAsync(study.id)
       }
@@ -619,6 +743,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
     if (!study || !results) return
     if (isAttribute) {
       exportAttributeResultsCSV(study, results as AttributeMSAResult)
+    } else if (isLin) {
+      exportLinearityResultsCSV(study, results as LinearityResult)
     } else {
       exportGageRRResultsCSV(study, results as GageRRResult)
     }
@@ -776,7 +902,7 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                         'disabled:cursor-not-allowed disabled:opacity-50',
                       )}
                     >
-                      {calculateMSA.isPending || calculateAttributeMSA.isPending ? (
+                      {calculateMSA.isPending || calculateAttributeMSA.isPending || calculateLinearityMut.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <ArrowRight className="h-4 w-4" />
@@ -820,6 +946,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
               <>
                 {isAttribute ? (
                   <AttributeMSAResults result={results as AttributeMSAResult} studyId={studyId} />
+                ) : isLin ? (
+                  <LinearityResults result={results as LinearityResult} studyId={studyId} />
                 ) : (
                   <MSAResults result={results as GageRRResult} studyId={studyId} />
                 )}
@@ -880,6 +1008,8 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
 // ── Overview Tab ──
 
 function OverviewTab({ study }: { study: MSAStudyDetail }) {
+  const isLin = isLinearityStudy(study.study_type)
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -889,21 +1019,27 @@ function OverviewTab({ study }: { study: MSAStudyDetail }) {
             {STUDY_TYPE_LABELS[study.study_type] ?? study.study_type}
           </div>
         </div>
+        {!isLin && (
+          <div className="bg-muted/50 rounded-lg px-4 py-3">
+            <div className="text-muted-foreground text-xs font-medium">Operators</div>
+            <div className="mt-1 text-sm font-semibold">{study.num_operators}</div>
+          </div>
+        )}
         <div className="bg-muted/50 rounded-lg px-4 py-3">
-          <div className="text-muted-foreground text-xs font-medium">Operators</div>
-          <div className="mt-1 text-sm font-semibold">{study.num_operators}</div>
-        </div>
-        <div className="bg-muted/50 rounded-lg px-4 py-3">
-          <div className="text-muted-foreground text-xs font-medium">Parts</div>
+          <div className="text-muted-foreground text-xs font-medium">
+            {isLin ? 'Reference Levels' : 'Parts'}
+          </div>
           <div className="mt-1 text-sm font-semibold">{study.num_parts}</div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
-          <div className="text-muted-foreground text-xs font-medium">Replicates</div>
+          <div className="text-muted-foreground text-xs font-medium">
+            {isLin ? 'Measurements per Level' : 'Replicates'}
+          </div>
           <div className="mt-1 text-sm font-semibold">{study.num_replicates}</div>
         </div>
       </div>
 
-      {study.operators.length > 0 && (
+      {!isLin && study.operators.length > 0 && (
         <div>
           <h3 className="mb-2 text-sm font-medium">Operators</h3>
           <div className="flex flex-wrap gap-2">
@@ -918,14 +1054,44 @@ function OverviewTab({ study }: { study: MSAStudyDetail }) {
 
       {study.parts.length > 0 && (
         <div>
-          <h3 className="mb-2 text-sm font-medium">Parts</h3>
-          <div className="flex flex-wrap gap-2">
-            {study.parts.map((part) => (
-              <span key={part.id} className="bg-muted rounded-md px-2.5 py-1 text-xs font-medium">
-                {part.name}
-              </span>
-            ))}
-          </div>
+          <h3 className="mb-2 text-sm font-medium">
+            {isLin ? 'Reference Standards' : 'Parts'}
+          </h3>
+          {isLin ? (
+            <table className="text-sm">
+              <thead>
+                <tr>
+                  <th className="text-muted-foreground pr-6 text-left text-xs font-medium">
+                    Name
+                  </th>
+                  <th className="text-muted-foreground text-right text-xs font-medium">
+                    Reference Value
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {study.parts.map((part) => (
+                  <tr key={part.id}>
+                    <td className="pr-6 py-0.5 font-medium">{part.name}</td>
+                    <td className="py-0.5 text-right tabular-nums">
+                      {part.reference_value ?? '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {study.parts.map((part) => (
+                <span
+                  key={part.id}
+                  className="bg-muted rounded-md px-2.5 py-1 text-xs font-medium"
+                >
+                  {part.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

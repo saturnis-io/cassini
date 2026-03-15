@@ -182,3 +182,19 @@ export function useCalculateAttributeMSA() {
     onError: handleMutationError('Attribute MSA calculation failed'),
   })
 }
+
+export function useCalculateLinearity() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (studyId: number) => msaApi.calculateLinearity(studyId),
+    onSuccess: (_, studyId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.detail(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.results(studyId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.msa.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
+      toast.success('Linearity analysis complete')
+    },
+    onError: handleMutationError('Linearity calculation failed'),
+  })
+}

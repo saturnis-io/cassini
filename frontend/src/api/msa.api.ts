@@ -1,6 +1,7 @@
 import type {
   AttributeMSAResult,
   GageRRResult,
+  LinearityResult,
   MSAAttributeInput,
   MSAMeasurement,
   MSAMeasurementInput,
@@ -67,6 +68,13 @@ export const msaApi = {
       method: 'POST',
     }),
 
+  calculateLinearity: (studyId: number) =>
+    fetchApi<LinearityResult>(`/msa/studies/${studyId}/linearity-calculate`, {
+      method: 'POST',
+    }),
+
   getResults: (studyId: number) =>
-    fetchApi<GageRRResult | AttributeMSAResult>(`/msa/studies/${studyId}/results`),
+    fetchApi<GageRRResult | AttributeMSAResult | LinearityResult>(
+      `/msa/studies/${studyId}/results`,
+    ),
 }

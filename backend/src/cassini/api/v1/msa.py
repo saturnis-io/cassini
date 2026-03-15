@@ -5,6 +5,7 @@ and calculation endpoints for variable (Gage R&R) and attribute MSA.
 """
 
 import json
+import math
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -22,6 +23,7 @@ from cassini.api.deps import (
 from cassini.api.schemas.msa import (
     AttributeMSAResultResponse,
     GageRRResultResponse,
+    LinearityResultResponse,
     MSAAttributeBatch,
     MSAMeasurementBatch,
     MSAMeasurementResponse,
@@ -33,7 +35,7 @@ from cassini.api.schemas.msa import (
     MSAStudyDetailResponse,
     MSAStudyResponse,
 )
-from cassini.core.msa import AttributeMSAEngine, GageRREngine
+from cassini.core.msa import AttributeMSAEngine, GageRREngine, compute_linearity
 from cassini.core.signature_engine import SignatureWorkflowEngine
 from cassini.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
 from cassini.db.models.user import User
@@ -495,6 +497,11 @@ async def calculate_gage_rr(
     check_plant_role(user, study.plant_id, "engineer")
 
     if study.study_type not in ("crossed_anova", "range_method", "nested_anova"):
+        if study.study_type == "linearity":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Study type 'linearity' must use the linearity-calculate endpoint",
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Study type '{study.study_type}' is not a variable study — use attribute-calculate instead",
@@ -720,9 +727,147 @@ async def calculate_attribute_msa(
     return AttributeMSAResultResponse.model_validate(asdict(result))
 
 
+@router.post("/studies/{study_id}/linearity-calculate", response_model=LinearityResultResponse)
+async def calculate_linearity(
+    study_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> LinearityResultResponse:
+    """Run linearity analysis on a study's measurements.
+
+    Uses parts' ``reference_value`` fields as reference standards and groups
+    measurements by part to compute bias at each level.  Regresses bias vs
+    reference and produces %Linearity / %Bias metrics.
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id, load_children=True)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    if study.study_type != "linearity":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Study type '{study.study_type}' is not a linearity study — use calculate instead",
+        )
+
+    # Load measurements
+    meas_result = await session.execute(
+        select(MSAMeasurement).where(MSAMeasurement.study_id == study_id)
+    )
+    measurements = list(meas_result.scalars().all())
+
+    if not measurements:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No measurements found — submit measurements before calculating",
+        )
+
+    # Build part ordering and validate reference values
+    sorted_parts = sorted(study.parts, key=lambda p: p.sequence_order)
+    part_index = {p.id: i for i, p in enumerate(sorted_parts)}
+
+    reference_values: list[float] = []
+    for part in sorted_parts:
+        if part.reference_value is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Part '{part.name}' is missing a reference value — all parts in a linearity study must have reference values",
+            )
+        reference_values.append(part.reference_value)
+
+    # Group measurements by part, then collect by replicate
+    n_parts = len(sorted_parts)
+    n_reps = study.num_replicates
+    meas_by_part: list[list[float | None]] = [[None] * n_reps for _ in range(n_parts)]
+
+    for m in measurements:
+        pi = part_index.get(m.part_id)
+        if pi is None:
+            continue
+        ri = m.replicate_num - 1
+        if 0 <= ri < n_reps:
+            meas_by_part[pi][ri] = m.value
+
+    # Validate completeness
+    for i in range(n_parts):
+        for k in range(n_reps):
+            if meas_by_part[i][k] is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Measurement matrix is incomplete — ensure all part/replicate cells are filled",
+                )
+
+    # Run linearity engine
+    try:
+        result = compute_linearity(
+            reference_values=reference_values,
+            measurements=meas_by_part,  # type: ignore[arg-type]
+            tolerance=study.tolerance,
+        )
+    except ValueError as exc:
+        logger.warning("msa_linearity_failed", study_id=study_id, error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Linearity calculation failed — check measurement data completeness",
+        )
+
+    # Store result — convert NaN to None for JSON compatibility
+    def _nan_to_none(v: float) -> float | None:
+        return None if (isinstance(v, float) and math.isnan(v)) else v
+
+    result_dict = {
+        "reference_values": result.reference_values,
+        "bias_values": result.bias_values,
+        "bias_percentages": [_nan_to_none(bp) for bp in result.bias_percentages],
+        "slope": result.slope,
+        "intercept": result.intercept,
+        "r_squared": result.r_squared,
+        "linearity": result.linearity,
+        "linearity_percent": _nan_to_none(result.linearity_percent),
+        "bias_avg": result.bias_avg,
+        "bias_percent": _nan_to_none(result.bias_percent),
+        "is_acceptable": result.is_acceptable,
+        "individual_points": result.individual_points,
+        "verdict": result.verdict,
+        "p_value": result.p_value,
+    }
+    study.results_json = json.dumps(result_dict)
+    study.status = "complete"
+    study.completed_at = datetime.now(timezone.utc)
+
+    # Initiate signature workflow if required
+    sig_engine = SignatureWorkflowEngine(session)
+    if await sig_engine.check_workflow_required(session, "msa_study", study.plant_id):
+        await sig_engine.initiate_workflow("msa_study", study.id, user.id, study.plant_id)
+
+    await session.commit()
+
+    lin_pct_str = f"{result.linearity_percent:.1f}%" if not math.isnan(result.linearity_percent) else "N/A"
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study.id,
+        "action": "calculate",
+        "summary": f"Linearity calculated for '{study.name}': %Lin={lin_pct_str}, verdict={result.verdict}",
+        "fields": {
+            "study_name": study.name,
+            "study_type": "linearity",
+            "linearity_percent": _nan_to_none(result.linearity_percent),
+            "verdict": result.verdict,
+            "plant_id": study.plant_id,
+        },
+    }
+
+    logger.info(
+        "msa_linearity_calculated", study_id=study_id,
+        verdict=result.verdict, user=user.username,
+    )
+    return LinearityResultResponse.model_validate(result_dict)
+
+
 @router.get(
     "/studies/{study_id}/results",
-    response_model=GageRRResultResponse | AttributeMSAResultResponse,
+    response_model=GageRRResultResponse | AttributeMSAResultResponse | LinearityResultResponse,
 )
 async def get_results(
     study_id: int,
@@ -748,5 +893,7 @@ async def get_results(
 
     if study.study_type == "attribute_agreement":
         return AttributeMSAResultResponse.model_validate(raw)
+    elif study.study_type == "linearity":
+        return LinearityResultResponse.model_validate(raw)
     else:
         return GageRRResultResponse.model_validate(raw)
