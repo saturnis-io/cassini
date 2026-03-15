@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cassini.api.deps import (
     check_plant_role,
     get_current_user,
+    get_current_user_no_api_key,
     get_db_session,
 )
 from cassini.api.schemas.signature import (
@@ -94,7 +95,7 @@ async def execute_signature(
     body: SignRequest,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Execute an electronic signature (standalone or workflow-based)."""
@@ -162,7 +163,7 @@ async def reject_workflow(
     body: RejectRequest,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Reject a workflow step."""

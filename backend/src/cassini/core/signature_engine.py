@@ -136,7 +136,85 @@ class SignatureWorkflowEngine:
                     "design_type": row.design_type,
                     "factor_count": row.factor_count,
                 }
+        elif resource_type == "characteristic":
+            from cassini.db.models.characteristic import Characteristic
 
+            stmt = select(
+                Characteristic.id,
+                Characteristic.name,
+                Characteristic.usl,
+                Characteristic.lsl,
+                Characteristic.target_value,
+                Characteristic.subgroup_size,
+            ).where(Characteristic.id == resource_id)
+            result = await session.execute(stmt)
+            row = result.first()
+            if row:
+                return {
+                    "resource_id": resource_id,
+                    "name": row.name,
+                    "usl": row.usl,
+                    "lsl": row.lsl,
+                    "target": row.target_value,
+                    "subgroup_size": row.subgroup_size,
+                }
+        elif resource_type == "plant":
+            from cassini.db.models.plant import Plant
+
+            stmt = select(
+                Plant.id,
+                Plant.name,
+                Plant.code,
+            ).where(Plant.id == resource_id)
+            result = await session.execute(stmt)
+            row = result.first()
+            if row:
+                return {
+                    "resource_id": resource_id,
+                    "name": row.name,
+                    "code": row.code,
+                }
+        elif resource_type == "hierarchy_node":
+            from cassini.db.models.hierarchy import Hierarchy
+
+            stmt = select(
+                Hierarchy.id,
+                Hierarchy.name,
+                Hierarchy.type,
+                Hierarchy.parent_id,
+            ).where(Hierarchy.id == resource_id)
+            result = await session.execute(stmt)
+            row = result.first()
+            if row:
+                return {
+                    "resource_id": resource_id,
+                    "name": row.name,
+                    "type": row.type,
+                    "parent_id": row.parent_id,
+                }
+        elif resource_type == "material":
+            from cassini.db.models.material import Material
+
+            stmt = select(
+                Material.id,
+                Material.code,
+                Material.name,
+                Material.plant_id,
+            ).where(Material.id == resource_id)
+            result = await session.execute(stmt)
+            row = result.first()
+            if row:
+                return {
+                    "resource_id": resource_id,
+                    "code": row.code,
+                    "name": row.name,
+                    "plant_id": row.plant_id,
+                }
+        else:
+            raise ValueError(f"Unknown resource type for signature: {resource_type}")
+
+        # If we matched a known type but the record wasn't found, return
+        # minimal content so the hash is still deterministic.
         return {"resource_id": resource_id}
 
     async def check_workflow_required(

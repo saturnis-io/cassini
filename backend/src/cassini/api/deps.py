@@ -313,6 +313,86 @@ def check_plant_role(user: User, plant_id: int, min_role: str) -> None:
         )
 
 
+async def get_current_user_no_api_key(
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    session: AsyncSession = Depends(get_db_session),
+) -> User:
+    """Full user auth required. API keys rejected. For signature operations.
+
+    Electronic signatures under 21 CFR Part 11 must be attributable to an
+    authenticated individual, not a system-level API key.
+    """
+    if x_api_key and (not authorization or not authorization.startswith("Bearer ")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Electronic signatures require user authentication, not API key",
+        )
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from cassini.core.auth.jwt import verify_access_token
+
+    token = authorization.split(" ", 1)[1]
+    payload = verify_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = int(payload["sub"])
+    pwd_changed_claim = payload.get("pwd_changed")
+
+    # Check in-memory cache first
+    cached = _get_cached_user(user_id)
+    if cached is not None:
+        if not cached.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if cached.password_changed_at and pwd_changed_claim is not None:
+            user_pwd_epoch = int(cached.password_changed_at.timestamp())
+            if pwd_changed_claim < user_pwd_epoch:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token invalidated by password change",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        return cached
+
+    # Cache miss — query DB
+    repo = UserRepository(session)
+    user = await repo.get_by_id(user_id)
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if user.password_changed_at and pwd_changed_claim is not None:
+        user_pwd_epoch = int(user.password_changed_at.timestamp())
+        if pwd_changed_claim < user_pwd_epoch:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalidated by password change",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    _cache_user(user, session)
+    return user
+
+
 async def get_current_user_or_api_key(
     authorization: Optional[str] = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
