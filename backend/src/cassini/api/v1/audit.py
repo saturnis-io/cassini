@@ -5,7 +5,6 @@ pagination, CSV export, and summary statistics.
 """
 
 import csv
-import hashlib
 import io
 from datetime import datetime
 from typing import Optional
@@ -17,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
 from cassini.api.schemas.audit import AuditIntegrityResult, AuditLogEntry, AuditLogListResponse, AuditStats
+from cassini.core.audit import compute_audit_hash
 from cassini.core.resource_display import resolve_resource_display
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.user import User
@@ -115,16 +115,15 @@ async def verify_audit_integrity(
 
     previous_hash = "0" * 64
     for i, row in enumerate(rows):
-        hash_input = (
-            f"{previous_hash}|"
-            f"{row.action}|"
-            f"{row.resource_type}|"
-            f"{row.resource_id}|"
-            f"{row.user_id}|"
-            f"{row.username}|"
-            f"{row.timestamp.isoformat()}"
+        expected = compute_audit_hash(
+            previous_hash,
+            row.action,
+            row.resource_type,
+            row.resource_id,
+            row.user_id,
+            row.username,
+            row.timestamp,
         )
-        expected = hashlib.sha256(hash_input.encode()).hexdigest()
         if row.sequence_hash != expected:
             return AuditIntegrityResult(
                 verified_count=i,

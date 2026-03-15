@@ -19,6 +19,37 @@ from cassini.db.models.audit_log import AuditLog
 
 logger = structlog.get_logger(__name__)
 
+
+def compute_audit_hash(
+    previous_hash: str,
+    action,
+    resource_type,
+    resource_id,
+    user_id,
+    username,
+    timestamp,
+) -> str:
+    """Compute SHA-256 chain hash for an audit entry.
+
+    Normalizes the timestamp to naive UTC (no tzinfo suffix) so the hash
+    is consistent regardless of whether the datetime came from Python
+    (tz-aware) or was read back from SQLite (tz-stripped).
+    """
+    # Normalize: strip tzinfo so isoformat() never includes +00:00
+    ts = timestamp
+    if ts.tzinfo is not None:
+        ts = ts.replace(tzinfo=None)
+    hash_input = (
+        f"{previous_hash}|"
+        f"{action}|"
+        f"{resource_type}|"
+        f"{resource_id}|"
+        f"{user_id}|"
+        f"{username}|"
+        f"{ts.isoformat()}"
+    )
+    return hashlib.sha256(hash_input.encode()).hexdigest()
+
 # Map URL path segments to resource types
 _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/plants/(\d+)/material-classes(?:/(\d+))?"), "material_class"),
@@ -225,6 +256,8 @@ class AuditService:
                             resource_id=resource_id,
                         )
 
+                from datetime import datetime, timezone
+
                 entry = AuditLog(
                     user_id=user_id,
                     username=username,
@@ -235,19 +268,19 @@ class AuditService:
                     detail=detail,
                     ip_address=ip_address,
                     user_agent=user_agent,
+                    timestamp=datetime.now(timezone.utc),
                 )
 
                 # Tamper evidence: SHA-256 chain
-                hash_input = (
-                    f"{self._last_hash}|"
-                    f"{entry.action}|"
-                    f"{entry.resource_type}|"
-                    f"{entry.resource_id}|"
-                    f"{entry.user_id}|"
-                    f"{entry.username}|"
-                    f"{entry.timestamp.isoformat()}"
+                entry.sequence_hash = compute_audit_hash(
+                    self._last_hash,
+                    entry.action,
+                    entry.resource_type,
+                    entry.resource_id,
+                    entry.user_id,
+                    entry.username,
+                    entry.timestamp,
                 )
-                entry.sequence_hash = hashlib.sha256(hash_input.encode()).hexdigest()
                 self._last_hash = entry.sequence_hash
 
                 session.add(entry)
