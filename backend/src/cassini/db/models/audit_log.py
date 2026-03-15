@@ -42,6 +42,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     resource_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     resource_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    resource_display: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)

@@ -128,6 +128,7 @@ class SignatureHistoryItem(BaseModel):
     meaning_display: str
     resource_type: str
     resource_id: int
+    resource_display: str | None = None
     is_valid: bool
     comment: str | None
 

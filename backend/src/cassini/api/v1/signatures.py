@@ -51,7 +51,6 @@ from cassini.db.repositories.workflow import (
     WorkflowRepository,
     WorkflowStepRepository,
 )
-from sqlalchemy import select
 
 logger = structlog.get_logger(__name__)
 
@@ -63,116 +62,16 @@ router = APIRouter(prefix="/api/v1/signatures", tags=["signatures"])
 # ---------------------------------------------------------------------------
 
 
-async def _build_char_path(session: AsyncSession, char_id: int) -> str | None:
-    """Build hierarchy path + characteristic name like 'Line 2 > Cell 3 > Bore Diameter'."""
-    from cassini.db.models.characteristic import Characteristic
-    from cassini.db.models.hierarchy import Hierarchy
-
-    row = (
-        await session.execute(
-            select(Characteristic.name, Characteristic.hierarchy_id).where(
-                Characteristic.id == char_id
-            )
-        )
-    ).first()
-    if not row:
-        return None
-
-    path_parts: list[str] = []
-    current_id: int | None = row.hierarchy_id
-
-    while current_id is not None:
-        node = (
-            await session.execute(
-                select(Hierarchy.name, Hierarchy.parent_id).where(
-                    Hierarchy.id == current_id
-                )
-            )
-        ).first()
-        if node is None:
-            break
-        path_parts.insert(0, node.name)
-        current_id = node.parent_id
-
-    path_parts.append(row.name)
-    return " > ".join(path_parts)
-
-
-# Resource types that resolve against a characteristic
-_CHAR_BASED_TYPES = {
-    "characteristic",
-    "limit_change",
-    "config_change",
-    "sample_approval",
-    "violation_disposition",
-}
-
-_CHAR_PREFIXES: dict[str, str] = {
-    "limit_change": "Limit Change",
-    "config_change": "Config Change",
-    "sample_approval": "Sample",
-    "violation_disposition": "Violation",
-}
-
-
 async def _build_resource_summary(
     session: AsyncSession, resource_type: str, resource_id: int
 ) -> str:
-    """Build a human-readable summary for a workflow resource."""
-    try:
-        if resource_type == "fai_report":
-            from cassini.db.models.fai import FAIReport
+    """Build a human-readable summary for a workflow resource.
 
-            row = (
-                await session.execute(
-                    select(FAIReport.part_number, FAIReport.part_name).where(
-                        FAIReport.id == resource_id
-                    )
-                )
-            ).first()
-            if row:
-                name = f" \u2014 {row.part_name}" if row.part_name else ""
-                return f"FAI: {row.part_number}{name}"
-        elif resource_type == "msa_study":
-            from cassini.db.models.msa import MSAStudy
+    Delegates to the shared ``resolve_resource_display`` utility.
+    """
+    from cassini.core.resource_display import resolve_resource_display
 
-            row = (
-                await session.execute(
-                    select(MSAStudy.name, MSAStudy.study_type).where(
-                        MSAStudy.id == resource_id
-                    )
-                )
-            ).first()
-            if row:
-                return f"MSA: {row.name} ({row.study_type})"
-        elif resource_type == "doe_study":
-            from cassini.db.models.doe import DOEStudy
-
-            row = (
-                await session.execute(
-                    select(DOEStudy.name, DOEStudy.design_type).where(
-                        DOEStudy.id == resource_id
-                    )
-                )
-            ).first()
-            if row:
-                return f"DOE: {row.name} ({row.design_type})"
-        elif resource_type == "retention_purge":
-            return f"Data Purge \u2014 Plant #{resource_id}"
-        elif resource_type in _CHAR_BASED_TYPES:
-            char_path = await _build_char_path(session, resource_id)
-            if char_path:
-                prefix = _CHAR_PREFIXES.get(resource_type)
-                if prefix:
-                    return f"{prefix}: {char_path}"
-                return char_path
-    except Exception:
-        logger.warning(
-            "Failed to build resource summary",
-            resource_type=resource_type,
-            resource_id=resource_id,
-        )
-    return f"{resource_type} #{resource_id}"
+    return await resolve_resource_display(session, resource_type, resource_id)
 
 
 def _get_client_ip(request: Request) -> str | None:
@@ -379,21 +278,24 @@ async def get_signature_history(
         limit=limit,
     )
 
-    items = [
-        SignatureHistoryItem(
-            id=s.id,
-            username=s.username,
-            full_name=s.full_name,
-            timestamp=s.timestamp,
-            meaning_code=s.meaning_code,
-            meaning_display=s.meaning_display,
-            resource_type=s.resource_type,
-            resource_id=s.resource_id,
-            is_valid=s.is_valid,
-            comment=s.comment,
+    items = []
+    for s in sigs:
+        display = await _build_resource_summary(session, s.resource_type, s.resource_id)
+        items.append(
+            SignatureHistoryItem(
+                id=s.id,
+                username=s.username,
+                full_name=s.full_name,
+                timestamp=s.timestamp,
+                meaning_code=s.meaning_code,
+                meaning_display=s.meaning_display,
+                resource_type=s.resource_type,
+                resource_id=s.resource_id,
+                resource_display=display,
+                is_valid=s.is_valid,
+                comment=s.comment,
+            )
         )
-        for s in sigs
-    ]
 
     return SignatureHistoryResponse(items=items, total=total)
 

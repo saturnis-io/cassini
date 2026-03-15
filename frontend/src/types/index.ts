@@ -884,6 +884,7 @@ export interface AuditLogEntry {
   action: string
   resource_type: string | null
   resource_id: number | null
+  resource_display: string | null
   detail: Record<string, unknown> | null
   ip_address: string | null
   user_agent: string | null

@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
 from cassini.api.schemas.audit import AuditLogEntry, AuditLogListResponse, AuditStats
+from cassini.core.resource_display import resolve_resource_display
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.user import User
 
@@ -71,8 +72,20 @@ async def list_audit_logs(
     stmt = base.order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit)
     rows = (await session.execute(stmt)).scalars().all()
 
+    items = []
+    for r in rows:
+        entry = AuditLogEntry.model_validate(r)
+        # Prefer the denormalized display name stored at capture time.
+        # Fall back to on-the-fly resolution for legacy entries that
+        # were created before the column existed.
+        if not entry.resource_display and entry.resource_type and entry.resource_id:
+            entry.resource_display = await resolve_resource_display(
+                session, entry.resource_type, entry.resource_id
+            )
+        items.append(entry)
+
     return AuditLogListResponse(
-        items=[AuditLogEntry.model_validate(r) for r in rows],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
@@ -94,16 +107,37 @@ async def export_audit_logs(
     stmt = base.order_by(AuditLog.timestamp.desc()).limit(10000)
     rows = (await session.execute(stmt)).scalars().all()
 
+    # Resolve resource display names — prefer stored value, fall back to live lookup
+    display_cache: dict[tuple[str, int], str] = {}
+    for row in rows:
+        if row.resource_type and row.resource_id:
+            key = (row.resource_type, row.resource_id)
+            if key not in display_cache:
+                stored = getattr(row, "resource_display", None)
+                if stored:
+                    display_cache[key] = stored
+                else:
+                    display_cache[key] = await resolve_resource_display(
+                        session, row.resource_type, row.resource_id
+                    )
+
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "username", "action", "resource_type", "resource_id", "ip_address", "detail"])
+    writer.writerow(["timestamp", "username", "action", "resource_type", "resource_id", "resource", "ip_address", "detail"])
     for row in rows:
+        resource_display = ""
+        if row.resource_type and row.resource_id:
+            # Prefer per-row stored display, then cache
+            resource_display = getattr(row, "resource_display", None) or display_cache.get(
+                (row.resource_type, row.resource_id), ""
+            )
         writer.writerow([
             row.timestamp.isoformat() if row.timestamp else "",
             row.username or "",
             row.action,
             row.resource_type or "",
             row.resource_id or "",
+            resource_display,
             row.ip_address or "",
             str(row.detail) if row.detail else "",
         ])

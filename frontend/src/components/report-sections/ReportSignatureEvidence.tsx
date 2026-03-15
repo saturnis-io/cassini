@@ -13,6 +13,7 @@ interface SignatureHistoryItem {
   meaning_display: string
   resource_type: string
   resource_id: number
+  resource_display: string | null
   is_valid: boolean
   comment: string | null
 }
@@ -85,7 +86,7 @@ export function ReportSignatureEvidence({
                   <td className="py-2">{sig.full_name ?? sig.username}</td>
                   <td className="py-2">{sig.meaning_display}</td>
                   <td className="py-2">
-                    {sig.resource_type} #{sig.resource_id}
+                    {sig.resource_display ?? `${sig.resource_type} #${sig.resource_id}`}
                   </td>
                   <td className="py-2">
                     {sig.is_valid ? (

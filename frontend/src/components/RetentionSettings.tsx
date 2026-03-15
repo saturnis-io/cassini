@@ -411,6 +411,7 @@ function StatusIcon({ status }: { status: string }) {
 function PurgeActivityPanel({ plantId }: { plantId: number }) {
   const { dateFormat } = useDateFormat()
   const { user } = useAuth()
+  const { selectedPlant } = usePlant()
   const { data: activity = [], isLoading: activityLoading } = useRetentionActivity(plantId)
   const { data: nextPurge, isLoading: nextLoading } = useNextPurge(plantId)
   const triggerMutation = useTriggerPurge()
@@ -590,7 +591,7 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
         onSigned={handleSignatureComplete}
         resourceType="retention_purge"
         resourceId={plantId}
-        resourceSummary={`Execute data purge for plant #${plantId}`}
+        resourceSummary={`Execute data purge for ${selectedPlant?.name ?? 'this plant'}`}
       />
     </div>
   )

@@ -318,7 +318,9 @@ function ExpandableRow({ entry }: { entry: AuditLogEntry }) {
             : '--'}
         </td>
         <td className="text-muted-foreground px-3 py-2 text-sm">
-          {entry.resource_type ? (
+          {entry.resource_display ? (
+            entry.resource_display
+          ) : entry.resource_type ? (
             <>
               {RESOURCE_LABELS[entry.resource_type] || entry.resource_type}
               {entry.resource_id ? ` #${entry.resource_id}` : ''}

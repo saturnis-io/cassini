@@ -192,16 +192,38 @@ class AuditService:
         username: Optional[str] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
+        resource_display: Optional[str] = None,
     ) -> None:
-        """Create an audit log entry."""
+        """Create an audit log entry.
+
+        If *resource_display* is not supplied but *resource_type* and
+        *resource_id* are present, the display name is resolved at write
+        time so it survives resource deletion.
+        """
         try:
             async with self._session_factory() as session:
+                # Resolve display name at capture time when not provided
+                if resource_display is None and resource_type and resource_id:
+                    try:
+                        from cassini.core.resource_display import resolve_resource_display
+
+                        resource_display = await resolve_resource_display(
+                            session, resource_type, resource_id
+                        )
+                    except Exception:
+                        logger.debug(
+                            "resource_display_resolve_failed",
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                        )
+
                 entry = AuditLog(
                     user_id=user_id,
                     username=username,
                     action=action,
                     resource_type=resource_type,
                     resource_id=resource_id,
+                    resource_display=resource_display,
                     detail=detail,
                     ip_address=ip_address,
                     user_agent=user_agent,
