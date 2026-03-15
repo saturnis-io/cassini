@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, func, text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, event, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -49,6 +49,10 @@ class AuditLog(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=func.now(), nullable=False
     )
+    sequence_number: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, unique=True,
+        doc="Auto-increment sequence for multi-instance ordering and gap detection",
+    )
     sequence_hash: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True, doc="SHA-256 chain hash for tamper evidence"
     )
@@ -61,3 +65,20 @@ class AuditLog(Base):
             f"<AuditLog(id={self.id}, action={self.action!r}, "
             f"user={self.username!r}, resource={self.resource_type}/{self.resource_id})>"
         )
+
+
+def prevent_audit_deletion(mapper, connection, target):
+    """ORM event listener that blocks deletion of audit log records.
+
+    Application-level protection for 21 CFR Part 11 compliance.  A DBA
+    with direct database access can still delete rows, but the ORM will
+    refuse.  To remove audit records at the database level, configure
+    ``REVOKE DELETE`` permissions on the ``audit_log`` table.
+    """
+    raise RuntimeError(
+        "Audit log records cannot be deleted via the application. "
+        "Contact your DBA to configure database-level REVOKE DELETE permissions."
+    )
+
+
+event.listen(AuditLog, "before_delete", prevent_audit_deletion)

@@ -16,12 +16,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
 from cassini.api.schemas.audit import AuditIntegrityResult, AuditLogEntry, AuditLogListResponse, AuditStats
-from cassini.core.audit import compute_audit_hash
+from cassini.core.audit import AuditService, compute_audit_hash
 from cassini.core.resource_display import resolve_resource_display
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.user import User
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
+
+
+# --- Static-path endpoints (must come before any /{param} routes) ---
+
+
+@router.get("/health")
+async def audit_health(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+):
+    """Admin-only: check audit subsystem health.
+
+    Returns failure_count, last_failure_at, and overall status
+    ("healthy" or "degraded").
+    """
+    audit_service: AuditService = request.app.state.audit_service
+    return audit_service.get_health()
 
 
 # --- Helpers ---
@@ -98,11 +115,15 @@ async def verify_audit_integrity(
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
 ) -> AuditIntegrityResult:
-    """Verify audit log integrity by walking the SHA-256 hash chain. Admin-only."""
+    """Verify audit log integrity by walking the SHA-256 hash chain. Admin-only.
+
+    Checks both hash chain continuity and sequence number gaps (missing
+    numbers indicate deleted records in a multi-instance deployment).
+    """
     stmt = (
         select(AuditLog)
         .where(AuditLog.sequence_hash.isnot(None))
-        .order_by(AuditLog.timestamp.asc())
+        .order_by(AuditLog.sequence_number.asc().nulls_first(), AuditLog.timestamp.asc())
     )
     rows = (await session.execute(stmt)).scalars().all()
 
@@ -113,6 +134,27 @@ async def verify_audit_integrity(
             message="No hashed entries to verify",
         )
 
+    # Check for sequence number gaps (indicates deleted records)
+    sequence_gaps: list[int] = []
+    for i in range(1, len(rows)):
+        prev_seq = rows[i - 1].sequence_number
+        curr_seq = rows[i].sequence_number
+        if prev_seq is not None and curr_seq is not None:
+            if curr_seq != prev_seq + 1:
+                # Record all missing sequence numbers
+                for gap_seq in range(prev_seq + 1, curr_seq):
+                    sequence_gaps.append(gap_seq)
+
+    if sequence_gaps:
+        return AuditIntegrityResult(
+            verified_count=0,
+            valid=False,
+            first_break_id=rows[0].id,
+            first_break_timestamp=rows[0].timestamp,
+            message=f"Sequence gap detected: {len(sequence_gaps)} missing entries (first missing: #{sequence_gaps[0]})",
+        )
+
+    # Walk the hash chain
     previous_hash = "0" * 64
     for i, row in enumerate(rows):
         expected = compute_audit_hash(
@@ -123,6 +165,7 @@ async def verify_audit_integrity(
             row.user_id,
             row.username,
             row.timestamp,
+            sequence_number=row.sequence_number,
         )
         if row.sequence_hash != expected:
             return AuditIntegrityResult(

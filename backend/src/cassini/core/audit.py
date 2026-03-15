@@ -3,12 +3,24 @@
 Provides centralized audit logging for all user actions, login events,
 and system events. The AuditMiddleware automatically logs mutating API
 requests (POST/PUT/PATCH/DELETE) without blocking responses.
+
+When ``audit_gets`` is enabled on the middleware (Enterprise only),
+GET requests to sensitive endpoints (audit, users, signatures, export)
+are also logged with per-worker in-memory rate limiting to prevent
+log flooding.
+
+.. note::
+
+    GET audit rate-limit state is per-worker.  In multi-worker deployments
+    (e.g. gunicorn with ``--workers N``), each worker maintains its own
+    cache so the effective rate limit is per-worker, not global.
 """
 
 import asyncio
 import hashlib
 import json as _json
 import re
+import time
 from typing import Optional
 
 import structlog
@@ -225,6 +237,7 @@ class AuditService:
     def __init__(self, session_factory):
         self._session_factory = session_factory
         self._failure_count = 0
+        self._last_failure_at: Optional[str] = None
         self._last_hash: str = "0" * 64  # Genesis hash (used as fast-path cache)
 
     async def _get_last_hash_and_seq(self, session) -> tuple[str, int]:
@@ -325,6 +338,9 @@ class AuditService:
                 await session.commit()
         except Exception:
             self._failure_count += 1
+            from datetime import datetime, timezone
+
+            self._last_failure_at = datetime.now(timezone.utc).isoformat()
             logger.warning("audit_log_failed", action=action, failure_count=self._failure_count, exc_info=True)
 
     async def log_login(
@@ -375,6 +391,19 @@ class AuditService:
                     )
         except Exception:
             logger.warning("audit_hash_chain_recovery_failed", exc_info=True)
+
+    def get_health(self) -> dict:
+        """Return audit subsystem health status.
+
+        Returns a dict with failure_count, last_failure_at, and an
+        overall status string ("healthy" or "degraded").  The threshold
+        for degraded is >10 cumulative failures.
+        """
+        return {
+            "failure_count": self._failure_count,
+            "last_failure_at": self._last_failure_at,
+            "status": "degraded" if self._failure_count > 10 else "healthy",
+        }
 
     def setup_subscriptions(self, event_bus) -> None:
         """Wire all audit event subscriptions to the event bus.
@@ -613,8 +642,25 @@ class AuditMiddleware:
     any class with ``__init__(app)`` + ``__call__(scope, receive, send)``.
     """
 
+    # Sensitive path segments that are eligible for GET auditing
+    _SENSITIVE_GET_SEGMENTS = ("/audit/", "/users/", "/signatures/", "/export")
+
+    # Rate-limit interval (seconds) for GET audit entries per (path_prefix, user_id) combo
+    _GET_RATE_LIMIT_SECONDS = 300  # 5 minutes
+
+    # Maximum entries in the rate-limit cache before eviction
+    _GET_CACHE_MAX_SIZE = 1000
+
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
+        # Toggle for GET request auditing (Enterprise only, off by default).
+        # Set to True at runtime to enable auditing of GET requests to
+        # sensitive endpoints (audit, users, signatures, export).
+        self.audit_gets: bool = False
+        # In-memory rate-limit cache: (path_prefix, user_id) -> last_logged_timestamp.
+        # NOTE: each ASGI worker has its own cache — in multi-worker deployments
+        # the effective rate limit is per-worker, not global.
+        self._get_audit_cache: dict[tuple[str, int], float] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -749,6 +795,57 @@ class AuditMiddleware:
                     detail=detail,
                 )
             )
+
+        # ---------------------------------------------------------------
+        # GET auditing (Enterprise only, rate-limited)
+        # ---------------------------------------------------------------
+        elif (
+            method == "GET"
+            and self.audit_gets
+            and response_status < 400
+            and path not in _SKIP_PATHS
+            and any(seg in path for seg in self._SENSITIVE_GET_SEGMENTS)
+        ):
+            user_id, username = _extract_user_from_request(request)
+            # Determine a coarse path prefix for rate-limit grouping
+            # (e.g. "/api/v1/audit/" or "/api/v1/users/")
+            path_prefix = path
+            for seg in self._SENSITIVE_GET_SEGMENTS:
+                idx = path.find(seg)
+                if idx >= 0:
+                    path_prefix = path[: idx + len(seg)]
+                    break
+
+            cache_key = (path_prefix, user_id or 0)
+            now = time.monotonic()
+            last_logged = self._get_audit_cache.get(cache_key)
+
+            if last_logged is None or (now - last_logged) >= self._GET_RATE_LIMIT_SECONDS:
+                # Evict oldest entries if cache exceeds cap
+                if len(self._get_audit_cache) >= self._GET_CACHE_MAX_SIZE:
+                    # Remove the oldest 25% to avoid evicting on every request
+                    sorted_keys = sorted(self._get_audit_cache, key=self._get_audit_cache.get)  # type: ignore[arg-type]
+                    for k in sorted_keys[: self._GET_CACHE_MAX_SIZE // 4]:
+                        del self._get_audit_cache[k]
+
+                self._get_audit_cache[cache_key] = now
+
+                ip = _get_client_ip(request)
+                ua = (request.headers.get("user-agent") or "")[:512]
+                resource_type, resource_id = _parse_resource(path)
+
+                asyncio.create_task(
+                    audit_service.log(
+                        action="view",
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        user_id=user_id,
+                        username=username,
+                        ip_address=ip,
+                        user_agent=ua,
+                        detail={"method": "GET", "path": path},
+                    )
+                )
 
 
 def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optional[str]]:
