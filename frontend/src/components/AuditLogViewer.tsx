@@ -235,18 +235,36 @@ const DETAIL_KEY_LABELS: Record<string, string> = {
   channels: 'Channels',
   filename: 'Filename',
   data_type: 'Data Type',
+  old_values: 'Before',
+  new_values: 'After',
+  change_reason: 'Reason for Change',
+  samples_migrated: 'Samples Migrated',
+  reset_after_sample_id: 'Reset After Sample',
+  old_rules: 'Previous Rules',
+  new_rules: 'Updated Rules',
 }
 
 function DetailDisplay({ detail }: { detail: Record<string, unknown> }) {
   const entries = Object.entries(detail).filter(
-    ([k, v]) => v != null && v !== '' && k !== 'summary',
+    ([k, v]) =>
+      v != null && v !== '' && k !== 'summary' && k !== 'change_reason' && k !== 'old_values' && k !== 'new_values',
   )
 
-  if (entries.length === 0) return null
+  const hasChangeReason = detail.change_reason != null && detail.change_reason !== ''
+  const hasDiff =
+    detail.old_values != null &&
+    detail.new_values != null &&
+    typeof detail.old_values === 'object' &&
+    typeof detail.new_values === 'object'
+
+  if (entries.length === 0 && !hasChangeReason && !hasDiff) return null
 
   // Check if this is a simple middleware-only entry (just method + path)
   const isSimple =
-    entries.length <= 2 && entries.every(([k]) => k === 'method' || k === 'path')
+    entries.length <= 2 &&
+    entries.every(([k]) => k === 'method' || k === 'path') &&
+    !hasChangeReason &&
+    !hasDiff
   if (isSimple) {
     return (
       <span className="text-muted-foreground text-xs">
@@ -256,38 +274,81 @@ function DetailDisplay({ detail }: { detail: Record<string, unknown> }) {
   }
 
   return (
-    <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-      {entries.map(([key, value]) => {
-        const label =
-          DETAIL_KEY_LABELS[key] ||
-          key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-
-        // Special handling for body (object) — render as JSON
-        if (key === 'body' && typeof value === 'object' && value !== null) {
-          return (
-            <div key={key} className="contents">
-              <span className="text-muted-foreground text-xs font-medium">{label}</span>
-              <pre className="text-foreground max-w-md overflow-x-auto font-mono text-xs whitespace-pre-wrap">
-                {JSON.stringify(value, null, 2)}
-              </pre>
-            </div>
-          )
-        }
-
-        // Arrays — join with commas
-        const displayValue = Array.isArray(value)
-          ? value.join(', ')
-          : typeof value === 'object' && value !== null
-            ? JSON.stringify(value)
-            : String(value)
-
-        return (
-          <div key={key} className="contents">
-            <span className="text-muted-foreground text-xs font-medium">{label}</span>
-            <span className="text-foreground text-xs">{displayValue}</span>
+    <div>
+      {detail.change_reason && (
+        <div className="bg-primary/5 border-primary/20 mb-2 rounded-md border p-2">
+          <span className="text-primary text-xs font-semibold">Reason for Change</span>
+          <p className="text-foreground mt-0.5 text-sm">{String(detail.change_reason)}</p>
+        </div>
+      )}
+      {hasDiff && (
+          <div className="mb-2">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-border border-b">
+                  <th className="text-muted-foreground py-1 text-left font-medium">Field</th>
+                  <th className="text-muted-foreground py-1 text-left font-medium">Before</th>
+                  <th className="text-muted-foreground py-1 text-left font-medium">After</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(detail.new_values as Record<string, unknown>).map((field) => {
+                  const oldVal = (detail.old_values as Record<string, unknown>)[field]
+                  const newVal = (detail.new_values as Record<string, unknown>)[field]
+                  const label =
+                    DETAIL_KEY_LABELS[field] ||
+                    field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+                  return (
+                    <tr key={field} className="border-border border-b last:border-0">
+                      <td className="text-muted-foreground py-1 font-medium">{label}</td>
+                      <td className="py-1 text-red-400 line-through">
+                        {oldVal != null ? String(oldVal) : '\u2014'}
+                      </td>
+                      <td className="py-1 text-green-400">
+                        {newVal != null ? String(newVal) : '\u2014'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        )
-      })}
+        )}
+      {entries.length > 0 && (
+        <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          {entries.map(([key, value]) => {
+            const label =
+              DETAIL_KEY_LABELS[key] ||
+              key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+            // Special handling for body (object) — render as JSON
+            if (key === 'body' && typeof value === 'object' && value !== null) {
+              return (
+                <div key={key} className="contents">
+                  <span className="text-muted-foreground text-xs font-medium">{label}</span>
+                  <pre className="text-foreground max-w-md overflow-x-auto font-mono text-xs whitespace-pre-wrap">
+                    {JSON.stringify(value, null, 2)}
+                  </pre>
+                </div>
+              )
+            }
+
+            // Arrays — join with commas
+            const displayValue = Array.isArray(value)
+              ? value.join(', ')
+              : typeof value === 'object' && value !== null
+                ? JSON.stringify(value)
+                : String(value)
+
+            return (
+              <div key={key} className="contents">
+                <span className="text-muted-foreground text-xs font-medium">{label}</span>
+                <span className="text-foreground text-xs">{displayValue}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
