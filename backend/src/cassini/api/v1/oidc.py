@@ -83,6 +83,7 @@ def _build_config_response(config: OIDCConfig) -> OIDCConfigResponse:
         role_mapping=config.role_mapping_dict,
         auto_provision=config.auto_provision,
         default_role=config.default_role,
+        sso_only=config.sso_only,
         is_active=config.is_active,
         created_at=config.created_at,
         updated_at=config.updated_at,
@@ -106,7 +107,7 @@ async def list_providers(
     """
     repo = OIDCConfigRepository(session)
     providers = await repo.get_active_providers()
-    return [OIDCProviderPublic(id=p.id, name=p.name) for p in providers]
+    return [OIDCProviderPublic(id=p.id, name=p.name, sso_only=p.sso_only) for p in providers]
 
 
 @router.get("/authorize/{provider_id}", response_model=OIDCAuthorizationResponse)
@@ -250,6 +251,7 @@ async def create_config(
         auto_provision=data.auto_provision,
         default_role=data.default_role,
     )
+    create_kwargs["sso_only"] = data.sso_only
     # Handle optional new fields
     if hasattr(data, "claim_mapping") and data.claim_mapping is not None:
         create_kwargs["claim_mapping"] = json.dumps(data.claim_mapping)

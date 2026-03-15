@@ -55,6 +55,9 @@ class OIDCConfig(Base):
     allowed_redirect_uris: Mapped[str] = mapped_column(
         Text, default="[]", server_default="[]", nullable=False
     )
+    sso_only: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="1", nullable=False
     )

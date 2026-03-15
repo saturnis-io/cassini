@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     # Dev mode -- disables enterprise enforcement (forced password change, etc.)
     dev_mode: bool = False
 
+    # Emergency backdoor: allow admin local login even when SSO-only is active
+    admin_local_auth: bool = False
+
     # Licensing
     license_file: str = ""
     license_public_key_file: str = ""  # Path to Ed25519 public key PEM

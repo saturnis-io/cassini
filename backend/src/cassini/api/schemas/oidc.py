@@ -11,6 +11,7 @@ class OIDCProviderPublic(BaseModel):
 
     id: int
     name: str
+    sso_only: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -42,6 +43,10 @@ class OIDCConfigCreate(BaseModel):
         default={},
         description='Map provider claim names to standard ones: {"email": "mail", "groups": "memberOf"}',
     )
+    sso_only: bool = Field(
+        default=False,
+        description="When enabled, local password authentication is disabled. Users must use SSO.",
+    )
     end_session_endpoint: Optional[str] = Field(
         None,
         max_length=500,
@@ -65,6 +70,7 @@ class OIDCConfigUpdate(BaseModel):
     role_mapping: Optional[dict[str, Any]] = None
     auto_provision: Optional[bool] = None
     default_role: Optional[str] = None
+    sso_only: Optional[bool] = None
     is_active: Optional[bool] = None
     claim_mapping: Optional[dict[str, str]] = None
     end_session_endpoint: Optional[str] = Field(None, max_length=500)
@@ -83,6 +89,7 @@ class OIDCConfigResponse(BaseModel):
     role_mapping: dict[str, Any]
     auto_provision: bool
     default_role: str
+    sso_only: bool = False
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

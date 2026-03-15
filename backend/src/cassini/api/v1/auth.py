@@ -35,11 +35,19 @@ from cassini.api.schemas.user import (
 )
 from cassini.core.auth.jwt import create_access_token, create_refresh_token, verify_refresh_token
 from cassini.core.auth.passwords import verify_password
+from cassini.core.auth.policy import (
+    DEFAULT_LOCKOUT_DURATION_MINUTES,
+    DEFAULT_MAX_FAILED_ATTEMPTS,
+    check_password_history,
+    enforce_password_complexity,
+    load_password_policy,
+    update_password_history,
+)
 from cassini.core.config import get_settings
 from cassini.db.models.auth_token import EmailVerificationToken, PasswordResetToken
 from cassini.db.models.notification import SmtpConfig
-from cassini.db.models.signature import PasswordPolicy
-from cassini.db.models.user import User
+from cassini.db.models.oidc_config import OIDCConfig
+from cassini.db.models.user import User, UserPlantRole, UserRole
 from cassini.db.repositories.user import UserRepository
 
 logger = structlog.get_logger(__name__)
@@ -95,6 +103,41 @@ async def login(
     ip = _get_client_ip(request)
     ua = (request.headers.get("user-agent") or "")[:512]
 
+    # SSO-only mode check: reject local auth if any active OIDC provider has sso_only=True
+    sso_only_result = await session.execute(
+        select(OIDCConfig).where(
+            OIDCConfig.is_active == True,  # noqa: E712
+            OIDCConfig.sso_only == True,  # noqa: E712
+        ).limit(1)
+    )
+    sso_only_config = sso_only_result.scalar_one_or_none()
+    if sso_only_config is not None:
+        # Emergency backdoor: CASSINI_ADMIN_LOCAL_AUTH=true allows admin local login
+        cfg = get_settings()
+        allow_login = False
+        if cfg.admin_local_auth:
+            # Check if the user exists and has admin role on any plant
+            backdoor_user = await repo.get_by_username(data.username)
+            if backdoor_user is not None:
+                admin_role_result = await session.execute(
+                    select(UserPlantRole).where(
+                        UserPlantRole.user_id == backdoor_user.id,
+                        UserPlantRole.role == UserRole.admin,
+                    ).limit(1)
+                )
+                if admin_role_result.scalar_one_or_none() is not None:
+                    allow_login = True
+
+        if not allow_login:
+            if audit_service:
+                await audit_service.log_login(
+                    data.username, success=False, ip_address=ip, user_agent=ua
+                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Local authentication is disabled. Please use Single Sign-On.",
+            )
+
     user = await repo.get_by_username(data.username)
     if user is None or not user.is_active:
         if audit_service:
@@ -105,9 +148,19 @@ async def login(
         )
 
     # Load password policy (at most one per plant, pick first match via any plant)
-    policy_stmt = select(PasswordPolicy).limit(1)
-    policy_result = await session.execute(policy_stmt)
-    policy = policy_result.scalar_one_or_none()
+    policy = await load_password_policy(session)
+
+    # Derive lockout settings — use policy values if present, else sensible defaults
+    max_failed = (
+        policy.max_failed_attempts
+        if policy and policy.max_failed_attempts > 0
+        else DEFAULT_MAX_FAILED_ATTEMPTS
+    )
+    lockout_mins = (
+        policy.lockout_duration_minutes
+        if policy and policy.lockout_duration_minutes > 0
+        else DEFAULT_LOCKOUT_DURATION_MINUTES
+    )
 
     # Check account lockout
     now = datetime.now(timezone.utc)
@@ -120,12 +173,8 @@ async def login(
     if not verify_password(data.password, user.hashed_password):
         # Increment failed login count and potentially lock
         user.failed_login_count = (user.failed_login_count or 0) + 1
-        if (
-            policy
-            and policy.max_failed_attempts > 0
-            and user.failed_login_count >= policy.max_failed_attempts
-        ):
-            user.locked_until = now + timedelta(minutes=policy.lockout_duration_minutes)
+        if user.failed_login_count >= max_failed:
+            user.locked_until = now + timedelta(minutes=lockout_mins)
         await session.flush()
 
         if audit_service:
@@ -305,6 +354,21 @@ async def logout(
     return result
 
 
+@router.get("/session-config")
+async def get_session_config(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Return session timeout configuration from the password policy.
+
+    Used by the frontend idle-timeout hook to enforce 21 CFR Part 11
+    session inactivity limits.
+    """
+    policy = await load_password_policy(session)
+    timeout = policy.session_timeout_minutes if policy else 30
+    return {"session_timeout_minutes": timeout}
+
+
 @router.get("/me", response_model=UserWithRolesResponse)
 async def get_me(
     current_user: User = Depends(get_current_user),
@@ -338,10 +402,22 @@ async def change_password(
             detail="New password must be different from current password",
         )
 
+    # Enforce password policy complexity rules
+    policy = await load_password_policy(session)
+    enforce_password_complexity(data.new_password, policy)
+
+    # Check password history
+    check_password_history(data.new_password, current_user, policy)
+
     from cassini.core.auth.passwords import hash_password
+    old_hash = current_user.hashed_password
     current_user.hashed_password = hash_password(data.new_password)
     current_user.must_change_password = False
     current_user.password_changed_at = datetime.now(timezone.utc)
+
+    # Update password history with the old hash
+    update_password_history(old_hash, current_user, policy)
+
     await session.commit()
 
     invalidate_user_cache(current_user.id)
@@ -532,42 +608,9 @@ async def reset_password(
             detail="Invalid or expired reset token",
         )
 
-    # Validate password length (baseline)
-    if len(data.new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters",
-        )
-
-    # Enforce password policy if configured
-    policy_result = await session.execute(select(PasswordPolicy).limit(1))
-    policy = policy_result.scalar_one_or_none()
-    if policy:
-        if policy.min_length and len(data.new_password) < policy.min_length:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Password must be at least {policy.min_length} characters",
-            )
-        if policy.require_uppercase and not any(c.isupper() for c in data.new_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must contain at least one uppercase letter",
-            )
-        if policy.require_lowercase and not any(c.islower() for c in data.new_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must contain at least one lowercase letter",
-            )
-        if policy.require_digit and not any(c.isdigit() for c in data.new_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must contain at least one digit",
-            )
-        if policy.require_special and not any(not c.isalnum() for c in data.new_password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must contain at least one special character",
-            )
+    # Enforce password policy complexity rules (includes baseline min 8)
+    policy = await load_password_policy(session)
+    enforce_password_complexity(data.new_password, policy)
 
     # Load user
     user_result = await session.execute(
@@ -580,11 +623,18 @@ async def reset_password(
             detail="Invalid or expired reset token",
         )
 
+    # Check password history
+    check_password_history(data.new_password, user, policy)
+
     # Update password
     from cassini.core.auth.passwords import hash_password
+    old_hash = user.hashed_password
     user.hashed_password = hash_password(data.new_password)
     user.password_changed_at = now
     user.must_change_password = False
+
+    # Update password history with the old hash
+    update_password_history(old_hash, user, policy)
 
     # Consume token
     reset_token.used_at = now

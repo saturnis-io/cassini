@@ -132,6 +132,7 @@ export interface NotificationPreferenceItem {
 export interface OIDCProviderPublic {
   id: number
   name: string
+  sso_only: boolean
 }
 
 export interface OIDCConfigResponse {
@@ -144,6 +145,7 @@ export interface OIDCConfigResponse {
   role_mapping: Record<string, string>
   auto_provision: boolean
   default_role: string
+  sso_only: boolean
   is_active: boolean
   created_at: string
   updated_at: string | null
@@ -161,6 +163,7 @@ export interface OIDCConfigCreate {
   role_mapping?: Record<string, string>
   auto_provision?: boolean
   default_role?: string
+  sso_only?: boolean
   claim_mapping?: Record<string, string>
   end_session_endpoint?: string | null
   post_logout_redirect_uri?: string | null
@@ -175,6 +178,7 @@ export interface OIDCConfigUpdate {
   role_mapping?: Record<string, string>
   auto_provision?: boolean
   default_role?: string
+  sso_only?: boolean
   is_active?: boolean
   claim_mapping?: Record<string, string>
   end_session_endpoint?: string | null
@@ -530,6 +534,44 @@ export interface LinearityResult {
   }[]
   verdict: string
   p_value: number
+}
+
+export interface StabilityResult {
+  values: number[]
+  center_line: number
+  ucl: number
+  lcl: number
+  sigma: number
+  moving_ranges: number[]
+  mr_center_line: number
+  mr_ucl: number
+  mr_lcl: number
+  violations: {
+    rule_id: number
+    rule_name: string
+    indices: number[]
+    message: string
+  }[]
+  verdict: string
+  verdict_reason: string
+  warnings: string[]
+}
+
+export interface BiasResult {
+  reference_value: number
+  n: number
+  mean: number
+  std_dev: number
+  bias: number
+  bias_percent: number | null
+  t_statistic: number
+  p_value: number
+  df: number
+  is_significant: boolean
+  verdict: string
+  denominator_used: string
+  measurements: number[]
+  warnings: string[]
 }
 
 // ---- Gage Bridge Types ----

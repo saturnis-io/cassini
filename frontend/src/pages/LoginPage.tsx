@@ -101,6 +101,7 @@ export function LoginPage() {
   }
 
   const hasProviders = oidcProviders && oidcProviders.length > 0
+  const isSSOOnly = hasProviders && oidcProviders.some((p) => p.sso_only)
 
   // Derive Saturn scene colors from brand config — memoize on individual hex values
   // to avoid rebuilding the entire Three.js scene on unrelated brand config changes
@@ -178,139 +179,30 @@ export function LoginPage() {
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Error message */}
-              {error && (
-                <div
-                  className="p-3 text-sm"
-                  style={{
-                    backgroundColor: 'rgba(224, 90, 61, 0.15)',
-                    color: '#E05A3D',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              {/* Username */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="username"
-                  className="block text-xs font-mono tracking-widest uppercase"
-                  style={{ color: primaryColor }}
-                >
-                  {t('username')}
-                </label>
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoComplete="username"
-                  autoFocus
-                  className="input-field w-full px-4 py-3 text-sm focus:outline-none"
-                  placeholder={t('enterUsername')}
-                />
-              </div>
-
-              {/* Password */}
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <label
-                    htmlFor="password"
-                    className="block text-xs font-mono tracking-widest uppercase"
-                    style={{ color: primaryColor }}
-                  >
-                    {t('password')}
-                  </label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-[10px] font-mono uppercase transition-colors hover:text-[#F4F1DE]"
-                    style={{ color: '#4B5563' }}
-                    tabIndex={-1}
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  className="input-field w-full px-4 py-3 text-sm focus:outline-none"
-                  placeholder={t('enterPassword')}
-                />
-              </div>
-
-              {/* Remember Me */}
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-3">
-                  <input
-                    id="remember-me"
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="cassini-checkbox h-4 w-4"
-                    tabIndex={-1}
-                  />
-                  <label
-                    htmlFor="remember-me"
-                    className="cursor-pointer select-none text-xs font-mono tracking-wider uppercase"
-                    style={{ color: '#4B5563' }}
-                  >
-                    {t('rememberMe')}
-                  </label>
-                </div>
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={isSubmitting || !username || !password}
-                className="btn-primary mt-4 w-full px-4 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            {/* Error message */}
+            {error && (
+              <div
+                className="mb-4 p-3 text-sm"
+                style={{
+                  backgroundColor: 'rgba(224, 90, 61, 0.15)',
+                  color: '#E05A3D',
+                }}
               >
-                {isSubmitting ? t('signingIn') : 'Log In'}
-              </button>
-            </form>
+                {error}
+              </div>
+            )}
 
-            {/* SSO Providers */}
-            {hasProviders && (
+            {/* SSO-Only Mode: show SSO buttons prominently first */}
+            {isSSOOnly && hasProviders && (
               <>
-                {/* Divider */}
-                <div className="my-5 flex items-center gap-3">
-                  <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
-                  <span
-                    className="text-xs font-mono tracking-wider uppercase"
-                    style={{ color: '#4B5563' }}
-                  >
-                    {tCommon('or')}
-                  </span>
-                  <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
-                </div>
-
-                {/* SSO Buttons */}
-                <div className="space-y-2">
+                <div className="mb-4 space-y-2">
                   {oidcProviders.map((provider) => (
                     <button
                       key={provider.id}
                       type="button"
                       onClick={() => handleSSOLogin(provider.id)}
                       disabled={ssoLoading !== null}
-                      className="w-full px-4 py-2.5 text-sm font-mono tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        border: `1px solid ${primaryColor}4D`,
-                        color: primaryColor,
-                        background: 'transparent',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = `${primaryColor}1A`
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent'
-                      }}
+                      className="btn-primary w-full px-4 py-3 text-sm font-mono tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {ssoLoading === provider.id
                         ? t('redirecting')
@@ -318,6 +210,147 @@ export function LoginPage() {
                     </button>
                   ))}
                 </div>
+                <p
+                  className="mb-4 text-center text-xs font-mono tracking-wider"
+                  style={{ color: '#4B5563' }}
+                >
+                  Single Sign-On is required for this organization.
+                </p>
+              </>
+            )}
+
+            {/* Password form: hidden in SSO-only mode */}
+            {!isSSOOnly && (
+              <>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Username */}
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="username"
+                      className="block text-xs font-mono tracking-widest uppercase"
+                      style={{ color: primaryColor }}
+                    >
+                      {t('username')}
+                    </label>
+                    <input
+                      id="username"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                      autoComplete="username"
+                      autoFocus
+                      className="input-field w-full px-4 py-3 text-sm focus:outline-none"
+                      placeholder={t('enterUsername')}
+                    />
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <label
+                        htmlFor="password"
+                        className="block text-xs font-mono tracking-widest uppercase"
+                        style={{ color: primaryColor }}
+                      >
+                        {t('password')}
+                      </label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-[10px] font-mono uppercase transition-colors hover:text-[#F4F1DE]"
+                        style={{ color: '#4B5563' }}
+                        tabIndex={-1}
+                      >
+                        Forgot Password?
+                      </Link>
+                    </div>
+                    <input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      className="input-field w-full px-4 py-3 text-sm focus:outline-none"
+                      placeholder={t('enterPassword')}
+                    />
+                  </div>
+
+                  {/* Remember Me */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="remember-me"
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="cassini-checkbox h-4 w-4"
+                        tabIndex={-1}
+                      />
+                      <label
+                        htmlFor="remember-me"
+                        className="cursor-pointer select-none text-xs font-mono tracking-wider uppercase"
+                        style={{ color: '#4B5563' }}
+                      >
+                        {t('rememberMe')}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !username || !password}
+                    className="btn-primary mt-4 w-full px-4 py-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubmitting ? t('signingIn') : 'Log In'}
+                  </button>
+                </form>
+
+                {/* SSO Providers (non-SSO-only mode) */}
+                {hasProviders && (
+                  <>
+                    {/* Divider */}
+                    <div className="my-5 flex items-center gap-3">
+                      <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
+                      <span
+                        className="text-xs font-mono tracking-wider uppercase"
+                        style={{ color: '#4B5563' }}
+                      >
+                        {tCommon('or')}
+                      </span>
+                      <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
+                    </div>
+
+                    {/* SSO Buttons */}
+                    <div className="space-y-2">
+                      {oidcProviders.map((provider) => (
+                        <button
+                          key={provider.id}
+                          type="button"
+                          onClick={() => handleSSOLogin(provider.id)}
+                          disabled={ssoLoading !== null}
+                          className="w-full px-4 py-2.5 text-sm font-mono tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{
+                            border: `1px solid ${primaryColor}4D`,
+                            color: primaryColor,
+                            background: 'transparent',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = `${primaryColor}1A`
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent'
+                          }}
+                        >
+                          {ssoLoading === provider.id
+                            ? t('redirecting')
+                            : t('signInWithProvider', { provider: provider.name })}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </>
             )}
 
