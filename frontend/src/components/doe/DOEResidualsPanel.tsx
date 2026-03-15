@@ -131,7 +131,7 @@ function QQPlot({
       .map((x) => x.i)
 
     const theoretical = sorted.map((_, i) => {
-      const p = (i + 0.5) / n
+      const p = (i + 1 - 0.375) / (n + 0.25) // Blom formula (matches R qqnorm / Minitab)
       return normalQuantile(p)
     })
 

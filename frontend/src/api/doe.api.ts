@@ -77,12 +77,21 @@ export interface DOEEffect {
   factor_name: string
   effect: number
   coefficient: number
+  sum_of_squares: number | null
+  t_statistic: number | null
+  p_value: number | null
+  significant: boolean | null
 }
 
 export interface DOEInteraction {
   factor_indices: number[]
   factor_names: string[]
   effect: number
+  coefficient: number | null
+  sum_of_squares: number | null
+  t_statistic: number | null
+  p_value: number | null
+  significant: boolean | null
 }
 
 export interface DOENormalityTest {

@@ -113,12 +113,21 @@ class EffectResponse(BaseModel):
     factor_name: str
     effect: float
     coefficient: float
+    sum_of_squares: float | None = None
+    t_statistic: float | None = None
+    p_value: float | None = None
+    significant: bool | None = None
 
 
 class InteractionResponse(BaseModel):
     factor_indices: list[int]
     factor_names: list[str]
     effect: float
+    coefficient: float | None = None
+    sum_of_squares: float | None = None
+    t_statistic: float | None = None
+    p_value: float | None = None
+    significant: bool | None = None
 
 
 class RegressionResponse(BaseModel):

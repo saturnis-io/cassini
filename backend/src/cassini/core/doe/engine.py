@@ -408,8 +408,12 @@ class DOEEngine:
                     "Shapiro-Wilk test failed for study %d", study_id,
                 )
 
-        # Outlier detection (|residual| > 3 * std)
-        residual_std = float(np.std(residual_arr, ddof=1)) if len(residual_arr) > 1 else 0.0
+        # Outlier detection (|residual| > 3 * residual standard error)
+        # Use residual df if available, fallback to ddof=1
+        if _df_resid_full > 0:
+            residual_std = float(np.sqrt(np.sum(residual_arr**2) / _df_resid_full))
+        else:
+            residual_std = float(np.std(residual_arr, ddof=1)) if len(residual_arr) > 1 else 0.0
         if residual_std > 1e-30:
             result["outlier_indices"] = [
                 int(i) for i, r in enumerate(residual_arr)

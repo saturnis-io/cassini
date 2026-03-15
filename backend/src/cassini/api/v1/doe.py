@@ -158,6 +158,10 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
                     factor_name=eff.get("factor_name", f"Factor {idx}"),
                     effect=eff.get("effect", 0.0),
                     coefficient=eff.get("coefficient", 0.0),
+                    sum_of_squares=eff.get("sum_of_squares"),
+                    t_statistic=eff.get("t_statistic"),
+                    p_value=eff.get("p_value"),
+                    significant=eff.get("significant"),
                 )
             )
     except (json.JSONDecodeError, TypeError):
@@ -185,6 +189,11 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
                     factor_indices=ix_factor_indices,
                     factor_names=ix_factor_names,
                     effect=ix.get("effect", 0.0),
+                    coefficient=ix.get("coefficient"),
+                    sum_of_squares=ix.get("sum_of_squares"),
+                    t_statistic=ix.get("t_statistic"),
+                    p_value=ix.get("p_value"),
+                    significant=ix.get("significant"),
                 )
             )
     except (json.JSONDecodeError, TypeError):

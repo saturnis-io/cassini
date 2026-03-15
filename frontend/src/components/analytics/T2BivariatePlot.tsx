@@ -208,36 +208,39 @@ export function T2BivariatePlot({ data }: T2BivariatePlotProps) {
     }
   }, [data, chartColors, isDark])
 
+  const hasData = data && data.scatter_points.length > 0
   const { containerRef } = useECharts({ option })
 
-  if (!data || data.scatter_points.length === 0) {
-    return (
-      <div className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">
-        No bivariate data available. Click &ldquo;Compute&rdquo; first.
-      </div>
-    )
-  }
-
   return (
-    <div>
-      {/* Summary strip */}
-      <div className="mb-1 flex items-center gap-4 text-[11px]">
-        <span className="text-muted-foreground">
-          <span className="text-foreground font-medium">{data.total_count}</span> samples
-        </span>
-        {data.ooc_count > 0 ? (
-          <span className="text-destructive font-medium">
-            {data.ooc_count} out of control
+    <div className="relative">
+      {hasData && (
+        <div className="mb-1 flex items-center gap-4 text-[11px]">
+          <span className="text-muted-foreground">
+            <span className="text-foreground font-medium">{data.total_count}</span> samples
           </span>
-        ) : (
-          <span className="text-emerald-600 dark:text-emerald-400">All in control</span>
-        )}
-        <span className="text-muted-foreground">
-          UCL ={' '}
-          <span className="text-foreground font-medium">{data.ucl.toFixed(2)}</span>
-        </span>
-      </div>
-      <div ref={containerRef} className="h-[400px] w-full" />
+          {data.ooc_count > 0 ? (
+            <span className="text-destructive font-medium">
+              {data.ooc_count} out of control
+            </span>
+          ) : (
+            <span className="text-emerald-600 dark:text-emerald-400">All in control</span>
+          )}
+          <span className="text-muted-foreground">
+            UCL ={' '}
+            <span className="text-foreground font-medium">{data.ucl.toFixed(2)}</span>
+          </span>
+        </div>
+      )}
+      <div
+        ref={containerRef}
+        className="h-[400px] w-full"
+        style={{ visibility: hasData ? 'visible' : 'hidden' }}
+      />
+      {!hasData && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+          No bivariate data available
+        </div>
+      )}
     </div>
   )
 }
