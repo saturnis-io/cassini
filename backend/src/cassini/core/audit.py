@@ -166,8 +166,12 @@ def _method_to_action(method: str, path: str) -> str:
         return "approve"
     if "/reject" in path:
         return "reject"
+    if "/decompose" in path:
+        return "decompose"
     if "calculate" in path or "/compute" in path:
         return "calculate"
+    if "/unfreeze" in path:
+        return "unfreeze"
     if "/freeze" in path:
         return "freeze"
     if "/train" in path:

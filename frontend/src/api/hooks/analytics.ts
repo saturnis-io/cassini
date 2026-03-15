@@ -136,6 +136,14 @@ export function useBivariateData(id: number) {
   })
 }
 
+export function useT2Decomposition(groupId: number, observationIndex: number | null) {
+  return useQuery({
+    queryKey: [...mvKeys.all, 'decomposition', groupId, observationIndex] as const,
+    queryFn: () => multivariateApi.getDecomposition(groupId, observationIndex!),
+    enabled: groupId > 0 && observationIndex != null && observationIndex >= 0,
+  })
+}
+
 // -----------------------------------------------------------------------
 // Correlation hooks
 // -----------------------------------------------------------------------

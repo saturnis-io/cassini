@@ -52,6 +52,11 @@ export const multivariateApi = {
 
   getBivariateData: (id: number) =>
     fetchApi(`/multivariate/groups/${id}/bivariate`),
+
+  getDecomposition: (id: number, observationIndex: number) =>
+    fetchApi(
+      `/multivariate/groups/${id}/decompose?observation_index=${observationIndex}`,
+    ),
 }
 
 // Correlation API

@@ -128,6 +128,46 @@ class CorrelationResultResponse(BaseModel):
     computed_at: datetime
 
 
+# ── Decomposition ──────────────────────────────────────────
+
+
+class DecompositionTermResponse(BaseModel):
+    variable_index: int
+    variable_name: str
+    conditional_t2: float
+    unconditional_t2: float
+    proportion: float
+
+
+class DecompositionStepResponse(BaseModel):
+    label: str
+    formula_latex: str
+    substitution_latex: str
+    result: float
+    note: str | None = None
+
+
+class DecompositionCitationResponse(BaseModel):
+    standard: str
+    reference: str
+    section: str | None = None
+
+
+class DecompositionResponse(BaseModel):
+    group_id: int
+    group_name: str
+    observation_index: int
+    total_t2: float
+    ucl: float
+    terms: list[DecompositionTermResponse]
+    characteristic_names: list[str]
+    timestamp: datetime | None = None
+    steps: list[DecompositionStepResponse] = []
+    inputs: dict[str, float | str] = {}
+    citation: DecompositionCitationResponse | None = None
+    warnings: list[str] = []
+
+
 class PCAResultResponse(BaseModel):
     eigenvalues: list[float]
     explained_variance_ratios: list[float]

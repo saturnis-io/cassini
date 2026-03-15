@@ -26,6 +26,10 @@ from cassini.api.schemas.multivariate import (
     BivariateScatterPoint,
     CorrelationComputeRequest,
     CorrelationResultResponse,
+    DecompositionCitationResponse,
+    DecompositionResponse,
+    DecompositionStepResponse,
+    DecompositionTermResponse,
     FreezeRequest,
     MultivariateChartResponse,
     MultivariateGroupCreate,
@@ -1083,3 +1087,175 @@ async def freeze_phase_i(
     )
 
     return await _build_group_response(session, group)
+
+
+def _safe_inv_np(mat: np.ndarray) -> np.ndarray:
+    """Invert matrix with pseudo-inverse fallback (endpoint helper)."""
+    cond = np.linalg.cond(mat)
+    if cond > 1e10:
+        return np.linalg.pinv(mat)
+    return np.linalg.inv(mat)
+
+
+@router.get(
+    "/groups/{group_id}/decompose",
+    response_model=DecompositionResponse,
+)
+async def decompose_observation(
+    group_id: int,
+    observation_index: int = Query(..., ge=0, description="Index of the observation to decompose"),
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> DecompositionResponse:
+    """Decompose a T-squared value into per-variable contributions.
+
+    Uses the order-independent last-variable strategy (Mason et al. 1997)
+    to compute unique contributions for each variable. This is invariant
+    to variable ordering, making it suitable for root-cause identification.
+
+    Includes Show Your Work step-by-step explanation with citation.
+
+    Requires engineer+ role for the group's plant.
+    """
+    group = await _get_group_or_404(session, group_id)
+    check_plant_role(user, group.plant_id, "engineer")
+
+    if group.chart_type != "t_squared":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Decomposition is only available for T-squared charts",
+        )
+
+    if not group.members:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group has no member characteristics",
+        )
+
+    # Get member characteristic IDs in display order
+    sorted_members = sorted(group.members, key=lambda m: m.display_order)
+    char_ids = [m.characteristic_id for m in sorted_members]
+
+    # Load aligned data
+    try:
+        X, timestamps, char_names = await load_aligned_data(session, char_ids)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to load aligned data for group characteristics",
+        )
+
+    if X.shape[0] == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No aligned data available for decomposition",
+        )
+
+    if observation_index >= X.shape[0]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Observation index {observation_index} out of range (have {X.shape[0]} observations)",
+        )
+
+    # Determine mean and covariance
+    if group.phase == "phase_ii" and group.reference_mean and group.reference_covariance:
+        ref_mean = np.array(json.loads(group.reference_mean))
+        ref_cov = np.array(json.loads(group.reference_covariance))
+    else:
+        # Phase I — estimate from data
+        engine = HotellingT2Engine()
+        phase_i = engine.compute_phase_i(
+            X, alpha=group.alpha,
+            covariance_method=group.covariance_method,
+        )
+        ref_mean = phase_i.mean
+        ref_cov = phase_i.covariance
+
+    # Compute total T² for the observation
+    cov_inv = _safe_inv_np(ref_cov)
+    obs = X[observation_index]
+    diff = obs - ref_mean
+    total_t2 = float(diff @ cov_inv @ diff)
+
+    # Compute UCL
+    p = len(char_ids)
+    n = X.shape[0]
+    if group.phase == "phase_ii" and group.reference_mean:
+        if n > 100:
+            ucl = float(sp_stats.chi2.ppf(1 - group.alpha, p))
+        else:
+            ucl = float(
+                p * (n + 1) * (n - 1)
+                / (n * (n - p))
+                * sp_stats.f.ppf(1 - group.alpha, p, n - p)
+            )
+    else:
+        ucl = float(
+            p * (n - 1) / (n - p)
+            * sp_stats.f.ppf(1 - group.alpha, p, n - p)
+        )
+
+    # Order-independent decomposition with SYW collector
+    from cassini.core.explain import ExplanationCollector
+
+    collector = ExplanationCollector()
+    decomposer = T2Decomposition()
+    terms = decomposer.decompose_all_last(
+        obs, ref_mean, ref_cov, char_names, collector=collector,
+    )
+
+    # Build response
+    term_responses = [
+        DecompositionTermResponse(
+            variable_index=t.variable_index,
+            variable_name=t.variable_name,
+            conditional_t2=round(t.conditional_t2, 6),
+            unconditional_t2=round(t.unconditional_t2, 6),
+            proportion=round(t.proportion, 6),
+        )
+        for t in terms
+    ]
+
+    step_responses = [
+        DecompositionStepResponse(
+            label=s.label,
+            formula_latex=s.formula_latex,
+            substitution_latex=s.substitution_latex,
+            result=s.result,
+            note=s.note,
+        )
+        for s in collector.steps
+    ]
+
+    citation = DecompositionCitationResponse(
+        standard="JQT",
+        reference="Mason, R.L., Tracy, N.D. & Young, J.C. (1995). JQT, 27(2), 99-108.",
+        section="Order-independent unique contributions per Mason et al. (1997).",
+    )
+
+    obs_timestamp = timestamps[observation_index] if observation_index < len(timestamps) else None
+
+    logger.info(
+        "multivariate_decomposition_computed",
+        group_id=group_id,
+        observation_index=observation_index,
+        total_t2=round(total_t2, 4),
+        n_variables=p,
+        top_contributor=terms[0].variable_name if terms else None,
+        user=user.username,
+    )
+
+    return DecompositionResponse(
+        group_id=group.id,
+        group_name=group.name,
+        observation_index=observation_index,
+        total_t2=round(total_t2, 6),
+        ucl=round(ucl, 6),
+        terms=term_responses,
+        characteristic_names=char_names,
+        timestamp=obs_timestamp,
+        steps=step_responses,
+        inputs=collector.inputs,
+        citation=citation,
+        warnings=collector.warnings,
+    )
