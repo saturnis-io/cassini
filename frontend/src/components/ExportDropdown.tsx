@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Download, FileSpreadsheet, FileText, ChevronDown } from 'lucide-react'
+import { Download, FileSpreadsheet, FileText, ChevronDown, ImageDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   exportReportToPdf,
@@ -7,12 +7,13 @@ import {
   exportToCsv,
   prepareChartDataForExport,
   prepareViolationsForExport,
+  downloadChartAsPng,
 } from '@/lib/export-utils'
 import type { ReportPdfData } from '@/lib/export-utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { toast } from 'sonner'
 
-type ExportFormat = 'pdf' | 'excel' | 'csv'
+type ExportFormat = 'pdf' | 'excel' | 'csv' | 'png'
 
 interface ExportDropdownProps {
   /** Reference to the report content element (used to find chart canvas) */
@@ -73,6 +74,8 @@ interface ExportDropdownProps {
   disabled?: boolean
   /** CSS class name */
   className?: string
+  /** Chart title for PNG export filename. When provided, enables "Save as PNG" option. */
+  chartTitle?: string
 }
 
 export function ExportDropdown({
@@ -81,6 +84,7 @@ export function ExportDropdown({
   filename = 'report',
   disabled = false,
   className,
+  chartTitle,
 }: ExportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -224,6 +228,24 @@ export function ExportDropdown({
           await exportToCsv(primaryData, exportFilename)
           toast.success('CSV file exported successfully')
         }
+      } else if (format === 'png') {
+        // Capture chart image from the ECharts canvas and download as PNG
+        if (!contentRef.current) {
+          toast.error('No chart found to export')
+          return
+        }
+        const canvases = Array.from(contentRef.current.querySelectorAll('canvas'))
+        const chartCanvas = canvases.sort(
+          (a, b) => b.width * b.height - a.width * a.height,
+        )[0]
+        if (!chartCanvas) {
+          toast.error('No chart found to export')
+          return
+        }
+        const dataURL = chartCanvas.toDataURL('image/png')
+        const safeTitle = (chartTitle ?? 'chart').replace(/[^a-zA-Z0-9_-]/g, '_')
+        downloadChartAsPng(dataURL, `${safeTitle}-${timestamp}`)
+        toast.success('Chart image saved')
       }
     } catch (error) {
       console.error('Export failed:', error)
@@ -289,6 +311,21 @@ export function ExportDropdown({
                 <div className="text-muted-foreground text-xs">Plain text data</div>
               </div>
             </button>
+            {chartTitle && (
+              <>
+                <div className="border-border mx-2 border-t" />
+                <button
+                  onClick={() => handleExport('png')}
+                  className="hover:bg-muted flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
+                >
+                  <ImageDown className="text-warning h-4 w-4" />
+                  <div>
+                    <div className="font-medium">Save Chart as PNG</div>
+                    <div className="text-muted-foreground text-xs">Chart image only</div>
+                  </div>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

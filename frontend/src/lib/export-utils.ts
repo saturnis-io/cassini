@@ -498,6 +498,257 @@ export async function exportToCsv(data: Record<string, unknown>[], filename: str
 }
 
 /**
+ * Download a chart as PNG from a data URL.
+ * Creates a temporary <a> element and triggers a browser download.
+ */
+export function downloadChartAsPng(dataURL: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = dataURL
+  link.download = `${filename}.png`
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+/**
+ * Generate a single PDF report as an ArrayBuffer (for bundling into ZIP).
+ * Same logic as exportReportToPdf but returns bytes instead of saving.
+ */
+async function generateReportPdfBytes(
+  data: ReportPdfData,
+  datetimeFormat = 'YYYY-MM-DD HH:mm:ss',
+  options?: {
+    logoDataUrl?: string
+    plantName?: string
+  },
+): Promise<ArrayBuffer> {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
+
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 15
+  const contentWidth = pageWidth - 2 * margin
+  const reportDate = new Date().toLocaleString()
+  let y = margin
+
+  // ── Logo ────────────────────────────────────────────────────────────
+  const logoX = margin
+  let headerTextX = margin
+  if (options?.logoDataUrl) {
+    try {
+      doc.addImage(options.logoDataUrl, 'PNG', logoX, y - 2, 15, 15)
+      headerTextX = margin + 18
+    } catch {
+      // Logo image failed to load — continue without it
+    }
+  }
+
+  // ── Header ──────────────────────────────────────────────────────────
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text(data.title, headerTextX, y)
+  y += 7
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100)
+  if (options?.plantName) {
+    doc.text(`Plant: ${options.plantName}`, headerTextX, y)
+    y += 4.5
+  }
+  doc.text(`Characteristic: ${data.characteristicName}`, headerTextX, y)
+  y += 4.5
+  if (data.hierarchyPath) {
+    doc.text(`Path: ${data.hierarchyPath}`, headerTextX, y)
+    y += 4.5
+  }
+  doc.text(`Generated: ${reportDate}`, headerTextX, y)
+  y += 4.5
+  doc.setTextColor(0)
+
+  // Divider
+  doc.setDrawColor(200)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 5
+
+  // ── Chart Image ─────────────────────────────────────────────────────
+  if (data.chartImage) {
+    const maxHeight = 65
+    const naturalHeight = contentWidth / data.chartImage.aspectRatio
+    const chartHeight = Math.min(naturalHeight, maxHeight)
+    const chartWidth = chartHeight * data.chartImage.aspectRatio
+
+    doc.addImage(data.chartImage.dataURL, 'PNG', margin, y, chartWidth, chartHeight)
+    y += chartHeight + 5
+  }
+
+  // ── Process Statistics ──────────────────────────────────────────────
+  if (data.chartData) {
+    const points = data.chartData.data_points.filter((p) => !p.excluded)
+    const values = points.map((p) => p.mean)
+    const n = values.length
+
+    if (n > 0) {
+      const mean = values.reduce((a, b) => a + b, 0) / n
+      const variance = n > 1 ? values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1) : 0
+      const stdDev = Math.sqrt(variance)
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+
+      const dp = data.chartData.decimal_precision ?? 4
+      const f = (v: number | null | undefined) => (v != null ? v.toFixed(dp) : '—')
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Statistic', 'Value', 'Statistic', 'Value']],
+        body: [
+          ['Count', String(n), 'Mean', f(mean)],
+          ['Std Dev', f(stdDev), 'Range', f(max - min)],
+          ['Min', f(min), 'Max', f(max)],
+          [
+            'UCL',
+            f(data.chartData.control_limits.ucl),
+            'LCL',
+            f(data.chartData.control_limits.lcl),
+          ],
+          ['Center Line', f(data.chartData.control_limits.center_line), '', ''],
+        ],
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [41, 128, 185] },
+        theme: 'striped',
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
+    }
+  }
+
+  // ── Capability Metrics ──────────────────────────────────────────────
+  if (data.capability) {
+    const cap = data.capability
+    const f = (v: number | null | undefined) => (v != null ? v.toFixed(4) : '—')
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Metric', 'Value', 'Metric', 'Value']],
+      body: [
+        ['Cp', f(cap.cp), 'Cpk', f(cap.cpk)],
+        ['Pp', f(cap.pp), 'Ppk', f(cap.ppk)],
+        ['LSL', f(cap.lsl), 'USL', f(cap.usl)],
+        ['σ within', f(cap.sigma_within), '', ''],
+      ],
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [39, 174, 96] },
+      theme: 'striped',
+    })
+    y = (doc as any).lastAutoTable.finalY + 6
+  }
+
+  // ── Violations ──────────────────────────────────────────────────────
+  if (data.violations && data.violations.length > 0) {
+    autoTable(doc, {
+      startY: y,
+      head: [['ID', 'Date', 'Rule', 'Severity', 'Status']],
+      body: data.violations.map((v) => [
+        String(v.id),
+        v.created_at ? applyFormat(new Date(v.created_at), datetimeFormat) : '—',
+        `Rule ${v.rule_id}: ${v.rule_name}`,
+        v.severity,
+        v.acknowledged ? 'Acknowledged' : 'Pending',
+      ]),
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [192, 57, 43] },
+      theme: 'striped',
+    })
+  }
+
+  // ── Page numbers + header/footer on every page ─────────────────────
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(150)
+    const headerText = options?.plantName
+      ? `${options.plantName}  |  ${reportDate}`
+      : reportDate
+    doc.text(headerText, pageWidth - margin, 8, { align: 'right' })
+    doc.text('Generated by Cassini SPC', margin, pageHeight - 6)
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 6, {
+      align: 'right',
+    })
+    doc.setTextColor(0)
+  }
+
+  return doc.output('arraybuffer')
+}
+
+/**
+ * Batch export: generate individual PDF reports for multiple characteristics,
+ * bundle them into a single ZIP file, and trigger download.
+ * Calls onProgress(current, total) for each completed PDF.
+ */
+export async function exportBatchReportsToZip(
+  items: Array<{
+    characteristicName: string
+    hierarchyPath?: string
+    chartData?: ReportPdfData['chartData']
+    violations?: ReportPdfData['violations']
+    capability?: ReportPdfData['capability']
+    annotations?: ReportPdfData['annotations']
+  }>,
+  options: {
+    templateName: string
+    datetimeFormat?: string
+    logoDataUrl?: string
+    plantName?: string
+    onProgress?: (current: number, total: number) => void
+  },
+): Promise<void> {
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  const total = items.length
+  const timestamp = new Date().toISOString().split('T')[0]
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    const safeName = item.characteristicName.replace(/[^a-zA-Z0-9_-]/g, '_')
+    const pdfBytes = await generateReportPdfBytes(
+      {
+        title: options.templateName,
+        characteristicName: item.characteristicName,
+        hierarchyPath: item.hierarchyPath,
+        chartData: item.chartData,
+        violations: item.violations,
+        capability: item.capability,
+        annotations: item.annotations,
+      },
+      options.datetimeFormat,
+      {
+        logoDataUrl: options.logoDataUrl,
+        plantName: options.plantName,
+      },
+    )
+    zip.file(`${safeName}-${timestamp}.pdf`, pdfBytes)
+    options.onProgress?.(i + 1, total)
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(zipBlob)
+  link.download = `batch-report-${timestamp}.zip`
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(link.href)
+}
+
+/**
  * Prepare chart data for export
  */
 export function prepareChartDataForExport(

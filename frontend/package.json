@@ -26,6 +26,7 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
+    "jszip": "^3.10.1",
     "katex": "^0.16.33",
     "lucide-react": "^0.563.0",
     "postcss": "^8.5.6",

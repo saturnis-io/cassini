@@ -17,6 +17,7 @@ from cassini.db.models.data_source import (
     TriggerStrategy,
 )
 from cassini.db.models.fai import FAIItem, FAIReport
+from cassini.db.models.fai_detail import FAIFunctionalTest, FAIMaterial, FAISpecialProcess
 from cassini.db.models.gage import GageBridge, GagePort
 from cassini.db.models.hierarchy import Base, Hierarchy, HierarchyType
 from cassini.db.models.msa import MSAMeasurement, MSAOperator, MSAPart, MSAStudy
@@ -59,6 +60,7 @@ from cassini.db.models.signature import (
     SignatureWorkflowStep,
 )
 from cassini.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.user_session import UserSession
 from cassini.db.models.violation import Severity, Violation
 
 __all__ = [
@@ -81,6 +83,9 @@ __all__ = [
     "OPCUADataSource",
     "FAIItem",
     "FAIReport",
+    "FAIFunctionalTest",
+    "FAIMaterial",
+    "FAISpecialProcess",
     "GageBridge",
     "GagePort",
     "MSAMeasurement",
@@ -149,4 +154,5 @@ __all__ = [
     "Severity",
     "TriggerStrategy",
     "UserRole",
+    "UserSession",
 ]

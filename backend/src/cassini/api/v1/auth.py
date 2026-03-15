@@ -6,6 +6,7 @@ Uses JWT access tokens (in response body) and refresh tokens (in httpOnly cookie
 
 import hashlib
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -13,7 +14,7 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
@@ -48,7 +49,13 @@ from cassini.db.models.auth_token import EmailVerificationToken, PasswordResetTo
 from cassini.db.models.notification import SmtpConfig
 from cassini.db.models.oidc_config import OIDCConfig
 from cassini.db.models.user import User, UserPlantRole, UserRole
+from cassini.db.models.user_session import UserSession
 from cassini.db.repositories.user import UserRepository
+
+# Maximum concurrent sessions per user
+MAX_CONCURRENT_SESSIONS = 5
+# Sessions older than this are auto-deleted during login
+SESSION_MAX_AGE_DAYS = 30
 
 logger = structlog.get_logger(__name__)
 
@@ -196,9 +203,47 @@ async def login(
             data.username, success=True, ip_address=ip, user_agent=ua, user_id=user.id
         )
 
-    # Create tokens (embed password_changed_at for revocation)
-    access_token = create_access_token(user.id, user.username, user.password_changed_at)
-    refresh_token = create_refresh_token(user.id, user.password_changed_at)
+    # --- Concurrent session management ---
+    # Clean up stale sessions (older than 30 days)
+    cutoff = now - timedelta(days=SESSION_MAX_AGE_DAYS)
+    await session.execute(
+        delete(UserSession).where(
+            UserSession.user_id == user.id,
+            UserSession.last_active_at < cutoff,
+        )
+    )
+
+    # Check current session count and evict oldest if at limit
+    existing_result = await session.execute(
+        select(UserSession)
+        .where(UserSession.user_id == user.id)
+        .order_by(UserSession.last_active_at.asc())
+    )
+    existing_sessions = list(existing_result.scalars().all())
+
+    if len(existing_sessions) >= MAX_CONCURRENT_SESSIONS:
+        # Delete oldest sessions to make room for the new one
+        sessions_to_remove = existing_sessions[: len(existing_sessions) - MAX_CONCURRENT_SESSIONS + 1]
+        for old_session in sessions_to_remove:
+            await session.delete(old_session)
+
+    # Create new session record
+    new_session_id = str(uuid.uuid4())
+    user_session = UserSession(
+        user_id=user.id,
+        session_id=new_session_id,
+        last_active_at=now,
+    )
+    session.add(user_session)
+    await session.flush()
+
+    # Create tokens (embed password_changed_at for revocation + session_id)
+    access_token = create_access_token(
+        user.id, user.username, user.password_changed_at, session_id=new_session_id
+    )
+    refresh_token = create_refresh_token(
+        user.id, user.password_changed_at, session_id=new_session_id
+    )
 
     # Set refresh token cookie
     max_age = 30 * 24 * 60 * 60 if data.remember_me else 7 * 24 * 60 * 60  # 30d or 7d
@@ -297,9 +342,34 @@ async def refresh(
                 detail="Token invalidated by password change",
             )
 
-    # Create new tokens (rotate refresh)
-    new_access_token = create_access_token(user.id, user.username, user.password_changed_at)
-    new_refresh_token = create_refresh_token(user.id, user.password_changed_at)
+    # --- Session validation ---
+    session_id = payload.get("sid")
+    if session_id is not None:
+        session_result = await session.execute(
+            select(UserSession).where(UserSession.session_id == session_id)
+        )
+        user_session = session_result.scalar_one_or_none()
+        if user_session is None:
+            # Session was evicted (e.g., by a newer login exceeding max)
+            response.delete_cookie(
+                key=REFRESH_COOKIE_KEY,
+                path=REFRESH_COOKIE_PATH,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired or evicted",
+            )
+        # Update last_active_at
+        user_session.last_active_at = datetime.now(timezone.utc)
+        await session.flush()
+
+    # Create new tokens (rotate refresh, preserve session_id)
+    new_access_token = create_access_token(
+        user.id, user.username, user.password_changed_at, session_id=session_id
+    )
+    new_refresh_token = create_refresh_token(
+        user.id, user.password_changed_at, session_id=session_id
+    )
 
     response.set_cookie(
         key=REFRESH_COOKIE_KEY,
@@ -329,6 +399,21 @@ async def logout(
         key=REFRESH_COOKIE_KEY,
         path=REFRESH_COOKIE_PATH,
     )
+
+    # Delete session record if refresh token contains a session_id
+    refresh_cookie = request.cookies.get(REFRESH_COOKIE_KEY)
+    if refresh_cookie:
+        refresh_payload = verify_refresh_token(refresh_cookie)
+        if refresh_payload is not None:
+            logout_session_id = refresh_payload.get("sid")
+            if logout_session_id is not None:
+                await session.execute(
+                    delete(UserSession).where(
+                        UserSession.session_id == logout_session_id
+                    )
+                )
+                await session.flush()
+
     # Audit log the logout
     audit_service = getattr(request.app.state, "audit_service", None)
     if audit_service:

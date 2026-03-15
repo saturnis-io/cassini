@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { REPORT_TEMPLATES } from '@/lib/report-templates'
 import type { ReportTemplate } from '@/lib/report-templates'
@@ -9,10 +9,16 @@ import { CharacteristicContextBar } from '@/components/CharacteristicContextBar'
 import { NoCharacteristicState } from '@/components/NoCharacteristicState'
 import { TimeRangeSelector } from '@/components/TimeRangeSelector'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability, useDOEStudies, useMSAStudies, usePlantHealth, useDOEStudy, useDOEAnalysis, useMSAStudy, useMSAResults } from '@/api/hooks'
+import { useChartData, useViolations, useCharacteristic, useAnnotations, useCapability, useDOEStudies, useMSAStudies, usePlantHealth, useDOEStudy, useDOEAnalysis, useMSAStudy, useMSAResults, useCharacteristics } from '@/api/hooks'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { useLicense } from '@/hooks/useLicense'
-import { FileText, Lock } from 'lucide-react'
+import { exportBatchReportsToZip } from '@/lib/export-utils'
+import { characteristicApi } from '@/api/characteristics.api'
+import { capabilityApi } from '@/api/quality.api'
+import { useDateFormat } from '@/hooks/useDateFormat'
+import { toast } from 'sonner'
+import { FileText, Lock, PackageCheck, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function ReportsView() {
   const [searchParams] = useSearchParams()
@@ -25,6 +31,39 @@ export function ReportsView() {
   const { isProOrAbove } = useLicense()
   const { selectedPlant } = usePlantContext()
   const plantId = selectedPlant?.id ?? 0
+  const { datetimeFormat } = useDateFormat()
+
+  // ── Batch export state ──────────────────────────────────────────────
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedCharIds, setSelectedCharIds] = useState<Set<number>>(new Set())
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
+
+  // Fetch all characteristics for batch selection (only when batch mode is active)
+  const { data: allCharacteristics } = useCharacteristics(
+    { plant_id: plantId, per_page: 500 },
+    { refetchInterval: false },
+  )
+
+  const toggleCharSelection = useCallback((charId: number) => {
+    setSelectedCharIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(charId)) {
+        next.delete(charId)
+      } else {
+        next.add(charId)
+      }
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    if (!allCharacteristics?.items) return
+    const allIds = allCharacteristics.items.map((c) => c.id)
+    setSelectedCharIds((prev) => {
+      if (prev.size === allIds.length) return new Set()
+      return new Set(allIds)
+    })
+  }, [allCharacteristics])
 
   // Use the same time range state as the dashboard
   const timeRange = useDashboardStore((state) => state.timeRange)
@@ -134,6 +173,54 @@ export function ReportsView() {
     timeRange.startDate,
     timeRange.endDate,
   ])
+
+  // ── Batch export handler (needs chartOptions) ────────────────────────
+  const handleBatchExport = useCallback(async () => {
+    if (selectedCharIds.size === 0 || !selectedTemplate) return
+    setBatchProgress({ current: 0, total: selectedCharIds.size })
+
+    try {
+      const items = await Promise.all(
+        Array.from(selectedCharIds).map(async (charId) => {
+          const [charDetail, charChartData, charCapability] = await Promise.all([
+            characteristicApi.get(charId),
+            characteristicApi.getChartData(charId, chartOptions).catch(() => null),
+            capabilityApi.getCapability(charId).catch(() => null),
+          ])
+          return {
+            characteristicName: charDetail.name,
+            hierarchyPath: (charDetail as any).hierarchy_path as string | undefined,
+            chartData: charChartData ?? undefined,
+            capability: charCapability
+              ? {
+                  cp: charCapability.cp,
+                  cpk: charCapability.cpk,
+                  pp: charCapability.pp,
+                  ppk: charCapability.ppk,
+                  sigma_within: charCapability.sigma_within,
+                  usl: charCapability.usl,
+                  lsl: charCapability.lsl,
+                }
+              : undefined,
+          }
+        }),
+      )
+
+      await exportBatchReportsToZip(items, {
+        templateName: selectedTemplate.name,
+        datetimeFormat,
+        plantName: selectedPlant?.name,
+        onProgress: (current, total) => setBatchProgress({ current, total }),
+      })
+
+      toast.success(`Exported ${items.length} reports to ZIP`)
+    } catch (error) {
+      console.error('Batch export failed:', error)
+      toast.error('Batch export failed. Please try again.')
+    } finally {
+      setBatchProgress(null)
+    }
+  }, [selectedCharIds, selectedTemplate, chartOptions, datetimeFormat, selectedPlant])
 
   // Non-characteristic-scoped templates don't need a characteristic
   const isPlantScoped = selectedTemplate?.scope === 'plant'
@@ -293,19 +380,122 @@ export function ReportsView() {
         {/* Time range */}
         <TimeRangeSelector />
 
-        {/* Spacer + Export */}
-        <div className="ml-auto">
+        {/* Spacer + Batch Toggle + Export */}
+        <div className="ml-auto flex items-center gap-2">
+          {selectedTemplate && !isNonCharScope && (
+            <button
+              onClick={() => {
+                setBatchMode((prev) => !prev)
+                setSelectedCharIds(new Set())
+                setBatchProgress(null)
+              }}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                batchMode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <PackageCheck className="h-4 w-4" />
+              Batch Export
+            </button>
+          )}
           <ExportDropdown
             contentRef={reportContentRef}
             exportData={exportData}
             filename={`${selectedTemplate?.id ?? 'report'}-report`}
             disabled={!canExport}
+            chartTitle={
+              !isNonCharScope && selectedCharId && chartData
+                ? `${characteristic?.name ?? 'chart'}-${selectedTemplate?.id ?? 'report'}`
+                : undefined
+            }
           />
         </div>
       </div>
 
-      {/* Characteristic context bar — hidden for non-characteristic-scoped templates */}
-      {!isNonCharScope && <CharacteristicContextBar />}
+      {/* Characteristic context bar — hidden for non-characteristic-scoped templates and batch mode */}
+      {!isNonCharScope && !batchMode && <CharacteristicContextBar />}
+
+      {/* Batch selection panel */}
+      {batchMode && selectedTemplate && !isNonCharScope && (
+        <div className="bg-card border-border flex max-h-72 flex-col rounded-lg border">
+          {/* Batch header */}
+          <div className="border-border flex flex-shrink-0 items-center gap-3 border-b px-4 py-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={
+                  allCharacteristics?.items != null &&
+                  allCharacteristics.items.length > 0 &&
+                  selectedCharIds.size === allCharacteristics.items.length
+                }
+                onChange={toggleSelectAll}
+                className="accent-primary h-4 w-4 rounded"
+              />
+              <span className="text-muted-foreground font-medium">Select All</span>
+            </label>
+            <span className="text-muted-foreground text-xs">
+              {selectedCharIds.size} of {allCharacteristics?.items?.length ?? 0} selected
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {batchProgress && (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="text-primary h-4 w-4 animate-spin" />
+                  <div className="bg-muted h-2 w-32 overflow-hidden rounded-full">
+                    <div
+                      className="bg-primary h-full transition-all duration-300"
+                      style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-muted-foreground text-xs">
+                    {batchProgress.current}/{batchProgress.total}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleBatchExport}
+                disabled={selectedCharIds.size === 0 || batchProgress !== null}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  'bg-primary text-primary-foreground hover:bg-primary/90',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              >
+                <PackageCheck className="h-4 w-4" />
+                Export Selected ({selectedCharIds.size})
+              </button>
+            </div>
+          </div>
+          {/* Scrollable characteristic list */}
+          <div className="flex-1 overflow-auto px-2 py-1">
+            {allCharacteristics?.items?.map((char) => (
+              <label
+                key={char.id}
+                className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCharIds.has(char.id)}
+                  onChange={() => toggleCharSelection(char.id)}
+                  className="accent-primary h-4 w-4 rounded"
+                />
+                <span className="text-foreground font-medium">{char.name}</span>
+                {(char as any).hierarchy_path && (
+                  <span className="text-muted-foreground truncate text-xs">
+                    {(char as any).hierarchy_path}
+                  </span>
+                )}
+              </label>
+            ))}
+            {(!allCharacteristics?.items || allCharacteristics.items.length === 0) && (
+              <div className="text-muted-foreground py-4 text-center text-sm">
+                No characteristics found in this plant.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Plant scope indicator for plant-wide templates */}
       {isPlantScoped && (

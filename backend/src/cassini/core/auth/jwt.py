@@ -47,6 +47,7 @@ def create_access_token(
     user_id: int,
     username: str,
     password_changed_at: datetime | None = None,
+    session_id: str | None = None,
 ) -> str:
     """Create a JWT access token.
 
@@ -54,6 +55,7 @@ def create_access_token(
         user_id: The user's database ID.
         username: The user's username.
         password_changed_at: Timestamp of last password change (embedded for revocation).
+        session_id: Optional session identifier for concurrent session tracking.
 
     Returns:
         Encoded JWT string.
@@ -68,18 +70,22 @@ def create_access_token(
     }
     if password_changed_at is not None:
         payload["pwd_changed"] = int(password_changed_at.timestamp())
+    if session_id is not None:
+        payload["sid"] = session_id
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(
     user_id: int,
     password_changed_at: datetime | None = None,
+    session_id: str | None = None,
 ) -> str:
     """Create a JWT refresh token.
 
     Args:
         user_id: The user's database ID.
         password_changed_at: Timestamp of last password change (embedded for revocation).
+        session_id: Optional session identifier for concurrent session tracking.
 
     Returns:
         Encoded JWT string.
@@ -93,6 +99,8 @@ def create_refresh_token(
     }
     if password_changed_at is not None:
         payload["pwd_changed"] = int(password_changed_at.timestamp())
+    if session_id is not None:
+        payload["sid"] = session_id
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
