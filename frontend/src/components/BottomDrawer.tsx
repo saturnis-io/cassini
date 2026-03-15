@@ -16,7 +16,10 @@ interface BottomDrawerProps {
   className?: string
 }
 
+/** Total height of the drawer when expanded (px) */
 const DRAWER_HEIGHT = 240
+/** Height of the tab bar header (px) */
+const HEADER_HEIGHT = 36
 
 export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
   const drawerOpen = useDashboardStore((s) => s.drawerOpen)
@@ -56,11 +59,14 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
 
   return (
     <div
-      className={cn('border-border bg-card flex-shrink-0 overflow-hidden rounded-lg border transition-all duration-200', className)}
-      style={drawerOpen ? { maxHeight: DRAWER_HEIGHT } : { height: 36 }}
+      className={cn(
+        'border-border bg-card flex-shrink-0 overflow-hidden rounded-lg border transition-[height] duration-200 ease-in-out',
+        className,
+      )}
+      style={{ height: drawerOpen ? DRAWER_HEIGHT : HEADER_HEIGHT }}
     >
-      {/* Tab bar */}
-      <div className="flex h-9 flex-shrink-0 items-center gap-0 px-2">
+      {/* Tab bar + collapse handle */}
+      <div className="border-primary/30 flex h-9 flex-shrink-0 items-center gap-0 border-b px-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -81,21 +87,35 @@ export function BottomDrawer({ tabs, className }: BottomDrawerProps) {
 
         <div className="flex-1" />
 
+        {/* Collapse/expand toggle with gold accent */}
         <button
           onClick={toggleOpen}
-          className="text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded p-1 transition-colors"
+          className={cn(
+            'flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
+            drawerOpen
+              ? 'text-primary hover:bg-primary/10'
+              : 'text-muted-foreground hover:text-primary hover:bg-primary/10',
+          )}
           title={drawerOpen ? 'Collapse panel' : 'Expand panel'}
         >
-          {drawerOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          {drawerOpen ? (
+            <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200" />
+          ) : (
+            <ChevronUp className="h-3.5 w-3.5 transition-transform duration-200" />
+          )}
         </button>
       </div>
 
-      {/* Tab content */}
-      {drawerOpen && (
-        <div className="overflow-y-auto" style={{ maxHeight: DRAWER_HEIGHT - 36 }}>
-          {activeTab?.content}
-        </div>
-      )}
+      {/* Tab content — always in DOM for smooth height transition */}
+      <div
+        className="overflow-y-auto transition-opacity duration-150"
+        style={{
+          height: DRAWER_HEIGHT - HEADER_HEIGHT,
+          opacity: drawerOpen ? 1 : 0,
+        }}
+      >
+        {activeTab?.content}
+      </div>
     </div>
   )
 }
