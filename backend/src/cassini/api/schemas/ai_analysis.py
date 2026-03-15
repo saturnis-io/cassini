@@ -49,6 +49,7 @@ class AIInsightResponse(BaseModel):
     recommendations: list[str] = []
     tokens_used: int | None = None
     latency_ms: int | None = None
+    tool_calls_made: int = 0
     generated_at: datetime
 
 

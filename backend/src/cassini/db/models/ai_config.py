@@ -145,6 +145,9 @@ class AIInsight(Base):
     recommendations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tokens_used: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     latency_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tool_calls_made: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=sa.text("0")
+    )
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,

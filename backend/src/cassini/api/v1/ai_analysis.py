@@ -94,6 +94,7 @@ def _insight_to_response(
         recommendations=recommendations,
         tokens_used=insight.tokens_used,
         latency_ms=insight.latency_ms,
+        tool_calls_made=getattr(insight, "tool_calls_made", 0) or 0,
         generated_at=insight.generated_at,
     )
 
@@ -309,6 +310,7 @@ async def analyze_characteristic(
         recommendations=result.get("recommendations", []),
         tokens_used=result.get("tokens_used"),
         latency_ms=result.get("latency_ms"),
+        tool_calls_made=result.get("tool_calls_made", 0),
         generated_at=result["generated_at"],
     )
 
