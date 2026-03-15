@@ -1601,6 +1601,13 @@ async def recalculate_limits(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(_user, plant_id, "engineer")
 
+    # Guard: Phase II mode — frozen limits cannot be recalculated
+    if characteristic.limits_frozen:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Control limits are frozen (Phase II). Unfreeze limits before recalculating.",
+        )
+
     # Store before values
     before = {
         "ucl": characteristic.ucl,
@@ -1847,6 +1854,166 @@ async def set_limits(
             "calculated_at": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+
+@router.post("/{char_id}/freeze-limits")
+async def freeze_limits(
+    char_id: int,
+    request: Request,
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Freeze control limits, transitioning to Phase II monitoring.
+
+    When frozen, control limits are locked and will not be recalculated.
+    New data continues to be evaluated against the frozen limits, but
+    Nelson Rules violations become alerts only (no OOC exclusion or
+    re-estimation).
+
+    Requires engineer or admin role.
+    """
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found",
+        )
+
+    if characteristic.limits_frozen:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Control limits are already frozen",
+        )
+
+    # Require that limits exist before freezing
+    if characteristic.ucl is None or characteristic.lcl is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot freeze limits: no control limits have been calculated yet",
+        )
+
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
+    now = datetime.now(timezone.utc)
+    characteristic.limits_frozen = True
+    characteristic.limits_frozen_at = now
+    characteristic.limits_frozen_by = _user.username
+
+    await session.commit()
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "freeze",
+        "summary": f"Control limits frozen for '{characteristic.name}' (Phase II)",
+        "fields": {
+            "characteristic_name": characteristic.name,
+            "ucl": characteristic.ucl,
+            "lcl": characteristic.lcl,
+            "frozen_by": _user.username,
+            "frozen_at": now.isoformat(),
+        },
+    }
+
+    return {
+        "status": "frozen",
+        "limits_frozen": True,
+        "limits_frozen_at": now.isoformat(),
+        "limits_frozen_by": _user.username,
+    }
+
+
+@router.post("/{char_id}/unfreeze-limits")
+async def unfreeze_limits(
+    char_id: int,
+    request: Request,
+    repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
+    _user: User = Depends(get_current_engineer),
+) -> dict:
+    """Unfreeze control limits, returning to Phase I analysis.
+
+    When unfrozen, control limits can again be recalculated from data.
+    This also invalidates any existing electronic signatures on this
+    characteristic, as the statistical basis has changed.
+
+    Requires engineer or admin role.
+    """
+    characteristic = await repo.get_by_id(char_id)
+    if characteristic is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Characteristic {char_id} not found",
+        )
+
+    if not characteristic.limits_frozen:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Control limits are not currently frozen",
+        )
+
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
+
+    # Capture old state for audit
+    old_frozen_by = characteristic.limits_frozen_by
+    old_frozen_at = (
+        characteristic.limits_frozen_at.isoformat()
+        if characteristic.limits_frozen_at
+        else None
+    )
+
+    characteristic.limits_frozen = False
+    characteristic.limits_frozen_at = None
+    characteristic.limits_frozen_by = None
+
+    await session.commit()
+
+    # Invalidate electronic signatures — Phase II capability signatures
+    # are no longer valid when limits are unfrozen.
+    try:
+        from cassini.core.signature_engine import SignatureWorkflowEngine
+
+        sig_engine = SignatureWorkflowEngine(session)
+        await sig_engine.invalidate_signatures_for_resource(
+            "characteristic", char_id,
+            reason="Control limits unfrozen",
+        )
+    except Exception:
+        # Signature engine may not be available (e.g., community edition).
+        # Log and continue — unfreeze should not fail because of this.
+        import structlog
+        structlog.get_logger(__name__).warning(
+            "signature_invalidation_failed_on_unfreeze",
+            characteristic_id=char_id,
+            exc_info=True,
+        )
+
+    # Tier 1 audit context
+    request.state.audit_context = {
+        "resource_type": "characteristic",
+        "resource_id": char_id,
+        "action": "unfreeze",
+        "summary": f"Control limits unfrozen for '{characteristic.name}' (back to Phase I)",
+        "fields": {
+            "characteristic_name": characteristic.name,
+            "previously_frozen_by": old_frozen_by,
+            "previously_frozen_at": old_frozen_at,
+            "unfrozen_by": _user.username,
+        },
+    }
+
+    return {
+        "status": "unfrozen",
+        "limits_frozen": False,
+        "limits_frozen_at": None,
+        "limits_frozen_by": None,
+    }
 
 
 @router.post("/{char_id}/cusum-reset")

@@ -1096,6 +1096,24 @@ class SPCEngine:
         if char is None:
             raise ValueError(f"Characteristic {characteristic_id} not found")
 
+        # Guard: Phase II mode — frozen limits should not be auto-recalculated.
+        # If limits are frozen and stored, return the stored limits directly.
+        if getattr(char, "limits_frozen", False) is True:
+            if char.ucl is not None and char.lcl is not None:
+                center_line = (
+                    char.stored_center_line
+                    if char.stored_center_line is not None
+                    else (char.ucl + char.lcl) / 2
+                )
+                logger.debug(
+                    "limits_frozen_skip_recalculate",
+                    characteristic_id=characteristic_id,
+                )
+                return (center_line, char.ucl, char.lcl)
+            # Limits are frozen but no stored values — this shouldn't happen
+            # (freeze endpoint requires limits to exist), but fall through
+            # to calculate as a safety net.
+
         # Get historical samples as plain dicts to avoid lazy loading issues
         sample_data = await self._sample_repo.get_rolling_window_data(
             char_id=characteristic_id,

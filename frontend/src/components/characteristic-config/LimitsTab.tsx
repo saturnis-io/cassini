@@ -5,9 +5,10 @@ import { HelpTooltip } from '../HelpTooltip'
 import { StatNote } from '@/components/StatNote'
 import { ChangeReasonDialog } from '@/components/ChangeReasonDialog'
 import { LocalTimeRangeSelector, type TimeRangeState } from '../LocalTimeRangeSelector'
-import { RefreshCw, Calculator, Edit3 } from 'lucide-react'
+import { RefreshCw, Calculator, Edit3, Lock, Unlock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLicense } from '@/hooks/useLicense'
+import { useDateFormat } from '@/hooks/useDateFormat'
 import type { SubgroupMode } from '@/types'
 
 type LimitSource = 'calculate' | 'manual'
@@ -36,6 +37,9 @@ interface Characteristic {
   sample_count?: number
   attribute_chart_type?: 'p' | 'np' | 'c' | 'u' | null
   subgroup_size?: number
+  limits_frozen?: boolean
+  limits_frozen_at?: string | null
+  limits_frozen_by?: string | null
 }
 
 interface LimitsTabProps {
@@ -56,8 +60,11 @@ interface LimitsTabProps {
     sigma: number
     change_reason?: string
   }) => void
+  onFreezeLimits?: () => void
+  onUnfreezeLimits?: () => void
   isRecalculating?: boolean
   isSettingManual?: boolean
+  isFreezing?: boolean
 }
 
 /**
@@ -408,11 +415,16 @@ export function LimitsTab({
   onChange,
   onRecalculate,
   onSetManualLimits,
+  onFreezeLimits,
+  onUnfreezeLimits,
   isRecalculating = false,
   isSettingManual = false,
+  isFreezing = false,
 }: LimitsTabProps) {
   const { isProOrAbove } = useLicense()
+  const { formatDateTime } = useDateFormat()
   const [limitSource, setLimitSource] = useState<LimitSource>('calculate')
+  const [showUnfreezeConfirm, setShowUnfreezeConfirm] = useState(false)
   const [excludeOoc, setExcludeOoc] = useState(true)
   const [dateRange, setDateRange] = useState<TimeRangeState>({
     type: 'duration',
@@ -769,38 +781,135 @@ export function LimitsTab({
             </div>
           </div>
 
-          {/* Source toggle */}
-          <div className="border-border flex overflow-hidden rounded-lg border">
-            <button
-              type="button"
-              onClick={() => setLimitSource('calculate')}
-              className={cn(
-                'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
-                limitSource === 'calculate'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted',
-              )}
-            >
-              <Calculator className="h-4 w-4" />
-              Calculate from Data
-            </button>
-            <button
-              type="button"
-              onClick={() => setLimitSource('manual')}
-              className={cn(
-                'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
-                limitSource === 'manual'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted',
-              )}
-            >
-              <Edit3 className="h-4 w-4" />
-              Set Manually
-            </button>
-          </div>
+          {/* Phase I/II Status Banner */}
+          {characteristic.limits_frozen ? (
+            <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="text-primary h-4 w-4" />
+                  <span className="text-sm font-medium">Phase II (Monitoring)</span>
+                </div>
+                {onUnfreezeLimits && (
+                  <>
+                    {!showUnfreezeConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowUnfreezeConfirm(true)}
+                        disabled={isFreezing}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium',
+                          'border-border border transition-colors',
+                          'hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50',
+                        )}
+                      >
+                        <Unlock className="h-3.5 w-3.5" />
+                        Unfreeze
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-destructive text-xs">
+                          Signatures will be invalidated
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onUnfreezeLimits()
+                            setShowUnfreezeConfirm(false)
+                          }}
+                          disabled={isFreezing}
+                          className={cn(
+                            'rounded-md px-3 py-1.5 text-xs font-medium',
+                            'bg-destructive text-destructive-foreground',
+                            'hover:bg-destructive/90 transition-colors',
+                            'disabled:cursor-not-allowed disabled:opacity-50',
+                          )}
+                        >
+                          {isFreezing ? 'Unfreezing...' : 'Confirm'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowUnfreezeConfirm(false)}
+                          className="text-muted-foreground text-xs hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <p className="text-muted-foreground mt-1.5 text-xs">
+                Limits frozen by {characteristic.limits_frozen_by ?? 'unknown'}
+                {characteristic.limits_frozen_at
+                  ? ` at ${formatDateTime(characteristic.limits_frozen_at)}`
+                  : ''}
+                . Control limits are locked and will not be recalculated. Violations are alerts
+                only.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Unlock className="text-muted-foreground h-4 w-4" />
+                <span className="text-muted-foreground text-sm">
+                  Phase I (limits can be recalculated)
+                </span>
+              </div>
+              {onFreezeLimits &&
+                characteristic.ucl !== null &&
+                characteristic.lcl !== null && (
+                  <button
+                    type="button"
+                    onClick={onFreezeLimits}
+                    disabled={isFreezing}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium',
+                      'bg-primary text-primary-foreground',
+                      'hover:bg-primary/90 transition-colors',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                    )}
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    {isFreezing ? 'Freezing...' : 'Freeze Limits'}
+                  </button>
+                )}
+            </div>
+          )}
 
-          {/* Calculate from Data mode */}
-          {limitSource === 'calculate' && (
+          {/* Source toggle — disabled when limits are frozen */}
+          {!characteristic.limits_frozen && (
+            <div className="border-border flex overflow-hidden rounded-lg border">
+              <button
+                type="button"
+                onClick={() => setLimitSource('calculate')}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                  limitSource === 'calculate'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                )}
+              >
+                <Calculator className="h-4 w-4" />
+                Calculate from Data
+              </button>
+              <button
+                type="button"
+                onClick={() => setLimitSource('manual')}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                  limitSource === 'manual'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                )}
+              >
+                <Edit3 className="h-4 w-4" />
+                Set Manually
+              </button>
+            </div>
+          )}
+
+          {/* Calculate from Data mode — hidden when frozen */}
+          {!characteristic.limits_frozen && limitSource === 'calculate' && (
             <div className="space-y-4">
               {characteristic.stored_sigma && (
                 <div className="text-muted-foreground text-sm">
@@ -884,8 +993,8 @@ export function LimitsTab({
             </div>
           )}
 
-          {/* Set Manually mode */}
-          {limitSource === 'manual' && (
+          {/* Set Manually mode — hidden when frozen */}
+          {!characteristic.limits_frozen && limitSource === 'manual' && (
             <div className="space-y-4">
               <p className="text-muted-foreground text-sm">
                 Enter values from an external capability study or validation protocol.

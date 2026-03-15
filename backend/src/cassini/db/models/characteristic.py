@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
@@ -96,6 +97,13 @@ class Characteristic(Base):
 
     # Sigma estimation method override (null = auto-select based on subgroup size)
     sigma_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    # Phase I/II mode: frozen limits indicate Phase II monitoring
+    limits_frozen: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.text("0"), nullable=False
+    )
+    limits_frozen_at: Mapped[Optional[datetime]] = mapped_column(sa.DateTime, nullable=True)
+    limits_frozen_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # CUSUM reset point
     cusum_reset_after_sample_id: Mapped[Optional[int]] = mapped_column(

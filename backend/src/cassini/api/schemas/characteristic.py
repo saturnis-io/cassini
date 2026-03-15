@@ -5,7 +5,7 @@ Schemas for SPC characteristic configuration and chart data.
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
 
 from cassini.api.schemas.data_source import DataSourceResponse
@@ -188,6 +188,10 @@ class CharacteristicResponse(BaseModel):
     short_run_mode: str | None = None
     distribution_method: str | None = None
     sigma_method: str | None = None
+    # Phase I/II mode
+    limits_frozen: bool = False
+    limits_frozen_at: str | None = None
+    limits_frozen_by: str | None = None
     # Computed status fields (populated by list/hierarchy endpoints)
     sample_count: int | None = None
     unacknowledged_violations: int | None = None
@@ -195,6 +199,16 @@ class CharacteristicResponse(BaseModel):
     latest_cp: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("limits_frozen_at", mode="before")
+    @classmethod
+    def serialize_frozen_at(cls, v: object) -> str | None:
+        """Convert datetime to ISO string for JSON serialization."""
+        if v is None:
+            return None
+        if hasattr(v, "isoformat"):
+            return v.isoformat()  # type: ignore[union-attr]
+        return str(v)
 
 
 class CharacteristicSummary(BaseModel):

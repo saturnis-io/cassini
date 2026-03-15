@@ -447,6 +447,7 @@ class ControlLimitService:
         Raises:
             ValueError: If characteristic not found
             ValueError: If insufficient samples (< min_samples)
+            ValueError: If limits are frozen (Phase II mode)
 
         Example:
             >>> result = await service.recalculate_and_persist(
@@ -456,6 +457,14 @@ class ControlLimitService:
             ... )
             >>> print(f"Persisted UCL: {result.ucl}, LCL: {result.lcl}")
         """
+        # Guard: Phase II mode — frozen limits cannot be recalculated
+        char_check = await self._char_repo.get_by_id(characteristic_id)
+        if char_check is not None and getattr(char_check, "limits_frozen", False) is True:
+            raise ValueError(
+                "Control limits are frozen (Phase II). "
+                "Unfreeze limits before recalculating."
+            )
+
         # Calculate limits
         result = await self.calculate_limits(
             characteristic_id=characteristic_id,

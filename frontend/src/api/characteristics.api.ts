@@ -151,6 +151,22 @@ export const characteristicApi = {
       body: JSON.stringify({ new_mode: newMode, change_reason: changeReason }),
     }),
 
+  freezeLimits: (id: number) =>
+    fetchApi<{
+      status: string
+      limits_frozen: boolean
+      limits_frozen_at: string
+      limits_frozen_by: string
+    }>(`/characteristics/${id}/freeze-limits`, { method: 'POST' }),
+
+  unfreezeLimits: (id: number) =>
+    fetchApi<{
+      status: string
+      limits_frozen: boolean
+      limits_frozen_at: null
+      limits_frozen_by: null
+    }>(`/characteristics/${id}/unfreeze-limits`, { method: 'POST' }),
+
   getConfig: (id: number) =>
     fetchApi<CharacteristicConfigResponse | null>(`/characteristics/${id}/config`),
 
