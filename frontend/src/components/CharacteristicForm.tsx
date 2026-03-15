@@ -68,7 +68,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     ewma_l: '',
     short_run_mode: '' as '' | 'deviation' | 'standardized',
     use_laney_correction: false,
-    sigma_method: '' as '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range',
+    sigma_method: '' as '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled',
   })
 
   // Mode change confirmation dialog state
@@ -232,6 +232,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
           | 'r_bar_d2'
           | 's_bar_c4'
           | 'moving_range'
+          | 'pooled'
           | null,
         change_reason: changeReason || undefined,
       },

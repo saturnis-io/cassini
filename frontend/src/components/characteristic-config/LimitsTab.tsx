@@ -25,7 +25,7 @@ interface FormData {
   ewma_l: string
   use_laney_correction?: boolean
   short_run_mode?: '' | 'deviation' | 'standardized'
-  sigma_method?: '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range'
+  sigma_method?: '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled'
 }
 
 interface Characteristic {
@@ -998,6 +998,14 @@ export function LimitsTab({
                     enabled: (characteristic.subgroup_size ?? 1) > 1,
                     reason: 'Requires subgroup size > 1',
                   },
+                  {
+                    value: 'pooled',
+                    label: 'Sp (pooled)',
+                    desc: 'Pooled std dev (ISO 22514-2)',
+                    always: false,
+                    enabled: (characteristic.subgroup_size ?? 1) > 1,
+                    reason: 'Requires subgroup size > 1',
+                  },
                 ] as const
               ).map((opt) => {
                 const isEnabled = opt.always || opt.enabled
@@ -1053,7 +1061,9 @@ export function LimitsTab({
                   ? 'Uses consecutive moving ranges divided by d₂ (1.128) for individuals data'
                   : formData.sigma_method === 'r_bar_d2'
                     ? 'Uses mean of subgroup ranges divided by d₂. Standard for subgroup sizes 2–10'
-                    : 'Uses mean of subgroup standard deviations divided by c₄. More efficient for larger subgroups'}
+                    : formData.sigma_method === 'pooled'
+                      ? 'Pooled standard deviation Sp = √(Σ(nᵢ-1)sᵢ² / Σ(nᵢ-1)). ISO 22514-2'
+                      : 'Uses mean of subgroup standard deviations divided by c₄. More efficient for larger subgroups'}
             </p>
           </div>
         </AccordionSection>

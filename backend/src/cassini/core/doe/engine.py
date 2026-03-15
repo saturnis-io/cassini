@@ -349,6 +349,9 @@ class DOEEngine:
             ],
             "r_squared": anova.r_squared,
             "adj_r_squared": anova.adj_r_squared,
+            "pred_r_squared": anova.pred_r_squared,
+            "lack_of_fit_f": anova.lack_of_fit_f,
+            "lack_of_fit_p": anova.lack_of_fit_p,
         }
 
         # RSM regression for CCD and Box-Behnken designs
@@ -439,6 +442,9 @@ class DOEEngine:
             interactions=json.dumps(result["interactions"]),
             r_squared=result["r_squared"],
             adj_r_squared=result["adj_r_squared"],
+            pred_r_squared=result.get("pred_r_squared"),
+            lack_of_fit_f=result.get("lack_of_fit_f"),
+            lack_of_fit_p=result.get("lack_of_fit_p"),
             grand_mean=result["grand_mean"],
             regression_model=regression_json,
             optimal_settings=optimal_json,

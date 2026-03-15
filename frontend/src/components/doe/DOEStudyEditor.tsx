@@ -53,6 +53,11 @@ const DESIGN_TYPES = [
     label: 'Central Composite (CCD)',
     description: 'Full factorial + star points + center points. Response surface methodology.',
   },
+  {
+    value: 'box_behnken',
+    label: 'Box-Behnken',
+    description: 'Three-level RSM design. No corner points. Requires 3+ factors.',
+  },
 ] as const
 
 const PHASE_STEPS: StudyStep[] = [
@@ -572,6 +577,9 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                   anova={analysis.anova_table}
                   r_squared={analysis.r_squared}
                   adj_r_squared={analysis.adj_r_squared}
+                  pred_r_squared={analysis.pred_r_squared}
+                  lack_of_fit_f={analysis.lack_of_fit_f}
+                  lack_of_fit_p={analysis.lack_of_fit_p}
                 />
 
                 <EffectsParetoChart

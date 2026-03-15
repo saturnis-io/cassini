@@ -201,7 +201,9 @@ export const characteristicFormSchema = z
         })
       }
       if (
-        (data.sigma_method === 'r_bar_d2' || data.sigma_method === 's_bar_c4') &&
+        (data.sigma_method === 'r_bar_d2' ||
+          data.sigma_method === 's_bar_c4' ||
+          data.sigma_method === 'pooled') &&
         data.subgroup_size === 1
       ) {
         ctx.addIssue({

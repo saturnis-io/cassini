@@ -13,6 +13,9 @@ interface ANOVATableProps {
   anova: ANOVARow[]
   r_squared: number
   adj_r_squared: number
+  pred_r_squared?: number | null
+  lack_of_fit_f?: number | null
+  lack_of_fit_p?: number | null
 }
 
 function formatNumber(value: number, decimals = 4): string {
@@ -41,7 +44,14 @@ function rSquaredColor(r2: number): string {
   return 'text-red-600 dark:text-red-400'
 }
 
-export function ANOVATable({ anova, r_squared, adj_r_squared }: ANOVATableProps) {
+export function ANOVATable({
+  anova,
+  r_squared,
+  adj_r_squared,
+  pred_r_squared,
+  lack_of_fit_f,
+  lack_of_fit_p,
+}: ANOVATableProps) {
   return (
     <div className="space-y-4">
       <div className="border-border overflow-auto rounded-xl border">
@@ -106,7 +116,7 @@ export function ANOVATable({ anova, r_squared, adj_r_squared }: ANOVATableProps)
       </div>
 
       {/* R-squared summary */}
-      <div className="bg-muted/30 flex items-center gap-6 rounded-lg px-4 py-3">
+      <div className="bg-muted/30 flex flex-wrap items-center gap-6 rounded-lg px-4 py-3">
         <div>
           <span className="text-muted-foreground text-xs font-medium">R-squared</span>
           <div className={cn('text-lg font-bold', rSquaredColor(r_squared))}>
@@ -119,6 +129,14 @@ export function ANOVATable({ anova, r_squared, adj_r_squared }: ANOVATableProps)
             {(adj_r_squared * 100).toFixed(1)}%
           </div>
         </div>
+        {pred_r_squared != null && (
+          <div>
+            <span className="text-muted-foreground text-xs font-medium">Pred. R-squared</span>
+            <div className={cn('text-lg font-bold', rSquaredColor(pred_r_squared))}>
+              {(pred_r_squared * 100).toFixed(1)}%
+            </div>
+          </div>
+        )}
         <div className="text-muted-foreground text-xs">
           {r_squared >= 0.9
             ? 'Excellent model fit'
@@ -127,6 +145,38 @@ export function ANOVATable({ anova, r_squared, adj_r_squared }: ANOVATableProps)
               : 'Poor model fit -- consider additional factors or higher-order terms'}
         </div>
       </div>
+
+      {/* Lack-of-fit test */}
+      {lack_of_fit_f != null && lack_of_fit_p != null && (
+        <div className="bg-muted/30 flex items-center gap-6 rounded-lg px-4 py-3">
+          <div>
+            <span className="text-muted-foreground text-xs font-medium">Lack-of-Fit F</span>
+            <div className="text-lg font-bold font-mono">
+              {formatNumber(lack_of_fit_f, 2)}
+            </div>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-xs font-medium">Lack-of-Fit p-value</span>
+            <div className="text-lg font-bold">
+              <span
+                className={cn(
+                  'inline-block rounded px-1.5 py-0.5 font-mono text-sm',
+                  lack_of_fit_p < 0.05
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                )}
+              >
+                {formatPValue(lack_of_fit_p)}
+              </span>
+            </div>
+          </div>
+          <div className="text-muted-foreground text-xs">
+            {lack_of_fit_p >= 0.05
+              ? 'No significant lack of fit -- model adequately describes the data'
+              : 'Significant lack of fit -- consider higher-order terms or additional factors'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

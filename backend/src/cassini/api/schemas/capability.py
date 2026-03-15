@@ -25,6 +25,14 @@ class CapabilityResponse(BaseModel):
     cp_unavailable_reason: str | None = None
     distribution_method_applied: str | None = None
     transform_applied: str | None = None
+    # Z-bench and expected PPM (ISO 22514 / Montgomery 8th Ed. Section 8.2)
+    z_bench_within: float | None = None
+    z_bench_overall: float | None = None
+    ppm_within_expected: float | None = None
+    ppm_overall_expected: float | None = None
+    # Process stability assessment (AIAG SPC Manual Ch. 3 Section 3.1)
+    stability_warning: str | None = None
+    recent_violation_count: int = 0
     # Bootstrap confidence intervals (optional, requested via include_ci=true)
     cpk_ci: tuple[float, float] | None = None
     ppk_ci: tuple[float, float] | None = None

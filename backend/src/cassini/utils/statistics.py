@@ -697,6 +697,66 @@ def classify_zone(value: float, zones: ZoneBoundaries, center_line: float) -> st
         return "beyond_lcl"
 
 
+def estimate_sigma_pooled(subgroup_stddevs: list[float], subgroup_sizes: list[int]) -> float:
+    """Estimate process sigma using the pooled standard deviation method.
+
+    Formula:
+        Sp = sqrt(sum((n_i - 1) * s_i^2) / sum(n_i - 1))
+
+    where s_i is the sample standard deviation of the i-th subgroup and
+    n_i is the size of the i-th subgroup.  This is the unbiased pooled
+    variance estimator under the assumption of equal within-subgroup
+    variances (homoscedasticity).
+
+    The pooled estimator is preferred when subgroup sizes vary because it
+    correctly weights each subgroup's contribution by its degrees of freedom,
+    rather than treating all subgroups equally.
+
+    Ref: ISO 22514-2:2017; Montgomery (2019), "Introduction to Statistical
+         Quality Control", 8th Ed., Eq. 8.3;
+         AIAG SPC Manual, 2nd Ed., Appendix.
+
+    Args:
+        subgroup_stddevs: List of subgroup sample standard deviations (s_i, ddof=1).
+        subgroup_sizes: List of subgroup sizes (n_i), same length as subgroup_stddevs.
+
+    Returns:
+        Pooled standard deviation estimate (Sp).
+
+    Raises:
+        ValueError: If inputs are empty, mismatched in length, contain negative
+            std devs, or all subgroups have size 1 (zero total degrees of freedom).
+    """
+    if not subgroup_stddevs or not subgroup_sizes:
+        raise ValueError("Subgroup standard deviations and sizes cannot be empty")
+
+    if len(subgroup_stddevs) != len(subgroup_sizes):
+        raise ValueError(
+            f"Subgroup standard deviations ({len(subgroup_stddevs)}) and sizes "
+            f"({len(subgroup_sizes)}) must have the same length"
+        )
+
+    if any(s < 0 for s in subgroup_stddevs):
+        raise ValueError("Subgroup standard deviations cannot be negative")
+
+    # Calculate total degrees of freedom and weighted sum of variances
+    total_df = 0
+    weighted_var_sum = 0.0
+    for s_i, n_i in zip(subgroup_stddevs, subgroup_sizes):
+        df_i = n_i - 1
+        total_df += df_i
+        weighted_var_sum += df_i * (s_i ** 2)
+
+    if total_df == 0:
+        raise ValueError(
+            "Total degrees of freedom is zero: all subgroups have size 1. "
+            "Pooled sigma requires at least one subgroup with size > 1."
+        )
+
+    import math
+    return math.sqrt(weighted_var_sum / total_df)
+
+
 def calculate_mean_range(values: List[float]) -> tuple[float, float | None]:
     """Calculate mean and range from a list of measurement values.
 

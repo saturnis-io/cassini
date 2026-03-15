@@ -8,6 +8,7 @@ Uses numpy for matrix algebra and scipy.stats for F-test p-values.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Sequence
@@ -70,6 +71,9 @@ class ANOVAResult:
     rows: list[ANOVARow]
     r_squared: float
     adj_r_squared: float
+    pred_r_squared: float | None = None
+    lack_of_fit_f: float | None = None
+    lack_of_fit_p: float | None = None
 
 
 @dataclass
@@ -460,7 +464,68 @@ def compute_anova(
     else:
         adj_r_sq = r_sq
 
-    return ANOVAResult(rows=rows, r_squared=r_sq, adj_r_squared=adj_r_sq)
+    # Predicted R² via PRESS statistic (hat matrix shortcut using QR)
+    pred_r_sq: float | None = None
+    try:
+        Q, R_qr = np.linalg.qr(X_full, mode="reduced")
+        h = np.sum(Q ** 2, axis=1)
+        # If any h_ii is ~1 (saturated model), PRESS is undefined
+        if np.all(h < 1.0 - 1e-10):
+            press_residuals = residuals_ols / (1.0 - h)
+            press = float(np.sum(press_residuals ** 2))
+            if ss_total > 1e-30:
+                pred_r_sq = 1.0 - press / ss_total
+    except (np.linalg.LinAlgError, FloatingPointError):
+        pass  # QR failed; leave pred_r_sq as None
+
+    # Lack-of-fit test (requires replicates)
+    lof_f: float | None = None
+    lof_p: float | None = None
+    try:
+        # Group rows by exact coded factor-level combination
+        group_keys: list[tuple[float, ...]] = [
+            tuple(design[i, :].tolist()) for i in range(n)
+        ]
+        groups: dict[tuple[float, ...], list[int]] = defaultdict(list)
+        for idx_row, key in enumerate(group_keys):
+            groups[key].append(idx_row)
+
+        n_groups = len(groups)
+        # Replicates exist if any group has more than one observation
+        has_replicates = any(len(indices) > 1 for indices in groups.values())
+
+        if has_replicates and n_groups < n:
+            # Pure error SS: within-group variation
+            ss_pe = 0.0
+            df_pe = 0
+            for indices in groups.values():
+                if len(indices) > 1:
+                    group_responses = response[indices]
+                    group_mean = float(np.mean(group_responses))
+                    ss_pe += float(np.sum((group_responses - group_mean) ** 2))
+                    df_pe += len(indices) - 1
+
+            if df_pe > 0:
+                ss_lof = ss_resid - ss_pe
+                df_lof = df_resid - df_pe
+
+                if df_lof > 0 and ss_pe > 0:
+                    ms_lof = ss_lof / df_lof
+                    ms_pe = ss_pe / df_pe
+                    if ms_pe > 1e-30:
+                        lof_f = float(ms_lof / ms_pe)
+                        lof_p = float(sp_stats.f.sf(lof_f, df_lof, df_pe))
+    except Exception:
+        pass  # Defensive: leave as None on unexpected errors
+
+    return ANOVAResult(
+        rows=rows,
+        r_squared=r_sq,
+        adj_r_squared=adj_r_sq,
+        pred_r_squared=pred_r_sq,
+        lack_of_fit_f=lof_f,
+        lack_of_fit_p=lof_p,
+    )
 
 
 # ---------------------------------------------------------------------------

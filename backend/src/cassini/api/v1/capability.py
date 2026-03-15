@@ -29,6 +29,7 @@ from cassini.core.capability import (
 from cassini.core.distributions import calculate_capability_nonnormal
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.user import User
+from cassini.db.models.violation import Violation
 from cassini.db.repositories.capability import CapabilityHistoryRepository
 from cassini.db.repositories.sample import SampleRepository
 
@@ -128,6 +129,47 @@ def _get_cp_unavailable_reason(characteristic: Characteristic) -> str | None:
     if characteristic.usl is None or characteristic.lsl is None:
         return "one_sided_spec"
     return None
+
+
+async def _count_violations_in_window(
+    char_id: int,
+    session: AsyncSession,
+    window_size: int,
+) -> int:
+    """Count violations for this characteristic within the data window.
+
+    Uses the same sample window as the capability calculation to ensure
+    the stability warning reflects the same data range.
+
+    Args:
+        char_id: Characteristic ID
+        session: Database session
+        window_size: Number of recent samples in the capability window
+
+    Returns:
+        Count of violations associated with samples in the data window.
+    """
+    from sqlalchemy import func, select
+    from cassini.db.models.sample import Sample
+
+    # Get the sample IDs in the capability data window
+    sample_id_subq = (
+        select(Sample.id)
+        .where(Sample.char_id == char_id)
+        .where(Sample.is_excluded == False)
+        .order_by(Sample.timestamp.desc())
+        .limit(window_size)
+    ).subquery()
+
+    count_stmt = (
+        select(func.count())
+        .select_from(Violation)
+        .where(Violation.char_id == char_id)
+        .where(Violation.sample_id.in_(select(sample_id_subq.c.id)))
+    )
+
+    result = await session.execute(count_stmt)
+    return result.scalar_one()
 
 
 def _infer_sigma_method(characteristic: Characteristic) -> str | None:
@@ -261,6 +303,16 @@ async def get_capability(
         subgroup_size=characteristic.subgroup_size,
     )
 
+    # Stability warning: count violations in the same data window
+    violation_count = await _count_violations_in_window(char_id, session, window_size)
+    stability_warning: str | None = None
+    if violation_count > 0:
+        stability_warning = (
+            f"Process may be unstable: {violation_count} violation(s) detected in the "
+            f"analysis window. Capability indices assume a stable process. "
+            f"AIAG SPC Manual Ch. 3 \u00a73.1"
+        )
+
     return CapabilityResponse(
         cp=result.cp,
         cpk=result.cpk,
@@ -282,6 +334,12 @@ async def get_capability(
         cp_unavailable_reason=cp_unavailable_reason,
         distribution_method_applied="normal",
         transform_applied=None,
+        z_bench_within=result.z_bench_within,
+        z_bench_overall=result.z_bench_overall,
+        ppm_within_expected=result.ppm_within_expected,
+        ppm_overall_expected=result.ppm_overall_expected,
+        stability_warning=stability_warning,
+        recent_violation_count=violation_count,
         **ci_fields,
     )
 

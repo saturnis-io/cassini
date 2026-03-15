@@ -80,7 +80,7 @@ class CharacteristicCreate(BaseModel):
         description="Enable Laney p'/u' overdispersion correction (p/u charts only)"
     )
     sigma_method: str | None = Field(
-        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range)$",
+        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range|pooled)$",
         description="Sigma estimation method override (null = auto-select based on subgroup size)"
     )
 
@@ -98,7 +98,7 @@ class CharacteristicCreate(BaseModel):
         if self.sigma_method:
             if self.sigma_method == "moving_range" and self.subgroup_size > 1:
                 raise ValueError("moving_range sigma method is only valid for subgroup_size = 1")
-            if self.sigma_method in ("r_bar_d2", "s_bar_c4") and self.subgroup_size == 1:
+            if self.sigma_method in ("r_bar_d2", "s_bar_c4", "pooled") and self.subgroup_size == 1:
                 raise ValueError(f"{self.sigma_method} sigma method requires subgroup_size > 1")
         return self
 
@@ -149,7 +149,7 @@ class CharacteristicUpdate(BaseModel):
         description="Distribution fitting method for non-normal capability"
     )
     sigma_method: str | None = Field(
-        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range)$",
+        None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range|pooled)$",
         description="Sigma estimation method override"
     )
     change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")

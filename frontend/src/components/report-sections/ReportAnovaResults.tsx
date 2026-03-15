@@ -29,6 +29,9 @@ export function ReportAnovaResults({ studyId }: ReportAnovaResultsProps) {
         anova={analysis.anova_table}
         r_squared={analysis.r_squared}
         adj_r_squared={analysis.adj_r_squared}
+        pred_r_squared={analysis.pred_r_squared}
+        lack_of_fit_f={analysis.lack_of_fit_f}
+        lack_of_fit_p={analysis.lack_of_fit_p}
       />
     </div>
   )

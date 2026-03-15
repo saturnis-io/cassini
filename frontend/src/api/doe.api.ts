@@ -113,6 +113,9 @@ export interface DOEAnalysis {
   interactions: DOEInteraction[]
   r_squared: number
   adj_r_squared: number
+  pred_r_squared: number | null
+  lack_of_fit_f: number | null
+  lack_of_fit_p: number | null
   grand_mean: number
   residuals: number[] | null
   fitted_values: number[] | null

@@ -159,6 +159,14 @@ class CapabilityResult:
     # Exposed so that downstream consumers (Show Your Work, reports) can
     # verify the correct df was applied for their subgroup structure.
     cp_ci_degrees_of_freedom: int | None = None
+    # Z-bench and PPM (ISO 22514 / Montgomery 8th Ed. Section 8.2)
+    z_bench_within: float | None = None
+    z_bench_overall: float | None = None
+    ppm_within_expected: float | None = None
+    ppm_overall_expected: float | None = None
+    # Process stability assessment (AIAG SPC Manual Ch. 3 Section 3.1)
+    stability_warning: str | None = None
+    recent_violation_count: int = 0
 
 
 def calculate_capability(
@@ -586,6 +594,88 @@ def calculate_capability(
             cpk_lower = cpk - z_crit * se_cpk
             cpk_upper = cpk + z_crit * se_cpk
 
+    # ------------------------------------------------------------------
+    # Z-Bench and Expected PPM (ISO 22514 / Montgomery 8th Ed. §8.2)
+    # ------------------------------------------------------------------
+    # Z.Bench is the process sigma level — the equivalent standard normal
+    # deviate corresponding to the total expected defect probability.
+    #
+    # Formulas:
+    #   PPM_upper = Phi_bar((USL - x-bar) / sigma) * 1e6
+    #   PPM_lower = Phi((LSL - x-bar) / sigma) * 1e6
+    #   Z.Bench   = Phi^{-1}(1 - (PPM_upper + PPM_lower) / 1e6)
+    #
+    # Where Phi is the standard normal CDF, Phi_bar = 1 - Phi (survival).
+    # For one-sided specs, the missing side contributes 0 PPM.
+    # Z.Bench is capped at 6.0 (practical limit; beyond this PPM is
+    # effectively zero and the inverse CDF becomes numerically unstable).
+    #
+    # NO Motorola 1.5-sigma shift is applied (ISO 22514 convention).
+    #
+    # Ref: ISO 22514-2:2017, Section 6; Montgomery (2019), Section 8.2.
+    z_bench_within: float | None = None
+    z_bench_overall: float | None = None
+    ppm_within_expected: float | None = None
+    ppm_overall_expected: float | None = None
+
+    def _compute_zbench_ppm(
+        _mean: float, _sigma: float, _usl: float | None, _lsl: float | None,
+    ) -> tuple[float, float]:
+        """Compute Z.Bench and total expected PPM for a given sigma."""
+        ppm_upper = 0.0
+        ppm_lower = 0.0
+        if _usl is not None and _sigma > 0:
+            ppm_upper = float(scipy_stats.norm.sf((_usl - _mean) / _sigma)) * 1e6
+        if _lsl is not None and _sigma > 0:
+            ppm_lower = float(scipy_stats.norm.cdf((_lsl - _mean) / _sigma)) * 1e6
+        total_ppm = ppm_upper + ppm_lower
+        total_defect_prob = total_ppm / 1e6
+        if total_defect_prob <= 0.0 or total_defect_prob >= 1.0:
+            z_b = 6.0  # Cap at practical limit
+        else:
+            z_b = float(scipy_stats.norm.ppf(1.0 - total_defect_prob))
+            z_b = min(z_b, 6.0)
+        return z_b, total_ppm
+
+    # Compute Z.Bench within (using sigma_within)
+    if sigma_within is not None and sigma_within > 0:
+        z_bench_within, ppm_within_expected = _compute_zbench_ppm(
+            mean, sigma_within, usl, lsl,
+        )
+
+    # Compute Z.Bench overall (using sigma_overall)
+    if sigma_overall > 0:
+        z_bench_overall, ppm_overall_expected = _compute_zbench_ppm(
+            mean, sigma_overall, usl, lsl,
+        )
+
+    if collector:
+        # Log Z.Bench step for Show Your Work transparency
+        _zbench_parts = []
+        if z_bench_within is not None:
+            _zbench_parts.append(f"Z.Bench_{{within}} = {z_bench_within:.4f}")
+        if z_bench_overall is not None:
+            _zbench_parts.append(f"Z.Bench_{{overall}} = {z_bench_overall:.4f}")
+        if _zbench_parts:
+            _ppm_detail = []
+            if ppm_within_expected is not None:
+                _ppm_detail.append(f"PPM_within = {ppm_within_expected:.1f}")
+            if ppm_overall_expected is not None:
+                _ppm_detail.append(f"PPM_overall = {ppm_overall_expected:.1f}")
+            collector.step(
+                label="Z.Bench & Expected PPM",
+                formula_latex=(
+                    r"Z_{Bench} = \Phi^{-1}\!\left(1 - \frac{PPM_{upper} + PPM_{lower}}{10^6}\right)"
+                ),
+                substitution_latex=", ".join(_zbench_parts),
+                result=z_bench_within if z_bench_within is not None else z_bench_overall,
+                note=(
+                    "Z.Bench per ISO 22514 / Montgomery 8th Ed. \u00a78.2 "
+                    "(no 1.5\u03c3 shift applied). Expected (model-based) defect rates. "
+                    + "; ".join(_ppm_detail)
+                ),
+            )
+
     return CapabilityResult(
         cp=_round_or_none(cp),
         cpk=_round_or_none(cpk),
@@ -602,6 +692,10 @@ def calculate_capability(
         cpk_lower=_round_or_none(cpk_lower),
         cpk_upper=_round_or_none(cpk_upper),
         cp_ci_degrees_of_freedom=cp_ci_df,
+        z_bench_within=_round_or_none(z_bench_within),
+        z_bench_overall=_round_or_none(z_bench_overall),
+        ppm_within_expected=_round_or_none(ppm_within_expected, 1),
+        ppm_overall_expected=_round_or_none(ppm_overall_expected, 1),
     )
 
 

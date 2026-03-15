@@ -159,6 +159,9 @@ class DOEAnalysisResponse(BaseModel):
     interactions: list[InteractionResponse]
     r_squared: float
     adj_r_squared: float
+    pred_r_squared: float | None = None
+    lack_of_fit_f: float | None = None
+    lack_of_fit_p: float | None = None
     regression: RegressionResponse | None = None
     residuals: list[float] | None = None
     fitted_values: list[float] | None = None

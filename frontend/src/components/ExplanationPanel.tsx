@@ -11,6 +11,7 @@ const SIGMA_ESTIMATOR_LABELS: Record<string, string> = {
   r_bar_d2: 'R\u0304/d\u2082',
   s_bar_c4: 'S\u0304/c\u2084',
   moving_range: 'MR\u0304/d\u2082 (I-MR)',
+  pooled: 'Sp (pooled)',
   sample_std_dev: 'Sample s (n\u22121)',
 }
 

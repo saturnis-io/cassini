@@ -117,7 +117,7 @@ export interface Characteristic {
   // Distribution fitting (Sprint 5 - A1)
   distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
   // Sigma estimation method override (null = auto-select)
-  sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | null
+  sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled' | null
   // Capability fields (populated by list endpoint)
   latest_cpk?: number | null
   latest_cp?: number | null
