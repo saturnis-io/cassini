@@ -16,8 +16,17 @@ const BACKEND_URL_MAP: Record<DbDialect, string> = {
   mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test',
 }
 
-/** Sync driver URLs for Alembic migrations. */
+/** Alembic migration URLs (async drivers — env.py uses async_engine_from_config).
+ *  For the PG seed script (psycopg2), we derive a sync URL at call-site. */
 const ALEMBIC_URL_MAP: Record<DbDialect, string> = {
+  postgresql:
+    'postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test',
+  mysql: 'mysql+aiomysql://cassini:cassini@localhost:3306/cassini_test',
+  mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes',
+}
+
+/** Sync driver URL for seeding scripts (psycopg2, pymysql, pyodbc). */
+const SEED_URL_MAP: Record<DbDialect, string> = {
   postgresql: 'postgresql://cassini:cassini@localhost:5432/cassini_test',
   mysql: 'mysql://cassini:cassini@localhost:3306/cassini_test',
   mssql: 'mssql+pyodbc://sa:CassiniTest1!@localhost:1433/cassini_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes',
@@ -122,7 +131,17 @@ function setupExternalDb(dialect: DbDialect) {
     )
   }
 
-  // Step 2: Run Alembic migrations with the sync driver URL
+  // If a manifest already exists, the database was pre-populated externally.
+  // Skip migration and seeding to avoid duplicate-key errors.
+  if (fs.existsSync(MANIFEST)) {
+    console.log(
+      `[global-setup] Manifest already exists — skipping migration & seed for ${dialect}`,
+    )
+    console.log(`[global-setup] Setup complete for ${dialect} (pre-populated)`)
+    return
+  }
+
+  // Step 2: Run Alembic migrations with the async driver URL
   console.log(`[global-setup] Running alembic upgrade head against ${dialect}...`)
   try {
     execSync('python -m alembic upgrade head', {
@@ -143,12 +162,35 @@ function setupExternalDb(dialect: DbDialect) {
     throw err
   }
 
-  // Step 3: Seeding — skip for external DBs (seed_e2e.py only supports SQLite)
-  console.warn(
-    `[global-setup] WARNING: Skipping seed for ${dialect} — ` +
-      `seed_e2e.py only supports direct SQLite insertion. ` +
-      `API-based seeding for external DBs will be added later.`,
-  )
+  // Step 3: Seed test data
+  if (dialect === 'postgresql') {
+    const seedUrl = SEED_URL_MAP[dialect]
+    console.log(`[global-setup] Seeding ${dialect} via seed_e2e_pg.py...`)
+    try {
+      const output = execSync(
+        `python scripts/seed_e2e_pg.py --url "${seedUrl}" --manifest "${MANIFEST}"`,
+        {
+          cwd: BACKEND_DIR,
+          env: { ...process.env },
+          stdio: 'pipe',
+          timeout: 60000,
+        },
+      )
+      console.log(`[global-setup] ${output.toString().trim()}`)
+    } catch (err: unknown) {
+      const error = err as { stderr?: Buffer; stdout?: Buffer }
+      console.error(`[global-setup] PG Seed FAILED!`)
+      console.error(`stderr: ${error.stderr?.toString()}`)
+      console.error(`stdout: ${error.stdout?.toString()}`)
+      throw err
+    }
+  } else {
+    console.warn(
+      `[global-setup] WARNING: Skipping seed for ${dialect} — ` +
+        `seed script not yet available for this dialect. ` +
+        `Only SQLite and PostgreSQL are currently supported.`,
+    )
+  }
 
   console.log(`[global-setup] Setup complete for ${dialect}`)
 }
