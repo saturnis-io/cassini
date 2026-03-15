@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table('user', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('roles_locked', sa.Boolean(), server_default=sa.text('0'), nullable=False))
+        batch_op.add_column(sa.Column('roles_locked', sa.Boolean(), server_default=sa.False_(), nullable=False))
 
 
 def downgrade() -> None:
