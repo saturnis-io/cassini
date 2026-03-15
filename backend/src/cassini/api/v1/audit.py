@@ -5,6 +5,7 @@ pagination, CSV export, and summary statistics.
 """
 
 import csv
+import hashlib
 import io
 from datetime import datetime
 from typing import Optional
@@ -15,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
-from cassini.api.schemas.audit import AuditLogEntry, AuditLogListResponse, AuditStats
+from cassini.api.schemas.audit import AuditIntegrityResult, AuditLogEntry, AuditLogListResponse, AuditStats
 from cassini.core.resource_display import resolve_resource_display
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.user import User
@@ -92,6 +93,55 @@ async def list_audit_logs(
     )
 
 
+@router.get("/verify-integrity", response_model=AuditIntegrityResult)
+async def verify_audit_integrity(
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(get_current_admin),
+) -> AuditIntegrityResult:
+    """Verify audit log integrity by walking the SHA-256 hash chain. Admin-only."""
+    stmt = (
+        select(AuditLog)
+        .where(AuditLog.sequence_hash.isnot(None))
+        .order_by(AuditLog.timestamp.asc())
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+
+    if not rows:
+        return AuditIntegrityResult(
+            verified_count=0,
+            valid=True,
+            message="No hashed entries to verify",
+        )
+
+    previous_hash = "0" * 64
+    for i, row in enumerate(rows):
+        hash_input = (
+            f"{previous_hash}|"
+            f"{row.action}|"
+            f"{row.resource_type}|"
+            f"{row.resource_id}|"
+            f"{row.user_id}|"
+            f"{row.username}|"
+            f"{row.timestamp.isoformat()}"
+        )
+        expected = hashlib.sha256(hash_input.encode()).hexdigest()
+        if row.sequence_hash != expected:
+            return AuditIntegrityResult(
+                verified_count=i,
+                valid=False,
+                first_break_id=row.id,
+                first_break_timestamp=row.timestamp,
+                message=f"Hash chain break at entry {row.id}",
+            )
+        previous_hash = row.sequence_hash
+
+    return AuditIntegrityResult(
+        verified_count=len(rows),
+        valid=True,
+        message=f"All {len(rows)} entries verified",
+    )
+
+
 @router.get("/logs/export")
 async def export_audit_logs(
     user_id: Optional[int] = Query(None),
@@ -99,12 +149,13 @@ async def export_audit_logs(
     resource_type: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100000, ge=1, le=100000),
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
 ) -> StreamingResponse:
     """Export audit log entries as CSV. Admin-only. Same filters as list endpoint."""
     base = _build_audit_query(user_id, action, resource_type, start_date, end_date)
-    stmt = base.order_by(AuditLog.timestamp.desc()).limit(10000)
+    stmt = base.order_by(AuditLog.timestamp.desc()).limit(limit)
     rows = (await session.execute(stmt)).scalars().all()
 
     # Resolve resource display names — prefer stored value, fall back to live lookup

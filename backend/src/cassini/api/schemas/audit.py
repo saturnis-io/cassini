@@ -33,3 +33,11 @@ class AuditStats(BaseModel):
     total_events: int
     events_by_action: dict[str, int]
     events_by_resource: dict[str, int]
+
+
+class AuditIntegrityResult(BaseModel):
+    verified_count: int
+    valid: bool
+    first_break_id: int | None = None
+    first_break_timestamp: datetime | None = None
+    message: str
