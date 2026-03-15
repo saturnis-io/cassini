@@ -105,7 +105,7 @@ test.describe('Three-Tier Licensing', () => {
     const statusCard = page.locator('[data-ui="license-status-card"]')
     await expect(statusCard).toBeVisible()
 
-    // The tier should show "enterprise" (CASSINI_DEV_COMMERCIAL=true enables enterprise)
+    // The tier should show "enterprise" (CASSINI_DEV_TIER=enterprise enables enterprise)
     // The EditionBadge renders the tier as a capitalized badge
     const tierBadge = statusCard.locator('text=enterprise').first()
     const hasTierBadge = await tierBadge.isVisible({ timeout: 3000 }).catch(() => false)

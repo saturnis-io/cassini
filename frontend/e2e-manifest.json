@@ -1,0 +1,141 @@
+{
+  "admin_user_id": 1,
+  "dashboard": {
+    "plant_id": 2,
+    "dept_id": 1,
+    "line_id": 2,
+    "station_id": 3,
+    "char_id": 1
+  },
+  "annotations": {
+    "plant_id": 3,
+    "dept_id": 4,
+    "line_id": 5,
+    "station_id": 6,
+    "char_id": 2
+  },
+  "data_entry": {
+    "plant_id": 4,
+    "dept_id": 7,
+    "line_id": 8,
+    "station_id": 9,
+    "char_id": 3
+  },
+  "violations": {
+    "plant_id": 5,
+    "dept_id": 10,
+    "line_id": 11,
+    "station_id": 12,
+    "char_id": 4
+  },
+  "reports": {
+    "plant_id": 6,
+    "dept_id": 13,
+    "line_id": 14,
+    "station_id": 15,
+    "char_id": 5
+  },
+  "sample_mgmt": {
+    "plant_id": 7,
+    "dept_id": 16,
+    "line_id": 17,
+    "station_id": 18,
+    "char_id": 6
+  },
+  "config": {
+    "plant_id": 8,
+    "dept_id": 19,
+    "line_id": 20,
+    "station_id": 21,
+    "char_id": 7
+  },
+  "inspector": {
+    "plant_id": 9,
+    "dept_id": 22,
+    "line_id": 23,
+    "station_id": 24,
+    "char_id": 8
+  },
+  "csv_import": {
+    "plant_id": 10,
+    "dept_id": 25,
+    "line_id": 26,
+    "station_id": 27,
+    "char_id": 9
+  },
+  "rbac": {
+    "plant_id": 11,
+    "dept_id": 28,
+    "line_id": 29,
+    "station_id": 30,
+    "char_id": 10,
+    "user_ids": {
+      "operator": 2,
+      "supervisor": 3,
+      "engineer": 4,
+      "admin2": 5
+    }
+  },
+  "kiosk": {
+    "plant_id": 12,
+    "dept_id": 31,
+    "line_id": 32,
+    "station_id": 33,
+    "char_id": 11,
+    "char_id_2": 12
+  },
+  "cusum_ewma": {
+    "plant_id": 13,
+    "station_id": 36,
+    "cusum_char_id": 13,
+    "ewma_char_id": 14
+  },
+  "attribute_charts": {
+    "plant_id": 14,
+    "station_id": 39,
+    "p_char_id": 15,
+    "np_char_id": 16,
+    "c_char_id": 17,
+    "u_char_id": 18
+  },
+  "material_limits": {
+    "plant_id": 15,
+    "dept_id": 40,
+    "line_id": 41,
+    "station_id": 42,
+    "char_id": 19
+  },
+  "connectivity": {
+    "plant_id": 16
+  },
+  "navigation": {
+    "plant_id": 17
+  },
+  "hierarchy": {
+    "plant_id": 18
+  },
+  "mobile": {
+    "plant_id": 19
+  },
+  "users": {
+    "plant_id": 20
+  },
+  "settings": {
+    "plant_id": 21
+  },
+  "notifications": {
+    "webhook_id": 1
+  },
+  "screenshot_tour": {
+    "plant_id": 22,
+    "dept_id": 43,
+    "line_id": 44,
+    "station_id": 45,
+    "char_id": 20,
+    "msa_study_id": 1,
+    "fai_report_id": 1,
+    "doe_study_id": 1,
+    "broker_id": 1,
+    "workflow_id": 1
+  }
+}

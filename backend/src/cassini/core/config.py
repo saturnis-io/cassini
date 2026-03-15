@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     # Licensing
     license_file: str = ""
     license_public_key_file: str = ""  # Path to Ed25519 public key PEM
-    dev_commercial: bool = False  # Set True to simulate commercial license in dev
+    dev_tier: str = ""  # Dev license tier: "" (community), "pro", or "enterprise"
 
     @property
     def cors_origin_list(self) -> list[str]:

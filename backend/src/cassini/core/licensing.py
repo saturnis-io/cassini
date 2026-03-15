@@ -50,22 +50,26 @@ class LicenseService:
         license_path: str | None,
         public_key_path: str | None = None,
         public_key: bytes | None = None,
-        dev_commercial: bool = False,
+        dev_tier: str = "",
     ):
         self._claims: dict | None = None
         self._valid = False
-        self._dev_commercial = dev_commercial
+        self._dev_tier_active = False
         self._instance_id: str | None = None
         self._license_path: str | None = license_path
 
-        if dev_commercial:
+        resolved_tier = dev_tier.lower().strip() if dev_tier else ""
+        if resolved_tier:
+            if resolved_tier not in ("pro", "enterprise"):
+                raise ValueError(f"Invalid dev_tier '{dev_tier}'. Must be 'pro' or 'enterprise'.")
             self._valid = True
+            self._dev_tier_active = True
             self._claims = {
-                "tier": "enterprise",
+                "tier": resolved_tier,
                 "max_plants": 999,
                 "sub": "dev-toggle",
             }
-            logger.info("DEV MODE: Running as Commercial Edition (CASSINI_DEV_COMMERCIAL=true)")
+            logger.info("DEV MODE: Running as %s tier (CASSINI_DEV_TIER=%s)", resolved_tier.capitalize(), resolved_tier)
             return
 
         # Resolve public key: explicit bytes (testing) > file path (config) > bundled key
@@ -238,10 +242,10 @@ class LicenseService:
         the bundled public key. On success, updates internal state.
 
         Raises:
-            ValueError: If in dev-commercial mode, or validation fails.
+            ValueError: If in dev-tier mode, or validation fails.
         """
-        if self._dev_commercial:
-            raise ValueError("Cannot upload license in dev-commercial mode")
+        if self._dev_tier_active:
+            raise ValueError("Cannot upload license in dev tier mode")
 
         token = token.strip()
         public_key = self._load_public_key_file(str(_BUNDLED_PUBLIC_KEY_PATH))
@@ -328,10 +332,10 @@ class LicenseService:
         """Remove the active license and revert to Community Edition.
 
         Raises:
-            ValueError: If running in dev-commercial mode (cannot remove).
+            ValueError: If running in dev-tier mode (cannot remove).
         """
-        if self._dev_commercial:
-            raise ValueError("Cannot remove license in dev-commercial mode")
+        if self._dev_tier_active:
+            raise ValueError("Cannot remove license in dev tier mode")
         self._claims = None
         self._valid = False
         self._instance_id = None

@@ -209,7 +209,7 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 
 ## Pro Features
 
-> **These features require a [Pro license](https://saturnis.io/pricing) ($1,200/plant/year).** Open Edition users can evaluate Pro and Enterprise features locally by setting `CASSINI_DEV_COMMERCIAL=true`. [Learn more →](https://saturnis.io/pricing)
+> **These features require a [Pro license](https://saturnis.io/pricing) ($1,200/plant/year).** Open Edition users can evaluate Pro and Enterprise features locally by setting `CASSINI_DEV_TIER=enterprise`. [Learn more →](https://saturnis.io/pricing)
 
 ### Multi-Plant & Multi-Database
 

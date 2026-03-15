@@ -329,7 +329,7 @@ def check() -> None:
         svc = LicenseService(
             license_path=settings.license_file or None,
             public_key_path=settings.license_public_key_file or None,
-            dev_commercial=settings.dev_commercial,
+            dev_tier=settings.dev_tier,
         )
         status = svc.status()
         click.echo(f"  Edition: {status['edition']}")

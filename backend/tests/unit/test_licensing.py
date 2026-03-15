@@ -642,9 +642,9 @@ class TestThreeTierLicensing:
         assert status["tier"] == "pro"
         assert status["edition"] == "commercial"
 
-    def test_dev_commercial_is_enterprise(self):
-        """dev_commercial=True should be enterprise tier."""
-        svc = LicenseService(license_path=None, dev_commercial=True)
+    def test_dev_tier_is_enterprise(self):
+        """dev_tier="enterprise" should be enterprise tier."""
+        svc = LicenseService(license_path=None, dev_tier="enterprise")
         assert svc.tier == "enterprise"
         assert svc.is_enterprise is True
 

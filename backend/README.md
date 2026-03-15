@@ -175,7 +175,7 @@ All variables use the `CASSINI_` prefix and can be set in a `.env` file.
 | `CASSINI_VAPID_CONTACT_EMAIL` | `""` | Contact email for VAPID protocol |
 | `CASSINI_LICENSE_FILE` | `""` | Path to license file (commercial edition) |
 | `CASSINI_LICENSE_PUBLIC_KEY_FILE` | `""` | Path to Ed25519 public key PEM for license verification |
-| `CASSINI_DEV_COMMERCIAL` | `false` | Simulate commercial license in development |
+| `CASSINI_DEV_TIER` | `false` | Simulate commercial license in development |
 
 ## Database Support
 

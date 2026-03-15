@@ -2,11 +2,11 @@
  * MSA (Measurement System Analysis) E2E Tests
  *
  * Tests list, detail, and creation workflows for the MSA feature.
- * MSA is a commercial-only feature — requires CASSINI_DEV_COMMERCIAL=true.
+ * MSA is a commercial-only feature — requires CASSINI_DEV_TIER=enterprise.
  *
  * Prerequisites:
  *   1. Run `python backend/scripts/seed_e2e.py` (creates Screenshot Tour Plant with MSA data)
- *   2. Start backend: cd backend && CASSINI_DEV_COMMERCIAL=true uvicorn cassini.main:app --port 8000
+ *   2. Start backend: cd backend && CASSINI_DEV_TIER=enterprise uvicorn cassini.main:app --port 8000
  *   3. Start frontend: cd frontend && npm run dev
  *
  * Seeded data:

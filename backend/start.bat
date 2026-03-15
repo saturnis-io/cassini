@@ -98,11 +98,15 @@ REM Admin credentials (change via CASSINI_ADMIN_USERNAME / CASSINI_ADMIN_PASSWOR
 set "CASSINI_ADMIN_USERNAME=admin"
 set "CASSINI_ADMIN_PASSWORD=password"
 
-REM License tier: pass --commercial to enable enterprise features
-set "EDITION_LABEL=Community"
-if "%1"=="--commercial" (
-    set "CASSINI_DEV_COMMERCIAL=true"
-    set "EDITION_LABEL=Commercial (dev)"
+REM License tier: pass --pro or --enterprise to simulate paid tiers
+set "EDITION_LABEL=Open (Community)"
+if "%1"=="--pro" (
+    set "CASSINI_DEV_TIER=pro"
+    set "EDITION_LABEL=Pro (dev)"
+)
+if "%1"=="--enterprise" (
+    set "CASSINI_DEV_TIER=enterprise"
+    set "EDITION_LABEL=Enterprise (dev)"
 )
 
 REM Start the server

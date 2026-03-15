@@ -36,7 +36,7 @@ test.describe('License Flow', () => {
     await expect(statusCard.getByText('Expires')).toBeVisible()
     await expect(statusCard.getByText('Days Remaining')).toBeVisible()
 
-    // With CASSINI_DEV_COMMERCIAL=true, the edition badge should show "Commercial"
+    // With CASSINI_DEV_TIER=enterprise, the edition badge should show "Commercial"
     // (dev mode simulates a commercial license)
     const badge = statusCard.getByText('Commercial').or(statusCard.getByText('Community'))
     await expect(badge.first()).toBeVisible()
@@ -76,7 +76,7 @@ test.describe('License Flow', () => {
   test('commercial feature gate: MSA page is accessible with commercial license', async ({
     page,
   }) => {
-    // With CASSINI_DEV_COMMERCIAL=true, commercial routes should be accessible
+    // With CASSINI_DEV_TIER=enterprise, commercial routes should be accessible
     // (not showing UpgradePage). Without a license, they would show an upgrade prompt.
     await page.goto('/msa')
     await page.waitForTimeout(2000)

@@ -9,7 +9,7 @@
  *   5. AI Tool-Use (API-level test + AI Insights tab screenshot)
  *
  * Prerequisites:
- *   - Backend with CASSINI_DEV_COMMERCIAL=true (via playwright.config.ts webServer)
+ *   - Backend with CASSINI_DEV_TIER=enterprise (via playwright.config.ts webServer)
  *   - seed_e2e.py run (Screenshot Tour Plant with DOE + MSA data)
  */
 

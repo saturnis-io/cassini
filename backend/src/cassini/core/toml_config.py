@@ -51,7 +51,7 @@ _TOML_FIELD_MAP: dict[str, str] = {
     "logging.format": "log_format",
     "dev.sandbox": "sandbox",
     "dev.dev_mode": "dev_mode",
-    "dev.dev_commercial": "dev_commercial",
+    "dev.dev_tier": "dev_tier",
     "license.file": "license_file",
     "license.public_key_file": "license_public_key_file",
     "app.version": "app_version",
