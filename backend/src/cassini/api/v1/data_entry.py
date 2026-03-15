@@ -13,6 +13,7 @@ logger = structlog.get_logger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cassini.core.config import get_settings
 from cassini.core.rate_limit import limiter
 
 from cassini.api.deps import (
@@ -87,7 +88,7 @@ async def get_spc_engine(session: AsyncSession) -> SPCEngine:
     summary="Submit single sample",
     description="Submit a single sample from an external system. Requires API key authentication.",
 )
-@limiter.limit("30/minute")
+@limiter.limit(get_settings().rate_limit_data_entry)
 async def submit_sample(
     request: Request,
     data: DataEntryRequest,
@@ -276,7 +277,7 @@ async def submit_sample(
     summary="Submit attribute sample",
     description="Submit a single attribute sample (p/np/c/u chart). Requires API key or user authentication.",
 )
-@limiter.limit("30/minute")
+@limiter.limit(get_settings().rate_limit_data_entry)
 async def submit_attribute_sample(
     request: Request,
     data: AttributeDataEntryRequest,
@@ -377,7 +378,7 @@ async def submit_attribute_sample(
     summary="Submit CUSUM sample",
     description="Submit a single CUSUM sample. Requires API key or user authentication.",
 )
-@limiter.limit("30/minute")
+@limiter.limit(get_settings().rate_limit_data_entry)
 async def submit_cusum_sample(
     request: Request,
     data: CUSUMDataEntryRequest,
@@ -463,7 +464,7 @@ async def submit_cusum_sample(
     summary="Submit EWMA sample",
     description="Submit a single EWMA sample. Requires API key or user authentication.",
 )
-@limiter.limit("30/minute")
+@limiter.limit(get_settings().rate_limit_data_entry)
 async def submit_ewma_sample(
     request: Request,
     data: EWMADataEntryRequest,
@@ -549,6 +550,7 @@ async def submit_ewma_sample(
     summary="Submit multiple samples",
     description="Submit multiple samples in a single request. Each sample is processed independently.",
 )
+@limiter.limit(get_settings().rate_limit_batch)
 async def submit_batch(
     request: Request,
     data: BatchEntryRequest,

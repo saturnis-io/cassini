@@ -82,7 +82,10 @@ class Settings(BaseSettings):
 
     # Rate limiting
     rate_limit_login: str = "5/minute"
-    rate_limit_default: str = "60/minute"
+    rate_limit_default: str = "120/minute"
+    rate_limit_data_entry: str = "300/minute"    # Per-key. 5 samples/sec.
+    rate_limit_batch: str = "30/minute"          # Batch endpoint (heavier)
+    rate_limit_export: str = "10/minute"         # Export endpoints
 
     # Logging
     log_format: str = "console"  # "console" or "json"
