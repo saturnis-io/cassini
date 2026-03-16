@@ -779,6 +779,7 @@ class SPCEngine:
             effective_ucl=effective_ucl,
             effective_lcl=effective_lcl,
             z_score=z_score,
+            source=context.source,
         )
 
         # Step 5: Get zone boundaries and update rolling window
