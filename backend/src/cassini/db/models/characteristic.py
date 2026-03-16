@@ -98,6 +98,11 @@ class Characteristic(Base):
     # Sigma estimation method override (null = auto-select based on subgroup size)
     sigma_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
+    # Manual entry policy for automated characteristics
+    manual_entry_policy: Mapped[str] = mapped_column(
+        String(20), default="open", server_default="open", nullable=False
+    )
+
     # Phase I/II mode: frozen limits indicate Phase II monitoring
     limits_frozen: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.text("0"), nullable=False
