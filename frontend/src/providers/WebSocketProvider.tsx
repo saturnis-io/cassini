@@ -68,10 +68,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     [flushInvalidations],
   )
 
+  // Track whether server has confirmed authentication
+  const authedRef = useRef(false)
+
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
-        const message: WSMessage = JSON.parse(event.data)
+        const raw: { type: string; detail?: string } = JSON.parse(event.data)
+
+        // Handle auth handshake responses (internal protocol, not domain messages)
+        if (raw.type === 'auth_ok') {
+          authedRef.current = true
+          return
+        }
+        if (raw.type === 'auth_error') {
+          console.error('WebSocket auth failed:', raw.detail)
+          return
+        }
+
+        const message = raw as unknown as WSMessage
 
         switch (message.type) {
           case 'sample': {
@@ -163,14 +178,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Use Vite proxy - connect via the frontend server which proxies to backend
+    // Connect without token in URL — authenticate via first message instead
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws/samples?token=${encodeURIComponent(token)}`
+    const wsUrl = `${protocol}//${window.location.host}/ws/samples`
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
+    authedRef.current = false
 
     ws.onopen = () => {
+      // Send auth as first message (token not exposed in URL/logs)
+      ws.send(JSON.stringify({ type: 'auth', token }))
+
       setWsConnected(true)
       reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
 
@@ -184,6 +203,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     ws.onclose = () => {
       setWsConnected(false)
+      authedRef.current = false
 
       // Reconnect with exponential backoff
       const delay = Math.min(reconnectDelayRef.current, WS_RECONNECT_DELAY_MAX)

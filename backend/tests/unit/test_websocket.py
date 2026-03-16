@@ -1,6 +1,7 @@
 """Unit tests for WebSocket infrastructure.
 
-Tests for the ConnectionManager, WebSocket endpoint, and notification helpers.
+Tests for the ConnectionManager, WebSocket endpoint, notification helpers,
+and dual-mode authentication (query-param + first-message).
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from cassini.api.v1.websocket import (
     notify_acknowledgment,
     notify_sample,
     notify_violation,
+    websocket_endpoint,
 )
 
 
@@ -475,3 +477,191 @@ class TestNotificationHelpers:
             assert message["acknowledged"] is False
             assert message["ack_user"] is None
             assert message["ack_reason"] is None
+
+
+class TestWebSocketAuth:
+    """Tests for dual-mode WebSocket authentication.
+
+    The endpoint supports two auth methods for backward-compatible transition:
+      1. Query param ?token= (legacy)
+      2. First-message {"type": "auth", "token": "..."} (preferred)
+    """
+
+    def _make_ws_mock(self, receive_payloads=None):
+        """Create a mock WebSocket that returns queued payloads from receive_json.
+
+        After all queued payloads are consumed, raises WebSocketDisconnect so
+        the message loop terminates cleanly.
+        """
+        from fastapi import WebSocketDisconnect
+
+        ws = AsyncMock(spec=WebSocket)
+        ws.accept = AsyncMock()
+        ws.send_json = AsyncMock()
+        ws.close = AsyncMock()
+
+        payloads = list(receive_payloads or [])
+
+        async def _receive_json():
+            if payloads:
+                return payloads.pop(0)
+            raise WebSocketDisconnect(code=1000)
+
+        ws.receive_json = AsyncMock(side_effect=_receive_json)
+        return ws
+
+    @pytest.mark.asyncio
+    async def test_query_param_auth_valid(self):
+        """Legacy query-param auth with a valid token connects successfully."""
+        ws = self._make_ws_mock(receive_payloads=[{"type": "ping"}])
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value={"sub": "42"},
+        ):
+            await websocket_endpoint(ws, token="valid-jwt")
+
+        # accept() is called once by manager.connect()
+        ws.accept.assert_called_once()
+        # Should have sent pong (message loop ran)
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        assert any(m.get("type") == "pong" for m in sent)
+
+    @pytest.mark.asyncio
+    async def test_query_param_auth_invalid_falls_to_first_message(self):
+        """Invalid query-param token falls through to first-message auth."""
+        ws = self._make_ws_mock(
+            receive_payloads=[
+                {"type": "auth", "token": "good-jwt"},
+                {"type": "ping"},
+            ]
+        )
+
+        def _verify(t):
+            if t == "bad-jwt":
+                return None
+            return {"sub": "42"}
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            side_effect=_verify,
+        ):
+            await websocket_endpoint(ws, token="bad-jwt")
+
+        # accept() called once (first-message auth path)
+        ws.accept.assert_called_once()
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        assert {"type": "auth_ok"} in sent
+        assert any(m.get("type") == "pong" for m in sent)
+
+    @pytest.mark.asyncio
+    async def test_first_message_auth_valid(self):
+        """First-message auth with valid token succeeds and sends auth_ok."""
+        ws = self._make_ws_mock(
+            receive_payloads=[
+                {"type": "auth", "token": "valid-jwt"},
+                {"type": "ping"},
+            ]
+        )
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value={"sub": "7"},
+        ):
+            await websocket_endpoint(ws, token=None)
+
+        ws.accept.assert_called_once()
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        assert {"type": "auth_ok"} in sent
+        assert any(m.get("type") == "pong" for m in sent)
+
+    @pytest.mark.asyncio
+    async def test_first_message_auth_invalid_token(self):
+        """First-message auth with invalid token sends auth_error and closes."""
+        ws = self._make_ws_mock(
+            receive_payloads=[{"type": "auth", "token": "expired-jwt"}]
+        )
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value=None,
+        ):
+            await websocket_endpoint(ws, token=None)
+
+        ws.accept.assert_called_once()
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        auth_errors = [m for m in sent if m.get("type") == "auth_error"]
+        assert len(auth_errors) == 1
+        assert "Invalid or expired token" in auth_errors[0]["detail"]
+        ws.close.assert_called_once_with(code=4001, reason="Authentication failed")
+
+    @pytest.mark.asyncio
+    async def test_first_message_auth_wrong_message_type(self):
+        """Non-auth first message sends auth_error and closes."""
+        ws = self._make_ws_mock(
+            receive_payloads=[{"type": "subscribe", "characteristic_ids": [1]}]
+        )
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value=None,
+        ):
+            await websocket_endpoint(ws, token=None)
+
+        ws.accept.assert_called_once()
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        auth_errors = [m for m in sent if m.get("type") == "auth_error"]
+        assert len(auth_errors) == 1
+        ws.close.assert_called_once_with(code=4001, reason="Authentication failed")
+
+    @pytest.mark.asyncio
+    async def test_first_message_auth_timeout(self):
+        """No message within 5 seconds sends auth_error and closes with 4001."""
+        ws = AsyncMock(spec=WebSocket)
+        ws.accept = AsyncMock()
+        ws.send_json = AsyncMock()
+        ws.close = AsyncMock()
+
+        # Simulate a timeout by making receive_json hang
+        async def _hang():
+            await asyncio.sleep(60)
+
+        ws.receive_json = AsyncMock(side_effect=_hang)
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value=None,
+        ):
+            # Patch asyncio.wait_for timeout to be fast for testing
+            original_wait_for = asyncio.wait_for
+
+            async def fast_wait_for(coro, *, timeout):
+                return await original_wait_for(coro, timeout=0.1)
+
+            with patch("cassini.api.v1.websocket.asyncio.wait_for", fast_wait_for):
+                await websocket_endpoint(ws, token=None)
+
+        ws.accept.assert_called_once()
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        auth_errors = [m for m in sent if m.get("type") == "auth_error"]
+        assert len(auth_errors) == 1
+        assert "timeout" in auth_errors[0]["detail"].lower()
+        ws.close.assert_called_once_with(code=4001, reason="Authentication timeout")
+
+    @pytest.mark.asyncio
+    async def test_first_message_auth_missing_token_field(self):
+        """Auth message without token field sends auth_error."""
+        ws = self._make_ws_mock(
+            receive_payloads=[{"type": "auth"}]  # missing "token"
+        )
+
+        with patch(
+            "cassini.core.auth.jwt.verify_access_token",
+            return_value=None,
+        ):
+            await websocket_endpoint(ws, token=None)
+
+        sent = [call.args[0] for call in ws.send_json.call_args_list]
+        auth_errors = [m for m in sent if m.get("type") == "auth_error"]
+        assert len(auth_errors) == 1
+        ws.close.assert_called_once_with(code=4001, reason="Authentication failed")

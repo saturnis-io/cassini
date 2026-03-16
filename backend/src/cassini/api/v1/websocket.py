@@ -303,16 +303,26 @@ async def websocket_endpoint(
 ):
     """WebSocket endpoint for real-time updates.
 
-    Requires JWT authentication via the ``token`` query parameter.
-    If the token is missing or invalid the connection is closed with code 4001.
+    Supports two authentication methods (backward-compatible transition):
+      1. **Query parameter** (legacy): ``?token=<jwt>`` — validated before accept.
+      2. **First message** (preferred): Connect without token, send
+         ``{"type": "auth", "token": "<jwt>"}`` as the first message. Server
+         replies with ``{"type": "auth_ok"}`` or ``{"type": "auth_error", "detail": "..."}``
+         and closes with code 4001 on failure.
+
+    If neither method provides a valid token within 5 seconds the connection is
+    closed with code 4001.
 
     Message Protocol:
         Client -> Server:
+            - {"type": "auth", "token": "..."}  (first-message auth)
             - {"type": "subscribe", "characteristic_ids": [1, 2, 3]}
             - {"type": "unsubscribe", "characteristic_ids": [1]}
             - {"type": "ping"}
 
         Server -> Client:
+            - {"type": "auth_ok"}
+            - {"type": "auth_error", "detail": "..."}
             - {"type": "sample", "characteristic_id": ..., "sample": {...}, "violations": [...]}
             - {"type": "violation", "violation": {...}}
             - {"type": "ack_update", "violation_id": ..., ...}
@@ -322,27 +332,72 @@ async def websocket_endpoint(
 
     Args:
         websocket: The WebSocket connection instance
-        token: JWT access token as query parameter
+        token: JWT access token as query parameter (legacy, optional)
     """
-    # --- authenticate ---
     from cassini.core.auth.jwt import verify_access_token
 
+    # --- authenticate ---
+    # Supports two methods for backward-compatible transition:
+    #   1. Query param ?token= (legacy — old clients still work)
+    #   2. First-message auth (preferred — token not exposed in URL)
+    already_accepted = False
     payload = verify_access_token(token) if token else None
-    if not token or payload is None:
-        # Accept first so the close frame goes through the proxy cleanly
-        # (closing before accept sends HTTP 403 which breaks WS proxies)
-        await websocket.accept()
-        await websocket.send_json({
-            "type": "error",
-            "message": "Authentication required" if not token else "Invalid or expired token",
-        })
-        await websocket.close(code=4001, reason="Authentication failed")
-        return
 
-    ws_user_id = int(payload["sub"])
+    if payload is not None:
+        # Method 1 succeeded — query-param auth
+        ws_user_id = int(payload["sub"])
+    else:
+        # Method 2: Accept connection and wait for first-message auth
+        await websocket.accept()
+        already_accepted = True
+
+        try:
+            data = await asyncio.wait_for(websocket.receive_json(), timeout=5.0)
+        except asyncio.TimeoutError:
+            await websocket.send_json({
+                "type": "auth_error",
+                "detail": "Authentication timeout — no auth message received within 5 seconds",
+            })
+            await websocket.close(code=4001, reason="Authentication timeout")
+            return
+        except Exception:
+            # Connection closed or malformed data before auth
+            return
+
+        msg_type = data.get("type") if isinstance(data, dict) else None
+        msg_token = data.get("token") if isinstance(data, dict) else None
+
+        if msg_type != "auth" or not msg_token:
+            await websocket.send_json({
+                "type": "auth_error",
+                "detail": "First message must be {\"type\": \"auth\", \"token\": \"...\"}",
+            })
+            await websocket.close(code=4001, reason="Authentication failed")
+            return
+
+        payload = verify_access_token(msg_token)
+        if payload is None:
+            await websocket.send_json({
+                "type": "auth_error",
+                "detail": "Invalid or expired token",
+            })
+            await websocket.close(code=4001, reason="Authentication failed")
+            return
+
+        ws_user_id = int(payload["sub"])
+        await websocket.send_json({"type": "auth_ok"})
 
     connection_id = str(uuid.uuid4())
-    await manager.connect(websocket, connection_id)
+    if already_accepted:
+        # Connection already accepted during first-message auth — register directly
+        manager._connections[connection_id] = WSConnection(
+            websocket=websocket,
+            connected_at=datetime.now(timezone.utc),
+        )
+    else:
+        # Query-param auth — connect() calls accept()
+        await manager.connect(websocket, connection_id)
+
     # Store user_id on the connection for plant-scoped authorization
     if connection_id in manager._connections:
         manager._connections[connection_id].user_id = ws_user_id
