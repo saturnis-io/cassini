@@ -1,9 +1,11 @@
 """First Article Inspection (FAI) REST endpoints — AS9102 Rev C.
 
-Provides CRUD for FAI reports and items, status workflow
-(draft → submitted → approved/rejected), and AS9102 form data export.
+Provides CRUD for FAI reports, items, and Form 2 child tables (materials,
+special processes, functional tests), status workflow
+(draft -> submitted -> approved/rejected), and AS9102 form data export.
 """
 
+import json
 from datetime import datetime, timezone
 
 import structlog
@@ -19,17 +21,24 @@ from cassini.api.deps import (
     get_db_session,
 )
 from cassini.api.schemas.fai import (
+    FAIFunctionalTestCreate,
+    FAIFunctionalTestResponse,
     FAIItemCreate,
     FAIItemResponse,
     FAIItemUpdate,
+    FAIMaterialCreate,
+    FAIMaterialResponse,
     FAIRejectRequest,
     FAIReportCreate,
     FAIReportDetailResponse,
     FAIReportResponse,
     FAIReportUpdate,
+    FAISpecialProcessCreate,
+    FAISpecialProcessResponse,
 )
 from cassini.core.signature_engine import SignatureWorkflowEngine
 from cassini.db.models.fai import FAIItem, FAIReport
+from cassini.db.models.fai_detail import FAIFunctionalTest, FAIMaterial, FAISpecialProcess
 from cassini.db.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -41,16 +50,69 @@ router = APIRouter(prefix="/api/v1/fai", tags=["fai"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _serialize_measurements(measurements: list[float] | None) -> str | None:
+    """Convert a list of floats to JSON string for DB storage."""
+    if measurements is None:
+        return None
+    return json.dumps(measurements)
+
+
+def _deserialize_measurements(raw: str | None) -> list[float] | None:
+    """Convert JSON string from DB to list of floats."""
+    if raw is None:
+        return None
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return [float(v) for v in parsed]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _item_to_response(item: FAIItem) -> FAIItemResponse:
+    """Convert an FAIItem model to its response schema, deserializing measurements."""
+    data = {
+        "id": item.id,
+        "report_id": item.report_id,
+        "balloon_number": item.balloon_number,
+        "characteristic_name": item.characteristic_name,
+        "drawing_zone": item.drawing_zone,
+        "nominal": item.nominal,
+        "usl": item.usl,
+        "lsl": item.lsl,
+        "actual_value": item.actual_value,
+        "value_type": item.value_type,
+        "actual_value_text": item.actual_value_text,
+        "measurements": _deserialize_measurements(item.measurements),
+        "unit": item.unit,
+        "tools_used": item.tools_used,
+        "designed_char": item.designed_char,
+        "result": item.result,
+        "deviation_reason": item.deviation_reason,
+        "characteristic_id": item.characteristic_id,
+        "sequence_order": item.sequence_order,
+    }
+    return FAIItemResponse.model_validate(data)
+
+
 async def _get_report_or_404(
     session: AsyncSession,
     report_id: int,
     *,
     load_items: bool = False,
+    load_details: bool = False,
 ) -> FAIReport:
-    """Fetch an FAI report by ID, optionally eager-loading items."""
+    """Fetch an FAI report by ID, optionally eager-loading items and child tables."""
     stmt = select(FAIReport).where(FAIReport.id == report_id)
-    if load_items:
+    if load_items or load_details:
         stmt = stmt.options(selectinload(FAIReport.items))
+    if load_details:
+        stmt = stmt.options(
+            selectinload(FAIReport.materials),
+            selectinload(FAIReport.special_processes_items),
+            selectinload(FAIReport.functional_tests_items),
+        )
     result = await session.execute(stmt)
     report = result.scalar_one_or_none()
     if report is None:
@@ -68,6 +130,47 @@ def _require_draft(report: FAIReport) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Report is in '{report.status}' status — only draft reports can be modified",
         )
+
+
+def _report_detail_response(report: FAIReport) -> FAIReportDetailResponse:
+    """Build a FAIReportDetailResponse with proper measurements deserialization."""
+    items = [_item_to_response(item) for item in report.items]
+    materials = [FAIMaterialResponse.model_validate(m) for m in report.materials]
+    sp = [FAISpecialProcessResponse.model_validate(s) for s in report.special_processes_items]
+    ft = [FAIFunctionalTestResponse.model_validate(t) for t in report.functional_tests_items]
+
+    data = {
+        "id": report.id,
+        "plant_id": report.plant_id,
+        "fai_type": report.fai_type,
+        "part_number": report.part_number,
+        "part_name": report.part_name,
+        "revision": report.revision,
+        "serial_number": report.serial_number,
+        "lot_number": report.lot_number,
+        "drawing_number": report.drawing_number,
+        "organization_name": report.organization_name,
+        "supplier": report.supplier,
+        "purchase_order": report.purchase_order,
+        "reason_for_inspection": report.reason_for_inspection,
+        "material_supplier": report.material_supplier,
+        "material_spec": report.material_spec,
+        "special_processes": report.special_processes,
+        "functional_test_results": report.functional_test_results,
+        "status": report.status,
+        "created_by": report.created_by,
+        "created_at": report.created_at,
+        "submitted_by": report.submitted_by,
+        "submitted_at": report.submitted_at,
+        "approved_by": report.approved_by,
+        "approved_at": report.approved_at,
+        "rejection_reason": report.rejection_reason,
+        "items": items,
+        "materials": materials,
+        "special_processes_items": sp,
+        "functional_tests_items": ft,
+    }
+    return FAIReportDetailResponse.model_validate(data)
 
 
 # ===========================================================================
@@ -90,6 +193,7 @@ async def create_report(
 
     report = FAIReport(
         plant_id=body.plant_id,
+        fai_type=body.fai_type,
         part_number=body.part_number,
         part_name=body.part_name,
         revision=body.revision,
@@ -120,6 +224,7 @@ async def create_report(
             "name": report.part_name,
             "part_number": report.part_number,
             "revision": report.revision,
+            "fai_type": report.fai_type,
             "status": report.status,
         },
     }
@@ -159,14 +264,14 @@ async def get_report(
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportDetailResponse:
-    """Get a single FAI report with all inspection items.
+    """Get a single FAI report with all inspection items and Form 2 child tables.
 
     Requires supervisor+ role for the report's plant.
     """
-    report = await _get_report_or_404(session, report_id, load_items=True)
+    report = await _get_report_or_404(session, report_id, load_details=True)
     check_plant_role(user, report.plant_id, "supervisor")
 
-    return FAIReportDetailResponse.model_validate(report)
+    return _report_detail_response(report)
 
 
 @router.put("/reports/{report_id}", response_model=FAIReportResponse)
@@ -301,14 +406,23 @@ async def add_item(
     )
     max_order = (await session.execute(count_stmt)).scalar_one()
 
+    # If measurements provided, compute actual_value as mean
+    actual_value = body.actual_value
+    if body.measurements and len(body.measurements) > 0:
+        actual_value = sum(body.measurements) / len(body.measurements)
+
     item = FAIItem(
         report_id=report_id,
         balloon_number=body.balloon_number,
         characteristic_name=body.characteristic_name,
+        drawing_zone=body.drawing_zone,
         nominal=body.nominal,
         usl=body.usl,
         lsl=body.lsl,
-        actual_value=body.actual_value,
+        actual_value=actual_value,
+        value_type=body.value_type,
+        actual_value_text=body.actual_value_text,
+        measurements=_serialize_measurements(body.measurements),
         unit=body.unit,
         tools_used=body.tools_used,
         designed_char=body.designed_char,
@@ -336,7 +450,7 @@ async def add_item(
     }
 
     logger.info("fai_item_added", report_id=report_id, item_id=item.id, user=user.username)
-    return FAIItemResponse.model_validate(item)
+    return _item_to_response(item)
 
 
 @router.put("/reports/{report_id}/items/{item_id}", response_model=FAIItemResponse)
@@ -370,6 +484,13 @@ async def update_item(
     # Capture old values for audit trail before mutation
     old_values = {field: getattr(item, field) for field in update_data}
 
+    # Handle measurements: serialize to JSON, compute mean for actual_value
+    if "measurements" in update_data:
+        measurements = update_data.pop("measurements")
+        item.measurements = _serialize_measurements(measurements)
+        if measurements and len(measurements) > 0:
+            item.actual_value = sum(measurements) / len(measurements)
+
     for field, value in update_data.items():
         setattr(item, field, value)
 
@@ -377,10 +498,13 @@ async def update_item(
     await session.refresh(item)
 
     # Build changed-fields dict for audit (old vs new, only changed)
+    all_update_fields = body.model_dump(exclude_unset=True)
     changed_fields: dict = {}
-    for field in update_data:
-        if old_values[field] != update_data[field]:
-            changed_fields[field] = {"old": old_values[field], "new": update_data[field]}
+    for field in all_update_fields:
+        old_val = old_values.get(field)
+        new_val = all_update_fields[field]
+        if old_val != new_val:
+            changed_fields[field] = {"old": old_val, "new": new_val}
 
     request.state.audit_context = {
         "resource_type": "fai_report",
@@ -395,7 +519,7 @@ async def update_item(
     }
 
     logger.info("fai_item_updated", report_id=report_id, item_id=item_id, user=user.username)
-    return FAIItemResponse.model_validate(item)
+    return _item_to_response(item)
 
 
 @router.delete("/reports/{report_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -450,6 +574,270 @@ async def delete_item(
 
 
 # ===========================================================================
+# FORM 2 CHILD TABLE ENDPOINTS — Materials
+# ===========================================================================
+
+
+@router.post(
+    "/reports/{report_id}/materials",
+    response_model=FAIMaterialResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_material(
+    report_id: int,
+    body: FAIMaterialCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAIMaterialResponse:
+    """Add a material record to an FAI report (Form 2)."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    material = FAIMaterial(
+        report_id=report_id,
+        material_part_number=body.material_part_number,
+        material_spec=body.material_spec,
+        cert_number=body.cert_number,
+        supplier=body.supplier,
+        result=body.result,
+    )
+    session.add(material)
+    await session.commit()
+    await session.refresh(material)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "create",
+        "summary": f"Material record added to FAI report {report_id}",
+        "fields": {"material_id": material.id, "supplier": material.supplier},
+    }
+
+    logger.info("fai_material_added", report_id=report_id, material_id=material.id, user=user.username)
+    return FAIMaterialResponse.model_validate(material)
+
+
+@router.delete(
+    "/reports/{report_id}/materials/{material_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_material(
+    report_id: int,
+    material_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Remove a material record from an FAI report."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    stmt = select(FAIMaterial).where(FAIMaterial.id == material_id, FAIMaterial.report_id == report_id)
+    result = await session.execute(stmt)
+    material = result.scalar_one_or_none()
+    if material is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Material {material_id} not found in report {report_id}",
+        )
+
+    supplier = material.supplier
+    await session.delete(material)
+    await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "delete",
+        "summary": f"Material record deleted from FAI report {report_id}",
+        "fields": {"material_id": material_id, "supplier": supplier},
+    }
+
+    logger.info("fai_material_deleted", report_id=report_id, material_id=material_id, user=user.username)
+
+
+# ===========================================================================
+# FORM 2 CHILD TABLE ENDPOINTS — Special Processes
+# ===========================================================================
+
+
+@router.post(
+    "/reports/{report_id}/special-processes",
+    response_model=FAISpecialProcessResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_special_process(
+    report_id: int,
+    body: FAISpecialProcessCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAISpecialProcessResponse:
+    """Add a special process record to an FAI report (Form 2)."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    sp = FAISpecialProcess(
+        report_id=report_id,
+        process_name=body.process_name,
+        process_spec=body.process_spec,
+        cert_number=body.cert_number,
+        approved_supplier=body.approved_supplier,
+        result=body.result,
+    )
+    session.add(sp)
+    await session.commit()
+    await session.refresh(sp)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "create",
+        "summary": f"Special process added to FAI report {report_id}",
+        "fields": {"process_id": sp.id, "process_name": sp.process_name},
+    }
+
+    logger.info("fai_special_process_added", report_id=report_id, sp_id=sp.id, user=user.username)
+    return FAISpecialProcessResponse.model_validate(sp)
+
+
+@router.delete(
+    "/reports/{report_id}/special-processes/{process_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_special_process(
+    report_id: int,
+    process_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Remove a special process record from an FAI report."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    stmt = select(FAISpecialProcess).where(
+        FAISpecialProcess.id == process_id, FAISpecialProcess.report_id == report_id
+    )
+    result = await session.execute(stmt)
+    sp = result.scalar_one_or_none()
+    if sp is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Special process {process_id} not found in report {report_id}",
+        )
+
+    process_name = sp.process_name
+    await session.delete(sp)
+    await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "delete",
+        "summary": f"Special process deleted from FAI report {report_id}",
+        "fields": {"process_id": process_id, "process_name": process_name},
+    }
+
+    logger.info("fai_special_process_deleted", report_id=report_id, sp_id=process_id, user=user.username)
+
+
+# ===========================================================================
+# FORM 2 CHILD TABLE ENDPOINTS — Functional Tests
+# ===========================================================================
+
+
+@router.post(
+    "/reports/{report_id}/functional-tests",
+    response_model=FAIFunctionalTestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_functional_test(
+    report_id: int,
+    body: FAIFunctionalTestCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAIFunctionalTestResponse:
+    """Add a functional test record to an FAI report (Form 2)."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    ft = FAIFunctionalTest(
+        report_id=report_id,
+        test_description=body.test_description,
+        procedure_number=body.procedure_number,
+        actual_results=body.actual_results,
+        result=body.result,
+    )
+    session.add(ft)
+    await session.commit()
+    await session.refresh(ft)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "create",
+        "summary": f"Functional test added to FAI report {report_id}",
+        "fields": {"test_id": ft.id, "test_description": ft.test_description},
+    }
+
+    logger.info("fai_functional_test_added", report_id=report_id, ft_id=ft.id, user=user.username)
+    return FAIFunctionalTestResponse.model_validate(ft)
+
+
+@router.delete(
+    "/reports/{report_id}/functional-tests/{test_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_functional_test(
+    report_id: int,
+    test_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Remove a functional test record from an FAI report."""
+    report = await _get_report_or_404(session, report_id)
+    check_plant_role(user, report.plant_id, "engineer")
+    _require_draft(report)
+
+    stmt = select(FAIFunctionalTest).where(
+        FAIFunctionalTest.id == test_id, FAIFunctionalTest.report_id == report_id
+    )
+    result = await session.execute(stmt)
+    ft = result.scalar_one_or_none()
+    if ft is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Functional test {test_id} not found in report {report_id}",
+        )
+
+    test_description = ft.test_description
+    await session.delete(ft)
+    await session.commit()
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "delete",
+        "summary": f"Functional test deleted from FAI report {report_id}",
+        "fields": {"test_id": test_id, "test_description": test_description},
+    }
+
+    logger.info("fai_functional_test_deleted", report_id=report_id, ft_id=test_id, user=user.username)
+
+
+# ===========================================================================
 # WORKFLOW ENDPOINTS
 # ===========================================================================
 
@@ -461,7 +849,7 @@ async def submit_report(
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse | JSONResponse:
-    """Submit an FAI report for approval. Changes status: draft → submitted.
+    """Submit an FAI report for approval. Changes status: draft -> submitted.
 
     Requires engineer+ role for the report's plant.
     If a signature workflow is configured for ``fai_report``, the endpoint
@@ -469,7 +857,7 @@ async def submit_report(
     call it returns **428 Precondition Required** with
     ``signature_required: true`` and a ``workflow_instance_id``.  The
     frontend collects signatures via the ``SignatureDialog``, then re-calls
-    this endpoint — the second call detects the completed workflow and
+    this endpoint -- the second call detects the completed workflow and
     proceeds with the status change.
     """
     report = await _get_report_or_404(session, report_id)
@@ -539,7 +927,7 @@ async def approve_report(
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse | JSONResponse:
-    """Approve a submitted FAI report. Changes status: submitted → approved.
+    """Approve a submitted FAI report. Changes status: submitted -> approved.
 
     Requires engineer+ role for the report's plant.
     Enforces separation of duties: approver cannot be the submitter.
@@ -548,7 +936,7 @@ async def approve_report(
     call it returns **428 Precondition Required** with
     ``signature_required: true`` and a ``workflow_instance_id``.  The
     frontend collects signatures via the ``SignatureDialog``, then re-calls
-    this endpoint — the second call detects the completed workflow and
+    this endpoint -- the second call detects the completed workflow and
     proceeds with the status change.
     """
     report = await _get_report_or_404(session, report_id)
@@ -632,7 +1020,7 @@ async def reject_report(
     session: AsyncSession = Depends(get_db_session),
     user: User = Depends(get_current_user),
 ) -> FAIReportResponse:
-    """Reject a submitted FAI report. Changes status: submitted → draft.
+    """Reject a submitted FAI report. Changes status: submitted -> draft.
 
     Requires engineer+ role for the report's plant.
     """
@@ -694,14 +1082,18 @@ async def get_form_data(
 
     Requires supervisor+ role for the report's plant.
     """
-    report = await _get_report_or_404(session, report_id, load_items=True)
+    report = await _get_report_or_404(session, report_id, load_details=True)
     check_plant_role(user, report.plant_id, "supervisor")
 
-    items = [FAIItemResponse.model_validate(item) for item in report.items]
+    items = [_item_to_response(item) for item in report.items]
+    materials = [FAIMaterialResponse.model_validate(m) for m in report.materials]
+    sp = [FAISpecialProcessResponse.model_validate(s) for s in report.special_processes_items]
+    ft = [FAIFunctionalTestResponse.model_validate(t) for t in report.functional_tests_items]
 
     return {
         "report_id": report.id,
         "status": report.status,
+        "fai_type": report.fai_type,
         "form1_part_accountability": {
             "part_number": report.part_number,
             "part_name": report.part_name,
@@ -720,10 +1112,12 @@ async def get_form_data(
             "approved_at": report.approved_at.isoformat() if report.approved_at else None,
         },
         "form2_product_accountability": {
+            "materials": [m.model_dump() for m in materials],
+            "special_processes": [s.model_dump() for s in sp],
+            "functional_tests": [t.model_dump() for t in ft],
+            # Legacy fields (read-only)
             "material_supplier": report.material_supplier,
             "material_spec": report.material_spec,
-            "special_processes": report.special_processes,
-            "functional_test_results": report.functional_test_results,
         },
         "form3_characteristic_accountability": {
             "total_characteristics": len(items),

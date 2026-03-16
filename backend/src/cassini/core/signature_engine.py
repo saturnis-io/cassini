@@ -76,22 +76,61 @@ class SignatureWorkflowEngine:
         """
         if resource_type == "fai_report":
             from cassini.db.models.fai import FAIItem, FAIReport
+            from cassini.db.models.fai_detail import (
+                FAIFunctionalTest,
+                FAIMaterial,
+                FAISpecialProcess,
+            )
 
+            # Core report fields + item count
             stmt = select(
                 FAIReport.status,
                 FAIReport.part_number,
-                func.count(FAIItem.id).label("items_count"),
-            ).outerjoin(FAIItem, FAIItem.report_id == FAIReport.id).where(
-                FAIReport.id == resource_id
-            ).group_by(FAIReport.id, FAIReport.status, FAIReport.part_number)
+                FAIReport.fai_type,
+            ).where(FAIReport.id == resource_id)
             result = await session.execute(stmt)
             row = result.first()
             if row:
+                # Count items and compute content hash
+                items_result = await session.execute(
+                    select(
+                        FAIItem.id,
+                        FAIItem.characteristic_name,
+                        FAIItem.actual_value,
+                        FAIItem.result,
+                        FAIItem.value_type,
+                    ).where(FAIItem.report_id == resource_id)
+                    .order_by(FAIItem.sequence_order)
+                )
+                items = items_result.all()
+                items_hash = hashlib.sha256(
+                    "|".join(
+                        f"{i.id}:{i.characteristic_name}:{i.actual_value}:{i.result}:{i.value_type}"
+                        for i in items
+                    ).encode("utf-8")
+                ).hexdigest()
+
+                # Count child table rows
+                mat_count = (await session.execute(
+                    select(func.count()).where(FAIMaterial.report_id == resource_id)
+                )).scalar_one()
+                sp_count = (await session.execute(
+                    select(func.count()).where(FAISpecialProcess.report_id == resource_id)
+                )).scalar_one()
+                ft_count = (await session.execute(
+                    select(func.count()).where(FAIFunctionalTest.report_id == resource_id)
+                )).scalar_one()
+
                 return {
                     "resource_id": resource_id,
                     "status": row.status,
                     "part_number": row.part_number,
-                    "items_count": row.items_count,
+                    "fai_type": row.fai_type,
+                    "items_count": len(items),
+                    "items_hash": items_hash,
+                    "material_count": mat_count,
+                    "special_process_count": sp_count,
+                    "functional_test_count": ft_count,
                 }
         elif resource_type == "msa_study":
             from cassini.db.models.msa import MSAStudy

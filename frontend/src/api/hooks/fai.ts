@@ -5,6 +5,9 @@ import { queryKeys } from './queryKeys'
 import { handleMutationError } from './utils'
 import type {
   FAIItemCreate,
+  FAIMaterialCreate,
+  FAISpecialProcessCreate,
+  FAIFunctionalTestCreate,
   FAIReportCreate,
 } from '../client'
 
@@ -111,6 +114,88 @@ export function useDeleteFAIItem() {
       queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
     },
     onError: handleMutationError('Failed to delete FAI item'),
+  })
+}
+
+// -----------------------------------------------------------------------
+// Form 2 child table hooks
+// -----------------------------------------------------------------------
+
+export function useAddFAIMaterial() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, data }: { reportId: number; data: FAIMaterialCreate }) =>
+      faiApi.addMaterial(reportId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to add material'),
+  })
+}
+
+export function useDeleteFAIMaterial() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, materialId }: { reportId: number; materialId: number }) =>
+      faiApi.deleteMaterial(reportId, materialId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to delete material'),
+  })
+}
+
+export function useAddFAISpecialProcess() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, data }: { reportId: number; data: FAISpecialProcessCreate }) =>
+      faiApi.addSpecialProcess(reportId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to add special process'),
+  })
+}
+
+export function useDeleteFAISpecialProcess() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, processId }: { reportId: number; processId: number }) =>
+      faiApi.deleteSpecialProcess(reportId, processId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to delete special process'),
+  })
+}
+
+export function useAddFAIFunctionalTest() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, data }: { reportId: number; data: FAIFunctionalTestCreate }) =>
+      faiApi.addFunctionalTest(reportId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to add functional test'),
+  })
+}
+
+export function useDeleteFAIFunctionalTest() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ reportId, testId }: { reportId: number; testId: number }) =>
+      faiApi.deleteFunctionalTest(reportId, testId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.detail(variables.reportId) })
+    },
+    onError: handleMutationError('Failed to delete functional test'),
   })
 }
 

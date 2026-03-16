@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Plus, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   useAddFAIItem,
@@ -20,6 +20,18 @@ const RESULT_OPTIONS = [
   { value: 'deviation', label: 'Deviation' },
 ]
 
+const VALUE_TYPE_OPTIONS = [
+  { value: 'numeric', label: 'Numeric' },
+  { value: 'text', label: 'Text' },
+  { value: 'pass_fail', label: 'Pass/Fail' },
+]
+
+const PASS_FAIL_OPTIONS = [
+  { value: '', label: '--' },
+  { value: 'Pass', label: 'Pass' },
+  { value: 'Fail', label: 'Fail' },
+]
+
 export function FAIForm3({ report, readonly }: FAIForm3Props) {
   const addItem = useAddFAIItem()
   const updateItem = useUpdateFAIItem()
@@ -31,6 +43,11 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
   const [editingValues, setEditingValues] = useState<
     Record<number, Partial<FAIItem>>
   >({})
+
+  // Track which items have measurements expanded
+  const [expandedMeasurements, setExpandedMeasurements] = useState<Set<number>>(
+    new Set(),
+  )
 
   const getLocalValue = <K extends keyof FAIItem>(
     item: FAIItem,
@@ -99,6 +116,62 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
     })
   }
 
+  const handleValueTypeChange = (item: FAIItem, newType: string) => {
+    setLocalValue(item.id, 'value_type', newType)
+    updateItem.mutate({
+      reportId: report.id,
+      itemId: item.id,
+      data: {
+        value_type: newType as 'numeric' | 'text' | 'pass_fail',
+        // Clear incompatible values on type change
+        actual_value: newType === 'numeric' ? item.actual_value : null,
+        actual_value_text: newType !== 'numeric' ? item.actual_value_text : null,
+      },
+    })
+  }
+
+  const handlePassFailChange = (item: FAIItem, value: string) => {
+    setLocalValue(item.id, 'actual_value_text', value)
+    updateItem.mutate({
+      reportId: report.id,
+      itemId: item.id,
+      data: { actual_value_text: value || null },
+    })
+  }
+
+  const toggleMeasurements = (itemId: number) => {
+    setExpandedMeasurements((prev) => {
+      const next = new Set(prev)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }
+
+  const handleMeasurementsChange = (item: FAIItem, text: string) => {
+    // Parse comma-separated values
+    const values = text
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== '')
+      .map(Number)
+      .filter((n) => !isNaN(n))
+
+    if (values.length === 0) {
+      updateItem.mutate({
+        reportId: report.id,
+        itemId: item.id,
+        data: { measurements: null, actual_value: null },
+      })
+    } else {
+      updateItem.mutate({
+        reportId: report.id,
+        itemId: item.id,
+        data: { measurements: values },
+      })
+    }
+  }
+
   // Summary
   const passCount = items.filter((i) => i.result === 'pass').length
   const failCount = items.filter((i) => i.result === 'fail').length
@@ -149,10 +222,12 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
             <tr className="bg-muted/50">
               <th className="text-muted-foreground w-16 px-3 py-3 font-medium">Balloon #</th>
               <th className="text-muted-foreground min-w-[140px] px-3 py-3 font-medium">Characteristic</th>
+              <th className="text-muted-foreground w-20 px-3 py-3 font-medium">Zone</th>
               <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">Nominal</th>
               <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">USL</th>
               <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">LSL</th>
-              <th className="text-muted-foreground w-24 px-3 py-3 text-right font-medium">Actual</th>
+              <th className="text-muted-foreground w-24 px-3 py-3 font-medium">Value Type</th>
+              <th className="text-muted-foreground w-28 px-3 py-3 text-right font-medium">Actual</th>
               <th className="text-muted-foreground w-20 px-3 py-3 font-medium">Unit</th>
               <th className="text-muted-foreground min-w-[120px] px-3 py-3 font-medium">Tools Used</th>
               <th className="text-muted-foreground w-16 px-3 py-3 text-center font-medium">Designed</th>
@@ -165,7 +240,7 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
             {items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={readonly ? 11 : 12}
+                  colSpan={readonly ? 13 : 14}
                   className="text-muted-foreground px-4 py-8 text-center text-sm"
                 >
                   No inspection items. Click &quot;Add Row&quot; to begin.
@@ -174,6 +249,8 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
             ) : (
               items.map((item, index) => {
                 const result = getLocalValue(item, 'result')
+                const valueType = getLocalValue(item, 'value_type') ?? 'numeric'
+                const isExpanded = expandedMeasurements.has(item.id)
                 const rowBg =
                   result === 'fail'
                     ? 'bg-red-50 dark:bg-red-950/20'
@@ -184,187 +261,299 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         : 'bg-muted/20'
 
                 return (
-                  <tr key={item.id} className={cn('border-border/50 border-t transition-colors', rowBg)}>
-                    {/* Balloon # */}
-                    <td className={cellClass}>
-                      <input
-                        type="number"
-                        min={1}
-                        value={getLocalValue(item, 'balloon_number') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'balloon_number', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'balloon_number', e.target.value)}
-                        disabled={readonly}
-                        className={numericInputClass}
-                      />
-                    </td>
-
-                    {/* Characteristic */}
-                    <td className={cellClass}>
-                      <input
-                        type="text"
-                        value={getLocalValue(item, 'characteristic_name') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'characteristic_name', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
-                        disabled={readonly}
-                        className={inputClass}
-                        placeholder="Dimension, tolerance..."
-                      />
-                    </td>
-
-                    {/* Nominal */}
-                    <td className={cellClass}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={getLocalValue(item, 'nominal') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'nominal', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'nominal', e.target.value)}
-                        disabled={readonly}
-                        className={numericInputClass}
-                      />
-                    </td>
-
-                    {/* USL */}
-                    <td className={cellClass}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={getLocalValue(item, 'usl') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'usl', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'usl', e.target.value)}
-                        disabled={readonly}
-                        className={numericInputClass}
-                      />
-                    </td>
-
-                    {/* LSL */}
-                    <td className={cellClass}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={getLocalValue(item, 'lsl') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'lsl', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'lsl', e.target.value)}
-                        disabled={readonly}
-                        className={numericInputClass}
-                      />
-                    </td>
-
-                    {/* Actual Value */}
-                    <td className={cellClass}>
-                      <input
-                        type="number"
-                        step="any"
-                        value={getLocalValue(item, 'actual_value') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'actual_value', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'actual_value', e.target.value)}
-                        disabled={readonly}
-                        className={numericInputClass}
-                      />
-                    </td>
-
-                    {/* Unit */}
-                    <td className={cellClass}>
-                      <input
-                        type="text"
-                        value={getLocalValue(item, 'unit') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'unit', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'unit', e.target.value)}
-                        disabled={readonly}
-                        className={inputClass}
-                        placeholder="mm"
-                      />
-                    </td>
-
-                    {/* Tools Used */}
-                    <td className={cellClass}>
-                      <input
-                        type="text"
-                        value={getLocalValue(item, 'tools_used') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'tools_used', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'tools_used', e.target.value)}
-                        disabled={readonly}
-                        className={inputClass}
-                        placeholder="CMM, caliper..."
-                      />
-                    </td>
-
-                    {/* Designed */}
-                    <td className={cn(cellClass, 'text-center')}>
-                      <input
-                        type="checkbox"
-                        checked={getLocalValue(item, 'designed_char') ?? false}
-                        onChange={(e) => handleDesignedChange(item, e.target.checked)}
-                        disabled={readonly}
-                        className="h-4 w-4 rounded"
-                      />
-                    </td>
-
-                    {/* Result */}
-                    <td className={cellClass}>
-                      <select
-                        value={result ?? ''}
-                        onChange={(e) => handleResultChange(item, e.target.value)}
-                        disabled={readonly}
-                        className={cn(
-                          'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-60',
-                          result === 'pass' && 'text-green-600 dark:text-green-400',
-                          result === 'fail' && 'font-semibold text-red-600 dark:text-red-400',
-                          result === 'deviation' && 'text-amber-600 dark:text-amber-400',
-                        )}
-                      >
-                        {RESULT_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-
-                    {/* Deviation Reason */}
-                    <td className={cellClass}>
-                      <input
-                        type="text"
-                        value={getLocalValue(item, 'deviation_reason') ?? ''}
-                        onChange={(e) =>
-                          setLocalValue(item.id, 'deviation_reason', e.target.value)
-                        }
-                        onBlur={(e) => handleBlur(item, 'deviation_reason', e.target.value)}
-                        disabled={readonly || result !== 'deviation'}
-                        className={inputClass}
-                        placeholder={result === 'deviation' ? 'Required...' : ''}
-                      />
-                    </td>
-
-                    {/* Delete */}
-                    {!readonly && (
-                      <td className={cn(cellClass, 'text-center')}>
-                        <button
-                          onClick={() => handleDeleteRow(item.id)}
-                          className="text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors"
-                          title="Delete row"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                  <>
+                    <tr key={item.id} className={cn('border-border/50 border-t transition-colors', rowBg)}>
+                      {/* Balloon # */}
+                      <td className={cellClass}>
+                        <input
+                          type="number"
+                          min={1}
+                          value={getLocalValue(item, 'balloon_number') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'balloon_number', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'balloon_number', e.target.value)}
+                          disabled={readonly}
+                          className={numericInputClass}
+                        />
                       </td>
+
+                      {/* Characteristic */}
+                      <td className={cellClass}>
+                        <input
+                          type="text"
+                          value={getLocalValue(item, 'characteristic_name') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'characteristic_name', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
+                          disabled={readonly}
+                          className={inputClass}
+                          placeholder="Dimension, tolerance..."
+                        />
+                      </td>
+
+                      {/* Drawing Zone */}
+                      <td className={cellClass}>
+                        <input
+                          type="text"
+                          value={getLocalValue(item, 'drawing_zone') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'drawing_zone', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'drawing_zone', e.target.value)}
+                          disabled={readonly}
+                          className={inputClass}
+                          placeholder="A1"
+                        />
+                      </td>
+
+                      {/* Nominal */}
+                      <td className={cellClass}>
+                        <input
+                          type="number"
+                          step="any"
+                          value={getLocalValue(item, 'nominal') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'nominal', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'nominal', e.target.value)}
+                          disabled={readonly}
+                          className={numericInputClass}
+                        />
+                      </td>
+
+                      {/* USL */}
+                      <td className={cellClass}>
+                        <input
+                          type="number"
+                          step="any"
+                          value={getLocalValue(item, 'usl') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'usl', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'usl', e.target.value)}
+                          disabled={readonly}
+                          className={numericInputClass}
+                        />
+                      </td>
+
+                      {/* LSL */}
+                      <td className={cellClass}>
+                        <input
+                          type="number"
+                          step="any"
+                          value={getLocalValue(item, 'lsl') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'lsl', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'lsl', e.target.value)}
+                          disabled={readonly}
+                          className={numericInputClass}
+                        />
+                      </td>
+
+                      {/* Value Type */}
+                      <td className={cellClass}>
+                        <select
+                          value={valueType}
+                          onChange={(e) => handleValueTypeChange(item, e.target.value)}
+                          disabled={readonly}
+                          className={cn(inputClass, 'w-24')}
+                        >
+                          {VALUE_TYPE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Actual Value — renders differently per value_type */}
+                      <td className={cellClass}>
+                        {valueType === 'numeric' ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="any"
+                              value={getLocalValue(item, 'actual_value') ?? ''}
+                              onChange={(e) =>
+                                setLocalValue(item.id, 'actual_value', e.target.value)
+                              }
+                              onBlur={(e) => handleBlur(item, 'actual_value', e.target.value)}
+                              disabled={readonly || (item.measurements != null && item.measurements.length > 0)}
+                              className={numericInputClass}
+                              title={
+                                item.measurements && item.measurements.length > 0
+                                  ? `Mean of ${item.measurements.length} measurements`
+                                  : undefined
+                              }
+                            />
+                            {!readonly && (
+                              <button
+                                onClick={() => toggleMeasurements(item.id)}
+                                className="text-muted-foreground hover:text-foreground shrink-0 rounded p-0.5 transition-colors"
+                                title="Multiple measurements"
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        ) : valueType === 'pass_fail' ? (
+                          <select
+                            value={getLocalValue(item, 'actual_value_text') ?? ''}
+                            onChange={(e) => handlePassFailChange(item, e.target.value)}
+                            disabled={readonly}
+                            className={inputClass}
+                          >
+                            {PASS_FAIL_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={getLocalValue(item, 'actual_value_text') ?? ''}
+                            onChange={(e) =>
+                              setLocalValue(item.id, 'actual_value_text', e.target.value)
+                            }
+                            onBlur={(e) => handleBlur(item, 'actual_value_text', e.target.value)}
+                            disabled={readonly}
+                            className={inputClass}
+                            placeholder="Text value"
+                          />
+                        )}
+                      </td>
+
+                      {/* Unit */}
+                      <td className={cellClass}>
+                        <input
+                          type="text"
+                          value={getLocalValue(item, 'unit') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'unit', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'unit', e.target.value)}
+                          disabled={readonly}
+                          className={inputClass}
+                          placeholder="mm"
+                        />
+                      </td>
+
+                      {/* Tools Used */}
+                      <td className={cellClass}>
+                        <input
+                          type="text"
+                          value={getLocalValue(item, 'tools_used') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'tools_used', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'tools_used', e.target.value)}
+                          disabled={readonly}
+                          className={inputClass}
+                          placeholder="CMM, caliper..."
+                        />
+                      </td>
+
+                      {/* Designed */}
+                      <td className={cn(cellClass, 'text-center')}>
+                        <input
+                          type="checkbox"
+                          checked={getLocalValue(item, 'designed_char') ?? false}
+                          onChange={(e) => handleDesignedChange(item, e.target.checked)}
+                          disabled={readonly}
+                          className="h-4 w-4 rounded"
+                        />
+                      </td>
+
+                      {/* Result */}
+                      <td className={cellClass}>
+                        <select
+                          value={result ?? ''}
+                          onChange={(e) => handleResultChange(item, e.target.value)}
+                          disabled={readonly}
+                          className={cn(
+                            'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-60',
+                            result === 'pass' && 'text-green-600 dark:text-green-400',
+                            result === 'fail' && 'font-semibold text-red-600 dark:text-red-400',
+                            result === 'deviation' && 'text-amber-600 dark:text-amber-400',
+                          )}
+                        >
+                          {RESULT_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Deviation Reason */}
+                      <td className={cellClass}>
+                        <input
+                          type="text"
+                          value={getLocalValue(item, 'deviation_reason') ?? ''}
+                          onChange={(e) =>
+                            setLocalValue(item.id, 'deviation_reason', e.target.value)
+                          }
+                          onBlur={(e) => handleBlur(item, 'deviation_reason', e.target.value)}
+                          disabled={readonly || result !== 'deviation'}
+                          className={inputClass}
+                          placeholder={result === 'deviation' ? 'Required...' : ''}
+                        />
+                      </td>
+
+                      {/* Delete */}
+                      {!readonly && (
+                        <td className={cn(cellClass, 'text-center')}>
+                          <button
+                            onClick={() => handleDeleteRow(item.id)}
+                            className="text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors"
+                            title="Delete row"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+
+                    {/* Expandable measurements row */}
+                    {isExpanded && valueType === 'numeric' && (
+                      <tr key={`${item.id}-measurements`} className={cn('border-border/50 border-t', rowBg)}>
+                        <td colSpan={readonly ? 13 : 14} className="px-6 py-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-medium">
+                              Multiple Measurements (comma-separated — actual value = mean)
+                            </label>
+                            <input
+                              type="text"
+                              defaultValue={
+                                item.measurements ? item.measurements.join(', ') : ''
+                              }
+                              onBlur={(e) => handleMeasurementsChange(item, e.target.value)}
+                              disabled={readonly}
+                              className={inputClass}
+                              placeholder="e.g. 10.01, 10.03, 9.98, 10.02"
+                            />
+                            {item.measurements && item.measurements.length > 0 && (
+                              <p className="text-muted-foreground text-xs">
+                                {item.measurements.length} measurements, mean ={' '}
+                                {(
+                                  item.measurements.reduce((a, b) => a + b, 0) /
+                                  item.measurements.length
+                                ).toFixed(4)}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </>
                 )
               })
             )}

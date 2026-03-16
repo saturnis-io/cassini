@@ -1,9 +1,15 @@
 import type {
+  FAIFunctionalTest,
+  FAIFunctionalTestCreate,
   FAIItem,
   FAIItemCreate,
+  FAIMaterial,
+  FAIMaterialCreate,
   FAIReport,
   FAIReportCreate,
   FAIReportDetail,
+  FAISpecialProcess,
+  FAISpecialProcessCreate,
 } from './client'
 import { fetchApi } from './client'
 
@@ -28,10 +34,11 @@ interface FAIForm1PartAccountability {
 }
 
 interface FAIForm2ProductAccountability {
+  materials: FAIMaterial[]
+  special_processes: FAISpecialProcess[]
+  functional_tests: FAIFunctionalTest[]
   material_supplier: string | null
   material_spec: string | null
-  special_processes: string | null
-  functional_test_results: string | null
 }
 
 interface FAIForm3CharacteristicAccountability {
@@ -45,6 +52,7 @@ interface FAIForm3CharacteristicAccountability {
 export interface FAIFormData {
   report_id: number
   status: string
+  fai_type: string
   form1_part_accountability: FAIForm1PartAccountability
   form2_product_accountability: FAIForm2ProductAccountability
   form3_characteristic_accountability: FAIForm3CharacteristicAccountability
@@ -78,6 +86,7 @@ export const faiApi = {
   deleteReport: (id: number) =>
     fetchApi<void>(`/fai/reports/${id}`, { method: 'DELETE' }),
 
+  // Items (Form 3)
   addItem: (reportId: number, data: FAIItemCreate) =>
     fetchApi<FAIItem>(`/fai/reports/${reportId}/items`, {
       method: 'POST',
@@ -93,6 +102,41 @@ export const faiApi = {
   deleteItem: (reportId: number, itemId: number) =>
     fetchApi<void>(`/fai/reports/${reportId}/items/${itemId}`, { method: 'DELETE' }),
 
+  // Materials (Form 2 child)
+  addMaterial: (reportId: number, data: FAIMaterialCreate) =>
+    fetchApi<FAIMaterial>(`/fai/reports/${reportId}/materials`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteMaterial: (reportId: number, materialId: number) =>
+    fetchApi<void>(`/fai/reports/${reportId}/materials/${materialId}`, { method: 'DELETE' }),
+
+  // Special Processes (Form 2 child)
+  addSpecialProcess: (reportId: number, data: FAISpecialProcessCreate) =>
+    fetchApi<FAISpecialProcess>(`/fai/reports/${reportId}/special-processes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteSpecialProcess: (reportId: number, processId: number) =>
+    fetchApi<void>(`/fai/reports/${reportId}/special-processes/${processId}`, {
+      method: 'DELETE',
+    }),
+
+  // Functional Tests (Form 2 child)
+  addFunctionalTest: (reportId: number, data: FAIFunctionalTestCreate) =>
+    fetchApi<FAIFunctionalTest>(`/fai/reports/${reportId}/functional-tests`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteFunctionalTest: (reportId: number, testId: number) =>
+    fetchApi<void>(`/fai/reports/${reportId}/functional-tests/${testId}`, {
+      method: 'DELETE',
+    }),
+
+  // Workflow
   submit: (reportId: number) =>
     fetchApi<FAIReport>(`/fai/reports/${reportId}/submit`, { method: 'POST' }),
 

@@ -2,13 +2,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
+
+if TYPE_CHECKING:
+    from cassini.db.models.fai_detail import (
+        FAIFunctionalTest,
+        FAIMaterial,
+        FAISpecialProcess,
+    )
 
 
 def _utc_now() -> datetime:
@@ -26,6 +33,11 @@ class FAIReport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     plant_id: Mapped[int] = mapped_column(ForeignKey("plant.id", ondelete="CASCADE"), nullable=False)
 
+    # FAI type: "full" (default) or "partial"
+    fai_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="full", server_default=sa.text("'full'")
+    )
+
     # Form 1: Part Number Accountability
     part_number: Mapped[str] = mapped_column(String(100), nullable=False)
     part_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -38,7 +50,7 @@ class FAIReport(Base):
     purchase_order: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     reason_for_inspection: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    # Form 2: Product Accountability
+    # Form 2: Product Accountability (legacy text fields — read-only after migration)
     material_supplier: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     material_spec: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     special_processes: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)  # JSON array
@@ -72,6 +84,16 @@ class FAIReport(Base):
         "FAIItem", back_populates="report", cascade="all, delete-orphan",
         order_by="FAIItem.sequence_order"
     )
+    # Form 2 child tables (structured data — replaces legacy text fields)
+    materials: Mapped[list["FAIMaterial"]] = relationship(
+        "FAIMaterial", back_populates="report", cascade="all, delete-orphan",
+    )
+    special_processes_items: Mapped[list["FAISpecialProcess"]] = relationship(
+        "FAISpecialProcess", back_populates="report", cascade="all, delete-orphan",
+    )
+    functional_tests_items: Mapped[list["FAIFunctionalTest"]] = relationship(
+        "FAIFunctionalTest", back_populates="report", cascade="all, delete-orphan",
+    )
 
 
 class FAIItem(Base):
@@ -86,10 +108,16 @@ class FAIItem(Base):
     report_id: Mapped[int] = mapped_column(ForeignKey("fai_report.id", ondelete="CASCADE"), nullable=False)
     balloon_number: Mapped[int] = mapped_column(Integer, nullable=False)
     characteristic_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    drawing_zone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     nominal: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     usl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lsl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     actual_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    value_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="numeric", server_default=sa.text("'numeric'")
+    )
+    actual_value_text: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    measurements: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)  # JSON array of floats
     unit: Mapped[str] = mapped_column(String(50), nullable=False, default="mm")
     tools_used: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     designed_char: Mapped[bool] = mapped_column(
