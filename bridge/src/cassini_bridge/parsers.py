@@ -35,7 +35,7 @@ class MitutoyoDigimaticParser(GageParser):
 
 
 class GenericParser(GageParser):
-    """Configurable regex-based parser.
+    r"""Configurable regex-based parser.
 
     Uses a regex with a named capture group 'value' to extract the float.
     Example pattern: r"(?P<value>[+-]?\d+\.?\d*)"
@@ -55,8 +55,100 @@ class GenericParser(GageParser):
         return None
 
 
+class MahrMarComParser(GageParser):
+    """Mahr MarCom output parser.
+
+    Format: M+00.1234 or +00.1234
+    - Optional 'M' prefix
+    - Sign (+/-)
+    - Digits with decimal point
+    """
+
+    PATTERN = re.compile(r"^M?([+-]\d+\.\d+)")
+
+    def parse(self, line: str) -> float | None:
+        line = line.strip()
+        match = self.PATTERN.match(line)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+
+class SylvacParser(GageParser):
+    """Sylvac gage output parser.
+
+    Format: +00.1234 or -0.5678 or 12.345
+    - Optional sign (+/-)
+    - Digits with decimal point, may have leading zeros
+    """
+
+    PATTERN = re.compile(r"^([+-]?\d+\.\d+)")
+
+    def parse(self, line: str) -> float | None:
+        line = line.strip()
+        match = self.PATTERN.match(line)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+
+class StarrettDataSureParser(GageParser):
+    """Starrett DataSure output parser.
+
+    Format: D +00.1234 mm or D -0.5678 in
+    - 'D' prefix followed by whitespace
+    - Sign (+/-)
+    - Digits with optional decimal point
+    - Optional unit suffix (ignored)
+    """
+
+    PATTERN = re.compile(r"^D\s+([+-]?\d+\.?\d*)")
+
+    def parse(self, line: str) -> float | None:
+        line = line.strip()
+        match = self.PATTERN.match(line)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+
+class KeyenceParser(GageParser):
+    """Keyence sensor output parser.
+
+    Format: CH01,+00.1234 or CH1,-0.5678
+    - Channel prefix CHnn followed by comma
+    - Sign (+/-)
+    - Digits with optional decimal point
+    """
+
+    PATTERN = re.compile(r"^CH\d+,([+-]?\d+\.?\d*)")
+
+    def parse(self, line: str) -> float | None:
+        line = line.strip()
+        match = self.PATTERN.match(line)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+        return None
+
+
 PROFILES = {
     "mitutoyo_digimatic": MitutoyoDigimaticParser,
+    "mahr_marcom": MahrMarComParser,
+    "sylvac": SylvacParser,
+    "starrett_datasure": StarrettDataSureParser,
+    "keyence": KeyenceParser,
     "generic": GenericParser,
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useAccessibilityStore } from '@/stores/accessibilityStore'
 import { useCharacteristic, useSubmitSample } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
 import { FieldError } from '@/components/FieldError'
@@ -14,6 +15,7 @@ export function InputModal() {
   const { data: characteristic } = useCharacteristic(characteristicId ?? 0)
   const submitSample = useSubmitSample()
 
+  const touchMode = useAccessibilityStore((s) => s.touchMode)
   const [measurements, setMeasurements] = useState<string[]>([''])
   const [error, setError] = useState<string | null>(null)
   const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
@@ -82,15 +84,28 @@ export function InputModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-card mx-4 w-full max-w-md rounded-lg border shadow-xl">
-        <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-lg font-semibold">Enter Measurement</h2>
-          <button onClick={closeModal} className="hover:bg-muted rounded p-1">
-            <X className="h-5 w-5" />
+      <div
+        className={cn(
+          'bg-card mx-4 w-full max-w-md rounded-lg border shadow-xl',
+          touchMode && 'max-w-lg',
+        )}
+      >
+        <div className={cn('flex items-center justify-between border-b p-4', touchMode && 'p-5')}>
+          <h2 className={cn('text-lg font-semibold', touchMode && 'text-xl')}>
+            Enter Measurement
+          </h2>
+          <button
+            onClick={closeModal}
+            className={cn(
+              'hover:bg-muted rounded p-1',
+              touchMode && 'p-2',
+            )}
+          >
+            <X className={cn('h-5 w-5', touchMode && 'h-6 w-6')} />
           </button>
         </div>
 
-        <div className="space-y-4 p-4">
+        <div className={cn('space-y-4 p-4', touchMode && 'space-y-6 p-5')}>
           <div>
             <div className="font-medium">{characteristic.name}</div>
             <div className="text-muted-foreground text-sm">
@@ -99,12 +114,12 @@ export function InputModal() {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className={cn('space-y-3', touchMode && 'space-y-4')}>
             {measurements.map((measurement, index) => {
               const status = getValueStatus(measurement)
               return (
                 <div key={index}>
-                  <label className="text-sm font-medium">
+                  <label className={cn('text-sm font-medium', touchMode && 'text-base')}>
                     {subgroupSize > 1 ? `Measurement ${index + 1}` : 'Value'}
                   </label>
                   <NumberInput
@@ -115,12 +130,14 @@ export function InputModal() {
                     size="lg"
                     className={cn(
                       'mt-1 w-full',
+                      touchMode && 'min-h-[var(--touch-input-height)]',
                       status === 'ok' && 'border-success bg-success/10',
                       status === 'warning' && 'border-warning bg-warning/10',
                       status === 'error' && 'border-destructive bg-destructive/10',
                     )}
                     inputClassName={cn(
                       'text-lg font-mono',
+                      touchMode && 'text-[length:var(--touch-font-size)]',
                       status === 'ok' && 'text-success',
                       status === 'warning' && 'text-warning',
                       status === 'error' && 'text-destructive',
@@ -156,13 +173,12 @@ export function InputModal() {
           {error && <div className="text-destructive text-sm">{error}</div>}
         </div>
 
-        <div className="flex justify-end gap-2 border-t p-4">
-          <button
-            onClick={closeModal}
-            className="hover:bg-muted rounded-md border px-4 py-2 text-sm"
-          >
-            Cancel
-          </button>
+        <div
+          className={cn(
+            'flex justify-end gap-2 border-t p-4',
+            touchMode && 'flex-col gap-3 p-5',
+          )}
+        >
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitSample.isPending}
@@ -171,9 +187,21 @@ export function InputModal() {
               'bg-primary text-primary-foreground',
               'hover:bg-primary/90',
               'disabled:cursor-not-allowed disabled:opacity-50',
+              touchMode &&
+                'min-h-[var(--touch-button-height)] text-[length:var(--touch-font-size)] font-semibold',
             )}
           >
             {submitSample.isPending ? 'Submitting...' : 'Submit'}
+          </button>
+          <button
+            onClick={closeModal}
+            className={cn(
+              'hover:bg-muted rounded-md border px-4 py-2 text-sm',
+              touchMode &&
+                'min-h-[var(--touch-button-height)] text-[length:var(--touch-font-size)]',
+            )}
+          >
+            Cancel
           </button>
         </div>
       </div>

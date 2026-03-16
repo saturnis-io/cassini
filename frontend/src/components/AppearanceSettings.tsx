@@ -3,6 +3,7 @@ import { useTheme } from '@/providers/ThemeProvider'
 import { useECharts } from '@/hooks/useECharts'
 import { graphic } from '@/lib/echarts'
 import { VISUAL_STYLE_OPTIONS } from '@/lib/visual-styles'
+import { useAccessibilityStore } from '@/stores/accessibilityStore'
 import {
   Sun,
   Moon,
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
+  Fingerprint,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -316,6 +318,8 @@ function ChartPreview({ colors }: { colors: ChartColors }) {
 
 export function AppearanceSettings() {
   const { theme, setTheme, visualStyle, setVisualStyle, resolvedTheme } = useTheme()
+  const touchMode = useAccessibilityStore((s) => s.touchMode)
+  const toggleTouchMode = useAccessibilityStore((s) => s.toggleTouchMode)
   const [selectedPreset, setSelectedPreset] = useState(getStoredPresetId())
   const [colors, setColors] = useState<ChartColors>(() => getStoredChartColors(resolvedTheme))
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -413,6 +417,37 @@ export function AppearanceSettings() {
               <p className="text-muted-foreground mt-0.5 text-xs leading-snug">{opt.desc}</p>
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* Touch Mode */}
+      <section className="bg-muted rounded-xl p-5" data-ui="appearance-touch-mode-section">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Fingerprint className="text-muted-foreground h-5 w-5" />
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide">Touch Mode</h3>
+              <p className="text-muted-foreground text-xs">
+                Larger buttons, inputs, and spacing for touchscreen use on the shop floor
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleTouchMode}
+            role="switch"
+            aria-checked={touchMode}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors',
+              touchMode ? 'bg-primary' : 'bg-input',
+            )}
+          >
+            <span
+              className={cn(
+                'pointer-events-none block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                touchMode ? 'translate-x-5.5' : 'translate-x-0.5',
+              )}
+            />
+          </button>
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import {
   useMaterialOverrides,
 } from '@/api/hooks'
 import { useDashboardStore } from '@/stores/dashboardStore'
+import { useAccessibilityStore } from '@/stores/accessibilityStore'
 import { usePlant } from '@/providers/PlantProvider'
 import { CharacteristicContextBar } from './CharacteristicContextBar'
 import { NoCharacteristicState } from './NoCharacteristicState'
@@ -15,12 +16,14 @@ import { FieldError } from '@/components/FieldError'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { measurementsSchema } from '@/schemas/data-entry'
 import { AlertTriangle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function ManualEntryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
   const { selectedPlant } = usePlant()
   const plantId = selectedPlant?.id ?? 0
+  const touchMode = useAccessibilityStore((s) => s.touchMode)
 
   const [measurements, setMeasurements] = useState<string[]>([])
   const [materialId, setMaterialId] = useState<number | null>(null)
@@ -189,7 +192,7 @@ export function ManualEntryPanel() {
           {selectedChar.data_type === 'attribute' ? (
             <AttributeEntryForm characteristic={selectedChar} />
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className={cn('space-y-4', touchMode && 'space-y-6')}>
               {/* Measurement Inputs */}
               <div>
                 <label className="mb-2 block text-sm font-medium">
@@ -199,7 +202,12 @@ export function ManualEntryPanel() {
                     {minRequired < inputCount && `, min ${minRequired} required`})
                   </span>
                 </label>
-                <div className="grid grid-cols-4 gap-3">
+                <div
+                  className={cn(
+                    'grid grid-cols-4 gap-3',
+                    touchMode && 'grid-cols-2 gap-[var(--touch-gap)]',
+                  )}
+                >
                   {measurements.map((value, index) => {
                     const isRequired = index < minRequired
                     const isFilled = value !== '' && !isNaN(parseFloat(value))
@@ -210,8 +218,11 @@ export function ManualEntryPanel() {
                           value={value}
                           onChange={(v) => handleMeasurementChange(index, v)}
                           placeholder={`M${index + 1}`}
-                          size="md"
-                          inputClassName="text-center"
+                          size={touchMode ? 'lg' : 'md'}
+                          inputClassName={cn(
+                            'text-center',
+                            touchMode && 'text-[length:var(--touch-font-size)]',
+                          )}
                           className={isRequired && !isFilled ? 'border-warning' : ''}
                         />
                         {isRequired && (
@@ -264,7 +275,11 @@ export function ManualEntryPanel() {
                           }
                         }}
                         placeholder="Select or search material"
-                        className="bg-background border-input w-full rounded-lg border px-3 py-2 pr-8"
+                        className={cn(
+                          'bg-background border-input w-full rounded-lg border px-3 py-2 pr-8',
+                          touchMode &&
+                            'min-h-[var(--touch-input-height)] text-[length:var(--touch-font-size)]',
+                        )}
                       />
                       <button
                         type="button"
@@ -393,7 +408,9 @@ export function ManualEntryPanel() {
               </div>
 
               {/* Optional Fields */}
-              <div className="grid grid-cols-2 gap-4">
+              <div
+                className={cn('grid grid-cols-2 gap-4', touchMode && 'grid-cols-1 gap-[var(--touch-gap)]')}
+              >
                 <div>
                   <label className="mb-1 block text-sm font-medium">Batch Number (optional)</label>
                   <input
@@ -401,7 +418,11 @@ export function ManualEntryPanel() {
                     value={batchNumber}
                     onChange={(e) => setBatchNumber(e.target.value)}
                     placeholder="e.g., LOT-2024-001"
-                    className="bg-background border-input w-full rounded-lg border px-3 py-2"
+                    className={cn(
+                      'bg-background border-input w-full rounded-lg border px-3 py-2',
+                      touchMode &&
+                        'min-h-[var(--touch-input-height)] text-[length:var(--touch-font-size)]',
+                    )}
                   />
                 </div>
                 <div>
@@ -411,7 +432,11 @@ export function ManualEntryPanel() {
                     value={operatorId}
                     onChange={(e) => setOperatorId(e.target.value)}
                     placeholder="e.g., OP-123"
-                    className="bg-background border-input w-full rounded-lg border px-3 py-2"
+                    className={cn(
+                      'bg-background border-input w-full rounded-lg border px-3 py-2',
+                      touchMode &&
+                        'min-h-[var(--touch-input-height)] text-[length:var(--touch-font-size)]',
+                    )}
                   />
                 </div>
               </div>
@@ -421,7 +446,11 @@ export function ManualEntryPanel() {
                 <button
                   type="submit"
                   disabled={!isValid || submitSample.isPending}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cn(
+                    'bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50',
+                    touchMode &&
+                      'min-h-[var(--touch-button-height)] w-full text-[length:var(--touch-font-size)] font-semibold',
+                  )}
                 >
                   {submitSample.isPending ? 'Submitting...' : 'Submit Sample'}
                 </button>

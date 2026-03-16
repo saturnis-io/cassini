@@ -16,6 +16,7 @@ import {
   ALL_STYLE_CSS_CLASSES,
   VISUAL_STYLES,
 } from '@/lib/visual-styles'
+import { useAccessibilityStore } from '@/stores/accessibilityStore'
 import type { BrandConfigDTO, DisplayKeyFormatDTO } from '@/types'
 
 export type { VisualStyle } from '@/lib/visual-styles'
@@ -387,6 +388,25 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       root.classList.add(style.cssClass)
     }
   }, [visualStyle])
+
+  // Apply touch mode attribute and CSS custom properties
+  const touchMode = useAccessibilityStore((s) => s.touchMode)
+  useEffect(() => {
+    const root = document.documentElement
+    if (touchMode) {
+      root.setAttribute('data-touch-mode', '')
+      root.style.setProperty('--touch-input-height', '48px')
+      root.style.setProperty('--touch-button-height', '56px')
+      root.style.setProperty('--touch-gap', '16px')
+      root.style.setProperty('--touch-font-size', '18px')
+    } else {
+      root.removeAttribute('data-touch-mode')
+      root.style.removeProperty('--touch-input-height')
+      root.style.removeProperty('--touch-button-height')
+      root.style.removeProperty('--touch-gap')
+      root.style.removeProperty('--touch-font-size')
+    }
+  }, [touchMode])
 
   // Apply chart colors when resolved theme changes or chart-colors-changed fires
   useEffect(() => {

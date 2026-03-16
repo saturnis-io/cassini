@@ -4,7 +4,9 @@ Handles serial port failures gracefully: individual port errors do not
 crash the entire bridge.  Failed ports are retried every 60 seconds so
 that hot-plugged USB devices are picked up automatically.
 """
+import json
 import logging
+import os
 import signal
 import threading
 import time
@@ -12,6 +14,7 @@ from pathlib import Path
 
 from cassini_bridge.config import PortConfig, load_from_api, load_from_yaml
 from cassini_bridge.mqtt_publisher import GageMQTTPublisher
+from cassini_bridge.offline_buffer import OfflineBuffer
 from cassini_bridge.parsers import GageParser, create_parser
 from cassini_bridge.serial_reader import SerialReader
 
@@ -49,6 +52,21 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
         print("No active ports configured. Nothing to do.")
         return
 
+    # Set up offline buffer for store-and-forward
+    data_dir = Path(os.environ.get("CASSINI_BRIDGE_DATA_DIR", "data"))
+    buffer_path = os.environ.get(
+        "CASSINI_BRIDGE_BUFFER_PATH",
+        str(data_dir / "offline_buffer.db"),
+    )
+    offline_buffer = OfflineBuffer(
+        db_path=buffer_path,
+        max_records=int(os.environ.get("CASSINI_BRIDGE_BUFFER_MAX_RECORDS", "100000")),
+        max_size_mb=int(os.environ.get("CASSINI_BRIDGE_BUFFER_MAX_SIZE_MB", "500")),
+    )
+    buffered_count = offline_buffer.count()
+    if buffered_count > 0:
+        logger.info("Offline buffer has %d reading(s) from previous session", buffered_count)
+
     # Set up MQTT
     publisher = GageMQTTPublisher(
         host=config.mqtt_host,
@@ -62,6 +80,18 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
         client_key_pem=config.mqtt_client_key_pem,
         tls_insecure=config.mqtt_tls_insecure,
     )
+
+    # Hook: flush offline buffer on MQTT reconnect before accepting new readings
+    original_on_connect = publisher._on_connect
+
+    def _on_connect_with_flush(client, userdata, flags, reason_code, properties):
+        original_on_connect(client, userdata, flags, reason_code, properties)
+        if reason_code == 0:
+            flushed = offline_buffer.flush(client)
+            if flushed:
+                logger.info("Flushed %d offline-buffered reading(s) on reconnect", flushed)
+
+    publisher.client.on_connect = _on_connect_with_flush
     publisher.connect()
 
     # Heartbeat topic
@@ -125,8 +155,20 @@ def run_bridge(server_url: str | None = None, api_key: str | None = None, config
                 if line:
                     value = parser.parse(line)
                     if value is not None:
-                        publisher.publish_value(topic, value)
-                        logger.debug("Published %.4f to %s", value, topic)
+                        measurement_ts = time.time()
+                        if publisher._connected:
+                            publisher.publish_value(topic, value)
+                            logger.debug("Published %.4f to %s", value, topic)
+                        else:
+                            # Store in offline buffer with original measurement timestamp
+                            payload = json.dumps({"value": value, "timestamp": measurement_ts})
+                            offline_buffer.store(topic, payload, measurement_ts)
+                            logger.debug(
+                                "MQTT offline — buffered %.4f for %s (buffer=%d)",
+                                value,
+                                topic,
+                                offline_buffer.count(),
+                            )
 
             # ----------------------------------------------------------
             # Promote reconnected ports / demote failed ports
