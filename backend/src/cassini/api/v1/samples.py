@@ -362,8 +362,11 @@ async def submit_sample(
             # For restricted, we need supervisor+
             check_plant_role(_user, plant_id, "supervisor")
 
-        # Audit: enrich context for manual entries on automated characteristics
-        if getattr(characteristic, 'data_source', None) is not None and policy in ("supplemental", "restricted"):
+        # Audit: enrich context for manual entries on characteristics with non-open policy
+        # Note: avoid accessing characteristic.data_source (relationship) without selectinload.
+        # Policy != "open" is a reliable proxy — auto-set ensures supplemental/restricted/locked
+        # only exist on characteristics with (or formerly with) a data source.
+        if policy in ("supplemental", "restricted"):
             request.state.audit_context = {
                 "resource_type": "sample",
                 "action": "manual_override",

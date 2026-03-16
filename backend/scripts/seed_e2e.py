@@ -180,10 +180,18 @@ def insert_material_class(
     """Insert a material class and fix up its materialized path.
 
     Returns (class_id, path) so children can reference both.
+    Idempotent by plant_id + code.
     """
+    cur.execute(
+        "SELECT id, path FROM material_class WHERE plant_id = ? AND code = ?",
+        (plant_id, code),
+    )
+    row = cur.fetchone()
+    if row:
+        return row[0], row[1]
     now = utcnow()
     cur.execute(
-        """INSERT OR IGNORE INTO material_class
+        """INSERT INTO material_class
         (plant_id, parent_id, name, code, path, depth, description, created_at, updated_at)
         VALUES (?, ?, ?, ?, '/', ?, ?, ?, ?)""",
         (plant_id, parent_id, name, code, depth, description, now, now),
@@ -198,10 +206,17 @@ def insert_material(
     cur: sqlite3.Cursor, plant_id: int, class_id: int | None,
     name: str, code: str, description: str | None = None,
 ) -> int:
-    """Insert a material row. Returns material_id."""
+    """Insert a material row. Returns material_id. Idempotent by plant_id + code."""
+    cur.execute(
+        "SELECT id FROM material WHERE plant_id = ? AND code = ?",
+        (plant_id, code),
+    )
+    row = cur.fetchone()
+    if row:
+        return row[0]
     now = utcnow()
     cur.execute(
-        """INSERT OR IGNORE INTO material
+        """INSERT INTO material
         (plant_id, class_id, name, code, description, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (plant_id, class_id, name, code, description, now, now),

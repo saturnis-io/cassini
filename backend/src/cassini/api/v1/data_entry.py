@@ -144,6 +144,14 @@ async def submit_sample(
             detail="Characteristic not found",
         )
 
+    # Enforce manual entry policy (applies to API submissions too)
+    policy = getattr(characteristic, 'manual_entry_policy', 'open')
+    if policy == "locked":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Manual entry is disabled for this characteristic.",
+        )
+
     try:
         # Always run standard SPC engine first (Nelson Rules, zone classification)
         engine = await get_spc_engine(session)

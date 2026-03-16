@@ -212,6 +212,16 @@ async def _remove_auto_datasource(
     if ds is not None:
         await session.delete(ds)
 
+        # Reset manual entry policy since automated data source is removed
+        from cassini.db.models.characteristic import Characteristic
+
+        char_result = await session.execute(
+            select(Characteristic).where(Characteristic.id == characteristic_id)
+        )
+        char = char_result.scalar_one_or_none()
+        if char is not None:
+            char.manual_entry_policy = "open"
+
 
 # ===========================================================================
 # PROFILES  (static route -- MUST come before /{bridge_id} params)
