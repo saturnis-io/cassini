@@ -2,7 +2,8 @@
 
 Provides CRUD for FAI reports, items, and Form 2 child tables (materials,
 special processes, functional tests), status workflow
-(draft -> submitted -> approved/rejected), and AS9102 form data export.
+(draft -> submitted -> approved/rejected), AS9102 form data export,
+PDF/Excel export, and delta FAI support.
 """
 
 import json
@@ -10,7 +11,7 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -92,6 +93,7 @@ def _item_to_response(item: FAIItem) -> FAIItemResponse:
         "deviation_reason": item.deviation_reason,
         "characteristic_id": item.characteristic_id,
         "sequence_order": item.sequence_order,
+        "carried_forward": item.carried_forward,
     }
     return FAIItemResponse.model_validate(data)
 
@@ -165,6 +167,7 @@ def _report_detail_response(report: FAIReport) -> FAIReportDetailResponse:
         "approved_by": report.approved_by,
         "approved_at": report.approved_at,
         "rejection_reason": report.rejection_reason,
+        "parent_report_id": report.parent_report_id,
         "items": items,
         "materials": materials,
         "special_processes_items": sp,
@@ -1127,3 +1130,264 @@ async def get_form_data(
             "items": [item.model_dump() for item in items],
         },
     }
+
+
+# ===========================================================================
+# AS9102 STANDARD EXPORT (PDF / Excel)
+# ===========================================================================
+
+
+def _report_to_export_dict(report: FAIReport) -> dict:
+    """Build a flat dict from a fully-loaded FAIReport for the export module."""
+    items = [_item_to_response(item).model_dump() for item in report.items]
+    materials = [FAIMaterialResponse.model_validate(m).model_dump() for m in report.materials]
+    sp = [FAISpecialProcessResponse.model_validate(s).model_dump() for s in report.special_processes_items]
+    ft = [FAIFunctionalTestResponse.model_validate(t).model_dump() for t in report.functional_tests_items]
+
+    return {
+        "id": report.id,
+        "plant_id": report.plant_id,
+        "fai_type": report.fai_type,
+        "part_number": report.part_number,
+        "part_name": report.part_name,
+        "revision": report.revision,
+        "serial_number": report.serial_number,
+        "lot_number": report.lot_number,
+        "drawing_number": report.drawing_number,
+        "organization_name": report.organization_name,
+        "supplier": report.supplier,
+        "purchase_order": report.purchase_order,
+        "reason_for_inspection": report.reason_for_inspection,
+        "status": report.status,
+        "created_by": report.created_by,
+        "created_at": report.created_at,
+        "submitted_by": report.submitted_by,
+        "submitted_at": report.submitted_at,
+        "approved_by": report.approved_by,
+        "approved_at": report.approved_at,
+        "parent_report_id": report.parent_report_id,
+        "items": items,
+        "materials": materials,
+        "special_processes_items": sp,
+        "functional_tests_items": ft,
+    }
+
+
+@router.get("/reports/{report_id}/export/pdf")
+async def export_report_pdf(
+    report_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """Export an FAI report as an AS9102 Rev C PDF.
+
+    Requires supervisor+ role for the report's plant.
+    """
+    report = await _get_report_or_404(session, report_id, load_details=True)
+    check_plant_role(user, report.plant_id, "supervisor")
+
+    from cassini.core.fai_export import generate_fai_pdf
+
+    export_data = _report_to_export_dict(report)
+    pdf_bytes = generate_fai_pdf(export_data)
+
+    part = report.part_number or "unknown"
+    rev = report.revision or ""
+    filename = f"FAI_{part}_Rev{rev}_{report_id}.pdf"
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "export",
+        "summary": f"FAI report {report_id} exported as PDF",
+        "fields": {"format": "pdf", "part_number": part},
+    }
+
+    logger.info("fai_report_exported", report_id=report_id, format="pdf", user=user.username)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/reports/{report_id}/export/excel")
+async def export_report_excel(
+    report_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """Export an FAI report as an AS9102 Rev C Excel workbook.
+
+    Three sheets: Form 1, Form 2, Form 3.
+    Requires supervisor+ role for the report's plant.
+    """
+    report = await _get_report_or_404(session, report_id, load_details=True)
+    check_plant_role(user, report.plant_id, "supervisor")
+
+    from cassini.core.fai_export import generate_fai_excel
+
+    export_data = _report_to_export_dict(report)
+    xlsx_bytes = generate_fai_excel(export_data)
+
+    part = report.part_number or "unknown"
+    rev = report.revision or ""
+    filename = f"FAI_{part}_Rev{rev}_{report_id}.xlsx"
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": report_id,
+        "action": "export",
+        "summary": f"FAI report {report_id} exported as Excel",
+        "fields": {"format": "excel", "part_number": part},
+    }
+
+    logger.info("fai_report_exported", report_id=report_id, format="excel", user=user.username)
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ===========================================================================
+# DELTA FAI
+# ===========================================================================
+
+
+@router.post("/reports/{report_id}/delta", response_model=FAIReportDetailResponse, status_code=status.HTTP_201_CREATED)
+async def create_delta_report(
+    report_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAIReportDetailResponse:
+    """Create a delta FAI report from an approved parent report.
+
+    Copies all items from the parent, marking them as carried_forward=True.
+    The user then modifies the items that need re-inspection.
+
+    Rules:
+    - Parent must be in "approved" status
+    - Parent status is NOT changed by delta creation
+    - Delta gets its own signature workflow (new resource)
+    - Parent signatures are NOT invalidated
+
+    Requires engineer+ role for the parent report's plant.
+    """
+    parent = await _get_report_or_404(session, report_id, load_details=True)
+    check_plant_role(user, parent.plant_id, "engineer")
+
+    if parent.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Parent report is in '{parent.status}' status — only approved reports can have delta FAIs",
+        )
+
+    # Create the delta report, copying header fields from parent
+    delta = FAIReport(
+        plant_id=parent.plant_id,
+        fai_type=parent.fai_type,
+        part_number=parent.part_number,
+        part_name=parent.part_name,
+        revision=parent.revision,
+        serial_number=parent.serial_number,
+        lot_number=parent.lot_number,
+        drawing_number=parent.drawing_number,
+        organization_name=parent.organization_name,
+        supplier=parent.supplier,
+        purchase_order=parent.purchase_order,
+        reason_for_inspection="delta",
+        material_supplier=parent.material_supplier,
+        material_spec=parent.material_spec,
+        special_processes=parent.special_processes,
+        functional_test_results=parent.functional_test_results,
+        status="draft",
+        created_by=user.id,
+        parent_report_id=parent.id,
+    )
+    session.add(delta)
+    await session.flush()  # Get delta.id
+
+    # Copy items from parent, all marked as carried_forward
+    for item in parent.items:
+        delta_item = FAIItem(
+            report_id=delta.id,
+            balloon_number=item.balloon_number,
+            characteristic_name=item.characteristic_name,
+            drawing_zone=item.drawing_zone,
+            nominal=item.nominal,
+            usl=item.usl,
+            lsl=item.lsl,
+            actual_value=item.actual_value,
+            value_type=item.value_type,
+            actual_value_text=item.actual_value_text,
+            measurements=item.measurements,
+            unit=item.unit,
+            tools_used=item.tools_used,
+            designed_char=item.designed_char,
+            result=item.result,
+            deviation_reason=item.deviation_reason,
+            characteristic_id=item.characteristic_id,
+            sequence_order=item.sequence_order,
+            carried_forward=True,
+        )
+        session.add(delta_item)
+
+    # Copy Form 2 child tables
+    for mat in parent.materials:
+        session.add(FAIMaterial(
+            report_id=delta.id,
+            material_part_number=mat.material_part_number,
+            material_spec=mat.material_spec,
+            cert_number=mat.cert_number,
+            supplier=mat.supplier,
+            result=mat.result,
+        ))
+
+    for sp in parent.special_processes_items:
+        session.add(FAISpecialProcess(
+            report_id=delta.id,
+            process_name=sp.process_name,
+            process_spec=sp.process_spec,
+            cert_number=sp.cert_number,
+            approved_supplier=sp.approved_supplier,
+            result=sp.result,
+        ))
+
+    for ft in parent.functional_tests_items:
+        session.add(FAIFunctionalTest(
+            report_id=delta.id,
+            test_description=ft.test_description,
+            procedure_number=ft.procedure_number,
+            actual_results=ft.actual_results,
+            result=ft.result,
+        ))
+
+    await session.commit()
+
+    # Reload with all relationships for response
+    delta = await _get_report_or_404(session, delta.id, load_details=True)
+
+    request.state.audit_context = {
+        "resource_type": "fai_report",
+        "resource_id": delta.id,
+        "action": "create",
+        "summary": f"Delta FAI report created from parent #{report_id}",
+        "fields": {
+            "parent_report_id": report_id,
+            "part_number": delta.part_number,
+            "items_copied": len(delta.items),
+        },
+    }
+
+    logger.info(
+        "fai_delta_created",
+        delta_id=delta.id,
+        parent_id=report_id,
+        items_copied=len(delta.items),
+        user=user.username,
+    )
+    return _report_detail_response(delta)

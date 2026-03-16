@@ -51,6 +51,7 @@ sso = [
 reporting = [
     "xhtml2pdf>=0.2.16",
     "openpyxl>=3.1.0",
+    "fpdf2>=2.8.0",
 ]
 erp = [
     "croniter>=1.4.0",

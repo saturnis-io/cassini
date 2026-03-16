@@ -60,6 +60,7 @@ const ACTION_LABELS: Record<string, string> = {
   batch_evaluate: 'Batch SPC Evaluate',
   lock_roles: 'Lock Roles',
   unlock_roles: 'Unlock Roles',
+  create_delta: 'Create Delta',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {

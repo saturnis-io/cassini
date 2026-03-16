@@ -10,6 +10,8 @@ import {
   FileText,
   Package,
   Ruler,
+  Download,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -20,8 +22,10 @@ import {
   useSubmitFAIReport,
   useApproveFAIReport,
   useRejectFAIReport,
+  useCreateDeltaFAI,
   useWorkflows,
 } from '@/api/hooks'
+import { faiApi } from '@/api/fai.api'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
 import { FAIForm1 } from './FAIForm1'
 import { FAIForm2 } from './FAIForm2'
@@ -47,6 +51,7 @@ export function FAIReportEditor() {
   const submitReport = useSubmitFAIReport()
   const approveReport = useApproveFAIReport()
   const rejectReport = useRejectFAIReport()
+  const createDelta = useCreateDeltaFAI()
   const { validate: validateGuard } = useFormValidation(faiReportGuardSchema)
 
   const { data: workflows } = useWorkflows()
@@ -59,6 +64,7 @@ export function FAIReportEditor() {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [signatureAction, setSignatureAction] = useState<'submit' | 'approve' | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   if (isLoading) {
     return (
@@ -156,6 +162,54 @@ export function FAIReportEditor() {
     }
   }
 
+  const handleExportPdf = async () => {
+    setExporting(true)
+    try {
+      const blob = await faiApi.exportPdf(id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `FAI_${report.part_number}_Rev${report.revision ?? ''}_${id}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('PDF exported')
+    } catch {
+      toast.error('Failed to export PDF')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    setExporting(true)
+    try {
+      const blob = await faiApi.exportExcel(id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `FAI_${report.part_number}_Rev${report.revision ?? ''}_${id}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Excel exported')
+    } catch {
+      toast.error('Failed to export Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleCreateDelta = async () => {
+    try {
+      const delta = await createDelta.mutateAsync(id)
+      toast.success(`Delta FAI created (ID: ${delta.id})`)
+      navigate(`/fai/${delta.id}`)
+    } catch {
+      // Error handled by mutation hook
+    }
+  }
+
+  const isApproved = report.status === 'approved'
+
   if (showPrint) {
     return <FAIPrintView report={report} onClose={() => setShowPrint(false)} />
   }
@@ -195,12 +249,55 @@ export function FAIReportEditor() {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            PDF
+          </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting}
+            className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Excel
+          </button>
+          <button
             onClick={() => setShowPrint(true)}
             className="border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
           >
             <Printer className="h-4 w-4" />
             Print
           </button>
+
+          {isApproved && (
+            <button
+              onClick={handleCreateDelta}
+              disabled={createDelta.isPending}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'border-border hover:bg-muted border',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+            >
+              {createDelta.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              Delta FAI
+            </button>
+          )}
 
           {isDraft && (
             <>
@@ -263,6 +360,26 @@ export function FAIReportEditor() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/30 dark:bg-red-900/10">
           <p className="text-sm font-medium text-red-700 dark:text-red-400">Rejection Reason:</p>
           <p className="mt-1 text-sm text-red-600 dark:text-red-300">{report.rejection_reason}</p>
+        </div>
+      )}
+
+      {/* Delta FAI info banner */}
+      {report.parent_report_id && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900/30 dark:bg-blue-900/10">
+          <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+            Delta FAI Report
+          </p>
+          <p className="mt-1 text-sm text-blue-600 dark:text-blue-300">
+            This is a delta report based on{' '}
+            <button
+              onClick={() => navigate(`/fai/${report.parent_report_id}`)}
+              className="font-medium underline"
+            >
+              parent report #{report.parent_report_id}
+            </button>
+            . Items marked as &quot;carried forward&quot; retain their original
+            inspection values.
+          </p>
         </div>
       )}
 

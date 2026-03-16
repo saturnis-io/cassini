@@ -170,6 +170,7 @@ class FAIItemResponse(BaseModel):
     deviation_reason: str | None
     characteristic_id: int | None
     sequence_order: int
+    carried_forward: bool = False
 
 
 class FAIReportResponse(BaseModel):
@@ -200,6 +201,7 @@ class FAIReportResponse(BaseModel):
     approved_by: int | None
     approved_at: datetime | None
     rejection_reason: str | None
+    parent_report_id: int | None = None
 
 
 class FAIReportDetailResponse(FAIReportResponse):

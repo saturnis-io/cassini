@@ -148,6 +148,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "acknowledge"
     if "export" in path:
         return "export"
+    if "/delta" in path:
+        return "create_delta"
     if "connect" in path:
         return "connect"
     if "disconnect" in path:

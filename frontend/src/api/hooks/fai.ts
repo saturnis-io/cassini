@@ -241,3 +241,20 @@ export function useRejectFAIReport() {
     onError: handleMutationError('Failed to reject FAI report'),
   })
 }
+
+// -----------------------------------------------------------------------
+// Delta FAI hooks
+// -----------------------------------------------------------------------
+
+export function useCreateDeltaFAI() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (reportId: number) => faiApi.createDelta(reportId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.fai.all })
+      toast.success('Delta FAI report created')
+    },
+    onError: handleMutationError('Failed to create delta FAI report'),
+  })
+}

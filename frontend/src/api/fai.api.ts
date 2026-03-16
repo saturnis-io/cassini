@@ -11,7 +11,7 @@ import type {
   FAISpecialProcess,
   FAISpecialProcessCreate,
 } from './client'
-import { fetchApi } from './client'
+import { fetchApi, getAccessToken } from './client'
 
 // ---- FAI Form Data (AS9102 export) ----
 
@@ -151,4 +151,38 @@ export const faiApi = {
 
   getForms: (reportId: number) =>
     fetchApi<FAIFormData>(`/fai/reports/${reportId}/forms`),
+
+  // AS9102 Standard Export (raw fetch for binary downloads)
+  exportPdf: async (reportId: number): Promise<Blob> => {
+    const token = getAccessToken()
+    const response = await fetch(`/api/v1/fai/reports/${reportId}/export/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      throw new Error(`PDF export failed: ${response.status}`)
+    }
+    return response.blob()
+  },
+
+  exportExcel: async (reportId: number): Promise<Blob> => {
+    const token = getAccessToken()
+    const response = await fetch(
+      `/api/v1/fai/reports/${reportId}/export/excel`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      },
+    )
+    if (!response.ok) {
+      throw new Error(`Excel export failed: ${response.status}`)
+    }
+    return response.blob()
+  },
+
+  // Delta FAI
+  createDelta: (reportId: number) =>
+    fetchApi<FAIReportDetail>(`/fai/reports/${reportId}/delta`, {
+      method: 'POST',
+    }),
 }

@@ -351,6 +351,7 @@ export interface FAIReport {
   created_at: string
   submitted_at: string | null
   approved_at: string | null
+  parent_report_id: number | null
 }
 
 export interface FAIItem {
@@ -373,6 +374,7 @@ export interface FAIItem {
   deviation_reason: string | null
   characteristic_id: number | null
   sequence_order: number
+  carried_forward: boolean
 }
 
 export interface FAIMaterial {

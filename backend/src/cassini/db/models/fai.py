@@ -79,7 +79,15 @@ class FAIReport(Base):
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 
+    # Delta FAI: self-referential parent link
+    parent_report_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("fai_report.id", ondelete="SET NULL"), nullable=True
+    )
+
     # Relationships
+    parent_report: Mapped[Optional["FAIReport"]] = relationship(
+        "FAIReport", remote_side="FAIReport.id", foreign_keys=[parent_report_id],
+    )
     items: Mapped[list["FAIItem"]] = relationship(
         "FAIItem", back_populates="report", cascade="all, delete-orphan",
         order_by="FAIItem.sequence_order"
@@ -129,5 +137,10 @@ class FAIItem(Base):
         ForeignKey("characteristic.id", ondelete="SET NULL"), nullable=True
     )
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Delta FAI: marks items copied from the parent report
+    carried_forward: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa.text("0")
+    )
 
     report: Mapped["FAIReport"] = relationship("FAIReport", back_populates="items")
